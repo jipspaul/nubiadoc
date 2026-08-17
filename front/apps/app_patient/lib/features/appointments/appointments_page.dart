@@ -2621,6 +2621,13 @@ class _BookingPanelState extends State<_BookingPanel> {
   bool _createAccount = true;
   bool _remindersEnabled = true;
   bool _cguAccepted = false;
+  // #5659 : dépendants du patient connecté, pour le sélecteur « Pour qui est
+  // ce rendez-vous ? » — chargés une fois si une session existe (un visiteur
+  // anonyme n'a pas encore de dépendants, cf. `needsAccount`).
+  List<Dependent> _dependents = const [];
+  // `null` = réservation pour le compte connecté lui-même ; sinon `id` du
+  // dépendant sélectionné, envoyé tel quel comme `on_behalf_of`.
+  String? _selectedBeneficiaryId;
 
   static final _phoneRe = RegExp(r'^(\+33|0033|0)[1-9]\d{8}$');
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
@@ -2658,6 +2665,20 @@ class _BookingPanelState extends State<_BookingPanel> {
   void initState() {
     super.initState();
     _motif.text = widget.state.motif;
+    if (context.read<AuthCubit>().state is AuthAuthenticated) {
+      unawaited(_loadDependents());
+    }
+  }
+
+  Future<void> _loadDependents() async {
+    final gi = GetIt.instance;
+    if (!gi.isRegistered<ListDependentsUseCase>()) return;
+    final result = await gi<ListDependentsUseCase>().call();
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (dependents) => setState(() => _dependents = dependents),
+    );
   }
 
   @override
@@ -2761,6 +2782,36 @@ class _BookingPanelState extends State<_BookingPanel> {
                 controller: _email,
                 label: 'Email',
                 onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 20),
+            ],
+            // #5659 : sélecteur de bénéficiaire — un patient déjà connecté
+            // ayant des dépendants actifs peut réserver pour lui-même ou pour
+            // l'un d'eux (`on_behalf_of`, tutelle vérifiée côté API).
+            if (!needsAccount && _dependents.isNotEmpty) ...[
+              Text('Pour qui est ce rendez-vous ?', style: sectionTitle),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  NubiaChip(
+                    key: const Key('booking_beneficiary_self'),
+                    label: 'Moi',
+                    variant: NubiaChipVariant.choice,
+                    selected: _selectedBeneficiaryId == null,
+                    onTap: () => setState(() => _selectedBeneficiaryId = null),
+                  ),
+                  for (final dependent in _dependents)
+                    NubiaChip(
+                      key: Key('booking_beneficiary_${dependent.id}'),
+                      label: dependent.displayName,
+                      variant: NubiaChipVariant.choice,
+                      selected: _selectedBeneficiaryId == dependent.id,
+                      onTap: () => setState(
+                          () => _selectedBeneficiaryId = dependent.id),
+                    ),
+                ],
               ),
               const SizedBox(height: 20),
             ],
@@ -2886,6 +2937,7 @@ class _BookingPanelState extends State<_BookingPanel> {
                             createAccount: needsAccount && _createAccount,
                             remindersEnabled: _remindersEnabled,
                             cguAccepted: _cguAccepted,
+                            onBehalfOf: _selectedBeneficiaryId,
                           ),
                         ),
               ),

@@ -60,6 +60,7 @@ class AppointmentsBookingConfirmed extends AppointmentsEvent {
     this.createAccount = false,
     this.remindersEnabled = true,
     this.cguAccepted = false,
+    this.onBehalfOf,
   });
 
   final String firstName;
@@ -71,6 +72,9 @@ class AppointmentsBookingConfirmed extends AppointmentsEvent {
   final bool createAccount;
   final bool remindersEnabled;
   final bool cguAccepted;
+  // #5659 : `id` du dépendant pour lequel réserver (compte tuteur connecté),
+  // `null` pour réserver pour le compte connecté lui-même.
+  final String? onBehalfOf;
 
   @override
   List<Object?> get props => [
@@ -83,6 +87,7 @@ class AppointmentsBookingConfirmed extends AppointmentsEvent {
         createAccount,
         remindersEnabled,
         cguAccepted,
+        onBehalfOf,
       ];
 }
 

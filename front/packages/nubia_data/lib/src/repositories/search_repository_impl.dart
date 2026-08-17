@@ -120,6 +120,7 @@ class SearchRepositoryImpl implements SearchRepository {
     required String holdToken,
     required String motif,
     required String idempotencyKey,
+    String? onBehalfOf,
   }) async {
     try {
       final appointmentId = await _api.confirmBooking(
@@ -127,6 +128,7 @@ class SearchRepositoryImpl implements SearchRepository {
         holdToken: holdToken,
         motif: motif,
         idempotencyKey: idempotencyKey,
+        onBehalfOf: onBehalfOf,
       );
       return Right(appointmentId);
     } on DioException catch (e) {

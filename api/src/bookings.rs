@@ -23,6 +23,14 @@ pub struct CreateBookingBody {
     /// Motif de consultation saisi par le patient (facultatif). Stocké sur
     /// l'appointment pour informer le praticien du motif de la venue (#3415).
     pub motif: Option<String>,
+    /// `account_id` du dépendant pour une réservation « pour un tiers »
+    /// (#5659) — même sémantique/vérification de tutelle que `on_behalf_of`
+    /// sur `POST /v1/appointments` (`appointments_create.rs`) : ce handler
+    /// est celui réellement utilisé par le tunnel de réservation patient
+    /// (flux hold → confirm), qui n'exposait jusqu'ici aucun moyen de
+    /// réserver pour un dépendant malgré le support backend complet côté
+    /// `create_appointment`.
+    pub on_behalf_of: Option<Uuid>,
 }
 
 /// Réponse de `POST /v1/bookings`.
@@ -102,15 +110,42 @@ pub async fn create_booking(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Vérifie la tutelle si on réserve pour un proche (#5659, même contrôle
+    // que create_appointment/appointments_create.rs).
+    if let Some(dependent_id) = body.on_behalf_of {
+        sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+            .bind(claims.account_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let guardianship = sqlx::query(
+            "SELECT id FROM account_guardianship \
+             WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+        )
+        .bind(claims.account_id)
+        .bind(dependent_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if guardianship.is_none() {
+            return Err(AppError::GuardianshipRequired);
+        }
+    }
+
+    let effective_account_id = body.on_behalf_of.unwrap_or(claims.account_id);
+
     // Idempotence : si un appointment existe déjà pour cette clé, le retourner.
     // Une clé rejouée avec un slot_id/motif différent ne doit jamais renvoyer le
     // RDV d'une autre requête (#3632, jumeau de #3547) -> empreinte comparée,
     // divergence -> 409 au lieu d'absorber silencieusement la 2e réservation.
     if let Some(ref key) = idempotency_key {
         let fingerprint = format!(
-            "slot={}|motif={}",
+            "slot={}|motif={}|on_behalf_of={}",
             body.slot_id,
-            body.motif.as_deref().unwrap_or("")
+            body.motif.as_deref().unwrap_or(""),
+            body.on_behalf_of.map(|s| s.to_string()).unwrap_or_default(),
         );
 
         let existing = sqlx::query(
@@ -205,9 +240,11 @@ pub async fn create_booking(
 
     let hold_id: Uuid = hold_row.try_get("id").map_err(|_| AppError::Internal)?;
 
-    // Scope patient pour résoudre le dossier patient dans ce cabinet.
+    // Scope patient pour résoudre le dossier patient dans ce cabinet — celui
+    // du dépendant si `on_behalf_of` est fourni (#5659), sinon le compte
+    // connecté lui-même.
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
-        .bind(claims.account_id.to_string())
+        .bind(effective_account_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -217,7 +254,7 @@ pub async fn create_booking(
     // migration 0123. NULL uniquement si le compte n'existe pas → 404 légitime.
     let patient_id: Uuid =
         sqlx::query_scalar::<_, Option<Uuid>>("SELECT ensure_patient_for_cabinet($1, $2)")
-            .bind(claims.account_id)
+            .bind(effective_account_id)
             .bind(cabinet_id)
             .fetch_one(&mut *tx)
             .await
@@ -226,9 +263,10 @@ pub async fn create_booking(
 
     let fingerprint = idempotency_key.as_ref().map(|_| {
         format!(
-            "slot={}|motif={}",
+            "slot={}|motif={}|on_behalf_of={}",
             body.slot_id,
-            body.motif.as_deref().unwrap_or("")
+            body.motif.as_deref().unwrap_or(""),
+            body.on_behalf_of.map(|s| s.to_string()).unwrap_or_default(),
         )
     });
 
