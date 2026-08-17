@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use axum::body::Body;
-use axum::extract::{Extension, Path, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::Response;
 use axum::Json;
@@ -111,17 +111,63 @@ pub async fn list_implant_passport(
     Ok(Json(ImplantPassportResponse { data }))
 }
 
+/// Query params de `GET /v1/implant-passport/export`.
+#[derive(Deserialize)]
+pub struct ExportImplantPassportQuery {
+    /// Limite l'export à cet implant seul (#5334) — évite de transmettre
+    /// tout l'historique pour un partage ciblé. Absent → export du
+    /// passeport complet (comportement historique, #4142).
+    #[serde(default)]
+    pub implant_id: Option<Uuid>,
+}
+
 /// `GET /v1/implant-passport/export` — export PDF du passeport implantaire (version 🎭 mockée).
 ///
 /// Token `kind:"patient"` requis. Retourne `302 Found` avec `Location` vers l'URL signée.
 /// Échec du signer → `502 upstream_unavailable`. Aucun implant présent → ne bloque pas l'export.
+/// `?implant_id=` (#5334) scope l'export à un implant : l'implant doit
+/// appartenir au compte authentifié (RLS `implant_passport_patient_read`,
+/// migration 0077/0219) sinon `404`.
 pub async fn export_implant_passport(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     claims: PatientAccountClaims,
     Extension(signer): Extension<Arc<dyn StorageSigner>>,
+    Query(query): Query<ExportImplantPassportQuery>,
 ) -> Result<Response, AppError> {
-    // Version mockée : clé de stockage dérivée du compte patient.
-    let storage_key = format!("implant-passport/{}.pdf", claims.account_id);
+    // Version mockée : clé de stockage dérivée du compte patient (+ implant
+    // ciblé le cas échéant, #5334).
+    let storage_key = if let Some(implant_id) = query.implant_id {
+        let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+        // Scope patient — RLS implant_passport_patient_read (migration 0077/0219).
+        sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+            .bind(claims.account_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+            .bind(claims.account_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let exists =
+            sqlx::query("SELECT 1 FROM implant_passport WHERE id = $1 AND deleted_at IS NULL")
+                .bind(implant_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+
+        if exists.is_none() {
+            return Err(AppError::NotFound);
+        }
+
+        format!("implant-passport/{}/{}.pdf", claims.account_id, implant_id)
+    } else {
+        format!("implant-passport/{}.pdf", claims.account_id)
+    };
 
     // `signer.sign() == None` : le lien n'a jamais été généré (signer non
     // configuré), pas "expiré" — 502 upstream_unavailable, pas 410 link_expired
@@ -132,6 +178,7 @@ pub async fn export_implant_passport(
 
     tracing::info!(
         account_id = %claims.account_id,
+        implant_id = ?query.implant_id,
         "implant passport export redirected"
     );
 

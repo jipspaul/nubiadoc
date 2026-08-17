@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
+import 'implant_detail_page.dart';
 import 'implant_passport_cubit.dart';
 
 class ImplantPassportPage extends StatelessWidget {
@@ -87,6 +88,12 @@ class _ImplantPassportBody extends StatelessWidget {
                                 if (implant.lotNumber != null)
                                   'Lot ${implant.lotNumber}',
                               ].join(' · ')),
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ImplantDetailPage(implant: implant),
+                                ),
+                              ),
                             ),
                         ],
                       ),
