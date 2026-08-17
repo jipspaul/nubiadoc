@@ -6,6 +6,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'fdi_tooth_name.dart';
 import 'implant_detail_cubit.dart';
 
 /// Détail d'un implant du passeport implantaire (#5334) — export et partage
@@ -75,6 +76,8 @@ class _ImplantDetailBody extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _ImplantHero(implant: implant),
+              const SizedBox(height: 16),
               ListTile(
                 key: Key('implant_detail_${implant.id}'),
                 contentPadding: EdgeInsets.zero,
@@ -127,6 +130,95 @@ class _ImplantDetailBody extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Hero d'en-tête : vignette FDI, nom anatomique, fabricant·modèle et pill
+/// d'ancienneté (#5328). Chaque ligne ne s'affiche que si la donnée
+/// correspondante est renseignée.
+class _ImplantHero extends StatelessWidget {
+  const _ImplantHero({required this.implant});
+
+  final ImplantItem implant;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    final toothPosition = implant.toothPosition;
+    final anatomicalName = FdiToothName.of(toothPosition);
+    final placementDate = implant.placementDate;
+    final subtitle = [
+      if (implant.manufacturer != null) implant.manufacturer!,
+      if (implant.model != null) implant.model!,
+    ].join(' · ');
+
+    return Container(
+      key: const Key('implant_detail_hero'),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border.all(color: tokens.borderSubtle),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          if (toothPosition != null && anatomicalName != null) ...[
+            Container(
+              width: 72,
+              height: 72,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: NubiaColors.brand50,
+                border: Border.all(color: NubiaColors.brand100),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    toothPosition,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: NubiaColors.brand800,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    'FDI',
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: NubiaColors.brand700),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              anatomicalName,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall,
+            ),
+          ],
+          if (subtitle.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style:
+                  theme.textTheme.bodyMedium?.copyWith(color: NubiaColors.n600),
+            ),
+          ],
+          if (placementDate != null) ...[
+            const SizedBox(height: 12),
+            StatusPill(
+              variant: StatusPillVariant.success,
+              icon: Icons.check_circle,
+              label:
+                  'En place depuis ${NubiaDate.monthsSince(placementDate)} mois',
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
