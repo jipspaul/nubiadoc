@@ -2595,6 +2595,16 @@ class _BookingPanel extends StatefulWidget {
   State<_BookingPanel> createState() => _BookingPanelState();
 }
 
+/// #5335 : puces de motif tapables au-dessus du champ « Motif de
+/// consultation », dans l'ordre exact demandé par la maquette design-v2.
+const List<String> _motifSuggestions = [
+  'Contrôle',
+  'Douleur',
+  'Détartrage',
+  'Urgence',
+  'Suivi de traitement',
+];
+
 class _BookingPanelState extends State<_BookingPanel> {
   final _firstName = TextEditingController();
   final _lastName = TextEditingController();
@@ -2758,6 +2768,29 @@ class _BookingPanelState extends State<_BookingPanel> {
             const SizedBox(height: 20),
             Text('Motif de la consultation', style: sectionTitle),
             const SizedBox(height: 8),
+            // #5335 : taper une puce remplit le champ et rend le clavier
+            // optionnel — même événement `AppointmentsMotifChanged` que la
+            // saisie libre ci-dessous.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final suggestion in _motifSuggestions)
+                  NubiaChip(
+                    key: Key('booking_motif_chip_$suggestion'),
+                    label: suggestion,
+                    variant: NubiaChipVariant.choice,
+                    selected: state.motif.trim() == suggestion,
+                    onTap: () {
+                      context
+                          .read<AppointmentsBloc>()
+                          .add(AppointmentsMotifChanged(suggestion));
+                      setState(() => _motif.text = suggestion);
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
             NubiaTextField(
               key: const Key('booking_motif'),
               controller: _motif,

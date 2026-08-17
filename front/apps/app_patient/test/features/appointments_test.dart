@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -1285,6 +1287,165 @@ void main() {
       // s'interpose.
       expect(find.byKey(const Key('search_field')), findsOneWidget);
       expect(find.text('Pour qui est ce rendez-vous ?'), findsNothing);
+    });
+  });
+
+  group('puces de motif tapables (#5335)', () {
+    final provider = const ProviderResult(
+      id: 'p1',
+      displayName: 'Dr Martin',
+      specialty: 'Dentiste',
+    );
+    final slot = Slot(
+      id: 's1',
+      cabinetId: 'cab-1',
+      practitionerId: 'prac-1',
+      startsAt: DateTime(2026, 7, 10, 9, 0),
+      endsAt: DateTime(2026, 7, 10, 9, 30),
+      isAvailable: true,
+    );
+
+    testWidgets(
+        'affiche les 5 puces, dans l\'ordre exact de la maquette',
+        (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+      await _tapContinue(tester);
+
+      const expectedLabels = [
+        'Contrôle',
+        'Douleur',
+        'Détartrage',
+        'Urgence',
+        'Suivi de traitement',
+      ];
+      for (final label in expectedLabels) {
+        expect(
+          find.byKey(Key('booking_motif_chip_$label')),
+          findsOneWidget,
+        );
+      }
+      final actualOrder = tester
+          .widgetList<NubiaChip>(find.byType(NubiaChip))
+          .map((chip) => chip.label)
+          .toList();
+      expect(actualOrder, expectedLabels);
+    });
+
+    testWidgets(
+        'taper une puce émet AppointmentsMotifChanged et remplit le champ '
+        'motif', (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+      await _tapContinue(tester);
+
+      await tester.tap(find.byKey(const Key('booking_motif_chip_Contrôle')));
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const AppointmentsMotifChanged('Contrôle')))
+          .called(1);
+      final field = tester
+          .widget<NubiaTextField>(find.byKey(const Key('booking_motif')));
+      expect(field.controller?.text, 'Contrôle');
+    });
+
+    testWidgets(
+        'la puce dont le libellé == state.motif est affichée sélectionnée',
+        (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+          motif: 'Douleur',
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+      await _tapContinue(tester);
+
+      final selectedChip = tester.widget<NubiaChip>(
+          find.byKey(const Key('booking_motif_chip_Douleur')));
+      expect(selectedChip.selected, isTrue);
+
+      final unselectedChip = tester.widget<NubiaChip>(
+          find.byKey(const Key('booking_motif_chip_Contrôle')));
+      expect(unselectedChip.selected, isFalse);
+    });
+
+    testWidgets(
+        'le CTA « Confirmer le rendez-vous » devient actif dès qu\'une puce '
+        'est tapée', (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      final stateWithoutMotif = AppointmentsSlotsLoaded(
+        provider: provider,
+        slots: [slot],
+        selectedSlot: slot,
+        holdToken: 'hold-1',
+      );
+      final stateWithMotif = AppointmentsSlotsLoaded(
+        provider: provider,
+        slots: [slot],
+        selectedSlot: slot,
+        holdToken: 'hold-1',
+        motif: 'Contrôle',
+      );
+      // Le bloc étant mocké, on pilote nous-mêmes le moment de la réémission
+      // que ferait en réalité `_onMotifChanged` (appointments_bloc.dart:222)
+      // après le `AppointmentsMotifChanged` dispatché par le tap (vérifié
+      // ci-dessous) — un `Stream.fromIterable` livrerait ce nouvel état
+      // avant même la vérification de l'état "avant tap".
+      final stateController = StreamController<AppointmentsState>();
+      addTearDown(stateController.close);
+      whenListen(
+        bloc,
+        stateController.stream,
+        initialState: stateWithoutMotif,
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+      await _tapContinue(tester);
+
+      final buttonBefore = tester
+          .widget<NubiaButton>(find.byKey(const Key('confirm_booking_button')));
+      expect(buttonBefore.onPressed, isNull);
+
+      await tester.tap(find.byKey(const Key('booking_motif_chip_Contrôle')));
+      await tester.pump();
+
+      verify(() => bloc.add(const AppointmentsMotifChanged('Contrôle')))
+          .called(1);
+
+      stateController.add(stateWithMotif);
+      await tester.pumpAndSettle();
+
+      final buttonAfter = tester
+          .widget<NubiaButton>(find.byKey(const Key('confirm_booking_button')));
+      expect(buttonAfter.onPressed, isNotNull);
     });
   });
 
