@@ -22,7 +22,7 @@ class PrescriptionItemDto {
         form: json['form'] as String?,
         posology: json['posology'] as String,
         duration: json['duration'] as String,
-        quantity: json['quantity'] as String,
+        quantity: json['quantity'] as String? ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -105,10 +105,8 @@ class PrescriptionTemplateDto {
 
   /// Contrat réel (`prescription_templates.rs`) : `items` est un tableau
   /// jsonb libre côté back (`{label, form, posology, duration, quantity}`),
-  /// `quantity` peut être `null` (contrairement à
-  /// `PrescriptionItemDto.fromJson` qui suppose `quantity` toujours présent
-  /// sur une ordonnance déjà créée) — repli sur chaîne vide plutôt qu'un
-  /// cast qui planterait sur un modèle sans quantité renseignée.
+  /// `quantity` peut être `null` — repli sur chaîne vide plutôt qu'un cast
+  /// qui planterait sur un modèle sans quantité renseignée.
   factory PrescriptionTemplateDto.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'] as List<dynamic>? ?? [];
     return PrescriptionTemplateDto(
