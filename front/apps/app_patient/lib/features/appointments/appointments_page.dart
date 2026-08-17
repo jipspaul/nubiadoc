@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:get_it/get_it.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -1829,47 +1830,94 @@ class _HoursCard extends StatelessWidget {
   }
 }
 
-/// Liste des créneaux groupés par jour, chaque jour = titre + [SlotChip].
-class _SlotsByDay extends StatelessWidget {
+/// Regroupement par jour en préservant l'ordre chronologique d'origine.
+///
+/// #5366 : startsAt est UTC (isUtc == true) — grouper sur les composants
+/// bruts classait un créneau proche de minuit UTC sur le mauvais jour local
+/// (ex : 23h30 UTC = 01h30 Paris le lendemain). Partagé entre la liste par
+/// jour et le rail de jours (#5339) pour garantir le même découpage.
+Map<DateTime, List<Slot>> _groupSlotsByLocalDay(List<Slot> slots) {
+  final groups = <DateTime, List<Slot>>{};
+  for (final slot in slots) {
+    final localStartsAt = slot.startsAt.toLocal();
+    final key = DateTime(
+      localStartsAt.year,
+      localStartsAt.month,
+      localStartsAt.day,
+    );
+    groups.putIfAbsent(key, () => []).add(slot);
+  }
+  return groups;
+}
+
+/// Rail de jours + liste des créneaux groupés par jour, chaque jour = titre
+/// + [SlotChip] (maquette design-v2 patient-re-servation, point 4, #5339) :
+/// le rail donne « la carte du territoire d'un coup d'œil » (nb de créneaux
+/// par jour, jours pleins grisés) et permet de sauter directement à un jour
+/// avant de scroller la liste en dessous.
+class _SlotsByDay extends StatefulWidget {
   const _SlotsByDay({required this.state});
   final AppointmentsSlotsLoaded state;
 
   @override
-  Widget build(BuildContext context) {
-    // Regroupement par jour en préservant l'ordre chronologique d'origine.
-    final groups = <DateTime, List<Slot>>{};
-    for (final slot in state.slots) {
-      // #5366 : startsAt est UTC (isUtc == true) — grouper sur les
-      // composants bruts classait un créneau proche de minuit UTC sur le
-      // mauvais jour local (ex : 23h30 UTC = 01h30 Paris le lendemain).
-      final localStartsAt = slot.startsAt.toLocal();
-      final key = DateTime(
-        localStartsAt.year,
-        localStartsAt.month,
-        localStartsAt.day,
-      );
-      groups.putIfAbsent(key, () => []).add(slot);
-    }
+  State<_SlotsByDay> createState() => _SlotsByDayState();
+}
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+class _SlotsByDayState extends State<_SlotsByDay> {
+  DateTime? _selectedDay;
+  final _dayHeaderKeys = <DateTime, GlobalKey>{};
+
+  void _onDayTap(DateTime day) {
+    setState(() => _selectedDay = day);
+    final keyContext = _dayHeaderKeys[day]?.currentContext;
+    if (keyContext != null) {
+      Scrollable.ensureVisible(
+        keyContext,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = _groupSlotsByLocalDay(widget.state.slots);
+    _dayHeaderKeys.removeWhere((day, _) => !groups.containsKey(day));
+    for (final day in groups.keys) {
+      _dayHeaderKeys.putIfAbsent(day, () => GlobalKey());
+    }
+    final activeDay =
+        _selectedDay != null && groups.containsKey(_selectedDay)
+            ? _selectedDay!
+            : groups.keys.first;
+
+    return Column(
       children: [
-        for (final entry in groups.entries) ...[
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Text(
-              _dayHeader(entry.key),
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
+        _DayRail(groups: groups, activeDay: activeDay, onDayTap: _onDayTap),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            children: [
+              for (final entry in groups.entries) ...[
+                Padding(
+                  key: _dayHeaderKeys[entry.key],
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    _dayHeader(entry.key),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                // Sous-groupes matin / après-midi (affichés seulement si non
+                // vides) pour scanner encore plus vite, façon Doctolib.
+                ..._buildPeriods(context, entry.value),
+                const SizedBox(height: 12),
+              ],
+            ],
           ),
-          // Sous-groupes matin / après-midi (affichés seulement si non vides)
-          // pour scanner encore plus vite, façon Doctolib.
-          ..._buildPeriods(context, entry.value),
-          const SizedBox(height: 12),
-        ],
+        ),
       ],
     );
   }
@@ -1927,7 +1975,7 @@ class _SlotsByDay extends StatelessWidget {
           label: slot.isAvailable ? _hhmm(slot.startsAt) : '—',
           state: !slot.isAvailable
               ? SlotChipState.unavailable
-              : state.selectedSlot?.id == slot.id
+              : widget.state.selectedSlot?.id == slot.id
                   ? SlotChipState.selected
                   : SlotChipState.available,
           onTap: slot.isAvailable
@@ -1937,6 +1985,123 @@ class _SlotsByDay extends StatelessWidget {
               : null,
         );
       },
+    );
+  }
+}
+
+/// Bandeau `.days` de la maquette : un jour par cellule, espacées de 8px,
+/// chacune `flex:1`. Fond `n0`, bordure basse `n200`.
+class _DayRail extends StatelessWidget {
+  const _DayRail({
+    required this.groups,
+    required this.activeDay,
+    required this.onDayTap,
+  });
+
+  final Map<DateTime, List<Slot>> groups;
+  final DateTime activeDay;
+  final void Function(DateTime day) onDayTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = groups.keys.toList();
+    return Container(
+      key: const Key('day_rail'),
+      padding: const EdgeInsets.fromLTRB(16, 11, 16, 12),
+      decoration: const BoxDecoration(
+        color: NubiaColors.n0,
+        border: Border(bottom: BorderSide(color: NubiaColors.n200)),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < days.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Expanded(
+              child: _DayCell(
+                day: days[i],
+                availableCount:
+                    groups[days[i]]!.where((s) => s.isAvailable).length,
+                isActive: days[i] == activeDay,
+                onTap: onDayTap,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Cellule `.dy` du rail : abrégé jour + quantième (Fraunces) + compteur de
+/// dispo. `.dy.on` = fond `brand700`/texte blanc ; `.dy.off` (0 dispo) =
+/// quantième `n300`, compteur « — » non gras, non sélectionnable.
+class _DayCell extends StatelessWidget {
+  const _DayCell({
+    required this.day,
+    required this.availableCount,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final DateTime day;
+  final int availableCount;
+  final bool isActive;
+  final void Function(DateTime day) onTap;
+
+  bool get _isOff => availableCount == 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final on = isActive && !_isOff;
+    return GestureDetector(
+      onTap: _isOff ? null : () => onTap(day),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: on ? NubiaColors.brand700 : NubiaColors.n0,
+          border: Border.all(color: NubiaColors.n200),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _weekdays[day.weekday - 1].replaceAll('.', '').toUpperCase(),
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: on ? NubiaColors.n0 : NubiaColors.n400,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${day.day}',
+              style: GoogleFonts.fraunces(
+                fontSize: 19,
+                fontWeight: FontWeight.w600,
+                color: on
+                    ? NubiaColors.n0
+                    : _isOff
+                        ? NubiaColors.n300
+                        : NubiaColors.n900,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              _isOff ? '—' : '$availableCount dispo',
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: _isOff ? FontWeight.w400 : FontWeight.w600,
+                color: on
+                    ? NubiaColors.n0.withValues(alpha: 0.8)
+                    : _isOff
+                        ? NubiaColors.n400
+                        : NubiaColors.brand700,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
