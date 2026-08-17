@@ -110,7 +110,7 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
       );
     }
     if (state is AppointmentsSlotsLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return _SlotsLoadingView(provider: state.provider);
     }
     if (state is AppointmentsSlotsLoaded) {
       return _SlotsView(state: state);
@@ -1108,6 +1108,65 @@ class _SlotsView extends StatelessWidget {
   }
 }
 
+/// En-tête praticien (retour + avatar + identité) partagé entre l'agenda
+/// chargé ([_SlotsMobileView]) et son squelette de chargement
+/// ([_SlotsLoadingView]) : #5342, ne dépend que de [ProviderResult], monté
+/// immédiatement même avant que les créneaux n'arrivent.
+class _ProviderHeaderRow extends StatelessWidget {
+  const _ProviderHeaderRow({required this.provider});
+  final ProviderResult provider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 16, 8),
+      child: Row(
+        children: [
+          IconButton(
+            key: const Key('slots_back'),
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Retour',
+            onPressed: () => context
+                .read<AppointmentsBloc>()
+                .add(const AppointmentsBackToSearch()),
+          ),
+          NubiaAvatar(
+            initials: _initialsOf(provider.displayName),
+            radius: 28,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  provider.displayName,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                // #3825 : pas de ligne (ni espace résiduel) quand la
+                // spécialité est vide.
+                if (provider.specialty.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    provider.specialty,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Liste mobile historique : en-tête praticien + créneaux groupés par jour
 /// (ou formulaire de confirmation une fois un créneau sélectionné).
 class _SlotsMobileView extends StatelessWidget {
@@ -1120,55 +1179,7 @@ class _SlotsMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // En-tête praticien : retour + avatar + identité.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 8, 16, 8),
-          child: Row(
-            children: [
-              IconButton(
-                key: const Key('slots_back'),
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Retour',
-                onPressed: () => context
-                    .read<AppointmentsBloc>()
-                    .add(const AppointmentsBackToSearch()),
-              ),
-              NubiaAvatar(
-                initials: _initialsOf(state.provider.displayName),
-                radius: 28,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      state.provider.displayName,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    // #3825 : pas de ligne (ni espace résiduel) quand la
-                    // spécialité est vide.
-                    if (state.provider.specialty.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        state.provider.specialty,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        _ProviderHeaderRow(provider: state.provider),
         Divider(height: 1, color: borderColor),
         // #5362 : une fois un créneau choisi, le formulaire de confirmation
         // (« Vos informations ») remplace la grille — pas un panneau
@@ -1186,6 +1197,61 @@ class _SlotsMobileView extends StatelessWidget {
                     )
                   : _SlotsByDay(state: state),
         ),
+      ],
+    );
+  }
+}
+
+/// #5342 : squelette de `AppointmentsSlotsLoading` — l'en-tête praticien
+/// reste monté immédiatement (déjà porté par l'état), seule la zone
+/// créneaux affiche un placeholder animé, façon DS. Remplace l'ancien
+/// `CircularProgressIndicator` centré (écran blanc au moment le plus
+/// anxiogène de la maquette).
+class _SlotsLoadingView extends StatelessWidget {
+  const _SlotsLoadingView({required this.provider});
+  final ProviderResult provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>();
+    final borderColor = tokens?.borderSubtle ?? Theme.of(context).dividerColor;
+    return Column(
+      key: const Key('slots_loading_skeleton'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ProviderHeaderRow(provider: provider),
+        Divider(height: 1, color: borderColor),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            children: [
+              const NubiaSkeletonLoader(width: 120, height: 18),
+              const SizedBox(height: 12),
+              _skeletonSlotWrap(),
+              const SizedBox(height: 24),
+              const NubiaSkeletonLoader(width: 120, height: 18),
+              const SizedBox(height: 12),
+              _skeletonSlotWrap(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Grille de puces créneaux en squelette, mêmes dimensions qu'un
+  /// [SlotChip] (36 px de haut, 56 px de large min.) pour que l'écran ne
+  /// « saute » pas visuellement une fois les vrais créneaux chargés.
+  Widget _skeletonSlotWrap() {
+    return const Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        NubiaSkeletonLoader(width: 56, height: 36, borderRadius: 8),
+        NubiaSkeletonLoader(width: 56, height: 36, borderRadius: 8),
+        NubiaSkeletonLoader(width: 56, height: 36, borderRadius: 8),
+        NubiaSkeletonLoader(width: 56, height: 36, borderRadius: 8),
+        NubiaSkeletonLoader(width: 56, height: 36, borderRadius: 8),
       ],
     );
   }
