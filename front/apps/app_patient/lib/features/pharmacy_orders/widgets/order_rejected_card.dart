@@ -12,8 +12,8 @@ class OrderRejectedCard extends StatelessWidget {
 
   final PharmacyOrder order;
 
-  /// Numéro de la pharmacie déclarée du patient — `null` tant qu'il n'est
-  /// pas chargé, le bouton « Appeler » est alors désactivé.
+  /// Numéro de la pharmacie DE LA COMMANDE (#5645) — `null` tant qu'il n'est
+  /// pas résolu, le bouton « Appeler » est alors désactivé.
   final String? pharmacyPhone;
 
   @override
