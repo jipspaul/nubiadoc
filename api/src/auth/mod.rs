@@ -1634,6 +1634,7 @@ pub(crate) struct NurseContextClaims {
 /// token est valide mais pas un token infirmier).
 #[derive(Debug, Deserialize)]
 pub(crate) struct NurseMemberClaims {
+    #[allow(dead_code)] // présent dans le JWT ; les handlers scopent via nurse_id
     pub(crate) sub: Uuid,
     pub(crate) nurse_id: Uuid,
     #[allow(dead_code)] // consommé par les endpoints réservés au rôle admin

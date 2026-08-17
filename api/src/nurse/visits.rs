@@ -15,7 +15,6 @@ use axum::{
     extract::{Extension, Path, State},
     Json,
 };
-use sqlx::Row;
 use uuid::Uuid;
 
 use crate::auth::{AppError, NurseMemberClaims};
@@ -230,6 +229,7 @@ fn publish_visit(hub: &Arc<WsHub>, nurse_id: Uuid, visit_id: Uuid, visit: &Visit
 /// Transition gardée d'une visite par l'infirmière assignée. Pose le GUC,
 /// applique l'UPDATE borné au statut attendu, distingue 404/409, notifie le
 /// patient + WS. Clone allégé de `pharmacy_transition` (sans audit cabinet).
+#[allow(clippy::too_many_arguments)]
 async fn nurse_transition(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<WsHub>>,
