@@ -61,6 +61,9 @@ pub async fn create_unavailability(
     if ends_at <= starts_at {
         return Err(AppError::ValidationError);
     }
+    if let Some(reason) = &body.reason {
+        crate::text_validation::reject_nul_byte(reason)?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
