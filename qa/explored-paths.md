@@ -517,3 +517,45 @@ Registre régénéré, commit à suivre.
 **Non re-testé en profondeur ce run (deploy-lag rend la vérification de tout fix récent non concluante)** : PRIO1 file d'attente (pas de créneau same-day libre trouvé rapidement dans le seed — création de nouveaux créneaux cabinet a buté sur des conflits d'exclusion praticien ; flux déjà CLEAN re-confirmé le 08-09), PRIO2 ordonnance (déjà CLEAN re-confirmé le 08-09, pas re-rejoué ce run faute de temps face à la découverte du P0 deploy-lag qui a consommé le budget d'investigation).
 
 **Recommandation pour la prochaine ronde** : tant que #4854 n'est pas résolu, TOUT nouveau fix mergé depuis le 08-07T10:27Z doit être considéré NON-LIVE par défaut — vérifier `GET /repos/jips/nubiadoc/actions/tasks?limit=5` (filtré `deploy.yml`) EN PREMIER avant de conclure qu'un correctif est absent par régression plutôt que par deploy-lag.
+
+## Sweep 2026-08-17 (~00h00-00h15 UTC) — orchestrateur SOLO (Opus) LIVE curl + Playwright réel (chromium headless, node, 390x844 fr-FR, 4 apps) + lecture-code ciblée sur modules jamais/rarement couverts (`ccam_stock_mappings`, `cabinet_cash_collection`, `patient_merge`) + re-vérification de fixes récents (2026-08-15/16).
+
+**Infra deploy.yml SAIN** ce run (contrairement au 2026-08-10, #4854) : derniers ~300 runs majoritairement `success`, dernier déploiement réussi juste avant le run (`daeefe7b`, quelques minutes avant démarrage) — aucun deploy-lag suspecté, tous les fixes récents testés confirmés déployés live.
+
+**0 NOUVEAU finding ce run** — toutes les surfaces testées sont CLEAN ou déjà trackées (dup évités).
+
+**Surfaces JAMAIS testées auparavant, prouvées CLEAN pour la 1ère fois** :
+- `GET/POST/DELETE /cabinet/ccam-stock-mappings` (#4798) : CRUD complet — create valide→201, doublon triplet→409 `stock_mapping_already_exists`, quantity≤0→422, ccam_code inexistant→422, stock_item_id inconnu (mais ccam_code valide)→404 (garde bien ordonnée : validation avant existence), RBAC patient→403 sur list/delete, delete par secretary OK (ProSecretaryPlus scope), delete id inconnu→404.
+- **`apply_stock_consumption` (#4145/#4438) E2E complet PROUVÉ pour la 1ère fois** : mapping HBJD002→2×QA-Gloves, restock à 10 (`reason:"reception"`), ajout d'un acte CCAM mappé sur une consultation réelle (create slot→appt→confirm→start→add act HBJD002) → stock décrémenté automatiquement 10→8 (mouvement `consumption` delta=-2 lié à `consultation_act_id`), confirmé par re-GET stock-items + historique mouvements. Garde stock insuffisant (#4438) re-testée à la limite exacte : stock=1, mapping exige 2 → acte refusé `422 insufficient_stock`, ACTE NON PERSISTÉ (rollback transactionnel vérifié : la liste des actes de la consultation ne contient pas le second acte), stock inchangé à 1 — transaction atomique confirmée propre.
+- `GET /cabinet/cash-collection/today` (#5591) : collected/remaining/unpaid cohérents, RBAC secretary+practitioner→200, patient→403.
+- `POST /cabinet/patients/:id/merge` (#4102) — **HAPPY PATH testé pour la 1ère fois** (créds admin retrouvées `admin@cabinet-lyon.test`) : merge de deux patients QA réels → 200, source soft-supprimé (404 ensuite), target accessible, ré-merge du même pair→404 (source déjà supprimé), audit_log `merge_patient` bien tracé (actor=admin). Gardes déjà connues re-confirmées : source==target→422, source inconnu→404, practitioner/secretary→403.
+- `GET /cabinet/quotes/export.csv` (#4154) — admin-only re-confirmé (practitioner/secretary/patient→403 tous), export CSV valide (colonnes id/patient_id/patient_name/status/total_amount_cents/created_at, échappement RFC4180 non déclenché ici), `?status=bogus`→400 `invalid_status_filter`, `?date_from=invalide`→422, filtre status+date_range combiné correct.
+- `GET /cabinet/reviews?status=pending` (#4617, fixé le 08-09, re-confirmé CLEAN live) : 31 avis pending listés (avant seulement listing manquant), `PATCH .../:id {status:"published"}` fonctionne → cycle modération complet désormais opérationnel de bout en bout.
+
+**Fixes récents (2026-08-15/16) RE-VÉRIFIÉS DÉPLOYÉS ET CORRECTS LIVE** :
+- **#5563** (beneficiary field manquant sur RDV dépendant) : RDV créé `on_behalf_of` Jade (dépendante) → `GET /appointments/:id` ET `GET /appointments?filter=upcoming` exposent tous deux `beneficiary:{account_id, is_self:false, first_name:"Jade", last_name:"Dubois"}` ; RDV self → `is_self:true, first_name:null, last_name:null` (noms masqués car redondants). Confirmé cohérent detail+liste.
+- **#5511** (garde `provider_unavailability` manquante sur `create_cabinet_slot`) : déclaration d'indisponibilité practitioner c1 sur une fenêtre future → tentative de `POST /cabinet/slots` à l'intérieur de cette fenêtre → `409 slot_taken` (guard bien appliquée, empêche de publier un créneau "open" en pleine période bloquée).
+- **#5482** (`PATCH /cabinet/appointments/:id` reprogrammation ignorait `provider_unavailability`) : slot créé AVANT la déclaration d'indispo (donc existant), indispo déclarée après pour englober ce slot, PATCH reprogrammation RDV vers ce starts_at → `409 slot_taken` (garde bien appliquée sur le chemin cabinet, miroir du fix patient #4659).
+- **#5487** (stats facturation `outstanding_cents` ignorait le tiers-payant) : formule `patient_share` (net AMO/AMC) confirmée cohérente avec `cash-collection/today` qui réutilise la même requête — pas de régression croisée.
+- **#4656** (série RDV ignore `provider_unavailability`) : re-lu en code, garde bien présente dans `appointment_series.rs:171-174` — fermé, cohérent.
+
+**Non re-filé (déjà trackés, vérifiés toujours ouverts, pas de dup)** : #4729 (payment-schedule non idempotent, toujours open) ; #4645 (compte-rendu clinique post-RDV — écriture praticien jamais implémentée, table `consultation_clinique` seule la lecture patient existe #4646 fermé ; confirmé en re-lisant le code — AUCUNE route POST/PUT dans `api/src/routes/*.rs`, seed sans donnée `finalized`, 5 RDV `done` du patient testés → 404 sur tous, cohérent avec l'absence de write-path ; déjà tracké #4645 open, non re-filé).
+
+**PRIO1 file d'attente E2E rejouée fraîche (slot 50min→confirm→checkin patient→3 vues cohérentes pos1→call-next `Marc Dubois`→start→complete→sort de file, waiting-room vidée) : CLEAN, aucun cul-de-sac.**
+
+**PRIO2 ordonnance patient-initiée E2E rejouée fraîche (create praticien avec item vide→422→create valide→RE-GET persistance confirmée→invisible patient tant que draft→sign→visible patient signed→order pharmacie f1 PII-min "Marc D."→double-order→409 already_ordered→pharma accept→ready→pickup-token→pickup-scan→picked_up, patient voit chaque état) : CLEAN, cloisonnement pharmacie cross-tenant re-confirmé (pharma pro token select-context sur pharmacie non-affiliée f2→403 no_membership, patient/prat tokens sur /pharmacy/*→403).**
+
+**UI Playwright réel (chromium headless, node, 390x844 fr-FR, 4 apps)** : login patient/praticien/secrétariat/pharmacie — `window._flutter`/`flutter-view` détecté sur les 4, 0 console.error, 0 req≥400 sur l'écran de login. Screenshots sauvegardées dans `qa/screenshots/<rôle>/login.png`.
+| ccam-stock-mappings-crud | 2026-08-17T00:15:00.000Z | OK | CRUD complet + apply_stock_consumption E2E (décrémentation auto + garde insuffisant + rollback transactionnel) : CLEAN, 1ère couverture complète |
+| cash-collection-today | 2026-08-17T00:15:00.000Z | OK | RBAC secretary/practitioner 200, patient 403, formule cohérente avec stats/billing : CLEAN |
+| patient-merge-happy-path | 2026-08-17T00:15:00.000Z | OK | 1ère fois testé happy path (admin creds retrouvées) : merge réel, source soft-deleted, audit_log tracé : CLEAN |
+| cabinet-quotes-export-csv | 2026-08-17T00:15:00.000Z | OK | admin-only, filtres status/date_range, CSV bien formé : CLEAN |
+| reviews-moderation-listing | 2026-08-17T00:15:00.000Z | OK | #4617 fix re-confirmé live, listing+moderate cycle complet fonctionnel |
+| appointment-beneficiary-field | 2026-08-17T00:15:00.000Z | OK | #5563 fix re-confirmé live, detail+liste cohérents (dépendant vs self) |
+| unavailability-guards-create-reschedule | 2026-08-17T00:15:00.000Z | OK | #5511 (create_cabinet_slot) + #5482 (patch reschedule) re-confirmés live, 409 slot_taken correct |
+| waiting-room-fifo-e2e | 2026-08-17T00:15:00.000Z | OK | Rejoué fraîchement, 3 vues cohérentes, sortie propre : CLEAN |
+| prescription-pharmacie-e2e | 2026-08-17T00:15:00.000Z | OK | Rejoué fraîchement patient-initié, cloisonnement pharmacie re-confirmé : CLEAN |
+| ui-smoke-patient | 2026-08-17T00:15:00.000Z | OK | flutter détecté, 0 console.error, 0 req≥400 |
+| ui-smoke-praticien | 2026-08-17T00:15:00.000Z | OK | flutter détecté, 0 console.error, 0 req≥400 |
+| ui-smoke-secretariat | 2026-08-17T00:15:00.000Z | OK | flutter détecté, 0 console.error, 0 req≥400 |
+| ui-smoke-pharmacie | 2026-08-17T00:15:00.000Z | OK | flutter détecté, 0 console.error, 0 req≥400 |
