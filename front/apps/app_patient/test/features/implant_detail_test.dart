@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -59,6 +60,15 @@ const _implantWithPlacementDateOnly = ImplantItem(
   id: 'implant-6',
   brand: 'Nobel Biocare',
   placementDate: '2026-03-12',
+);
+
+const _implantWithHero = ImplantItem(
+  id: 'implant-7',
+  brand: 'Nobel Biocare',
+  toothPosition: '36',
+  placementDate: '2025-01-15',
+  manufacturer: 'Nobel Biocare',
+  model: 'Replace Select',
 );
 
 void main() {
@@ -177,6 +187,47 @@ void main() {
       expect(find.text('Praticien'), findsNothing);
       expect(find.text('Cabinet'), findsNothing);
       expect(find.text('Prothèse'), findsNothing);
+    });
+
+    testWidgets(
+        'affiche le hero avec la vignette FDI, le nom anatomique et '
+        'fabricant · modèle', (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithHero));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('implant_detail_hero')), findsOneWidget);
+      expect(find.text('36'), findsOneWidget);
+      expect(find.text('FDI'), findsOneWidget);
+      expect(find.text('Molaire inférieure gauche'), findsOneWidget);
+      expect(find.text('Nobel Biocare · Replace Select'), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche la pill « En place depuis N mois » cohérente avec '
+        'placementDate', (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithHero));
+      await tester.pumpAndSettle();
+
+      final expectedMonths =
+          NubiaDate.monthsSince(_implantWithHero.placementDate!);
+      expect(find.text('En place depuis $expectedMonths mois'), findsOneWidget);
+    });
+
+    testWidgets("n'affiche pas la pill d'ancienneté si placementDate est nul",
+        (tester) async {
+      await tester.pumpWidget(buildPage(_implantNoPose));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.check_circle), findsNothing);
+      expect(find.textContaining('En place depuis'), findsNothing);
+    });
+
+    testWidgets("n'affiche pas la vignette FDI si toothPosition est nul",
+        (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithFollowUp));
+      await tester.pumpAndSettle();
+
+      expect(find.text('FDI'), findsNothing);
     });
   });
 
