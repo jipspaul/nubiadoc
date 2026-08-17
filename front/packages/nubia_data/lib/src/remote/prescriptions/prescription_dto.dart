@@ -22,24 +22,24 @@ class PrescriptionItemDto {
         form: json['form'] as String?,
         posology: json['posology'] as String,
         duration: json['duration'] as String,
-        quantity: json['quantity'] as String,
+        quantity: json['quantity'] as String? ?? '',
       );
 
   Map<String, dynamic> toJson() => {
-        'label': label,
-        if (form != null) 'form': form,
-        'posology': posology,
-        'duration': duration,
-        'quantity': quantity,
-      };
+    'label': label,
+    if (form != null) 'form': form,
+    'posology': posology,
+    'duration': duration,
+    'quantity': quantity,
+  };
 
   PrescriptionItem toDomain() => PrescriptionItem(
-        label: label,
-        form: form,
-        posology: posology,
-        duration: duration,
-        quantity: quantity,
-      );
+    label: label,
+    form: form,
+    posology: posology,
+    duration: duration,
+    quantity: quantity,
+  );
 
   static PrescriptionItemDto fromDomain(PrescriptionItem item) =>
       PrescriptionItemDto(
@@ -78,16 +78,16 @@ class PrescriptionDto {
       );
 
   Prescription toDomain() => Prescription(
-        id: id,
-        patientId: patientId,
-        items: items.map((i) => i.toDomain()).toList(),
-        status: switch (status) {
-          'signed' => PrescriptionStatus.signed,
-          'sent' => PrescriptionStatus.sent,
-          _ => PrescriptionStatus.draft,
-        },
-        createdAt: DateTime.parse(createdAt),
-      );
+    id: id,
+    patientId: patientId,
+    items: items.map((i) => i.toDomain()).toList(),
+    status: switch (status) {
+      'signed' => PrescriptionStatus.signed,
+      'sent' => PrescriptionStatus.sent,
+      _ => PrescriptionStatus.draft,
+    },
+    createdAt: DateTime.parse(createdAt),
+  );
 }
 
 class PrescriptionTemplateDto {
@@ -105,10 +105,8 @@ class PrescriptionTemplateDto {
 
   /// Contrat réel (`prescription_templates.rs`) : `items` est un tableau
   /// jsonb libre côté back (`{label, form, posology, duration, quantity}`),
-  /// `quantity` peut être `null` (contrairement à
-  /// `PrescriptionItemDto.fromJson` qui suppose `quantity` toujours présent
-  /// sur une ordonnance déjà créée) — repli sur chaîne vide plutôt qu'un
-  /// cast qui planterait sur un modèle sans quantité renseignée.
+  /// `quantity` peut être `null` — repli sur chaîne vide plutôt qu'un cast
+  /// qui planterait sur un modèle sans quantité renseignée.
   factory PrescriptionTemplateDto.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'] as List<dynamic>? ?? [];
     return PrescriptionTemplateDto(
@@ -129,9 +127,9 @@ class PrescriptionTemplateDto {
   }
 
   PrescriptionTemplate toDomain() => PrescriptionTemplate(
-        id: id,
-        label: label,
-        items: items,
-        isGlobal: isGlobal,
-      );
+    id: id,
+    label: label,
+    items: items,
+    isGlobal: isGlobal,
+  );
 }
