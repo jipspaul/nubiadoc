@@ -31,11 +31,26 @@ class AppointmentsPage extends StatefulWidget {
 }
 
 class _AppointmentsPageState extends State<AppointmentsPage> {
+  // #5337 : `_BookingPanel` est présenté en `NubiaBottomSheet` modal (au lieu
+  // de remplacer la grille de créneaux inline) — la grille reste montée et
+  // stable derrière. Ces deux champs suivent la feuille ouverte pour ne pas
+  // la rouvrir en double et pour la refermer proactivement si l'écran
+  // créneaux disparaît pendant qu'elle est affichée (ex. changement d'onglet
+  // du shell, qui démonte AppointmentsPage sans repasser par un pop).
+  bool _sheetOpen = false;
+  NavigatorState? _sheetNavigator;
+
   @override
   void initState() {
     super.initState();
     // Annuaire par défaut au chargement : l'écran n'est jamais vide.
     context.read<AppointmentsBloc>().add(const AppointmentsSearchChanged(''));
+  }
+
+  @override
+  void dispose() {
+    if (_sheetOpen) _sheetNavigator?.maybePop();
+    super.dispose();
   }
 
   @override
@@ -53,6 +68,8 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
       },
       child: BlocBuilder<AppointmentsBloc, AppointmentsState>(
         builder: (context, state) {
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _syncBookingSheet(context, state));
           // Créneaux/booking d'un praticien : le retour (système, swipe-back,
           // AppBar) doit ramener à la liste des praticiens plutôt que de
           // quitter l'onglet (il n'y a pas de route dédiée à ce sous-écran).
@@ -72,6 +89,56 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
         },
       ),
     );
+  }
+
+  /// Ouvre/referme la feuille de confirmation en fonction de l'état courant
+  /// (créneau sélectionné ou non) — appelé après chaque build plutôt que
+  /// depuis un `BlocListener` seul, pour couvrir aussi bien le cas où l'état
+  /// arrive déjà avec un `selectedSlot` (premier build) que ses changements
+  /// ultérieurs.
+  void _syncBookingSheet(BuildContext context, AppointmentsState state) {
+    if (!mounted) return;
+    final hasSlot =
+        state is AppointmentsSlotsLoaded && state.selectedSlot != null;
+    if (hasSlot && !_sheetOpen) {
+      _openBookingSheet(context);
+    } else if (!hasSlot && _sheetOpen) {
+      _sheetNavigator?.maybePop();
+    }
+  }
+
+  /// #5337 : `_BookingPanel` (récap + motif + CTA) en `NubiaBottomSheet`
+  /// modal — scrim assombri + poignée du DS, grille de créneaux stable
+  /// derrière. `AppointmentsBloc`/`AuthCubit` sont recapturés puis
+  /// re-fournis dans la feuille : elle est ouverte hors de l'arbre
+  /// `BlocProvider` de l'onglet (même contrainte que `_openProviderSheet`).
+  Future<void> _openBookingSheet(BuildContext context) async {
+    final bloc = context.read<AppointmentsBloc>();
+    final authCubit = context.read<AuthCubit>();
+    _sheetOpen = true;
+    _sheetNavigator = Navigator.of(context);
+    await NubiaBottomSheet.show(
+      context: context,
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<AppointmentsBloc>.value(value: bloc),
+          BlocProvider<AuthCubit>.value(value: authCubit),
+        ],
+        child: BlocBuilder<AppointmentsBloc, AppointmentsState>(
+          builder: (sheetContext, sheetState) {
+            if (sheetState is! AppointmentsSlotsLoaded ||
+                sheetState.selectedSlot == null) {
+              return const SizedBox.shrink();
+            }
+            return _BookingPanel(
+              state: sheetState,
+              onModifier: () => Navigator.of(sheetContext).maybePop(),
+            );
+          },
+        ),
+      ),
+    );
+    _sheetOpen = false;
   }
 
   /// #4534 : écran de confirmation dédié (récap praticien/date/motif) au
@@ -1246,59 +1313,33 @@ class _MetaItem extends StatelessWidget {
   }
 }
 
-/// Liste mobile historique : en-tête praticien + créneaux groupés par jour
-/// (ou formulaire de confirmation une fois un créneau sélectionné).
-class _SlotsMobileView extends StatefulWidget {
+/// Liste mobile historique : en-tête praticien + créneaux groupés par jour.
+///
+/// #5337 : la sélection d'un créneau n'y remplace plus rien — le formulaire
+/// de confirmation est présenté à part, en `NubiaBottomSheet` modal (voir
+/// `_AppointmentsPageState._openBookingSheet`), pour que cette grille reste
+/// montée et de hauteur stable derrière la feuille.
+class _SlotsMobileView extends StatelessWidget {
   const _SlotsMobileView({required this.state, required this.borderColor});
   final AppointmentsSlotsLoaded state;
   final Color borderColor;
 
   @override
-  State<_SlotsMobileView> createState() => _SlotsMobileViewState();
-}
-
-class _SlotsMobileViewState extends State<_SlotsMobileView> {
-  // #5338 : « Modifier » referme la feuille de confirmation et rouvre la
-  // grille sans désélectionner le créneau — bascule purement locale, aucun
-  // événement bloc, `selectedSlot`/`holdToken` restent intacts. Réinitialisé
-  // dès qu'un nouveau créneau est (re)sélectionné depuis la grille.
-  bool _showGridOverride = false;
-
-  @override
-  void didUpdateWidget(covariant _SlotsMobileView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.state.selectedSlot?.id != oldWidget.state.selectedSlot?.id) {
-      _showGridOverride = false;
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final state = widget.state;
-    final showPanel = state.selectedSlot != null && !_showGridOverride;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ProviderHeaderRow(provider: state.provider),
-        Divider(height: 1, color: widget.borderColor),
-        // #5362 : une fois un créneau choisi, le formulaire de confirmation
-        // (« Vos informations ») remplace la grille — pas un panneau
-        // superposé — pour lui laisser toute la hauteur disponible (et
-        // rester scrollable sans déborder sur petit écran).
+        Divider(height: 1, color: borderColor),
         Expanded(
-          child: showPanel
-              ? _BookingPanel(
-                  state: state,
-                  onModifier: () => setState(() => _showGridOverride = true),
+          child: state.slots.isEmpty
+              ? const NubiaEmptyState(
+                  icon: Icons.event_busy_outlined,
+                  title: 'Aucun créneau disponible.',
+                  subtitle:
+                      'Revenez plus tard ou choisissez un autre praticien.',
                 )
-              : state.slots.isEmpty
-                  ? const NubiaEmptyState(
-                      icon: Icons.event_busy_outlined,
-                      title: 'Aucun créneau disponible.',
-                      subtitle:
-                          'Revenez plus tard ou choisissez un autre praticien.',
-                    )
-                  : _SlotsByDay(state: state),
+              : _SlotsByDay(state: state),
         ),
       ],
     );
@@ -2336,10 +2377,10 @@ class _BookingProgressView extends StatelessWidget {
 
 /// Carte récap du créneau choisi (maquette design-v2 patient-re-servation,
 /// bloc `.recap`) : jour/heure, praticien, durée + lien « Modifier » qui
-/// referme la feuille de confirmation pour rouvrir la grille de créneaux
-/// (#5338). N'émet aucun événement bloc : la sélection courante et le
-/// `holdToken` restent intacts, [onModifier] ne fait que basculer l'affichage
-/// local de `_SlotsMobileView`.
+/// referme la feuille de confirmation modale (`NubiaBottomSheet`, #5337) pour
+/// révéler la grille de créneaux restée stable derrière. N'émet aucun
+/// événement bloc : la sélection courante et le `holdToken` restent intacts,
+/// [onModifier] ne fait que dépiler la feuille.
 class _SlotRecapCard extends StatelessWidget {
   const _SlotRecapCard({required this.state, this.onModifier});
   final AppointmentsSlotsLoaded state;
@@ -2442,8 +2483,9 @@ class _SlotRecapCard extends StatelessWidget {
 }
 
 /// Formulaire de confirmation (étape 3 « Vos informations » du tunnel,
-/// maquette design-v2 patient-web-tunnel-reservation) : remplace la grille
-/// de créneaux une fois une puce sélectionnée. Pour un visiteur anonyme, ce
+/// maquette design-v2 patient-web-tunnel-reservation) : présenté en
+/// `NubiaBottomSheet` modal une fois une puce sélectionnée, au-dessus de la
+/// grille de créneaux restée stable (#5337). Pour un visiteur anonyme, ce
 /// même formulaire crée le compte à la confirmation — jamais avant — dans
 /// le même geste que la réservation (#5362).
 class _BookingPanel extends StatefulWidget {
@@ -2532,7 +2574,6 @@ class _BookingPanelState extends State<_BookingPanel> {
     // déjà connecté (2e RDV) ne revoit jamais ce formulaire d'inscription.
     final needsAccount = context.watch<AuthCubit>().state is! AuthAuthenticated;
     final tokens = Theme.of(context).extension<NubiaTokens>();
-    final borderColor = tokens?.borderSubtle ?? Theme.of(context).dividerColor;
     final subdued = Theme.of(context).textTheme.bodySmall?.copyWith(
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         );
@@ -2544,14 +2585,12 @@ class _BookingPanelState extends State<_BookingPanel> {
     final motifValid = state.motif.trim().isNotEmpty;
     final formValid = motifValid && (!needsAccount || _guestInfoValid);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(top: BorderSide(color: borderColor)),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        child: Column(
+    // #5337 : ce panneau vit désormais toujours dans un `NubiaBottomSheet`
+    // (fond, radius, padding 16 déjà fournis par le DS) — plus de conteneur
+    // ni de padding propres ici, qui doublaient ceux de la feuille et
+    // provoquaient un débordement horizontal du contenu.
+    return SingleChildScrollView(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2757,7 +2796,6 @@ class _BookingPanelState extends State<_BookingPanel> {
               style: subdued,
             ),
           ],
-        ),
       ),
     );
   }
