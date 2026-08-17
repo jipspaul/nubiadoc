@@ -88,6 +88,11 @@ class _ImplantDetailBody extends StatelessWidget {
                   if (implant.lotNumber != null) 'Lot ${implant.lotNumber}',
                 ].join(' · ')),
               ),
+              if (implant.lastControlDate != null ||
+                  implant.nextControl != null) ...[
+                const SizedBox(height: 16),
+                _FollowUpCard(implant: implant),
+              ],
               const SizedBox(height: 24),
               NubiaButton(
                 key: const Key('implant_detail_export_button'),
@@ -115,6 +120,97 @@ class _ImplantDetailBody extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Bloc « Suivi recommandé » : dernier contrôle et prochain rendez-vous
+/// (#5333). Chaque ligne ne s'affiche que si la donnée correspondante est
+/// renseignée.
+class _FollowUpCard extends StatelessWidget {
+  const _FollowUpCard({required this.implant});
+
+  final ImplantItem implant;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final lastControlDate = implant.lastControlDate;
+    final nextControl = implant.nextControl;
+
+    return NubiaCard(
+      key: const Key('implant_detail_follow_up_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.event_repeat, color: NubiaColors.brand700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Suivi recommandé',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          if (lastControlDate != null) ...[
+            const SizedBox(height: 12),
+            _FollowUpRow(
+              label: 'Dernier contrôle',
+              value: NubiaDate.dayLong(lastControlDate),
+            ),
+          ],
+          if (nextControl != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(
+              label: 'Prochain',
+              value: nextControl,
+              valueColor: NubiaColors.brand700,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FollowUpRow extends StatelessWidget {
+  const _FollowUpRow({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          value,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: valueColor ?? cs.onSurface,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }

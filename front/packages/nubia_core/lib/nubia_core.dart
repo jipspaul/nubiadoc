@@ -25,6 +25,7 @@ export 'src/session/device_registration_service.dart';
 export 'src/utils/document_opener.dart';
 export 'src/utils/file_picker_service.dart';
 export 'src/utils/maps_launcher.dart';
+export 'src/utils/nubia_date.dart';
 export 'src/utils/phone_launcher.dart';
 
 // Session
