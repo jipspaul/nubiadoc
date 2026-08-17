@@ -93,6 +93,7 @@ mod patient_tags;
 mod payment_schedules;
 mod periodontal_chart;
 mod permissions;
+mod nurse;
 mod pharmacy;
 mod practitioner_favorite_acts;
 mod prescription_list;
@@ -502,6 +503,7 @@ fn build_router(
     let router = routes::notifications_devices::add(router);
     let router = routes::cr_prescriptions::add(router);
     let router = routes::pharmacy_routes::add(router);
+    let router = routes::nurse_routes::add(router);
     let router = routes::secretariats::add(router);
     let router = routes::webhooks_interop::add(router);
 

@@ -22,6 +22,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             post(auth::select_pharmacy_context::select_pharmacy_context),
         )
         .route(
+            "/v1/auth/select-nurse-context",
+            post(auth::select_nurse_context::select_nurse_context),
+        )
+        .route(
             "/v1/pharmacies",
             get(pharmacy::directory::search_pharmacies),
         )
