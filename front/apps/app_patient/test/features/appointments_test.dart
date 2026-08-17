@@ -73,6 +73,14 @@ Widget _wrap(AppointmentsBloc bloc, {AuthState? authState}) => MaterialApp(
       ),
     );
 
+/// #5336 : la feuille de confirmation ne s'ouvre plus automatiquement à la
+/// sélection d'un créneau — elle est déclenchée par le bouton « Continuer »
+/// de la barre collante affichée sous la grille.
+Future<void> _tapContinue(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('slots_continue_button')));
+  await tester.pumpAndSettle();
+}
+
 AppointmentsBloc _makeBloc({
   required MockSearchProvidersUseCase searchProviders,
   required MockSearchSlotsUseCase searchSlots,
@@ -1121,6 +1129,9 @@ void main() {
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
+      await tester.tap(find.byKey(const Key('slots_continue_button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 240));
 
       expect(
         find.text('Votre rendez-vous est retenu pendant 10 minutes.'),
@@ -1162,6 +1173,9 @@ void main() {
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
+      await tester.tap(find.byKey(const Key('slots_continue_button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 240));
       await tester.pump(const Duration(seconds: 1));
 
       verify(() => bloc.add(const AppointmentsHoldExpired())).called(1);
@@ -1202,6 +1216,7 @@ void main() {
       await tester
           .pumpWidget(_wrap(bloc, authState: const AuthUnauthenticated()));
       await tester.pumpAndSettle();
+      await _tapContinue(tester);
 
       expect(find.text('Pour qui est ce rendez-vous ?'), findsOneWidget);
       expect(find.byKey(const Key('booking_first_name')), findsOneWidget);
@@ -1242,6 +1257,7 @@ void main() {
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
+      await _tapContinue(tester);
 
       expect(find.text('Pour qui est ce rendez-vous ?'), findsNothing);
       expect(find.byKey(const Key('booking_first_name')), findsNothing);
@@ -1331,6 +1347,7 @@ void main() {
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
+      await _tapContinue(tester);
 
       final recap =
           find.byKey(const Key('booking_tariff_recap_card'));
@@ -1389,6 +1406,7 @@ void main() {
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
+      await _tapContinue(tester);
 
       final recap = find.byKey(const Key('booking_slot_recap_card'));
       expect(recap, findsOneWidget);
@@ -1431,6 +1449,7 @@ void main() {
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
+      await _tapContinue(tester);
       expect(
         find.byKey(const Key('booking_slot_recap_card')),
         findsOneWidget,
