@@ -277,7 +277,25 @@ pub async fn create_payment_schedule(
     let already_committed_cents: i64 = already_committed_row
         .try_get("committed_cents")
         .map_err(|_| AppError::Internal)?;
-    let remaining_due_cents = patient_share_cents - already_committed_cents;
+
+    // #5669 : un payment_schedule ne crée aucune ligne `payment` — sans ce
+    // second SELECT, la garde ci-dessous ignorait les échéanciers déjà posés
+    // et laissait engager le patient N fois sur tout le reste-à-charge.
+    let already_scheduled_row = sqlx::query(
+        "SELECT COALESCE(SUM(total_amount * 100), 0)::bigint AS scheduled_cents \
+         FROM payment_schedule \
+         WHERE quote_id = $1 AND status = 'active'",
+    )
+    .bind(quote_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let already_scheduled_cents: i64 = already_scheduled_row
+        .try_get("scheduled_cents")
+        .map_err(|_| AppError::Internal)?;
+
+    let remaining_due_cents =
+        patient_share_cents - already_committed_cents - already_scheduled_cents;
 
     if total_cents > remaining_due_cents {
         return Err(AppError::ValidationError);
