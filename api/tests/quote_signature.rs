@@ -485,7 +485,9 @@ async fn guardian_can_initiate_signature_of_dependent_quote() {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
     )
     .bind(dependent_user_id)
-    .bind(format!("quote-sig-dependent+{dependent_user_id}@nubia.test"))
+    .bind(format!(
+        "quote-sig-dependent+{dependent_user_id}@nubia.test"
+    ))
     .execute(&db)
     .await
     .unwrap();
