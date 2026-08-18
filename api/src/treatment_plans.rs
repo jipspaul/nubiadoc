@@ -429,6 +429,7 @@ pub async fn create_treatment_plan(
     if title.is_empty() {
         return Err(AppError::ValidationError);
     }
+    crate::text_validation::reject_nul_byte(&title)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
