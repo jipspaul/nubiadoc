@@ -1939,6 +1939,10 @@ pub async fn patch_cabinet_appointment(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
 
+    if let Some(motif) = body.motif.as_deref() {
+        crate::text_validation::reject_nul_byte(motif)?;
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
