@@ -234,11 +234,10 @@ pub async fn patch_appointment(
     if new_starts_at.is_some() {
         if let Some(sid) = slot_id {
             let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
-            let release =
-                sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
-                    .bind(sid)
-                    .execute(&mut *savepoint)
-                    .await;
+            let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+                .bind(sid)
+                .execute(&mut *savepoint)
+                .await;
             match release {
                 Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
                 Err(e) if is_exclusion_violation(&e) => {
