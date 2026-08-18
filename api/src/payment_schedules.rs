@@ -172,7 +172,8 @@ const VALID_PROVIDERS: &[&str] = &["stripe", "gocardless", "alma"];
 /// mais jamais le dépasser (#4644) : garde stricte identique à
 /// `create_manual_payment` (#4311/#4573), sur le reste-à-charge patient
 /// (part AMO/AMC exclue) moins les paiements `pending`/`paid` déjà
-/// enregistrés, sous verrou `FOR UPDATE` sur la ligne `quote` — dépassement
+/// enregistrés ET les échéanciers `active` déjà posés sur le devis (#5669),
+/// sous verrou `FOR UPDATE` sur la ligne `quote` — dépassement
 /// → `422 validation_error`. `provider = "alma"` (#4163) déclenche la souscription
 /// synchrone auprès d'`AlmaClient` — un refus/timeout provider fait échouer
 /// toute la création (`500`), pas d'échéancier fantôme non souscrit.

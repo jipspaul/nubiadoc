@@ -140,6 +140,9 @@ pub async fn create_treatment_phase(
             return Err(AppError::ValidationError);
         }
         crate::text_validation::reject_nul_byte(&act.label)?;
+        if let Some(ccam_code) = &act.ccam_code {
+            crate::text_validation::reject_nul_byte(ccam_code)?;
+        }
         if let Some(tooth) = &act.tooth {
             if !is_valid_fdi_tooth(tooth) {
                 return Err(AppError::ValidationError);

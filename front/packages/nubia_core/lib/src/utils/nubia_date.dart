@@ -25,4 +25,16 @@ class NubiaDate {
     final date = DateTime.parse(isoDate);
     return '${date.day} ${_months[date.month - 1]} ${date.year}';
   }
+
+  /// Nombre de mois pleins écoulés entre une date ISO et [now] (heure locale,
+  /// défaut `DateTime.now()`), ex. posé le `2026-03-12`, le `2026-08-17` →
+  /// `5`. [now] est surtout utile pour des tests déterministes.
+  static int monthsSince(String isoDate, {DateTime? now}) {
+    final date = DateTime.parse(isoDate).toLocal();
+    final reference = now ?? DateTime.now();
+    var months =
+        (reference.year - date.year) * 12 + (reference.month - date.month);
+    if (reference.day < date.day) months--;
+    return months < 0 ? 0 : months;
+  }
 }
