@@ -215,6 +215,7 @@ pub async fn create_orthodontic_treatment(
     if body.kind.trim().is_empty() || body.semester_count <= 0 {
         return Err(AppError::ValidationError);
     }
+    crate::text_validation::reject_nul_byte(body.kind.trim())?;
     if let Some(ref status) = body.status {
         if !VALID_TREATMENT_STATUSES.contains(&status.as_str()) {
             return Err(AppError::ValidationError);
@@ -436,6 +437,9 @@ pub async fn add_orthodontic_step(
 ) -> Result<(StatusCode, Json<AddOrthodonticStepResponse>), AppError> {
     if body.step_number <= 0 || !VALID_STEP_KINDS.contains(&body.kind.as_str()) {
         return Err(AppError::ValidationError);
+    }
+    if let Some(notes) = &body.conformity_notes {
+        crate::text_validation::reject_nul_byte(notes)?;
     }
     let delivered_at: Option<chrono::NaiveDate> = body
         .delivered_at
