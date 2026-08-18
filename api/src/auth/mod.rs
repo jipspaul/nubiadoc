@@ -4653,8 +4653,9 @@ pub async fn delete_account_dependent(
         let appt_cabinet_id: Uuid = appt_row
             .try_get("cabinet_id")
             .map_err(|_| AppError::Internal)?;
-        let appt_slot_id: Option<Uuid> =
-            appt_row.try_get("slot_id").map_err(|_| AppError::Internal)?;
+        let appt_slot_id: Option<Uuid> = appt_row
+            .try_get("slot_id")
+            .map_err(|_| AppError::Internal)?;
 
         sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
             .bind(appt_cabinet_id.to_string())
@@ -4679,11 +4680,10 @@ pub async fn delete_account_dependent(
         // la suppression du dépendant.
         if let Some(sid) = appt_slot_id {
             let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
-            let release =
-                sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
-                    .bind(sid)
-                    .execute(&mut *savepoint)
-                    .await;
+            let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+                .bind(sid)
+                .execute(&mut *savepoint)
+                .await;
             match release {
                 Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
                 Err(e) if is_exclusion_violation(&e) => {
