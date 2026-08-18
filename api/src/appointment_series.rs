@@ -191,19 +191,20 @@ pub async fn create_appointment_series(
         // aucun availability_slot chevauché — un créneau 'open' publié
         // restait visible dans /search/slots (créneau fantôme) alors que
         // cette occurrence l'occupe déjà, menant à un 409 slot_taken à la
-        // réservation. Consomme le slot 'open' recouvert par l'occurrence,
-        // même logique que la vérification 'blocked' ci-dessus, et retient
-        // son id pour le poser sur l'appointment (#4576 : sans slot_id, les
-        // voies de libération — cancel/no-show/reprogrammation — ne
-        // retrouvent jamais ce créneau et il reste 'booked' à vie).
-        let consumed_slot_id: Option<Uuid> = sqlx::query_scalar(
+        // réservation. Consomme TOUS les slots 'open' recouverts par
+        // l'occurrence (#5700 : un `LIMIT 1` n'en consommait qu'un seul —
+        // une occurrence peut chevaucher plusieurs créneaux courts adjacents
+        // — laissant les suivants fantômes), et retient l'id du premier pour
+        // le poser sur l'appointment (#4576 : sans slot_id, les voies de
+        // libération — cancel/no-show/reprogrammation — ne retrouvent jamais
+        // ce créneau et il reste 'booked' à vie).
+        let consumed_slot_ids: Vec<Uuid> = sqlx::query_scalar(
             "UPDATE availability_slot SET status = 'booked', updated_at = now() \
-             WHERE id = ( \
+             WHERE id IN ( \
                  SELECT id FROM availability_slot \
                  WHERE cabinet_id = $1 AND practitioner_id = $2 AND status = 'open' \
                    AND deleted_at IS NULL \
                    AND tstzrange(starts_at, ends_at) && tstzrange($3, $4) \
-                 LIMIT 1 \
                  FOR UPDATE \
              ) \
              RETURNING id",
@@ -212,9 +213,10 @@ pub async fn create_appointment_series(
         .bind(body.practitioner_id)
         .bind(occ.starts_at)
         .bind(occ.ends_at)
-        .fetch_optional(&mut *tx)
+        .fetch_all(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+        let consumed_slot_id: Option<Uuid> = consumed_slot_ids.first().copied();
 
         let result = sqlx::query(
             "INSERT INTO appointment \
