@@ -10,6 +10,7 @@ pub mod refresh;
 pub mod register;
 pub mod reset_password;
 pub mod select_context;
+pub mod select_nurse_context;
 pub mod select_pharmacy_context;
 
 use argon2::{
@@ -103,7 +104,7 @@ struct PatientClaims {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ProClaims {
     /// Identifiant de l'utilisateur (`app_user.id`).
-    sub: Uuid,
+    pub(crate) sub: Uuid,
     /// Type de compte : "pro".
     kind: String,
     exp: u64,
@@ -1613,6 +1614,70 @@ pub(crate) struct PharmaContextClaims {
     pub(crate) pharmacy_id: Uuid,
     pub(crate) role: String,
     pub(crate) exp: u64,
+}
+
+/// Claims JWT émis par `POST /v1/auth/select-nurse-context` — porte `nurse_id` +
+/// `role` avec `kind = "nurse"`. GUC et audience distincts des tenants
+/// cabinet/pharmacie : un token nurse est rejeté (403) par les extracteurs
+/// `Pro*Claims`/`Pharma*Claims`, et réciproquement. Clone de `PharmaContextClaims`.
+#[derive(Serialize, Deserialize)]
+pub(crate) struct NurseContextClaims {
+    pub(crate) sub: Uuid,
+    pub(crate) kind: String,
+    pub(crate) nurse_id: Uuid,
+    pub(crate) role: String,
+    pub(crate) exp: u64,
+}
+
+/// Extracteur des endpoints `/v1/nurse/*` : exige un token `kind:"nurse"` (issu de
+/// select-nurse-context). Clone de `PharmaMemberClaims` (double passe : 403 si le
+/// token est valide mais pas un token infirmier).
+#[derive(Debug, Deserialize)]
+pub(crate) struct NurseMemberClaims {
+    #[allow(dead_code)] // présent dans le JWT ; les handlers scopent via nurse_id
+    pub(crate) sub: Uuid,
+    pub(crate) nurse_id: Uuid,
+    #[allow(dead_code)] // consommé par les endpoints réservés au rôle admin
+    pub(crate) role: String,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for NurseMemberClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        // Première passe : `kind` seul → 403 (pas 401) si le token est valide mais
+        // n'est pas un token infirmier (ex. pro/pharma/patient).
+        let basic = decode::<KindClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if basic.kind != "nurse" {
+            return Err(AppError::Forbidden);
+        }
+
+        // Deuxième passe : décode les champs infirmier obligatoires.
+        let claims = decode::<NurseMemberClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        Ok(claims)
+    }
 }
 
 /// Corps de la requête `PATCH /v1/cabinet/provider`.

@@ -27,6 +27,7 @@ workspace:
   - apps/app_pharmacie
   - apps/app_practicien
   - apps/app_secretariat
+  - apps/app_infirmiere
 
 dev_dependencies:
   melos: ^7.0.0
