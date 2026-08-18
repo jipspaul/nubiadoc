@@ -113,7 +113,15 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
   -e APP_DATABASE_URL=postgres://nubia_app@127.0.0.1:5432/nubia \
   -e APP_PORT=3000 -e JWT_SECRET=dev-only-not-for-prod -e LOGIN_RATE_MAX_ATTEMPTS=10000 \
   -e MLLP_PORT=2575 -e WEB_TUNNEL_PORT=3001 \
+  -e YOUSIGN_API_KEY="${YOUSIGN_API_KEY:-}" \
   localhost/nubia-api:latest >/dev/null
+# #5688 : avant ce -e, YOUSIGN_API_KEY n'était jamais transmise au conteneur
+# (aucune plomberie CI -> LXC), donc POST /v1/quotes/:id/signature répondait
+# 502 upstream_unavailable pour 100% des appels, quel que soit le secret
+# Forgejo configuré. `${YOUSIGN_API_KEY:-}` reste vide tant que le secret
+# n'est pas renseigné : `yousign_client.rs` court-circuite alors proprement
+# en erreur explicite ("clé vide") plutôt que d'émettre un appel voué à
+# l'échec — comportement inchangé, seule la plomberie manquait.
 # Tunnel web de réservation SSR public (ADR-013, #5356/#5628) : --network host
 # publie déjà 3001 comme les autres ports de ce conteneur (pas de -p à
 # ajouter) ; WEB_TUNNEL_PORT explicite ici pour que ce port apparaisse dans le

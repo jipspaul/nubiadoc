@@ -32,7 +32,10 @@ DEPLOY_PASSWORD=jipsjips bash infra/deploy/build-and-deploy.sh
 ```
 
 Variables : `DEPLOY_HOST` (192.168.1.100) · `DEPLOY_USER` (root) · `DEPLOY_PASSWORD` ·
-`API_BASE` (défaut `http://<host>:3000` ; mettre l'URL publique si tu passes par un domaine).
+`API_BASE` (défaut `http://<host>:3000` ; mettre l'URL publique si tu passes par un domaine) ·
+`YOUSIGN_API_KEY` (optionnelle — sans elle, `POST /v1/quotes/:id/signature` répond
+`502 upstream_unavailable`, cf. #5688 ; `/v1/quotes/:id/sign`, le chemin utilisé par
+`app_patient`, n'en dépend pas).
 
 ## Déploiement automatique (CI)
 
@@ -40,7 +43,7 @@ Variables : `DEPLOY_HOST` (192.168.1.100) · `DEPLOY_USER` (root) · `DEPLOY_PAS
 Pré-requis une fois :
 1. Construire l'image de job : `./ci/deploy/load-into-runner.sh` (dépend de `flutter-ci:stable`).
 2. Renseigner les secrets Forgejo : `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PASSWORD`
-   (option : variable `NUBIA_API_BASE`).
+   (option : variable `NUBIA_API_BASE`, secret optionnel `YOUSIGN_API_KEY`).
 
 ## Fichiers
 
