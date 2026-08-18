@@ -764,6 +764,10 @@ async fn create_pharmacy_conversation(
     pharmacy_id: Uuid,
     subject: Option<String>,
 ) -> Result<(StatusCode, Json<CreateConversationResponse>), AppError> {
+    if let Some(s) = subject.as_deref() {
+        crate::text_validation::reject_nul_byte(s)?;
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
@@ -853,6 +857,10 @@ async fn create_cabinet_conversation(
     body_cabinet_id: Uuid,
     body_subject: Option<String>,
 ) -> Result<(StatusCode, Json<CreateConversationResponse>), AppError> {
+    if let Some(s) = body_subject.as_deref() {
+        crate::text_validation::reject_nul_byte(s)?;
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope RLS au cabinet cible (SET LOCAL — scoped à tx).
