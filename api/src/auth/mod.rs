@@ -27,12 +27,14 @@ use axum::{
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::Row;
+use sqlx::{Acquire, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-use crate::{AppState, JobDispatcher, StorageClient};
+use crate::{
+    appointments_response::is_exclusion_violation, AppState, JobDispatcher, StorageClient,
+};
 
 /// Réponse de `POST /v1/auth/login`.
 #[derive(Serialize)]
@@ -4593,7 +4595,10 @@ pub async fn patch_account_dependent(
 ///
 /// Met `account_guardianship.active = false` + `updated_at = now()`.
 /// Tutelle inexistante ou déjà révoquée → `404` (anti-énumération §07 §2.9).
-/// Audité : `action:'revoke_guardianship'` (§07 §10).
+/// Cascade (#5679) : annule d'abord les RDV futurs actifs (`requested`/`confirmed`) du
+/// dépendant et libère leurs créneaux — sinon ils restent orphelins (créneau tenu, cabinet
+/// les voit toujours, tuteur perd tout accès dès la tutelle inactive, RLS §07).
+/// Audité : `action:'revoke_guardianship'` (§07 §10) + `'cancel_appointment'` par RDV annulé.
 pub async fn delete_account_dependent(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -4618,6 +4623,95 @@ pub async fn delete_account_dependent(
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
+
+    // Cascade AVANT la révocation : appointment_patient_read (migration 0196) exige la
+    // tutelle encore `active = true` pour voir les RDV du dépendant — désactiver
+    // account_guardianship en premier rendrait ces RDV illisibles dans CETTE même
+    // transaction (read-your-own-writes) avant même de pouvoir les annuler.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let pending_appointments = sqlx::query(
+        "SELECT a.id, a.cabinet_id, a.slot_id \
+         FROM appointment a \
+         JOIN patient p ON p.id = a.patient_id \
+         WHERE p.patient_account_id = $1 \
+           AND a.status IN ('requested', 'confirmed') \
+           AND a.starts_at > now() \
+           AND a.deleted_at IS NULL",
+    )
+    .bind(dependent_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    for appt_row in pending_appointments {
+        let appt_id: Uuid = appt_row.try_get("id").map_err(|_| AppError::Internal)?;
+        let appt_cabinet_id: Uuid = appt_row
+            .try_get("cabinet_id")
+            .map_err(|_| AppError::Internal)?;
+        let appt_slot_id: Option<Uuid> =
+            appt_row.try_get("slot_id").map_err(|_| AppError::Internal)?;
+
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(appt_cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        sqlx::query(
+            "UPDATE appointment \
+             SET status = 'cancelled', cancelled_at = now(), \
+                 cancel_reason = 'dependent_removed', updated_at = now() \
+             WHERE id = $1",
+        )
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        // Libération du créneau : best-effort, isolée dans un savepoint — même pattern
+        // que cancel_appointment (#5392) : un AUTRE créneau peut déjà chevaucher la
+        // plage et faire violer l'exclusion (23P01), sans que ça doive faire échouer
+        // la suppression du dépendant.
+        if let Some(sid) = appt_slot_id {
+            let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+            let release =
+                sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+                    .bind(sid)
+                    .execute(&mut *savepoint)
+                    .await;
+            match release {
+                Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+                Err(e) if is_exclusion_violation(&e) => {
+                    savepoint.rollback().await.map_err(|_| AppError::Internal)?
+                }
+                Err(_) => return Err(AppError::Internal),
+            }
+        }
+
+        sqlx::query(
+            "INSERT INTO audit_log \
+             (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+             VALUES ($1, $2, 'patient', 'cancel_appointment', 'appointment', $3)",
+        )
+        .bind(appt_cabinet_id)
+        .bind(claims.sub)
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        tracing::info!(
+            guardian_account_id = %claims.account_id,
+            dependent_account_id = %dependent_id,
+            appointment_id = %appt_id,
+            "dependent's future appointment cancelled on guardianship revocation"
+        );
+    }
 
     // Soft-delete uniquement — jamais de DELETE SQL (§07 §10).
     sqlx::query(
