@@ -77,6 +77,18 @@ struct YousignSessionResponse {
 #[async_trait::async_trait]
 impl QuoteSignatureClient for YousignClient {
     async fn create_session(&self, quote_id: Uuid) -> Result<QuoteSignatureSession, String> {
+        // `YOUSIGN_API_KEY` absente (#5688 : lu en `unwrap_or_default()` par
+        // design, cf. `from_env` — ne panique jamais au boot) : un `Bearer`
+        // vide échoue de toute façon systématiquement côté Yousign (401/403),
+        // mais le message d'erreur résultant ne distingue pas ce cas d'une
+        // vraie panne réseau/provider en production. Court-circuit ici pour
+        // ne pas émettre un appel HTTP voué à l'échec et pour que le log
+        // (`quote_signature.rs`) pointe explicitement la cause réelle :
+        // clé absente, pas un incident Yousign.
+        if self.api_key.is_empty() {
+            return Err("yousign: YOUSIGN_API_KEY non configurée (clé vide)".to_string());
+        }
+
         let url = format!("{}/v1/quotes/{quote_id}/signature-requests", self.base_url);
 
         let response = self
