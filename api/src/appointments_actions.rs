@@ -61,6 +61,10 @@ pub async fn patch_appointment(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
 
+    if let Some(motif) = body.motif.as_deref() {
+        crate::text_validation::reject_nul_byte(motif)?;
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
@@ -342,6 +346,9 @@ pub async fn cancel_appointment(
         .as_ref()
         .and_then(|b| b.reason.as_deref())
         .map(str::to_owned);
+    if let Some(reason) = reason.as_deref() {
+        crate::text_validation::reject_nul_byte(reason)?;
+    }
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
