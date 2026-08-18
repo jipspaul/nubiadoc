@@ -108,6 +108,13 @@ class DashboardPage extends StatelessWidget {
         unreadMessagesCount: badges.unreadMessagesCount,
       ),
       session: session,
+      // Synchronise l'onglet sélectionné avec l'URL go_router dans les 2
+      // sens : `currentRoute` pilote la sélection depuis `state.uri.path`
+      // (navigation directe / reload / retour navigateur, #4813/#5692), et
+      // `onNavigate` pousse l'URL via `context.go` quand l'utilisateur
+      // clique une destination dans le rail/drawer.
+      currentRoute: GoRouterState.of(context).uri.path,
+      onNavigate: (destination) => context.go(destination.route),
       bodyBuilder: (ctx, destination) {
         final builder = _dashboardBodyBuilders(session)[destination.route];
         final body = builder != null
