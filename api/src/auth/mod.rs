@@ -250,6 +250,12 @@ pub(crate) enum AppError {
     /// migrations 0190/0192) — pré-vérifié pour éviter de laisser remonter
     /// la violation FK Postgres (23503) en 500.
     ActLinkedToStock,
+    /// `POST /v1/account/visit-requests` (#5724) : le patient a déjà une
+    /// demande de visite infirmière active (index unique partiel, migration
+    /// 0234) — même anti-pattern que `MemberAlreadyExists` (#3828) :
+    /// `AppError::Conflict` rend `{"code":"verification_pending"}`, un
+    /// contrat trompeur pour un simple doublon de demande.
+    VisitRequestAlreadyActive,
 }
 
 impl IntoResponse for AppError {
@@ -521,6 +527,11 @@ impl IntoResponse for AppError {
             AppError::ActLinkedToStock => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "act_linked_to_stock"})),
+            )
+                .into_response(),
+            AppError::VisitRequestAlreadyActive => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "visit_request_already_active"})),
             )
                 .into_response(),
         }
