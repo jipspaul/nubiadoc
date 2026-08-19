@@ -901,9 +901,9 @@ async fn post_cabinet_members_malformed_email_returns_422() {
         .ok();
 }
 
-// ── Test 12 : POST /v1/cabinet/members manager → 403 (#5719) ─────────────────
-// `manager` est un rôle de secrétariat (cf. provider_secretariat), pas un rôle
-// de cabinet_membership habilité à créer des collaborateurs — seul `admin` l'est.
+// ── Test 12 : POST /v1/cabinet/members manager → 403 ─────────────────────────
+// (issue #5719 : manager pouvait créer des membres, y compris role=admin, alors
+// que GET/PATCH/DELETE lui sont refusés — gestion des membres = prérogative admin)
 
 #[tokio::test]
 async fn post_cabinet_members_manager_returns_403() {
