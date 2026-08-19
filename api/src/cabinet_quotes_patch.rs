@@ -151,15 +151,14 @@ pub async fn patch_cabinet_quote(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    let mut old_items: Vec<(String, i64, Option<String>, Option<String>, Option<Uuid>)> =
-        Vec::with_capacity(old_item_rows.len());
+    type OldItem = (String, i64, Option<String>, Option<String>, Option<Uuid>);
+    let mut old_items: Vec<OldItem> = Vec::with_capacity(old_item_rows.len());
     for row in &old_item_rows {
         let label: String = row.try_get("label").map_err(|_| AppError::Internal)?;
         let amount_cents: i64 = row
             .try_get("amount_cents")
             .map_err(|_| AppError::Internal)?;
-        let ccam_code: Option<String> =
-            row.try_get("ccam_code").map_err(|_| AppError::Internal)?;
+        let ccam_code: Option<String> = row.try_get("ccam_code").map_err(|_| AppError::Internal)?;
         let tooth: Option<String> = row.try_get("tooth").map_err(|_| AppError::Internal)?;
         let phase_id: Option<Uuid> = row.try_get("phase_id").map_err(|_| AppError::Internal)?;
         old_items.push((label, amount_cents, ccam_code, tooth, phase_id));
