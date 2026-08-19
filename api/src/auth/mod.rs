@@ -172,6 +172,12 @@ pub(crate) enum AppError {
     /// (Yousign) injoignable ou en erreur → `502`, jamais une session
     /// fabriquée côté API.
     UpstreamUnavailable,
+    /// `POST /v1/quotes/:id/signature` (#5688) : `YOUSIGN_API_KEY` absente
+    /// (provider pas encore provisionné, cf. `deploy.yml`) — distinct d'une
+    /// vraie panne provider (`UpstreamUnavailable`) : `503`, pas `502`,
+    /// pour ne pas faire passer une lacune de configuration connue pour un
+    /// incident Yousign en production.
+    SignatureProviderNotConfigured,
     /// `POST /v1/cabinet/cash-register/closing` (#4071) : une clôture existe
     /// déjà pour ce cabinet+jour (`UNIQUE (cabinet_id, closing_date)`,
     /// migration 0165) — pré-vérifiée explicitement plutôt que de laisser
@@ -440,6 +446,11 @@ impl IntoResponse for AppError {
             AppError::UpstreamUnavailable => (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({"code": "upstream_unavailable"})),
+            )
+                .into_response(),
+            AppError::SignatureProviderNotConfigured => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"code": "signature_provider_not_configured"})),
             )
                 .into_response(),
             AppError::CashRegisterAlreadyClosed => (
