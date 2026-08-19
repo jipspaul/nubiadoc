@@ -141,6 +141,14 @@ jobs:
           # RAM défectueuse (#19, non remplaçable) repasse au re-run (le hit est
           # rare) → pas de faux rouge. Boucle externe : re-compile sur segfault du
           # linker. Un vrai échec (survit aux retries, pas de signature RAM) sort.
+          #
+          # Sur ICE rustc (creader.rs, cf. #5747) le retry seul ne suffit pas :
+          # le volume `$CARGO_TARGET_DIR` est PERSISTANT (monté par le runner),
+          # donc si la RAM défectueuse a corrompu un artefact de métadonnées
+          # crate sur disque, relancer `cargo nextest` réutilise le même
+          # fichier corrompu et repanique à l'identique à chaque tentative —
+          # y compris sur des runs ultérieurs. On purge donc le cache avant de
+          # retenter dès qu'une signature RAM/ICE est détectée.
           for a in 1 2 3; do
             echo "::group::nextest tentative $a"
             if cargo nextest run --workspace --all-features --no-fail-fast --retries 2 2>&1 | tee /tmp/ci-fail.log; then
@@ -149,7 +157,8 @@ jobs:
             echo "::endgroup::"
             grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler|unexpectedly panicked' /tmp/ci-fail.log \
               || { echo 'echec test reel (survecu aux retries) -> stop'; exit 1; }
-            echo 'segfault/kill/ICE (RAM ?) -> nouvelle tentative'
+            echo 'segfault/kill/ICE (RAM ?) -> purge cache target (corruption possible) + nouvelle tentative'
+            rm -rf "${CARGO_TARGET_DIR:?}"/* 2>/dev/null || true
           done
           exit 1
       - name: Rapporte l'échec sur la PR (self-fix fixer)
