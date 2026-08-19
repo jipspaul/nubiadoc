@@ -940,13 +940,15 @@ async fn post_cabinet_members_manager_returns_403() {
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 
     let owner = owner_pool().await;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_user WHERE email = $1")
+        .bind(&member_email)
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+    assert_eq!(count, 0, "aucun membre ne doit être créé par un manager");
+
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&admin_email)
-        .execute(&owner)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM app_user WHERE email = $1")
-        .bind(&member_email)
         .execute(&owner)
         .await
         .ok();
