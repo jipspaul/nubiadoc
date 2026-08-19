@@ -73,7 +73,7 @@ class _OublietteCard extends StatelessWidget {
   }
 
   static String _dateRel(DateTime date) {
-    final now = DateTime(2026, 6, 21);
+    final now = DateTime.now();
     final diff = now.difference(date);
     if (diff.inDays >= 1) return 'il y a ${diff.inDays} j';
     if (diff.inHours >= 1) return 'il y a ${diff.inHours} h';
