@@ -56,9 +56,9 @@ jobs:
               echo "::endgroup::"; exit 0
             fi
             echo "::endgroup::"
-            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler' /tmp/ci-fail.log \
+            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler|unexpectedly panicked' /tmp/ci-fail.log \
               || { echo 'echec reel (pas RAM) -> stop'; exit 1; }
-            echo 'segfault/kill (RAM ?) -> nouvelle tentative'
+            echo 'segfault/kill/ICE (RAM ?) -> nouvelle tentative'
           done
           exit 1
       - name: Rapporte l'échec sur la PR (self-fix fixer)
@@ -147,9 +147,9 @@ jobs:
               echo "::endgroup::"; exit 0
             fi
             echo "::endgroup::"
-            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler' /tmp/ci-fail.log \
+            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler|unexpectedly panicked' /tmp/ci-fail.log \
               || { echo 'echec test reel (survecu aux retries) -> stop'; exit 1; }
-            echo 'segfault/kill (RAM ?) -> nouvelle tentative'
+            echo 'segfault/kill/ICE (RAM ?) -> nouvelle tentative'
           done
           exit 1
       - name: Rapporte l'échec sur la PR (self-fix fixer)
