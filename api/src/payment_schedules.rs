@@ -153,11 +153,13 @@ pub struct CreatePaymentScheduleResponse {
     pub schedule_id: Uuid,
 }
 
-/// Providers acceptés (#4072/#4163) — `alma` anticipé de longue date par le
-/// commentaire de la colonne (migration 0006) mais jamais contraint par un
-/// CHECK ; validé ici côté API plutôt qu'en base pour rester extensible sans
-/// migration à chaque nouveau partenaire.
-const VALID_PROVIDERS: &[&str] = &["stripe", "gocardless", "alma"];
+/// Providers acceptés (#4072/#4163) — seul `alma` déclenche une intégration
+/// réelle (`AlmaClient::subscribe` ci-dessous). `stripe`/`gocardless` sont
+/// volontairement exclus tant qu'aucun câblage n'existe côté API : les
+/// accepter créerait un échéancier `active` qui verrouille le reste-dû
+/// (#5669) sans jamais initier de prélèvement — cul-de-sac de facturation
+/// (#5734). À réintroduire seulement en même temps que leur intégration.
+const VALID_PROVIDERS: &[&str] = &["alma"];
 
 /// `POST /v1/cabinet/quotes/:id/payment-schedule` — crée un échéancier
 /// multi-jalons sur un devis (#4072).
@@ -352,4 +354,63 @@ pub async fn create_payment_schedule(
         StatusCode::CREATED,
         Json(CreatePaymentScheduleResponse { schedule_id }),
     ))
+}
+
+// ── DELETE /v1/cabinet/payment-schedules/:id ────────────────────────────────
+
+/// `DELETE /v1/cabinet/payment-schedules/:id` — annule un échéancier `active`
+/// (#5734).
+///
+/// Seule route de sortie d'un échéancier posé par erreur (ex. `provider`
+/// jamais réellement câblé, ou jalons erronés) : avant cette route, un
+/// échéancier `active` verrouillait le reste-dû du devis (garde #5669) sans
+/// aucun moyen de l'annuler hors SQL direct — cul-de-sac de facturation.
+/// Praticien uniquement, `cabinet_id` extrait du JWT. Échéancier inexistant
+/// ou hors tenant → `404`. Déjà `completed`/`cancelled` → `409
+/// invalid_status`. Ne touche à aucun paiement déjà encaissé : seul le
+/// statut de l'échéancier change, libérant le reste-dû pour un nouveau
+/// paiement manuel ou une intégration réelle.
+pub async fn cancel_payment_schedule(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(schedule_id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let status: Option<String> = sqlx::query_scalar(
+        "SELECT status FROM payment_schedule WHERE id = $1 AND cabinet_id = $2 FOR UPDATE",
+    )
+    .bind(schedule_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let status = status.ok_or(AppError::NotFound)?;
+    if status != "active" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    sqlx::query("UPDATE payment_schedule SET status = 'cancelled' WHERE id = $1")
+        .bind(schedule_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        schedule_id = %schedule_id,
+        "payment schedule cancelled"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
 }
