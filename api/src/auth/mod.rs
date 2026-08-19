@@ -4200,6 +4200,27 @@ pub async fn post_account_dependents(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #5725 : le contrôle #4475 ci-dessous est un SELECT-then-INSERT — sans
+    // sérialisation, N requêtes concurrentes pour la même identité passent
+    // toutes le SELECT (aucune n'a encore commité) et mintent chacune un
+    // compte géré. On sérialise sur l'identité (guardian + nom/prénom/date de
+    // naissance) via un advisory lock transactionnel : la 2e transaction
+    // bloque jusqu'au commit/rollback de la 1re, puis voit son INSERT lors de
+    // son propre SELECT → 409 au lieu d'un doublon. Relâché automatiquement à
+    // la fin de la transaction (xact), donc rien à libérer explicitement.
+    let identity_lock_key = format!(
+        "dependent|{}|{}|{}|{}",
+        claims.account_id,
+        body.first_name,
+        body.last_name,
+        birth_date.map(|d| d.to_string()).unwrap_or_default(),
+    );
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(&identity_lock_key)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     // #4475 : dependent_account_id est toujours neuf à la création, donc
     // l'index unique account_guardianship_active_pair_uidx (couple actif)
     // ne peut structurellement jamais matcher — un double-submit du même
