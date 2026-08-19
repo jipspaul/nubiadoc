@@ -4200,6 +4200,26 @@ pub async fn post_account_dependents(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #5725 : le SELECT-puis-INSERT ci-dessous est une race TOCTOU sous
+    // requêtes concurrentes (double-tap, retries réseau) — N requêtes pour
+    // le même proche passent toutes le SELECT avant qu'aucun INSERT ne soit
+    // visible. On sérialise via un verrou advisory transactionnel sur le
+    // hash de l'identité (guardian + nom/prénom/date de naissance) : les
+    // transactions concurrentes pour la même identité font la queue ici, et
+    // seule la première voit encore "pas de doublon" au SELECT.
+    let lock_key = format!(
+        "{}|{}|{}|{}",
+        claims.account_id,
+        body.first_name.trim().to_lowercase(),
+        body.last_name.trim().to_lowercase(),
+        birth_date.map(|d| d.to_string()).unwrap_or_default(),
+    );
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(&lock_key)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     // #4475 : dependent_account_id est toujours neuf à la création, donc
     // l'index unique account_guardianship_active_pair_uidx (couple actif)
     // ne peut structurellement jamais matcher — un double-submit du même
