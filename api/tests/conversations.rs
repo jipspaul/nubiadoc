@@ -499,6 +499,81 @@ async fn conversations_create_returns_201() {
         .ok();
 }
 
+// ── Test 1bis : subject contenant un NUL byte → 422 (pas 500, #5686) ──────────
+
+#[tokio::test]
+async fn conversations_create_subject_with_nul_byte_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let cabinet_id = setup_listed_cabinet(&db).await;
+    let (user_id, account_id) = setup_patient(&db).await;
+    let patient_id = setup_patient_link(&db, cabinet_id, account_id).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/conversations")
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::from(
+                    json!({ "cabinet_id": cabinet_id, "subject": "a\0b" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM conversation WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 2 : re-POST même cabinet → 201 + même id (idempotence) ───────────────
 
 #[tokio::test]

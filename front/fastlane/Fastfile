@@ -102,6 +102,7 @@ IOS_APPS = {
   "app_practicien"  => ENV["FAD_IOS_APP_ID_PRATICIEN"]   || "1:117935898059:ios:334b8e9520918e5fe38a4e",
   "app_secretariat" => ENV["FAD_IOS_APP_ID_SECRETARIAT"] || "1:117935898059:ios:637b749ef74b4ef8e38a4e",
   "app_pharmacie"   => ENV["FAD_IOS_APP_ID_PHARMACIE"]   || "1:117935898059:ios:e45bace8e02d0e63e38a4e",
+  "app_infirmiere"  => ENV["FAD_IOS_APP_ID_INFIRMIERE"]  || "1:117935898059:ios:c05cce365ff72a66e38a4e",
 }.freeze
 
 IOS_BUNDLE_IDS = {
@@ -109,6 +110,7 @@ IOS_BUNDLE_IDS = {
   "app_practicien"  => "com.nubiadoc.praticien",
   "app_secretariat" => "com.nubiadoc.secretariat",
   "app_pharmacie"   => "com.nubiadoc.pharmacie",
+  "app_infirmiere"  => "com.nubiadoc.infirmiere",
 }.freeze
 
 # ATTENTION : cette lane MODIFIE le compte Apple Developer (crée un bundle id,

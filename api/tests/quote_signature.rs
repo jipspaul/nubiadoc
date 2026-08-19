@@ -457,3 +457,186 @@ async fn initiate_signature_unknown_quote_returns_404() {
 
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// ── Test 7 : tuteur payeur (billed_to_account_id) peut initier /signature ──
+//
+// Régression #5672 : parité avec billing::sign_quote (#5623) et
+// billing_payments (#5627) — la policy quote_patient_read (migration 0175)
+// couvre patient_id ET billed_to_account_id (#4098). Le tuteur payeur du
+// dépendant doit pouvoir démarrer la session Yousign de son dépendant, pas
+// seulement signer via le stub `/sign` ou payer.
+
+#[tokio::test]
+async fn guardian_can_initiate_signature_of_dependent_quote() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let dependent_user_id = Uuid::new_v4();
+    let dependent_account_id = Uuid::new_v4();
+    let guardian_user_id = Uuid::new_v4();
+    let guardian_account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(dependent_user_id)
+    .bind(format!(
+        "quote-sig-dependent+{dependent_user_id}@nubia.test"
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(guardian_user_id)
+    .bind(format!("quote-sig-guardian+{guardian_user_id}@nubia.test"))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Jade', 'Dependante')",
+    )
+    .bind(dependent_account_id)
+    .bind(dependent_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Marc', 'Tuteur')",
+    )
+    .bind(guardian_account_id)
+    .bind(guardian_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO account_guardianship \
+         (guardian_account_id, dependent_account_id, relationship, active) \
+         VALUES ($1, $2, 'parent', true)",
+    )
+    .bind(guardian_account_id)
+    .bind(dependent_account_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet QuoteSigGuardian {cabinet_id}"))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Jade', 'Dependante', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(dependent_account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO quote \
+         (id, cabinet_id, patient_id, billed_to_account_id, status, total_amount, currency) \
+         VALUES ($1, $2, $3, $4, 'sent', 100.00, 'EUR')",
+    )
+    .bind(quote_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(guardian_account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": "yousign-session-guardian",
+            "redirect_url": "https://yousign.example/sign/guardian"
+        })))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let (status, body) = initiate_signature(
+        state_with(app_pool().await),
+        &mock_server.uri(),
+        quote_id,
+        make_patient_jwt(guardian_user_id, guardian_account_id),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::ACCEPTED);
+    assert_eq!(body["provider"], "yousign");
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("UPDATE quote SET signature_id = NULL WHERE id = $1")
+        .bind(quote_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM signature WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote WHERE id = $1")
+        .bind(quote_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+
+    sqlx::query("DELETE FROM account_guardianship WHERE guardian_account_id = $1")
+        .bind(guardian_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_account WHERE app_user_id IN ($1, $2)")
+        .bind(dependent_user_id)
+        .bind(guardian_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id IN ($1, $2)")
+        .bind(dependent_user_id)
+        .bind(guardian_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}

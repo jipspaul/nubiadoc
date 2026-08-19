@@ -257,6 +257,12 @@ pub async fn patch_secretariat(
     Path(secretariat_id): Path<Uuid>,
     Json(body): Json<PatchSecretariatBody>,
 ) -> Result<Json<SecretariatItem>, AppError> {
+    if let Some(name) = &body.name {
+        if name.trim().is_empty() {
+            return Err(AppError::ValidationError);
+        }
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")

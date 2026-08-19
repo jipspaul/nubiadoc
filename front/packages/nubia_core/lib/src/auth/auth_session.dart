@@ -5,7 +5,7 @@ enum UserKind { patient, pro }
 ///
 /// Drives UI feature-gating in the pro apps. The secretariat app must never
 /// expose clinical surfaces — see [ProRole.secretary].
-enum ProRole { admin, practitioner, secretary, pharmacist, unknown }
+enum ProRole { admin, practitioner, secretary, pharmacist, nurse, unknown }
 
 ProRole proRoleFromString(String? value) {
   switch (value) {
@@ -17,6 +17,8 @@ ProRole proRoleFromString(String? value) {
       return ProRole.secretary;
     case 'pharmacist':
       return ProRole.pharmacist;
+    case 'nurse':
+      return ProRole.nurse;
     default:
       return ProRole.unknown;
   }

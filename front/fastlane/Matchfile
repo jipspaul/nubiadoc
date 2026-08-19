@@ -9,6 +9,7 @@ app_identifier([
   "com.nubiadoc.praticien",
   "com.nubiadoc.secretariat",
   "com.nubiadoc.pharmacie",
+  "com.nubiadoc.infirmiere",
 ])
 
 team_id("GRTL7MMCW7")
