@@ -24,6 +24,10 @@ pub use reminder_dispatch::{
 };
 pub use scaleway_storage_signer::ScalewayStorageSigner;
 pub use twilio_sms::TwilioSmsSender;
+pub use visit_offer_expiry::{
+    dispatch_visit_offer_expiry, run_visit_offer_expiry_loop, VisitOfferExpiryError,
+    VisitOfferExpirySummary,
+};
 pub use yousign_client::YousignClient;
 
 mod appointment_motifs;
@@ -121,6 +125,7 @@ mod text_validation;
 mod treatment_phases;
 mod treatment_plans;
 mod twilio_sms;
+mod visit_offer_expiry;
 mod waiting_list;
 pub mod web_tunnel;
 mod webhooks;

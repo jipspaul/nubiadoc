@@ -4,8 +4,8 @@ use std::sync::Arc;
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{
     app_with_quote_signature_client_and_signer, run_dispatch_loop, run_quote_relance_loop,
-    AppState, BrevoMailer, ScalewayStorageSigner, StorageSigner, StubJobDispatcher,
-    TwilioSmsSender, YousignClient,
+    run_visit_offer_expiry_loop, AppState, BrevoMailer, ScalewayStorageSigner, StorageSigner,
+    StubJobDispatcher, TwilioSmsSender, YousignClient,
 };
 use sqlx::PgPool;
 
@@ -76,6 +76,20 @@ async fn main() {
     tokio::spawn(run_quote_relance_loop(
         state.db.clone(),
         QUOTE_RELANCE_INTERVAL,
+    ));
+
+    // Worker de résolution des offres de visite infirmière expirées (#5730) :
+    // même pattern tokio::spawn que les workers ci-dessus. Intervalle court
+    // (contrairement à la relance devis) car le TTL par défaut d'une offre
+    // (`offer_visit_to_nurses`, migration 0234) est de 5 minutes — un
+    // patient dont la seule infirmière proche ne répond jamais ne doit pas
+    // attendre des heures avant de recevoir le signal "aucune infirmière
+    // disponible".
+    const VISIT_OFFER_EXPIRY_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+    tokio::spawn(run_visit_offer_expiry_loop(
+        state.db.clone(),
+        std::sync::Arc::new(StubJobDispatcher),
+        VISIT_OFFER_EXPIRY_INTERVAL,
     ));
 
     // Pages SSR publiques du tunnel de réservation (#5356) : mêmes routes

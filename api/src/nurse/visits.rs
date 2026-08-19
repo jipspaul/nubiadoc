@@ -15,6 +15,7 @@ use axum::{
     extract::{Extension, Path, State},
     Json,
 };
+use sqlx::Row;
 use uuid::Uuid;
 
 use crate::auth::{AppError, NurseMemberClaims};
@@ -102,20 +103,65 @@ pub async fn accept_visit(
 }
 
 /// `POST /v1/nurse/offers/:id/decline` — retire l'offre de la file de l'infirmière.
+///
+/// `decline_visit_offer` (migration 0236) décline PUIS résout la demande dans
+/// le même appel SQL si c'était sa dernière offre pending (re-fanout vers
+/// d'autres infirmières proches en ligne, ou passage à `expired` si aucune
+/// n'est disponible) — #5730 : sans ça, `visit_request.status` restait
+/// bloqué à `offered` indéfiniment, sans aucun signal pour le patient.
+///
+/// La notification (`apply_settlement`) est volontairement best-effort après
+/// coup : le déclin + sa résolution sont déjà commités en base à ce point, un
+/// échec de notification ne doit pas transformer un déclin réussi en 500 (ni
+/// risquer qu'une infirmière retente et tombe sur un 404 `not_found` alors
+/// que son déclin a bien eu lieu).
 pub async fn decline_offer(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: NurseMemberClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result: String = sqlx::query_scalar("SELECT decline_visit_offer($1, $2)")
-        .bind(id)
-        .bind(claims.nurse_id)
-        .fetch_one(&state.db)
-        .await
-        .map_err(|_| AppError::Internal)?;
+    let row = sqlx::query(
+        "SELECT result, outcome, new_nurse_ids, patient_account_id \
+         FROM decline_visit_offer($1, $2)",
+    )
+    .bind(id)
+    .bind(claims.nurse_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let result: String = row.try_get("result").map_err(|_| AppError::Internal)?;
     if result == "not_found" {
         return Err(AppError::NotFound);
     }
+
+    let outcome: String = row.try_get("outcome").map_err(|_| AppError::Internal)?;
+    let new_nurse_ids: Option<Vec<Uuid>> = row
+        .try_get("new_nurse_ids")
+        .map_err(|_| AppError::Internal)?;
+    let patient_account_id: Option<Uuid> = row
+        .try_get("patient_account_id")
+        .map_err(|_| AppError::Internal)?;
+
+    if let Err(err) = crate::visit_offer_expiry::apply_settlement(
+        &state.db,
+        Some(&hub),
+        dispatcher.as_ref(),
+        id,
+        &outcome,
+        new_nurse_ids.as_deref().unwrap_or_default(),
+        patient_account_id,
+    )
+    .await
+    {
+        tracing::warn!(
+            visit_request_id = %id, nurse_id = %claims.nurse_id, error = ?err,
+            "decline_offer: notification post-résolution en échec (déclin déjà commité)"
+        );
+    }
+
     Ok(Json(serde_json::json!({ "status": "declined" })))
 }
 
