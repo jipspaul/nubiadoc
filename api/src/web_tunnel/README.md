@@ -25,7 +25,10 @@ Détail complet (contexte, alternatives, conséquences) : `docs/04-architecture.
   DB (monolithe modulaire, ADR-002/012 — pas de second conteneur, pas de backend dédié).
 - **Routeur distinct de `/v1/...`** : ces URL humaines (`/dentiste/paris-2e`,
   `/dr-amelie-rousseau-dentiste-paris`, `/reservation/confirmer`) ne sont pas une API versionnée
-  (`api/AGENTS.md` règle 5) — elles sont montées sur un port dédié (`WEB_TUNNEL_PORT`), voir `main.rs`.
+  (`api/AGENTS.md` règle 5) — pas de préfixe `/v1`. Servies depuis le même port que l'API (`APP_PORT`,
+  routeur mergé dans `main.rs`) plutôt qu'un port dédié séparé (#5628 : un second port n'était raccordé à
+  aucun nom de domaine en production, rendant ces pages injoignables malgré un code fonctionnellement
+  correct — le Caddy réel de l'hôte, hors dépôt, proxie déjà tout `APP_PORT` sans filtre de chemin).
 - **Design system transposé en CSS** : les jetons de couleur (émeraude/stone), l'échelle typographique
   (Inter + Fraunces) et les rayons proviennent de `nubia_design_system` — exprimés en CSS pur dans
   `html.rs` (`NUBIA_CSS`), pas dans un second framework front. Même marque des deux côtés.

@@ -254,6 +254,42 @@ async fn patch_secretariat_non_admin_returns_403() {
         .ok();
 }
 
+// ── Test 4b : PATCH nom vide/blanc → 422 ────────────────────────────────────
+
+#[tokio::test]
+async fn patch_secretariat_blank_name_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("sec_patch_422_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &email).await;
+    let secretariat_id = create_secretariat(db.clone(), &token).await;
+
+    let body = json!({ "name": "   " });
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/secretariats/{}", secretariat_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
 // ── Test 5 : DELETE non-admin → 403 ─────────────────────────────────────────
 
 #[tokio::test]

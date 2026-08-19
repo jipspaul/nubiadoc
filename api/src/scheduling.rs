@@ -9,7 +9,7 @@ use axum::{
 };
 use chrono::TimeZone;
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
+use sqlx::{Acquire, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -1678,12 +1678,25 @@ pub async fn no_show_appointment(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Best-effort : un AUTRE créneau `open` du même praticien peut déjà
+    // chevaucher cette plage et faire violer `slot_practitioner_no_overlap`
+    // (23P01) ici. Le no-show est l'opération primaire demandée : ce
+    // conflit ne doit jamais la faire échouer (#5698, symétrique de
+    // cancel_appointment #5392/#5393). On isole donc cette UPDATE dans un
+    // savepoint pour pouvoir l'abandonner sans annuler le reste de la tx.
     if let Some(sid) = slot_id {
-        sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+        let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+        let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
             .bind(sid)
-            .execute(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+            .execute(&mut *savepoint)
+            .await;
+        match release {
+            Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+            Err(e) if is_exclusion_violation(&e) => {
+                savepoint.rollback().await.map_err(|_| AppError::Internal)?
+            }
+            Err(_) => return Err(AppError::Internal),
+        }
     }
 
     sqlx::query(
@@ -1939,6 +1952,10 @@ pub async fn patch_cabinet_appointment(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
 
+    if let Some(motif) = body.motif.as_deref() {
+        crate::text_validation::reject_nul_byte(motif)?;
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -2047,12 +2064,25 @@ pub async fn patch_cabinet_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
+        // Best-effort : un AUTRE créneau `open` du même praticien peut déjà
+        // chevaucher cette plage et faire violer `slot_practitioner_no_overlap`
+        // (23P01) ici. Le no-show est l'opération primaire demandée : ce
+        // conflit ne doit jamais la faire échouer (#5698, symétrique de
+        // cancel_appointment #5392/#5393). On isole donc cette UPDATE dans un
+        // savepoint pour pouvoir l'abandonner sans annuler le reste de la tx.
         if let Some(sid) = slot_id {
-            sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+            let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+            let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
                 .bind(sid)
-                .execute(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
+                .execute(&mut *savepoint)
+                .await;
+            match release {
+                Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+                Err(e) if is_exclusion_violation(&e) => {
+                    savepoint.rollback().await.map_err(|_| AppError::Internal)?
+                }
+                Err(_) => return Err(AppError::Internal),
+            }
         }
 
         sqlx::query(
@@ -2164,13 +2194,26 @@ pub async fn patch_cabinet_appointment(
     };
 
     // Libère l'ancien créneau (comme cancel_appointment) puisqu'il n'est plus occupé.
+    // Best-effort : un AUTRE créneau `open` du même praticien peut déjà
+    // chevaucher cette plage et faire violer `slot_practitioner_no_overlap`
+    // (23P01) ici. La reprogrammation est l'opération primaire demandée : ce
+    // conflit ne doit jamais la faire échouer (#5698, symétrique de
+    // cancel_appointment #5392/#5393). On isole donc cette UPDATE dans un
+    // savepoint pour pouvoir l'abandonner sans annuler le reste de la tx.
     if new_starts_at.is_some() {
         if let Some(sid) = slot_id {
-            sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+            let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+            let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
                 .bind(sid)
-                .execute(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
+                .execute(&mut *savepoint)
+                .await;
+            match release {
+                Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+                Err(e) if is_exclusion_violation(&e) => {
+                    savepoint.rollback().await.map_err(|_| AppError::Internal)?
+                }
+                Err(_) => return Err(AppError::Internal),
+            }
         }
 
         // Consomme le créneau de destination (symétrique de create_appointment) :

@@ -78,33 +78,24 @@ async fn main() {
         QUOTE_RELANCE_INTERVAL,
     ));
 
-    // Pages SSR publiques du tunnel de réservation (#5356) : routeur/port
-    // distincts de l'API `/v1/...` (ce ne sont pas des routes d'API), mais
-    // même process/pool DB — même pattern tokio::spawn que le listener MLLP
-    // et les workers ci-dessus (ADR-002/012 : monolithe modulaire, pas de
-    // second conteneur).
-    let web_tunnel_port: u16 = std::env::var("WEB_TUNNEL_PORT")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(3001);
-    let web_tunnel_bind = format!("0.0.0.0:{web_tunnel_port}");
-    let web_tunnel_listener = tokio::net::TcpListener::bind(&web_tunnel_bind)
-        .await
-        .unwrap();
-    println!("nubia-api web-tunnel listening on {web_tunnel_bind}");
-    let web_tunnel_task = axum::serve(
-        web_tunnel_listener,
-        nubia_api::web_tunnel::router(state.clone()),
-    );
-    tokio::spawn(async move {
-        if let Err(e) = web_tunnel_task.await {
-            eprintln!("serveur web-tunnel arrêté avec une erreur : {e}");
-        }
-    });
-
+    // Pages SSR publiques du tunnel de réservation (#5356) : mêmes routes
+    // qu'avant (ce ne sont pas des routes d'API, pas de préfixe `/v1/...`),
+    // mais désormais mergées dans le routeur HTTP servi sur `APP_PORT` au
+    // lieu d'un routeur/port séparé (`WEB_TUNNEL_PORT`) — #5628 : ce second
+    // port n'était raccordé à AUCUN nom de domaine en production (le Caddy
+    // réel de l'hôte, hors LXC, se configure à la main via
+    // `infra/deploy/Caddyfile.snippet` — jamais mis à jour pour ce port), le
+    // rendant 100 % injoignable malgré un code fonctionnellement correct.
+    // `api.<domaine>` proxie déjà TOUT le port `APP_PORT` sans filtre de
+    // chemin (cf. Caddyfile.snippet) : merger ici rend ces pages joignables
+    // immédiatement, sans aucune action manuelle côté hôte. Pas de collision
+    // possible : `/v1/...` a un préfixe fixe (jamais capturé par les
+    // catch-all `/:slug` ou `/:query_slug/:locality_slug` du tunnel, qui
+    // exigent respectivement exactement 1 et 2 segments).
     let http_task = axum::serve(
         listener,
-        app_with_hl7v2_status(state, mllp_status)
+        app_with_hl7v2_status(state.clone(), mllp_status)
+            .merge(nubia_api::web_tunnel::router(state))
             .into_make_service_with_connect_info::<SocketAddr>(),
     );
 
