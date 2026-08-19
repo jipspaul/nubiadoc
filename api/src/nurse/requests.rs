@@ -157,7 +157,13 @@ pub async fn create_visit_request(
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| match &e {
-        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => AppError::Conflict,
+        // #5724 : violation de l'index unique partiel 0234 (une seule
+        // demande active à la fois) — pas AppError::Conflict, dont le JSON
+        // est câblé en dur sur "verification_pending" (même piège que
+        // #3828, corrigé côté cabinet_secretariats.rs).
+        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
+            AppError::VisitRequestAlreadyActive
+        }
         _ => AppError::Internal,
     })?;
     let visit = visit_from_row(&row)?;
