@@ -645,3 +645,141 @@ async fn create_manual_payment_same_key_different_amount_returns_409() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test 12/13 : plancher d'acompte deposit_pct (#3761/#4431/#5748) ─────────
+
+/// Devis `signed`, total 500,00€ (50000 c), `deposit_pct=100` — même scénario
+/// que la repro #5748 (issue).
+async fn seed_with_deposit_pct(db: &PgPool, deposit_pct: i32) -> Fixture {
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet CPM Dep {cabinet_id}"))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+         VALUES ($1, $2, 'Test', 'ManualPaymentDep')",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency, deposit_pct) \
+         VALUES ($1, $2, $3, 'signed', 500.00, 'EUR', $4)",
+    )
+    .bind(quote_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(deposit_pct)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount) \
+         VALUES ($1, $2, 'Acte de test', 1, 500.00)",
+    )
+    .bind(cabinet_id)
+    .bind(quote_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    Fixture {
+        cabinet_id,
+        patient_id,
+        quote_id,
+    }
+}
+
+/// Repro exacte #5748 : `deposit_pct=100` sur un devis signé (reste-à-charge
+/// 50000 c) — un encaissement manuel de 1 centime doit être refusé au même
+/// titre que `POST /v1/billing/quotes/:id/deposit` (#3761/#4431), pas accepté
+/// en 201 comme avant ce fix.
+#[tokio::test]
+async fn create_manual_payment_below_deposit_floor_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed_with_deposit_pct(&db, 100).await;
+    let user_id = Uuid::new_v4();
+    let key = idem_key("deposit-floor-below");
+
+    let (status, _) = create_manual(
+        state_with(app_pool().await),
+        make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        Some(&key),
+        json!({
+            "patient_id": f.patient_id,
+            "quote_id": f.quote_id,
+            "amount_cents": 1,
+            "method": "cash"
+        }),
+    )
+    .await;
+
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "encaissement manuel de 1 centime doit être refusé (plancher = 50000)"
+    );
+
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM payment WHERE quote_id = $1")
+        .bind(f.quote_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(count, 0, "aucun paiement ne doit être créé");
+
+    cleanup(&db, &f).await;
+}
+
+/// Un encaissement manuel couvrant exactement le plancher (`deposit_pct=30`
+/// sur 50000 c → plancher 15000) est accepté.
+#[tokio::test]
+async fn create_manual_payment_at_deposit_floor_returns_201() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed_with_deposit_pct(&db, 30).await;
+    let user_id = Uuid::new_v4();
+    let key = idem_key("deposit-floor-at");
+
+    let (status, resp) = create_manual(
+        state_with(app_pool().await),
+        make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        Some(&key),
+        json!({
+            "patient_id": f.patient_id,
+            "quote_id": f.quote_id,
+            "amount_cents": 15000,
+            "method": "cash"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED, "body: {resp}");
+    assert_eq!(resp["status"], "paid");
+
+    cleanup(&db, &f).await;
+}
