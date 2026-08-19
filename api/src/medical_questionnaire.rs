@@ -18,10 +18,12 @@
 //!   obligatoire : cette route n'est déclenchée que par un clic explicite
 //!   côté praticien (bouton "Valider et importer"), jamais automatiquement.
 //!
-//! Un seul brouillon actif par (patient_account_id, cabinet_id) — pas de
-//! contrainte d'unicité en base (aucune demandée par l'issue), garde
-//! applicative : `POST` renvoie 409 si un brouillon existe déjà, `PATCH` 404
-//! si aucun brouillon n'existe (ou qu'il a déjà été soumis — pas de
+//! Un seul brouillon actif par (patient_account_id, cabinet_id) — appliqué
+//! par l'index unique partiel `medical_questionnaire_submission_one_draft_uidx`
+//! (migration 0235, #5732) : `POST` fait un SELECT applicatif pour renvoyer
+//! un 409 rapide dans le cas courant, mais c'est l'index qui garantit
+//! l'invariant sous concurrence (23505 catché → même 409). `PATCH` renvoie
+//! 404 si aucun brouillon n'existe (ou qu'il a déjà été soumis — pas de
 //! modification après soumission, non demandée par l'issue).
 //!
 //! Garde praticien identique à `dental_chart.rs`/`periodontal_chart.rs`
@@ -159,7 +161,17 @@ pub async fn create_medical_questionnaire(
     .bind(&body.payload)
     .fetch_one(&mut *tx)
     .await
-    .map_err(|_| AppError::Internal)?;
+    .map_err(|e| match &e {
+        // #5732 : le SELECT ci-dessus est une race TOCTOU sous requêtes
+        // concurrentes (double-tap/retry) — l'index unique partiel
+        // medical_questionnaire_submission_one_draft_uidx (migration 0235)
+        // est le garde-fou réel ; ce catch mappe sa violation (23505) sur le
+        // même 409 métier que le SELECT, au lieu d'un 500.
+        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
+            AppError::MedicalQuestionnaireDraftExists
+        }
+        _ => AppError::Internal,
+    })?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
