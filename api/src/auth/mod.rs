@@ -1993,7 +1993,7 @@ fn is_valid_email_format(email: &str) -> bool {
 /// `provider`. `email` syntaxiquement invalide → `422` (#3879). Rôle `admin` requis.
 pub async fn post_cabinet_members(
     State(state): State<AppState>,
-    claims: ProAdminOrManagerClaims,
+    claims: ProAdminClaims,
     Json(body): Json<PostCabinetMemberBody>,
 ) -> Result<(StatusCode, Json<CabinetMemberItem>), AppError> {
     // Rôles valides pour `cabinet_membership` (cf. `patch_cabinet_member`) :
