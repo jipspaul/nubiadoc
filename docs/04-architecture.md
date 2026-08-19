@@ -407,13 +407,17 @@ La bascule en **marketplace santé** ajoute une face publique de découverte. Im
 - **Décision** : ces trois pages (`/​<query_slug>/​<locality_slug>` recherche, `/​<slug>` fiche praticien,
   `/reservation/confirmer` confirmation) sont servies en **HTML rendu côté serveur**, dans le module
   `api/src/web_tunnel/` (Axum, même binaire/process que l'API — cf. ADR-002/012 : monolithe modulaire, pas
-  de second conteneur), sur un port dédié (`WEB_TUNNEL_PORT`). Elles consomment les **mêmes fonctions**
+  de second conteneur), mergées dans le même routeur/port que l'API (`APP_PORT`, cf. `main.rs`) — #5628 :
+  un port dédié (`WEB_TUNNEL_PORT`) séparé n'était raccordé à aucun nom de domaine en production (le Caddy
+  réel de l'hôte se configure à la main, hors dépôt), rendant ces pages 100 % injoignables malgré un code
+  fonctionnellement correct. Elles consomment les **mêmes fonctions**
   Rust que l'API JSON publique (`marketplace::search_providers`, `marketplace::get_provider`) — aucune
   requête ni logique métier dupliquée entre le HTML et le JSON. Ce ne sont **pas** des routes API : elles
-  ne portent pas le préfixe `/v1/...` (règle `api/AGENTS.md` §5, réservée à l'API versionnée). Le design
-  system se transpose : jetons de couleur, échelle typographique (Inter + Fraunces) et rayons de
-  `nubia_design_system` sont exprimés en CSS pur dans `api/src/web_tunnel/html.rs`, pas dans un framework
-  front séparé.
+  ne portent pas le préfixe `/v1/...` (règle `api/AGENTS.md` §5, réservée à l'API versionnée) — pas de
+  collision possible avec les routes API (préfixe fixe `/v1/...` contre les catch-all à 1 ou 2 segments du
+  tunnel). Le design system se transpose : jetons de couleur, échelle typographique (Inter + Fraunces) et
+  rayons de `nubia_design_system` sont exprimés en CSS pur dans `api/src/web_tunnel/html.rs`, pas dans un
+  framework front séparé.
 - **Ce que ça ne change pas** : l'app patient et le back-office cabinet restent Flutter (ADR-001) — cet ADR
   ne concerne que la surface publique non authentifiée du tunnel de réservation. Aucune donnée de santé
   n'est exposée sur ces pages (annuaire public déjà couvert par ADR-011).
