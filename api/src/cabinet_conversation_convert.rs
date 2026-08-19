@@ -79,17 +79,18 @@ pub async fn convert_conversation_to_appointment(
     // (§07 §4.1) et hors fil support admin↔plateforme pour un non-admin
     // (#4843, parité avec cabinet_messaging::{get,send,read}) — déduit
     // patient_id du fil.
-    // R10 : secrétaire scopée au secrétariat actif — même EXISTS que
-    // cabinet_messaging::{get,send,read} (#5715).
+    // R10 (#5715) : pour une secrétaire, cloisonnement au secrétariat rattaché
+    // au(x) praticien(s) suivant le patient — même EXISTS que list_cabinet_conversations,
+    // sinon accès direct par :id contourne le filtre appliqué sur la liste.
     let conv_row = sqlx::query(
-        "SELECT c.patient_id FROM conversation c WHERE c.id = $1 AND c.cabinet_id = $2 \
-         AND (c.scope != 'clinical' OR $3 != 'secretary') \
-         AND (c.scope != 'platform_support' OR $3 = 'admin') \
+        "SELECT patient_id FROM conversation WHERE id = $1 AND cabinet_id = $2 \
+         AND (scope != 'clinical' OR $3 != 'secretary') \
+         AND (scope != 'platform_support' OR $3 = 'admin') \
          AND ($3 != 'secretary' OR EXISTS ( \
              SELECT 1 FROM appointment a \
              JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
              JOIN provider_secretariat ps ON ps.provider_id = pr.id \
-             WHERE a.patient_id = c.patient_id \
+             WHERE a.patient_id = conversation.patient_id \
                AND a.deleted_at IS NULL \
                AND ps.active = true \
                AND ps.secretariat_id = $4 \

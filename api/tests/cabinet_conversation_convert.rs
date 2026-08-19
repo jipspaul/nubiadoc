@@ -32,7 +32,12 @@ async fn app_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
-fn make_pro_jwt(user_id: Uuid, cabinet_id: Uuid, role: &str) -> String {
+fn make_pro_jwt(
+    user_id: Uuid,
+    cabinet_id: Uuid,
+    role: &str,
+    secretariat_id: Option<Uuid>,
+) -> String {
     let exp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -45,6 +50,7 @@ fn make_pro_jwt(user_id: Uuid, cabinet_id: Uuid, role: &str) -> String {
             "kind": "pro",
             "cabinet_id": cabinet_id,
             "role": role,
+            "secretariat_id": secretariat_id,
             "exp": exp
         }),
         &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
@@ -60,6 +66,7 @@ struct Fixtures {
     patient_id: Uuid,
     conversation_id: Uuid,
     slot_id: Uuid,
+    secretariat_id: Uuid,
 }
 
 async fn setup(db: &PgPool, prefix: &str) -> Fixtures {
@@ -72,6 +79,7 @@ async fn setup(db: &PgPool, prefix: &str) -> Fixtures {
     let conversation_id = Uuid::new_v4();
     let message_id = Uuid::new_v4();
     let slot_id = Uuid::new_v4();
+    let secretariat_id = Uuid::new_v4();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
@@ -132,10 +140,45 @@ async fn setup(db: &PgPool, prefix: &str) -> Fixtures {
     .unwrap();
 
     sqlx::query(
+        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat CC Convert')",
+    )
+    .bind(secretariat_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
+         VALUES ($1, $2, true)",
+    )
+    .bind(provider_id)
+    .bind(secretariat_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
         "INSERT INTO patient (id, cabinet_id, first_name, last_name) VALUES ($1, $2, 'Claire', 'Convert')",
     )
     .bind(patient_id)
     .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // RDV déjà existant : requis par le filtre R10 (#5715) qui scope l'accès
+    // secrétaire au(x) patient(s) suivi(s) par son secrétariat.
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 day', \
+                 now() - interval '1 day' + interval '30 min', 'confirmed')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
     .execute(&mut *tx)
     .await
     .unwrap();
@@ -198,6 +241,7 @@ async fn setup(db: &PgPool, prefix: &str) -> Fixtures {
         patient_id,
         conversation_id,
         slot_id,
+        secretariat_id,
     }
 }
 
@@ -235,6 +279,16 @@ async fn teardown(db: &PgPool, f: &Fixtures) {
         .ok();
     sqlx::query("DELETE FROM patient WHERE id = $1")
         .bind(f.patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider_secretariat WHERE secretariat_id = $1")
+        .bind(f.secretariat_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM secretariat WHERE id = $1")
+        .bind(f.secretariat_id)
         .execute(&mut *tx)
         .await
         .ok();
@@ -323,7 +377,12 @@ async fn convert_conversation_creates_requested_appointment_and_audit_log() {
                     "Authorization",
                     format!(
                         "Bearer {}",
-                        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary")
+                        make_pro_jwt(
+                            f.secretary_user_id,
+                            f.cabinet_id,
+                            "secretary",
+                            Some(f.secretariat_id),
+                        )
                     ),
                 )
                 .header("content-type", "application/json")
@@ -434,7 +493,7 @@ async fn convert_conversation_not_found_returns_404() {
                     "Authorization",
                     format!(
                         "Bearer {}",
-                        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary")
+                        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary", None)
                     ),
                 )
                 .header("content-type", "application/json")
@@ -493,7 +552,7 @@ async fn convert_conversation_slot_not_open_returns_404() {
                     "Authorization",
                     format!(
                         "Bearer {}",
-                        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary")
+                        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary", None)
                     ),
                 )
                 .header("content-type", "application/json")
@@ -537,7 +596,7 @@ async fn convert_conversation_unknown_slot_returns_404() {
                     "Authorization",
                     format!(
                         "Bearer {}",
-                        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary")
+                        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary", None)
                     ),
                 )
                 .header("content-type", "application/json")
