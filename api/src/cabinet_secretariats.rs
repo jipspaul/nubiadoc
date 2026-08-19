@@ -730,8 +730,12 @@ pub struct MembershipPermissionsResponse {
 /// malgré l'extracteur `ProBillingClaims` qui le lit et le fait respecter.
 ///
 /// Rôles `admin` ou `manager` requis. Membre absent ou inactif → `404`.
-/// Merge la clé `billing` dans le jsonb existant (`||`), sans écraser
-/// d'éventuelles autres clés futures (`patients`, `messaging`, ...).
+/// Un `manager` ne peut cibler qu'un membre de rôle `secretary` de son
+/// cabinet — jamais lui-même, ni un autre `manager`/`admin` (#5739 :
+/// sinon un manager peut restaurer une permission que l'admin vient de
+/// lui retirer, rendant la restriction purement cosmétique) → `403`
+/// sinon. Merge la clé `billing` dans le jsonb existant (`||`), sans
+/// écraser d'éventuelles autres clés futures (`patients`, `messaging`, ...).
 pub async fn patch_membership_permissions(
     State(state): State<AppState>,
     claims: ProAdminOrManagerClaims,
@@ -742,10 +746,7 @@ pub async fn patch_membership_permissions(
         return Err(AppError::ValidationError);
     };
 
-    // Un manager ne modifie jamais ses propres permissions ni celles d'un
-    // pair/admin : la restriction posée par l'admin (#4081) doit rester
-    // effective tant que l'admin ne la lève pas lui-même (auto-escalade RBAC).
-    if claims.role != "admin" && target_user_id == claims.sub {
+    if target_user_id == claims.sub {
         return Err(AppError::Forbidden);
     }
 
@@ -757,28 +758,20 @@ pub async fn patch_membership_permissions(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let target_role: Option<String> = sqlx::query(
-        "SELECT role FROM cabinet_membership \
-         WHERE cabinet_id = $1 AND user_id = $2 AND active = true",
-    )
-    .bind(claims.cabinet_id)
-    .bind(target_user_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?
-    .map(|row| row.try_get("role"))
-    .transpose()
-    .map_err(|_: sqlx::Error| AppError::Internal)?;
+    if claims.role == "manager" {
+        let target_role: Option<String> = sqlx::query_scalar(
+            "SELECT role FROM cabinet_membership \
+             WHERE cabinet_id = $1 AND user_id = $2 AND active = true",
+        )
+        .bind(claims.cabinet_id)
+        .bind(target_user_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
-    let Some(target_role) = target_role else {
-        return Err(AppError::NotFound);
-    };
-
-    // Un manager ne gère que les permissions des `secretary` sous lui, jamais
-    // celles d'un autre manager ou d'un admin (cf. `post_cabinet_members`
-    // qui, symétriquement, exige `ProAdminClaims` strict pour la création).
-    if claims.role != "admin" && target_role != "secretary" {
-        return Err(AppError::Forbidden);
+        if target_role.as_deref() != Some("secretary") {
+            return Err(AppError::Forbidden);
+        }
     }
 
     let row = sqlx::query(
