@@ -131,19 +131,21 @@ pub async fn patch_cabinet_quote(
 
     let version: i32 = updated.try_get("version").map_err(|_| AppError::Internal)?;
 
-    // #5733 : `QuoteItemInput` n'a pas d'identité stable par ligne (cf.
-    // commentaire de module), mais le DELETE+INSERT ci-dessous perdait
-    // systématiquement `phase_id` — une ligne rattachée à une phase de plan
-    // de traitement (`treatment_phases::create_treatment_phase`) se
-    // retrouvait détachée dès la moindre édition du devis, même sans
-    // changement de montant/libellé, vidant silencieusement la phase et son
-    // agrégat `total_cost_cents` côté plan. On capture le `phase_id` des
-    // lignes existantes avant le DELETE et on le reporte, au meilleur effort,
-    // sur la ligne du PATCH ayant le même contenu (label/montant/ccam/dent) —
-    // ce qui couvre exactement le cas d'une édition sans changement
-    // structurel des lignes, comme celui-ci.
+    // #5733 puis #5749 : `QuoteItemInput` n'a pas d'identité stable par
+    // ligne (cf. commentaire de module), mais le DELETE+INSERT ci-dessous
+    // perdait systématiquement `phase_id` — une ligne rattachée à une phase
+    // de plan de traitement (`treatment_phases::create_treatment_phase`) se
+    // retrouvait détachée dès la moindre édition du devis, vidant
+    // silencieusement la phase et son agrégat `total_cost_cents` côté plan.
+    // On capture le `phase_id` des lignes existantes avant le DELETE et on
+    // le reporte, au meilleur effort, sur la ligne du PATCH ayant le même
+    // contenu STRUCTUREL (label/ccam/dent). #5733 incluait `amount_cents`
+    // dans la clé de match, ce qui excluait de fait toute simple correction
+    // de prix (le cas le plus fréquent en pratique) : une ligne identique en
+    // tout sauf le montant n'est pas un changement structurel du point de
+    // vue métier, donc `amount_cents` est exclu du matching ici.
     let old_item_rows = sqlx::query(
-        "SELECT label, (unit_amount * 100)::bigint AS amount_cents, ccam_code, tooth, phase_id \
+        "SELECT label, ccam_code, tooth, phase_id \
          FROM quote_item WHERE quote_id = $1",
     )
     .bind(id)
@@ -151,17 +153,14 @@ pub async fn patch_cabinet_quote(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    type OldItem = (String, i64, Option<String>, Option<String>, Option<Uuid>);
+    type OldItem = (String, Option<String>, Option<String>, Option<Uuid>);
     let mut old_items: Vec<OldItem> = Vec::with_capacity(old_item_rows.len());
     for row in &old_item_rows {
         let label: String = row.try_get("label").map_err(|_| AppError::Internal)?;
-        let amount_cents: i64 = row
-            .try_get("amount_cents")
-            .map_err(|_| AppError::Internal)?;
         let ccam_code: Option<String> = row.try_get("ccam_code").map_err(|_| AppError::Internal)?;
         let tooth: Option<String> = row.try_get("tooth").map_err(|_| AppError::Internal)?;
         let phase_id: Option<Uuid> = row.try_get("phase_id").map_err(|_| AppError::Internal)?;
-        old_items.push((label, amount_cents, ccam_code, tooth, phase_id));
+        old_items.push((label, ccam_code, tooth, phase_id));
     }
 
     sqlx::query("DELETE FROM quote_item WHERE quote_id = $1")
@@ -173,13 +172,10 @@ pub async fn patch_cabinet_quote(
     for item in &body.items {
         let phase_id = old_items
             .iter()
-            .position(|(label, amount_cents, ccam_code, tooth, _)| {
-                label == &item.label
-                    && *amount_cents == item.amount_cents
-                    && ccam_code == &item.ccam_code
-                    && tooth == &item.tooth
+            .position(|(label, ccam_code, tooth, _)| {
+                label == &item.label && ccam_code == &item.ccam_code && tooth == &item.tooth
             })
-            .and_then(|idx| old_items.remove(idx).4);
+            .and_then(|idx| old_items.remove(idx).3);
 
         sqlx::query(
             "INSERT INTO quote_item \
