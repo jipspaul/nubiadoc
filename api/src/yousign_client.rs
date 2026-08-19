@@ -28,7 +28,7 @@
 
 use uuid::Uuid;
 
-use crate::{QuoteSignatureClient, QuoteSignatureSession};
+use crate::{QuoteSignatureClient, QuoteSignatureError, QuoteSignatureSession};
 
 const DEFAULT_YOUSIGN_BASE_URL: &str = "https://api.yousign.app";
 
@@ -76,17 +76,21 @@ struct YousignSessionResponse {
 
 #[async_trait::async_trait]
 impl QuoteSignatureClient for YousignClient {
-    async fn create_session(&self, quote_id: Uuid) -> Result<QuoteSignatureSession, String> {
+    async fn create_session(
+        &self,
+        quote_id: Uuid,
+    ) -> Result<QuoteSignatureSession, QuoteSignatureError> {
         // `YOUSIGN_API_KEY` absente (#5688 : lu en `unwrap_or_default()` par
         // design, cf. `from_env` — ne panique jamais au boot) : un `Bearer`
-        // vide échoue de toute façon systématiquement côté Yousign (401/403),
-        // mais le message d'erreur résultant ne distingue pas ce cas d'une
-        // vraie panne réseau/provider en production. Court-circuit ici pour
-        // ne pas émettre un appel HTTP voué à l'échec et pour que le log
-        // (`quote_signature.rs`) pointe explicitement la cause réelle :
-        // clé absente, pas un incident Yousign.
+        // vide échoue de toute façon systématiquement côté Yousign (401/403).
+        // Court-circuit ici pour ne pas émettre un appel HTTP voué à
+        // l'échec, et pour que l'API distingue ce cas structurel (provider
+        // pas encore provisionné, `QuoteSignatureError::NotConfigured` →
+        // `503 signature_provider_not_configured`) d'une vraie panne réseau
+        // ou d'un refus Yousign en production (`Failure` → `502
+        // upstream_unavailable`), cf. `quote_signature.rs`.
         if self.api_key.is_empty() {
-            return Err("yousign: YOUSIGN_API_KEY non configurée (clé vide)".to_string());
+            return Err(QuoteSignatureError::NotConfigured);
         }
 
         let url = format!("{}/v1/quotes/{quote_id}/signature-requests", self.base_url);
@@ -98,19 +102,21 @@ impl QuoteSignatureClient for YousignClient {
             .json(&serde_json::json!({ "quote_id": quote_id }))
             .send()
             .await
-            .map_err(|e| format!("yousign: provider injoignable: {e}"))?;
+            .map_err(|e| {
+                QuoteSignatureError::Failure(format!("yousign: provider injoignable: {e}"))
+            })?;
 
         if !response.status().is_success() {
-            return Err(format!(
+            return Err(QuoteSignatureError::Failure(format!(
                 "yousign: réponse non-succès ({})",
                 response.status()
-            ));
+            )));
         }
 
         let body: YousignSessionResponse = response
             .json()
             .await
-            .map_err(|e| format!("yousign: réponse invalide: {e}"))?;
+            .map_err(|e| QuoteSignatureError::Failure(format!("yousign: réponse invalide: {e}")))?;
 
         Ok(QuoteSignatureSession {
             external_id: body.id,
