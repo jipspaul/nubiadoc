@@ -86,15 +86,13 @@ async fn insert_member(db: &PgPool, cabinet_id: Uuid, tag: &str, role: &str) -> 
         .execute(db)
         .await
         .unwrap();
-    sqlx::query(
-        "INSERT INTO cabinet_membership (cabinet_id, user_id, role) VALUES ($1, $2, $3)",
-    )
-    .bind(cabinet_id)
-    .bind(user_id)
-    .bind(role)
-    .execute(db)
-    .await
-    .unwrap();
+    sqlx::query("INSERT INTO cabinet_membership (cabinet_id, user_id, role) VALUES ($1, $2, $3)")
+        .bind(cabinet_id)
+        .bind(user_id)
+        .bind(role)
+        .execute(db)
+        .await
+        .unwrap();
 
     user_id
 }
@@ -134,7 +132,9 @@ async fn patch_permissions(
         .oneshot(
             Request::builder()
                 .method("PATCH")
-                .uri(format!("/v1/cabinet/membership/{target_user_id}/permissions"))
+                .uri(format!(
+                    "/v1/cabinet/membership/{target_user_id}/permissions"
+                ))
                 .header("Authorization", format!("Bearer {actor_jwt}"))
                 .header("content-type", "application/json")
                 .body(Body::from(json!({"billing": billing}).to_string()))
