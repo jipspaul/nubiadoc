@@ -899,12 +899,35 @@ pub async fn pro_register(
         "{} {}",
         body.practitioner.first_name, body.practitioner.last_name
     );
-    let provider_row = sqlx::query(
-        "INSERT INTO provider (cabinet_id, user_id, display_name, rpps, adeli) \
-         VALUES ($1, $2, $3, $4, $5) RETURNING id",
+
+    // Ligne cabinet-interne (0002_cabinet_identity.sql), sans laquelle le cabinet
+    // n'a aucun praticien exploitable : `create_cabinet_slot` (scheduling.rs) et
+    // `get_cabinet_agenda` ne lisent que `practitioner`, jamais `provider`.
+    let practitioner_row = sqlx::query(
+        "INSERT INTO practitioner (cabinet_id, user_id, rpps, specialite) \
+         VALUES ($1, $2, $3, $4) RETURNING id",
     )
     .bind(cabinet_id)
     .bind(user_id)
+    .bind(&body.practitioner.rpps)
+    .bind(&body.cabinet.specialite)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = practitioner_row
+        .try_get(0)
+        .map_err(|_| AppError::Internal)?;
+
+    // Profil marketplace public, lié au praticien cabinet via `practitioner_id`
+    // (colonne nullable, 0009_marketplace.sql) — c'est ce lien que
+    // `create_cabinet_slot` utilise pour retrouver le provider associé.
+    let provider_row = sqlx::query(
+        "INSERT INTO provider (cabinet_id, user_id, practitioner_id, display_name, rpps, adeli) \
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .bind(practitioner_id)
     .bind(&display_name)
     .bind(&body.practitioner.rpps)
     .bind(&body.practitioner.adeli)
@@ -1370,7 +1393,7 @@ impl FromRequestParts<AppState> for ProAdminClaims {
 pub(crate) struct ProAdminOrManagerClaims {
     pub(crate) sub: Uuid,
     pub(crate) cabinet_id: Uuid,
-    role: String,
+    pub(crate) role: String,
 }
 
 #[async_trait]
