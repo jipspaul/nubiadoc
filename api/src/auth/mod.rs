@@ -1370,7 +1370,7 @@ impl FromRequestParts<AppState> for ProAdminClaims {
 pub(crate) struct ProAdminOrManagerClaims {
     pub(crate) sub: Uuid,
     pub(crate) cabinet_id: Uuid,
-    role: String,
+    pub(crate) role: String,
 }
 
 #[async_trait]

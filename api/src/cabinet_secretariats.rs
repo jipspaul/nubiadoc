@@ -742,6 +742,13 @@ pub async fn patch_membership_permissions(
         return Err(AppError::ValidationError);
     };
 
+    // Un manager ne modifie jamais ses propres permissions ni celles d'un
+    // pair/admin : la restriction posée par l'admin (#4081) doit rester
+    // effective tant que l'admin ne la lève pas lui-même (auto-escalade RBAC).
+    if claims.role != "admin" && target_user_id == claims.sub {
+        return Err(AppError::Forbidden);
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -749,6 +756,30 @@ pub async fn patch_membership_permissions(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    let target_role: Option<String> = sqlx::query(
+        "SELECT role FROM cabinet_membership \
+         WHERE cabinet_id = $1 AND user_id = $2 AND active = true",
+    )
+    .bind(claims.cabinet_id)
+    .bind(target_user_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .map(|row| row.try_get("role"))
+    .transpose()
+    .map_err(|_: sqlx::Error| AppError::Internal)?;
+
+    let Some(target_role) = target_role else {
+        return Err(AppError::NotFound);
+    };
+
+    // Un manager ne gère que les permissions des `secretary` sous lui, jamais
+    // celles d'un autre manager ou d'un admin (cf. `post_cabinet_members`
+    // qui, symétriquement, exige `ProAdminClaims` strict pour la création).
+    if claims.role != "admin" && target_role != "secretary" {
+        return Err(AppError::Forbidden);
+    }
 
     let row = sqlx::query(
         "UPDATE cabinet_membership \
