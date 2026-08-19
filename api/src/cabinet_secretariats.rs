@@ -730,8 +730,12 @@ pub struct MembershipPermissionsResponse {
 /// malgré l'extracteur `ProBillingClaims` qui le lit et le fait respecter.
 ///
 /// Rôles `admin` ou `manager` requis. Membre absent ou inactif → `404`.
-/// Merge la clé `billing` dans le jsonb existant (`||`), sans écraser
-/// d'éventuelles autres clés futures (`patients`, `messaging`, ...).
+/// Un `manager` ne peut cibler qu'un membre de rôle `secretary` de son
+/// cabinet — jamais lui-même, ni un autre `manager`/`admin` (#5739 :
+/// sinon un manager peut restaurer une permission que l'admin vient de
+/// lui retirer, rendant la restriction purement cosmétique) → `403`
+/// sinon. Merge la clé `billing` dans le jsonb existant (`||`), sans
+/// écraser d'éventuelles autres clés futures (`patients`, `messaging`, ...).
 pub async fn patch_membership_permissions(
     State(state): State<AppState>,
     claims: ProAdminOrManagerClaims,
@@ -742,6 +746,10 @@ pub async fn patch_membership_permissions(
         return Err(AppError::ValidationError);
     };
 
+    if target_user_id == claims.sub {
+        return Err(AppError::Forbidden);
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -749,6 +757,22 @@ pub async fn patch_membership_permissions(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    if claims.role == "manager" {
+        let target_role: Option<String> = sqlx::query_scalar(
+            "SELECT role FROM cabinet_membership \
+             WHERE cabinet_id = $1 AND user_id = $2 AND active = true",
+        )
+        .bind(claims.cabinet_id)
+        .bind(target_user_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if target_role.as_deref() != Some("secretary") {
+            return Err(AppError::Forbidden);
+        }
+    }
 
     let row = sqlx::query(
         "UPDATE cabinet_membership \
