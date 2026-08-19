@@ -55,6 +55,13 @@ class DashboardPage extends StatelessWidget {
     return ProShell(
       config: ProConfig.shellConfig,
       session: session,
+      // Synchronise l'onglet sélectionné avec l'URL go_router dans les 2
+      // sens : `currentRoute` pilote la sélection depuis `state.uri.path`
+      // (navigation directe / reload / retour navigateur), et `onNavigate`
+      // pousse l'URL via `context.go` quand l'utilisateur clique une
+      // destination dans le rail/drawer (#5691, cf. #4813 pour app_pharmacie).
+      currentRoute: GoRouterState.of(context).uri.path,
+      onNavigate: (destination) => context.go(destination.route),
       bodyBuilder: (ctx, destination) {
         if (destination.route == ProConfig.dashboardRoute) {
           return BlocProvider(

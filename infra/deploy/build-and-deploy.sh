@@ -22,6 +22,11 @@ HOST="${DEPLOY_HOST:-100.117.41.116}"
 SSH_USER="${DEPLOY_USER:-root}"
 export SSHPASS="${DEPLOY_PASSWORD:-jipsjips}"
 API_BASE="${API_BASE:-http://${HOST}:3000}"
+# #5688 : absente jusqu'ici de toute la chaîne CI -> LXC (secret Forgejo à
+# renseigner) -> le conteneur nubia-api démarrait donc TOUJOURS sans
+# YOUSIGN_API_KEY, quelle que soit la config secrets Forgejo -> Bearer vide ->
+# 502 upstream_unavailable systématique sur POST /v1/quotes/:id/signature.
+YOUSIGN_API_KEY="${YOUSIGN_API_KEY:-}"
 TARGET="x86_64-unknown-linux-musl"
 OUT="$ROOT/.deploy-artifacts"
 
@@ -119,7 +124,7 @@ for d in patient praticien secretary pharmacie; do
 done
 
 say "6/6 déploiement distant"
-SSH "PUBLIC_API_BASE='$API_BASE' sh /opt/nubia/deploy.sh"
+SSH "PUBLIC_API_BASE='$API_BASE' YOUSIGN_API_KEY='$YOUSIGN_API_KEY' sh /opt/nubia/deploy.sh"
 
 cat <<EOF
 

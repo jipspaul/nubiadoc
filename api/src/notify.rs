@@ -98,7 +98,38 @@ pub(crate) async fn notify_pharmacy_staff(
     Ok(out)
 }
 
-/// Enveloppe WS `order_status_changed` — zéro PII.
+/// Notifie tous les membres actifs d'un tenant infirmier (offre de visite,
+/// changement de statut). Clone de `notify_pharmacy_staff`. Le GUC nurse est
+/// posé sur la valeur passée (déjà validée par l'appelant).
+pub(crate) async fn notify_nurse_staff(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    nurse_id: Uuid,
+    kind: &str,
+    title: &str,
+    data: serde_json::Value,
+) -> Result<Vec<(Uuid, Uuid)>, AppError> {
+    sqlx::query("SELECT set_config('app.current_nurse_id', $1, true)")
+        .bind(nurse_id.to_string())
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let rows = sqlx::query("SELECT user_id FROM nurse_membership WHERE nurse_id = $1 AND active")
+        .bind(nurse_id)
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let user_id: Uuid = row.try_get("user_id").map_err(|_| AppError::Internal)?;
+        let notification_id = notify_user(tx, user_id, kind, title, data.clone()).await?;
+        out.push((user_id, notification_id));
+    }
+    Ok(out)
+}
+
+/// Enveloppe WS `order_status_changed` — zéro PII. Générique (réutilisée par le
+/// domaine infirmier avec l'id de la demande de visite comme `order_id`).
 pub(crate) fn order_event(channel: &str, order_id: Uuid, status: &str) -> String {
     serde_json::json!({
         "channel": channel,
