@@ -12,6 +12,9 @@
 # chaîne de cross-compilation Rust au runtime, MISE EN CACHE entre les runs
 # (cargo-zigbuild, rustup, zig, deps + target) -> 1er run lent, suivants rapides.
 # Secrets Forgejo requis : DEPLOY_HOST, DEPLOY_USER, DEPLOY_PASSWORD.
+# Secret optionnel : YOUSIGN_API_KEY (#5688 — absent tant qu'aucun compte
+# Yousign n'est provisionné : `POST /v1/quotes/:id/signature` répond alors
+# 502 upstream_unavailable, cf. `yousign_client.rs`).
 # Variable optionnelle : NUBIA_API_BASE (défaut http://<DEPLOY_HOST>:3000).
 on:
   push:
@@ -122,6 +125,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
           API_BASE: ${{ vars.NUBIA_API_BASE }}
+          YOUSIGN_API_KEY: ${{ secrets.YOUSIGN_API_KEY }}
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env" || true

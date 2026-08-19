@@ -228,6 +228,58 @@ async fn search_slots_bbox_malformed_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+// ── Régression #5694 : NUL byte dans `sector`/`languages` → 422 ─────────────
+// Auparavant seul `q` était protégé (#4394) ; `sector`/`languages` liés bruts
+// faisaient échouer le bind Postgres → 500 masqué en Internal.
+
+#[tokio::test]
+async fn search_slots_nul_byte_in_sector_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/slots?sector=%00&provider_id=f0000000-0000-0000-0000-0000000000f1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn search_slots_nul_byte_in_languages_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/slots?languages=%00")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 // ── Test 4 (edge) : slot passé (starts_at < now()) exclu même si status='open' ──
 
 #[tokio::test]
