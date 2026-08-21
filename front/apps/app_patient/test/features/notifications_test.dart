@@ -177,6 +177,69 @@ void main() {
     });
   });
 
+  group('NotificationsPage — horodatage (#5305)', () {
+    testWidgets(
+        "une notification du jour affiche l'heure locale HH:mm en brand700 "
+        'gras quand non lue', (tester) async {
+      final bloc = MockNotificationsBloc();
+      final now = DateTime.now();
+      final createdAt = DateTime(now.year, now.month, now.day, 9, 4);
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          AppNotification(
+            id: 'today',
+            type: NotificationType.appointment,
+            title: 'Titre today',
+            body: 'Corps today',
+            read: false,
+            createdAt: createdAt,
+          ),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.text('09:04'), findsOneWidget);
+      final style = tester.widget<Text>(find.text('09:04')).style;
+      expect(style?.color, NubiaColors.brand700);
+      expect(style?.fontWeight, FontWeight.bold);
+    });
+
+    testWidgets(
+        'une notification antérieure lue affiche "<jour> <mois abrégé>" en '
+        'n500', (tester) async {
+      const months = [
+        'jan', 'fév', 'mar', 'avr', 'mai', 'jun',
+        'jul', 'aoû', 'sep', 'oct', 'nov', 'déc', //
+      ];
+      final createdAt = DateTime.now().subtract(const Duration(days: 13));
+      final expected = '${createdAt.day} ${months[createdAt.month - 1]}';
+
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          AppNotification(
+            id: 'older',
+            type: NotificationType.appointment,
+            title: 'Titre older',
+            body: 'Corps older',
+            read: true,
+            createdAt: createdAt,
+          ),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.text(expected), findsOneWidget);
+      final style = tester.widget<Text>(find.text(expected)).style;
+      expect(style?.color, NubiaColors.n500);
+      expect(style?.fontWeight, FontWeight.normal);
+    });
+  });
+
   group('NotificationsPage — tap → mark-as-read', () {
     testWidgets(
         'un tap sur une notification dispatche NotificationMarkReadRequested',

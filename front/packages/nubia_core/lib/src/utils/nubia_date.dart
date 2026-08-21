@@ -37,6 +37,41 @@ class NubiaDate {
     return null;
   }
 
+  static const _monthsAbbr = [
+    'jan',
+    'fév',
+    'mar',
+    'avr',
+    'mai',
+    'jun',
+    'jul',
+    'aoû',
+    'sep',
+    'oct',
+    'nov',
+    'déc',
+  ];
+
+  /// Horodatage relatif court, heure locale : même jour que [now] (défaut
+  /// `DateTime.now()`) → `HH:mm` ; sinon → `<jour> <mois abrégé>`, ex.
+  /// `8 août`. [dateTime] peut être en UTC (ex. ISO reçu du backend avec
+  /// offset +00:00) : converti via `.toLocal()` avant tout calcul, pour
+  /// éviter le bug #3856 (heure/jour UTC affichés au lieu de l'heure/jour
+  /// locale).
+  static String relative(DateTime dateTime, {DateTime? now}) {
+    final dt = dateTime.toLocal();
+    final reference = now ?? DateTime.now();
+    final sameDay = dt.year == reference.year &&
+        dt.month == reference.month &&
+        dt.day == reference.day;
+    if (sameDay) {
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
+      return '$h:$m';
+    }
+    return '${dt.day} ${_monthsAbbr[dt.month - 1]}';
+  }
+
   /// Nombre de mois pleins écoulés entre une date ISO et [now] (heure locale,
   /// défaut `DateTime.now()`), ex. posé le `2026-03-12`, le `2026-08-17` →
   /// `5`. [now] est surtout utile pour des tests déterministes.
