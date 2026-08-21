@@ -63,7 +63,11 @@ void main() {
 
       expect(find.byKey(const Key('implant_passport_list')), findsOneWidget);
       expect(find.byKey(const Key('implant_implant-1')), findsOneWidget);
-      expect(find.text('Nobel Biocare'), findsOneWidget);
+      // #5319 : l'en-tête de carte est le nom anatomique (traduction FDI),
+      // pas la marque.
+      expect(find.text('Molaire inférieure gauche'), findsOneWidget);
+      expect(find.text('36'), findsOneWidget);
+      expect(find.text('FDI'), findsOneWidget);
       // #5320 : champs en lignes étiquetées, plus de sous-titre concaténé.
       expect(find.text('Posé le'), findsOneWidget);
       expect(find.text('15 janvier 2025'), findsOneWidget);
@@ -72,6 +76,42 @@ void main() {
       expect(find.textContaining(' · '), findsNothing);
       // Praticien absent sur `_implant` → ligne non rendue.
       expect(find.text('Praticien'), findsNothing);
+    });
+
+    testWidgets(
+        'affiche la marque en titre et pas de vignette FDI quand '
+        'toothPosition est absent', (tester) async {
+      const implantWithoutTooth = ImplantItem(
+        id: 'implant-5',
+        brand: 'Straumann',
+      );
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([implantWithoutTooth]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Straumann'), findsOneWidget);
+      expect(find.text('FDI'), findsNothing);
+    });
+
+    testWidgets(
+        'affiche fabricant · modèle sous le nom anatomique quand renseignés',
+        (tester) async {
+      const implantWithManufacturerModel = ImplantItem(
+        id: 'implant-6',
+        brand: 'Nobel Biocare',
+        toothPosition: '36',
+        manufacturer: 'Nobel Biocare',
+        model: 'Replace Select',
+      );
+      when(() => listUseCase()).thenAnswer(
+          (_) async => const Right([implantWithManufacturerModel]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nobel Biocare · Replace Select'), findsOneWidget);
     });
 
     testWidgets('affiche le praticien sur sa propre ligne quand renseigné',
