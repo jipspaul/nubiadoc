@@ -103,14 +103,31 @@ class NotificationsPage extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _NotificationsContent extends StatelessWidget {
+class _NotificationsContent extends StatefulWidget {
   const _NotificationsContent({required this.state});
 
   final NotificationsLoaded state;
 
   @override
+  State<_NotificationsContent> createState() => _NotificationsContentState();
+}
+
+/// Facette sélectionnée : filtre de vue local, sans event bloc (pas d'appel
+/// réseau supplémentaire — les compteurs sont dérivés de `state.notifications`).
+class _NotificationsContentState extends State<_NotificationsContent> {
+  NotificationType? _facet;
+
+  static const _facets = <(String, NotificationType?)>[
+    ('Toutes', null),
+    ('Rendez-vous', NotificationType.appointment),
+    ('Documents', NotificationType.document),
+    ('Paiements', NotificationType.payment),
+  ];
+
+  @override
   Widget build(BuildContext context) {
-    if (state.notifications.isEmpty) {
+    final notifications = widget.state.notifications;
+    if (notifications.isEmpty) {
       return const NubiaEmptyState(
         key: Key('notifications_empty'),
         icon: Icons.notifications_off,
@@ -118,12 +135,43 @@ class _NotificationsContent extends StatelessWidget {
         subtitle: 'Vous êtes à jour',
       );
     }
-    return ListView.separated(
-      key: const Key('notifications_list'),
-      itemCount: state.notifications.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, i) =>
-          _NotificationTile(notification: state.notifications[i]),
+    final visible = _facet == null
+        ? notifications
+        : notifications.where((n) => n.type == _facet).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (label, type) in _facets)
+                NubiaChip(
+                  key: Key('notif_filter_${type?.name ?? 'all'}'),
+                  label: label,
+                  count: type == null
+                      ? notifications.length
+                      : notifications.where((n) => n.type == type).length,
+                  selected: _facet == type,
+                  selectedBackground: NubiaColors.n900,
+                  selectedForeground: Colors.white,
+                  onTap: () => setState(() => _facet = type),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            key: const Key('notifications_list'),
+            itemCount: visible.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, i) =>
+                _NotificationTile(notification: visible[i]),
+          ),
+        ),
+      ],
     );
   }
 }
