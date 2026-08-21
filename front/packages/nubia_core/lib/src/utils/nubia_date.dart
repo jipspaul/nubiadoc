@@ -19,11 +19,22 @@ class NubiaDate {
     'décembre',
   ];
 
-  /// Formate une date ISO (`yyyy-MM-dd` ou ISO 8601 complet) en jour long
-  /// français, ex. `2026-07-04` → « 4 juillet 2026 ».
-  static String dayLong(String isoDate) {
-    final date = DateTime.parse(isoDate);
+  /// Formate une date (chaîne ISO `yyyy-MM-dd`/ISO 8601 complet, ou
+  /// [DateTime]) en jour long français, heure locale, ex. `2026-07-04` ou
+  /// `DateTime.utc(2026, 7, 4)` → « 4 juillet 2026 ». Retourne une chaîne
+  /// vide si [input] est `null` ou invalide (aucune valeur brute affichée).
+  static String dayLong(Object? input) {
+    final date = _parse(input)?.toLocal();
+    if (date == null) return '';
     return '${date.day} ${_months[date.month - 1]} ${date.year}';
+  }
+
+  static DateTime? _parse(Object? input) {
+    if (input is DateTime) return input;
+    if (input is String) {
+      return DateTime.tryParse(input);
+    }
+    return null;
   }
 
   /// Nombre de mois pleins écoulés entre une date ISO et [now] (heure locale,
