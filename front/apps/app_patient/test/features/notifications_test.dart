@@ -196,6 +196,53 @@ void main() {
     });
   });
 
+  group('NotificationsPage — tap corps vs bouton d\'action', () {
+    testWidgets(
+        'le tap sur le corps d\'une notification actionnable marque comme '
+        'lu SANS naviguer', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          _actionableNotif('1', NotificationType.appointment,
+              deepLink: '/appointments/42'),
+        ]),
+      );
+
+      final router = GoRouter(
+        initialLocation: '/notifications',
+        routes: [
+          GoRoute(
+            path: '/notifications',
+            builder: (context, __) => BlocProvider<NotificationsBloc>.value(
+              value: bloc,
+              child: const Scaffold(body: NotificationsPage()),
+            ),
+          ),
+          GoRoute(
+            path: '/mes-rdv',
+            builder: (_, __) => const Scaffold(
+              key: Key('mes_rdv_page'),
+              body: SizedBox(),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Corps 1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('mes_rdv_page')), findsNothing);
+      expect(find.byType(NotificationsPage), findsOneWidget);
+      verify(() => bloc.add(const NotificationMarkReadRequested('1')))
+          .called(1);
+    });
+  });
+
   group('NotificationsPage — bouton d\'action', () {
     testWidgets(
         'une notification sans deepLink n\'affiche aucun bouton d\'action',
