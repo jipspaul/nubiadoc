@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
-import '../../router/app_router.dart';
+import 'notification_route_resolver.dart';
 import 'notifications_bloc.dart';
 import 'notifications_event.dart';
 import 'notifications_state.dart';
@@ -118,7 +118,8 @@ class _NotificationTile extends StatelessWidget {
         );
         final deepLink = notification.deepLink;
         if (deepLink != null && deepLink.isNotEmpty) {
-          context.go(_resolveDeepLink(deepLink));
+          final route = NotificationRouteResolver.resolve(deepLink: deepLink);
+          if (route != null) context.go(route);
         }
       },
     );
@@ -132,20 +133,5 @@ class _NotificationTile extends StatelessWidget {
       NotificationType.payment => Icons.receipt_outlined,
       NotificationType.other => Icons.notifications_outlined,
     };
-  }
-
-  /// Traduit un `deep_link` API en route app. `/appointments/<id>` n'a pas de
-  /// route dédiée côté patient (`/appointments` sert au booking, sans `:id`) ;
-  /// on réutilise la convention `mesRdv?id=` déjà en place pour les push FCM
-  /// (cf. NotificationDeepLinkHandler._resolveRoute). Les autres deep_links
-  /// (ex. `/pharmacy/orders/<id>`) correspondent déjà à une route existante.
-  static String _resolveDeepLink(String deepLink) {
-    final appointmentMatch = RegExp(
-      r'^/appointments/(.+)$',
-    ).firstMatch(deepLink);
-    if (appointmentMatch != null) {
-      return '${AppRouter.mesRdv}?id=${appointmentMatch.group(1)}';
-    }
-    return deepLink;
   }
 }
