@@ -196,6 +196,9 @@ class _NotificationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (background, foreground) = _colorsFor(notification.type);
+    final deepLink = notification.deepLink;
+    final hasAction = deepLink != null && deepLink.isNotEmpty;
+    final action = hasAction ? _actionFor(notification.type) : null;
     return ListTile(
       key: Key('notif_${notification.id}'),
       leading: Container(
@@ -213,18 +216,39 @@ class _NotificationTile extends StatelessWidget {
           fontWeight: notification.read ? FontWeight.normal : FontWeight.bold,
         ),
       ),
-      subtitle: Text(notification.body),
-      onTap: () {
-        context.read<NotificationsBloc>().add(
-          NotificationMarkReadRequested(notification.id),
-        );
-        final deepLink = notification.deepLink;
-        if (deepLink != null && deepLink.isNotEmpty) {
-          final route = NotificationRouteResolver.resolve(deepLink: deepLink);
-          if (route != null) context.go(route);
-        }
-      },
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(notification.body),
+          if (action != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NubiaButton(
+                key: Key('notif_action_${notification.id}'),
+                label: action.label,
+                icon: action.icon,
+                size: NubiaButtonSize.sm,
+                variant: action.variant,
+                onPressed: () => _handleAction(context, deepLink!),
+              ),
+            ),
+          ],
+        ],
+      ),
+      onTap: () => context.read<NotificationsBloc>().add(
+        NotificationMarkReadRequested(notification.id),
+      ),
     );
+  }
+
+  void _handleAction(BuildContext context, String deepLink) {
+    context.read<NotificationsBloc>().add(
+      NotificationMarkReadRequested(notification.id),
+    );
+    final route = NotificationRouteResolver.resolve(deepLink: deepLink);
+    if (route != null) context.go(route);
   }
 
   static IconData _iconFor(NotificationType type) {
@@ -234,6 +258,41 @@ class _NotificationTile extends StatelessWidget {
       NotificationType.document => Icons.folder_outlined,
       NotificationType.payment => Icons.receipt_outlined,
       NotificationType.other => Icons.notifications_outlined,
+    };
+  }
+
+  /// Bouton d'action sous le corps de la notification (maquette design-v2) :
+  /// libellé + icône par famille, primaire pour la pharmacie (`other`,
+  /// commandes click-and-collect), secondaire pour les autres.
+  static ({String label, IconData icon, NubiaButtonVariant variant}) _actionFor(
+    NotificationType type,
+  ) {
+    return switch (type) {
+      NotificationType.other => (
+          label: 'Afficher mon code',
+          icon: Icons.qr_code_2,
+          variant: NubiaButtonVariant.primary,
+        ),
+      NotificationType.message => (
+          label: 'Répondre',
+          icon: Icons.reply,
+          variant: NubiaButtonVariant.secondary,
+        ),
+      NotificationType.appointment => (
+          label: 'Voir le rendez-vous',
+          icon: Icons.event_available,
+          variant: NubiaButtonVariant.secondary,
+        ),
+      NotificationType.document => (
+          label: 'Voir le document',
+          icon: Icons.folder_outlined,
+          variant: NubiaButtonVariant.secondary,
+        ),
+      NotificationType.payment => (
+          label: 'Voir la facture',
+          icon: Icons.receipt_outlined,
+          variant: NubiaButtonVariant.secondary,
+        ),
     };
   }
 

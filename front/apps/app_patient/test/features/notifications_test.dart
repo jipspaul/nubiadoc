@@ -2,6 +2,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -39,6 +40,21 @@ AppNotification _typedNotif(String id, NotificationType type) => AppNotification
       body: 'Corps $id',
       read: false,
       createdAt: DateTime(2026, 6, 21),
+    );
+
+AppNotification _actionableNotif(
+  String id,
+  NotificationType type, {
+  required String deepLink,
+}) =>
+    AppNotification(
+      id: id,
+      type: type,
+      title: 'Titre $id',
+      body: 'Corps $id',
+      read: false,
+      createdAt: DateTime(2026, 6, 21),
+      deepLink: deepLink,
     );
 
 // ---------------------------------------------------------------------------
@@ -175,6 +191,107 @@ void main() {
       await tester.tap(find.byKey(const Key('notif_1')));
       await tester.pump();
 
+      verify(() => bloc.add(const NotificationMarkReadRequested('1')))
+          .called(1);
+    });
+  });
+
+  group('NotificationsPage — bouton d\'action', () {
+    testWidgets(
+        'une notification sans deepLink n\'affiche aucun bouton d\'action',
+        (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(NotificationsLoaded([_notif('1')]));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_action_1')), findsNothing);
+    });
+
+    testWidgets(
+        'une notification pharmacie prête (other) affiche un bouton '
+        'primaire « Afficher mon code »', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          _actionableNotif('1', NotificationType.other,
+              deepLink: '/pharmacy/orders/42'),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_action_1')), findsOneWidget);
+      expect(find.text('Afficher mon code'), findsOneWidget);
+      expect(find.byIcon(Icons.qr_code_2), findsOneWidget);
+      final button =
+          tester.widget<NubiaButton>(find.byKey(const Key('notif_action_1')));
+      expect(button.variant, NubiaButtonVariant.primary);
+    });
+
+    testWidgets(
+        'une notification message affiche un bouton secondaire « Répondre »',
+        (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          _actionableNotif('1', NotificationType.message,
+              deepLink: '/messaging?conversationId=7'),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.text('Répondre'), findsOneWidget);
+      expect(find.byIcon(Icons.reply), findsOneWidget);
+      final button =
+          tester.widget<NubiaButton>(find.byKey(const Key('notif_action_1')));
+      expect(button.variant, NubiaButtonVariant.secondary);
+    });
+
+    testWidgets(
+        'le tap sur le bouton (pas le corps) navigue vers la route résolue '
+        'et marque la notification comme lue', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          _actionableNotif('1', NotificationType.appointment,
+              deepLink: '/appointments/42'),
+        ]),
+      );
+
+      final router = GoRouter(
+        initialLocation: '/notifications',
+        routes: [
+          GoRoute(
+            path: '/notifications',
+            builder: (context, __) => BlocProvider<NotificationsBloc>.value(
+              value: bloc,
+              child: const Scaffold(body: NotificationsPage()),
+            ),
+          ),
+          GoRoute(
+            path: '/mes-rdv',
+            builder: (_, __) => const Scaffold(
+              key: Key('mes_rdv_page'),
+              body: SizedBox(),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('notif_action_1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('mes_rdv_page')), findsOneWidget);
       verify(() => bloc.add(const NotificationMarkReadRequested('1')))
           .called(1);
     });
