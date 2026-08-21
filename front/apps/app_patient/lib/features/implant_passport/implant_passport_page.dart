@@ -129,15 +129,17 @@ class _ImplantPassportBody extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: NubiaButton(
-                    key: const Key('implant_passport_export_button'),
-                    label: 'Exporter en PDF',
-                    icon: Icons.picture_as_pdf_outlined,
-                    onPressed: () =>
-                        context.read<ImplantPassportCubit>().export(),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ExportPassportCard(
+                      implantCount: state.implants.length,
+                      onExport: () =>
+                          context.read<ImplantPassportCubit>().export(),
+                    ),
+                    const SizedBox(height: 12),
+                    const _LegalTraceabilityNotice(),
+                  ],
                 ),
               ),
             ],
@@ -145,6 +147,113 @@ class _ImplantPassportBody extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// Carte « Emporter mon passeport » : explique le contenu du PDF d'export
+/// global avant le bouton, avec le décompte réel d'implants (#5326).
+class _ExportPassportCard extends StatelessWidget {
+  const _ExportPassportCard({
+    required this.implantCount,
+    required this.onExport,
+  });
+
+  final int implantCount;
+  final VoidCallback onExport;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return NubiaCard(
+      key: const Key('implant_passport_export_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Emporter mon passeport',
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _exportDescription(implantCount),
+            style:
+                theme.textTheme.bodyMedium?.copyWith(color: NubiaColors.n600),
+          ),
+          const SizedBox(height: 16),
+          NubiaButton(
+            key: const Key('implant_passport_export_button'),
+            label: 'Exporter en PDF',
+            icon: Icons.picture_as_pdf,
+            onPressed: onExport,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+const _kImplantCountWords = {
+  2: 'deux',
+  3: 'trois',
+  4: 'quatre',
+  5: 'cinq',
+  6: 'six',
+  7: 'sept',
+  8: 'huit',
+  9: 'neuf',
+  10: 'dix',
+};
+
+String _exportDescription(int implantCount) {
+  if (implantCount == 1) {
+    return 'Un PDF officiel reprenant votre implant, sa référence et son '
+        'numéro de lot.';
+  }
+  if (implantCount <= 0) {
+    return 'Un PDF officiel reprenant vos implants, leurs références et '
+        'leurs numéros de lot.';
+  }
+  final word = _kImplantCountWords[implantCount] ?? '$implantCount';
+  return 'Un PDF officiel reprenant vos $word implants, leurs références '
+      'et leurs numéros de lot.';
+}
+
+/// Bandeau légal rappelant l'obligation de traçabilité des dispositifs
+/// médicaux implantables (#5326).
+class _LegalTraceabilityNotice extends StatelessWidget {
+  const _LegalTraceabilityNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return Container(
+      key: const Key('implant_passport_legal_notice'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.neutralBg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.verified_user, size: 18, color: tokens.neutralFg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'La traçabilité des dispositifs médicaux implantables est '
+              'une obligation légale : votre praticien conserve ces '
+              'informations, et vous en avez une copie permanente.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: tokens.neutralFg),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

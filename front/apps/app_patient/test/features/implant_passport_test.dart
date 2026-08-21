@@ -108,6 +108,48 @@ void main() {
       expect(find.byKey(const Key('implant_passport_list')), findsOneWidget);
     });
 
+    testWidgets(
+        'affiche la carte "Emporter mon passeport" avec le décompte réel '
+        'et le bandeau légal', (tester) async {
+      const secondImplant = ImplantItem(
+        id: 'implant-2',
+        brand: 'Straumann',
+        lotNumber: 'LOT-99',
+      );
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant, secondImplant]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_passport_export_card')),
+        findsOneWidget,
+      );
+      expect(find.text('Emporter mon passeport'), findsOneWidget);
+      expect(
+        find.text(
+          'Un PDF officiel reprenant vos deux implants, leurs références '
+          'et leurs numéros de lot.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('implant_passport_export_button')),
+          findsOneWidget);
+      expect(
+        find.byKey(const Key('implant_passport_legal_notice')),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'La traçabilité des dispositifs médicaux implantables est une '
+          'obligation légale : votre praticien conserve ces informations, '
+          'et vous en avez une copie permanente.',
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('aucun implant → état vide dédié', (tester) async {
       when(() => listUseCase()).thenAnswer((_) async => const Right([]));
 
