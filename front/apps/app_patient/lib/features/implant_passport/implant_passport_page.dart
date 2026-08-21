@@ -46,7 +46,7 @@ class _ImplantPassportBody extends StatelessWidget {
       },
       builder: (context, state) {
         if (state is ImplantPassportLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const _ImplantPassportSkeleton();
         }
         if (state is ImplantPassportError) {
           return NubiaErrorWidget(
@@ -140,6 +140,59 @@ class _ImplantPassportBody extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// Squelette de chargement préfigurant la liste de cartes d'implants
+/// (mêmes gabarits vignette + lignes que `implant_passport_list`).
+class _ImplantPassportSkeleton extends StatelessWidget {
+  const _ImplantPassportSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      key: const Key('implant_passport_loading'),
+      padding: const EdgeInsets.all(16),
+      itemCount: 3,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (_, __) => const _ImplantSkeletonCard(),
+    );
+  }
+}
+
+class _ImplantSkeletonCard extends StatelessWidget {
+  const _ImplantSkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              NubiaSkeletonLoader(height: 40, width: 40, borderRadius: 10),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    NubiaSkeletonLoader(height: 14, width: 180),
+                    SizedBox(height: 8),
+                    NubiaSkeletonLoader(height: 12, width: 120),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: NubiaSkeletonLoader(height: 12, width: 140),
+          ),
+        ],
+      ),
     );
   }
 }
