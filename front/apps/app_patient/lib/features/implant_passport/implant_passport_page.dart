@@ -63,6 +63,8 @@ class _ImplantPassportBody extends StatelessWidget {
                         key: Key('implant_passport_empty'),
                         icon: Icons.medical_information_outlined,
                         title: 'Aucun implant enregistré',
+                        subtitle:
+                            'Vos implants apparaîtront ici après leur pose.',
                       )
                     : ListView.separated(
                         key: const Key('implant_passport_list'),
