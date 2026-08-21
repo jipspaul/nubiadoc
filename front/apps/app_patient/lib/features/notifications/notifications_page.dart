@@ -178,6 +178,16 @@ class _NotificationsContentState extends State<_NotificationsContent> {
 
 // ---------------------------------------------------------------------------
 
+/// Teintes de pastille hors palette [NubiaColors] (verbatim maquette design-v2,
+/// écran Patient · Notifications) : violet pour les rendez-vous, bleu pour la
+/// pharmacie. Les autres familles réutilisent les tokens [NubiaColors].
+class _NotificationFamilyColors {
+  static const violetBg = Color(0xFFEDE9FE);
+  static const violetFg = Color(0xFF6D28D9);
+  static const blueBg = Color(0xFFE0F2FE);
+  static const blueFg = Color(0xFF0369A1);
+}
+
 class _NotificationTile extends StatelessWidget {
   const _NotificationTile({required this.notification});
 
@@ -185,13 +195,17 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final (background, foreground) = _colorsFor(notification.type);
     return ListTile(
       key: Key('notif_${notification.id}'),
-      leading: Icon(
-        _iconFor(notification.type),
-        color: notification.read
-            ? Theme.of(context).colorScheme.onSurfaceVariant
-            : Theme.of(context).colorScheme.primary,
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(_iconFor(notification.type), color: foreground, size: 20),
       ),
       title: Text(
         notification.title,
@@ -220,6 +234,28 @@ class _NotificationTile extends StatelessWidget {
       NotificationType.document => Icons.folder_outlined,
       NotificationType.payment => Icons.receipt_outlined,
       NotificationType.other => Icons.notifications_outlined,
+    };
+  }
+
+  /// Pastille (fond, icône) par famille de notification (maquette design-v2).
+  static (Color background, Color foreground) _colorsFor(
+    NotificationType type,
+  ) {
+    return switch (type) {
+      NotificationType.appointment => (
+        _NotificationFamilyColors.violetBg,
+        _NotificationFamilyColors.violetFg,
+      ),
+      NotificationType.message => (NubiaColors.infoBg, NubiaColors.infoFg),
+      NotificationType.document => (NubiaColors.brand50, NubiaColors.brand700),
+      NotificationType.payment => (
+        NubiaColors.warningBg,
+        NubiaColors.warningFg,
+      ),
+      NotificationType.other => (
+        _NotificationFamilyColors.blueBg,
+        _NotificationFamilyColors.blueFg,
+      ),
     };
   }
 }
