@@ -104,7 +104,7 @@ class _ImplantDetailBody extends StatelessWidget {
                 subtitle: Text([
                   if (toothLabel != null) toothLabel,
                   if (implant.placementDate != null)
-                    'Posé le ${implant.placementDate}',
+                    'Posé le ${NubiaDate.dayLong(implant.placementDate!)}',
                   if (implant.lotNumber != null) 'Lot ${implant.lotNumber}',
                 ].join(' · ')),
               ),
