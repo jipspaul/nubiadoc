@@ -29,15 +29,8 @@ class _ImplantPassportBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocConsumer<ImplantPassportCubit, ImplantPassportState>(
       listenWhen: (_, s) =>
-          s is ImplantPassportError ||
-          (s is ImplantPassportLoaded && s.exportUrl != null),
+          s is ImplantPassportLoaded && s.exportUrl != null,
       listener: (context, state) {
-        if (state is ImplantPassportError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
-          );
-          return;
-        }
         if (state is ImplantPassportLoaded && state.exportUrl != null) {
           openDocumentUrl(state.exportUrl!).then((opened) {
             if (!opened && context.mounted) {
