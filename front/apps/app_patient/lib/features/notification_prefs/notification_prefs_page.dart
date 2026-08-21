@@ -61,6 +61,19 @@ class _PrefsBody extends StatelessWidget {
                   (v) => cubit.save(p.copyWith(smsEnabled: v))),
               const Divider(),
               const SizedBox(height: 8),
+              NubiaCard(
+                key: const Key('notif_block_quiet_hours'),
+                child: _PrefRow(
+                  rowKey: const Key('notif_quiet_hours'),
+                  icon: Icons.bedtime,
+                  title: 'Pas avant 8h ni après 21h',
+                  subtitle: 'Sauf urgence de votre cabinet',
+                  value: p.quietHours,
+                  locked: locked,
+                  onChanged: (v) => cubit.save(p.copyWith(quietHours: v)),
+                ),
+              ),
+              const SizedBox(height: 16),
               _NotifBlock(
                 blockKey: const Key('notif_block_appointments'),
                 icon: Icons.event,
@@ -266,9 +279,11 @@ class _PrefRow extends StatelessWidget {
     required this.value,
     required this.locked,
     required this.onChanged,
+    this.icon,
   });
 
   final Key rowKey;
+  final IconData? icon;
   final String title;
   final String subtitle;
   final bool value;
@@ -282,6 +297,10 @@ class _PrefRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (icon != null) ...[
+          Icon(icon, size: 20, color: cs.primary),
+          const SizedBox(width: 8),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
