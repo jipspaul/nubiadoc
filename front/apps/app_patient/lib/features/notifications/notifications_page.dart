@@ -9,6 +9,65 @@ import 'notifications_bloc.dart';
 import 'notifications_event.dart';
 import 'notifications_state.dart';
 
+/// En-tête de l'onglet Notifications : titre, sous-titre "N non lues" et
+/// action « Tout marquer lu ».
+///
+/// Doit être placée dans un [BlocProvider<NotificationsBloc>].
+class NotificationsAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  const NotificationsAppBar({super.key});
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<NotificationsBloc, NotificationsState>(
+      builder: (context, state) {
+        final unreadCount = state is NotificationsLoaded
+            ? state.unreadCount
+            : null;
+        return AppBar(
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Notifications',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+              ),
+              if (unreadCount != null)
+                Text(
+                  '$unreadCount non lues',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: NubiaColors.n500,
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            if (unreadCount != null && unreadCount > 0)
+              TextButton.icon(
+                onPressed: () => context.read<NotificationsBloc>().add(
+                  const NotificationMarkAllReadRequested(),
+                ),
+                icon: const Icon(Icons.done_all, color: NubiaColors.brand700),
+                label: const Text(
+                  'Tout marquer lu',
+                  style: TextStyle(
+                    color: NubiaColors.brand700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// Page inbox des notifications patient.
 ///
 /// Doit être placée dans un [BlocProvider<NotificationsBloc>].
@@ -59,31 +118,12 @@ class _NotificationsContent extends StatelessWidget {
         subtitle: 'Vous êtes à jour',
       );
     }
-    return Column(
-      children: [
-        if (state.unreadCount > 0)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => context.read<NotificationsBloc>().add(
-                  const NotificationMarkAllReadRequested(),
-                ),
-                child: const Text('Tout marquer comme lu'),
-              ),
-            ),
-          ),
-        Expanded(
-          child: ListView.separated(
-            key: const Key('notifications_list'),
-            itemCount: state.notifications.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, i) =>
-                _NotificationTile(notification: state.notifications[i]),
-          ),
-        ),
-      ],
+    return ListView.separated(
+      key: const Key('notifications_list'),
+      itemCount: state.notifications.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, i) =>
+          _NotificationTile(notification: state.notifications[i]),
     );
   }
 }
