@@ -13,6 +13,12 @@ class NotificationPreferencesDto {
   final bool payments;
   final bool prevention;
 
+  /// Heures calmes (#5313) : aucun champ `notification_preference` n'existe
+  /// encore côté API pour cette plage horaire. Ni lu depuis le GET, ni
+  /// envoyé au PATCH — porté ici uniquement pour que [toDomain]/[fromDomain]
+  /// restent symétriques ; la persistance réelle attend le support API.
+  final bool quietHours;
+
   const NotificationPreferencesDto({
     required this.pushEnabled,
     required this.emailEnabled,
@@ -22,6 +28,7 @@ class NotificationPreferencesDto {
     required this.messages,
     required this.payments,
     required this.prevention,
+    this.quietHours = true,
   });
 
   /// Un type d'événement (topic) n'a pas de champ booléen unique côté API :
@@ -68,6 +75,7 @@ class NotificationPreferencesDto {
         messages: messages,
         payments: payments,
         prevention: prevention,
+        quietHours: quietHours,
       );
 
   factory NotificationPreferencesDto.fromDomain(
@@ -82,5 +90,6 @@ class NotificationPreferencesDto {
         messages: prefs.messages,
         payments: prefs.payments,
         prevention: prefs.prevention,
+        quietHours: prefs.quietHours,
       );
 }

@@ -174,6 +174,31 @@ void main() {
   });
 
   testWidgets(
+      'la bascule "heures calmes" est activée par défaut et se sauvegarde '
+      'via le cubit', (tester) async {
+    await tester.pumpWidget(wrap());
+    await tester.pumpAndSettle();
+
+    final toggleFinder = find.byKey(const Key('notif_quiet_hours'));
+    await scrollTo(tester, toggleFinder);
+    final toggle = tester.widget<NubiaToggle>(toggleFinder);
+    expect(toggle.value, isTrue);
+
+    expect(find.text('Pas avant 8h ni après 21h'), findsOneWidget);
+    expect(find.text('Sauf urgence de votre cabinet'), findsOneWidget);
+    expect(find.byIcon(Icons.bedtime), findsOneWidget);
+
+    await tester.tap(toggleFinder);
+    await tester.pumpAndSettle();
+
+    final captured = verify(
+      () => mockUpdate.call(captureAny()),
+    ).captured;
+    final updated = captured.last as NotificationPreferences;
+    expect(updated.quietHours, isFalse);
+  });
+
+  testWidgets(
       'les sous-bascules sans champ API dédié sont désactivées et ne '
       'déclenchent aucune sauvegarde', (tester) async {
     await tester.pumpWidget(wrap());
