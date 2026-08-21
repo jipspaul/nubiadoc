@@ -3,8 +3,20 @@ import 'package:nubia_core/nubia_core.dart';
 
 void main() {
   group('NubiaDate.dayLong', () {
-    test('formate une date ISO en jour long français', () {
+    test('formate une date ISO (chaîne) en jour long français', () {
       expect(NubiaDate.dayLong('2026-07-04'), '4 juillet 2026');
+    });
+
+    test('formate un DateTime en jour long français (heure locale)', () {
+      expect(NubiaDate.dayLong(DateTime.utc(2026, 3, 12)), '12 mars 2026');
+    });
+
+    test('retourne une chaîne vide pour une entrée nulle', () {
+      expect(NubiaDate.dayLong(null), '');
+    });
+
+    test('retourne une chaîne vide pour une entrée invalide', () {
+      expect(NubiaDate.dayLong('pas-une-date'), '');
     });
   });
 
