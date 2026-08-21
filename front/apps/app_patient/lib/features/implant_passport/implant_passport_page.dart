@@ -71,7 +71,16 @@ class _ImplantPassportBody extends StatelessWidget {
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: 12),
                         itemBuilder: (context, index) {
+                          final theme = Theme.of(context);
                           final implant = state.implants[index];
+                          final toothPosition = implant.toothPosition;
+                          final anatomicalName =
+                              toothLabelFromFdi(toothPosition);
+                          final manufacturerModel = [
+                            if (implant.manufacturer != null)
+                              implant.manufacturer!,
+                            if (implant.model != null) implant.model!,
+                          ].join(' · ');
                           final infoRows = <Widget>[
                             if (implant.placementDate != null)
                               _ImplantInfoRow(
@@ -96,23 +105,86 @@ class _ImplantPassportBody extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(
-                                      Icons.medical_information_outlined),
-                                  title: Text(implant.brand),
-                                  subtitle: infoRows.isEmpty
-                                      ? null
-                                      : Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 4),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: infoRows,
-                                          ),
+                                Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    if (toothPosition != null &&
+                                        anatomicalName != null)
+                                      Container(
+                                        width: 56,
+                                        height: 56,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          color: NubiaColors.brand50,
+                                          border: Border.all(
+                                              color: NubiaColors.brand100),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              toothPosition,
+                                              style: theme
+                                                  .textTheme.titleMedium
+                                                  ?.copyWith(
+                                                color: NubiaColors.brand800,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            Text(
+                                              'FDI',
+                                              style: theme
+                                                  .textTheme.labelSmall
+                                                  ?.copyWith(
+                                                color: NubiaColors.brand700,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      const Icon(Icons
+                                          .medical_information_outlined),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            anatomicalName ?? implant.brand,
+                                            style: theme.textTheme.titleMedium
+                                                ?.copyWith(
+                                                    fontWeight:
+                                                        FontWeight.w600),
+                                          ),
+                                          if (manufacturerModel.isNotEmpty)
+                                            Text(
+                                              manufacturerModel,
+                                              style: theme.textTheme.bodyMedium
+                                                  ?.copyWith(
+                                                      color:
+                                                          NubiaColors.n500),
+                                            ),
+                                          if (infoRows.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                  top: 4),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: infoRows,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                                const SizedBox(height: 8),
                                 InkWell(
                                   key: Key(
                                       'implant_detail_link_${implant.id}'),
