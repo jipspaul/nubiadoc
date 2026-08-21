@@ -32,11 +32,21 @@ AppNotification _notif(String id) => AppNotification(
       createdAt: DateTime(2026, 6, 21),
     );
 
+AppNotification _typedNotif(String id, NotificationType type) => AppNotification(
+      id: id,
+      type: type,
+      title: 'Titre $id',
+      body: 'Corps $id',
+      read: false,
+      createdAt: DateTime(2026, 6, 21),
+    );
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 Widget _wrap(NotificationsBloc bloc) => MaterialApp(
+      theme: NubiaTheme.light,
       home: BlocProvider<NotificationsBloc>.value(
         value: bloc,
         child: const Scaffold(body: NotificationsPage()),
@@ -220,6 +230,84 @@ void main() {
 
       verify(() => bloc.add(const NotificationMarkAllReadRequested()))
           .called(1);
+    });
+  });
+
+  group('NotificationsPage — facettes', () {
+    List<AppNotification> fixtures() => [
+          _typedNotif('1', NotificationType.appointment),
+          _typedNotif('2', NotificationType.appointment),
+          _typedNotif('3', NotificationType.document),
+          _typedNotif('4', NotificationType.document),
+          _typedNotif('5', NotificationType.payment),
+          _typedNotif('6', NotificationType.message),
+        ];
+
+    testWidgets('affiche les 4 facettes avec leur compteur client',
+        (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(NotificationsLoaded(fixtures()));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_filter_all')), findsOneWidget);
+      expect(
+          find.byKey(const Key('notif_filter_appointment')), findsOneWidget);
+      expect(find.byKey(const Key('notif_filter_document')), findsOneWidget);
+      expect(find.byKey(const Key('notif_filter_payment')), findsOneWidget);
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('notif_filter_all')),
+          matching: find.text('6'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('notif_filter_appointment')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('notif_filter_document')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('notif_filter_payment')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'sélectionner une facette ne montre que les notifications de ce '
+        'type, sans appel bloc supplémentaire', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(NotificationsLoaded(fixtures()));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('notif_filter_document')));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_1')), findsNothing);
+      expect(find.byKey(const Key('notif_3')), findsOneWidget);
+      expect(find.byKey(const Key('notif_4')), findsOneWidget);
+      expect(find.byType(ListTile), findsNWidgets(2));
+
+      await tester.tap(find.byKey(const Key('notif_filter_all')));
+      await tester.pump();
+
+      expect(find.byType(ListTile), findsNWidgets(6));
     });
   });
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/reviews/reviews_bloc.dart';
@@ -77,6 +78,7 @@ Widget _wrapReviews(ReviewsBloc bloc) => MaterialApp(
     );
 
 Widget _wrapNotifications(NotificationsBloc bloc) => MaterialApp(
+      theme: NubiaTheme.light,
       home: BlocProvider.value(
         value: bloc,
         child: const Scaffold(body: NotificationsPage()),
