@@ -397,6 +397,70 @@ void main() {
     });
   });
 
+  group('NotificationsPage — regroupement par jour', () {
+    testWidgets(
+        "affiche l'en-tête Aujourd'hui pour une notification du jour et "
+        "Cette semaine pour une notification plus ancienne", (tester) async {
+      final bloc = MockNotificationsBloc();
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          AppNotification(
+            id: 'today',
+            type: NotificationType.appointment,
+            title: 'Titre today',
+            body: 'Corps today',
+            read: false,
+            createdAt: now,
+          ),
+          AppNotification(
+            id: 'older',
+            type: NotificationType.appointment,
+            title: 'Titre older',
+            body: 'Corps older',
+            read: false,
+            createdAt: now.subtract(const Duration(days: 2)),
+          ),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_group_today')), findsOneWidget);
+      expect(find.byKey(const Key('notif_group_week')), findsOneWidget);
+      expect(find.text("AUJOURD'HUI"), findsOneWidget);
+      expect(find.text('CETTE SEMAINE'), findsOneWidget);
+      expect(find.byKey(const Key('notif_today')), findsOneWidget);
+      expect(find.byKey(const Key('notif_older')), findsOneWidget);
+    });
+
+    testWidgets(
+        "n'affiche aucun en-tête Cette semaine quand toutes les "
+        "notifications sont du jour", (tester) async {
+      final bloc = MockNotificationsBloc();
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          AppNotification(
+            id: 'today',
+            type: NotificationType.appointment,
+            title: 'Titre today',
+            body: 'Corps today',
+            read: false,
+            createdAt: now,
+          ),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_group_today')), findsOneWidget);
+      expect(find.byKey(const Key('notif_group_week')), findsNothing);
+    });
+  });
+
   group('NotificationsPage — facettes', () {
     List<AppNotification> fixtures() => [
           _typedNotif('1', NotificationType.appointment),

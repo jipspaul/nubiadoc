@@ -138,6 +138,7 @@ class _NotificationsContentState extends State<_NotificationsContent> {
     final visible = _facet == null
         ? notifications
         : notifications.where((n) => n.type == _facet).toList();
+    final rows = _groupedRows(visible);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -163,15 +164,70 @@ class _NotificationsContentState extends State<_NotificationsContent> {
           ),
         ),
         Expanded(
-          child: ListView.separated(
+          child: ListView(
             key: const Key('notifications_list'),
-            itemCount: visible.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, i) =>
-                _NotificationTile(notification: visible[i]),
+            children: rows,
           ),
         ),
       ],
+    );
+  }
+
+  /// Regroupe [visible] sous des en-têtes temporels (« Aujourd'hui »,
+  /// « Cette semaine ») calculés côté client depuis `createdAt` — pas
+  /// d'appel réseau supplémentaire. Un groupe vide ne rend aucun en-tête.
+  List<Widget> _groupedRows(List<AppNotification> visible) {
+    final today = DateTime.now();
+    final todayItems = <AppNotification>[];
+    final weekItems = <AppNotification>[];
+    for (final notification in visible) {
+      final createdAt = notification.createdAt;
+      final isToday = createdAt.year == today.year &&
+          createdAt.month == today.month &&
+          createdAt.day == today.day;
+      (isToday ? todayItems : weekItems).add(notification);
+    }
+
+    final rows = <Widget>[];
+    void addGroup(Key key, String label, List<AppNotification> items) {
+      if (items.isEmpty) return;
+      rows.add(_NotificationGroupHeader(key: key, label: label));
+      for (var i = 0; i < items.length; i++) {
+        rows.add(_NotificationTile(notification: items[i]));
+        if (i < items.length - 1) rows.add(const Divider(height: 1));
+      }
+    }
+
+    addGroup(const Key('notif_group_today'), "Aujourd'hui", todayItems);
+    addGroup(const Key('notif_group_week'), 'Cette semaine', weekItems);
+    return rows;
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// En-tête de section temporelle au-dessus d'un groupe de notifications
+/// (maquette design-v2, écran Patient · Notifications).
+class _NotificationGroupHeader extends StatelessWidget {
+  const _NotificationGroupHeader({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: NubiaColors.n50,
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+      child: Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+          color: NubiaColors.n400,
+        ),
+      ),
     );
   }
 }
