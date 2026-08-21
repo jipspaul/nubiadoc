@@ -72,8 +72,25 @@ class _ImplantPassportBody extends StatelessWidget {
                             const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final implant = state.implants[index];
-                          final toothLabel =
-                              toothLabelFromFdi(implant.toothPosition);
+                          final infoRows = <Widget>[
+                            if (implant.placementDate != null)
+                              _ImplantInfoRow(
+                                label: 'Posé le',
+                                value: NubiaDate.dayLong(
+                                    implant.placementDate!),
+                              ),
+                            if (implant.lotNumber != null)
+                              _ImplantInfoRow(
+                                label: 'N° de lot',
+                                value: implant.lotNumber!,
+                                monospace: true,
+                              ),
+                            if (implant.practitioner != null)
+                              _ImplantInfoRow(
+                                label: 'Praticien',
+                                value: implant.practitioner!,
+                              ),
+                          ];
                           return NubiaCard(
                             key: Key('implant_${implant.id}'),
                             child: Column(
@@ -84,13 +101,17 @@ class _ImplantPassportBody extends StatelessWidget {
                                   leading: const Icon(
                                       Icons.medical_information_outlined),
                                   title: Text(implant.brand),
-                                  subtitle: Text([
-                                    if (toothLabel != null) toothLabel,
-                                    if (implant.placementDate != null)
-                                      'Posé le ${NubiaDate.dayLong(implant.placementDate!)}',
-                                    if (implant.lotNumber != null)
-                                      'Lot ${implant.lotNumber}',
-                                  ].join(' · ')),
+                                  subtitle: infoRows.isEmpty
+                                      ? null
+                                      : Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 4),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: infoRows,
+                                          ),
+                                        ),
                                 ),
                                 InkWell(
                                   key: Key(
@@ -141,6 +162,53 @@ class _ImplantPassportBody extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// Ligne clé/valeur d'une carte d'implant (#5320) : remplace l'ancien
+/// sous-titre `[...].join(' · ')`, où le n° de lot se lisait au milieu
+/// d'une phrase au lieu d'être isolé pour un rappel de lot.
+class _ImplantInfoRow extends StatelessWidget {
+  const _ImplantInfoRow({
+    required this.label,
+    required this.value,
+    this.monospace = false,
+  });
+
+  final String label;
+  final String value;
+  final bool monospace;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 96,
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: NubiaColors.n500),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: NubiaColors.n900,
+                fontWeight: FontWeight.w500,
+                fontFamily: monospace ? 'monospace' : null,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
