@@ -106,6 +106,26 @@ void main() {
       );
 
   group('widget', () {
+    testWidgets(
+        'AppBar affiche « Implant · dent <FDI> » et « Posé le <date> » quand '
+        'renseignés', (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithHero));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Implant · dent 36'), findsOneWidget);
+      expect(find.text('Posé le 15 janvier 2025'), findsOneWidget);
+    });
+
+    testWidgets(
+        'AppBar retombe sur « Implant » sans sous-titre si FDI/date '
+        'absents', (tester) async {
+      await tester.pumpWidget(buildPage(_implantNoPose));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Implant'), findsOneWidget);
+      expect(find.textContaining('Posé le'), findsNothing);
+    });
+
     testWidgets('affiche les deux actions et le bandeau lecture seule',
         (tester) async {
       await tester.pumpWidget(buildPage());

@@ -13,6 +13,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -63,6 +64,48 @@ void main() {
       expect(find.byKey(const Key('implant_passport_list')), findsOneWidget);
       expect(find.byKey(const Key('implant_implant-1')), findsOneWidget);
       expect(find.text('Nobel Biocare'), findsOneWidget);
+    });
+
+    testWidgets(
+        '« Voir la fiche complète » navigue vers le détail de l\'implant '
+        'tapé, retour possible ensuite', (tester) async {
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant]));
+
+      ImplantItem? pushedImplant;
+      final router = GoRouter(
+        initialLocation: '/implant-passport',
+        routes: [
+          GoRoute(
+            path: '/implant-passport',
+            builder: (_, __) => const ImplantPassportPage(),
+          ),
+          GoRoute(
+            path: '/implant-passport/:id',
+            builder: (_, state) {
+              pushedImplant = state.extra as ImplantItem;
+              return const Scaffold(body: Text('implant detail'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      await tester
+          .tap(find.byKey(const Key('implant_detail_link_implant-1')));
+      await tester.pumpAndSettle();
+
+      expect(pushedImplant?.id, 'implant-1');
+      expect(find.text('implant detail'), findsOneWidget);
+
+      router.pop();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('implant_passport_list')), findsOneWidget);
     });
 
     testWidgets('aucun implant → état vide dédié', (tester) async {
