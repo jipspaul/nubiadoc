@@ -64,6 +64,33 @@ void main() {
       expect(find.byKey(const Key('implant_passport_list')), findsOneWidget);
       expect(find.byKey(const Key('implant_implant-1')), findsOneWidget);
       expect(find.text('Nobel Biocare'), findsOneWidget);
+      // #5320 : champs en lignes étiquetées, plus de sous-titre concaténé.
+      expect(find.text('Posé le'), findsOneWidget);
+      expect(find.text('15 janvier 2025'), findsOneWidget);
+      expect(find.text('N° de lot'), findsOneWidget);
+      expect(find.text('LOT-42'), findsOneWidget);
+      expect(find.textContaining(' · '), findsNothing);
+      // Praticien absent sur `_implant` → ligne non rendue.
+      expect(find.text('Praticien'), findsNothing);
+    });
+
+    testWidgets('affiche le praticien sur sa propre ligne quand renseigné',
+        (tester) async {
+      const implantWithPractitioner = ImplantItem(
+        id: 'implant-4',
+        brand: 'Nobel Biocare',
+        lotNumber: 'NB-4471-22A',
+        placementDate: '2026-03-12',
+        practitioner: 'Dr Marc Lefèvre',
+      );
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([implantWithPractitioner]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Praticien'), findsOneWidget);
+      expect(find.text('Dr Marc Lefèvre'), findsOneWidget);
     });
 
     testWidgets(
