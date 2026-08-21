@@ -105,8 +105,8 @@ void main() {
         manufacturer: 'Nobel Biocare',
         model: 'Replace Select',
       );
-      when(() => listUseCase()).thenAnswer(
-          (_) async => const Right([implantWithManufacturerModel]));
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([implantWithManufacturerModel]));
 
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
@@ -162,8 +162,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester
-          .tap(find.byKey(const Key('implant_detail_link_implant-1')));
+      final detailLink = find.byKey(const Key('implant_detail_link_implant-1'));
+      await tester.ensureVisible(detailLink);
+      await tester.pumpAndSettle();
+      await tester.tap(detailLink);
       await tester.pumpAndSettle();
 
       expect(pushedImplant?.id, 'implant-1');
@@ -230,6 +232,55 @@ void main() {
         find.byKey(const Key('implant_passport_export_button')),
         findsOneWidget,
       );
+      // #5317 : le bandeau intro n'a de sens qu'avec des implants à décrire.
+      expect(
+        find.byKey(const Key('implant_passport_intro_banner')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        '#5317 bandeau intro + intertitre de groupe + sous-titre AppBar '
+        'avec le décompte réel (pluriel)', (tester) async {
+      const secondImplant = ImplantItem(
+        id: 'implant-2',
+        brand: 'Straumann',
+        lotNumber: 'LOT-99',
+      );
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant, secondImplant]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_passport_intro_banner')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Un document à conserver à vie.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'Il identifie les dispositifs posés dans votre bouche',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Implants posés'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('2 implants enregistrés'), findsOneWidget);
+    });
+
+    testWidgets('#5317 sous-titre AppBar au singulier pour un seul implant',
+        (tester) async {
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 implant enregistré'), findsOneWidget);
     });
   });
 
