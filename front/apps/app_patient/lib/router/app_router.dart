@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
@@ -49,6 +50,7 @@ import '../features/pharmacy_orders/send_prescription_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/dependents/dependents_page.dart';
 import '../features/consents/consents_page.dart';
+import '../features/implant_passport/implant_detail_page.dart';
 import '../features/implant_passport/implant_passport_page.dart';
 import '../features/notification_prefs/notification_prefs_page.dart';
 import '../features/messaging/messaging_bloc.dart';
@@ -83,6 +85,7 @@ class AppRouter {
   static const profileNotifications = '/profile/notifications';
   static const profileReferringDoctor = '/profile/referring-doctor';
   static const implantPassport = '/implant-passport';
+  static const implantDetail = '/implant-passport/:id';
   static const messaging = '/messaging';
   static const reviews = '/reviews';
   static const notifications = '/notifications';
@@ -284,6 +287,11 @@ class AppRouter {
         GoRoute(
           path: implantPassport,
           builder: (_, __) => const ImplantPassportPage(),
+        ),
+        GoRoute(
+          path: implantDetail,
+          builder: (_, state) =>
+              ImplantDetailPage(implant: state.extra as ImplantItem),
         ),
         GoRoute(
           path: profileNotifications,

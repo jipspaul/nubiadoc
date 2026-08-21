@@ -17,10 +17,28 @@ class ImplantDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fdiCode = implant.toothPosition;
+    final placementDate = implant.placementDate;
+    final isValidFdiCode = FdiToothName.of(fdiCode) != null;
+
     return BlocProvider(
       create: (_) => GetIt.instance<ImplantDetailCubit>(),
       child: Scaffold(
-        appBar: AppBar(title: Text(implant.brand)),
+        appBar: AppBar(
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(isValidFdiCode ? 'Implant · dent $fdiCode' : 'Implant'),
+              if (placementDate != null)
+                Text(
+                  'Posé le ${NubiaDate.dayLong(placementDate)}',
+                  style: theme.textTheme.bodySmall,
+                ),
+            ],
+          ),
+        ),
         body: _ImplantDetailBody(implant: implant),
       ),
     );
