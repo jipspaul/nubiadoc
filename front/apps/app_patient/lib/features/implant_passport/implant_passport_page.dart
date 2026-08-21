@@ -72,6 +72,8 @@ class _ImplantPassportBody extends StatelessWidget {
                             const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final implant = state.implants[index];
+                          final toothLabel =
+                              toothLabelFromFdi(implant.toothPosition);
                           return NubiaCard(
                             key: Key('implant_${implant.id}'),
                             child: Column(
@@ -83,8 +85,7 @@ class _ImplantPassportBody extends StatelessWidget {
                                       Icons.medical_information_outlined),
                                   title: Text(implant.brand),
                                   subtitle: Text([
-                                    if (implant.toothPosition != null)
-                                      'Position ${implant.toothPosition}',
+                                    if (toothLabel != null) toothLabel,
                                     if (implant.placementDate != null)
                                       'Posé le ${implant.placementDate}',
                                     if (implant.lotNumber != null)

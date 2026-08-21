@@ -6,7 +6,6 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'fdi_tooth_name.dart';
 import 'implant_detail_cubit.dart';
 
 /// Détail d'un implant du passeport implantaire (#5334) — export et partage
@@ -20,7 +19,7 @@ class ImplantDetailPage extends StatelessWidget {
     final theme = Theme.of(context);
     final fdiCode = implant.toothPosition;
     final placementDate = implant.placementDate;
-    final isValidFdiCode = FdiToothName.of(fdiCode) != null;
+    final isValidFdiCode = toothLabelFromFdi(fdiCode) != null;
 
     return BlocProvider(
       create: (_) => GetIt.instance<ImplantDetailCubit>(),
@@ -88,6 +87,7 @@ class _ImplantDetailBody extends StatelessWidget {
         final sharing =
             state is ImplantDetailLoading && state.action == ImplantDetailAction.share;
         final busy = exporting || sharing;
+        final toothLabel = toothLabelFromFdi(implant.toothPosition);
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -102,8 +102,7 @@ class _ImplantDetailBody extends StatelessWidget {
                 leading: const Icon(Icons.medical_information_outlined),
                 title: Text(implant.brand),
                 subtitle: Text([
-                  if (implant.toothPosition != null)
-                    'Position ${implant.toothPosition}',
+                  if (toothLabel != null) toothLabel,
                   if (implant.placementDate != null)
                     'Posé le ${implant.placementDate}',
                   if (implant.lotNumber != null) 'Lot ${implant.lotNumber}',
@@ -172,7 +171,7 @@ class _ImplantHero extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = theme.extension<NubiaTokens>()!;
     final toothPosition = implant.toothPosition;
-    final anatomicalName = FdiToothName.of(toothPosition);
+    final anatomicalName = toothLabelFromFdi(toothPosition);
     final placementDate = implant.placementDate;
     final subtitle = [
       if (implant.manufacturer != null) implant.manufacturer!,
