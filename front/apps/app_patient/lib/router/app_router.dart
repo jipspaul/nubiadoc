@@ -329,7 +329,7 @@ class AppRouter {
               ..add(const NotificationsLoadRequested()),
             child: Scaffold(
               key: const Key('notifications_scaffold'),
-              appBar: AppBar(title: const Text('Notifications')),
+              appBar: const NotificationsAppBar(),
               body: const NotificationsPage(),
             ),
           ),

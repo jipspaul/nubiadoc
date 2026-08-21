@@ -169,4 +169,57 @@ void main() {
           .called(1);
     });
   });
+
+  group('NotificationsAppBar', () {
+    Widget wrapAppBar(NotificationsBloc bloc) => MaterialApp(
+          home: BlocProvider<NotificationsBloc>.value(
+            value: bloc,
+            child: const Scaffold(appBar: NotificationsAppBar()),
+          ),
+        );
+
+    testWidgets('affiche le sous-titre "N non lues" et l\'action quand '
+        'des notifications ne sont pas lues', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state)
+          .thenReturn(NotificationsLoaded([_notif('1'), _notif('2')]));
+
+      await tester.pumpWidget(wrapAppBar(bloc));
+      await tester.pump();
+
+      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.text('2 non lues'), findsOneWidget);
+      expect(find.text('Tout marquer lu'), findsOneWidget);
+      expect(find.byIcon(Icons.done_all), findsOneWidget);
+    });
+
+    testWidgets('masque l\'action quand il n\'y a aucune notification non '
+        'lue', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(const NotificationsLoaded([]));
+
+      await tester.pumpWidget(wrapAppBar(bloc));
+      await tester.pump();
+
+      expect(find.text('0 non lues'), findsOneWidget);
+      expect(find.text('Tout marquer lu'), findsNothing);
+    });
+
+    testWidgets(
+        'un tap sur l\'action dispatche NotificationMarkAllReadRequested',
+        (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state)
+          .thenReturn(NotificationsLoaded([_notif('1'), _notif('2')]));
+
+      await tester.pumpWidget(wrapAppBar(bloc));
+      await tester.pump();
+
+      await tester.tap(find.text('Tout marquer lu'));
+      await tester.pump();
+
+      verify(() => bloc.add(const NotificationMarkAllReadRequested()))
+          .called(1);
+    });
+  });
 }
