@@ -102,6 +102,18 @@ class PatientTreatmentPlan extends Equatable {
   final int? amcPartCents;
   final List<PatientTreatmentPlanPhase> phases;
 
+  /// Devis reçu et non signé qui porte sur le plan dans son ensemble, s'il y
+  /// en a un — sort ce plan du flux normal pour en faire sa propre carte
+  /// warning dans la section « À votre décision » de la liste (#5291).
+  /// `null` si le plan n'a aucun devis en attente d'accord.
+  final String? pendingQuoteId;
+
+  /// Libellé de l'acte couvert par le devis en attente, ex. « Couronne
+  /// céramo-métallique sur la dent 26 » (#5291).
+  final String? pendingQuoteLabel;
+  final DateTime? pendingQuoteReceivedAt;
+  final int? pendingQuotePatientShareCents;
+
   const PatientTreatmentPlan({
     required this.id,
     required this.title,
@@ -112,6 +124,10 @@ class PatientTreatmentPlan extends Equatable {
     this.amoPartCents,
     this.amcPartCents,
     this.phases = const [],
+    this.pendingQuoteId,
+    this.pendingQuoteLabel,
+    this.pendingQuoteReceivedAt,
+    this.pendingQuotePatientShareCents,
   });
 
   /// Somme des actes des phases déjà réalisées (`done`) — considérés réglés.
