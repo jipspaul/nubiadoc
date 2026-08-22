@@ -199,6 +199,13 @@ class _AppointmentList extends StatelessWidget {
                     key: Key('empty_${isUpcoming ? 'upcoming' : 'history'}'),
                     icon: Icons.calendar_today_outlined,
                     title: emptyLabel,
+                    action: isUpcoming
+                        ? FilledButton.icon(
+                            onPressed: () => context.push('/appointments'),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Prendre rendez-vous'),
+                          )
+                        : null,
                   ),
                 ),
               ),
