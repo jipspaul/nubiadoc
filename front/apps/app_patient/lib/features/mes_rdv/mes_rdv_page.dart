@@ -529,10 +529,27 @@ class _AppointmentCard extends StatelessWidget {
               const SizedBox(height: 12),
               _DocumentSummaryChips(appointment: appointment),
             ],
+            // #5265 : maquette design-v2 point #3 — le check-in n'a de sens
+            // que le jour J (un RDV confirmé isUpcoming peut être dans trois
+            // semaines) et doit disparaître dès `checkedIn`, même si le RDV
+            // reste dans la fenêtre du jour.
+            if (_isCheckinDay(appointment.startsAt) &&
+                appointment.status != AppointmentStatus.checkedIn) ...[
+              const SizedBox(height: 12),
+              _CheckinBand(appointment: appointment),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  static bool _isCheckinDay(DateTime startsAt) {
+    final now = DateTime.now();
+    final local = startsAt.toLocal();
+    return local.year == now.year &&
+        local.month == now.month &&
+        local.day == now.day;
   }
 
   String _initials(String name) {
@@ -577,6 +594,78 @@ class _AppointmentCard extends StatelessWidget {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '${weekdays[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]} à $h:$m';
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Bandeau check-in (maquette design-v2, point #3) : sorti du `Wrap`
+/// d'actions pour devenir un bandeau pleine largeur en bas de carte, visible
+/// uniquement le jour du RDV (cf. `_isCheckinDay` dans [_AppointmentCard]).
+/// Fond `brand700`, texte blanc, icône `how_to_reg` 20px ; bouton fond blanc
+/// / texte `brand700`, radius 10, hauteur 36.
+class _CheckinBand extends StatelessWidget {
+  const _CheckinBand({required this.appointment});
+  final Appointment appointment;
+
+  @override
+  Widget build(BuildContext context) {
+    final local = appointment.startsAt.toLocal();
+    final h = local.hour.toString().padLeft(2, '0');
+    final m = local.minute.toString().padLeft(2, '0');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: NubiaColors.brand700,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.how_to_reg, size: 20, color: Colors.white),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 13, color: Colors.white),
+                children: [
+                  const TextSpan(text: 'Vous êtes attendu à '),
+                  TextSpan(
+                    text: '$h:$m',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const TextSpan(text: ' — signalez votre arrivée'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            height: 36,
+            child: FilledButton(
+              key: Key('checkin_${appointment.id}'),
+              onPressed: () => context
+                  .read<MesRdvBloc>()
+                  .add(MesRdvCheckinRequested(appointment.id)),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: NubiaColors.brand700,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Je suis là',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -627,16 +716,6 @@ class _ActionButtons extends StatelessWidget {
                   ? appointment.practitionerName
                   : null,
             ),
-          ),
-        if (appointment.isUpcoming)
-          NubiaButton(
-            key: Key('checkin_${appointment.id}'),
-            label: 'Check-in',
-            size: NubiaButtonSize.sm,
-            icon: Icons.check_circle_outline,
-            onPressed: () => context
-                .read<MesRdvBloc>()
-                .add(MesRdvCheckinRequested(appointment.id)),
           ),
         if (appointment.isUpcoming)
           NubiaButton(
