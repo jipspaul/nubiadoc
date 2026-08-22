@@ -335,4 +335,111 @@ void main() {
         .widget<NubiaButton>(find.byKey(const Key('save_dependent_button')));
     expect(buttonValid.onPressed, isNotNull);
   });
+
+  testWidgets(
+      "ajout proche : régime enfant n'affiche pas le bloc de périmètre "
+      'proposé', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('proposed_scope_card')), findsNothing);
+  });
+
+  testWidgets(
+      'ajout proche : régime invitation affiche le bloc de périmètre '
+      'proposé avec les états initiaux attendus', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('dependent_relationship')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Conjoint').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('proposed_scope_card')), findsOneWidget);
+    expect(find.text('CE QUE VOUS POURREZ FAIRE'), findsOneWidget);
+
+    expect(find.text('Ses rendez-vous'), findsOneWidget);
+    expect(find.text('Voir, prendre, annuler'), findsOneWidget);
+    expect(find.byIcon(Icons.event_available), findsOneWidget);
+
+    expect(find.text('Ses documents'), findsOneWidget);
+    expect(find.text('Ordonnances, devis, factures'), findsOneWidget);
+    expect(find.byIcon(Icons.folder), findsOneWidget);
+
+    expect(find.text('Ses messages avec le cabinet'), findsOneWidget);
+    expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
+
+    expect(
+      tester
+          .widget<NubiaToggle>(
+            find.byKey(const Key('proposed_scope_toggle_appointments')),
+          )
+          .value,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<NubiaToggle>(
+            find.byKey(const Key('proposed_scope_toggle_documents')),
+          )
+          .value,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<NubiaToggle>(
+            find.byKey(const Key('proposed_scope_toggle_messages')),
+          )
+          .value,
+      isFalse,
+    );
+  });
+
+  testWidgets('ajout proche : bascule un toggle du périmètre proposé',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('dependent_relationship')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Conjoint').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('proposed_scope_toggle_messages')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<NubiaToggle>(
+            find.byKey(const Key('proposed_scope_toggle_messages')),
+          )
+          .value,
+      isTrue,
+    );
+  });
 }
