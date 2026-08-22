@@ -173,6 +173,23 @@ void main() {
       expect(updated.emailEnabled, isFalse);
     });
 
+    testWidgets(
+        'renvoi "Toutes les préférences" présent, tuile "Mon compte" '
+        'retirée (#5231)', (tester) async {
+      when(() => mockNotifRepo.getPreferences())
+          .thenAnswer((_) async => const Right(_prefs));
+
+      final bloc = makeBloc()..add(const ProfileLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('section_notifications_action')),
+          findsOneWidget);
+      expect(find.textContaining('Toutes les préférences'), findsOneWidget);
+      expect(find.byKey(const Key('tile_notifications')), findsNothing);
+    });
+
     testWidgets('toggle push → updatePreferences appelé avec pushEnabled=false',
         (tester) async {
       when(() => mockNotifRepo.getPreferences())
