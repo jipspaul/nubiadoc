@@ -157,6 +157,13 @@ class _LoadedViewState extends State<_LoadedView> {
         }
       });
 
+  // Libellés verbatim maquette — énoncent l'ordre COURANT (pas la cible du
+  // tap), cf. #5266 : le tooltip précédent décrivait l'ordre obtenu après
+  // bascule, pas celui affiché à l'écran.
+  String get _sortLabel => _selectedIndex == 0
+      ? (_currentSortAsc ? 'Plus proche d\'abord' : 'Plus lointain d\'abord')
+      : (_currentSortAsc ? 'Plus ancien d\'abord' : 'Plus récent d\'abord');
+
   @override
   Widget build(BuildContext context) {
     int compareUpcoming(Appointment a, Appointment b) => _upcomingSortAsc
@@ -185,17 +192,10 @@ class _LoadedViewState extends State<_LoadedView> {
                   onChanged: (i) => setState(() => _selectedIndex = i),
                 ),
               ),
-              IconButton(
+              _SortChip(
                 key: const Key('sort_button'),
-                icon: const Icon(Icons.sort),
-                tooltip: _selectedIndex == 0
-                    ? (_currentSortAsc
-                        ? 'Plus lointain d\'abord'
-                        : 'Plus proche d\'abord')
-                    : (_currentSortAsc
-                        ? 'Plus récent d\'abord'
-                        : 'Plus ancien d\'abord'),
-                onPressed: _toggleSort,
+                label: _sortLabel,
+                onTap: _toggleSort,
               ),
             ],
           ),
@@ -221,6 +221,49 @@ class _LoadedViewState extends State<_LoadedView> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Puce de tri (maquette design-v2, point #4) : remplace l'`IconButton`
+/// dont le libellé ne vivait que dans un `tooltip` (inatteignable au
+/// doigt) par une puce qui énonce l'ordre courant en toutes lettres.
+/// `swap_vert` 15px + libellé 12,5px/500 `n500`, bordure `n200`, fond
+/// blanc, radius 99, padding 5/10/5/8.
+class _SortChip extends StatelessWidget {
+  const _SortChip({super.key, required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: NubiaColors.n0,
+      shape: const StadiumBorder(side: BorderSide(color: NubiaColors.n200)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 5, 10, 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.swap_vert, size: 15, color: NubiaColors.n500),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: NubiaColors.n500,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
