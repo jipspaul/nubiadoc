@@ -15,7 +15,7 @@ final class DependentsLoading extends DependentsState {
 
 final class DependentsLoaded extends DependentsState {
   final List<Dependent> dependents;
-  final bool hasPendingAccessRequest;
+  final List<AccessRequest> pendingAccessRequests;
   final bool mutating;
 
   /// Horodatage du prochain RDV par `dependent.id`, absent si aucun RDV à
@@ -25,14 +25,17 @@ final class DependentsLoaded extends DependentsState {
 
   const DependentsLoaded(
     this.dependents, {
-    this.hasPendingAccessRequest = false,
+    this.pendingAccessRequests = const [],
     this.mutating = false,
     this.nextAppointmentByDependentId = const {},
   });
+
+  bool get hasPendingAccessRequest => pendingAccessRequests.isNotEmpty;
+
   @override
   List<Object?> get props => [
         dependents,
-        hasPendingAccessRequest,
+        pendingAccessRequests,
         mutating,
         nextAppointmentByDependentId,
       ];
@@ -53,11 +56,15 @@ class DependentsCubit extends Cubit<DependentsState>
     required GetUpcomingAppointmentsUseCase getUpcomingAppointments,
     required AddDependentUseCase add,
     required DeleteDependentUseCase remove,
+    required ResendAccessRequestUseCase resendAccessRequest,
+    required CancelAccessRequestUseCase cancelAccessRequest,
   })  : _list = list,
         _listAccessRequests = listAccessRequests,
         _getUpcomingAppointments = getUpcomingAppointments,
         _add = add,
         _remove = remove,
+        _resendAccessRequest = resendAccessRequest,
+        _cancelAccessRequest = cancelAccessRequest,
         super(const DependentsLoading());
 
   final ListDependentsUseCase _list;
@@ -65,6 +72,8 @@ class DependentsCubit extends Cubit<DependentsState>
   final GetUpcomingAppointmentsUseCase _getUpcomingAppointments;
   final AddDependentUseCase _add;
   final DeleteDependentUseCase _remove;
+  final ResendAccessRequestUseCase _resendAccessRequest;
+  final CancelAccessRequestUseCase _cancelAccessRequest;
 
   Future<void> load() async {
     emit(const DependentsLoading());
@@ -73,10 +82,11 @@ class DependentsCubit extends Cubit<DependentsState>
       (f) async => safeEmit(DependentsError(f.message)),
       (d) async {
         final requestsResult = await _listAccessRequests();
-        final hasPending = requestsResult.fold(
-          (_) => false,
+        final pending = requestsResult.fold(
+          (_) => const <AccessRequest>[],
           (requests) => requests
-              .any((r) => r.status == AccessRequestStatus.envoyee),
+              .where((r) => r.status == AccessRequestStatus.envoyee)
+              .toList(),
         );
         final upcomingResult = await _getUpcomingAppointments();
         final upcoming =
@@ -94,7 +104,7 @@ class DependentsCubit extends Cubit<DependentsState>
         }
         safeEmit(DependentsLoaded(
           d,
-          hasPendingAccessRequest: hasPending,
+          pendingAccessRequests: pending,
           nextAppointmentByDependentId: nextAppointments,
         ));
       },
@@ -111,7 +121,7 @@ class DependentsCubit extends Cubit<DependentsState>
     if (current is DependentsLoaded) {
       emit(DependentsLoaded(
         current.dependents,
-        hasPendingAccessRequest: current.hasPendingAccessRequest,
+        pendingAccessRequests: current.pendingAccessRequests,
         mutating: true,
       ));
     }
@@ -135,11 +145,49 @@ class DependentsCubit extends Cubit<DependentsState>
     if (current is DependentsLoaded) {
       emit(DependentsLoaded(
         current.dependents,
-        hasPendingAccessRequest: current.hasPendingAccessRequest,
+        pendingAccessRequests: current.pendingAccessRequests,
         mutating: true,
       ));
     }
     final result = await _remove(id);
+    await result.fold(
+      (f) async {
+        safeEmit(DependentsError(f.message));
+        await load();
+      },
+      (_) async => load(),
+    );
+  }
+
+  Future<void> resend(String requestId) async {
+    final current = state;
+    if (current is DependentsLoaded) {
+      emit(DependentsLoaded(
+        current.dependents,
+        pendingAccessRequests: current.pendingAccessRequests,
+        mutating: true,
+      ));
+    }
+    final result = await _resendAccessRequest(requestId);
+    await result.fold(
+      (f) async {
+        safeEmit(DependentsError(f.message));
+        await load();
+      },
+      (_) async => load(),
+    );
+  }
+
+  Future<void> cancel(String requestId) async {
+    final current = state;
+    if (current is DependentsLoaded) {
+      emit(DependentsLoaded(
+        current.dependents,
+        pendingAccessRequests: current.pendingAccessRequests,
+        mutating: true,
+      ));
+    }
+    final result = await _cancelAccessRequest(requestId);
     await result.fold(
       (f) async {
         safeEmit(DependentsError(f.message));

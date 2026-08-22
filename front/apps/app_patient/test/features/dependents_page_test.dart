@@ -20,6 +20,16 @@ final _lucas = Dependent(
   relationship: DependentRelationship.enfant,
 );
 
+final _pendingRequest = AccessRequest(
+  id: 'ar-1',
+  firstName: 'Émile',
+  lastName: 'Martin',
+  relationship: DependentRelationship.conjoint,
+  status: AccessRequestStatus.envoyee,
+  channel: AccessRequestChannel.email,
+  sentAt: DateTime.now().subtract(const Duration(days: 1)),
+);
+
 Future<void> _pump(WidgetTester tester, DependentsCubit cubit) async {
   GetIt.instance.registerFactory<DependentsCubit>(() => cubit);
   addTearDown(() => GetIt.instance.reset());
@@ -112,5 +122,76 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(() => cubit.remove('dep-1')).called(1);
+  });
+
+  testWidgets(
+      'carte demande en attente : badge, canal/horodatage et actions',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded(
+        const [],
+        pendingAccessRequests: [_pendingRequest],
+      ),
+    );
+
+    await _pump(tester, cubit);
+
+    expect(find.byKey(const Key('pending_request_ar-1')), findsOneWidget);
+    expect(find.text('Émile Martin'), findsOneWidget);
+    expect(find.text('Conjoint'), findsOneWidget);
+    expect(find.text('En attente'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('pending_request_ar-1')),
+        matching: find.byIcon(Icons.schedule),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Envoyée hier par email'), findsOneWidget);
+    expect(find.byIcon(Icons.mail), findsOneWidget);
+    expect(find.text('Relancer'), findsOneWidget);
+    expect(find.text('Annuler'), findsOneWidget);
+  });
+
+  testWidgets('carte demande en attente : Relancer appelle cubit.resend',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded(
+        const [],
+        pendingAccessRequests: [_pendingRequest],
+      ),
+    );
+    when(() => cubit.resend(any())).thenAnswer((_) async {});
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('resend_access_request_ar-1')));
+    await tester.pumpAndSettle();
+
+    verify(() => cubit.resend('ar-1')).called(1);
+  });
+
+  testWidgets('carte demande en attente : Annuler appelle cubit.cancel',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded(
+        const [],
+        pendingAccessRequests: [_pendingRequest],
+      ),
+    );
+    when(() => cubit.cancel(any())).thenAnswer((_) async {});
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('cancel_access_request_ar-1')));
+    await tester.pumpAndSettle();
+
+    verify(() => cubit.cancel('ar-1')).called(1);
   });
 }

@@ -60,7 +60,7 @@ class _DependentsBody extends StatelessWidget {
           );
         }
         if (state is DependentsLoaded) {
-          if (state.dependents.isEmpty) {
+          if (state.dependents.isEmpty && state.pendingAccessRequests.isEmpty) {
             return const NubiaEmptyState(
               key: Key('dependents_empty'),
               icon: Icons.people_outline,
@@ -68,26 +68,39 @@ class _DependentsBody extends StatelessWidget {
               subtitle: 'Ajoutez un enfant ou un proche que vous gérez.',
             );
           }
-          return Column(
+          return ListView(
+            key: const Key('dependents_list'),
             children: [
-              Expanded(
-                child: ListView.separated(
-                  key: const Key('dependents_list'),
-                  itemCount: state.dependents.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (_, i) => _DependentTile(
-                    dependent: state.dependents[i],
-                    disabled: state.mutating,
-                    nextAppointmentAt: state.nextAppointmentByDependentId[
-                        state.dependents[i].id],
+              for (final dependent in state.dependents) ...[
+                _DependentTile(
+                  dependent: dependent,
+                  disabled: state.mutating,
+                  nextAppointmentAt:
+                      state.nextAppointmentByDependentId[dependent.id],
+                ),
+                const Divider(height: 1),
+              ],
+              if (state.pendingAccessRequests.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    'Demandes envoyées',
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
-              ),
-              if (state.hasPendingAccessRequest)
+                for (final request in state.pendingAccessRequests)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: _PendingRequestTile(
+                      request: request,
+                      disabled: state.mutating,
+                    ),
+                  ),
                 const Padding(
-                  padding: EdgeInsets.all(16),
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: _ExpiryNotice(),
                 ),
+              ],
             ],
           );
         }
@@ -312,6 +325,216 @@ class _DependentTile extends StatelessWidget {
       context.read<DependentsCubit>().remove(dependent.id);
     }
   }
+}
+
+/// « Envoyée hier », sinon « Envoyée le JJ/MM » — [AccessRequest] ne
+/// conserve que la date d'envoi, pas l'adresse du destinataire (cf.
+/// #5259 : le domaine expose état/canal/date, pas les coordonnées).
+String _relativeSentAt(DateTime sentAt) {
+  final dt = sentAt.toLocal();
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final sentDay = DateTime(dt.year, dt.month, dt.day);
+  final daysAgo = today.difference(sentDay).inDays;
+  if (daysAgo == 0) return "Envoyée aujourd'hui";
+  if (daysAgo == 1) return 'Envoyée hier';
+  return 'Envoyée le '
+      '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
+}
+
+/// Carte « demande en attente » (maquette design-v2, #5252) : invitation
+/// proche adulte envoyée non encore répondue, avec actions rapides
+/// Relancer / Annuler.
+class _PendingRequestTile extends StatelessWidget {
+  const _PendingRequestTile({
+    required this.request,
+    required this.disabled,
+  });
+
+  final AccessRequest request;
+  final bool disabled;
+
+  String get _relationLabel {
+    switch (request.relationship) {
+      case DependentRelationship.enfant:
+        return 'Enfant';
+      case DependentRelationship.conjoint:
+        return 'Conjoint';
+      case DependentRelationship.autre:
+        return 'Proche';
+    }
+  }
+
+  String get _initials {
+    final first = request.firstName.trim();
+    final last = request.lastName.trim();
+    final firstLetter = first.isEmpty ? '' : first[0];
+    final lastLetter = last.isEmpty ? '' : last[0];
+    return '$firstLetter$lastLetter'.toUpperCase();
+  }
+
+  String get _channelLabel =>
+      request.channel == AccessRequestChannel.sms ? 'par SMS' : 'par email';
+
+  String get _statusLine {
+    final sentAt = request.sentAt;
+    final sentLabel = sentAt == null ? 'Envoyée' : _relativeSentAt(sentAt);
+    return '$sentLabel $_channelLabel';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return SizedBox(
+      key: Key('pending_request_${request.id}'),
+      width: double.infinity,
+      child: CustomPaint(
+        foregroundPainter: const _DashedRRectPainter(
+          color: NubiaColors.n300,
+          radius: 12,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: NubiaColors.n50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: NubiaColors.n200,
+                      child: Text(
+                        _initials,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: NubiaColors.n600,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(request.displayName,
+                              style: theme.textTheme.titleMedium),
+                          const SizedBox(height: 2),
+                          Text(
+                            _relationLabel,
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: tokens.textTertiary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const StatusPill(
+                      label: 'En attente',
+                      variant: StatusPillVariant.warning,
+                      icon: Icons.schedule,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.mail, size: 18, color: tokens.textTertiary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _statusLine,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: tokens.textTertiary),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: NubiaButton(
+                        key: Key('resend_access_request_${request.id}'),
+                        label: 'Relancer',
+                        icon: Icons.send,
+                        variant: NubiaButtonVariant.secondary,
+                        onPressed: disabled
+                            ? null
+                            : () => context
+                                .read<DependentsCubit>()
+                                .resend(request.id),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: NubiaButton(
+                        key: Key('cancel_access_request_${request.id}'),
+                        label: 'Annuler',
+                        icon: Icons.close,
+                        variant: NubiaButtonVariant.secondary,
+                        onPressed: disabled
+                            ? null
+                            : () => context
+                                .read<DependentsCubit>()
+                                .cancel(request.id),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bordure pointillée d'un rectangle arrondi — Flutter n'a pas de
+/// `BorderStyle.dashed` natif (maquette, carte « dep pend »).
+class _DashedRRectPainter extends CustomPainter {
+  const _DashedRRectPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  static const _dashWidth = 4.0;
+  static const _dashGap = 3.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rrect);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = distance + _dashWidth;
+        canvas.drawPath(
+          metric.extractPath(distance, next.clamp(0, metric.length)),
+          paint,
+        );
+        distance = next + _dashGap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRRectPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
 }
 
 class _AddDependentSheet extends StatefulWidget {

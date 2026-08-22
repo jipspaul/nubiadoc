@@ -411,6 +411,8 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => ListAccessRequestsUseCase(gi()))
     ..registerFactory(() => AcceptAccessRequestUseCase(gi()))
     ..registerFactory(() => RefuseAccessRequestUseCase(gi()))
+    ..registerFactory(() => ResendAccessRequestUseCase(gi()))
+    ..registerFactory(() => CancelAccessRequestUseCase(gi()))
     ..registerFactory(() => UploadCoverageCardUseCase(gi()))
     ..registerFactory(() => GetReferringDoctorUseCase(gi()))
     ..registerFactory(() => SetReferringDoctorUseCase(gi()))

@@ -177,6 +177,8 @@ void registerPatient(GetIt gi) {
       getUpcomingAppointments: gi<GetUpcomingAppointmentsUseCase>(),
       add: gi<AddDependentUseCase>(),
       remove: gi<DeleteDependentUseCase>(),
+      resendAccessRequest: gi<ResendAccessRequestUseCase>(),
+      cancelAccessRequest: gi<CancelAccessRequestUseCase>(),
     ),
   );
 
