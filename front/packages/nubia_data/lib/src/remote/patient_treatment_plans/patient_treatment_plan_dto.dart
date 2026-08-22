@@ -103,6 +103,10 @@ class PatientTreatmentPlanDto {
   final int? amoPartCents;
   final int? amcPartCents;
   final List<PatientTreatmentPlanPhaseDto> phases;
+  final String? pendingQuoteId;
+  final String? pendingQuoteLabel;
+  final String? pendingQuoteReceivedAt;
+  final int? pendingQuotePatientShareCents;
 
   const PatientTreatmentPlanDto({
     required this.id,
@@ -114,6 +118,10 @@ class PatientTreatmentPlanDto {
     this.amoPartCents,
     this.amcPartCents,
     this.phases = const [],
+    this.pendingQuoteId,
+    this.pendingQuoteLabel,
+    this.pendingQuoteReceivedAt,
+    this.pendingQuotePatientShareCents,
   });
 
   /// `GET /v1/treatment-plans` (liste) : ni coûts ni phases.
@@ -123,6 +131,11 @@ class PatientTreatmentPlanDto {
         title: json['title'] as String,
         status: json['status'] as String,
         createdAt: json['created_at'] as String?,
+        pendingQuoteId: json['pending_quote_id'] as String?,
+        pendingQuoteLabel: json['pending_quote_label'] as String?,
+        pendingQuoteReceivedAt: json['pending_quote_received_at'] as String?,
+        pendingQuotePatientShareCents:
+            json['pending_quote_patient_share_cents'] as int?,
       );
 
   /// `GET /v1/treatment-plans/:id` (détail) : coûts + phases, pas de `created_at`.
@@ -140,6 +153,11 @@ class PatientTreatmentPlanDto {
                     e as Map<String, dynamic>))
                 .toList() ??
             const [],
+        pendingQuoteId: json['pending_quote_id'] as String?,
+        pendingQuoteLabel: json['pending_quote_label'] as String?,
+        pendingQuoteReceivedAt: json['pending_quote_received_at'] as String?,
+        pendingQuotePatientShareCents:
+            json['pending_quote_patient_share_cents'] as int?,
       );
 
   PatientTreatmentPlan toDomain() => PatientTreatmentPlan(
@@ -152,5 +170,11 @@ class PatientTreatmentPlanDto {
         amoPartCents: amoPartCents,
         amcPartCents: amcPartCents,
         phases: phases.map((p) => p.toDomain()).toList(),
+        pendingQuoteId: pendingQuoteId,
+        pendingQuoteLabel: pendingQuoteLabel,
+        pendingQuoteReceivedAt: pendingQuoteReceivedAt != null
+            ? DateTime.parse(pendingQuoteReceivedAt!)
+            : null,
+        pendingQuotePatientShareCents: pendingQuotePatientShareCents,
       );
 }

@@ -70,6 +70,19 @@ const _planDetail = PatientTreatmentPlan(
   ],
 );
 
+/// Plan avec un devis reçu et non signé qui porte sur le plan entier — sa
+/// propre carte warning dans la section « À votre décision » de la liste,
+/// hors du flux normal (#5291).
+final _planWithPendingPlanQuote = PatientTreatmentPlan(
+  id: 'plan-2',
+  title: 'Prothèse d\'usage — phase 3',
+  status: 'proposed',
+  pendingQuoteId: 'quote-99',
+  pendingQuoteLabel: 'Couronne céramo-métallique sur la dent 26',
+  pendingQuoteReceivedAt: DateTime.utc(2026, 8, 9),
+  pendingQuotePatientShareCents: 42000,
+);
+
 /// Variante avec un devis en attente d'accord sur la phase 2 — bandeau
 /// warning + CTA « Consulter et signer le devis » (#5300).
 final _planWithPendingQuote = PatientTreatmentPlan(
@@ -215,6 +228,129 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        'liste sans devis en attente — pas de section « À votre décision » '
+        '(#5291)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state)
+          .thenReturn(const PatientTreatmentPlansLoaded([_plan]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      expect(find.text('À VOTRE DÉCISION'), findsNothing);
+      expect(find.byKey(const Key('pending_quote_card_plan-2')), findsNothing);
+    });
+
+    testWidgets(
+        'plan avec devis reçu et non signé — carte warning dédiée dans la '
+        'section « À votre décision », pas de doublon en carte normale '
+        '(#5291)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state).thenReturn(
+          PatientTreatmentPlansLoaded([_plan, _planWithPendingPlanQuote]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      expect(find.text('À VOTRE DÉCISION'), findsOneWidget);
+      expect(find.text('1 devis en attente'), findsOneWidget);
+
+      final card = find.byKey(const Key('pending_quote_card_plan-2'));
+      expect(card, findsOneWidget);
+      expect(
+        find.descendant(
+            of: card, matching: find.text('Prothèse d\'usage — phase 3')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: card, matching: find.text('À accepter')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: card,
+          matching:
+              find.text('Couronne céramo-métallique sur la dent 26'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+            of: card, matching: find.text('Reste à votre charge estimé')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: card, matching: find.text('420 €')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+            of: card, matching: find.text('Devis reçu le 9 août')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: card, matching: find.text('Consulter')),
+        findsOneWidget,
+      );
+
+      // Le plan avec devis en attente ne doit pas aussi apparaître comme
+      // carte de plan normale (évite le doublon).
+      expect(find.byKey(const Key('treatment_plan_plan-2')), findsNothing);
+      // L'autre plan, lui, reste une ligne normale.
+      expect(find.byKey(const Key('treatment_plan_plan-1')), findsOneWidget);
+    });
+
+    testWidgets(
+        '« Consulter » navigue vers l\'écran du devis correspondant (#5291)',
+        (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state).thenReturn(
+          PatientTreatmentPlansLoaded([_planWithPendingPlanQuote]));
+
+      String? pushedLocation;
+      final router = GoRouter(
+        initialLocation: '/treatment-plans',
+        routes: [
+          GoRoute(
+            path: '/treatment-plans',
+            builder: (_, __) => BlocProvider<PatientTreatmentPlansBloc>.value(
+              value: bloc,
+              child: const PatientTreatmentPlansBody(),
+            ),
+          ),
+          GoRoute(
+            path: '/financial',
+            builder: (_, state) {
+              pushedLocation = state.uri.toString();
+              return const Scaffold(body: Text('financial'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      final consultCta =
+          find.byKey(const Key('pending_quote_plan-2_consult_cta'));
+      await tester.ensureVisible(consultCta);
+      await tester.tap(consultCta);
+      await tester.pumpAndSettle();
+
+      expect(pushedLocation, '/financial?id=quote-99');
     });
 
     testWidgets('liste vide — état vide affiché, pas d\'encart d\'information',

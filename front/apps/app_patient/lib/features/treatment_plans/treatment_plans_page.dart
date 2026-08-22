@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'treatment_plans_bloc.dart';
+import 'widgets/pending_quote_card.dart';
 
 /// Liste des plans de traitement du patient (#4261).
 class PatientTreatmentPlansPage extends StatelessWidget {
@@ -50,15 +51,29 @@ class PatientTreatmentPlansBody extends StatelessWidget {
                       'de traitement.',
                 );
               }
-              return ListView.builder(
-                key: const Key('treatment_plans_loaded'),
-                itemCount: plans.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == plans.length) {
-                    return const _TreatmentPlansInfoNotice();
-                  }
-                  final plan = plans[index];
-                  return ListRow(
+              final pendingQuotePlans =
+                  plans.where((plan) => plan.pendingQuoteId != null).toList();
+              final otherPlans =
+                  plans.where((plan) => plan.pendingQuoteId == null).toList();
+              final items = <Widget>[
+                if (pendingQuotePlans.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: _PendingQuoteSectionHeader(
+                      count: pendingQuotePlans.length,
+                    ),
+                  ),
+                  for (final plan in pendingQuotePlans)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: PendingQuoteCard(
+                        key: Key('pending_quote_card_${plan.id}'),
+                        plan: plan,
+                      ),
+                    ),
+                ],
+                for (final plan in otherPlans)
+                  ListRow(
                     key: Key('treatment_plan_${plan.id}'),
                     title: plan.title,
                     trailing: StatusPill(
@@ -68,8 +83,13 @@ class PatientTreatmentPlansBody extends StatelessWidget {
                           StatusPillVariant.info,
                     ),
                     onTap: () => context.push('/treatment-plans/${plan.id}'),
-                  );
-                },
+                  ),
+                const _TreatmentPlansInfoNotice(),
+              ];
+              return ListView.builder(
+                key: const Key('treatment_plans_loaded'),
+                itemCount: items.length,
+                itemBuilder: (context, index) => items[index],
               );
           }
         },
@@ -114,6 +134,40 @@ class _TreatmentPlanSkeletonCard extends StatelessWidget {
           NubiaSkeletonLoader(height: 22, width: 72, borderRadius: 999),
         ],
       ),
+    );
+  }
+}
+
+/// En-tête de la section « À votre décision » — regroupe les plans dont un
+/// devis est reçu et non signé, sortis du flux normal pour porter leur
+/// propre carte warning (#5291). Maquette :
+/// `design/v2-screens/patient-mon-plan-de-soins.png`.
+class _PendingQuoteSectionHeader extends StatelessWidget {
+  const _PendingQuoteSectionHeader({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          'À VOTRE DÉCISION',
+          style: textTheme.labelSmall?.copyWith(
+            color: tokens.textTertiary,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+          ),
+        ),
+        Text(
+          '$count devis en attente',
+          style: TextStyle(fontSize: 11.5, color: tokens.textTertiary),
+        ),
+      ],
     );
   }
 }
