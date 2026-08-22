@@ -8,6 +8,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'appointment_formatting.dart';
 import 'mes_rdv_bloc.dart';
 import 'mes_rdv_event.dart';
 import 'mes_rdv_state.dart';
@@ -614,7 +615,8 @@ class _AppointmentCard extends StatelessWidget {
                 // par un autre ticket, l'historique garde donc l'avatar ici.
                 isHistory
                     ? NubiaAvatar(
-                        initials: _initials(appointment.practitionerName))
+                        initials: appointmentInitials(
+                            appointment.practitionerName))
                     : _DateRail(startsAt: appointment.startsAt),
                 const SizedBox(width: 12),
                 Expanded(
@@ -666,7 +668,7 @@ class _AppointmentCard extends StatelessWidget {
             const SizedBox(height: 12),
             _IconRow(
               icon: Icons.calendar_today_outlined,
-              label: _formatDateTime(appointment.startsAt),
+              label: formatAppointmentDateTime(appointment.startsAt),
               // #5268 : rail neutralisé (teinte stone `n500`) sur une carte
               // passée — plus aucun brand une fois le RDV dans l'historique.
               color: isHistory
@@ -728,49 +730,6 @@ class _AppointmentCard extends StatelessWidget {
         local.day == now.day;
   }
 
-  String _initials(String name) {
-    // Retire le préfixe de civilité (« Dr », « Dr. », « Pr », « M. »…) pour ne
-    // pas polluer les initiales : « Dr Amélie Dubois » → « AD », pas « DD ».
-    final cleaned = name
-        .replaceAll(
-          RegExp(r'^(Dr|Dr\.|Pr|Pr\.|M\.|Mme|Mlle)\s+', caseSensitive: false),
-          '',
-        )
-        .trim();
-    final parts =
-        cleaned.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) {
-      return parts.first.characters.first.toUpperCase();
-    }
-    return (parts.first.characters.first + parts.last.characters.first)
-        .toUpperCase();
-  }
-
-  String _formatDateTime(DateTime utc) {
-    const weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-    const months = [
-      'jan',
-      'fév',
-      'mar',
-      'avr',
-      'mai',
-      'jun',
-      'jul',
-      'aoû',
-      'sep',
-      'oct',
-      'nov',
-      'déc',
-    ];
-    // #4620/#4618 : startsAt vient de DateTime.parse() sur un ISO +00:00
-    // (isUtc == true) — lire .hour/.day/.weekday bruts affichait l'heure UTC
-    // au lieu de l'heure locale (-2h en été / -1h en hiver pour Europe/Paris).
-    final dt = utc.toLocal();
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '${weekdays[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]} à $h:$m';
-  }
 }
 
 // ---------------------------------------------------------------------------
