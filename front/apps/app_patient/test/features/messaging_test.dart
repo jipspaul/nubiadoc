@@ -526,7 +526,7 @@ void main() {
       // Le champ libre reste vide et disponible : la chip ne le remplace pas.
       expect(
         tester
-            .widget<TextField>(find.byKey(const Key('messaging_input')))
+            .widget<NubiaTextField>(find.byKey(const Key('messaging_input')))
             .controller!
             .text,
         isEmpty,

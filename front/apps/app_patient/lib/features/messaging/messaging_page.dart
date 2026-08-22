@@ -349,16 +349,11 @@ class _ThreadViewState extends State<_ThreadView> {
           child: Row(
             children: [
               Expanded(
-                child: TextField(
+                child: NubiaTextField(
                   key: const Key('messaging_input'),
                   controller: _controller,
-                  decoration: const InputDecoration(
-                    hintText: 'Votre message…',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
+                  hint: 'Votre message…',
+                  borderRadius: 21,
                   onSubmitted: (_) => _send(),
                 ),
               ),
