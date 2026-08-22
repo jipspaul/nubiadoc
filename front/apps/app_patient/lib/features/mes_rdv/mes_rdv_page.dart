@@ -271,15 +271,102 @@ class _AppointmentList extends StatelessWidget {
                 ),
               ),
             )
-          : ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: appointments.length,
-              itemBuilder: (context, i) => _AppointmentCard(
-                appointment: appointments[i],
-                isHistory: !isUpcoming,
-              ),
-            ),
+          // #5267 : l'historique se regroupe par mois sous un en-tête ; « à
+          // venir » reste une liste plate (pas de spec de groupement dessus).
+          : isUpcoming
+              ? ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: appointments.length,
+                  itemBuilder: (context, i) => _AppointmentCard(
+                    appointment: appointments[i],
+                    isHistory: false,
+                  ),
+                )
+              : _HistoryGroupedList(appointments: appointments),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// #5267 : cartes de l'historique regroupées par mois sous un en-tête
+/// (« Juillet 2026 »). Le mois est dérivé de `startsAt.toLocal()` et
+/// l'ordre des groupes suit simplement celui déjà appliqué à [appointments]
+/// (donc `_historySortAsc`, cf. #3801) — pas de tri recalculé ici.
+class _HistoryGroupedList extends StatelessWidget {
+  const _HistoryGroupedList({required this.appointments});
+  final List<Appointment> appointments;
+
+  @override
+  Widget build(BuildContext context) {
+    final children = <Widget>[];
+    int? lastYear;
+    int? lastMonth;
+    for (final appointment in appointments) {
+      final local = appointment.startsAt.toLocal();
+      if (local.year != lastYear || local.month != lastMonth) {
+        lastYear = local.year;
+        lastMonth = local.month;
+        children.add(_MonthHeader(year: local.year, month: local.month));
+      }
+      children.add(
+        _AppointmentCard(appointment: appointment, isHistory: true),
+      );
+    }
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      children: children,
+    );
+  }
+}
+
+/// En-tête de groupe mensuel (maquette design-v2, point #5 « Groupement par
+/// mois ») : libellé 12,5px/600, letter-spacing .4px, uppercase, `n500`,
+/// souligné d'un trait `n200`.
+class _MonthHeader extends StatelessWidget {
+  const _MonthHeader({required this.year, required this.month});
+  final int year;
+  final int month;
+
+  static const _monthNames = [
+    'Janvier',
+    'Février',
+    'Mars',
+    'Avril',
+    'Mai',
+    'Juin',
+    'Juillet',
+    'Août',
+    'Septembre',
+    'Octobre',
+    'Novembre',
+    'Décembre',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: NubiaColors.n200)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            '${_monthNames[month - 1]} $year'.toUpperCase(),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                  color: NubiaColors.n500,
+                ),
+          ),
+        ),
+      ),
     );
   }
 }
