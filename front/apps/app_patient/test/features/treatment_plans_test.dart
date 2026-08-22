@@ -187,7 +187,38 @@ void main() {
       expect(find.text('Réhabilitation implantaire'), findsOneWidget);
     });
 
-    testWidgets('liste vide — état vide affiché', (tester) async {
+    testWidgets(
+        'liste avec plans — encart d\'information en bas de liste (#5292)',
+        (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state)
+          .thenReturn(const PatientTreatmentPlansLoaded([_plan]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      final notice = find.byKey(const Key('treatment_plans_info_notice'));
+      expect(notice, findsOneWidget);
+      expect(
+        find.descendant(of: notice, matching: find.byIcon(Icons.shield)),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Un plan de soins décrit les étapes proposées par votre '
+          "praticien. Les montants sont indicatifs tant qu'un devis n'a "
+          'pas été signé.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('liste vide — état vide affiché, pas d\'encart d\'information',
+        (tester) async {
       final bloc = MockPatientTreatmentPlansBloc();
       when(() => bloc.state).thenReturn(const PatientTreatmentPlansLoaded([]));
 
@@ -199,6 +230,8 @@ void main() {
       );
 
       expect(find.byKey(const Key('treatment_plans_empty')), findsOneWidget);
+      expect(find.byKey(const Key('treatment_plans_info_notice')),
+          findsNothing);
     });
 
     testWidgets(
@@ -217,6 +250,8 @@ void main() {
       expect(find.byKey(const Key('treatment_plans_loading')), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+      expect(find.byKey(const Key('treatment_plans_info_notice')),
+          findsNothing);
     });
   });
 
