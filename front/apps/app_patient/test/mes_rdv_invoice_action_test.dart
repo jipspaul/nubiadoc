@@ -1,6 +1,6 @@
 // Issue #5270 — un RDV historique `completed` facturé doit proposer une
-// action primaire « Facture · <montant> » ; à défaut de facture connue,
-// repli sur « Reprendre RDV » (jamais de montant inventé).
+// action « Facture · <montant> » en plus de « Reprendre RDV » (#5269),
+// jamais de montant inventé.
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,7 +72,9 @@ void main() {
 
     expect(find.text('Facture · 148,50 €'), findsOneWidget);
     expect(find.byIcon(Icons.receipt_long), findsOneWidget);
-    expect(find.text('Reprendre RDV'), findsNothing);
+    // #5269 : « Reprendre RDV » reste affiché en plus de la facture, comme
+    // sur toute carte historique.
+    expect(find.text('Reprendre RDV'), findsOneWidget);
   });
 
   testWidgets(
@@ -95,7 +97,8 @@ void main() {
     expect(find.textContaining('Facture'), findsNothing);
   });
 
-  testWidgets('un RDV noShow ne montre ni facture ni « Reprendre RDV »',
+  testWidgets(
+      'un RDV noShow ne montre pas de facture mais montre « Reprendre RDV » (#5269)',
       (tester) async {
     final appt = Appointment(
       id: 'rdv-3',
@@ -111,6 +114,6 @@ void main() {
     await pump(tester, appt);
 
     expect(find.textContaining('Facture'), findsNothing);
-    expect(find.text('Reprendre RDV'), findsNothing);
+    expect(find.text('Reprendre RDV'), findsOneWidget);
   });
 }

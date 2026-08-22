@@ -20,11 +20,20 @@ import 'widgets/provider_filters_aside.dart';
 /// Page de recherche praticien + booking.
 /// Tab 1 du DashboardPage : recherche → carte + liste → créneaux → confirmation.
 class AppointmentsPage extends StatefulWidget {
-  const AppointmentsPage({this.onViewMyAppointments, super.key});
+  const AppointmentsPage({
+    this.onViewMyAppointments,
+    this.initialQuery,
+    super.key,
+  });
 
   /// #4534 : appelé quand l'utilisateur tape « Voir mes RDV » sur l'écran
   /// de confirmation — permet au shell (DashboardPage) de basculer l'onglet.
   final VoidCallback? onViewMyAppointments;
+
+  /// #5269 : nom du praticien pré-rempli quand on arrive via « Reprendre
+  /// RDV » (Mes RDV · historique) — repart de la même recherche, sans forcer
+  /// de sélection automatique (l'utilisateur choisit toujours dans la liste).
+  final String? initialQuery;
 
   @override
   State<AppointmentsPage> createState() => _AppointmentsPageState();
@@ -47,7 +56,9 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
   void initState() {
     super.initState();
     // Annuaire par défaut au chargement : l'écran n'est jamais vide.
-    context.read<AppointmentsBloc>().add(const AppointmentsSearchChanged(''));
+    context
+        .read<AppointmentsBloc>()
+        .add(AppointmentsSearchChanged(widget.initialQuery ?? ''));
   }
 
   @override
@@ -177,6 +188,7 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
         providers: providers,
         slotsByProvider: slotsByProvider,
         loading: state is AppointmentsSearchLoading,
+        initialQuery: widget.initialQuery,
       );
     }
     if (state is AppointmentsSlotsLoading) {
@@ -402,10 +414,12 @@ class _SearchView extends StatefulWidget {
     required this.providers,
     required this.slotsByProvider,
     required this.loading,
+    this.initialQuery,
   });
   final List<ProviderResult> providers;
   final Map<String, List<Slot>> slotsByProvider;
   final bool loading;
+  final String? initialQuery;
 
   @override
   State<_SearchView> createState() => _SearchViewState();
@@ -425,6 +439,18 @@ class _SearchViewState extends State<_SearchView> {
   // principe que les facettes backend, calculées indépendamment des
   // filtres actifs).
   Set<String> _asideFilters = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    // #5269 : pré-remplit la barre visible avec le nom transmis par
+    // « Reprendre RDV » (la recherche réseau correspondante est déjà lancée
+    // par AppointmentsPage.initState).
+    final initialQuery = widget.initialQuery;
+    if (initialQuery != null && initialQuery.isNotEmpty) {
+      _controller.text = initialQuery;
+    }
+  }
 
   @override
   void dispose() {
