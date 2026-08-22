@@ -256,4 +256,83 @@ void main() {
 
     expect(find.textContaining('Émile choisira'), findsOneWidget);
   });
+
+  testWidgets(
+      'ajout proche : régime enfant garde le libellé Ajouter, sans sous-titre',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('save_dependent_button')),
+        matching: find.text('Ajouter'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Un adulte doit accepter votre demande'),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+      'ajout proche : régime invitation affiche le CTA "Envoyer la demande" '
+      'et le sous-titre, désactivé tant que l\'e-mail est invalide',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('dependent_relationship')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Conjoint').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Envoyer la demande'), findsOneWidget);
+    expect(
+      find.text('Un adulte doit accepter votre demande'),
+      findsOneWidget,
+    );
+
+    final buttonNoEmail = tester
+        .widget<NubiaButton>(find.byKey(const Key('save_dependent_button')));
+    expect(buttonNoEmail.icon, Icons.send);
+    expect(buttonNoEmail.onPressed, isNull);
+
+    await tester.enterText(
+        find.byKey(const Key('dependent_first_name')), 'Émile');
+    await tester.enterText(
+        find.byKey(const Key('dependent_last_name')), 'Martin');
+    await tester.enterText(
+        find.byKey(const Key('dependent_email')), 'pas-un-email');
+    await tester.pumpAndSettle();
+
+    final buttonInvalidEmail = tester
+        .widget<NubiaButton>(find.byKey(const Key('save_dependent_button')));
+    expect(buttonInvalidEmail.onPressed, isNull);
+
+    await tester.enterText(
+        find.byKey(const Key('dependent_email')), 'emile.martin@email.fr');
+    await tester.pumpAndSettle();
+
+    final buttonValid = tester
+        .widget<NubiaButton>(find.byKey(const Key('save_dependent_button')));
+    expect(buttonValid.onPressed, isNotNull);
+  });
 }
