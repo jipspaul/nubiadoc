@@ -15,6 +15,8 @@ import '../features/dashboard/dashboard_page.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/financial/financial_event.dart';
 import '../features/financial/financial_page.dart';
+import '../features/financial/financial_state.dart';
+import '../features/financial/widgets/financial_format_utils.dart';
 import '../features/documents/documents_page.dart';
 import '../features/treatment_plans/treatment_plan_detail_page.dart';
 import '../features/treatment_plans/treatment_plans_page.dart';
@@ -262,7 +264,26 @@ class AppRouter {
             create: (_) => GetIt.instance<FinancialBloc>()
               ..add(const FinancialLoadRequested()),
             child: Scaffold(
-              appBar: AppBar(title: const Text('Mes devis')),
+              appBar: AppBar(
+                title: const Text('Mes devis'),
+                actions: [
+                  BlocBuilder<FinancialBloc, FinancialState>(
+                    builder: (context, state) {
+                      if (state is! FinancialQuoteDetail) {
+                        return const SizedBox.shrink();
+                      }
+                      final style = QuoteStatusStyle.of(state.quote.status);
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 16),
+                        child: StatusPill(
+                          label: style.label,
+                          variant: style.variant,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
               body: const FinancialPage(),
             ),
           ),

@@ -29,7 +29,6 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final quote = widget.state.quote;
-    final style = QuoteStatusStyle.of(quote.status);
     final canSign = quote.canSign;
     final canPay = quote.status == QuoteStatus.signed && quote.depositCents > 0;
     final canDownload =
@@ -50,11 +49,6 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Badge statut centré (mockup wedge).
-                Center(
-                  child: StatusPill(label: style.label, variant: style.variant),
-                ),
-                const SizedBox(height: 16),
                 // En-tête montant + bandeau reste à charge.
                 AmountHeader(
                   label: 'Total du plan de soins',
