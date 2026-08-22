@@ -675,24 +675,12 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<DependentRelationship>(
+            SegmentedControl(
               key: const Key('dependent_relationship'),
-              initialValue: _relationship,
-              decoration: const InputDecoration(
-                labelText: 'Lien',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(
-                    value: DependentRelationship.enfant, child: Text('Enfant')),
-                DropdownMenuItem(
-                    value: DependentRelationship.conjoint,
-                    child: Text('Conjoint')),
-                DropdownMenuItem(
-                    value: DependentRelationship.autre, child: Text('Proche')),
-              ],
-              onChanged: (v) =>
-                  setState(() => _relationship = v ?? _relationship),
+              segments: const ['Enfant', 'Conjoint', 'Autre'],
+              selectedIndex: _relationship.index,
+              onChanged: (i) => setState(
+                  () => _relationship = DependentRelationship.values[i]),
             ),
             if (_isInvitation) ...[
               const SizedBox(height: 12),
