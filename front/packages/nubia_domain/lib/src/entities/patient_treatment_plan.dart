@@ -68,6 +68,31 @@ class PatientTreatmentPlan extends Equatable {
     this.phases = const [],
   });
 
+  /// Somme des actes des phases déjà réalisées (`done`) — considérés réglés.
+  /// Bloc « Coût de votre plan » (#5301).
+  int get paidCents => _sumItemsWhereStatusIn(const {'done'});
+
+  /// Somme des actes des phases confirmées ou en cours (`confirmed`,
+  /// `in_progress`) — couvertes par un devis déjà signé mais pas encore
+  /// soldées. Bloc « Coût de votre plan » (#5301).
+  int get committedCents =>
+      _sumItemsWhereStatusIn(const {'confirmed', 'in_progress'});
+
+  /// Somme des actes des phases simplement demandées (`requested`) — devis
+  /// pas encore signé par le patient. Bloc « Coût de votre plan » (#5301).
+  int get pendingApprovalCents => _sumItemsWhereStatusIn(const {'requested'});
+
+  int _sumItemsWhereStatusIn(Set<String> statuses) {
+    var total = 0;
+    for (final phase in phases) {
+      if (!statuses.contains(phase.status)) continue;
+      for (final item in phase.items) {
+        total += item.unitAmountCents;
+      }
+    }
+    return total;
+  }
+
   @override
   List<Object?> get props => [id];
 }
