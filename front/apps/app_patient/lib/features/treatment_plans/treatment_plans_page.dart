@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'treatment_plans_bloc.dart';
 import 'widgets/pending_quote_card.dart';
@@ -53,14 +54,30 @@ class PatientTreatmentPlansBody extends StatelessWidget {
               }
               final pendingQuotePlans =
                   plans.where((plan) => plan.pendingQuoteId != null).toList();
-              final otherPlans =
-                  plans.where((plan) => plan.pendingQuoteId == null).toList();
+              final inProgressPlans = plans
+                  .where((plan) =>
+                      plan.pendingQuoteId == null &&
+                      (plan.status == 'in_progress' ||
+                          plan.status == 'accepted'))
+                  .toList();
+              final donePlans = plans
+                  .where((plan) =>
+                      plan.pendingQuoteId == null && plan.status == 'done')
+                  .toList();
               final items = <Widget>[
+                if (inProgressPlans.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: _SectionHeader(title: 'EN COURS'),
+                  ),
+                  for (final plan in inProgressPlans) _PlanRow(plan: plan),
+                ],
                 if (pendingQuotePlans.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: _PendingQuoteSectionHeader(
-                      count: pendingQuotePlans.length,
+                    child: _SectionHeader(
+                      title: 'À VOTRE DÉCISION',
+                      trailing: '${pendingQuotePlans.length} devis en attente',
                     ),
                   ),
                   for (final plan in pendingQuotePlans)
@@ -72,18 +89,13 @@ class PatientTreatmentPlansBody extends StatelessWidget {
                       ),
                     ),
                 ],
-                for (final plan in otherPlans)
-                  ListRow(
-                    key: Key('treatment_plan_${plan.id}'),
-                    title: plan.title,
-                    trailing: StatusPill(
-                      label: treatmentPlanStatusLabels[plan.status] ??
-                          plan.status,
-                      variant: treatmentPlanStatusVariants[plan.status] ??
-                          StatusPillVariant.info,
-                    ),
-                    onTap: () => context.push('/treatment-plans/${plan.id}'),
+                if (donePlans.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: _SectionHeader(title: 'TERMINÉS'),
                   ),
+                  for (final plan in donePlans) _PlanRow(plan: plan),
+                ],
                 const _TreatmentPlansInfoNotice(),
               ];
               return ListView.builder(
@@ -138,35 +150,50 @@ class _TreatmentPlanSkeletonCard extends StatelessWidget {
   }
 }
 
-/// En-tête de la section « À votre décision » — regroupe les plans dont un
-/// devis est reçu et non signé, sortis du flux normal pour porter leur
-/// propre carte warning (#5291). Maquette :
-/// `design/v2-screens/patient-mon-plan-de-soins.png`.
-class _PendingQuoteSectionHeader extends StatelessWidget {
-  const _PendingQuoteSectionHeader({required this.count});
+/// Ligne d'un plan hors section « À votre décision » (statut + navigation
+/// vers le détail).
+class _PlanRow extends StatelessWidget {
+  const _PlanRow({required this.plan});
 
-  final int count;
+  final PatientTreatmentPlan plan;
 
   @override
   Widget build(BuildContext context) {
-    final tokens = Theme.of(context).extension<NubiaTokens>()!;
-    final textTheme = Theme.of(context).textTheme;
+    return ListRow(
+      key: Key('treatment_plan_${plan.id}'),
+      title: plan.title,
+      trailing: StatusPill(
+        label: treatmentPlanStatusLabels[plan.status] ?? plan.status,
+        variant: treatmentPlanStatusVariants[plan.status] ??
+            StatusPillVariant.info,
+      ),
+      onTap: () => context.push('/treatment-plans/${plan.id}'),
+    );
+  }
+}
+
+/// En-tête de section `.gh` (« En cours » / « À votre décision » /
+/// « Terminés ») groupant la liste plate des plans (#5290). Maquette :
+/// `design/v2-screens/patient-mon-plan-de-soins.png`.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, this.trailing});
+
+  final String title;
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    const style = TextStyle(
+      fontSize: 11.5,
+      fontWeight: FontWeight.w600,
+      color: NubiaColors.n400,
+    );
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          'À VOTRE DÉCISION',
-          style: textTheme.labelSmall?.copyWith(
-            color: tokens.textTertiary,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
-          ),
-        ),
-        Text(
-          '$count devis en attente',
-          style: TextStyle(fontSize: 11.5, color: tokens.textTertiary),
-        ),
+        Text(title, style: style),
+        if (trailing != null) Text(trailing!, style: style),
       ],
     );
   }

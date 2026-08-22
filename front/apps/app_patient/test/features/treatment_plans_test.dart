@@ -37,6 +37,12 @@ const _plan = PatientTreatmentPlan(
   status: 'in_progress',
 );
 
+const _donePlan = PatientTreatmentPlan(
+  id: 'plan-3',
+  title: 'Détartrage annuel',
+  status: 'done',
+);
+
 const _planDetail = PatientTreatmentPlan(
   id: 'plan-1',
   title: 'Réhabilitation implantaire',
@@ -309,6 +315,59 @@ void main() {
       expect(find.byKey(const Key('treatment_plan_plan-2')), findsNothing);
       // L'autre plan, lui, reste une ligne normale.
       expect(find.byKey(const Key('treatment_plan_plan-1')), findsOneWidget);
+    });
+
+    testWidgets(
+        'trois sections « En cours » / « À votre décision » / « Terminés », '
+        'dans cet ordre, sans doublon (#5290)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state).thenReturn(PatientTreatmentPlansLoaded(
+          [_plan, _planWithPendingPlanQuote, _donePlan]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      expect(find.text('EN COURS'), findsOneWidget);
+      expect(find.text('À VOTRE DÉCISION'), findsOneWidget);
+      expect(find.text('TERMINÉS'), findsOneWidget);
+      expect(find.text('1 devis en attente'), findsOneWidget);
+
+      final headers = [
+        tester.getTopLeft(find.text('EN COURS')).dy,
+        tester.getTopLeft(find.text('À VOTRE DÉCISION')).dy,
+        tester.getTopLeft(find.text('TERMINÉS')).dy,
+      ];
+      expect(headers, [headers[0], headers[1], headers[2]]..sort());
+
+      expect(find.byKey(const Key('treatment_plan_plan-1')), findsOneWidget);
+      expect(find.byKey(const Key('pending_quote_card_plan-2')),
+          findsOneWidget);
+      expect(find.byKey(const Key('treatment_plan_plan-3')), findsOneWidget);
+      // Aucun plan de la section décision ne doit réapparaître ailleurs.
+      expect(find.byKey(const Key('treatment_plan_plan-2')), findsNothing);
+    });
+
+    testWidgets(
+        'section vide non affichée — pas de « TERMINÉS » sans plan terminé '
+        '(#5290)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state)
+          .thenReturn(const PatientTreatmentPlansLoaded([_plan]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      expect(find.text('EN COURS'), findsOneWidget);
+      expect(find.text('TERMINÉS'), findsNothing);
+      expect(find.text('À VOTRE DÉCISION'), findsNothing);
     });
 
     testWidgets(
