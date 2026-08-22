@@ -54,6 +54,7 @@ class ProfilePage extends StatelessWidget {
             emailRdv: state.notifPrefs?.emailEnabled ?? true,
             pushRdv: state.notifPrefs?.pushEnabled ?? true,
             phoneUpdating: state.phoneUpdating,
+            accountSummary: state.accountSummary,
           );
         }
         if (state is ProfileToggleFailed) {
@@ -63,6 +64,7 @@ class ProfilePage extends StatelessWidget {
             emailRdv: state.previousState.notifPrefs?.emailEnabled ?? true,
             pushRdv: state.previousState.notifPrefs?.pushEnabled ?? true,
             phoneUpdating: false,
+            accountSummary: state.previousState.accountSummary,
           );
         }
         return const SizedBox.shrink();
@@ -162,6 +164,7 @@ class _ProfileContent extends StatelessWidget {
     required this.emailRdv,
     required this.pushRdv,
     required this.phoneUpdating,
+    required this.accountSummary,
   });
 
   final PatientAccount account;
@@ -169,6 +172,7 @@ class _ProfileContent extends StatelessWidget {
   final bool emailRdv;
   final bool pushRdv;
   final bool phoneUpdating;
+  final ProfileAccountSummary accountSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -240,42 +244,42 @@ class _ProfileContent extends StatelessWidget {
                 key: const Key('tile_financial'),
                 leading: const Icon(Icons.receipt_long_outlined),
                 title: 'Mes devis & paiements',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.quotesToSignLabel),
                 onTap: () => context.push(AppRouter.financial),
               ),
               ListRow(
                 key: const Key('tile_coverage'),
                 leading: const Icon(Icons.health_and_safety_outlined),
                 title: 'Couverture santé',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.coverageLabel),
                 onTap: () => context.push(AppRouter.coverageSetup),
               ),
               ListRow(
                 key: const Key('tile_referring_doctor'),
                 leading: const Icon(Icons.medical_services_outlined),
                 title: 'Médecin traitant',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.referringDoctorName),
                 onTap: () => context.push(AppRouter.profileReferringDoctor),
               ),
               ListRow(
                 key: const Key('tile_dependents'),
                 leading: const Icon(Icons.people_outline),
                 title: 'Mes proches',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.dependentsLabel),
                 onTap: () => context.push(AppRouter.profileDependents),
               ),
               ListRow(
                 key: const Key('tile_consents'),
                 leading: const Icon(Icons.verified_user_outlined),
                 title: 'Consentements',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.consentsGrantedLabel),
                 onTap: () => context.push(AppRouter.profileConsents),
               ),
               ListRow(
                 key: const Key('tile_implant_passport'),
                 leading: const Icon(Icons.medical_information_outlined),
                 title: 'Passeport implantaire',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.implantsLabel),
                 onTap: () => context.push(AppRouter.implantPassport),
               ),
               ListRow(
@@ -289,7 +293,7 @@ class _ProfileContent extends StatelessWidget {
                 key: const Key('tile_pharmacy'),
                 leading: const Icon(Icons.local_pharmacy_outlined),
                 title: 'Ma pharmacie',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.pharmacyName),
                 showDivider: false,
                 onTap: () => context.push('/pharmacy'),
               ),
@@ -328,6 +332,43 @@ class _SectionLabel extends StatelessWidget {
             color: cs.onSurface,
             fontWeight: FontWeight.w600,
           ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Trailing d'une tuile « Mon compte » : valeur courante + chevron (#5232).
+/// [value] `null` → chevron seul (dégradation propre d'une donnée
+/// indisponible).
+class _TileValue extends StatelessWidget {
+  const _TileValue(this.value);
+
+  final String? value;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (value != null) ...[
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 120),
+            child: Text(
+              value!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style:
+                  textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+        Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+      ],
     );
   }
 }

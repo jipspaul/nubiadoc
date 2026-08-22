@@ -167,6 +167,13 @@ void registerPatient(GetIt gi) {
       updateAccount: gi<UpdateAccountUseCase>(),
       userSettings: gi<UserSettingsRepository>(),
       notificationRepo: gi<NotificationRepository>(),
+      getPendingQuotes: gi<GetPendingQuotesUseCase>(),
+      getCoverage: gi<GetCoverageUseCase>(),
+      getReferringDoctor: gi<GetReferringDoctorUseCase>(),
+      listDependents: gi<ListDependentsUseCase>(),
+      listConsents: gi<ListConsentsUseCase>(),
+      listImplants: gi<ListImplantPassportUseCase>(),
+      getMyPharmacy: gi<GetMyPharmacyUseCase>(),
     ),
   );
 
