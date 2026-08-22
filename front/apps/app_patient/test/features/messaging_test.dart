@@ -599,6 +599,15 @@ void main() {
         'un séparateur apparaît avant chaque nouvelle journée, dont '
         '"Aujourd\'hui" pour le jour courant, sans casser reverse:true',
         (tester) async {
+      // Surface agrandie : 4 bulles + 3 séparateurs dépassent la hauteur de
+      // test par défaut une fois la ligne d'horodatage (#5277) ajoutée sous
+      // chaque bulle — sans cela, le premier séparateur sort du viewport
+      // construit par le `ListView.builder` (reverse:true).
+      tester.view.physicalSize = const Size(400, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day, 9, 0);
       final dayOne = Message(
@@ -855,6 +864,101 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.chevron_right), findsNothing);
+    });
+  });
+
+  // #5277 — chaque bulle du fil affiche l'heure d'envoi sous le texte ; un
+  // accusé de lecture (`done_all`) accompagne l'heure sur une bulle patient
+  // lue, jamais sur une bulle reçue.
+  group('MessagingPage — horodatage des bulles (#5277)', () {
+    testWidgets('affiche l\'heure locale (HH:MM) sous chaque bulle',
+        (tester) async {
+      final received = Message(
+        id: 'msg-received',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Bonjour, comment puis-je vous aider ?',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 9, 20),
+      );
+      final sentUnread = Message(
+        id: 'msg-sent-unread',
+        conversationId: 'conv-1',
+        sender: MessageSender.patient,
+        text: 'Une question sur mon traitement',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 11, 24),
+      );
+      final sentRead = Message(
+        id: 'msg-sent-read',
+        conversationId: 'conv-1',
+        sender: MessageSender.patient,
+        text: 'Merci docteur',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 18, 40),
+        readAt: DateTime(2026, 6, 18, 18, 41),
+      );
+      when(() => mockGetMessages(any())).thenAnswer(
+        (_) async => Right([received, sentUnread, sentRead]),
+      );
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('09:20'), findsOneWidget);
+      expect(find.text('11:24'), findsOneWidget);
+      expect(find.text('18:40'), findsOneWidget);
+
+      // Bulle patient lue : accusé de lecture accolé à l'heure.
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('18:40'),
+            matching: find.byType(Row),
+          ),
+          matching: find.byIcon(Icons.done_all),
+        ),
+        findsOneWidget,
+      );
+
+      // Bulle patient non lue et bulle reçue : pas d'accusé de lecture.
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('11:24'),
+            matching: find.byType(Row),
+          ),
+          matching: find.byIcon(Icons.done_all),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('09:20'),
+            matching: find.byType(Row),
+          ),
+          matching: find.byIcon(Icons.done_all),
+        ),
+        findsNothing,
+      );
     });
   });
 }
