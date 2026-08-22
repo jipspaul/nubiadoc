@@ -19,10 +19,24 @@ class IncomingRequestPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return BlocProvider(
       create: (_) => GetIt.instance<IncomingRequestCubit>()..load(request),
       child: Scaffold(
-        appBar: AppBar(title: const Text('Décider')),
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Une demande d\'accès'),
+              Text(
+                'Vous décidez de ce que vous autorisez',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
         body: const _IncomingRequestBody(),
       ),
     );
@@ -73,22 +87,23 @@ class _IncomingRequestBody extends StatelessWidget {
   }
 }
 
-/// Identité du demandeur — contexte minimal. Le détail du périmètre proposé
-/// est affiché juste après par [_RightsSummaryCard] (#5256) ; son ajustement
-/// est porté par [_AdjustScopeCard] (#5257).
+/// Hero d'identité du demandeur (#5255) — squelette de l'écran « Décider »
+/// côté invité. Le détail du périmètre proposé est affiché juste après par
+/// [_RightsSummaryCard] (#5256) ; son ajustement est porté par
+/// [_AdjustScopeCard] (#5257).
 class _RequesterCard extends StatelessWidget {
   const _RequesterCard({required this.request});
 
   final AccessRequest request;
 
-  String get _relationLabel {
+  String get _declaredLink {
     switch (request.relationship) {
       case DependentRelationship.enfant:
-        return 'Enfant';
+        return 'enfant';
       case DependentRelationship.conjoint:
-        return 'Conjoint';
+        return 'conjointe';
       case DependentRelationship.autre:
-        return 'Proche';
+        return 'proche';
     }
   }
 
@@ -104,27 +119,31 @@ class _RequesterCard extends StatelessWidget {
     final tokens = theme.extension<NubiaTokens>()!;
     return NubiaCard(
       key: const Key('incoming_request_requester_card'),
-      child: Row(
+      child: Column(
         children: [
           CircleAvatar(
+            radius: 28,
             backgroundColor: tokens.primarySubtleBg,
             foregroundColor: tokens.primarySubtleFg,
-            child: Text(_initials),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(request.displayName, style: theme.textTheme.titleMedium),
-                const SizedBox(height: 2),
-                Text(
-                  _relationLabel,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                ),
-              ],
+            child: Text(
+              _initials,
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${request.displayName} souhaite gérer votre dossier',
+            style: theme.textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Elle s\'est déclarée comme votre $_declaredLink. Si vous ne la '
+            'reconnaissez pas, refusez cette demande.',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
