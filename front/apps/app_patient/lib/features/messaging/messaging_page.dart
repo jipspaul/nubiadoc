@@ -292,14 +292,23 @@ class _ThreadViewState extends State<_ThreadView> {
                   key: Key('messaging_thread_empty'),
                   child: Text('Aucun message dans cette conversation.'),
                 )
-              : ListView.builder(
-                  key: const Key('messaging_thread_messages'),
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: state.messages.length,
-                  itemBuilder: (context, i) => _MessageBubble(
-                    message: state.messages[state.messages.length - 1 - i],
-                  ),
+              : Builder(
+                  builder: (context) {
+                    final items = _threadItemsFor(state.messages);
+                    return ListView.builder(
+                      key: const Key('messaging_thread_messages'),
+                      reverse: true,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: items.length,
+                      itemBuilder: (context, i) {
+                        final item = items[items.length - 1 - i];
+                        return switch (item) {
+                          _DaySeparator() => _DaySeparatorLabel(day: item.day),
+                          _MessageItem() => _MessageBubble(message: item.message),
+                        };
+                      },
+                    );
+                  },
                 ),
         ),
         // Input bar
@@ -372,6 +381,68 @@ class _ThreadViewState extends State<_ThreadView> {
         ),
         const _EmergencyNotice(),
       ],
+    );
+  }
+}
+
+/// Élément affiché dans le fil : soit un message, soit un séparateur de jour
+/// inséré devant le premier message d'une journée distincte (#5278).
+sealed class _ThreadItem {
+  const _ThreadItem();
+}
+
+class _MessageItem extends _ThreadItem {
+  const _MessageItem(this.message);
+
+  final Message message;
+}
+
+class _DaySeparator extends _ThreadItem {
+  const _DaySeparator(this.day);
+
+  final DateTime day;
+}
+
+/// Intercale un [_DaySeparator] devant le premier message de chaque journée
+/// distincte (comparaison `NubiaDate.isSameDay`, heure locale — #3856).
+/// [messages] est en ordre chronologique croissant (le plus ancien en index
+/// 0), comme consommé par `ListView.builder(reverse: true)` (#4545).
+List<_ThreadItem> _threadItemsFor(List<Message> messages) {
+  final items = <_ThreadItem>[];
+  DateTime? previousDay;
+  for (final message in messages) {
+    if (previousDay == null || !NubiaDate.isSameDay(previousDay, message.sentAt)) {
+      items.add(_DaySeparator(message.sentAt));
+      previousDay = message.sentAt;
+    }
+    items.add(_MessageItem(message));
+  }
+  return items;
+}
+
+/// Séparateur de jour du fil (#5278) : libellé centré, gris `n400`, poids
+/// 600, ~11px, verbatim maquette design-v2 (point 3) — évite qu'un fil de
+/// plusieurs mois soit « un mur indifférencié ».
+class _DaySeparatorLabel extends StatelessWidget {
+  const _DaySeparatorLabel({required this.day});
+
+  final DateTime day;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Text(
+          NubiaDate.daySeparatorLabel(day),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: tokens.textTertiary,
+          ),
+        ),
+      ),
     );
   }
 }
