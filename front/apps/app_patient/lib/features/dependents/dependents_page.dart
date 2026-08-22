@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import 'dependents_cubit.dart';
 
 class DependentsPage extends StatelessWidget {
@@ -76,6 +78,8 @@ class _DependentsBody extends StatelessWidget {
                   itemBuilder: (_, i) => _DependentTile(
                     dependent: state.dependents[i],
                     disabled: state.mutating,
+                    nextAppointmentAt: state.nextAppointmentByDependentId[
+                        state.dependents[i].id],
                   ),
                 ),
               ),
@@ -123,10 +127,51 @@ class _ExpiryNotice extends StatelessWidget {
   }
 }
 
+const _weekdays = [
+  'lundi',
+  'mardi',
+  'mercredi',
+  'jeudi',
+  'vendredi',
+  'samedi',
+  'dimanche',
+];
+
+const _months = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+];
+
+/// Formate un horodatage de RDV en « jeudi 14 août, 16:30 » (heure locale —
+/// cf. #4620/#4618 : un horodatage UTC lu sans `.toLocal()` décale l'heure
+/// affichée).
+String _formatNextAppointment(DateTime at) {
+  final dt = at.toLocal();
+  final h = dt.hour.toString().padLeft(2, '0');
+  final m = dt.minute.toString().padLeft(2, '0');
+  return '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}, $h:$m';
+}
+
 class _DependentTile extends StatelessWidget {
-  const _DependentTile({required this.dependent, required this.disabled});
+  const _DependentTile({
+    required this.dependent,
+    required this.disabled,
+    this.nextAppointmentAt,
+  });
+
   final Dependent dependent;
   final bool disabled;
+  final DateTime? nextAppointmentAt;
 
   String get _relationLabel {
     switch (dependent.relationship) {
@@ -139,41 +184,133 @@ class _DependentTile extends StatelessWidget {
     }
   }
 
+  String get _initials {
+    final first = dependent.firstName.trim();
+    final last = dependent.lastName.trim();
+    final firstLetter = first.isEmpty ? '' : first[0];
+    final lastLetter = last.isEmpty ? '' : last[0];
+    return '$firstLetter$lastLetter'.toUpperCase();
+  }
+
+  int? get _age {
+    final dob = dependent.dateOfBirth;
+    if (dob == null) return null;
+    final now = DateTime.now();
+    var age = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      age--;
+    }
+    return age;
+  }
+
+  String get _subtitle {
+    final age = _age;
+    return age == null ? _relationLabel : '$_relationLabel · $age ans';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return NubiaCard(
       key: Key('dependent_${dependent.id}'),
-      leading: const Icon(Icons.person_outline),
-      title: Text('${dependent.firstName} ${dependent.lastName}'),
-      subtitle: Text(_relationLabel),
-      trailing: IconButton(
-        key: Key('delete_dependent_${dependent.id}'),
-        icon: const Icon(Icons.delete_outline),
-        onPressed: disabled
-            ? null
-            : () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Retirer ce proche ?'),
-                    content: Text(
-                        '${dependent.firstName} ${dependent.lastName} ne sera plus rattaché à votre compte.'),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Annuler')),
-                      FilledButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('Retirer')),
-                    ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              NubiaAvatar(initials: _initials, radius: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(dependent.displayName,
+                        style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(
+                      _subtitle,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: tokens.textTertiary),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                key: Key('delete_dependent_${dependent.id}'),
+                icon: const Icon(Icons.delete_outline),
+                onPressed: disabled ? null : () => _confirmDelete(context),
+              ),
+            ],
+          ),
+          if (nextAppointmentAt != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Divider(height: 1, color: tokens.borderSubtle),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.event, size: 18, color: tokens.textTertiary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Prochain RDV ${_formatNextAppointment(nextAppointmentAt!)}',
+                    style: theme.textTheme.bodySmall,
                   ),
-                );
-                if (confirm == true && context.mounted) {
-                  context.read<DependentsCubit>().remove(dependent.id);
-                }
-              },
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: NubiaButton(
+                  label: 'Prendre RDV',
+                  icon: Icons.event_available,
+                  variant: NubiaButtonVariant.secondary,
+                  onPressed: () => context.push(AppRouter.book),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: NubiaButton(
+                  label: 'Documents',
+                  icon: Icons.folder,
+                  variant: NubiaButtonVariant.secondary,
+                  onPressed: () => context.push(AppRouter.documents),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Retirer ce proche ?'),
+        content: Text(
+            '${dependent.firstName} ${dependent.lastName} ne sera plus rattaché à votre compte.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Retirer')),
+        ],
+      ),
+    );
+    if (confirm == true && context.mounted) {
+      context.read<DependentsCubit>().remove(dependent.id);
+    }
   }
 }
 

@@ -17,13 +17,25 @@ final class DependentsLoaded extends DependentsState {
   final List<Dependent> dependents;
   final bool hasPendingAccessRequest;
   final bool mutating;
+
+  /// Horodatage du prochain RDV par `dependent.id`, absent si aucun RDV à
+  /// venir n'est pris pour ce proche (rapproché via `beneficiaryName`, seul
+  /// lien disponible entre [Appointment] et [Dependent]).
+  final Map<String, DateTime> nextAppointmentByDependentId;
+
   const DependentsLoaded(
     this.dependents, {
     this.hasPendingAccessRequest = false,
     this.mutating = false,
+    this.nextAppointmentByDependentId = const {},
   });
   @override
-  List<Object?> get props => [dependents, hasPendingAccessRequest, mutating];
+  List<Object?> get props => [
+        dependents,
+        hasPendingAccessRequest,
+        mutating,
+        nextAppointmentByDependentId,
+      ];
 }
 
 final class DependentsError extends DependentsState {
@@ -38,16 +50,19 @@ class DependentsCubit extends Cubit<DependentsState>
   DependentsCubit({
     required ListDependentsUseCase list,
     required ListAccessRequestsUseCase listAccessRequests,
+    required GetUpcomingAppointmentsUseCase getUpcomingAppointments,
     required AddDependentUseCase add,
     required DeleteDependentUseCase remove,
   })  : _list = list,
         _listAccessRequests = listAccessRequests,
+        _getUpcomingAppointments = getUpcomingAppointments,
         _add = add,
         _remove = remove,
         super(const DependentsLoading());
 
   final ListDependentsUseCase _list;
   final ListAccessRequestsUseCase _listAccessRequests;
+  final GetUpcomingAppointmentsUseCase _getUpcomingAppointments;
   final AddDependentUseCase _add;
   final DeleteDependentUseCase _remove;
 
@@ -63,7 +78,25 @@ class DependentsCubit extends Cubit<DependentsState>
           (requests) => requests
               .any((r) => r.status == AccessRequestStatus.envoyee),
         );
-        safeEmit(DependentsLoaded(d, hasPendingAccessRequest: hasPending));
+        final upcomingResult = await _getUpcomingAppointments();
+        final upcoming =
+            upcomingResult.fold((_) => const <Appointment>[], (a) => a);
+        final nextAppointments = <String, DateTime>{};
+        for (final dependent in d) {
+          final matches = upcoming.where((a) =>
+              !a.beneficiaryIsSelf &&
+              a.beneficiaryName == dependent.displayName &&
+              a.status != AppointmentStatus.cancelled);
+          if (matches.isEmpty) continue;
+          nextAppointments[dependent.id] = matches
+              .map((a) => a.startsAt)
+              .reduce((a, b) => a.isBefore(b) ? a : b);
+        }
+        safeEmit(DependentsLoaded(
+          d,
+          hasPendingAccessRequest: hasPending,
+          nextAppointmentByDependentId: nextAppointments,
+        ));
       },
     );
   }
