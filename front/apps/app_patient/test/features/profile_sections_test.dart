@@ -10,6 +10,9 @@ import 'package:app_patient/features/notification_prefs/notification_prefs_cubit
 
 class _MockList extends Mock implements ListDependentsUseCase {}
 
+class _MockListAccessRequests extends Mock
+    implements ListAccessRequestsUseCase {}
+
 class _MockAdd extends Mock implements AddDependentUseCase {}
 
 class _MockDelete extends Mock implements DeleteDependentUseCase {}
@@ -42,25 +45,64 @@ void main() {
 
   group('DependentsCubit', () {
     late _MockList list;
+    late _MockListAccessRequests listAccessRequests;
     late _MockAdd add;
     late _MockDelete del;
 
     setUp(() {
       list = _MockList();
+      listAccessRequests = _MockListAccessRequests();
       add = _MockAdd();
       del = _MockDelete();
+      when(() => listAccessRequests.call())
+          .thenAnswer((_) async => const Right([]));
     });
 
     blocTest<DependentsCubit, DependentsState>(
       'load → liste des proches',
       build: () {
         when(() => list.call()).thenAnswer((_) async => const Right([_dep]));
-        return DependentsCubit(list: list, add: add, remove: del);
+        return DependentsCubit(
+          list: list,
+          listAccessRequests: listAccessRequests,
+          add: add,
+          remove: del,
+        );
       },
       act: (c) => c.load(),
       expect: () => [
         const DependentsLoading(),
         const DependentsLoaded([_dep]),
+      ],
+    );
+
+    blocTest<DependentsCubit, DependentsState>(
+      'load → encart d\'expiration visible si une demande est en attente',
+      build: () {
+        when(() => list.call()).thenAnswer((_) async => const Right([_dep]));
+        when(() => listAccessRequests.call()).thenAnswer(
+          (_) async => const Right([
+            AccessRequest(
+              id: 'ar1',
+              firstName: 'Marie',
+              lastName: 'Curie',
+              relationship: DependentRelationship.conjoint,
+              status: AccessRequestStatus.envoyee,
+              channel: AccessRequestChannel.email,
+            ),
+          ]),
+        );
+        return DependentsCubit(
+          list: list,
+          listAccessRequests: listAccessRequests,
+          add: add,
+          remove: del,
+        );
+      },
+      act: (c) => c.load(),
+      expect: () => [
+        const DependentsLoading(),
+        const DependentsLoaded([_dep], hasPendingAccessRequest: true),
       ],
     );
 
@@ -74,7 +116,12 @@ void main() {
               relationship: any(named: 'relationship'),
             )).thenAnswer((_) async => const Right(_dep));
         when(() => list.call()).thenAnswer((_) async => const Right([_dep]));
-        return DependentsCubit(list: list, add: add, remove: del);
+        return DependentsCubit(
+          list: list,
+          listAccessRequests: listAccessRequests,
+          add: add,
+          remove: del,
+        );
       },
       seed: () => const DependentsLoaded([]),
       act: (c) => c.add(

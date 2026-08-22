@@ -129,6 +129,7 @@ export 'src/usecases/account/get_notification_preferences_use_case.dart';
 export 'src/usecases/account/list_consents_use_case.dart';
 export 'src/usecases/account/list_dependents_use_case.dart';
 export 'src/usecases/account/upload_coverage_card_use_case.dart';
+export 'src/usecases/account/list_access_requests_use_case.dart';
 export 'src/usecases/account/send_access_request_use_case.dart';
 export 'src/usecases/account/resend_access_request_use_case.dart';
 export 'src/usecases/account/cancel_access_request_use_case.dart';

@@ -53,6 +53,16 @@ void main() {
         request);
   });
 
+  test('ListAccessRequestsUseCase délègue au repo', () async {
+    when(() => repo.getAccessRequests())
+        .thenAnswer((_) async => const Right([request]));
+
+    final result = await ListAccessRequestsUseCase(repo)();
+
+    expect(result.getOrElse(() => throw StateError('doit être un Right')),
+        [request]);
+  });
+
   test('ResendAccessRequestUseCase délègue l\'id au repo', () async {
     when(() => repo.resendAccessRequest('ar-1'))
         .thenAnswer((_) async => const Right(request));
