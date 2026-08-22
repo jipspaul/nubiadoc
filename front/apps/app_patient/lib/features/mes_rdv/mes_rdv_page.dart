@@ -190,6 +190,7 @@ class _LoadedViewState extends State<_LoadedView> {
                 child: SegmentedControl(
                   key: const Key('mes_rdv_segments'),
                   segments: const ['À venir', 'Historique'],
+                  counts: [upcoming.length, history.length],
                   selectedIndex: _selectedIndex,
                   onChanged: (i) => setState(() => _selectedIndex = i),
                 ),

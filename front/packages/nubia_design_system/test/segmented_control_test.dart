@@ -61,5 +61,62 @@ void main() {
       final inactive = tester.widget<Text>(find.text('À venir'));
       expect(inactive.style?.fontWeight, FontWeight.w500);
     });
+
+    testWidgets('sans counts : aucune pastille affichée', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          SegmentedControl(
+            segments: const ['À venir', 'Historique'],
+            selectedIndex: 0,
+            onChanged: (_) {},
+          ),
+        ),
+      );
+
+      expect(find.text('3'), findsNothing);
+      expect(find.text('12'), findsNothing);
+    });
+
+    testWidgets('counts : pastille par segment avec couleurs actif/inactif', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          SegmentedControl(
+            segments: const ['À venir', 'Historique'],
+            selectedIndex: 0,
+            counts: const [3, 12],
+            onChanged: (_) {},
+          ),
+        ),
+      );
+
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('12'), findsOneWidget);
+
+      final activeCount = tester.widget<Text>(find.text('3'));
+      expect(activeCount.style?.color, Colors.white);
+      final activeContainer = tester.widget<Container>(
+        find
+            .ancestor(of: find.text('3'), matching: find.byType(Container))
+            .first,
+      );
+      expect(
+        (activeContainer.decoration as BoxDecoration).color,
+        NubiaColors.brand700,
+      );
+
+      final inactiveCount = tester.widget<Text>(find.text('12'));
+      expect(inactiveCount.style?.color, NubiaColors.n600);
+      final inactiveContainer = tester.widget<Container>(
+        find
+            .ancestor(of: find.text('12'), matching: find.byType(Container))
+            .first,
+      );
+      expect(
+        (inactiveContainer.decoration as BoxDecoration).color,
+        NubiaColors.n200,
+      );
+    });
   });
 }
