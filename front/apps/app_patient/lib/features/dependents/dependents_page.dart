@@ -80,7 +80,7 @@ class _DependentsBody extends StatelessWidget {
     return BlocBuilder<DependentsCubit, DependentsState>(
       builder: (context, state) {
         if (state is DependentsLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const _DependentsSkeleton();
         }
         if (state is DependentsError) {
           return NubiaErrorWidget(
@@ -142,6 +142,69 @@ class _DependentsBody extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// Squelette de chargement de Mes proches, à l'image de `_DocumentsSkeleton`
+/// (`documents_page.dart`) : reproduit la forme des cartes proches (avatar
+/// rond + deux lignes de texte + zone d'actions) plutôt qu'un spinner centré
+/// (maquette design-v2, point 10, #5229).
+class _DependentsSkeleton extends StatelessWidget {
+  const _DependentsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('dependents_loading'),
+      padding: const EdgeInsets.all(16),
+      children: const [
+        _DependentSkeletonCard(),
+        SizedBox(height: 12),
+        _DependentSkeletonCard(),
+        SizedBox(height: 12),
+        _DependentSkeletonCard(),
+      ],
+    );
+  }
+}
+
+class _DependentSkeletonCard extends StatelessWidget {
+  const _DependentSkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              NubiaSkeletonLoader(height: 40, width: 40, borderRadius: 20),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    NubiaSkeletonLoader(height: 14, width: 140),
+                    SizedBox(height: 8),
+                    NubiaSkeletonLoader(height: 12, width: 100),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: NubiaSkeletonLoader(height: 36, borderRadius: 8)),
+              SizedBox(width: 12),
+              Expanded(child: NubiaSkeletonLoader(height: 36, borderRadius: 8)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
