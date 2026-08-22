@@ -53,6 +53,34 @@ void main() {
       );
 
   group('widget', () {
+    testWidgets(
+        'affiche l\'en-tête « Une demande d\'accès » et le hero du demandeur (#5255)',
+        (tester) async {
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Une demande d\'accès'), findsOneWidget);
+      expect(
+        find.text('Vous décidez de ce que vous autorisez'),
+        findsOneWidget,
+      );
+
+      expect(find.byKey(const Key('incoming_request_requester_card')),
+          findsOneWidget);
+      expect(find.text('JM'), findsOneWidget);
+      expect(
+        find.text('Julie Martin souhaite gérer votre dossier'),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Elle s\'est déclarée comme votre conjointe. Si vous ne la '
+          'reconnaissez pas, refusez cette demande.',
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('affiche les CTA Accepter/Refuser et l\'encart de révocation',
         (tester) async {
       await tester.pumpWidget(buildPage());
@@ -191,6 +219,9 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(
+          find.byKey(const Key('adjust_scope_toggle_documents')));
+      await tester.pumpAndSettle();
       await tester
           .tap(find.byKey(const Key('adjust_scope_toggle_documents')));
       await tester.pumpAndSettle();
