@@ -815,6 +815,130 @@ async fn treatment_plans_list_empty_returns_200() {
         .ok();
 }
 
+// ── Test L5b : plan `draft` jamais renvoyé dans la liste patient (#5294) ──────
+
+#[tokio::test]
+async fn treatment_plans_list_excludes_draft_status() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("tp-list-draft+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Draft', 'Filter')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("tp-list-draft-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Plan visible (statut `proposed`) + phases/quote associés.
+    let (cabinet_id, prac_id, patient_id, visible_plan_id, phase_id, quote_id) =
+        insert_treatment_plan_fixture(&db, prac_user_id, account_id).await;
+
+    // Second plan du même patient, statut `draft` — ne doit jamais apparaître (#5294).
+    let draft_plan_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO treatment_plan \
+         (id, cabinet_id, patient_id, practitioner_id, title, status) \
+         VALUES ($1, $2, $3, $4, 'Plan brouillon', 'draft')",
+    )
+    .bind(draft_plan_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/treatment-plans")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().expect("data doit être un tableau");
+    let ids: Vec<&str> = data.iter().filter_map(|p| p["id"].as_str()).collect();
+    assert!(
+        !ids.contains(&draft_plan_id.to_string().as_str()),
+        "un plan draft ne doit jamais apparaître dans la liste patient (#5294)"
+    );
+    assert!(
+        ids.contains(&visible_plan_id.to_string().as_str()),
+        "le plan non-draft doit rester visible"
+    );
+
+    sqlx::query("DELETE FROM treatment_plan WHERE id = $1")
+        .bind(draft_plan_id)
+        .execute(&db)
+        .await
+        .ok();
+
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, visible_plan_id, phase_id, quote_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test L5 : RLS isolation — patient A ne voit pas les plans de patient B ────
 
 #[tokio::test]

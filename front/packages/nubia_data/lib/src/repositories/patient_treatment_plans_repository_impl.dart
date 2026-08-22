@@ -15,7 +15,16 @@ class PatientTreatmentPlansRepositoryImpl
   Future<Either<Failure, List<PatientTreatmentPlan>>> list() async {
     try {
       final dtos = await _api.list();
-      return Right(dtos.map((d) => d.toDomain()).toList());
+      // Un patient ne doit jamais voir un plan `draft` (brouillon non
+      // finalisé par le praticien) — filtrage à la source, pas au niveau du
+      // libellé (#5294). L'API filtre déjà côté serveur ; ce filtre est une
+      // défense en profondeur côté repository.
+      return Right(
+        dtos
+            .map((d) => d.toDomain())
+            .where((plan) => plan.status != 'draft')
+            .toList(),
+      );
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());

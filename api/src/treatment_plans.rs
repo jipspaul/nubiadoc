@@ -89,6 +89,8 @@ fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 /// étendue à la branche tutelle (migration 0222, #4596).
 /// Tri par `created_at DESC`. Pagination cursor-based (`limit` + `cursor`).
 /// Aucun plan → `{ data: [], page: { limit } }`.
+/// Un plan `draft` (non finalisé par le praticien) n'est jamais exposé ici — filtrage à la
+/// source, pas côté libellé front (#5294).
 pub async fn list_treatment_plans(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -111,7 +113,7 @@ pub async fn list_treatment_plans(
     let sql = format!(
         "SELECT tp.id, tp.title, tp.status, tp.created_at \
          FROM treatment_plan tp \
-         WHERE tp.deleted_at IS NULL\
+         WHERE tp.deleted_at IS NULL AND tp.status <> 'draft'\
          {cursor_clause} \
          ORDER BY tp.created_at DESC, tp.id DESC \
          LIMIT $1"
