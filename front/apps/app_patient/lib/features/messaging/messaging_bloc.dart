@@ -12,6 +12,18 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
   final SendMessageUseCase _sendMessage;
   final MarkConversationReadUseCase _markRead;
 
+  /// Conversations ouvertes localement pendant la session courante.
+  ///
+  /// Règle retenue (#5286) : un fil est marqué lu à son *ouverture*, pas à
+  /// l'affichage effectif de chaque message — un appel explicite par message
+  /// visible demanderait un événement que l'UI n'émet pas aujourd'hui. En
+  /// contrepartie, la pastille ne doit pas dépendre du seul rechargement
+  /// serveur : on retient ici les fils lus localement pour forcer leur
+  /// `unreadCount` à 0 dans tout état `MessagingConversationsLoaded` émis
+  /// ensuite, y compris si l'appel `_markRead` échoue silencieusement ou si
+  /// le serveur n'a pas encore propagé la lecture.
+  final Set<String> _locallyReadConversationIds = {};
+
   MessagingBloc({
     required GetConversationsUseCase getConversations,
     required GetConversationMessagesUseCase getMessages,
@@ -37,8 +49,8 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
       final result = await _getConversations();
       result.fold(
         (failure) => safeEmit(MessagingConversationsError(failure.message)),
-        (conversations) =>
-            safeEmit(MessagingConversationsLoaded(conversations)),
+        (conversations) => safeEmit(
+            MessagingConversationsLoaded(_withLocalReadState(conversations))),
       );
     } catch (_) {
       safeEmit(const MessagingConversationsError('Erreur de chargement.'));
@@ -67,7 +79,10 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
           conversationId: event.conversation.id,
           message: 'Erreur de chargement.'));
     }
-    // Fire-and-forget: ignore mark-read failure (best effort)
+    // Marqué lu localement dès l'ouverture, indépendamment du résultat de
+    // l'appel serveur ci-dessous : la pastille ne doit pas se rallumer si
+    // `_markRead` échoue (best effort, fire-and-forget).
+    _locallyReadConversationIds.add(event.conversation.id);
     await _markRead(event.conversation.id);
   }
 
@@ -105,11 +120,25 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
       final result = await _getConversations();
       result.fold(
         (failure) => safeEmit(MessagingConversationsError(failure.message)),
-        (conversations) =>
-            safeEmit(MessagingConversationsLoaded(conversations)),
+        (conversations) => safeEmit(
+            MessagingConversationsLoaded(_withLocalReadState(conversations))),
       );
     } catch (_) {
       safeEmit(const MessagingConversationsError('Erreur de chargement.'));
     }
+  }
+
+  /// Force à 0 le `unreadCount` des conversations lues localement pendant
+  /// la session (voir [_locallyReadConversationIds]), même si le serveur
+  /// n'a pas encore propagé la lecture.
+  List<Conversation> _withLocalReadState(List<Conversation> conversations) {
+    if (_locallyReadConversationIds.isEmpty) return conversations;
+    return [
+      for (final conversation in conversations)
+        if (_locallyReadConversationIds.contains(conversation.id))
+          conversation.copyWith(unreadCount: 0)
+        else
+          conversation,
+    ];
   }
 }

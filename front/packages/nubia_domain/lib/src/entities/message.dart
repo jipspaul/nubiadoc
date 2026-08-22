@@ -29,6 +29,18 @@ class Conversation extends Equatable {
     this.lastMessagePreview,
   });
 
+  Conversation copyWith({int? unreadCount}) {
+    return Conversation(
+      id: id,
+      cabinetId: cabinetId,
+      cabinetName: cabinetName,
+      unreadCount: unreadCount ?? this.unreadCount,
+      lastMessage: lastMessage,
+      lastMessageAt: lastMessageAt,
+      lastMessagePreview: lastMessagePreview,
+    );
+  }
+
   @override
   List<Object?> get props => [id];
 }
