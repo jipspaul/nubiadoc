@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/dependents/dependents_cubit.dart';
 import 'package:app_patient/features/dependents/dependents_page.dart';
+import 'package:app_patient/router/app_router.dart';
 
 class MockDependentsCubit extends MockCubit<DependentsState>
     implements DependentsCubit {}
@@ -103,6 +105,62 @@ void main() {
 
     // Aucune donnée RDV → la ligne "Prochain RDV" reste masquée.
     expect(find.textContaining('Prochain RDV'), findsNothing);
+  });
+
+  testWidgets(
+      '« Prendre RDV » et « Documents » ouvrent bien les routes booking et '
+      'documents (#5227)', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded([_lucas]),
+    );
+    GetIt.instance.registerFactory<DependentsCubit>(() => cubit);
+    addTearDown(() => GetIt.instance.reset());
+
+    final router = GoRouter(
+      initialLocation: AppRouter.profileDependents,
+      routes: [
+        GoRoute(
+          path: AppRouter.profileDependents,
+          builder: (_, __) => const DependentsPage(),
+        ),
+        GoRoute(
+          path: AppRouter.book,
+          builder: (_, __) => const Scaffold(key: Key('book_stub')),
+        ),
+        GoRoute(
+          path: AppRouter.documents,
+          builder: (_, __) => const Scaffold(key: Key('documents_stub')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: router,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('fr')],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Prendre RDV'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('book_stub')), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Documents'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('documents_stub')), findsOneWidget);
   });
 
   testWidgets('carte compte géré : ligne "Prochain RDV" si une donnée existe',
