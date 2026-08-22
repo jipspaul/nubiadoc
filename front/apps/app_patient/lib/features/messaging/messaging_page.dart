@@ -8,6 +8,12 @@ import 'messaging_bloc.dart';
 import 'messaging_event.dart';
 import 'messaging_state.dart';
 
+/// Numéro du cabinet affiché dans la mention d'urgence sous le composeur
+/// (#5284). [Conversation] n'expose aujourd'hui aucun numéro de téléphone
+/// cabinet — constante à remplacer par une valeur issue du contrat
+/// conversation/cabinet dès qu'un tel champ existera côté back.
+const _kEmergencyCabinetPhone = '01 42 61 08 90';
+
 /// Onglet "Messages" — liste des conversations + thread + envoi.
 ///
 /// Consomme le [MessagingBloc] fourni par le parent (DashboardPage).
@@ -323,7 +329,46 @@ class _ThreadViewState extends State<_ThreadView> {
             ],
           ),
         ),
+        const _EmergencyNotice(),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Mention obligatoire sous le composeur (#5284) : toute messagerie de santé
+/// asynchrone doit rappeler qu'elle n'est pas un canal d'urgence, avec le
+/// numéro à appeler — absence = risque, pas une omission de confort.
+class _EmergencyNotice extends StatelessWidget {
+  const _EmergencyNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      key: const Key('messaging_emergency_notice'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: tokens.borderSubtle)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 16, color: tokens.textTertiary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              "Cette messagerie n'est pas un service d'urgence. En cas de "
+              'douleur aiguë ou de saignement, appelez le cabinet au '
+              '$_kEmergencyCabinetPhone ou le 15.',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: NubiaColors.n500,
+                  ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
