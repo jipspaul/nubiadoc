@@ -51,17 +51,25 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // En-tête montant + bandeau reste à charge.
-                AmountHeader(
-                  label: 'Total du plan de soins',
-                  amount: formatQuoteCents(quote.totalCents),
-                  caption: quote.practitionerName.isNotEmpty
-                      ? quote.practitionerName
-                      : 'Devis du ${formatQuoteDate(quote.createdAt)}',
-                  remainingLabel: 'Reste à charge',
-                  remainingAmount: formatQuoteCents(quote.patientShareCents),
-                  remainingCaption: 'après remboursements',
-                ),
+                // En-tête montant : le montant héros suit le statut du devis
+                // (total avant signature, reste à charge après — #5235). La
+                // barre de ventilation (ticket dédié) porte désormais le
+                // bandeau reste-à-charge, retiré d'ici.
+                if (quote.status == QuoteStatus.signed)
+                  AmountHeader(
+                    label: 'Reste à votre charge',
+                    amount: formatQuoteCents(quote.patientShareCents),
+                    caption:
+                        'sur ${formatQuoteCents(quote.totalCents)} · après remboursements',
+                  )
+                else
+                  AmountHeader(
+                    label: 'Total du plan de soins',
+                    amount: formatQuoteCents(quote.totalCents),
+                    caption: quote.practitionerName.isNotEmpty
+                        ? '${quote.practitionerName} · devis du ${formatQuoteDate(quote.createdAt)}'
+                        : 'Devis du ${formatQuoteDate(quote.createdAt)}',
+                  ),
                 const SizedBox(height: 20),
                 if (hasRac0Alternative) ...[
                   _Rac0AlternativeBanner(
