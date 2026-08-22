@@ -15,6 +15,7 @@ class AppointmentDto {
   final String practitionerId;
   final bool beneficiaryIsSelf;
   final String? beneficiaryName;
+  final int? noShowFeeCents;
 
   const AppointmentDto({
     required this.id,
@@ -31,6 +32,7 @@ class AppointmentDto {
     this.practitionerId = '',
     this.beneficiaryIsSelf = true,
     this.beneficiaryName,
+    this.noShowFeeCents,
   });
 
   factory AppointmentDto.fromJson(Map<String, dynamic> json) {
@@ -88,6 +90,12 @@ class AppointmentDto {
     final beneficiaryName = beneficiaryIsSelf || beneficiaryFullName.isEmpty
         ? null
         : beneficiaryFullName;
+    // #5272 : pas de clé stable côté API à ce jour — on lit défensivement les
+    // noms plausibles ; absent, `noShowFeeCents` reste null et l'UI masque le
+    // montant plutôt que d'en inventer un.
+    final noShowFeeCents =
+        (json['no_show_fee_cents'] as num?)?.toInt() ??
+        (json['no_show_fee'] as num?)?.toInt();
     return AppointmentDto(
       id: json['id'] as String,
       cabinetId: json['cabinet_id'] as String? ?? '',
@@ -103,6 +111,7 @@ class AppointmentDto {
       practitionerId: practitionerId,
       beneficiaryIsSelf: beneficiaryIsSelf,
       beneficiaryName: beneficiaryName,
+      noShowFeeCents: noShowFeeCents,
     );
   }
 
@@ -123,6 +132,7 @@ class AppointmentDto {
     practitionerId: practitionerId,
     beneficiaryIsSelf: beneficiaryIsSelf,
     beneficiaryName: beneficiaryName,
+    noShowFeeCents: noShowFeeCents,
   );
 
   // #3804 : le back envoie 'done' (jamais 'completed') et distingue

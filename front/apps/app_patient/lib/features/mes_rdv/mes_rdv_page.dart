@@ -361,6 +361,18 @@ class _AppointmentCard extends StatelessWidget {
                 label: appointment.cabinetAddress!,
               ),
             ],
+            if (appointment.status == AppointmentStatus.noShow) ...[
+              const SizedBox(height: 4),
+              _IconRow(
+                icon: Icons.info,
+                label: appointment.noShowFeeCents != null
+                    ? 'Non présenté — facturé '
+                        '${formatQuoteCents(appointment.noShowFeeCents!)} '
+                        'selon la charte du cabinet'
+                    : 'Non présenté',
+                color: NubiaColors.n500,
+              ),
+            ],
             if (appointment.isUpcoming ||
                 appointment.canCancel ||
                 appointment.canModify) ...[

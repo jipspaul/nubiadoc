@@ -101,6 +101,39 @@ void main() {
       expect(dto.beneficiaryIsSelf, isTrue);
       expect(dto.beneficiaryName, isNull);
     });
+
+    // #5272 : montant des frais de non-présentation — lu depuis l'API,
+    // jamais codé en dur.
+    test('fromJson lit no_show_fee_cents quand présent', () {
+      final dto = AppointmentDto.fromJson({
+        'id': 'appt-5',
+        'cabinet_id': 'cab-1',
+        'provider': {'display_name': 'Dr Martin', 'specialty': 'Dentiste'},
+        'starts_at': '2026-07-01T09:00:00Z',
+        'duration_minutes': 30,
+        'motif': 'Détartrage',
+        'status': 'no_show',
+        'type': 'in_person',
+        'no_show_fee_cents': 3000,
+      });
+      expect(dto.noShowFeeCents, 3000);
+      expect(dto.toDomain().noShowFeeCents, 3000);
+    });
+
+    test('fromJson : no_show_fee_cents absent -> null', () {
+      final dto = AppointmentDto.fromJson({
+        'id': 'appt-6',
+        'cabinet_id': 'cab-1',
+        'provider': {'display_name': 'Dr Martin', 'specialty': 'Dentiste'},
+        'starts_at': '2026-07-01T09:00:00Z',
+        'duration_minutes': 30,
+        'motif': 'Détartrage',
+        'status': 'no_show',
+        'type': 'in_person',
+      });
+      expect(dto.noShowFeeCents, isNull);
+      expect(dto.toDomain().noShowFeeCents, isNull);
+    });
   });
 
   group('PatientAccountDto', () {
