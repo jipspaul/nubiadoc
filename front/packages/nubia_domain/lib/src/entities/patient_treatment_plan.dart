@@ -34,6 +34,12 @@ class PatientTreatmentPlanPhase extends Equatable {
   final String? pendingQuoteId;
   final DateTime? pendingQuoteSentAt;
 
+  /// Rendez-vous programmé pour cette phase, s'il y en a un — CTA « Voir
+  /// mon rendez-vous » sur la phase en cours (#5299). `null` si aucune
+  /// séance n'est programmée pour cette phase.
+  final String? appointmentId;
+  final DateTime? appointmentAt;
+
   const PatientTreatmentPlanPhase({
     required this.id,
     required this.position,
@@ -42,6 +48,8 @@ class PatientTreatmentPlanPhase extends Equatable {
     this.items = const [],
     this.pendingQuoteId,
     this.pendingQuoteSentAt,
+    this.appointmentId,
+    this.appointmentAt,
   });
 
   @override

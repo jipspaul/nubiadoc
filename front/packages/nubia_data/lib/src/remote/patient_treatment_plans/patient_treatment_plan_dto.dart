@@ -41,6 +41,8 @@ class PatientTreatmentPlanPhaseDto {
   final List<PatientTreatmentPlanItemDto> items;
   final String? pendingQuoteId;
   final String? pendingQuoteSentAt;
+  final String? appointmentId;
+  final String? appointmentAt;
 
   const PatientTreatmentPlanPhaseDto({
     required this.id,
@@ -50,6 +52,8 @@ class PatientTreatmentPlanPhaseDto {
     this.items = const [],
     this.pendingQuoteId,
     this.pendingQuoteSentAt,
+    this.appointmentId,
+    this.appointmentAt,
   });
 
   factory PatientTreatmentPlanPhaseDto.fromJson(Map<String, dynamic> json) =>
@@ -65,6 +69,8 @@ class PatientTreatmentPlanPhaseDto {
             const [],
         pendingQuoteId: json['pending_quote_id'] as String?,
         pendingQuoteSentAt: json['pending_quote_sent_at'] as String?,
+        appointmentId: json['appointment_id'] as String?,
+        appointmentAt: json['appointment_at'] as String?,
       );
 
   PatientTreatmentPlanPhase toDomain() => PatientTreatmentPlanPhase(
@@ -77,6 +83,9 @@ class PatientTreatmentPlanPhaseDto {
         pendingQuoteSentAt: pendingQuoteSentAt != null
             ? DateTime.parse(pendingQuoteSentAt!)
             : null,
+        appointmentId: appointmentId,
+        appointmentAt:
+            appointmentAt != null ? DateTime.parse(appointmentAt!) : null,
       );
 }
 

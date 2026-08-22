@@ -199,6 +199,19 @@ class _PlanDetailView extends StatelessWidget {
                           ),
                         ),
                       ],
+                      if (phase.status == 'in_progress' &&
+                          phase.appointmentId != null) ...[
+                        const SizedBox(height: 8),
+                        NubiaButton(
+                          key: Key('phase_${phase.id}_appointment_cta'),
+                          label: 'Voir mon rendez-vous',
+                          variant: NubiaButtonVariant.secondary,
+                          size: NubiaButtonSize.sm,
+                          icon: Icons.event,
+                          onPressed: () => context.push(
+                              '${AppRouter.mesRdv}?id=${phase.appointmentId}'),
+                        ),
+                      ],
                     ],
                   ),
                 ),
