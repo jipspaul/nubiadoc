@@ -53,4 +53,54 @@ void main() {
       );
     });
   });
+
+  // #5275 : nom + rôle de l'émetteur, affichés en tête de bulle côté
+  // app_patient — doivent survivre au mapping DTO -> domaine.
+  group('MessageDto.toDomain — authorName/authorRole (#5275)', () {
+    test('author_name et author_role sont mappés depuis le contrat', () {
+      final dto = MessageDto.fromJson({
+        'id': 'msg-1',
+        'conversation_id': 'conv-1',
+        'sender': 'cabinet',
+        'body': 'Gardez la zone au frais 48h.',
+        'created_at': '2026-06-18T09:00:00Z',
+        'author_name': 'Dr Amélie Rousseau',
+        'author_role': 'Praticien',
+      });
+
+      final message = dto.toDomain();
+      expect(message.authorName, 'Dr Amélie Rousseau');
+      expect(message.authorRole, 'Praticien');
+    });
+
+    test('author_name absent (relance secrétariat) retombe sur author_role',
+        () {
+      final dto = MessageDto.fromJson({
+        'id': 'msg-2',
+        'conversation_id': 'conv-1',
+        'sender': 'cabinet',
+        'body': 'Votre devis DEV-2041 vous a été envoyé.',
+        'created_at': '2026-06-18T09:05:00Z',
+        'author_role': 'Secrétariat',
+      });
+
+      final message = dto.toDomain();
+      expect(message.authorName, isNull);
+      expect(message.authorRole, 'Secrétariat');
+    });
+
+    test('ancien payload sans author_name/author_role reste valide', () {
+      final dto = MessageDto.fromJson({
+        'id': 'msg-3',
+        'conversation_id': 'conv-1',
+        'sender': 'patient',
+        'body': 'Merci docteur',
+        'created_at': '2026-06-18T09:10:00Z',
+      });
+
+      final message = dto.toDomain();
+      expect(message.authorName, isNull);
+      expect(message.authorRole, isNull);
+    });
+  });
 }
