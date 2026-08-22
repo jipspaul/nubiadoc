@@ -90,13 +90,13 @@ void main() {
   });
 
   group('ProfilePage', () {
-    testWidgets('affiche un indicateur de chargement en état initial',
+    testWidgets('affiche un squelette de chargement en état initial',
         (tester) async {
       final bloc = _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
 
       await tester.pumpWidget(_wrap(bloc));
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byKey(const Key('profile_loading')), findsOneWidget);
     });
 
     testWidgets('affiche les informations du compte en état loaded',

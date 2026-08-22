@@ -38,7 +38,7 @@ class ProfilePage extends StatelessWidget {
       },
       builder: (context, state) {
         if (state is ProfileInitial || state is ProfileLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const _ProfileSkeleton();
         }
         if (state is ProfileError) {
           return NubiaErrorWidget(
@@ -67,6 +67,88 @@ class ProfilePage extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _ProfileSkeleton extends StatelessWidget {
+  const _ProfileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('profile_loading'),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: const [
+        _ProfileHeaderSkeleton(),
+        SizedBox(height: 24),
+        NubiaSkeletonLoader(height: 16, width: 160),
+        SizedBox(height: 12),
+        _ProfileSectionSkeleton(rows: 2),
+        SizedBox(height: 24),
+        NubiaSkeletonLoader(height: 16, width: 140),
+        SizedBox(height: 12),
+        _ProfileSectionSkeleton(rows: 2),
+        SizedBox(height: 24),
+        NubiaSkeletonLoader(height: 16, width: 100),
+        SizedBox(height: 12),
+        _ProfileSectionSkeleton(rows: 1),
+      ],
+    );
+  }
+}
+
+class _ProfileHeaderSkeleton extends StatelessWidget {
+  const _ProfileHeaderSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      padding: EdgeInsets.all(20),
+      child: Row(
+        children: [
+          NubiaSkeletonLoader(height: 64, width: 64, borderRadius: 32),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NubiaSkeletonLoader(height: 16, width: 140),
+                SizedBox(height: 8),
+                NubiaSkeletonLoader(height: 12, width: 180),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileSectionSkeleton extends StatelessWidget {
+  const _ProfileSectionSkeleton({required this.rows});
+
+  final int rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return NubiaCard(
+      child: Column(
+        children: [
+          for (var i = 0; i < rows; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            const Row(
+              children: [
+                NubiaSkeletonLoader(height: 20, width: 20, borderRadius: 4),
+                SizedBox(width: 12),
+                Expanded(child: NubiaSkeletonLoader(height: 14)),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
