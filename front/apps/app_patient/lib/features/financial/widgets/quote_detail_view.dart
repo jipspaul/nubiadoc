@@ -102,7 +102,7 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                 ),
                 const SizedBox(height: 12),
                 if (canPay) _DepositCard(quote: quote),
-                const _ReassuranceRow(),
+                _ReassuranceRow(canPay: canPay),
               ],
             ),
           ),
@@ -365,15 +365,40 @@ class _DepositCard extends StatelessWidget {
   }
 }
 
-/// Bandeau de réassurance : signature électronique sécurisée (eIDAS).
+/// Bandeau de réassurance : eIDAS avant signature, Stripe devant un paiement
+/// (#5242). Un seul bandeau à la fois, selon l'action en cours.
 class _ReassuranceRow extends StatelessWidget {
-  const _ReassuranceRow();
+  const _ReassuranceRow({required this.canPay});
+
+  final bool canPay;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final tokens = theme.extension<NubiaTokens>()!;
+
+    final TextSpan textSpan = canPay
+        ? const TextSpan(
+            text: 'Paiement sécurisé Stripe · ',
+            children: [
+              TextSpan(
+                text: 'aucune donnée bancaire',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              TextSpan(text: ' conservée par le cabinet'),
+            ],
+          )
+        : const TextSpan(
+            text: 'Signature électronique sécurisée ',
+            children: [
+              TextSpan(
+                text: '(eIDAS)',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              TextSpan(text: ' · devis chiffré et horodaté'),
+            ],
+          );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
@@ -383,16 +408,7 @@ class _ReassuranceRow extends StatelessWidget {
           const SizedBox(width: 9),
           Expanded(
             child: Text.rich(
-              TextSpan(
-                text: 'Signature électronique sécurisée ',
-                children: const [
-                  TextSpan(
-                    text: '(eIDAS)',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  TextSpan(text: ' · devis chiffré et horodaté'),
-                ],
-              ),
+              textSpan,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: tokens.textTertiary),
             ),
