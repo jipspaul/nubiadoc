@@ -115,6 +115,12 @@ class _DependentsBody extends StatelessWidget {
                     ],
                   ],
                 ),
+                if (state.dependents
+                    .any((d) => d.relationship == DependentRelationship.enfant))
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    child: _MajorityNotice(),
+                  ),
               ],
               if (state.pendingAccessRequests.isNotEmpty) ...[
                 const _SectionHeader('DEMANDES ENVOYÉES'),
@@ -160,6 +166,39 @@ class _SectionHeader extends StatelessWidget {
           fontWeight: FontWeight.w600,
           letterSpacing: 0.4,
         ),
+      ),
+    );
+  }
+}
+
+/// Encart « shield » sous la liste des comptes gérés, rappelant que l'accès
+/// du parent à un enfant mineur cesse à sa majorité (maquette design-v2,
+/// encart « Un mineur devient majeur », #5230) : n'affiché que si au moins
+/// un proche géré est un enfant.
+class _MajorityNotice extends StatelessWidget {
+  const _MajorityNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return NubiaCard(
+      key: const Key('majority_notice'),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield_outlined, size: 18, color: tokens.textTertiary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Vous gérez les rendez-vous et les documents de ces comptes. '
+              "À sa majorité, votre enfant reprendra son propre accès et "
+              "vous perdrez ce droit — la loi l'impose.",
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: tokens.textTertiary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -252,6 +291,20 @@ class _DependentTile extends StatelessWidget {
     }
   }
 
+  /// Icône + libellé du fondement juridique de la gestion — distincts par
+  /// [DependentRelationship] (maquette design-v2, encart « Un mineur devient
+  /// majeur », #5230) : un enfant mineur est géré de plein droit, un proche
+  /// adulte ne l'est que par mandat explicite (cf. [AccessRequest]).
+  (IconData, String) get _legalBasis {
+    switch (dependent.relationship) {
+      case DependentRelationship.enfant:
+        return (Icons.family_restroom, 'Représentant légal');
+      case DependentRelationship.conjoint:
+      case DependentRelationship.autre:
+        return (Icons.handshake_outlined, 'Mandataire');
+    }
+  }
+
   String get _initials {
     final first = dependent.firstName.trim();
     final last = dependent.lastName.trim();
@@ -260,20 +313,8 @@ class _DependentTile extends StatelessWidget {
     return '$firstLetter$lastLetter'.toUpperCase();
   }
 
-  int? get _age {
-    final dob = dependent.dateOfBirth;
-    if (dob == null) return null;
-    final now = DateTime.now();
-    var age = now.year - dob.year;
-    if (now.month < dob.month ||
-        (now.month == dob.month && now.day < dob.day)) {
-      age--;
-    }
-    return age;
-  }
-
   String get _subtitle {
-    final age = _age;
+    final age = dependent.ageInYears;
     return age == null ? _relationLabel : '$_relationLabel · $age ans';
   }
 
@@ -298,14 +339,33 @@ class _DependentTile extends StatelessWidget {
                     Text(dependent.displayName,
                         style: theme.textTheme.titleMedium),
                     const SizedBox(height: 2),
-                    Text(
-                      _subtitle,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: tokens.textTertiary),
+                    Row(
+                      children: [
+                        Tooltip(
+                          message: _legalBasis.$2,
+                          child: Icon(_legalBasis.$1,
+                              size: 14, color: tokens.textTertiary),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _subtitle,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: tokens.textTertiary),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+              if (dependent.hasParentalAccessExpired) ...[
+                const StatusPill(
+                  key: Key('parental_access_expired_pill'),
+                  label: 'Majorité atteinte',
+                  variant: StatusPillVariant.warning,
+                  icon: Icons.gpp_maybe_outlined,
+                ),
+                const SizedBox(width: 8),
+              ],
               IconButton(
                 key: Key('delete_dependent_${dependent.id}'),
                 icon: const Icon(Icons.delete_outline),
@@ -333,27 +393,30 @@ class _DependentTile extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: NubiaButton(
-                  label: 'Prendre RDV',
-                  icon: Icons.event_available,
-                  variant: NubiaButtonVariant.secondary,
-                  onPressed: () => context.push(AppRouter.book),
+          if (dependent.hasParentalAccessExpired)
+            _ParentalAccessExpiredNotice(firstName: dependent.firstName)
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: NubiaButton(
+                    label: 'Prendre RDV',
+                    icon: Icons.event_available,
+                    variant: NubiaButtonVariant.secondary,
+                    onPressed: () => context.push(AppRouter.book),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: NubiaButton(
-                  label: 'Documents',
-                  icon: Icons.folder,
-                  variant: NubiaButtonVariant.secondary,
-                  onPressed: () => context.push(AppRouter.documents),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: NubiaButton(
+                    label: 'Documents',
+                    icon: Icons.folder,
+                    variant: NubiaButtonVariant.secondary,
+                    onPressed: () => context.push(AppRouter.documents),
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );
@@ -379,6 +442,38 @@ class _DependentTile extends StatelessWidget {
     if (confirm == true && context.mounted) {
       context.read<DependentsCubit>().remove(dependent.id);
     }
+  }
+}
+
+/// Remplace les actions « Prendre RDV »/« Documents » une fois la majorité
+/// atteinte : la loi impose la fin de l'accès du parent au dossier de son
+/// enfant à 18 ans (maquette design-v2, encart « Un mineur devient majeur »,
+/// #5230) — [DependentsCubit] ne gère pas la ré-invitation en proche adulte,
+/// ce message oriente donc vers l'ajout d'un proche adulte classique.
+class _ParentalAccessExpiredNotice extends StatelessWidget {
+  const _ParentalAccessExpiredNotice({required this.firstName});
+
+  final String firstName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      key: const Key('parental_access_expired_notice'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.info_outline, size: 18, color: NubiaColors.n400),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            '$firstName a atteint sa majorité : vous n\'avez plus accès à '
+            'son dossier. Il peut vous inviter comme proche adulte s\'il '
+            'souhaite vous en donner l\'accès.',
+            style: theme.textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -605,6 +700,11 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
   final _email = TextEditingController();
   DependentRelationship _relationship = DependentRelationship.enfant;
 
+  /// Date de naissance du proche — n'exploitée (côté domaine) que pour un
+  /// enfant : c'est elle qui pilote la bascule de majorité (#5230). Un
+  /// proche adulte gère son propre profil après acceptation de l'invitation.
+  DateTime? _dateOfBirth;
+
   /// Périmètre proposé par le demandeur pour une invitation proche adulte —
   /// point de départ que l'invité pourra restreindre à l'acceptation (note 2
   /// de la maquette, cf. `_AdjustScopeCard` dans `incoming_request_page.dart`).
@@ -619,6 +719,7 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
     if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
       return false;
     }
+    if (!_isInvitation && _dateOfBirth == null) return false;
     return !_isInvitation || _emailValid;
   }
 
@@ -626,6 +727,23 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
   /// d'accès qu'il devra accepter — alors qu'un enfant est ajouté
   /// directement comme compte géré (maquette design-v2, #5250).
   bool get _isInvitation => _relationship != DependentRelationship.enfant;
+
+  String _formatDate(DateTime date) => '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/'
+      '${date.year}';
+
+  Future<void> _pickDateOfBirth(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dateOfBirth ?? DateTime(DateTime.now().year - 10),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      locale: const Locale('fr'),
+    );
+    if (picked != null) {
+      setState(() => _dateOfBirth = picked);
+    }
+  }
 
   @override
   void dispose() {
@@ -682,6 +800,16 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
               onChanged: (i) => setState(
                   () => _relationship = DependentRelationship.values[i]),
             ),
+            if (!_isInvitation) ...[
+              const SizedBox(height: 12),
+              _DependentDobField(
+                key: const Key('dependent_date_of_birth'),
+                value: _dateOfBirth != null
+                    ? _formatDate(_dateOfBirth!)
+                    : null,
+                onTap: () => _pickDateOfBirth(context),
+              ),
+            ],
             if (_isInvitation) ...[
               const SizedBox(height: 12),
               const _WhyRequestNotice(),
@@ -717,6 +845,7 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
                       context.read<DependentsCubit>().add(
                             firstName: _firstName.text.trim(),
                             lastName: _lastName.text.trim(),
+                            birthDate: _dateOfBirth,
                             relationship: _relationship,
                           );
                       Navigator.pop(context);
@@ -730,6 +859,39 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Sélecteur de date de naissance de l'enfant ajouté — seule donnée qui
+/// permette de piloter la bascule de majorité côté domaine (#5230).
+class _DependentDobField extends StatelessWidget {
+  const _DependentDobField({
+    super.key,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String? value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: InputDecorator(
+        isEmpty: value == null,
+        decoration: const InputDecoration(
+          labelText: 'Date de naissance',
+          hintText: 'JJ/MM/AAAA',
+          border: OutlineInputBorder(),
+          suffixIcon: Icon(Icons.calendar_today_outlined),
+        ),
+        child: value != null
+            ? Text(value!, style: Theme.of(context).textTheme.bodyMedium)
+            : const SizedBox.shrink(),
       ),
     );
   }
