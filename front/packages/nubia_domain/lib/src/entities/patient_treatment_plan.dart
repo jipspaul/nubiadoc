@@ -120,6 +120,19 @@ class PatientTreatmentPlan extends Equatable {
   final String? nextAppointmentId;
   final DateTime? nextAppointmentAt;
 
+  /// Praticien à l'origine du plan et date à laquelle il l'a proposé —
+  /// sous-titre de la carte de plan sur la liste (#5288). `null` si absent
+  /// de la variante chargée.
+  final String? practitionerName;
+  final DateTime? proposedAt;
+
+  /// Progression du plan — numéro (1-based) et libellé de l'étape courante,
+  /// nombre total d'étapes. Barre de progression segmentée de la carte de
+  /// plan sur la liste (#5288). `null` si absent de la variante chargée.
+  final int? currentStep;
+  final int? stepCount;
+  final String? currentPhaseTitle;
+
   const PatientTreatmentPlan({
     required this.id,
     required this.title,
@@ -136,6 +149,11 @@ class PatientTreatmentPlan extends Equatable {
     this.pendingQuotePatientShareCents,
     this.nextAppointmentId,
     this.nextAppointmentAt,
+    this.practitionerName,
+    this.proposedAt,
+    this.currentStep,
+    this.stepCount,
+    this.currentPhaseTitle,
   });
 
   /// Somme des actes des phases déjà réalisées (`done`) — considérés réglés.

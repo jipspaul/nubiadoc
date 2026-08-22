@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
-import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
-import 'package:nubia_domain/nubia_domain.dart';
 
-import '../../router/app_router.dart';
 import 'treatment_plans_bloc.dart';
 import 'widgets/pending_quote_card.dart';
-import 'widgets/treatment_plan_format_utils.dart';
+import 'widgets/plan_card.dart';
 
 /// Liste des plans de traitement du patient (#4261).
 class PatientTreatmentPlansPage extends StatelessWidget {
@@ -72,7 +69,7 @@ class PatientTreatmentPlansBody extends StatelessWidget {
                     padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
                     child: _SectionHeader(title: 'EN COURS'),
                   ),
-                  for (final plan in inProgressPlans) _PlanCard(plan: plan),
+                  for (final plan in inProgressPlans) PlanCard(plan: plan),
                 ],
                 if (pendingQuotePlans.isNotEmpty) ...[
                   Padding(
@@ -96,7 +93,7 @@ class PatientTreatmentPlansBody extends StatelessWidget {
                     padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
                     child: _SectionHeader(title: 'TERMINÉS'),
                   ),
-                  for (final plan in donePlans) _PlanRow(plan: plan),
+                  for (final plan in donePlans) PlanCard(plan: plan),
                 ],
                 const _TreatmentPlansInfoNotice(),
               ];
@@ -146,139 +143,6 @@ class _TreatmentPlanSkeletonCard extends StatelessWidget {
           ),
           SizedBox(width: 12),
           NubiaSkeletonLoader(height: 22, width: 72, borderRadius: 999),
-        ],
-      ),
-    );
-  }
-}
-
-/// Ligne d'un plan hors section « À votre décision » (statut + navigation
-/// vers le détail).
-class _PlanRow extends StatelessWidget {
-  const _PlanRow({required this.plan});
-
-  final PatientTreatmentPlan plan;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListRow(
-      key: Key('treatment_plan_${plan.id}'),
-      title: plan.title,
-      trailing: StatusPill(
-        label: treatmentPlanStatusLabels[plan.status] ?? plan.status,
-        variant: treatmentPlanStatusVariants[plan.status] ??
-            StatusPillVariant.info,
-      ),
-      onTap: () => context.push('/treatment-plans/${plan.id}'),
-    );
-  }
-}
-
-/// Carte d'un plan « En cours » (voir ticket carte riche #5288 pour son
-/// contenu final) — pour l'instant reprend `_PlanRow` (titre + pastille de
-/// statut) et y ajoute, en pied, la rangée « Prochaine séance » quand une
-/// séance est programmée pour l'étape courante du plan (#5289). Maquette :
-/// `design/v2-screens/patient-mon-plan-de-soins.png`.
-class _PlanCard extends StatelessWidget {
-  const _PlanCard({required this.plan});
-
-  final PatientTreatmentPlan plan;
-
-  @override
-  Widget build(BuildContext context) {
-    final nextAppointmentAt = plan.nextAppointmentAt;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: NubiaCard(
-        key: Key('treatment_plan_${plan.id}'),
-        state: NubiaCardState.interactive,
-        onTap: () => context.push('/treatment-plans/${plan.id}'),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    plan.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                StatusPill(
-                  label: treatmentPlanStatusLabels[plan.status] ?? plan.status,
-                  variant: treatmentPlanStatusVariants[plan.status] ??
-                      StatusPillVariant.info,
-                ),
-              ],
-            ),
-            if (nextAppointmentAt != null)
-              _NextAppointmentRow(plan: plan, appointmentAt: nextAppointmentAt),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Rangée `.nx` en pied de carte — icône + « Prochaine séance » (jour/heure
-/// en gras) + lien « Voir » qui ouvre le rendez-vous, indépendamment du tap
-/// global de la carte vers le détail du plan (#5289).
-class _NextAppointmentRow extends StatelessWidget {
-  const _NextAppointmentRow({required this.plan, required this.appointmentAt});
-
-  final PatientTreatmentPlan plan;
-  final DateTime appointmentAt;
-
-  @override
-  Widget build(BuildContext context) {
-    final local = appointmentAt.toLocal();
-    final label = '${formatTreatmentPlanWeekdayDayMonth(local)}, '
-        '${formatTreatmentPlanTime(local)}';
-
-    return Container(
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.only(top: 10),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: NubiaColors.n100)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.event, size: 16, color: NubiaColors.brand700),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text.rich(
-              key: Key('treatment_plan_${plan.id}_next_appointment_label'),
-              TextSpan(
-                style: const TextStyle(fontSize: 12.5, color: NubiaColors.n600),
-                children: [
-                  const TextSpan(text: 'Prochaine séance '),
-                  TextSpan(
-                    text: label,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          GestureDetector(
-            key: Key('treatment_plan_${plan.id}_next_appointment_cta'),
-            onTap: () =>
-                context.push('${AppRouter.mesRdv}?id=${plan.nextAppointmentId}'),
-            child: const Text(
-              'Voir',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: NubiaColors.brand700,
-              ),
-            ),
-          ),
         ],
       ),
     );
