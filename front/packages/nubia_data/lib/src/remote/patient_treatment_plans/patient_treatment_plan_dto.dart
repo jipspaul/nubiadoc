@@ -39,6 +39,7 @@ class PatientTreatmentPlanPhaseDto {
   final String title;
   final String status;
   final List<PatientTreatmentPlanItemDto> items;
+  final String? description;
   final String? pendingQuoteId;
   final String? pendingQuoteSentAt;
   final String? appointmentId;
@@ -50,6 +51,7 @@ class PatientTreatmentPlanPhaseDto {
     required this.title,
     required this.status,
     this.items = const [],
+    this.description,
     this.pendingQuoteId,
     this.pendingQuoteSentAt,
     this.appointmentId,
@@ -67,6 +69,7 @@ class PatientTreatmentPlanPhaseDto {
                     e as Map<String, dynamic>))
                 .toList() ??
             const [],
+        description: json['description'] as String?,
         pendingQuoteId: json['pending_quote_id'] as String?,
         pendingQuoteSentAt: json['pending_quote_sent_at'] as String?,
         appointmentId: json['appointment_id'] as String?,
@@ -79,6 +82,7 @@ class PatientTreatmentPlanPhaseDto {
         title: title,
         status: status,
         items: items.map((i) => i.toDomain()).toList(),
+        description: description,
         pendingQuoteId: pendingQuoteId,
         pendingQuoteSentAt: pendingQuoteSentAt != null
             ? DateTime.parse(pendingQuoteSentAt!)

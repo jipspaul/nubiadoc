@@ -199,6 +199,17 @@ class _PlanDetailView extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (phase.description != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          phase.description!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            height: 19 / 13,
+                            color: NubiaColors.n600,
+                          ),
+                        ),
+                      ],
                       if (phase.items.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         for (final item in phase.items)

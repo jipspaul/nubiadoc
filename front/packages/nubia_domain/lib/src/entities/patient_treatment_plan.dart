@@ -33,6 +33,10 @@ class PatientTreatmentPlanPhase extends Equatable {
   final String status;
   final List<PatientTreatmentPlanItem> items;
 
+  /// Phrase en langue claire qui traduit la nomenclature de la phase pour
+  /// le patient, fournie par le praticien (#5297). `null` si absente.
+  final String? description;
+
   /// Devis envoyé et en attente de signature du patient pour cette phase,
   /// s'il y en a un — bandeau « devis en attente » (#5300). `null` si la
   /// phase n'est bloquée par aucun devis en attente d'accord.
@@ -51,6 +55,7 @@ class PatientTreatmentPlanPhase extends Equatable {
     required this.title,
     required this.status,
     this.items = const [],
+    this.description,
     this.pendingQuoteId,
     this.pendingQuoteSentAt,
     this.appointmentId,
