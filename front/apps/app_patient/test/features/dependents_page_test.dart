@@ -216,6 +216,67 @@ void main() {
   });
 
   testWidgets(
+      "ajout proche : régime enfant n'affiche pas l'encart "
+      '"Pourquoi une demande ?"', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('why_request_notice')), findsNothing);
+  });
+
+  testWidgets(
+      'ajout proche : régime invitation (conjoint/autre) affiche l\'encart '
+      '"Pourquoi une demande ?" avec le texte exact', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('dependent_relationship')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Conjoint').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('why_request_notice')), findsOneWidget);
+    expect(find.text('Pourquoi une demande ?'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('why_request_notice')),
+        matching: find.byIcon(Icons.handshake),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'Vous gérez un enfant mineur de plein droit. Pour un adulte, '
+        'la loi exige ',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('son accord'), findsOneWidget);
+    expect(
+      find.textContaining(
+        " : nous lui envoyons une demande qu'il peut accepter ou refuser.",
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
       'ajout proche : régime invitation (conjoint/autre) affiche l\'encart '
       'de réassurance avec le prénom saisi', (tester) async {
     whenListen(
@@ -430,6 +491,10 @@ void main() {
     await tester.tap(find.text('Conjoint').last);
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(
+      find.byKey(const Key('proposed_scope_toggle_messages')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('proposed_scope_toggle_messages')));
     await tester.pumpAndSettle();
 
