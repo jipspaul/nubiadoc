@@ -602,10 +602,18 @@ class _AddDependentSheet extends StatefulWidget {
 class _AddDependentSheetState extends State<_AddDependentSheet> {
   final _firstName = TextEditingController();
   final _lastName = TextEditingController();
+  final _email = TextEditingController();
   DependentRelationship _relationship = DependentRelationship.enfant;
 
-  bool get _valid =>
-      _firstName.text.trim().isNotEmpty && _lastName.text.trim().isNotEmpty;
+  static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+  bool get _emailValid => _emailRe.hasMatch(_email.text.trim());
+
+  bool get _valid {
+    if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
+      return false;
+    }
+    return !_isInvitation || _emailValid;
+  }
 
   /// Un proche adulte (conjoint/autre) passe par une invitation — demande
   /// d'accès qu'il devra accepter — alors qu'un enfant est ajouté
@@ -616,11 +624,14 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
   void dispose() {
     _firstName.dispose();
     _lastName.dispose();
+    _email.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
     return Padding(
       padding: EdgeInsets.only(
         left: 24,
@@ -632,8 +643,15 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Ajouter un proche',
-              style: Theme.of(context).textTheme.titleMedium),
+          Text('Ajouter un proche', style: theme.textTheme.titleMedium),
+          if (_isInvitation) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Un adulte doit accepter votre demande',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: tokens.textTertiary),
+            ),
+          ],
           const SizedBox(height: 16),
           NubiaTextField(
             key: const Key('dependent_first_name'),
@@ -668,10 +686,20 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
             onChanged: (v) =>
                 setState(() => _relationship = v ?? _relationship),
           ),
+          if (_isInvitation) ...[
+            const SizedBox(height: 12),
+            NubiaTextField(
+              key: const Key('dependent_email'),
+              controller: _email,
+              label: 'E-mail',
+              onChanged: (_) => setState(() {}),
+            ),
+          ],
           const SizedBox(height: 24),
           NubiaButton(
             key: const Key('save_dependent_button'),
-            label: 'Ajouter',
+            label: _isInvitation ? 'Envoyer la demande' : 'Ajouter',
+            icon: _isInvitation ? Icons.send : null,
             onPressed: !_valid
                 ? null
                 : () {
