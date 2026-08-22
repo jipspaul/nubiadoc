@@ -7,6 +7,7 @@ export 'src/theme/nubia_tokens.dart';
 
 // Format
 export 'src/format/money_format.dart';
+export 'src/format/treatment_plan_status.dart';
 
 // Widgets
 export 'src/widgets/amount_header.dart';

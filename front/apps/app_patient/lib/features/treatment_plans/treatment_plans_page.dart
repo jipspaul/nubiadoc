@@ -6,22 +6,6 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'treatment_plans_bloc.dart';
 
-const _statusLabels = {
-  'draft': 'Brouillon',
-  'proposed': 'Proposé',
-  'accepted': 'Accepté',
-  'in_progress': 'En cours',
-  'done': 'Terminé',
-};
-
-const _statusVariants = {
-  'draft': StatusPillVariant.info,
-  'proposed': StatusPillVariant.warning,
-  'accepted': StatusPillVariant.success,
-  'in_progress': StatusPillVariant.warning,
-  'done': StatusPillVariant.success,
-};
-
 /// Liste des plans de traitement du patient (#4261).
 class PatientTreatmentPlansPage extends StatelessWidget {
   const PatientTreatmentPlansPage({super.key});
@@ -78,8 +62,9 @@ class PatientTreatmentPlansBody extends StatelessWidget {
                     key: Key('treatment_plan_${plan.id}'),
                     title: plan.title,
                     trailing: StatusPill(
-                      label: _statusLabels[plan.status] ?? plan.status,
-                      variant: _statusVariants[plan.status] ??
+                      label: treatmentPlanStatusLabels[plan.status] ??
+                          plan.status,
+                      variant: treatmentPlanStatusVariants[plan.status] ??
                           StatusPillVariant.info,
                     ),
                     onTap: () => context.push('/treatment-plans/${plan.id}'),
