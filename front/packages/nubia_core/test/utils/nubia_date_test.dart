@@ -55,6 +55,66 @@ void main() {
     });
   });
 
+  group('NubiaDate.isSameDay', () {
+    test('vrai pour deux DateTime du même jour calendaire', () {
+      expect(
+        NubiaDate.isSameDay(
+          DateTime(2026, 7, 22, 8, 0),
+          DateTime(2026, 7, 22, 23, 0),
+        ),
+        isTrue,
+      );
+    });
+
+    test('faux pour deux jours différents', () {
+      expect(
+        NubiaDate.isSameDay(
+          DateTime(2026, 7, 22),
+          DateTime(2026, 7, 23),
+        ),
+        isFalse,
+      );
+    });
+
+    test('convertit en heure locale avant de comparer (bug UTC #3856)', () {
+      final utc = DateTime.utc(2026, 8, 16, 23, 30);
+      final localSameDay = utc.toLocal();
+      expect(NubiaDate.isSameDay(utc, localSameDay), isTrue);
+    });
+  });
+
+  group('NubiaDate.daySeparatorLabel', () {
+    test('jour courant → "Aujourd\'hui"', () {
+      final now = DateTime(2026, 8, 17, 14, 30);
+      expect(
+        NubiaDate.daySeparatorLabel(DateTime(2026, 8, 17, 9, 0), now: now),
+        "Aujourd'hui",
+      );
+    });
+
+    test('jour antérieur → "<jour de semaine> <jour> <mois>"', () {
+      final now = DateTime(2026, 8, 17, 14, 30);
+      // 2026-07-21 est un mardi.
+      expect(
+        NubiaDate.daySeparatorLabel(DateTime(2026, 7, 21, 9, 0), now: now),
+        'Mardi 21 juillet',
+      );
+    });
+
+    test('convertit en heure locale avant de comparer (bug UTC #3856)', () {
+      final utc = DateTime.utc(2026, 8, 16, 23, 30);
+      final localSameDay = utc.toLocal();
+      final now = DateTime(
+        localSameDay.year,
+        localSameDay.month,
+        localSameDay.day,
+        23,
+        59,
+      );
+      expect(NubiaDate.daySeparatorLabel(utc, now: now), "Aujourd'hui");
+    });
+  });
+
   group('NubiaDate.relative', () {
     test('même jour → HH:mm (heure locale, minutes sur 2 chiffres)', () {
       final now = DateTime(2026, 8, 17, 14, 30);

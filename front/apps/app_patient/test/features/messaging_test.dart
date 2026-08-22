@@ -594,6 +594,85 @@ void main() {
     });
   });
 
+  group('MessagingPage — séparateurs de jour dans le fil (#5278)', () {
+    testWidgets(
+        'un séparateur apparaît avant chaque nouvelle journée, dont '
+        '"Aujourd\'hui" pour le jour courant, sans casser reverse:true',
+        (tester) async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day, 9, 0);
+      final dayOne = Message(
+        id: 'msg-day1',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Message du premier jour',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 7, 21, 9, 0),
+      );
+      final dayTwo = Message(
+        id: 'msg-day2',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Message du deuxième jour',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 8, 4, 9, 0),
+      );
+      final dayTwoLater = Message(
+        id: 'msg-day2-bis',
+        conversationId: 'conv-1',
+        sender: MessageSender.patient,
+        text: 'Deuxième message du même jour',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 8, 4, 15, 0),
+      );
+      final todayMsg = Message(
+        id: 'msg-today',
+        conversationId: 'conv-1',
+        sender: MessageSender.patient,
+        text: "Message d'aujourd'hui",
+        urgency: MessageUrgency.normal,
+        sentAt: today,
+      );
+      when(() => mockGetMessages(any())).thenAnswer(
+        (_) async => Right([dayOne, dayTwo, dayTwoLater, todayMsg]),
+      );
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mardi 21 juillet'), findsOneWidget);
+      expect(find.text('Mardi 4 août'), findsOneWidget);
+      expect(find.text("Aujourd'hui"), findsOneWidget);
+
+      final list = tester
+          .widget<ListView>(find.byKey(const Key('messaging_thread_messages')));
+      expect(list.reverse, isTrue);
+
+      final firstDaySeparatorOffset =
+          tester.getCenter(find.text('Mardi 21 juillet')).dy;
+      final todaySeparatorOffset =
+          tester.getCenter(find.text("Aujourd'hui")).dy;
+      expect(todaySeparatorOffset, greaterThan(firstDaySeparatorOffset));
+    });
+  });
+
   // #5279 — le fil s'ouvre désormais via une vraie route `/messaging/:id`
   // (au lieu d'un changement d'état du même bloc), pour que le retour
   // matériel Android ferme la conversation sans laisser l'onglet Messages
