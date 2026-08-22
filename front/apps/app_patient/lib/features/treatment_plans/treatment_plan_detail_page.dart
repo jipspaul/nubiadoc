@@ -5,6 +5,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'treatment_plans_bloc.dart';
+import 'widgets/plan_cost_block.dart';
 import 'widgets/treatment_plan_format_utils.dart';
 
 const _phaseStatusLabels = {
@@ -120,7 +121,6 @@ class _PlanDetailView extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final totalCents = plan.totalCostCents;
-    final remainingCents = plan.remainingCents;
 
     return SingleChildScrollView(
       key: const Key('treatment_plan_detail_loaded'),
@@ -130,15 +130,7 @@ class _PlanDetailView extends StatelessWidget {
         children: [
           Text(plan.title, style: textTheme.titleLarge),
           const SizedBox(height: 16),
-          if (totalCents != null)
-            AmountHeader(
-              label: 'Total du plan de soins',
-              amount: formatTreatmentPlanCents(totalCents),
-              remainingLabel: remainingCents != null ? 'Reste à charge' : null,
-              remainingAmount: remainingCents != null
-                  ? formatTreatmentPlanCents(remainingCents)
-                  : null,
-            ),
+          if (totalCents != null) PlanCostBlock(plan: plan),
           const SizedBox(height: 24),
           Text('Phases', style: textTheme.titleMedium),
           const SizedBox(height: 12),

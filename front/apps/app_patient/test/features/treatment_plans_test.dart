@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
@@ -127,6 +128,38 @@ void main() {
           findsOneWidget);
       expect(find.text('Extraction 26'), findsOneWidget);
       expect(find.text('2 060 €'), findsOneWidget);
+    });
+
+    testWidgets(
+        'bloc « Coût de votre plan » — décompose réglé/engagé/en attente '
+        'et retire l\'AmountHeader (#5301)', (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state)
+          .thenReturn(const PatientTreatmentPlanDetailLoaded(_planDetail));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(find.byType(AmountHeader), findsNothing);
+      expect(find.byKey(const Key('plan_cost_block')), findsOneWidget);
+      expect(find.text('CE QUE CELA REPRÉSENTE'), findsOneWidget);
+      expect(find.text('Coût de votre plan'), findsOneWidget);
+      expect(find.text('Total du plan de soins'), findsOneWidget);
+      expect(find.text('Déjà réglé'), findsOneWidget);
+      expect(find.text('Engagé (devis signé)'), findsOneWidget);
+      expect(find.text('En attente de votre accord'), findsOneWidget);
+      // Fixture : phase-1 (done) contient un seul acte de 8 000 c → réglé.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('plan_cost_block')),
+          matching: find.text('80 €'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets(
