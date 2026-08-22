@@ -200,6 +200,24 @@ void main() {
 
       expect(find.byKey(const Key('treatment_plans_empty')), findsOneWidget);
     });
+
+    testWidgets(
+        'chargement — squelette affiché, plus de spinner centré (#5293)',
+        (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state).thenReturn(const PatientTreatmentPlansLoading());
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      expect(find.byKey(const Key('treatment_plans_loading')), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+    });
   });
 
   group('PatientTreatmentPlanDetailBody (détail)', () {
