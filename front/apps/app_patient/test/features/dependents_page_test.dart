@@ -194,4 +194,66 @@ void main() {
 
     verify(() => cubit.cancel('ar-1')).called(1);
   });
+
+  testWidgets(
+      "ajout proche : régime enfant n'affiche pas l'encart de réassurance",
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('invitation_reassurance_notice')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+      'ajout proche : régime invitation (conjoint/autre) affiche l\'encart '
+      'de réassurance avec le prénom saisi', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('dependent_relationship')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Conjoint').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('invitation_reassurance_notice')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.shield), findsOneWidget);
+    expect(
+      find.textContaining(
+        "choisira ce qu'il vous autorise, et pourra retirer cet accès "
+        'à tout moment depuis son profil. Vous en serez informé.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Votre proche choisira'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('dependent_first_name')),
+      'Émile',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Émile choisira'), findsOneWidget);
+  });
 }
