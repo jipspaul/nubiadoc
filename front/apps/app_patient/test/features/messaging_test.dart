@@ -311,6 +311,73 @@ void main() {
                 (s) => s.conversation.cabinetName, 'cabinet', 'Cabinet Lyon'),
       ],
     );
+
+    // #5286 — le compteur non-lu doit se remettre à 0 localement dès la
+    // lecture du fil, sans dépendre uniquement du rechargement serveur.
+    blocTest<MessagingBloc, MessagingState>(
+      'un retour après lecture du fil remet unreadCount à 0 localement, '
+      'même si le serveur renvoie encore un compteur non nul',
+      build: () {
+        when(() => mockGetMessages(any()))
+            .thenAnswer((_) async => Right([_msg]));
+        when(() => mockMarkRead(any()))
+            .thenAnswer((_) async => const Right(null));
+        when(() => mockGetConversations())
+            .thenAnswer((_) async => Right([_conv]));
+        return _makeBloc(
+          getConversations: mockGetConversations,
+          getMessages: mockGetMessages,
+          sendMessage: mockSendMessage,
+          markRead: mockMarkRead,
+        );
+      },
+      act: (bloc) async {
+        bloc.add(MessagingThreadOpened(_conv));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const MessagingBackRequested());
+      },
+      skip: 2,
+      expect: () => [
+        const MessagingConversationsLoading(),
+        isA<MessagingConversationsLoaded>().having(
+          (s) => s.conversations.single.unreadCount,
+          'unreadCount',
+          0,
+        ),
+      ],
+    );
+
+    blocTest<MessagingBloc, MessagingState>(
+      'un échec silencieux de markRead ne rallume pas la pastille au retour',
+      build: () {
+        when(() => mockGetMessages(any()))
+            .thenAnswer((_) async => Right([_msg]));
+        when(() => mockMarkRead(any())).thenAnswer(
+            (_) async => const Left(NetworkFailure('Erreur réseau.')));
+        when(() => mockGetConversations())
+            .thenAnswer((_) async => Right([_conv]));
+        return _makeBloc(
+          getConversations: mockGetConversations,
+          getMessages: mockGetMessages,
+          sendMessage: mockSendMessage,
+          markRead: mockMarkRead,
+        );
+      },
+      act: (bloc) async {
+        bloc.add(MessagingThreadOpened(_conv));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const MessagingBackRequested());
+      },
+      skip: 2,
+      expect: () => [
+        const MessagingConversationsLoading(),
+        isA<MessagingConversationsLoaded>().having(
+          (s) => s.conversations.single.unreadCount,
+          'unreadCount',
+          0,
+        ),
+      ],
+    );
   });
 
   // #3416 — après un envoi réussi, la bulle du message envoyé doit apparaître
