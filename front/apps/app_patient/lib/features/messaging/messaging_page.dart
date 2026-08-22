@@ -523,9 +523,63 @@ class _MessageBubble extends StatelessWidget {
               const SizedBox(height: 8),
               _AttachmentCard(attachment: attachment),
             ],
+            const SizedBox(height: 4),
+            _MessageMeta(
+              time: _formatMessageTime(message.sentAt),
+              isPatient: isPatient,
+              read: message.readAt != null,
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Heure d'envoi au format `HH:MM` (#5277), toujours convertie via
+/// `.toLocal()` avant de lire heure/minute — évite le piège UTC #3856
+/// (le séparateur de jour couvrant déjà la date, la meta ne montre que
+/// l'heure, contrairement à `NubiaDate.relative` qui bascule sur
+/// `<jour> <mois>` au-delà du jour courant).
+String _formatMessageTime(DateTime sentAt) {
+  final local = sentAt.toLocal();
+  final h = local.hour.toString().padLeft(2, '0');
+  final m = local.minute.toString().padLeft(2, '0');
+  return '$h:$m';
+}
+
+/// Ligne meta en pied de bulle (#5277) : heure d'envoi ~10.5px, verbatim
+/// maquette design-v2 (point 3). Sur une bulle patient lue (`readAt` non
+/// nul), un accusé de lecture `done_all` accompagne l'heure ; sur une bulle
+/// reçue, l'heure seule en gris `n400`.
+class _MessageMeta extends StatelessWidget {
+  const _MessageMeta({
+    required this.time,
+    required this.isPatient,
+    required this.read,
+  });
+
+  final String time;
+  final bool isPatient;
+  final bool read;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isPatient
+        ? Theme.of(context)
+            .colorScheme
+            .onPrimaryContainer
+            .withValues(alpha: 0.7)
+        : NubiaColors.n400;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(time, style: TextStyle(fontSize: 10.5, color: color)),
+        if (isPatient && read) ...[
+          const SizedBox(width: 4),
+          Icon(Icons.done_all, size: 13, color: color),
+        ],
+      ],
     );
   }
 }
