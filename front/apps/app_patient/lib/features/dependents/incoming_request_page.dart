@@ -57,9 +57,11 @@ class _IncomingRequestBody extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
               ],
-              if (state.request.status == AccessRequestStatus.envoyee)
-                _DecisionActions(state: state)
-              else
+              if (state.request.status == AccessRequestStatus.envoyee) ...[
+                _AdjustScopeCard(scope: state.scope),
+                const SizedBox(height: 16),
+                _DecisionActions(state: state),
+              ] else
                 _DecisionOutcome(status: state.request.status),
             ],
           ),
@@ -70,8 +72,8 @@ class _IncomingRequestBody extends StatelessWidget {
 }
 
 /// Identité du demandeur — contexte minimal, le détail du périmètre proposé
-/// (« Ce qu'elle pourrait faire ») et son ajustement sont hors scope ici
-/// (#5256, #5257).
+/// (« Ce qu'elle pourrait faire ») est hors scope ici (#5256). Son
+/// ajustement est porté par [_AdjustScopeCard] (#5257).
 class _RequesterCard extends StatelessWidget {
   const _RequesterCard({required this.request});
 
@@ -121,6 +123,63 @@ class _RequesterCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Carte « Ajuster avant d'accepter » (#5257) : l'invité restreint le
+/// périmètre proposé via des toggles avant d'accepter. Note 2 : c'est
+/// l'invité qui décide de l'étendue finale, pas le demandeur — le périmètre
+/// envoyé lors de l'acceptation est celui affiché ici.
+class _AdjustScopeCard extends StatelessWidget {
+  const _AdjustScopeCard({required this.scope});
+
+  final Set<AccessRight> scope;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    final cubit = context.read<IncomingRequestCubit>();
+    return NubiaCard(
+      key: const Key('adjust_scope_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Ajuster avant d\'accepter', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.event_available, size: 20, color: tokens.textTertiary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: NubiaToggle(
+                  key: const Key('adjust_scope_toggle_rendez_vous'),
+                  value: scope.contains(AccessRight.rendezVous),
+                  label: 'Mes rendez-vous',
+                  onChanged: (granted) =>
+                      cubit.setScopeRight(AccessRight.rendezVous, granted),
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Icon(Icons.folder, size: 20, color: tokens.textTertiary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: NubiaToggle(
+                  key: const Key('adjust_scope_toggle_documents'),
+                  value: scope.contains(AccessRight.documents),
+                  label: 'Mes documents',
+                  onChanged: (granted) =>
+                      cubit.setScopeRight(AccessRight.documents, granted),
+                ),
+              ),
+            ],
           ),
         ],
       ),
