@@ -20,6 +20,12 @@ class _MockAdd extends Mock implements AddDependentUseCase {}
 
 class _MockDelete extends Mock implements DeleteDependentUseCase {}
 
+class _MockResendAccessRequest extends Mock
+    implements ResendAccessRequestUseCase {}
+
+class _MockCancelAccessRequest extends Mock
+    implements CancelAccessRequestUseCase {}
+
 class _MockListConsents extends Mock implements ListConsentsUseCase {}
 
 class _MockSetConsent extends Mock implements SetConsentUseCase {}
@@ -34,6 +40,15 @@ const _dep = Dependent(
   firstName: 'Léo',
   lastName: 'Dubois',
   relationship: DependentRelationship.enfant,
+);
+
+const _pendingRequest = AccessRequest(
+  id: 'ar1',
+  firstName: 'Marie',
+  lastName: 'Curie',
+  relationship: DependentRelationship.conjoint,
+  status: AccessRequestStatus.envoyee,
+  channel: AccessRequestChannel.email,
 );
 
 const _consent = Consent(purpose: 'marketing', granted: false);
@@ -52,6 +67,8 @@ void main() {
     late _MockGetUpcomingAppointments getUpcomingAppointments;
     late _MockAdd add;
     late _MockDelete del;
+    late _MockResendAccessRequest resendAccessRequest;
+    late _MockCancelAccessRequest cancelAccessRequest;
 
     setUp(() {
       list = _MockList();
@@ -59,6 +76,8 @@ void main() {
       getUpcomingAppointments = _MockGetUpcomingAppointments();
       add = _MockAdd();
       del = _MockDelete();
+      resendAccessRequest = _MockResendAccessRequest();
+      cancelAccessRequest = _MockCancelAccessRequest();
       when(() => listAccessRequests.call())
           .thenAnswer((_) async => const Right([]));
       when(() => getUpcomingAppointments.call())
@@ -75,6 +94,8 @@ void main() {
           getUpcomingAppointments: getUpcomingAppointments,
           add: add,
           remove: del,
+          resendAccessRequest: resendAccessRequest,
+          cancelAccessRequest: cancelAccessRequest,
         );
       },
       act: (c) => c.load(),
@@ -88,30 +109,25 @@ void main() {
       'load → encart d\'expiration visible si une demande est en attente',
       build: () {
         when(() => list.call()).thenAnswer((_) async => const Right([_dep]));
-        when(() => listAccessRequests.call()).thenAnswer(
-          (_) async => const Right([
-            AccessRequest(
-              id: 'ar1',
-              firstName: 'Marie',
-              lastName: 'Curie',
-              relationship: DependentRelationship.conjoint,
-              status: AccessRequestStatus.envoyee,
-              channel: AccessRequestChannel.email,
-            ),
-          ]),
-        );
+        when(() => listAccessRequests.call())
+            .thenAnswer((_) async => const Right([_pendingRequest]));
         return DependentsCubit(
           list: list,
           listAccessRequests: listAccessRequests,
           getUpcomingAppointments: getUpcomingAppointments,
           add: add,
           remove: del,
+          resendAccessRequest: resendAccessRequest,
+          cancelAccessRequest: cancelAccessRequest,
         );
       },
       act: (c) => c.load(),
       expect: () => [
         const DependentsLoading(),
-        const DependentsLoaded([_dep], hasPendingAccessRequest: true),
+        const DependentsLoaded(
+          [_dep],
+          pendingAccessRequests: [_pendingRequest],
+        ),
       ],
     );
 
@@ -131,6 +147,8 @@ void main() {
           getUpcomingAppointments: getUpcomingAppointments,
           add: add,
           remove: del,
+          resendAccessRequest: resendAccessRequest,
+          cancelAccessRequest: cancelAccessRequest,
         );
       },
       seed: () => const DependentsLoaded([]),
@@ -146,6 +164,54 @@ void main() {
               birthDate: null,
               relationship: DependentRelationship.enfant,
             )).called(1);
+        verify(() => list.call()).called(1);
+      },
+    );
+
+    blocTest<DependentsCubit, DependentsState>(
+      'resend → relance la demande puis recharge',
+      build: () {
+        when(() => resendAccessRequest(any()))
+            .thenAnswer((_) async => const Right(_pendingRequest));
+        when(() => list.call()).thenAnswer((_) async => const Right([_dep]));
+        return DependentsCubit(
+          list: list,
+          listAccessRequests: listAccessRequests,
+          getUpcomingAppointments: getUpcomingAppointments,
+          add: add,
+          remove: del,
+          resendAccessRequest: resendAccessRequest,
+          cancelAccessRequest: cancelAccessRequest,
+        );
+      },
+      seed: () => const DependentsLoaded([_dep]),
+      act: (c) => c.resend('ar1'),
+      verify: (_) {
+        verify(() => resendAccessRequest('ar1')).called(1);
+        verify(() => list.call()).called(1);
+      },
+    );
+
+    blocTest<DependentsCubit, DependentsState>(
+      'cancel → annule la demande puis recharge',
+      build: () {
+        when(() => cancelAccessRequest(any()))
+            .thenAnswer((_) async => const Right(null));
+        when(() => list.call()).thenAnswer((_) async => const Right([_dep]));
+        return DependentsCubit(
+          list: list,
+          listAccessRequests: listAccessRequests,
+          getUpcomingAppointments: getUpcomingAppointments,
+          add: add,
+          remove: del,
+          resendAccessRequest: resendAccessRequest,
+          cancelAccessRequest: cancelAccessRequest,
+        );
+      },
+      seed: () => const DependentsLoaded([_dep]),
+      act: (c) => c.cancel('ar1'),
+      verify: (_) {
+        verify(() => cancelAccessRequest('ar1')).called(1);
         verify(() => list.call()).called(1);
       },
     );
