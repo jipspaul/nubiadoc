@@ -16,7 +16,27 @@ class DependentsPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => GetIt.instance<DependentsCubit>()..load(),
       child: Scaffold(
-        appBar: AppBar(title: const Text('Mes proches')),
+        appBar: AppBar(
+          title: BlocBuilder<DependentsCubit, DependentsState>(
+            builder: (context, state) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Mes proches'),
+                  if (state is DependentsLoaded)
+                    Text(
+                      _dependentsSubtitle(
+                        state.dependents.length,
+                        state.pendingAccessRequests.length,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
         body: const _DependentsBody(),
         floatingActionButton: Builder(
           builder: (context) => FloatingActionButton.extended(
@@ -41,6 +61,15 @@ class DependentsPage extends StatelessWidget {
       ),
     );
   }
+}
+
+String _dependentsSubtitle(int managedCount, int pendingCount) {
+  final managedLabel =
+      managedCount == 1 ? '1 compte géré' : '$managedCount comptes gérés';
+  final pendingLabel = pendingCount == 1
+      ? '1 demande en attente'
+      : '$pendingCount demandes en attente';
+  return '$managedLabel · $pendingLabel';
 }
 
 class _DependentsBody extends StatelessWidget {
@@ -69,25 +98,26 @@ class _DependentsBody extends StatelessWidget {
             );
           }
           return ListView(
-            key: const Key('dependents_list'),
             children: [
-              for (final dependent in state.dependents) ...[
-                _DependentTile(
-                  dependent: dependent,
-                  disabled: state.mutating,
-                  nextAppointmentAt:
-                      state.nextAppointmentByDependentId[dependent.id],
+              if (state.dependents.isNotEmpty) ...[
+                const _SectionHeader('COMPTES QUE VOUS GÉREZ'),
+                Column(
+                  key: const Key('dependents_list'),
+                  children: [
+                    for (final dependent in state.dependents) ...[
+                      _DependentTile(
+                        dependent: dependent,
+                        disabled: state.mutating,
+                        nextAppointmentAt:
+                            state.nextAppointmentByDependentId[dependent.id],
+                      ),
+                      const Divider(height: 1),
+                    ],
+                  ],
                 ),
-                const Divider(height: 1),
               ],
               if (state.pendingAccessRequests.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text(
-                    'Demandes envoyées',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                ),
+                const _SectionHeader('DEMANDES ENVOYÉES'),
                 for (final request in state.pendingAccessRequests)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -106,6 +136,31 @@ class _DependentsBody extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// En-tête de section majuscule gris `--n400` (maquette design-v2, #5251) :
+/// distingue les comptes gérés des demandes d'invitation envoyées.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        title,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: tokens.textTertiary,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.4,
+        ),
+      ),
     );
   }
 }
