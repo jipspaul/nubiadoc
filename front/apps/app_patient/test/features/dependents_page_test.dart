@@ -473,6 +473,67 @@ void main() {
     );
   });
 
+  testWidgets(
+      'ajout proche : changer de lien conserve le Prénom/Nom déjà saisis',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+        find.byKey(const Key('dependent_first_name')), 'Lucas');
+    await tester.enterText(
+        find.byKey(const Key('dependent_last_name')), 'Marchand');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('dependent_relationship')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Conjoint').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<NubiaTextField>(find.byKey(const Key('dependent_first_name')))
+          .controller
+          ?.text,
+      'Lucas',
+    );
+    expect(
+      tester
+          .widget<NubiaTextField>(find.byKey(const Key('dependent_last_name')))
+          .controller
+          ?.text,
+      'Marchand',
+    );
+
+    await tester.tap(find.byKey(const Key('dependent_relationship')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Enfant').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<NubiaTextField>(find.byKey(const Key('dependent_first_name')))
+          .controller
+          ?.text,
+      'Lucas',
+    );
+    expect(
+      tester
+          .widget<NubiaTextField>(find.byKey(const Key('dependent_last_name')))
+          .controller
+          ?.text,
+      'Marchand',
+    );
+  });
+
   testWidgets('ajout proche : bascule un toggle du périmètre proposé',
       (tester) async {
     whenListen(
