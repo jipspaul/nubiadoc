@@ -928,7 +928,13 @@ async fn treatment_plans_list_excludes_draft_status() {
         .ok();
 
     cleanup_fixture(
-        &db, cabinet_id, prac_id, patient_id, visible_plan_id, phase_id, quote_id,
+        &db,
+        cabinet_id,
+        prac_id,
+        patient_id,
+        visible_plan_id,
+        phase_id,
+        quote_id,
     )
     .await;
     sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
