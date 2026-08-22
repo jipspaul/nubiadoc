@@ -101,7 +101,7 @@ class _ConversationsList extends StatelessWidget {
         final lastAt = conv.lastMessageAt ?? last?.sentAt;
         return ListRow(
           key: Key('conv_${conv.id}'),
-          leading: NubiaAvatar(initials: _initials(conv.cabinetName)),
+          leading: _InterlocutorAvatar(type: conv.interlocutorType),
           title: conv.cabinetName,
           subtitle: _subtitle(
             conv.lastMessagePreview ?? last?.text,
@@ -119,11 +119,6 @@ class _ConversationsList extends StatelessWidget {
     );
   }
 
-  String _initials(String name) {
-    final trimmed = name.trim();
-    return trimmed.isNotEmpty ? trimmed.characters.first.toUpperCase() : '?';
-  }
-
   /// Sous-titre affiché sous le nom du cabinet : aperçu du dernier message
   /// (`last_message_preview`) ; à défaut on résume l'état non-lu.
   String _subtitle(String? preview, int unreadCount) {
@@ -138,6 +133,44 @@ class _ConversationsList extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+
+/// Teinte bleue de la pharmacie, hors palette [NubiaColors] (verbatim
+/// maquette design-v2, point 9 — même paire que la pastille pharmacie de
+/// `notifications_page.dart`).
+class _PharmacyColors {
+  static const bg = Color(0xFFE0F2FE);
+  static const fg = Color(0xFF0369A1);
+}
+
+/// Avatar carré arrondi de la liste des conversations (#5285) : pictogramme
+/// et teinte distincts selon le type d'interlocuteur (cabinet vs pharmacie),
+/// pour éviter la confusion entre les deux messageries (`pharma_messaging`
+/// a son propre back-end).
+class _InterlocutorAvatar extends StatelessWidget {
+  const _InterlocutorAvatar({required this.type});
+
+  final ConversationInterlocutorType type;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPharmacy = type == ConversationInterlocutorType.pharmacy;
+    final background = isPharmacy ? _PharmacyColors.bg : NubiaColors.brand100;
+    final foreground = isPharmacy ? _PharmacyColors.fg : NubiaColors.brand800;
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        isPharmacy ? Icons.local_pharmacy : Icons.medical_services,
+        color: foreground,
+        size: 20,
+      ),
+    );
+  }
+}
 
 class _Trailing extends StatelessWidget {
   const _Trailing({required this.timestamp, required this.urgent});
