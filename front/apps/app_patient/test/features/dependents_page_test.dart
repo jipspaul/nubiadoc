@@ -183,6 +183,118 @@ void main() {
       findsOneWidget,
     );
     expect(find.byIcon(Icons.event), findsOneWidget);
+    expect(find.text('Voir'), findsOneWidget);
+  });
+
+  testWidgets(
+      'carte compte géré : sans RDV à venir, affiche "Aucun rendez-vous à '
+      'venir" avec un lien Planifier', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded([_lucas]),
+    );
+
+    await _pump(tester, cubit);
+
+    expect(find.text('Aucun rendez-vous à venir'), findsOneWidget);
+    expect(find.byIcon(Icons.calendar_today), findsOneWidget);
+    expect(find.text('Planifier'), findsOneWidget);
+  });
+
+  testWidgets('carte compte géré : le lien Voir ouvre bien Mes RDV',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded(
+        [_lucas],
+        nextAppointmentByDependentId: {
+          'dep-1': DateTime(2026, 8, 13, 16, 30), // jeudi
+        },
+      ),
+    );
+    GetIt.instance.registerFactory<DependentsCubit>(() => cubit);
+    addTearDown(() => GetIt.instance.reset());
+
+    final router = GoRouter(
+      initialLocation: AppRouter.profileDependents,
+      routes: [
+        GoRoute(
+          path: AppRouter.profileDependents,
+          builder: (_, __) => const DependentsPage(),
+        ),
+        GoRoute(
+          path: AppRouter.mesRdv,
+          builder: (_, __) => const Scaffold(key: Key('mes_rdv_stub')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: router,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('fr')],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Voir'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('mes_rdv_stub')), findsOneWidget);
+  });
+
+  testWidgets('carte compte géré : le lien Planifier ouvre bien la prise de RDV',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded([_lucas]),
+    );
+    GetIt.instance.registerFactory<DependentsCubit>(() => cubit);
+    addTearDown(() => GetIt.instance.reset());
+
+    final router = GoRouter(
+      initialLocation: AppRouter.profileDependents,
+      routes: [
+        GoRoute(
+          path: AppRouter.profileDependents,
+          builder: (_, __) => const DependentsPage(),
+        ),
+        GoRoute(
+          path: AppRouter.book,
+          builder: (_, __) => const Scaffold(key: Key('book_stub')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: router,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('fr')],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Planifier'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('book_stub')), findsOneWidget);
   });
 
   testWidgets(
