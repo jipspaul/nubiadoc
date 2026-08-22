@@ -300,8 +300,10 @@ class _LineItemRow extends StatelessWidget {
                         Flexible(
                           child: Text(
                             item.label,
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: cs.onSurfaceVariant),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: cs.onSurface,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                         if (item.panierSante != PanierSante.unknown &&
