@@ -369,9 +369,9 @@ class _ThreadViewState extends State<_ThreadView> {
                       height: 24,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : IconButton(
+                  : NubiaButton.icon(
                       key: const Key('messaging_send_button'),
-                      icon: const Icon(Icons.send),
+                      icon: Icons.send,
                       onPressed: _send,
                     ),
             ],
