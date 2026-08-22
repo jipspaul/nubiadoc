@@ -124,8 +124,7 @@ final _planWithCoverageStates = PatientTreatmentPlan(
       position: 1,
       title: 'Assainissement',
       status: 'done',
-      description:
-          'Détartrage complet et soin d\'une carie sur la dent 26.',
+      description: 'Détartrage complet et soin d\'une carie sur la dent 26.',
       items: const [
         PatientTreatmentPlanItem(
           label: 'Détartrage',
@@ -230,6 +229,70 @@ void main() {
     });
 
     testWidgets(
+        'AppBar titrée avec le titre du plan plutôt qu\'un libellé figé '
+        '(#5295)', (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state)
+          .thenReturn(const PatientTreatmentPlanDetailLoaded(_planDetail));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('Réhabilitation implantaire'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'bandeau héros « Où vous en êtes » — étape courante dérivée des '
+        'phases (#5295)', (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientTreatmentPlanDetailLoaded(_planWithCoverageStates));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      final hero = find.byKey(const Key('treatment_plan_hero'));
+      expect(hero, findsOneWidget);
+      expect(
+        find.descendant(of: hero, matching: find.text('OÙ VOUS EN ÊTES')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: hero, matching: find.text('Étape 2 sur 3')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: hero,
+          matching: find.text('Endodontie et reconstitution · en cours'),
+        ),
+        findsOneWidget,
+      );
+      // Le titre du plan reste porté par l'AppBar, pas répété dans le héros.
+      expect(
+        find.descendant(
+          of: hero,
+          matching: find.text('Réhabilitation implantaire'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
         'bloc « Coût de votre plan » — décompose réglé/engagé/en attente '
         'et retire l\'AmountHeader (#5301)', (tester) async {
       final cubit = MockPatientTreatmentPlanDetailCubit();
@@ -313,16 +376,14 @@ void main() {
 
       expect(find.byKey(const Key('phase_phase-2_pending_quote_banner')),
           findsNothing);
-      expect(
-          find.byKey(const Key('phase_phase-2_quote_cta')), findsNothing);
+      expect(find.byKey(const Key('phase_phase-2_quote_cta')), findsNothing);
     });
 
-    testWidgets(
-        'phase avec devis en attente — bandeau warning + CTA (#5300)',
+    testWidgets('phase avec devis en attente — bandeau warning + CTA (#5300)',
         (tester) async {
       final cubit = MockPatientTreatmentPlanDetailCubit();
-      when(() => cubit.state).thenReturn(
-          PatientTreatmentPlanDetailLoaded(_planWithPendingQuote));
+      when(() => cubit.state)
+          .thenReturn(PatientTreatmentPlanDetailLoaded(_planWithPendingQuote));
 
       await tester.pumpApp(
         BlocProvider<PatientTreatmentPlanDetailCubit>.value(
@@ -344,7 +405,8 @@ void main() {
             matching: find.byType(Text),
           ))
           .textSpan as TextSpan;
-      expect(textSpan.toPlainText(),
+      expect(
+          textSpan.toPlainText(),
           'Un devis vous a été envoyé le 9 août. Cette étape ne peut pas '
           'être programmée avant votre accord.');
       final firstSpan = textSpan.children!.first as TextSpan;
@@ -355,8 +417,8 @@ void main() {
         'CTA « Consulter et signer le devis » navigue vers l\'écran du '
         'devis correspondant (#5300)', (tester) async {
       final cubit = MockPatientTreatmentPlanDetailCubit();
-      when(() => cubit.state).thenReturn(
-          PatientTreatmentPlanDetailLoaded(_planWithPendingQuote));
+      when(() => cubit.state)
+          .thenReturn(PatientTreatmentPlanDetailLoaded(_planWithPendingQuote));
 
       String? pushedLocation;
       final router = GoRouter(
@@ -407,17 +469,16 @@ void main() {
         ),
       );
 
-      expect(find.byKey(const Key('phase_phase-2_appointment_cta')),
-          findsNothing);
+      expect(
+          find.byKey(const Key('phase_phase-2_appointment_cta')), findsNothing);
     });
 
     testWidgets(
         'phase en cours avec rendez-vous programmé — CTA « Voir mon '
         'rendez-vous » (#5299)', (tester) async {
       final cubit = MockPatientTreatmentPlanDetailCubit();
-      when(() => cubit.state).thenReturn(
-          const PatientTreatmentPlanDetailLoaded(
-              _planWithScheduledAppointment));
+      when(() => cubit.state).thenReturn(const PatientTreatmentPlanDetailLoaded(
+          _planWithScheduledAppointment));
 
       await tester.pumpApp(
         BlocProvider<PatientTreatmentPlanDetailCubit>.value(
@@ -427,8 +488,8 @@ void main() {
       );
 
       // Pas de CTA sur la phase terminée.
-      expect(find.byKey(const Key('phase_phase-1_appointment_cta')),
-          findsNothing);
+      expect(
+          find.byKey(const Key('phase_phase-1_appointment_cta')), findsNothing);
 
       expect(find.byKey(const Key('phase_phase-2_appointment_cta')),
           findsOneWidget);
@@ -440,9 +501,8 @@ void main() {
         'CTA « Voir mon rendez-vous » navigue vers l\'écran des '
         'rendez-vous (#5299)', (tester) async {
       final cubit = MockPatientTreatmentPlanDetailCubit();
-      when(() => cubit.state).thenReturn(
-          const PatientTreatmentPlanDetailLoaded(
-              _planWithScheduledAppointment));
+      when(() => cubit.state).thenReturn(const PatientTreatmentPlanDetailLoaded(
+          _planWithScheduledAppointment));
 
       String? pushedLocation;
       final router = GoRouter(
@@ -473,8 +533,7 @@ void main() {
 
       await tester.ensureVisible(
           find.byKey(const Key('phase_phase-2_appointment_cta')));
-      await tester
-          .tap(find.byKey(const Key('phase_phase-2_appointment_cta')));
+      await tester.tap(find.byKey(const Key('phase_phase-2_appointment_cta')));
       await tester.pumpAndSettle();
 
       expect(pushedLocation, '/mes-rdv?id=appt-42');
@@ -578,8 +637,7 @@ void main() {
       );
     });
 
-    testWidgets(
-        'phase sans description — aucun texte .wh affiché (#5297)',
+    testWidgets('phase sans description — aucun texte .wh affiché (#5297)',
         (tester) async {
       final cubit = MockPatientTreatmentPlanDetailCubit();
       when(() => cubit.state)

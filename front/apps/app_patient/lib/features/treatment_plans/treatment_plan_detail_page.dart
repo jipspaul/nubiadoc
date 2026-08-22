@@ -9,6 +9,7 @@ import '../../router/app_router.dart';
 import 'treatment_plans_bloc.dart';
 import 'widgets/phase_timeline.dart';
 import 'widgets/plan_cost_block.dart';
+import 'widgets/plan_hero.dart';
 import 'widgets/treatment_plan_format_utils.dart';
 
 const _phaseStatusLabels = {
@@ -80,21 +81,24 @@ class PatientTreatmentPlanDetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Plan de traitement')),
-      body: BlocBuilder<PatientTreatmentPlanDetailCubit,
-          PatientTreatmentPlanDetailState>(
-        builder: (context, state) {
-          switch (state) {
-            case PatientTreatmentPlanDetailLoading():
-              return const _PlanDetailSkeleton();
-            case PatientTreatmentPlanDetailError(:final message):
-              return NubiaErrorWidget(message: message);
-            case PatientTreatmentPlanDetailLoaded(:final plan):
-              return _PlanDetailView(plan: plan);
-          }
-        },
-      ),
+    return BlocBuilder<PatientTreatmentPlanDetailCubit,
+        PatientTreatmentPlanDetailState>(
+      builder: (context, state) {
+        final title = switch (state) {
+          PatientTreatmentPlanDetailLoaded(:final plan) => plan.title,
+          _ => 'Plan de traitement',
+        };
+        return Scaffold(
+          appBar: AppBar(title: Text(title)),
+          body: switch (state) {
+            PatientTreatmentPlanDetailLoading() => const _PlanDetailSkeleton(),
+            PatientTreatmentPlanDetailError(:final message) =>
+              NubiaErrorWidget(message: message),
+            PatientTreatmentPlanDetailLoaded(:final plan) =>
+              _PlanDetailView(plan: plan),
+          },
+        );
+      },
     );
   }
 }
@@ -167,7 +171,7 @@ class _PlanDetailView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(plan.title, style: textTheme.titleLarge),
+          PlanHero(phases: phases),
           const SizedBox(height: 16),
           if (totalCents != null) PlanCostBlock(plan: plan),
           const SizedBox(height: 24),
@@ -279,8 +283,8 @@ class _PhaseCard extends StatelessWidget {
               key: Key('phase_${phase.id}_quote_cta'),
               label: 'Consulter et signer le devis',
               icon: Icons.draw,
-              onPressed: () => context.push(
-                  '${AppRouter.financial}?id=${phase.pendingQuoteId}'),
+              onPressed: () => context
+                  .push('${AppRouter.financial}?id=${phase.pendingQuoteId}'),
             ),
           ),
         ],
@@ -292,8 +296,8 @@ class _PhaseCard extends StatelessWidget {
             variant: NubiaButtonVariant.secondary,
             size: NubiaButtonSize.sm,
             icon: Icons.event,
-            onPressed: () => context
-                .push('${AppRouter.mesRdv}?id=${phase.appointmentId}'),
+            onPressed: () =>
+                context.push('${AppRouter.mesRdv}?id=${phase.appointmentId}'),
           ),
         ],
       ],
