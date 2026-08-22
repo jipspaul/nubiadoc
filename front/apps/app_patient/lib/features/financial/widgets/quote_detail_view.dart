@@ -133,15 +133,6 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                     .read<FinancialBloc>()
                     .add(const FinancialDownloadRequested()),
               ),
-            NubiaButton(
-              key: const Key('btn_back'),
-              label: 'Retour à la liste',
-              variant: NubiaButtonVariant.tertiary,
-              size: NubiaButtonSize.lg,
-              onPressed: () => context
-                  .read<FinancialBloc>()
-                  .add(const FinancialBackToList()),
-            ),
           ],
         ),
       ],
