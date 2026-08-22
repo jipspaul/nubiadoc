@@ -99,6 +99,8 @@ class _DependentsBody extends StatelessWidget {
           }
           return ListView(
             children: [
+              if (state.account != null)
+                _SelfAccountCard(account: state.account!),
               if (state.dependents.isNotEmpty) ...[
                 const _SectionHeader('COMPTES QUE VOUS GÉREZ'),
                 Column(
@@ -202,6 +204,73 @@ class _DependentSkeletonCard extends StatelessWidget {
               SizedBox(width: 12),
               Expanded(child: NubiaSkeletonLoader(height: 36, borderRadius: 8)),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Carte « Vous · titulaire » en tête de l'écran (maquette design-v2, point
+/// 7, #5228) : situe le patient lui-même avant la liste des comptes gérés,
+/// pour poser le cadre « qui gère qui ».
+class _SelfAccountCard extends StatelessWidget {
+  const _SelfAccountCard({required this.account});
+
+  final PatientAccount account;
+
+  String get _initials {
+    final first = account.firstName.trim();
+    final last = account.lastName.trim();
+    final firstLetter = first.isEmpty ? '' : first[0];
+    final lastLetter = last.isEmpty ? '' : last[0];
+    return '$firstLetter$lastLetter'.toUpperCase();
+  }
+
+  String get _subtitle {
+    final age = account.ageInYears;
+    return age == null ? 'Vous' : 'Vous · $age ans';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return NubiaCard(
+      key: const Key('self_account_card'),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: NubiaColors.brand600,
+            child: Text(
+              _initials,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(account.displayName, style: theme.textTheme.titleMedium),
+                const SizedBox(height: 2),
+                Text(
+                  _subtitle,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: tokens.textTertiary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const StatusPill(
+            label: 'Titulaire',
+            variant: StatusPillVariant.neutral,
           ),
         ],
       ),

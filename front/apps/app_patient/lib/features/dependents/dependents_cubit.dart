@@ -23,11 +23,18 @@ final class DependentsLoaded extends DependentsState {
   /// lien disponible entre [Appointment] et [Dependent]).
   final Map<String, DateTime> nextAppointmentByDependentId;
 
+  /// Le titulaire (patient connecté), affiché en tête de liste — carte
+  /// « Vous · titulaire » (maquette design-v2, point 7, #5228). `null` si
+  /// non chargé (ex. l'appel `GetAccountUseCase` a échoué) : la carte est
+  /// alors simplement absente plutôt que de bloquer l'écran.
+  final PatientAccount? account;
+
   const DependentsLoaded(
     this.dependents, {
     this.pendingAccessRequests = const [],
     this.mutating = false,
     this.nextAppointmentByDependentId = const {},
+    this.account,
   });
 
   bool get hasPendingAccessRequest => pendingAccessRequests.isNotEmpty;
@@ -38,6 +45,7 @@ final class DependentsLoaded extends DependentsState {
         pendingAccessRequests,
         mutating,
         nextAppointmentByDependentId,
+        account,
       ];
 }
 
@@ -54,6 +62,7 @@ class DependentsCubit extends Cubit<DependentsState>
     required ListDependentsUseCase list,
     required ListAccessRequestsUseCase listAccessRequests,
     required GetUpcomingAppointmentsUseCase getUpcomingAppointments,
+    required GetAccountUseCase getAccount,
     required AddDependentUseCase add,
     required DeleteDependentUseCase remove,
     required ResendAccessRequestUseCase resendAccessRequest,
@@ -61,6 +70,7 @@ class DependentsCubit extends Cubit<DependentsState>
   })  : _list = list,
         _listAccessRequests = listAccessRequests,
         _getUpcomingAppointments = getUpcomingAppointments,
+        _getAccount = getAccount,
         _add = add,
         _remove = remove,
         _resendAccessRequest = resendAccessRequest,
@@ -70,6 +80,7 @@ class DependentsCubit extends Cubit<DependentsState>
   final ListDependentsUseCase _list;
   final ListAccessRequestsUseCase _listAccessRequests;
   final GetUpcomingAppointmentsUseCase _getUpcomingAppointments;
+  final GetAccountUseCase _getAccount;
   final AddDependentUseCase _add;
   final DeleteDependentUseCase _remove;
   final ResendAccessRequestUseCase _resendAccessRequest;
@@ -102,10 +113,13 @@ class DependentsCubit extends Cubit<DependentsState>
               .map((a) => a.startsAt)
               .reduce((a, b) => a.isBefore(b) ? a : b);
         }
+        final accountResult = await _getAccount();
+        final account = accountResult.fold((_) => null, (a) => a);
         safeEmit(DependentsLoaded(
           d,
           pendingAccessRequests: pending,
           nextAppointmentByDependentId: nextAppointments,
+          account: account,
         ));
       },
     );
@@ -123,6 +137,7 @@ class DependentsCubit extends Cubit<DependentsState>
         current.dependents,
         pendingAccessRequests: current.pendingAccessRequests,
         mutating: true,
+        account: current.account,
       ));
     }
     final result = await _add(
@@ -147,6 +162,7 @@ class DependentsCubit extends Cubit<DependentsState>
         current.dependents,
         pendingAccessRequests: current.pendingAccessRequests,
         mutating: true,
+        account: current.account,
       ));
     }
     final result = await _remove(id);
@@ -166,6 +182,7 @@ class DependentsCubit extends Cubit<DependentsState>
         current.dependents,
         pendingAccessRequests: current.pendingAccessRequests,
         mutating: true,
+        account: current.account,
       ));
     }
     final result = await _resendAccessRequest(requestId);
@@ -185,6 +202,7 @@ class DependentsCubit extends Cubit<DependentsState>
         current.dependents,
         pendingAccessRequests: current.pendingAccessRequests,
         mutating: true,
+        account: current.account,
       ));
     }
     final result = await _cancelAccessRequest(requestId);

@@ -182,6 +182,7 @@ void registerPatient(GetIt gi) {
       list: gi<ListDependentsUseCase>(),
       listAccessRequests: gi<ListAccessRequestsUseCase>(),
       getUpcomingAppointments: gi<GetUpcomingAppointmentsUseCase>(),
+      getAccount: gi<GetAccountUseCase>(),
       add: gi<AddDependentUseCase>(),
       remove: gi<DeleteDependentUseCase>(),
       resendAccessRequest: gi<ResendAccessRequestUseCase>(),
