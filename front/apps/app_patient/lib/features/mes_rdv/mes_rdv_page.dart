@@ -300,6 +300,9 @@ class _AppointmentCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: NubiaCard(
+        // #5268 : fond légèrement retiré sur l'historique (RDV passé) —
+        // `#FCFCFB` au lieu du blanc `n0` des cartes « à venir ».
+        backgroundColor: isHistory ? const Color(0xFFFCFCFB) : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -358,7 +361,11 @@ class _AppointmentCard extends StatelessWidget {
             _IconRow(
               icon: Icons.calendar_today_outlined,
               label: _formatDateTime(appointment.startsAt),
-              color: Theme.of(context).colorScheme.primary,
+              // #5268 : rail neutralisé (teinte stone `n500`) sur une carte
+              // passée — plus aucun brand une fois le RDV dans l'historique.
+              color: isHistory
+                  ? NubiaColors.n500
+                  : Theme.of(context).colorScheme.primary,
             ),
             if (appointment.cabinetAddress != null) ...[
               const SizedBox(height: 4),

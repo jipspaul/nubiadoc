@@ -27,6 +27,7 @@ class NubiaCard extends StatelessWidget {
     this.state = NubiaCardState.static_,
     this.onTap,
     this.padding = const EdgeInsets.all(16),
+    this.backgroundColor,
   });
 
   final Widget child;
@@ -34,13 +35,17 @@ class NubiaCard extends StatelessWidget {
   final VoidCallback? onTap;
   final EdgeInsetsGeometry padding;
 
+  /// Override du fond par défaut (`cs.surface`, ou `tokens.primarySubtleBg`
+  /// en `selected`). Ex. carte « passée » de l'historique Mes RDV (#5268).
+  final Color? backgroundColor;
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
 
-    final Color backgroundColor =
-        state == NubiaCardState.selected ? tokens.primarySubtleBg : cs.surface;
+    final Color backgroundColor = this.backgroundColor ??
+        (state == NubiaCardState.selected ? tokens.primarySubtleBg : cs.surface);
 
     final BorderSide borderSide = state == NubiaCardState.selected
         ? BorderSide(color: cs.primary, width: 1.5)
