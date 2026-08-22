@@ -317,20 +317,185 @@ class _AppointmentList extends StatelessWidget {
                 ),
               ),
             )
-          // #5267 : l'historique se regroupe par mois sous un en-tête ; « à
-          // venir » reste une liste plate (pas de spec de groupement dessus).
+          // #5267 : l'historique se regroupe par mois sous un en-tête ; #5262
+          // fait de même pour « à venir », mais par jour, avec en-têtes
+          // collants (SliverPersistentHeader) — le regroupement mensuel ne
+          // s'y prête pas (horizon trop court).
           : isUpcoming
-              ? ListView.builder(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: appointments.length,
-                  itemBuilder: (context, i) => _AppointmentCard(
-                    appointment: appointments[i],
-                    isHistory: false,
-                  ),
-                )
+              ? _UpcomingGroupedList(appointments: appointments)
               : _HistoryGroupedList(appointments: appointments),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// #5262 : cartes de l'onglet « À venir » regroupées par jour sous un en-tête
+/// collant (`SliverPersistentHeader(pinned: true)`). Le jour est dérivé de
+/// `startsAt.toLocal()` et l'ordre des groupes suit celui déjà appliqué à
+/// [appointments] (donc `_upcomingSortAsc`, cf. #3801) — pas de tri
+/// recalculé ici.
+class _UpcomingGroupedList extends StatelessWidget {
+  const _UpcomingGroupedList({required this.appointments});
+  final List<Appointment> appointments;
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = _groupByDay(appointments);
+    final today = DateTime.now();
+    final slivers = <Widget>[
+      const SliverToBoxAdapter(child: SizedBox(height: 8)),
+    ];
+    for (final group in groups) {
+      final isToday = group.date.year == today.year &&
+          group.date.month == today.month &&
+          group.date.day == today.day;
+      slivers.add(
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _DayHeaderDelegate(date: group.date, isToday: isToday),
+        ),
+      );
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: _AppointmentCard(
+                  appointment: group.appointments[i],
+                  isHistory: false,
+                ),
+              ),
+              childCount: group.appointments.length,
+            ),
+          ),
+        ),
+      );
+    }
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: slivers,
+    );
+  }
+
+  static List<_DayGroup> _groupByDay(List<Appointment> appointments) {
+    final groups = <_DayGroup>[];
+    DateTime? lastDay;
+    for (final appointment in appointments) {
+      final local = appointment.startsAt.toLocal();
+      final day = DateTime(local.year, local.month, local.day);
+      if (lastDay == null || day != lastDay) {
+        lastDay = day;
+        groups.add(_DayGroup(day, []));
+      }
+      groups.last.appointments.add(appointment);
+    }
+    return groups;
+  }
+}
+
+class _DayGroup {
+  _DayGroup(this.date, this.appointments);
+  final DateTime date;
+  final List<Appointment> appointments;
+}
+
+class _DayHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _DayHeaderDelegate({required this.date, required this.isToday});
+  final DateTime date;
+  final bool isToday;
+
+  static const double _extent = 36;
+
+  @override
+  double get minExtent => _extent;
+
+  @override
+  double get maxExtent => _extent;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return ColoredBox(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: _DayHeader(date: date, isToday: isToday),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _DayHeaderDelegate oldDelegate) =>
+      oldDelegate.date != date || oldDelegate.isToday != isToday;
+}
+
+/// En-tête de jour (maquette design-v2, onglet « À venir », `.day`) :
+/// libellé (`.d`) 12,5px/600, letter-spacing .4px, `n500` + trait fin `n200`
+/// qui remplit la largeur restante. Jour courant (`.day.now`) : libellé
+/// « Aujourd'hui » en `brand700`.
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({required this.date, required this.isToday});
+  final DateTime date;
+  final bool isToday;
+
+  static const _weekdays = [
+    'Lundi',
+    'Mardi',
+    'Mercredi',
+    'Jeudi',
+    'Vendredi',
+    'Samedi',
+    'Dimanche',
+  ];
+
+  static const _months = [
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre',
+  ];
+
+  String get _label => isToday
+      ? 'Aujourd\'hui'
+      : '${_weekdays[date.weekday - 1]} ${date.day} ${_months[date.month - 1]}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Row(
+        children: [
+          Text(
+            _label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                  color: isToday ? NubiaColors.brand700 : NubiaColors.n500,
+                ),
+          ),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: NubiaColors.n200)),
+              ),
+              child: SizedBox(height: 1),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
