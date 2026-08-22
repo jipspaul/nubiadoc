@@ -191,6 +191,37 @@ class _PlanDetailView extends StatelessWidget {
                   ),
                 ),
               ),
+          const SizedBox(height: 16),
+          const _EstimatedAmountsNotice(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rappelle que les montants en attente sont estimatifs et renvoie au devis
+/// pour le reste à charge définitif (transparence, #5302).
+class _EstimatedAmountsNotice extends StatelessWidget {
+  const _EstimatedAmountsNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return NubiaCard(
+      key: const Key('treatment_plan_estimated_amounts_notice'),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info, size: 20, color: NubiaColors.n400),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Les montants en attente sont des estimations de votre '
+              'praticien. Le reste à votre charge définitif figure sur le '
+              'devis, après calcul des remboursements de l\'Assurance '
+              'Maladie et de votre mutuelle.',
+              style: TextStyle(fontSize: 11.5, color: NubiaColors.n500),
+            ),
+          ),
         ],
       ),
     );

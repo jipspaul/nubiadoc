@@ -128,5 +128,41 @@ void main() {
       expect(find.text('Extraction 26'), findsOneWidget);
       expect(find.text('2 060 €'), findsOneWidget);
     });
+
+    testWidgets(
+        'affiche l\'encart montants estimés après le bloc financier (#5302)',
+        (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state)
+          .thenReturn(const PatientTreatmentPlanDetailLoaded(_planDetail));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('treatment_plan_estimated_amounts_notice')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('treatment_plan_estimated_amounts_notice')),
+          matching: find.byIcon(Icons.info),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Les montants en attente sont des estimations de votre '
+          'praticien. Le reste à votre charge définitif figure sur le '
+          'devis, après calcul des remboursements de l\'Assurance '
+          'Maladie et de votre mutuelle.',
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }
