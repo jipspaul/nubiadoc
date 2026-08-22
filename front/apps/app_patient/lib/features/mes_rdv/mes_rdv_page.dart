@@ -43,10 +43,7 @@ class _MesRdvBody extends StatelessWidget {
       child: BlocBuilder<MesRdvBloc, MesRdvState>(
         builder: (context, state) {
           if (state is MesRdvInitial || state is MesRdvLoading) {
-            return const Center(
-              key: Key('mes_rdv_loading'),
-              child: CircularProgressIndicator(),
-            );
+            return const _MesRdvLoadingSkeleton();
           }
           if (state is MesRdvError) {
             return NubiaErrorWidget(
@@ -61,6 +58,70 @@ class _MesRdvBody extends StatelessWidget {
           }
           return const SizedBox.shrink();
         },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Squelette de chargement : reprend le rythme des cartes réelles
+/// (même padding de liste, silhouette rail + titre/sous-titre + action).
+class _MesRdvLoadingSkeleton extends StatelessWidget {
+  const _MesRdvLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      key: const Key('mes_rdv_loading'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: 3,
+      itemBuilder: (_, __) => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 6),
+        child: _MesRdvCardSkeleton(),
+      ),
+    );
+  }
+}
+
+class _MesRdvCardSkeleton extends StatelessWidget {
+  const _MesRdvCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const NubiaSkeletonLoader(
+                  width: 52, height: 52, borderRadius: 999),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const NubiaSkeletonLoader(width: 140, height: 14),
+                    const SizedBox(height: 8),
+                    const NubiaSkeletonLoader(width: 180, height: 12),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const NubiaSkeletonLoader(width: 160, height: 12),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const NubiaSkeletonLoader(width: 96, height: 32),
+              const SizedBox(width: 8),
+              const NubiaSkeletonLoader(width: 96, height: 32),
+            ],
+          ),
+        ],
       ),
     );
   }
