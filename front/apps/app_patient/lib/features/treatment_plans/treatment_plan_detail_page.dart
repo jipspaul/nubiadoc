@@ -7,6 +7,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
 import 'treatment_plans_bloc.dart';
+import 'widgets/phase_timeline.dart';
 import 'widgets/plan_cost_block.dart';
 import 'widgets/treatment_plan_format_utils.dart';
 
@@ -155,7 +156,10 @@ class _PlanDetailView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final totalCents = plan.totalCostCents;
+    final phases = [...plan.phases]
+      ..sort((a, b) => a.position.compareTo(b.position));
 
     return SingleChildScrollView(
       key: const Key('treatment_plan_detail_loaded'),
@@ -167,108 +171,151 @@ class _PlanDetailView extends StatelessWidget {
           const SizedBox(height: 16),
           if (totalCents != null) PlanCostBlock(plan: plan),
           const SizedBox(height: 24),
-          Text('Phases', style: textTheme.titleMedium),
+          Text(
+            'LES ÉTAPES DE VOTRE SOIN',
+            style: textTheme.labelSmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+            ),
+          ),
           const SizedBox(height: 12),
-          if (plan.phases.isEmpty)
+          if (phases.isEmpty)
             const NubiaEmptyState(
               key: Key('treatment_plan_phases_empty'),
               icon: Icons.timeline_outlined,
               title: 'Aucune phase pour le moment',
             )
           else
-            for (final phase in plan.phases)
-              Padding(
-                key: Key('treatment_plan_phase_${phase.id}'),
-                padding: const EdgeInsets.only(bottom: 12),
-                child: NubiaCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child:
-                                Text(phase.title, style: textTheme.titleSmall),
-                          ),
-                          StatusPill(
-                            label: _phaseStatusLabels[phase.status] ??
-                                phase.status,
-                            variant: _phaseStatusVariants[phase.status] ??
-                                StatusPillVariant.info,
-                          ),
-                        ],
-                      ),
-                      if (phase.description != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          phase.description!,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            height: 19 / 13,
-                            color: NubiaColors.n600,
-                          ),
-                        ),
-                      ],
-                      if (phase.items.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        for (final item in phase.items)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(child: Text(item.label)),
-                                Text(formatTreatmentPlanCents(
-                                    item.unitAmountCents)),
-                              ],
-                            ),
-                          ),
-                      ],
-                      if (_phaseDateLabel(phase) != null) ...[
-                        const SizedBox(height: 12),
-                        _PhaseDateRow(label: _phaseDateLabel(phase)!),
-                      ],
-                      _PhaseAmountRow(phase: phase),
-                      if (phase.pendingQuoteId != null) ...[
-                        const SizedBox(height: 12),
-                        _PendingQuoteBanner(
-                          key: Key('phase_${phase.id}_pending_quote_banner'),
-                          sentAt: phase.pendingQuoteSentAt,
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: NubiaButton(
-                            key: Key('phase_${phase.id}_quote_cta'),
-                            label: 'Consulter et signer le devis',
-                            icon: Icons.draw,
-                            onPressed: () => context.push(
-                                '${AppRouter.financial}?id=${phase.pendingQuoteId}'),
-                          ),
-                        ),
-                      ],
-                      if (phase.status == 'in_progress' &&
-                          phase.appointmentId != null) ...[
-                        const SizedBox(height: 8),
-                        NubiaButton(
-                          key: Key('phase_${phase.id}_appointment_cta'),
-                          label: 'Voir mon rendez-vous',
-                          variant: NubiaButtonVariant.secondary,
-                          size: NubiaButtonSize.sm,
-                          icon: Icons.event,
-                          onPressed: () => context.push(
-                              '${AppRouter.mesRdv}?id=${phase.appointmentId}'),
-                        ),
-                      ],
-                    ],
+            PhaseTimeline(
+              children: [
+                for (final (index, phase) in phases.indexed)
+                  PhaseStep(
+                    key: Key('treatment_plan_phase_${phase.id}'),
+                    status: phase.status,
+                    number: index + 1,
+                    isLast: index == phases.length - 1,
+                    card: _PhaseCard(phase: phase),
                   ),
-                ),
-              ),
+              ],
+            ),
           const SizedBox(height: 16),
           const _EstimatedAmountsNotice(),
         ],
       ),
+    );
+  }
+}
+
+/// Carte `.bd` d'une phase — statut, description patient, actes, date/
+/// échéance, montant, et éventuels bandeau devis/CTA rendez-vous. Porte
+/// `.card.now` (ombre + bordure accentuée) quand la phase est en cours
+/// (#5296). Maquette : `design/v2-screens/patient-mon-plan-de-soins.png`.
+class _PhaseCard extends StatelessWidget {
+  const _PhaseCard({required this.phase});
+
+  final PatientTreatmentPlanPhase phase;
+
+  bool get _isNow => phase.status == 'in_progress';
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: Text(phase.title, style: textTheme.titleSmall)),
+            StatusPill(
+              label: _phaseStatusLabels[phase.status] ?? phase.status,
+              variant:
+                  _phaseStatusVariants[phase.status] ?? StatusPillVariant.info,
+            ),
+          ],
+        ),
+        if (phase.description != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            phase.description!,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 19 / 13,
+              color: NubiaColors.n600,
+            ),
+          ),
+        ],
+        if (phase.items.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          for (final item in phase.items)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(child: Text(item.label)),
+                  Text(formatTreatmentPlanCents(item.unitAmountCents)),
+                ],
+              ),
+            ),
+        ],
+        if (_phaseDateLabel(phase) != null) ...[
+          const SizedBox(height: 12),
+          _PhaseDateRow(label: _phaseDateLabel(phase)!),
+        ],
+        _PhaseAmountRow(phase: phase),
+        if (phase.pendingQuoteId != null) ...[
+          const SizedBox(height: 12),
+          _PendingQuoteBanner(
+            key: Key('phase_${phase.id}_pending_quote_banner'),
+            sentAt: phase.pendingQuoteSentAt,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: NubiaButton(
+              key: Key('phase_${phase.id}_quote_cta'),
+              label: 'Consulter et signer le devis',
+              icon: Icons.draw,
+              onPressed: () => context.push(
+                  '${AppRouter.financial}?id=${phase.pendingQuoteId}'),
+            ),
+          ),
+        ],
+        if (phase.status == 'in_progress' && phase.appointmentId != null) ...[
+          const SizedBox(height: 8),
+          NubiaButton(
+            key: Key('phase_${phase.id}_appointment_cta'),
+            label: 'Voir mon rendez-vous',
+            variant: NubiaButtonVariant.secondary,
+            size: NubiaButtonSize.sm,
+            icon: Icons.event,
+            onPressed: () => context
+                .push('${AppRouter.mesRdv}?id=${phase.appointmentId}'),
+          ),
+        ],
+      ],
+    );
+
+    if (!_isNow) return NubiaCard(child: content);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: NubiaColors.n300),
+        boxShadow: [
+          BoxShadow(
+            color: NubiaColors.n900.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: content,
     );
   }
 }
