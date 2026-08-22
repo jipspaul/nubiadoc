@@ -52,8 +52,11 @@ class PatientTreatmentPlansBody extends StatelessWidget {
               }
               return ListView.builder(
                 key: const Key('treatment_plans_loaded'),
-                itemCount: plans.length,
+                itemCount: plans.length + 1,
                 itemBuilder: (context, index) {
+                  if (index == plans.length) {
+                    return const _TreatmentPlansInfoNotice();
+                  }
                   final plan = plans[index];
                   return ListRow(
                     key: Key('treatment_plan_${plan.id}'),
@@ -109,6 +112,35 @@ class _TreatmentPlanSkeletonCard extends StatelessWidget {
           ),
           SizedBox(width: 12),
           NubiaSkeletonLoader(height: 22, width: 72, borderRadius: 999),
+        ],
+      ),
+    );
+  }
+}
+
+/// Encart de bas de liste rappelant ce qu'est un plan de soins et le
+/// caractère indicatif des montants (design de transparence, #5292).
+class _TreatmentPlansInfoNotice extends StatelessWidget {
+  const _TreatmentPlansInfoNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return NubiaCard(
+      key: const Key('treatment_plans_info_notice'),
+      padding: const EdgeInsets.all(12),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield, size: 20, color: NubiaColors.n400),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Un plan de soins décrit les étapes proposées par votre '
+              "praticien. Les montants sont indicatifs tant qu'un devis n'a "
+              'pas été signé.',
+              style: TextStyle(fontSize: 11.5, color: NubiaColors.n500),
+            ),
+          ),
         ],
       ),
     );
