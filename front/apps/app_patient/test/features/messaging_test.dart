@@ -434,6 +434,105 @@ void main() {
     });
   });
 
+  // #5283 — trois chips de réponse rapide au-dessus du composeur, pour
+  // répondre sans ouvrir le clavier.
+  group('MessagingPage — réponses rapides (#5283)', () {
+    testWidgets('affiche les trois chips avec leurs libellés exacts',
+        (tester) async {
+      when(() => mockGetMessages(any())).thenAnswer((_) async => Right([_msg]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('messaging_quick_reply_slot')),
+          findsOneWidget);
+      expect(find.byKey(const Key('messaging_quick_reply_thanks')),
+          findsOneWidget);
+      expect(find.byKey(const Key('messaging_quick_reply_callback')),
+          findsOneWidget);
+      expect(find.text('Proposer un créneau'), findsOneWidget);
+      expect(find.text('Merci !'), findsOneWidget);
+      expect(find.text('Je rappelle'), findsOneWidget);
+    });
+
+    testWidgets('taper une chip envoie directement la réponse',
+        (tester) async {
+      when(() => mockGetMessages(any())).thenAnswer((_) async => Right([_msg]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+      final sent = Message(
+        id: 'msg-quick',
+        conversationId: 'conv-1',
+        sender: MessageSender.patient,
+        text: 'Merci !',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 12, 0),
+      );
+      when(() => mockSendMessage(
+            conversationId: any(named: 'conversationId'),
+            text: any(named: 'text'),
+          )).thenAnswer((_) async => Right(sent));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('messaging_quick_reply_thanks')));
+      await tester.pumpAndSettle();
+
+      verify(() => mockSendMessage(
+            conversationId: 'conv-1',
+            text: 'Merci !',
+          )).called(1);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('messaging_thread_messages')),
+          matching: find.text('Merci !'),
+        ),
+        findsOneWidget,
+      );
+      // Le champ libre reste vide et disponible : la chip ne le remplace pas.
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('messaging_input')))
+            .controller!
+            .text,
+        isEmpty,
+      );
+    });
+  });
+
   // #4545 — le thread s'ouvrait sur le tout premier message (historique),
   // sans scroll auto vers le plus récent : `reverse: true` sur la ListView
   // ancre systématiquement la vue sur le dernier message.

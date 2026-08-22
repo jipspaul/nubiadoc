@@ -240,6 +240,14 @@ class _ThreadViewState extends State<_ThreadView> {
     _controller.clear();
   }
 
+  /// Réponse rapide (#5283) : pré-remplit puis envoie directement, sans
+  /// passer par le clavier — la majorité des réponses patient tiennent en
+  /// trois mots.
+  void _sendQuickReply(String text) {
+    _controller.text = text;
+    _send();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
@@ -296,6 +304,44 @@ class _ThreadViewState extends State<_ThreadView> {
         ),
         // Input bar
         const Divider(height: 1),
+        // Réponses rapides (#5283) : trois suggestions contextuelles
+        // au-dessus du composeur, pour répondre sans ouvrir le clavier.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              key: const Key('messaging_quick_replies'),
+              children: [
+                NubiaChip(
+                  key: const Key('messaging_quick_reply_slot'),
+                  label: 'Proposer un créneau',
+                  icon: Icons.event_available,
+                  onTap: state.sending
+                      ? null
+                      : () => _sendQuickReply('Proposer un créneau'),
+                ),
+                const SizedBox(width: 8),
+                NubiaChip(
+                  key: const Key('messaging_quick_reply_thanks'),
+                  label: 'Merci !',
+                  icon: Icons.check,
+                  onTap:
+                      state.sending ? null : () => _sendQuickReply('Merci !'),
+                ),
+                const SizedBox(width: 8),
+                NubiaChip(
+                  key: const Key('messaging_quick_reply_callback'),
+                  label: 'Je rappelle',
+                  icon: Icons.schedule,
+                  onTap: state.sending
+                      ? null
+                      : () => _sendQuickReply('Je rappelle'),
+                ),
+              ],
+            ),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.all(8),
           child: Row(
