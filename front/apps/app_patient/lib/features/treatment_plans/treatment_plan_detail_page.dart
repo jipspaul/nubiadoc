@@ -24,6 +24,39 @@ const _phaseStatusVariants = {
   'done': StatusPillVariant.success,
 };
 
+/// Libellés du bloc `.amt` selon l'état de couverture financière de la
+/// phase, verbatim maquette (#5298).
+const _phaseCoverageLabels = {
+  PatientTreatmentPlanPhaseCoverage.paid: 'Réglé',
+  PatientTreatmentPlanPhaseCoverage.covered: 'Couvert par votre devis signé',
+  PatientTreatmentPlanPhaseCoverage.estimated: 'Estimation',
+};
+
+/// Ligne `.dt` (icône + texte) au-dessus du bloc `.amt` — uniquement quand
+/// une date de séance existe pour la phase ; pas de donnée fabriquée pour
+/// les phases pas encore programmées (#5298).
+String? _phaseDateLabel(PatientTreatmentPlanPhase phase) {
+  final appointmentAt = phase.appointmentAt;
+  if (appointmentAt == null) return null;
+  final local = appointmentAt.toLocal();
+
+  switch (phase.status) {
+    case 'done':
+      return 'Réalisée le ${formatTreatmentPlanDayMonth(local)}';
+    case 'in_progress':
+      final now = DateTime.now();
+      final isToday = local.year == now.year &&
+          local.month == now.month &&
+          local.day == now.day;
+      final time = formatTreatmentPlanTime(local);
+      return isToday
+          ? 'Séance aujourd\'hui à $time'
+          : 'Séance le ${formatTreatmentPlanDayMonth(local)} à $time';
+    default:
+      return null;
+  }
+}
+
 /// Détail d'un plan de traitement (#4261) : phases + actes.
 class PatientTreatmentPlanDetailPage extends StatelessWidget {
   const PatientTreatmentPlanDetailPage({super.key, required this.planId});
@@ -181,6 +214,11 @@ class _PlanDetailView extends StatelessWidget {
                             ),
                           ),
                       ],
+                      if (_phaseDateLabel(phase) != null) ...[
+                        const SizedBox(height: 12),
+                        _PhaseDateRow(label: _phaseDateLabel(phase)!),
+                      ],
+                      _PhaseAmountRow(phase: phase),
                       if (phase.pendingQuoteId != null) ...[
                         const SizedBox(height: 12),
                         _PendingQuoteBanner(
@@ -218,6 +256,71 @@ class _PlanDetailView extends StatelessWidget {
               ),
           const SizedBox(height: 16),
           const _EstimatedAmountsNotice(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ligne `.dt` (icône + texte) — date ou échéance de la phase (#5298).
+/// Maquette : `design/v2-screens/patient-mon-plan-de-soins.png`.
+class _PhaseDateRow extends StatelessWidget {
+  const _PhaseDateRow({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.calendar_today_outlined,
+            size: 14, color: NubiaColors.n500),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: NubiaColors.n500),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Bloc `.amt` — montant de la phase avec un libellé qui dit honnêtement son
+/// statut de paiement : réglé, couvert par un devis signé, ou estimation
+/// (#5298). Maquette : `design/v2-screens/patient-mon-plan-de-soins.png`.
+class _PhaseAmountRow extends StatelessWidget {
+  const _PhaseAmountRow({required this.phase});
+
+  final PatientTreatmentPlanPhase phase;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: Key('phase_${phase.id}_amount_row'),
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.only(top: 12),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: NubiaColors.n100)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            _phaseCoverageLabels[phase.coverage]!,
+            style: const TextStyle(fontSize: 13, color: NubiaColors.n500),
+          ),
+          Text(
+            formatTreatmentPlanCents(phase.amountCents),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: NubiaColors.n900,
+              fontFeatures: tabularFigures,
+            ),
+          ),
         ],
       ),
     );

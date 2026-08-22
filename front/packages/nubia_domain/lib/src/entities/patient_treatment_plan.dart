@@ -20,6 +20,11 @@ class PatientTreatmentPlanItem extends Equatable {
   List<Object?> get props => [label, ccamCode, unitAmountCents];
 }
 
+/// État de couverture financière d'une phase — dit honnêtement si le
+/// montant affiché est déjà réglé, couvert par un devis signé (phase
+/// confirmée ou en cours), ou une simple estimation (#5298).
+enum PatientTreatmentPlanPhaseCoverage { paid, covered, estimated }
+
 /// Une phase d'un plan de traitement patient, avec ses actes (#4261).
 class PatientTreatmentPlanPhase extends Equatable {
   final String id;
@@ -51,6 +56,26 @@ class PatientTreatmentPlanPhase extends Equatable {
     this.appointmentId,
     this.appointmentAt,
   });
+
+  /// Montant agrégé de la phase — somme des actes (#5298). Affiché avec le
+  /// libellé [coverage] plutôt que la liste brute des actes.
+  int get amountCents =>
+      items.fold(0, (total, item) => total + item.unitAmountCents);
+
+  /// Statut de paiement de la phase, dérivé de [status] (#5298) : réglée
+  /// (`done`), couverte par un devis déjà signé (`confirmed`/`in_progress`),
+  /// ou simple estimation (`requested`/autre).
+  PatientTreatmentPlanPhaseCoverage get coverage {
+    switch (status) {
+      case 'done':
+        return PatientTreatmentPlanPhaseCoverage.paid;
+      case 'confirmed':
+      case 'in_progress':
+        return PatientTreatmentPlanPhaseCoverage.covered;
+      default:
+        return PatientTreatmentPlanPhaseCoverage.estimated;
+    }
+  }
 
   @override
   List<Object?> get props => [id];

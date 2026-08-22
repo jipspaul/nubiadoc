@@ -112,6 +112,60 @@ const _planWithScheduledAppointment = PatientTreatmentPlan(
   ],
 );
 
+/// Variante avec les trois statuts de couverture financière de phase — bloc
+/// `.amt` : réglé, couvert par un devis signé, estimation (#5298).
+final _planWithCoverageStates = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Réhabilitation implantaire',
+  status: 'in_progress',
+  phases: [
+    PatientTreatmentPlanPhase(
+      id: 'phase-1',
+      position: 1,
+      title: 'Assainissement',
+      status: 'done',
+      items: const [
+        PatientTreatmentPlanItem(
+          label: 'Détartrage',
+          unitAmountCents: 8242,
+          amoPartCents: 0,
+          amcPartCents: 0,
+        ),
+      ],
+      appointmentAt: DateTime.utc(2026, 7, 22, 9),
+    ),
+    PatientTreatmentPlanPhase(
+      id: 'phase-2',
+      position: 2,
+      title: 'Endodontie et reconstitution',
+      status: 'in_progress',
+      items: const [
+        PatientTreatmentPlanItem(
+          label: 'Endodontie',
+          unitAmountCents: 35350,
+          amoPartCents: 0,
+          amcPartCents: 0,
+        ),
+      ],
+      appointmentAt: DateTime.now().toUtc(),
+    ),
+    PatientTreatmentPlanPhase(
+      id: 'phase-3',
+      position: 3,
+      title: 'Prothèse d\'usage',
+      status: 'requested',
+      items: const [
+        PatientTreatmentPlanItem(
+          label: 'Couronne',
+          unitAmountCents: 120000,
+          amoPartCents: 0,
+          amcPartCents: 0,
+        ),
+      ],
+    ),
+  ],
+);
+
 void main() {
   group('PatientTreatmentPlansBody (liste)', () {
     testWidgets('liste avec plans — affiche une ligne par plan',
@@ -422,6 +476,84 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(pushedLocation, '/mes-rdv?id=appt-42');
+    });
+
+    testWidgets(
+        'bloc .amt — libellé de couverture et montant honnête par phase '
+        '(#5298)', (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientTreatmentPlanDetailLoaded(_planWithCoverageStates));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('phase_phase-1_amount_row')),
+          matching: find.text('Réglé'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('phase_phase-1_amount_row')),
+          matching: find.text('82,42 €'),
+        ),
+        findsOneWidget,
+      );
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('phase_phase-2_amount_row')),
+          matching: find.text('Couvert par votre devis signé'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('phase_phase-2_amount_row')),
+          matching: find.text('353,50 €'),
+        ),
+        findsOneWidget,
+      );
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('phase_phase-3_amount_row')),
+          matching: find.text('Estimation'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('phase_phase-3_amount_row')),
+          matching: find.text('1 200 €'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'ligne .dt — « Réalisée le » sur une phase terminée, « Séance '
+        'aujourd\'hui à » sur une phase en cours (#5298)', (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientTreatmentPlanDetailLoaded(_planWithCoverageStates));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(find.text('Réalisée le 22 juillet'), findsOneWidget);
+      expect(find.textContaining('Séance aujourd\'hui à'), findsOneWidget);
     });
   });
 }
