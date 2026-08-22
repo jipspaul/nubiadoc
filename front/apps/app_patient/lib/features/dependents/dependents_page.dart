@@ -605,6 +605,13 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
   final _email = TextEditingController();
   DependentRelationship _relationship = DependentRelationship.enfant;
 
+  /// Périmètre proposé par le demandeur pour une invitation proche adulte —
+  /// point de départ que l'invité pourra restreindre à l'acceptation (note 2
+  /// de la maquette, cf. `_AdjustScopeCard` dans `incoming_request_page.dart`).
+  bool _scopeAppointments = true;
+  bool _scopeDocuments = true;
+  bool _scopeMessages = false;
+
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
   bool get _emailValid => _emailRe.hasMatch(_email.text.trim());
 
@@ -639,86 +646,217 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
         top: 24,
         bottom: MediaQuery.of(context).viewInsets.bottom + 24,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Ajouter un proche', style: theme.textTheme.titleMedium),
-          if (_isInvitation) ...[
-            const SizedBox(height: 2),
-            Text(
-              'Un adulte doit accepter votre demande',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: tokens.textTertiary),
-            ),
-          ],
-          const SizedBox(height: 16),
-          NubiaTextField(
-            key: const Key('dependent_first_name'),
-            controller: _firstName,
-            label: 'Prénom',
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 12),
-          NubiaTextField(
-            key: const Key('dependent_last_name'),
-            controller: _lastName,
-            label: 'Nom',
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<DependentRelationship>(
-            key: const Key('dependent_relationship'),
-            initialValue: _relationship,
-            decoration: const InputDecoration(
-              labelText: 'Lien',
-              border: OutlineInputBorder(),
-            ),
-            items: const [
-              DropdownMenuItem(
-                  value: DependentRelationship.enfant, child: Text('Enfant')),
-              DropdownMenuItem(
-                  value: DependentRelationship.conjoint,
-                  child: Text('Conjoint')),
-              DropdownMenuItem(
-                  value: DependentRelationship.autre, child: Text('Proche')),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Ajouter un proche', style: theme.textTheme.titleMedium),
+            if (_isInvitation) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Un adulte doit accepter votre demande',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: tokens.textTertiary),
+              ),
             ],
-            onChanged: (v) =>
-                setState(() => _relationship = v ?? _relationship),
-          ),
-          if (_isInvitation) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             NubiaTextField(
-              key: const Key('dependent_email'),
-              controller: _email,
-              label: 'E-mail',
+              key: const Key('dependent_first_name'),
+              controller: _firstName,
+              label: 'Prénom',
               onChanged: (_) => setState(() {}),
             ),
-          ],
-          const SizedBox(height: 24),
-          NubiaButton(
-            key: const Key('save_dependent_button'),
-            label: _isInvitation ? 'Envoyer la demande' : 'Ajouter',
-            icon: _isInvitation ? Icons.send : null,
-            onPressed: !_valid
-                ? null
-                : () {
-                    context.read<DependentsCubit>().add(
-                          firstName: _firstName.text.trim(),
-                          lastName: _lastName.text.trim(),
-                          relationship: _relationship,
-                        );
-                    Navigator.pop(context);
-                  },
-          ),
-          if (_isInvitation) ...[
             const SizedBox(height: 12),
-            _InvitationReassuranceNotice(
-              firstName: _firstName.text.trim(),
+            NubiaTextField(
+              key: const Key('dependent_last_name'),
+              controller: _lastName,
+              label: 'Nom',
+              onChanged: (_) => setState(() {}),
             ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<DependentRelationship>(
+              key: const Key('dependent_relationship'),
+              initialValue: _relationship,
+              decoration: const InputDecoration(
+                labelText: 'Lien',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(
+                    value: DependentRelationship.enfant, child: Text('Enfant')),
+                DropdownMenuItem(
+                    value: DependentRelationship.conjoint,
+                    child: Text('Conjoint')),
+                DropdownMenuItem(
+                    value: DependentRelationship.autre, child: Text('Proche')),
+              ],
+              onChanged: (v) =>
+                  setState(() => _relationship = v ?? _relationship),
+            ),
+            if (_isInvitation) ...[
+              const SizedBox(height: 12),
+              NubiaTextField(
+                key: const Key('dependent_email'),
+                controller: _email,
+                label: 'E-mail',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+              _ProposedScopeCard(
+                appointments: _scopeAppointments,
+                documents: _scopeDocuments,
+                messages: _scopeMessages,
+                onAppointmentsChanged: (v) =>
+                    setState(() => _scopeAppointments = v),
+                onDocumentsChanged: (v) => setState(() => _scopeDocuments = v),
+                onMessagesChanged: (v) => setState(() => _scopeMessages = v),
+              ),
+            ],
+            const SizedBox(height: 24),
+            NubiaButton(
+              key: const Key('save_dependent_button'),
+              label: _isInvitation ? 'Envoyer la demande' : 'Ajouter',
+              icon: _isInvitation ? Icons.send : null,
+              onPressed: !_valid
+                  ? null
+                  : () {
+                      context.read<DependentsCubit>().add(
+                            firstName: _firstName.text.trim(),
+                            lastName: _lastName.text.trim(),
+                            relationship: _relationship,
+                          );
+                      Navigator.pop(context);
+                    },
+            ),
+            if (_isInvitation) ...[
+              const SizedBox(height: 12),
+              _InvitationReassuranceNotice(
+                firstName: _firstName.text.trim(),
+              ),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Carte « Ce que vous pourrez faire » (maquette design-v2, #5248) : le
+/// périmètre proposé par le demandeur pour l'invitation d'un proche adulte.
+class _ProposedScopeCard extends StatelessWidget {
+  const _ProposedScopeCard({
+    required this.appointments,
+    required this.documents,
+    required this.messages,
+    required this.onAppointmentsChanged,
+    required this.onDocumentsChanged,
+    required this.onMessagesChanged,
+  });
+
+  final bool appointments;
+  final bool documents;
+  final bool messages;
+  final ValueChanged<bool> onAppointmentsChanged;
+  final ValueChanged<bool> onDocumentsChanged;
+  final ValueChanged<bool> onMessagesChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return NubiaCard(
+      key: const Key('proposed_scope_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'CE QUE VOUS POURREZ FAIRE',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _ScopeRow(
+            rowKey: const Key('proposed_scope_toggle_appointments'),
+            icon: Icons.event_available,
+            title: 'Ses rendez-vous',
+            subtitle: 'Voir, prendre, annuler',
+            value: appointments,
+            onChanged: onAppointmentsChanged,
+          ),
+          const SizedBox(height: 12),
+          _ScopeRow(
+            rowKey: const Key('proposed_scope_toggle_documents'),
+            icon: Icons.folder,
+            title: 'Ses documents',
+            subtitle: 'Ordonnances, devis, factures',
+            value: documents,
+            onChanged: onDocumentsChanged,
+          ),
+          const SizedBox(height: 12),
+          _ScopeRow(
+            rowKey: const Key('proposed_scope_toggle_messages'),
+            icon: Icons.chat_bubble,
+            title: 'Ses messages avec le cabinet',
+            value: messages,
+            onChanged: onMessagesChanged,
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Ligne icône + titre (+ sous-titre optionnel) + [NubiaToggle], utilisée par
+/// [_ProposedScopeCard].
+class _ScopeRow extends StatelessWidget {
+  const _ScopeRow({
+    required this.rowKey,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final Key rowKey;
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: tokens.textTertiary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: theme.textTheme.bodyLarge),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle!,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: tokens.textTertiary),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        NubiaToggle(key: rowKey, value: value, onChanged: onChanged),
+      ],
     );
   }
 }
