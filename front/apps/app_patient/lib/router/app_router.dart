@@ -265,7 +265,27 @@ class AppRouter {
               ..add(const FinancialLoadRequested()),
             child: Scaffold(
               appBar: AppBar(
-                title: const Text('Mes devis'),
+                leading: BlocBuilder<FinancialBloc, FinancialState>(
+                  builder: (context, state) {
+                    if (state is FinancialQuoteDetail) {
+                      return IconButton(
+                        key: const Key('btn_appbar_back'),
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => context
+                            .read<FinancialBloc>()
+                            .add(const FinancialBackToList()),
+                      );
+                    }
+                    return const BackButton();
+                  },
+                ),
+                title: BlocBuilder<FinancialBloc, FinancialState>(
+                  builder: (context, state) => Text(
+                    state is FinancialQuoteDetail
+                        ? 'Plan de soins'
+                        : 'Mes devis',
+                  ),
+                ),
                 actions: [
                   BlocBuilder<FinancialBloc, FinancialState>(
                     builder: (context, state) {
