@@ -124,6 +124,8 @@ final _planWithCoverageStates = PatientTreatmentPlan(
       position: 1,
       title: 'Assainissement',
       status: 'done',
+      description:
+          'Détartrage complet et soin d\'une carie sur la dent 26.',
       items: const [
         PatientTreatmentPlanItem(
           label: 'Détartrage',
@@ -554,6 +556,47 @@ void main() {
 
       expect(find.text('Réalisée le 22 juillet'), findsOneWidget);
       expect(find.textContaining('Séance aujourd\'hui à'), findsOneWidget);
+    });
+
+    testWidgets(
+        'texte .wh — phrase en langue patient sous le titre quand fournie '
+        'par la donnée (#5297)', (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientTreatmentPlanDetailLoaded(_planWithCoverageStates));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(
+        find.text('Détartrage complet et soin d\'une carie sur la dent 26.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'phase sans description — aucun texte .wh affiché (#5297)',
+        (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state)
+          .thenReturn(const PatientTreatmentPlanDetailLoaded(_planDetail));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(_planDetail.phases.every((p) => p.description == null), isTrue);
+      expect(
+        find.text('Détartrage complet et soin d\'une carie sur la dent 26.'),
+        findsNothing,
+      );
     });
   });
 }
