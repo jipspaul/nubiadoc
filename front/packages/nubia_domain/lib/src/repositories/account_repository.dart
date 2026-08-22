@@ -36,6 +36,43 @@ abstract class AccountRepository {
 
   Future<Either<Failure, void>> deleteDependent(String id);
 
+  /// GET /v1/account/access-requests — demandes d'accès (invitations proche
+  /// adulte) envoyées par ce compte, tous statuts confondus.
+  Future<Either<Failure, List<AccessRequest>>> getAccessRequests();
+
+  /// POST /v1/account/access-requests — invite un proche adulte
+  /// (conjoint/autre) avec le périmètre de droits accordé.
+  Future<Either<Failure, AccessRequest>> sendAccessRequest({
+    required String firstName,
+    required String lastName,
+    required DependentRelationship relationship,
+    required AccessRequestChannel channel,
+    required Set<AccessRight> scope,
+    String? email,
+    String? phone,
+  });
+
+  /// POST /v1/account/access-requests/{id}/resend — relance une demande
+  /// `envoyee` (renvoi du canal, pas de changement de périmètre).
+  Future<Either<Failure, AccessRequest>> resendAccessRequest(String id);
+
+  /// DELETE /v1/account/access-requests/{id} — annule une demande envoyée,
+  /// côté invitant.
+  Future<Either<Failure, void>> cancelAccessRequest(String id);
+
+  /// POST /v1/account/access-requests/{id}/accept — accepte une invitation
+  /// reçue, côté invité.
+  Future<Either<Failure, AccessRequest>> acceptAccessRequest(String id);
+
+  /// POST /v1/account/access-requests/{id}/refuse — refuse une invitation
+  /// reçue, côté invité.
+  Future<Either<Failure, AccessRequest>> refuseAccessRequest(String id);
+
+  /// POST /v1/account/access-requests/{id}/revoke — révoque un accès déjà
+  /// accordé, côté invité. Distinct de [deleteDependent], qui reste la
+  /// révocation côté gestionnaire d'un dépendant enfant.
+  Future<Either<Failure, void>> revokeAccess(String id);
+
   /// Upload a coverage card image (recto or verso).
   ///
   /// Returns the created document id on success.
