@@ -138,6 +138,91 @@ class DependentDto {
   }
 }
 
+class AccessRequestDto {
+  final String id;
+  final String firstName;
+  final String lastName;
+  final String relationship;
+  final String status;
+  final String channel;
+  final List<String> scope;
+  final String? sentAt;
+  final String? revokedAt;
+
+  const AccessRequestDto({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.relationship,
+    required this.status,
+    required this.channel,
+    this.scope = const [],
+    this.sentAt,
+    this.revokedAt,
+  });
+
+  factory AccessRequestDto.fromJson(Map<String, dynamic> json) =>
+      AccessRequestDto(
+        id: json['id'] as String,
+        firstName: json['first_name'] as String,
+        lastName: json['last_name'] as String,
+        relationship: json['relationship'] as String? ?? 'autre',
+        status: json['status'] as String,
+        channel: json['channel'] as String,
+        scope: (json['scope'] as List<dynamic>? ?? const [])
+            .cast<String>(),
+        sentAt: json['sent_at'] as String?,
+        revokedAt: json['revoked_at'] as String?,
+      );
+
+  AccessRequest toDomain() => AccessRequest(
+        id: id,
+        firstName: firstName,
+        lastName: lastName,
+        relationship: DependentDto._relationshipFromString(relationship),
+        status: _statusFromString(status),
+        channel: _channelFromString(channel),
+        grantedScope: scope.map(_rightFromString).toSet(),
+        sentAt: sentAt != null ? DateTime.tryParse(sentAt!) : null,
+        revokedAt: revokedAt != null ? DateTime.tryParse(revokedAt!) : null,
+      );
+
+  static AccessRequestStatus _statusFromString(String value) {
+    switch (value) {
+      case 'acceptee':
+        return AccessRequestStatus.acceptee;
+      case 'refusee':
+        return AccessRequestStatus.refusee;
+      case 'expiree':
+        return AccessRequestStatus.expiree;
+      default:
+        return AccessRequestStatus.envoyee;
+    }
+  }
+
+  static AccessRequestChannel _channelFromString(String value) {
+    switch (value) {
+      case 'sms':
+        return AccessRequestChannel.sms;
+      default:
+        return AccessRequestChannel.email;
+    }
+  }
+
+  static AccessRight _rightFromString(String value) {
+    switch (value) {
+      case 'documents':
+        return AccessRight.documents;
+      case 'ordonnances':
+        return AccessRight.ordonnances;
+      case 'dossier_medical':
+        return AccessRight.dossierMedical;
+      default:
+        return AccessRight.rendezVous;
+    }
+  }
+}
+
 class ConsentDto {
   final String purpose;
   final bool granted;

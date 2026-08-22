@@ -4,6 +4,19 @@ enum HealthInsuranceRegime { regimeGeneral, ame, css }
 
 enum DependentRelationship { enfant, conjoint, autre }
 
+/// État d'une demande d'accès entre adultes (invitation « proche »).
+///
+/// Distinct de [DependentRelationship], qui est CONSERVÉ : un enfant reste
+/// ajouté directement ([Dependent], pas de workflow d'invitation), seul un
+/// proche adulte (conjoint/autre) passe par une [AccessRequest].
+enum AccessRequestStatus { envoyee, acceptee, refusee, expiree }
+
+/// Canal d'envoi de l'invitation.
+enum AccessRequestChannel { email, sms }
+
+/// Un droit du périmètre accordé par le proche invité à l'invitant.
+enum AccessRight { rendezVous, documents, ordonnances, dossierMedical }
+
 class HealthCoverage extends Equatable {
   final HealthInsuranceRegime regime;
   final String? insuranceName;
@@ -41,6 +54,38 @@ class Dependent extends Equatable {
     this.dateOfBirth,
     required this.relationship,
     this.coverage,
+  });
+
+  String get displayName => '$firstName $lastName';
+
+  @override
+  List<Object?> get props => [id];
+}
+
+/// Demande d'accès entre adultes (« proche ») : socle domaine des écrans
+/// « En attente » et « Décider ». Sœur de [Dependent] — un enfant est
+/// ajouté directement, un proche adulte passe par ce workflow d'invitation.
+class AccessRequest extends Equatable {
+  final String id;
+  final String firstName;
+  final String lastName;
+  final DependentRelationship relationship;
+  final AccessRequestStatus status;
+  final AccessRequestChannel channel;
+  final Set<AccessRight> grantedScope;
+  final DateTime? sentAt;
+  final DateTime? revokedAt;
+
+  const AccessRequest({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.relationship,
+    required this.status,
+    required this.channel,
+    this.grantedScope = const {},
+    this.sentAt,
+    this.revokedAt,
   });
 
   String get displayName => '$firstName $lastName';

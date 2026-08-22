@@ -140,6 +140,110 @@ class AccountRepositoryImpl implements AccountRepository {
   }
 
   @override
+  Future<Either<Failure, List<AccessRequest>>> getAccessRequests() async {
+    try {
+      final dtos = await _api.getAccessRequests();
+      return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, AccessRequest>> sendAccessRequest({
+    required String firstName,
+    required String lastName,
+    required DependentRelationship relationship,
+    required AccessRequestChannel channel,
+    required Set<AccessRight> scope,
+    String? email,
+    String? phone,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'first_name': firstName,
+        'last_name': lastName,
+        'relationship': _relationshipToString(relationship),
+        'channel': _channelToString(channel),
+        'scope': scope.map(_rightToString).toList(),
+        if (email != null) 'email': email,
+        if (phone != null) 'phone': phone,
+      };
+      final dto = await _api.sendAccessRequest(body);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, AccessRequest>> resendAccessRequest(
+      String id) async {
+    try {
+      final dto = await _api.resendAccessRequest(id);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> cancelAccessRequest(String id) async {
+    try {
+      await _api.cancelAccessRequest(id);
+      return const Right(null);
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, AccessRequest>> acceptAccessRequest(
+      String id) async {
+    try {
+      final dto = await _api.acceptAccessRequest(id);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, AccessRequest>> refuseAccessRequest(
+      String id) async {
+    try {
+      final dto = await _api.refuseAccessRequest(id);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> revokeAccess(String id) async {
+    try {
+      await _api.revokeAccess(id);
+      return const Right(null);
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, String>> uploadCoverageCard({
     required String filePath,
     required String mimeType,
@@ -318,6 +422,28 @@ class AccountRepositoryImpl implements AccountRepository {
         return 'conjoint';
       case DependentRelationship.autre:
         return 'autre';
+    }
+  }
+
+  static String _channelToString(AccessRequestChannel channel) {
+    switch (channel) {
+      case AccessRequestChannel.email:
+        return 'email';
+      case AccessRequestChannel.sms:
+        return 'sms';
+    }
+  }
+
+  static String _rightToString(AccessRight right) {
+    switch (right) {
+      case AccessRight.rendezVous:
+        return 'rendez_vous';
+      case AccessRight.documents:
+        return 'documents';
+      case AccessRight.ordonnances:
+        return 'ordonnances';
+      case AccessRight.dossierMedical:
+        return 'dossier_medical';
     }
   }
 
