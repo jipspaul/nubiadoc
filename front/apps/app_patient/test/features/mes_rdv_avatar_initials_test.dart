@@ -16,6 +16,9 @@ class MockMesRdvBloc extends MockBloc<MesRdvEvent, MesRdvState>
 void main() {
   // #3419 — les initiales de l'avatar « Mes RDV » ne doivent pas inclure le
   // préfixe de civilité : « Dr Amélie Dubois » → « AD » (et non « DD »).
+  // #5261 : l'avatar d'initiales n'est plus affiché sur une carte « à venir »
+  // (remplacé par le rail de date) — il subsiste sur l'historique, d'où un
+  // RDV passé ici.
   testWidgets('avatar « Mes RDV » : « Dr Amélie Dubois » → initiales « AD »',
       (tester) async {
     final appt = Appointment(
@@ -23,17 +26,17 @@ void main() {
       cabinetId: 'cab-1',
       practitionerName: 'Dr Amélie Dubois',
       practitionerSpecialty: 'Dentiste',
-      startsAt: DateTime.now().add(const Duration(days: 2)),
+      startsAt: DateTime.now().subtract(const Duration(days: 2)),
       duration: const Duration(minutes: 30),
       motif: 'Détartrage',
-      status: AppointmentStatus.confirmed,
+      status: AppointmentStatus.completed,
     );
 
     final bloc = MockMesRdvBloc();
     whenListen(
       bloc,
       const Stream<MesRdvState>.empty(),
-      initialState: MesRdvLoaded(upcoming: [appt], history: const []),
+      initialState: MesRdvLoaded(upcoming: const [], history: [appt]),
     );
 
     GetIt.instance.registerFactory<MesRdvBloc>(() => bloc);
@@ -45,6 +48,9 @@ void main() {
         home: const Scaffold(body: MesRdvPage()),
       ),
     );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Historique'));
     await tester.pumpAndSettle();
 
     expect(find.text('AD'), findsOneWidget);
