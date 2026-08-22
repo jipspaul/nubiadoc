@@ -66,18 +66,59 @@ class _DependentsBody extends StatelessWidget {
               subtitle: 'Ajoutez un enfant ou un proche que vous gérez.',
             );
           }
-          return ListView.separated(
-            key: const Key('dependents_list'),
-            itemCount: state.dependents.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (_, i) => _DependentTile(
-              dependent: state.dependents[i],
-              disabled: state.mutating,
-            ),
+          return Column(
+            children: [
+              Expanded(
+                child: ListView.separated(
+                  key: const Key('dependents_list'),
+                  itemCount: state.dependents.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) => _DependentTile(
+                    dependent: state.dependents[i],
+                    disabled: state.mutating,
+                  ),
+                ),
+              ),
+              if (state.hasPendingAccessRequest)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: _ExpiryNotice(),
+                ),
+            ],
           );
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// Encart « info » sous la liste des demandes envoyées, rappelant
+/// l'expiration à 30 jours d'une invitation proche adulte sans réponse.
+class _ExpiryNotice extends StatelessWidget {
+  const _ExpiryNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return NubiaCard(
+      key: const Key('access_request_expiry_notice'),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.schedule, size: 18, color: tokens.textTertiary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Une demande sans réponse expire au bout de 30 jours. '
+              'Vous pourrez en envoyer une nouvelle.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: tokens.textTertiary),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

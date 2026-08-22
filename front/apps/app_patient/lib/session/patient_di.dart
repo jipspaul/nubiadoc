@@ -173,6 +173,7 @@ void registerPatient(GetIt gi) {
   gi.registerFactory<DependentsCubit>(
     () => DependentsCubit(
       list: gi<ListDependentsUseCase>(),
+      listAccessRequests: gi<ListAccessRequestsUseCase>(),
       add: gi<AddDependentUseCase>(),
       remove: gi<DeleteDependentUseCase>(),
     ),
