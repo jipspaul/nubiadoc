@@ -47,3 +47,8 @@ const _months = [
 /// « devis en attente » de la carte de phase (#5300).
 String formatTreatmentPlanDayMonth(DateTime dt) =>
     '${dt.day} ${_months[dt.month - 1]}';
+
+/// Formate une heure en « HH:mm » (ex. « 14:30 ») — ligne date/échéance de
+/// la carte de phase (#5298).
+String formatTreatmentPlanTime(DateTime dt) =>
+    '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
