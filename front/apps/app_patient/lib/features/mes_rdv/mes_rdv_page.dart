@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -607,7 +608,14 @@ class _AppointmentCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                NubiaAvatar(initials: _initials(appointment.practitionerName)),
+                // #5261 : le rail de date (jour/n°/heure) remplace l'avatar
+                // d'initiales comme repère visuel primaire sur une carte
+                // à venir — la variante « passée » (`.rail.past`) est traitée
+                // par un autre ticket, l'historique garde donc l'avatar ici.
+                isHistory
+                    ? NubiaAvatar(
+                        initials: _initials(appointment.practitionerName))
+                    : _DateRail(startsAt: appointment.startsAt),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -762,6 +770,79 @@ class _AppointmentCard extends StatelessWidget {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '${weekdays[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]} à $h:$m';
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Rail de date (maquette design-v2, issue #5261) : remplace l'avatar
+/// d'initiales en tête de carte « à venir » — jour abrégé / n° du jour /
+/// heure empilés, 52px de large, radius 13, fond `brand50`, bordure
+/// `brand100`, texte `brand700`. Jour et heure dérivés de `startsAt.toLocal()`
+/// (jamais UTC, cf. #4620/#4618). La variante passée (`.rail.past`) est hors
+/// scope, cf. [_AppointmentCard].
+class _DateRail extends StatelessWidget {
+  const _DateRail({required this.startsAt});
+  final DateTime startsAt;
+
+  static const _weekdaysAbbrev = [
+    'Lun',
+    'Mar',
+    'Mer',
+    'Jeu',
+    'Ven',
+    'Sam',
+    'Dim',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final local = startsAt.toLocal();
+    final day = _weekdaysAbbrev[local.weekday - 1].toUpperCase();
+    final number = local.day.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return Container(
+      width: 52,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: BoxDecoration(
+        color: NubiaColors.brand50,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: NubiaColors.brand100),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            day,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.6,
+              color: NubiaColors.brand700.withValues(alpha: 0.75),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            number,
+            style: GoogleFonts.fraunces(
+              fontSize: 23,
+              fontWeight: FontWeight.w600,
+              color: NubiaColors.brand700,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '$hour:$minute',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: NubiaColors.brand700,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
