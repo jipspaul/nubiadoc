@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../../router/app_router.dart';
 import '../financial_bloc.dart';
 import '../financial_event.dart';
 import '../financial_state.dart';
@@ -62,7 +64,11 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                 ),
                 const SizedBox(height: 20),
                 if (hasRac0Alternative) ...[
-                  const _Rac0AlternativeBanner(),
+                  _Rac0AlternativeBanner(
+                    count: quote.items
+                        .where((i) => i.panierSante == PanierSante.modere)
+                        .length,
+                  ),
                   const SizedBox(height: 12),
                 ],
                 // Détail des actes.
@@ -171,22 +177,35 @@ class PanierBadge extends StatelessWidget {
 
 /// Encart obligatoire (obligation conventionnelle) : rappelle qu'une
 /// alternative reste-à-charge zéro existe dès qu'un acte du devis est
-/// classifié `modere` (#4061).
+/// classifié `modere` (#4061). Teinté `warning` avec action « En parler au
+/// praticien » vers la messagerie, au lieu d'une phrase sans issue (#5237,
+/// maquette `design/v2-screens/patient-facturation.png`).
 class _Rac0AlternativeBanner extends StatelessWidget {
-  const _Rac0AlternativeBanner();
+  const _Rac0AlternativeBanner({required this.count});
+
+  final int count;
+
+  static const _titleColor = Color(0xFF78350F);
+  static const _bodyColor = Color(0xFF92400E);
+  static const _chipBorderColor = Color(0xFFFCD34D);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final tokens = theme.extension<NubiaTokens>()!;
 
-    return NubiaCard(
+    return Container(
       key: const Key('rac0_alternative_banner'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: tokens.warningBg,
+        border: Border.all(color: NubiaColors.warningBorder),
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, size: 20, color: tokens.primarySubtleFg),
+          Icon(Icons.savings, size: 20, color: tokens.warningFg),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -194,15 +213,51 @@ class _Rac0AlternativeBanner extends StatelessWidget {
               children: [
                 Text(
                   'Alternative reste à charge zéro disponible',
-                  style:
-                      theme.textTheme.labelLarge?.copyWith(color: cs.onSurface),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: _titleColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Un ou plusieurs actes de ce devis disposent d\'une option '
-                  '100% Santé (RAC 0). Parlez-en à votre praticien.',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
+                  count <= 1
+                      ? 'Un acte de ce devis a une option 100 % Santé.'
+                      : '$count actes de ce devis ont une option 100 % Santé.',
+                  style:
+                      theme.textTheme.bodySmall?.copyWith(color: _bodyColor),
+                ),
+                const SizedBox(height: 10),
+                Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    key: const Key('rac0_alternative_banner_cta'),
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => context.push(AppRouter.messaging),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _chipBorderColor),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.chat_bubble,
+                              size: 14, color: _titleColor),
+                          const SizedBox(width: 6),
+                          Text(
+                            'En parler au praticien',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: _titleColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
