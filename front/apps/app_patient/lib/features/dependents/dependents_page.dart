@@ -696,6 +696,8 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
             ),
             if (_isInvitation) ...[
               const SizedBox(height: 12),
+              const _WhyRequestNotice(),
+              const SizedBox(height: 12),
               NubiaTextField(
                 key: const Key('dependent_email'),
                 controller: _email,
@@ -860,6 +862,54 @@ class _ScopeRow extends StatelessWidget {
         const SizedBox(width: 12),
         NubiaToggle(key: rowKey, value: value, onChanged: onChanged),
       ],
+    );
+  }
+}
+
+/// Encart « Pourquoi une demande ? » sous le sélecteur de lien, expliquant
+/// pourquoi un proche adulte (conjoint/autre) passe par une invitation
+/// alors qu'un enfant mineur est ajouté directement (maquette design-v2,
+/// patient-invitation-proche-adulte, #5246).
+class _WhyRequestNotice extends StatelessWidget {
+  const _WhyRequestNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return NubiaCard(
+      key: const Key('why_request_notice'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.handshake, size: 20, color: NubiaColors.brand700),
+              const SizedBox(width: 8),
+              Text('Pourquoi une demande ?', style: theme.textTheme.titleSmall),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text.rich(
+            TextSpan(
+              style: theme.textTheme.bodySmall,
+              children: const [
+                TextSpan(
+                  text: 'Vous gérez un enfant mineur de plein droit. Pour un '
+                      'adulte, la loi exige ',
+                ),
+                TextSpan(
+                  text: 'son accord',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                TextSpan(
+                  text: ' : nous lui envoyons une demande qu\'il peut '
+                      'accepter ou refuser.',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
