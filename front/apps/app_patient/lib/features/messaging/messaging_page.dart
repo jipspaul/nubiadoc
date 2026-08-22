@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -108,7 +109,7 @@ class _ConversationsList extends StatelessWidget {
           ),
           unread: conv.unreadCount > 0,
           trailing: _Trailing(
-            timestamp: lastAt != null ? _formatTimestamp(lastAt) : null,
+            timestamp: lastAt != null ? NubiaDate.relative(lastAt) : null,
             urgent: last?.urgency == MessageUrgency.urgent,
           ),
           onTap: () =>
@@ -133,38 +134,6 @@ class _ConversationsList extends StatelessWidget {
           : '$unreadCount nouveaux messages';
     }
     return 'Appuyez pour ouvrir la conversation';
-  }
-
-  String _formatTimestamp(DateTime utc) {
-    // #3856 : `dt` vient de DateTime.parse() sur un ISO avec offset +00:00→
-    // isUtc == true. Lire .hour/.minute bruts affichait l'heure UTC au lieu
-    // de l'heure locale (-2h en été/-1h en hiver pour Europe/Paris) ; la
-    // comparaison sameDay confrontait aussi un instant UTC à un
-    // DateTime.now() local, faussée autour de minuit.
-    final dt = utc.toLocal();
-    const months = [
-      'jan',
-      'fév',
-      'mar',
-      'avr',
-      'mai',
-      'jun',
-      'jul',
-      'aoû',
-      'sep',
-      'oct',
-      'nov',
-      'déc',
-    ];
-    final now = DateTime.now();
-    final sameDay =
-        dt.year == now.year && dt.month == now.month && dt.day == now.day;
-    if (sameDay) {
-      final h = dt.hour.toString().padLeft(2, '0');
-      final m = dt.minute.toString().padLeft(2, '0');
-      return '$h:$m';
-    }
-    return '${dt.day} ${months[dt.month - 1]}';
   }
 }
 

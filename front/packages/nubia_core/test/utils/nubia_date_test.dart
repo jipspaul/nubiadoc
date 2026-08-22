@@ -54,4 +54,41 @@ void main() {
       );
     });
   });
+
+  group('NubiaDate.relative', () {
+    test('même jour → HH:mm (heure locale, minutes sur 2 chiffres)', () {
+      final now = DateTime(2026, 8, 17, 14, 30);
+      expect(
+        NubiaDate.relative(DateTime(2026, 8, 17, 9, 4), now: now),
+        '09:04',
+      );
+    });
+
+    test('jour antérieur → "<jour> <mois abrégé>"', () {
+      final now = DateTime(2026, 8, 17, 14, 30);
+      expect(
+        NubiaDate.relative(DateTime(2026, 8, 8, 23, 0), now: now),
+        '8 aoû',
+      );
+    });
+
+    test('convertit en heure locale avant de comparer (bug UTC #3856)', () {
+      // 23h UTC = jour suivant en UTC+2 (Europe/Paris, été) : ne doit pas
+      // être confondu avec "aujourd'hui" côté serveur.
+      final utc = DateTime.utc(2026, 8, 16, 23, 30);
+      final localSameDay = utc.toLocal();
+      final now = DateTime(
+        localSameDay.year,
+        localSameDay.month,
+        localSameDay.day,
+        23,
+        59,
+      );
+      expect(
+        NubiaDate.relative(utc, now: now),
+        '${localSameDay.hour.toString().padLeft(2, '0')}:'
+        '${localSameDay.minute.toString().padLeft(2, '0')}',
+      );
+    });
+  });
 }

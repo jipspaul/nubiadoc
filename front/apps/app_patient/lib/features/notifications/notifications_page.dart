@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -266,11 +267,28 @@ class _NotificationTile extends StatelessWidget {
         ),
         child: Icon(_iconFor(notification.type), color: foreground, size: 20),
       ),
-      title: Text(
-        notification.title,
-        style: TextStyle(
-          fontWeight: notification.read ? FontWeight.normal : FontWeight.bold,
-        ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              notification.title,
+              style: TextStyle(
+                fontWeight:
+                    notification.read ? FontWeight.normal : FontWeight.bold,
+              ),
+            ),
+          ),
+          Text(
+            NubiaDate.relative(notification.createdAt),
+            style: TextStyle(
+              fontSize: 11.5,
+              color:
+                  notification.read ? NubiaColors.n500 : NubiaColors.brand700,
+              fontWeight:
+                  notification.read ? FontWeight.normal : FontWeight.bold,
+            ),
+          ),
+        ],
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
