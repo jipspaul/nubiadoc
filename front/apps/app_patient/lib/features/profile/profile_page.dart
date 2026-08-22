@@ -194,7 +194,11 @@ class _ProfileContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        const _SectionLabel(label: 'Notifications RDV'),
+        _SectionLabel(
+          label: 'Notifications RDV',
+          actionLabel: 'Toutes les préférences',
+          onActionTap: () => context.push(AppRouter.profileNotifications),
+        ),
         const SizedBox(height: 12),
         NubiaCard(
           child: Column(
@@ -283,13 +287,6 @@ class _ProfileContent extends StatelessWidget {
                 onTap: () => context.push(AppRouter.implantPassport),
               ),
               ListRow(
-                key: const Key('tile_notifications'),
-                leading: const Icon(Icons.notifications_outlined),
-                title: 'Préférences notifications',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push(AppRouter.profileNotifications),
-              ),
-              ListRow(
                 key: const Key('tile_pharmacy'),
                 leading: const Icon(Icons.local_pharmacy_outlined),
                 title: 'Ma pharmacie',
@@ -319,19 +316,44 @@ class _ProfileContent extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
+  const _SectionLabel({
+    required this.label,
+    this.actionLabel,
+    this.onActionTap,
+  });
 
   final String label;
+  final String? actionLabel;
+  final VoidCallback? onActionTap;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Text(
+    final textTheme = Theme.of(context).textTheme;
+    final title = Text(
       label,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: cs.onSurface,
-            fontWeight: FontWeight.w600,
+      style: textTheme.titleSmall?.copyWith(
+        color: cs.onSurface,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+    if (actionLabel == null) return title;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        title,
+        InkWell(
+          key: const Key('section_notifications_action'),
+          onTap: onActionTap,
+          child: Text(
+            '$actionLabel ›',
+            style: textTheme.labelLarge?.copyWith(
+              color: cs.primary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
+        ),
+      ],
     );
   }
 }
