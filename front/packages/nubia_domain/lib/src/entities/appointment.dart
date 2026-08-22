@@ -43,6 +43,10 @@ class Appointment extends Equatable {
   // rétrocompatible tant que l'API ne les expose pas.
   final bool hasReport;
   final int prescriptionCount;
+  // #5270 : montant de la facture (centimes) d'un RDV `completed` — null si
+  // le RDV n'est pas encore facturé ou si l'API ne l'expose pas (l'action
+  // « Facture · <montant> » reste masquée plutôt que d'inventer un montant).
+  final int? invoiceAmountCents;
 
   const Appointment({
     required this.id,
@@ -62,6 +66,7 @@ class Appointment extends Equatable {
     this.noShowFeeCents,
     this.hasReport = false,
     this.prescriptionCount = 0,
+    this.invoiceAmountCents,
   });
 
   bool get isUpcoming =>
