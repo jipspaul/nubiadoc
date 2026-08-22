@@ -27,6 +27,24 @@ class MockUserSettingsRepository extends Mock
 class MockNotificationRepository extends Mock
     implements NotificationRepository {}
 
+class MockGetPendingQuotesUseCase extends Mock
+    implements GetPendingQuotesUseCase {}
+
+class MockGetCoverageUseCase extends Mock implements GetCoverageUseCase {}
+
+class MockGetReferringDoctorUseCase extends Mock
+    implements GetReferringDoctorUseCase {}
+
+class MockListDependentsUseCase extends Mock
+    implements ListDependentsUseCase {}
+
+class MockListConsentsUseCase extends Mock implements ListConsentsUseCase {}
+
+class MockListImplantPassportUseCase extends Mock
+    implements ListImplantPassportUseCase {}
+
+class MockGetMyPharmacyUseCase extends Mock implements GetMyPharmacyUseCase {}
+
 class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
 // ---------------------------------------------------------------------------
@@ -57,12 +75,35 @@ ProfileBloc _makeBloc(
   MockUserSettingsRepository userSettings,
   MockNotificationRepository notifRepo, [
   MockUpdateAccountUseCase? updateAccount,
-]) =>
-    ProfileBloc(
-        getAccount: getAccount,
-        updateAccount: updateAccount ?? MockUpdateAccountUseCase(),
-        userSettings: userSettings,
-        notificationRepo: notifRepo);
+]) {
+  final getPendingQuotes = MockGetPendingQuotesUseCase();
+  final getCoverage = MockGetCoverageUseCase();
+  final getReferringDoctor = MockGetReferringDoctorUseCase();
+  final listDependents = MockListDependentsUseCase();
+  final listConsents = MockListConsentsUseCase();
+  final listImplants = MockListImplantPassportUseCase();
+  final getMyPharmacy = MockGetMyPharmacyUseCase();
+  when(() => getPendingQuotes()).thenAnswer((_) async => const Right([]));
+  when(() => getCoverage()).thenAnswer((_) async => const Right(
+      HealthCoverage(regime: HealthInsuranceRegime.regimeGeneral)));
+  when(() => getReferringDoctor()).thenAnswer((_) async => const Right(null));
+  when(() => listDependents()).thenAnswer((_) async => const Right([]));
+  when(() => listConsents()).thenAnswer((_) async => const Right([]));
+  when(() => listImplants()).thenAnswer((_) async => const Right([]));
+  when(() => getMyPharmacy()).thenAnswer((_) async => const Right(null));
+  return ProfileBloc(
+      getAccount: getAccount,
+      updateAccount: updateAccount ?? MockUpdateAccountUseCase(),
+      userSettings: userSettings,
+      notificationRepo: notifRepo,
+      getPendingQuotes: getPendingQuotes,
+      getCoverage: getCoverage,
+      getReferringDoctor: getReferringDoctor,
+      listDependents: listDependents,
+      listConsents: listConsents,
+      listImplants: listImplants,
+      getMyPharmacy: getMyPharmacy);
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -205,6 +246,155 @@ void main() {
       );
       expect(find.byKey(const Key('tile_financial')), findsOneWidget);
       expect(find.text('Mes devis & paiements'), findsOneWidget);
+    });
+
+    testWidgets(
+        'Mon compte : chaque tuile affiche sa valeur courante, issue de '
+        "l'état (#5232)", (tester) async {
+      when(() => mockGetAccount())
+          .thenAnswer((_) async => const Right(_account));
+
+      final getPendingQuotes = MockGetPendingQuotesUseCase();
+      final getCoverage = MockGetCoverageUseCase();
+      final getReferringDoctor = MockGetReferringDoctorUseCase();
+      final listDependents = MockListDependentsUseCase();
+      final listConsents = MockListConsentsUseCase();
+      final listImplants = MockListImplantPassportUseCase();
+      final getMyPharmacy = MockGetMyPharmacyUseCase();
+
+      when(() => getPendingQuotes()).thenAnswer((_) async => Right([
+            Quote(
+              id: 'q1',
+              cabinetId: 'c1',
+              practitionerName: 'Dr X',
+              items: [],
+              totalCents: 1000,
+              patientShareCents: 1000,
+              depositCents: 0,
+              status: QuoteStatus.sent,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ]));
+      when(() => getCoverage()).thenAnswer((_) async => const Right(
+          HealthCoverage(
+              regime: HealthInsuranceRegime.regimeGeneral,
+              insuranceName: 'Alan Santé')));
+      when(() => getReferringDoctor()).thenAnswer(
+          (_) async => const Right(ReferringDoctor(name: 'Dr Ferrand')));
+      when(() => listDependents()).thenAnswer((_) async => const Right([
+            Dependent(
+                id: 'd1',
+                firstName: 'Léo',
+                lastName: 'Dubois',
+                relationship: DependentRelationship.enfant),
+            Dependent(
+                id: 'd2',
+                firstName: 'Anna',
+                lastName: 'Dubois',
+                relationship: DependentRelationship.enfant),
+          ]));
+      when(() => listConsents()).thenAnswer((_) async => const Right([
+            Consent(purpose: 'p1', granted: true),
+            Consent(purpose: 'p2', granted: true),
+            Consent(purpose: 'p3', granted: true),
+            Consent(purpose: 'p4', granted: false),
+          ]));
+      when(() => listImplants()).thenAnswer((_) async => const Right([
+            ImplantItem(id: 'i1', brand: 'Nobel'),
+          ]));
+      when(() => getMyPharmacy()).thenAnswer((_) async =>
+          const Right(Pharmacy(id: 'ph1', name: 'du Théâtre')));
+
+      final bloc = ProfileBloc(
+        getAccount: mockGetAccount,
+        updateAccount: MockUpdateAccountUseCase(),
+        userSettings: mockUserSettings,
+        notificationRepo: mockNotifRepo,
+        getPendingQuotes: getPendingQuotes,
+        getCoverage: getCoverage,
+        getReferringDoctor: getReferringDoctor,
+        listDependents: listDependents,
+        listConsents: listConsents,
+        listImplants: listImplants,
+        getMyPharmacy: getMyPharmacy,
+      );
+      bloc.add(const ProfileLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('tile_pharmacy')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      expect(find.text('1 à signer'), findsOneWidget);
+      expect(find.text('Alan Santé'), findsOneWidget);
+      expect(find.text('Dr Ferrand'), findsOneWidget);
+      expect(find.text('2 comptes'), findsOneWidget);
+      expect(find.text('3 accordés'), findsOneWidget);
+      expect(find.text('1 implant'), findsOneWidget);
+      expect(find.text('du Théâtre'), findsOneWidget);
+    });
+
+    testWidgets(
+        'Mon compte : une valeur indisponible dégrade proprement — tuile '
+        'sans valeur, chevron conservé (#5232)', (tester) async {
+      when(() => mockGetAccount())
+          .thenAnswer((_) async => const Right(_account));
+
+      final getPendingQuotes = MockGetPendingQuotesUseCase();
+      final getCoverage = MockGetCoverageUseCase();
+      final getReferringDoctor = MockGetReferringDoctorUseCase();
+      final listDependents = MockListDependentsUseCase();
+      final listConsents = MockListConsentsUseCase();
+      final listImplants = MockListImplantPassportUseCase();
+      final getMyPharmacy = MockGetMyPharmacyUseCase();
+
+      when(() => getPendingQuotes()).thenAnswer((_) async => const Right([]));
+      when(() => getCoverage()).thenAnswer((_) async =>
+          const Left(NetworkFailure('Erreur réseau.')));
+      when(() => getReferringDoctor())
+          .thenAnswer((_) async => const Right(null));
+      when(() => listDependents()).thenAnswer((_) async => const Right([]));
+      when(() => listConsents()).thenAnswer((_) async => const Right([]));
+      when(() => listImplants()).thenAnswer((_) async => const Right([]));
+      when(() => getMyPharmacy()).thenAnswer((_) async => const Right(null));
+
+      final bloc = ProfileBloc(
+        getAccount: mockGetAccount,
+        updateAccount: MockUpdateAccountUseCase(),
+        userSettings: mockUserSettings,
+        notificationRepo: mockNotifRepo,
+        getPendingQuotes: getPendingQuotes,
+        getCoverage: getCoverage,
+        getReferringDoctor: getReferringDoctor,
+        listDependents: listDependents,
+        listConsents: listConsents,
+        listImplants: listImplants,
+        getMyPharmacy: getMyPharmacy,
+      );
+      bloc.add(const ProfileLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('tile_coverage')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+
+      expect(find.byKey(const Key('tile_coverage')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('tile_coverage')),
+          matching: find.byIcon(Icons.chevron_right),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Alan Santé'), findsNothing);
     });
 
     testWidgets('affiche un message d\'erreur en état error', (tester) async {

@@ -22,6 +22,24 @@ class MockUserSettingsRepository extends Mock
 class MockNotificationRepository extends Mock
     implements NotificationRepository {}
 
+class MockGetPendingQuotesUseCase extends Mock
+    implements GetPendingQuotesUseCase {}
+
+class MockGetCoverageUseCase extends Mock implements GetCoverageUseCase {}
+
+class MockGetReferringDoctorUseCase extends Mock
+    implements GetReferringDoctorUseCase {}
+
+class MockListDependentsUseCase extends Mock
+    implements ListDependentsUseCase {}
+
+class MockListConsentsUseCase extends Mock implements ListConsentsUseCase {}
+
+class MockListImplantPassportUseCase extends Mock
+    implements ListImplantPassportUseCase {}
+
+class MockGetMyPharmacyUseCase extends Mock implements GetMyPharmacyUseCase {}
+
 class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
 const _account = PatientAccount(
@@ -63,17 +81,40 @@ void main() {
   late MockUpdateAccountUseCase mockUpdateAccount;
   late MockUserSettingsRepository mockUserSettings;
   late MockNotificationRepository mockNotifRepo;
+  late MockGetPendingQuotesUseCase mockGetPendingQuotes;
+  late MockGetCoverageUseCase mockGetCoverage;
+  late MockGetReferringDoctorUseCase mockGetReferringDoctor;
+  late MockListDependentsUseCase mockListDependents;
+  late MockListConsentsUseCase mockListConsents;
+  late MockListImplantPassportUseCase mockListImplants;
+  late MockGetMyPharmacyUseCase mockGetMyPharmacy;
 
   setUp(() {
     mockGetAccount = MockGetAccountUseCase();
     mockUpdateAccount = MockUpdateAccountUseCase();
     mockUserSettings = MockUserSettingsRepository();
     mockNotifRepo = MockNotificationRepository();
+    mockGetPendingQuotes = MockGetPendingQuotesUseCase();
+    mockGetCoverage = MockGetCoverageUseCase();
+    mockGetReferringDoctor = MockGetReferringDoctorUseCase();
+    mockListDependents = MockListDependentsUseCase();
+    mockListConsents = MockListConsentsUseCase();
+    mockListImplants = MockListImplantPassportUseCase();
+    mockGetMyPharmacy = MockGetMyPharmacyUseCase();
     when(() => mockGetAccount()).thenAnswer((_) async => const Right(_account));
     when(() => mockUserSettings.getBiometricEnabled())
         .thenAnswer((_) async => false);
     when(() => mockNotifRepo.updatePreferences(any()))
         .thenAnswer((_) async => const Right(null));
+    when(() => mockGetPendingQuotes()).thenAnswer((_) async => const Right([]));
+    when(() => mockGetCoverage()).thenAnswer((_) async => const Right(
+        HealthCoverage(regime: HealthInsuranceRegime.regimeGeneral)));
+    when(() => mockGetReferringDoctor())
+        .thenAnswer((_) async => const Right(null));
+    when(() => mockListDependents()).thenAnswer((_) async => const Right([]));
+    when(() => mockListConsents()).thenAnswer((_) async => const Right([]));
+    when(() => mockListImplants()).thenAnswer((_) async => const Right([]));
+    when(() => mockGetMyPharmacy()).thenAnswer((_) async => const Right(null));
   });
 
   ProfileBloc makeBloc() => ProfileBloc(
@@ -81,6 +122,13 @@ void main() {
         updateAccount: mockUpdateAccount,
         userSettings: mockUserSettings,
         notificationRepo: mockNotifRepo,
+        getPendingQuotes: mockGetPendingQuotes,
+        getCoverage: mockGetCoverage,
+        getReferringDoctor: mockGetReferringDoctor,
+        listDependents: mockListDependents,
+        listConsents: mockListConsents,
+        listImplants: mockListImplants,
+        getMyPharmacy: mockGetMyPharmacy,
       );
 
   group('ProfilePage — Notifications RDV', () {
