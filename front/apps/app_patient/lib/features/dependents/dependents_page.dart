@@ -699,7 +699,10 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
               NubiaTextField(
                 key: const Key('dependent_email'),
                 controller: _email,
-                label: 'E-mail',
+                variant: NubiaTextFieldVariant.email,
+                label: 'Où lui envoyer la demande',
+                hint: 'emile.martin@email.fr',
+                borderRadius: 12,
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),

@@ -1,6 +1,8 @@
 // lib/presentation/widgets/nubia_text_field.dart
 import 'package:flutter/material.dart';
 
+import '../theme/nubia_colors.dart';
+
 /// Variantes du [NubiaTextField].
 enum NubiaTextFieldVariant {
   /// Bordure visible tout autour (Material OutlinedTextField).
@@ -24,6 +26,9 @@ enum NubiaTextFieldVariant {
   /// Champ téléphone : icône préfixe + clavier téléphone.
   phone,
 
+  /// Champ email : icône préfixe `mail` + clavier email.
+  email,
+
   /// Champ avec widget suffixe personnalisé (ex. unité, bouton).
   withSuffix,
 }
@@ -41,9 +46,9 @@ enum NubiaTextFieldVariant {
 ///   #4538 — un chat/composer doit pouvoir se soumettre ainsi, réflexe
 ///   universel). `null` par défaut : aucun changement de comportement pour
 ///   les champs existants qui ne le renseignent pas.
-/// - [borderRadius] : rayon du contour (variantes `outlined`/`multiline`
-///   uniquement, #4933). `null` par défaut : garde le rayon Material par
-///   défaut pour les champs existants qui ne le renseignent pas.
+/// - [borderRadius] : rayon du contour (variantes `outlined`/`multiline`/
+///   `email` uniquement, #4933). `null` par défaut : garde le rayon Material
+///   par défaut pour les champs existants qui ne le renseignent pas.
 class NubiaTextField extends StatefulWidget {
   const NubiaTextField({
     super.key,
@@ -108,6 +113,11 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
         return _buildTextField(
           decoration: _phone(context),
           keyboardType: TextInputType.phone,
+        );
+      case NubiaTextFieldVariant.email:
+        return _buildTextField(
+          decoration: _email(context),
+          keyboardType: TextInputType.emailAddress,
         );
       case NubiaTextFieldVariant.withSuffix:
         return _buildTextField(decoration: _withSuffix(context));
@@ -195,6 +205,17 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
     return _base(context).copyWith(
       border: const OutlineInputBorder(),
       prefixIcon: const Icon(Icons.phone_outlined),
+    );
+  }
+
+  InputDecoration _email(BuildContext context) {
+    return _base(context).copyWith(
+      prefixIcon: const Icon(Icons.mail, color: NubiaColors.n400),
+      border: OutlineInputBorder(
+        borderRadius: widget.borderRadius != null
+            ? BorderRadius.circular(widget.borderRadius!)
+            : const BorderRadius.all(Radius.circular(4)),
+      ),
     );
   }
 
