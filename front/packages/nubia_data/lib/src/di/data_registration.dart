@@ -408,6 +408,8 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetNotificationPreferencesUseCase(gi()))
     ..registerFactory(() => ListConsentsUseCase(gi()))
     ..registerFactory(() => ListDependentsUseCase(gi()))
+    ..registerFactory(() => AcceptAccessRequestUseCase(gi()))
+    ..registerFactory(() => RefuseAccessRequestUseCase(gi()))
     ..registerFactory(() => UploadCoverageCardUseCase(gi()))
     ..registerFactory(() => GetReferringDoctorUseCase(gi()))
     ..registerFactory(() => SetReferringDoctorUseCase(gi()))
