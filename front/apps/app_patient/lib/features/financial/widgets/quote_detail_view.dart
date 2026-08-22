@@ -9,6 +9,7 @@ import '../financial_bloc.dart';
 import '../financial_event.dart';
 import '../financial_state.dart';
 import 'financial_format_utils.dart';
+import 'ventilation_bar.dart';
 
 /// Détail d'un devis (actes, panier 100% Santé, acompte, signature) —
 /// extrait de `financial_page.dart` (#4061, CLAUDE.md plafond 700 lignes).
@@ -52,9 +53,9 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // En-tête montant : le montant héros suit le statut du devis
-                // (total avant signature, reste à charge après — #5235). La
-                // barre de ventilation (ticket dédié) porte désormais le
-                // bandeau reste-à-charge, retiré d'ici.
+                // (total avant signature, reste à charge après — #5235). Le
+                // détail du calcul Total → reste à charge est porté par la
+                // barre de ventilation ci-dessous (#5234).
                 if (quote.status == QuoteStatus.signed)
                   AmountHeader(
                     label: 'Reste à votre charge',
@@ -71,6 +72,8 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                         : 'Devis du ${formatQuoteDate(quote.createdAt)}',
                   ),
                 const SizedBox(height: 20),
+                VentilationBar(quote: quote),
+                const SizedBox(height: 12),
                 if (hasRac0Alternative) ...[
                   _Rac0AlternativeBanner(
                     count: quote.items

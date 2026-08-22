@@ -299,6 +299,86 @@ void main() {
     });
 
     testWidgets(
+        'affiche la barre de ventilation AMO/AMC/RAC avec segments '
+        'proportionnels et légende soustractive (#5234)', (tester) async {
+      when(() => mockGetPendingQuotes())
+          .thenAnswer((_) async => Right([_quoteWithModereItem]));
+      when(() => mockGetQuoteById(any()))
+          .thenAnswer((_) async => Right(_quoteWithModereItem));
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      bloc.add(const FinancialQuoteSelected('q-modere'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ventilation_bar')), findsOneWidget);
+
+      // Σ amoShareCents=10000, Σ amcShareCents=5000, RAC=patientShareCents=15000.
+      final amoSize =
+          tester.getSize(find.byKey(const Key('ventilation_segment_amo')));
+      final amcSize =
+          tester.getSize(find.byKey(const Key('ventilation_segment_amc')));
+      final racSize =
+          tester.getSize(find.byKey(const Key('ventilation_segment_rac')));
+      final totalWidth = amoSize.width + amcSize.width + racSize.width;
+
+      expect(amoSize.width / totalWidth, closeTo(10000 / 30000, 0.05));
+      expect(amcSize.width / totalWidth, closeTo(5000 / 30000, 0.05));
+      expect(racSize.width / totalWidth, closeTo(15000 / 30000, 0.05));
+
+      // Légende soustractive : AMO puis AMC jusqu'au reste à votre charge.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('ventilation_legend_amo')),
+          matching: find.text('Assurance Maladie (AMO)'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('ventilation_legend_amo')),
+          matching: find.text(formatQuoteCents(-10000)),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('ventilation_legend_amc')),
+          matching: find.text('Mutuelle'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('ventilation_legend_amc')),
+          matching: find.text(formatQuoteCents(-5000)),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Reste à votre charge'), findsOneWidget);
+      expect(
+        find.byKey(const Key('ventilation_rac_value')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('ventilation_rac_value')))
+            .data,
+        formatQuoteCents(_quoteWithModereItem.patientShareCents),
+      );
+    });
+
+    testWidgets(
         'n\'affiche pas l\'encart alternative RAC 0 sans ligne panier=modere',
         (tester) async {
       when(() => mockGetPendingQuotes())
