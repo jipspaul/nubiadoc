@@ -143,6 +143,21 @@ class PatientAccount extends Equatable {
 
   String get displayName => '$firstName $lastName';
 
+  /// Âge en années révolues à la date [asOf], `null` si [dateOfBirth] est
+  /// inconnu (même logique que [Dependent.ageInYearsAt]).
+  int? ageInYearsAt(DateTime asOf) {
+    final dob = dateOfBirth;
+    if (dob == null) return null;
+    var age = asOf.year - dob.year;
+    if (asOf.month < dob.month ||
+        (asOf.month == dob.month && asOf.day < dob.day)) {
+      age--;
+    }
+    return age;
+  }
+
+  int? get ageInYears => ageInYearsAt(DateTime.now());
+
   @override
   List<Object?> get props => [id, email];
 }

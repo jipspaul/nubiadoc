@@ -31,6 +31,14 @@ final _majeur = Dependent(
   relationship: DependentRelationship.enfant,
 );
 
+final _julie = PatientAccount(
+  id: 'acc-1',
+  firstName: 'Julie',
+  lastName: 'Martin',
+  email: 'julie.martin@email.fr',
+  dateOfBirth: DateTime(1985, 3, 10),
+);
+
 final _pendingRequest = AccessRequest(
   id: 'ar-1',
   firstName: 'Émile',
@@ -144,6 +152,44 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(() => cubit.remove('dep-1')).called(1);
+  });
+
+  testWidgets(
+      'carte titulaire : initiales, nom, sous-ligne et pastille en tête de '
+      "liste, avant l'en-tête « Comptes que vous gérez »", (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded([_lucas], account: _julie),
+    );
+
+    await _pump(tester, cubit);
+
+    expect(find.byKey(const Key('self_account_card')), findsOneWidget);
+    expect(find.text('JM'), findsOneWidget);
+    expect(find.text('Julie Martin'), findsOneWidget);
+    expect(find.text('Vous · 41 ans'), findsOneWidget);
+    expect(find.text('Titulaire'), findsOneWidget);
+
+    final cardTop =
+        tester.getTopLeft(find.byKey(const Key('self_account_card'))).dy;
+    final headerTop =
+        tester.getTopLeft(find.text('COMPTES QUE VOUS GÉREZ')).dy;
+    expect(cardTop, lessThan(headerTop));
+  });
+
+  testWidgets(
+      "carte titulaire : absente si le titulaire n'est pas fourni par le "
+      'cubit', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded([_lucas]),
+    );
+
+    await _pump(tester, cubit);
+
+    expect(find.byKey(const Key('self_account_card')), findsNothing);
   });
 
   testWidgets(

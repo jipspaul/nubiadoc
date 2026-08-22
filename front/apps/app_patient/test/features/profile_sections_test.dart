@@ -26,6 +26,8 @@ class _MockResendAccessRequest extends Mock
 class _MockCancelAccessRequest extends Mock
     implements CancelAccessRequestUseCase {}
 
+class _MockGetAccount extends Mock implements GetAccountUseCase {}
+
 class _MockListConsents extends Mock implements ListConsentsUseCase {}
 
 class _MockSetConsent extends Mock implements SetConsentUseCase {}
@@ -69,6 +71,7 @@ void main() {
     late _MockDelete del;
     late _MockResendAccessRequest resendAccessRequest;
     late _MockCancelAccessRequest cancelAccessRequest;
+    late _MockGetAccount getAccount;
 
     setUp(() {
       list = _MockList();
@@ -78,10 +81,16 @@ void main() {
       del = _MockDelete();
       resendAccessRequest = _MockResendAccessRequest();
       cancelAccessRequest = _MockCancelAccessRequest();
+      getAccount = _MockGetAccount();
       when(() => listAccessRequests.call())
           .thenAnswer((_) async => const Right([]));
       when(() => getUpcomingAppointments.call())
           .thenAnswer((_) async => const Right([]));
+      // Non couvert par ces tests (comportement de la carte titulaire,
+      // cf. dependents_page_test.dart) : échoue pour garder `account: null`
+      // et les états attendus ci-dessous inchangés.
+      when(() => getAccount.call()).thenAnswer(
+          (_) async => const Left(ServerFailure(message: 'n/a')));
     });
 
     blocTest<DependentsCubit, DependentsState>(
@@ -92,6 +101,7 @@ void main() {
           list: list,
           listAccessRequests: listAccessRequests,
           getUpcomingAppointments: getUpcomingAppointments,
+          getAccount: getAccount,
           add: add,
           remove: del,
           resendAccessRequest: resendAccessRequest,
@@ -115,6 +125,7 @@ void main() {
           list: list,
           listAccessRequests: listAccessRequests,
           getUpcomingAppointments: getUpcomingAppointments,
+          getAccount: getAccount,
           add: add,
           remove: del,
           resendAccessRequest: resendAccessRequest,
@@ -145,6 +156,7 @@ void main() {
           list: list,
           listAccessRequests: listAccessRequests,
           getUpcomingAppointments: getUpcomingAppointments,
+          getAccount: getAccount,
           add: add,
           remove: del,
           resendAccessRequest: resendAccessRequest,
@@ -178,6 +190,7 @@ void main() {
           list: list,
           listAccessRequests: listAccessRequests,
           getUpcomingAppointments: getUpcomingAppointments,
+          getAccount: getAccount,
           add: add,
           remove: del,
           resendAccessRequest: resendAccessRequest,
@@ -202,6 +215,7 @@ void main() {
           list: list,
           listAccessRequests: listAccessRequests,
           getUpcomingAppointments: getUpcomingAppointments,
+          getAccount: getAccount,
           add: add,
           remove: del,
           resendAccessRequest: resendAccessRequest,
