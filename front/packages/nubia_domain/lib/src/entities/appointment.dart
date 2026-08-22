@@ -38,6 +38,11 @@ class Appointment extends Equatable {
   // patient sur un RDV `noShow` — null si l'API ne les expose pas (le
   // montant ne doit jamais être codé en dur côté front).
   final int? noShowFeeCents;
+  // #5271 : pilotage des chips de synthèse documentaire sur l'historique
+  // (compte-rendu / ordonnance(s)) — défauts « aucun document » pour rester
+  // rétrocompatible tant que l'API ne les expose pas.
+  final bool hasReport;
+  final int prescriptionCount;
 
   const Appointment({
     required this.id,
@@ -55,6 +60,8 @@ class Appointment extends Equatable {
     this.beneficiaryIsSelf = true,
     this.beneficiaryName,
     this.noShowFeeCents,
+    this.hasReport = false,
+    this.prescriptionCount = 0,
   });
 
   bool get isUpcoming =>

@@ -275,8 +275,10 @@ class _AppointmentList extends StatelessWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               itemCount: appointments.length,
-              itemBuilder: (context, i) =>
-                  _AppointmentCard(appointment: appointments[i]),
+              itemBuilder: (context, i) => _AppointmentCard(
+                appointment: appointments[i],
+                isHistory: !isUpcoming,
+              ),
             ),
     );
   }
@@ -285,8 +287,12 @@ class _AppointmentList extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _AppointmentCard extends StatelessWidget {
-  const _AppointmentCard({required this.appointment});
+  const _AppointmentCard({required this.appointment, required this.isHistory});
   final Appointment appointment;
+  // #5271 : les chips de synthèse documentaire (compte-rendu/ordonnances) ne
+  // doivent apparaître que sous une carte de l'onglet Historique, jamais sur
+  // un RDV à venir — `isHistory` reflète l'onglet, pas le statut du RDV.
+  final bool isHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -378,6 +384,12 @@ class _AppointmentCard extends StatelessWidget {
                 appointment.canModify) ...[
               const SizedBox(height: 12),
               _ActionButtons(appointment: appointment),
+            ],
+            if (isHistory &&
+                (appointment.hasReport ||
+                    appointment.prescriptionCount > 0)) ...[
+              const SizedBox(height: 12),
+              _DocumentSummaryChips(appointment: appointment),
             ],
           ],
         ),
@@ -516,6 +528,75 @@ class _ActionButtons extends StatelessWidget {
             },
           ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// #5271 : rangée de chips de synthèse documentaire (compte-rendu /
+/// ordonnance(s)) sous une carte historique — chaque chip n'apparaît que si
+/// le document correspondant existe (pilotage par les données du RDV).
+class _DocumentSummaryChips extends StatelessWidget {
+  const _DocumentSummaryChips({required this.appointment});
+  final Appointment appointment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        if (appointment.hasReport)
+          const _SummaryChip(
+            icon: Icons.description,
+            label: 'Compte-rendu',
+          ),
+        if (appointment.prescriptionCount > 0)
+          _SummaryChip(
+            icon: Icons.medication,
+            label: appointment.prescriptionCount == 1
+                ? '1 ordonnance'
+                : '${appointment.prescriptionCount} ordonnances',
+          ),
+      ],
+    );
+  }
+}
+
+/// Chip de synthèse statique (non interactive) : icône 14px `n500` + libellé
+/// 12px/500 `n600`, fond `n100`, radius 8, padding 5×9 — cf. maquette
+/// design-v2 (distincte de [NubiaChip], pensée pour un filtre sélectionnable).
+class _SummaryChip extends StatelessWidget {
+  const _SummaryChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: NubiaColors.n100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: NubiaColors.n500),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: NubiaColors.n600,
+                  ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

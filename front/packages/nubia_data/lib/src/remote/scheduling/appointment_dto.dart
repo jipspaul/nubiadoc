@@ -16,6 +16,8 @@ class AppointmentDto {
   final bool beneficiaryIsSelf;
   final String? beneficiaryName;
   final int? noShowFeeCents;
+  final bool hasReport;
+  final int prescriptionCount;
 
   const AppointmentDto({
     required this.id,
@@ -33,6 +35,8 @@ class AppointmentDto {
     this.beneficiaryIsSelf = true,
     this.beneficiaryName,
     this.noShowFeeCents,
+    this.hasReport = false,
+    this.prescriptionCount = 0,
   });
 
   factory AppointmentDto.fromJson(Map<String, dynamic> json) {
@@ -96,6 +100,11 @@ class AppointmentDto {
     final noShowFeeCents =
         (json['no_show_fee_cents'] as num?)?.toInt() ??
         (json['no_show_fee'] as num?)?.toInt();
+    // #5271 : pas de clé stable côté API à ce jour — absente, les chips de
+    // synthèse documentaire restent masquées plutôt que d'inventer un doc.
+    final hasReport = json['has_report'] as bool? ?? false;
+    final prescriptionCount =
+        (json['prescription_count'] as num?)?.toInt() ?? 0;
     return AppointmentDto(
       id: json['id'] as String,
       cabinetId: json['cabinet_id'] as String? ?? '',
@@ -112,6 +121,8 @@ class AppointmentDto {
       beneficiaryIsSelf: beneficiaryIsSelf,
       beneficiaryName: beneficiaryName,
       noShowFeeCents: noShowFeeCents,
+      hasReport: hasReport,
+      prescriptionCount: prescriptionCount,
     );
   }
 
@@ -133,6 +144,8 @@ class AppointmentDto {
     beneficiaryIsSelf: beneficiaryIsSelf,
     beneficiaryName: beneficiaryName,
     noShowFeeCents: noShowFeeCents,
+    hasReport: hasReport,
+    prescriptionCount: prescriptionCount,
   );
 
   // #3804 : le back envoie 'done' (jamais 'completed') et distingue
