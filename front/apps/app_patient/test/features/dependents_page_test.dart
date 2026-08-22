@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
@@ -20,6 +21,16 @@ final _lucas = Dependent(
   relationship: DependentRelationship.enfant,
 );
 
+// Enfant ayant dépassé la majorité — DOB fixée loin dans le passé pour que
+// le test reste vrai indépendamment de la date d'exécution.
+final _majeur = Dependent(
+  id: 'dep-3',
+  firstName: 'Alan',
+  lastName: 'Roussel',
+  dateOfBirth: DateTime(2000, 1, 1),
+  relationship: DependentRelationship.enfant,
+);
+
 final _pendingRequest = AccessRequest(
   id: 'ar-1',
   firstName: 'Émile',
@@ -37,6 +48,13 @@ Future<void> _pump(WidgetTester tester, DependentsCubit cubit) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: NubiaTheme.light,
+      // Requis par le DatePickerDialog du champ date de naissance (#5230).
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('fr')],
       home: const DependentsPage(),
     ),
   );
@@ -45,6 +63,10 @@ Future<void> _pump(WidgetTester tester, DependentsCubit cubit) async {
 
 void main() {
   late MockDependentsCubit cubit;
+
+  setUpAll(() {
+    registerFallbackValue(DependentRelationship.enfant);
+  });
 
   setUp(() {
     cubit = MockDependentsCubit();
@@ -567,5 +589,147 @@ void main() {
           .value,
       isTrue,
     );
+  });
+
+  testWidgets(
+      'carte compte géré : bandeau majorité visible si au moins un enfant',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded([_lucas]),
+    );
+
+    await _pump(tester, cubit);
+
+    expect(find.byKey(const Key('majority_notice')), findsOneWidget);
+    expect(
+      find.textContaining(
+        "À sa majorité, votre enfant reprendra son propre accès",
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      "carte compte géré : pas de bandeau majorité sans proche « enfant »",
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    expect(find.byKey(const Key('majority_notice')), findsNothing);
+  });
+
+  testWidgets(
+      'carte compte géré : un enfant devenu majeur perd les actions '
+      'RDV/Documents au profit du message de fin d\'accès', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded([_majeur]),
+    );
+
+    await _pump(tester, cubit);
+
+    expect(find.byKey(const Key('parental_access_expired_pill')),
+        findsOneWidget);
+    expect(find.text('Majorité atteinte'), findsOneWidget);
+    expect(find.byKey(const Key('parental_access_expired_notice')),
+        findsOneWidget);
+    expect(
+      find.textContaining("Alan a atteint sa majorité"),
+      findsOneWidget,
+    );
+    expect(find.text('Prendre RDV'), findsNothing);
+    expect(find.text('Documents'), findsNothing);
+    // Le retrait du compte reste possible (nettoyage de la liste côté front).
+    expect(find.byKey(const Key('delete_dependent_dep-3')), findsOneWidget);
+  });
+
+  testWidgets(
+      'ajout proche : régime enfant affiche un champ date de naissance, '
+      'requis pour activer le bouton et transmis à cubit.add', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+    when(() => cubit.add(
+          firstName: any(named: 'firstName'),
+          lastName: any(named: 'lastName'),
+          birthDate: any(named: 'birthDate'),
+          relationship: any(named: 'relationship'),
+        )).thenAnswer((_) async {});
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('dependent_date_of_birth')), findsOneWidget);
+
+    await tester.enterText(
+        find.byKey(const Key('dependent_first_name')), 'Lucas');
+    await tester.enterText(
+        find.byKey(const Key('dependent_last_name')), 'Marchand');
+    await tester.pumpAndSettle();
+
+    // Prénom/nom seuls, sans date de naissance : le bouton reste désactivé.
+    expect(
+      tester
+          .widget<NubiaButton>(find.byKey(const Key('save_dependent_button')))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const Key('dependent_date_of_birth')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<NubiaButton>(find.byKey(const Key('save_dependent_button')))
+          .onPressed,
+      isNotNull,
+    );
+
+    await tester.tap(find.byKey(const Key('save_dependent_button')));
+    await tester.pumpAndSettle();
+
+    final captured = verify(() => cubit.add(
+          firstName: 'Lucas',
+          lastName: 'Marchand',
+          birthDate: captureAny(named: 'birthDate'),
+          relationship: DependentRelationship.enfant,
+        )).captured;
+    expect(captured.single, isNotNull);
+  });
+
+  testWidgets(
+      "ajout proche : le champ date de naissance disparaît en régime "
+      'invitation (conjoint/autre)', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('dependent_relationship')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Conjoint').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('dependent_date_of_birth')), findsNothing);
   });
 }

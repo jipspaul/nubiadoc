@@ -58,6 +58,32 @@ class Dependent extends Equatable {
 
   String get displayName => '$firstName $lastName';
 
+  /// Âge en années révolues à la date [asOf], `null` si [dateOfBirth] est
+  /// inconnu. Paramétré (plutôt que basé sur `DateTime.now()` en interne)
+  /// pour rester testable de façon déterministe.
+  int? ageInYearsAt(DateTime asOf) {
+    final dob = dateOfBirth;
+    if (dob == null) return null;
+    var age = asOf.year - dob.year;
+    if (asOf.month < dob.month ||
+        (asOf.month == dob.month && asOf.day < dob.day)) {
+      age--;
+    }
+    return age;
+  }
+
+  int? get ageInYears => ageInYearsAt(DateTime.now());
+
+  /// Un enfant mineur est géré de plein droit par son représentant légal ;
+  /// à 18 ans cette gestion doit cesser — bascule pilotée par [dateOfBirth],
+  /// seul un lien `enfant` y est soumis (conjoint/autre relèvent d'un mandat
+  /// explicite, cf. [AccessRequest]).
+  bool hasParentalAccessExpiredAt(DateTime asOf) =>
+      relationship == DependentRelationship.enfant &&
+      (ageInYearsAt(asOf) ?? 0) >= 18;
+
+  bool get hasParentalAccessExpired => hasParentalAccessExpiredAt(DateTime.now());
+
   @override
   List<Object?> get props => [id];
 }
