@@ -75,6 +75,15 @@ class Message extends Equatable {
   /// vers un document existant du coffre-fort via son [MessageAttachment.documentId].
   final List<MessageAttachment> attachments;
 
+  /// Nom de l'émetteur (#5275), ex. « Dr Amélie Rousseau ». `null` pour un
+  /// message patient ou quand l'émetteur cabinet n'est pas une personne
+  /// nommée (ex. secrétariat) — voir [authorRole].
+  final String? authorName;
+
+  /// Rôle de l'émetteur (#5275), ex. « Secrétariat ». Affiché en tête de
+  /// bulle à défaut de [authorName] (message non signé par une personne).
+  final String? authorRole;
+
   const Message({
     required this.id,
     required this.conversationId,
@@ -86,6 +95,8 @@ class Message extends Equatable {
     this.readAt,
     this.attachedOrder,
     this.attachments = const [],
+    this.authorName,
+    this.authorRole,
   });
 
   @override

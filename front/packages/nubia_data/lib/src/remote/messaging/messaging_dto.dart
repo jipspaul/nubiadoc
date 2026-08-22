@@ -75,6 +75,11 @@ class MessageDto {
   final int? orderAmountDueCents;
   final List<MessageAttachmentDto> attachments;
 
+  /// Nom/rôle de l'émetteur (#5275), `author_name`/`author_role` du contrat.
+  /// Absents des anciens payloads et des messages patient.
+  final String? authorName;
+  final String? authorRole;
+
   const MessageDto({
     required this.id,
     required this.conversationId,
@@ -88,6 +93,8 @@ class MessageDto {
     this.orderLineCount,
     this.orderAmountDueCents,
     this.attachments = const [],
+    this.authorName,
+    this.authorRole,
   });
 
   /// Contrat réel : {id, body, sender, created_at, read_at} — pas de
@@ -117,6 +124,8 @@ class MessageDto {
                     MessageAttachmentDto.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             const [],
+        authorName: json['author_name'] as String?,
+        authorRole: json['author_role'] as String?,
       );
 
   Message toDomain() => Message(
@@ -138,6 +147,8 @@ class MessageDto {
                 amountDueCents: orderAmountDueCents ?? 0,
               ),
         attachments: attachments.map((a) => a.toDomain()).toList(),
+        authorName: authorName,
+        authorRole: authorRole,
       );
 }
 

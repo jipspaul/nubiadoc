@@ -1068,4 +1068,79 @@ void main() {
       expect(find.text('URGENT'), findsOneWidget);
     });
   });
+
+  // #5275 — nom + rôle de l'émetteur en tête de bulle reçue, pour que le
+  // patient sache s'il lit un avis clinique ou une relance administrative.
+  group('MessagingPage — auteur en tête de bulle (#5275)', () {
+    testWidgets(
+        'une bulle reçue affiche le nom de l\'auteur, la bulle patient n\'en '
+        'affiche aucun', (tester) async {
+      final fromDoctor = Message(
+        id: 'msg-doctor',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Gardez la zone au frais 48h.',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 9, 0),
+        authorName: 'Dr Amélie Rousseau',
+        authorRole: 'Praticien',
+      );
+      final fromSecretary = Message(
+        id: 'msg-secretary',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Votre devis DEV-2041 vous a été envoyé.',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 9, 5),
+        authorRole: 'Secrétariat',
+      );
+      final fromPatient = Message(
+        id: 'msg-patient',
+        conversationId: 'conv-1',
+        sender: MessageSender.patient,
+        text: 'Merci docteur',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 9, 10),
+      );
+      when(() => mockGetMessages(any())).thenAnswer(
+        (_) async => Right([fromDoctor, fromSecretary, fromPatient]),
+      );
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Bulles reçues : nom si présent, sinon rôle.
+      expect(find.text('Dr Amélie Rousseau'), findsOneWidget);
+      expect(find.text('Secrétariat'), findsOneWidget);
+
+      // La bulle patient ne porte aucune ligne d'auteur.
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('Merci docteur'),
+            matching: find.byType(Column),
+          ).first,
+          matching: find.text('Dr Amélie Rousseau'),
+        ),
+        findsNothing,
+      );
+    });
+  });
 }

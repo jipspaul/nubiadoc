@@ -524,6 +524,17 @@ class _MessageBubble extends StatelessWidget {
               _UrgentBanner(color: tokens.dangerFg),
               const SizedBox(height: 6),
             ],
+            if (!isPatient && (message.authorName ?? message.authorRole) != null) ...[
+              Text(
+                message.authorName ?? message.authorRole!,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: NubiaColors.brand700,
+                ),
+              ),
+              const SizedBox(height: 2),
+            ],
             Text(
               message.text ?? '',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
