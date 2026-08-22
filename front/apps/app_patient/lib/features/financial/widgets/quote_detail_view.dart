@@ -95,7 +95,10 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (canPay) _DepositCard(quote: quote),
+                if (canPay) ...[
+                  _DepositCard(quote: quote),
+                  _PaymentSchedule(quote: quote),
+                ],
                 _ReassuranceRow(canPay: canPay),
               ],
             ),
@@ -325,12 +328,6 @@ class _DepositCard extends StatelessWidget {
                     style: theme.textTheme.labelLarge
                         ?.copyWith(color: cs.onSurface),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Solde à régler à la pose',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: cs.onSurfaceVariant),
-                  ),
                 ],
               ),
             ),
@@ -345,6 +342,127 @@ class _DepositCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Échéancier de paiement (acompte aujourd'hui, solde à la pose) — remplace
+/// la phrase « Solde à régler à la pose » de `_DepositCard` par une
+/// décomposition vérifiable des deux jalons (#5238). La somme des deux
+/// montants affichés égale toujours `quote.patientShareCents`.
+///
+/// Aucun champ `installmentDate` n'existe côté domaine aujourd'hui : on
+/// dégrade proprement en omettant la date plutôt que d'en inventer une.
+class _PaymentSchedule extends StatelessWidget {
+  const _PaymentSchedule({required this.quote});
+
+  final Quote quote;
+
+  @override
+  Widget build(BuildContext context) {
+    final balanceCents = quote.patientShareCents - quote.depositCents;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: NubiaCard(
+        key: const Key('payment_schedule'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _PaymentScheduleStep(
+              key: const Key('payment_schedule_step_deposit'),
+              dotColor: NubiaColors.brand600,
+              label: 'Aujourd\'hui · acompte',
+              amount: formatQuoteCents(quote.depositCents),
+              showConnector: true,
+            ),
+            _PaymentScheduleStep(
+              key: const Key('payment_schedule_step_balance'),
+              dotColor: NubiaColors.n300,
+              label: 'À la pose · solde',
+              amount: formatQuoteCents(balanceCents),
+              showConnector: false,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Un jalon de l'échéancier : puce à gauche (pleine émeraude pour l'acompte,
+/// grise pour le solde à venir), reliée au jalon suivant par un connecteur
+/// vertical fin quand [showConnector] est vrai.
+class _PaymentScheduleStep extends StatelessWidget {
+  const _PaymentScheduleStep({
+    super.key,
+    required this.dotColor,
+    required this.label,
+    required this.amount,
+    required this.showConnector,
+  });
+
+  final Color dotColor;
+  final String label;
+  final String amount;
+  final bool showConnector;
+
+  static const _dotSize = 10.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Column(
+            children: [
+              const SizedBox(height: 4),
+              Container(
+                width: _dotSize,
+                height: _dotSize,
+                decoration:
+                    BoxDecoration(color: dotColor, shape: BoxShape.circle),
+              ),
+              if (showConnector)
+                Expanded(
+                  child: Container(width: 2, color: tokens.borderSubtle),
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: showConnector ? 16 : 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: cs.onSurface),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    amount,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: tabularFigures,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

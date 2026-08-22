@@ -352,6 +352,66 @@ void main() {
     });
 
     testWidgets(
+        'affiche l\'échéancier acompte/solde daté à la place de "Solde à '
+        'régler à la pose" (#5238)', (tester) async {
+      when(() => mockGetPendingQuotes())
+          .thenAnswer((_) async => Right([_signedQuoteWithDocument]));
+      when(() => mockGetQuoteById(any()))
+          .thenAnswer((_) async => Right(_signedQuoteWithDocument));
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      bloc.add(const FinancialQuoteSelected('q-signed'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('payment_schedule')), findsOneWidget);
+      expect(find.text('Solde à régler à la pose'), findsNothing);
+
+      final deposit = _signedQuoteWithDocument.depositCents;
+      final balance = _signedQuoteWithDocument.patientShareCents - deposit;
+      expect(balance + deposit, _signedQuoteWithDocument.patientShareCents);
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('payment_schedule_step_deposit')),
+          matching: find.text('Aujourd\'hui · acompte'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('payment_schedule_step_deposit')),
+          matching: find.text(formatQuoteCents(deposit)),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('payment_schedule_step_balance')),
+          matching: find.text('À la pose · solde'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('payment_schedule_step_balance')),
+          matching: find.text(formatQuoteCents(balance)),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
         'n\'affiche pas le CTA de téléchargement sans documentId',
         (tester) async {
       when(() => mockGetPendingQuotes())
