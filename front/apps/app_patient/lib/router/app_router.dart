@@ -308,6 +308,19 @@ class AppRouter {
             ),
           ),
         ),
+        // Route dédiée pour le fil (#5279) : le bouton retour matériel
+        // Android doit fermer la conversation, pas juste changer un état
+        // dans le même bloc. Bloc dédié (comme la route liste ci-dessus) :
+        // l'onglet Messages du dashboard garde son propre bloc, jamais muté
+        // vers un état de fil, donc il réaffiche toujours la liste au retour.
+        GoRoute(
+          path: '$messaging/:id',
+          builder: (_, state) => BlocProvider(
+            create: (_) => GetIt.instance<MessagingBloc>()
+              ..add(MessagingThreadOpened(state.extra as Conversation)),
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
         GoRoute(
           path: reviews,
           builder: (context, state) {

@@ -77,9 +77,7 @@ class _MessagingBody extends StatelessWidget {
           return NubiaErrorWidget(
             key: const Key('messaging_thread_error'),
             message: state.message,
-            onRetry: () => context
-                .read<MessagingBloc>()
-                .add(const MessagingBackRequested()),
+            onRetry: () => context.pop(),
           );
         }
         return const SizedBox.shrink();
@@ -120,8 +118,10 @@ class _ConversationsList extends StatelessWidget {
             timestamp: lastAt != null ? NubiaDate.relative(lastAt) : null,
             urgent: last?.urgency == MessageUrgency.urgent,
           ),
-          onTap: () =>
-              context.read<MessagingBloc>().add(MessagingThreadOpened(conv)),
+          onTap: () => context.push(
+            '${AppRouter.messaging}/${conv.id}',
+            extra: conv,
+          ),
         );
       },
     );
@@ -265,9 +265,7 @@ class _ThreadViewState extends State<_ThreadView> {
                 IconButton(
                   key: const Key('messaging_back_button'),
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () => context
-                      .read<MessagingBloc>()
-                      .add(const MessagingBackRequested()),
+                  onPressed: () => context.pop(),
                 ),
                 Expanded(
                   child: Text(

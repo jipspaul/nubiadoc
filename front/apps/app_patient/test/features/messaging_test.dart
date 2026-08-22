@@ -594,6 +594,88 @@ void main() {
     });
   });
 
+  // #5279 — le fil s'ouvre désormais via une vraie route `/messaging/:id`
+  // (au lieu d'un changement d'état du même bloc), pour que le retour
+  // matériel Android ferme la conversation sans laisser l'onglet Messages
+  // dans un état de fil ouvert.
+  group('MessagingPage — vraie route pour le fil (#5279)', () {
+    testWidgets(
+        "taper une conversation navigue vers /messaging/:id ; le bouton "
+        "retour dépile la route et l'onglet garde sa liste déjà chargée",
+        (tester) async {
+      when(() => mockGetConversations())
+          .thenAnswer((_) async => Right([_conv]));
+      when(() => mockGetMessages(any())).thenAnswer((_) async => Right([_msg]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final listBloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(const MessagingConversationsLoadRequested());
+
+      String? threadPathId;
+      final router = GoRouter(
+        initialLocation: '/messaging',
+        routes: [
+          GoRoute(
+            path: '/messaging',
+            builder: (_, __) => BlocProvider.value(
+              value: listBloc,
+              child: const Scaffold(body: MessagingPage()),
+            ),
+          ),
+          GoRoute(
+            path: '/messaging/:id',
+            builder: (_, state) {
+              threadPathId = state.pathParameters['id'];
+              return BlocProvider(
+                create: (_) => _makeBloc(
+                  getConversations: mockGetConversations,
+                  getMessages: mockGetMessages,
+                  sendMessage: mockSendMessage,
+                  markRead: mockMarkRead,
+                )..add(MessagingThreadOpened(state.extra as Conversation)),
+                child: const Scaffold(body: MessagingPage()),
+              );
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+          find.byKey(const Key('messaging_conversations_list')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('conv_conv-1')));
+      await tester.pumpAndSettle();
+
+      // Vraie navigation par route (paramètre `:id` reçu par la route), pas
+      // un changement d'état dans le bloc de la liste.
+      expect(threadPathId, 'conv-1');
+      expect(find.byKey(const Key('messaging_thread_messages')), findsOneWidget);
+      expect(
+          find.byKey(const Key('messaging_conversations_list')), findsNothing);
+      expect(listBloc.state, isA<MessagingConversationsLoaded>());
+
+      await tester.tap(find.byKey(const Key('messaging_back_button')));
+      await tester.pumpAndSettle();
+
+      // Le pop de route révèle l'onglet Messages resté sur sa liste : pas de
+      // fil resté ouvert au retour.
+      expect(
+          find.byKey(const Key('messaging_conversations_list')), findsOneWidget);
+      expect(find.byKey(const Key('messaging_thread_messages')), findsNothing);
+      expect(listBloc.state, isA<MessagingConversationsLoaded>());
+    });
+  });
+
   // #5282 — pièce jointe cliquable liée au coffre documentaire : une carte
   // (icône + titre + sous-ligne + chevron) sous le texte du message, qui
   // navigue vers la feature `documents` au tap.
