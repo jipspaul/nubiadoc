@@ -607,6 +607,11 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
   bool get _valid =>
       _firstName.text.trim().isNotEmpty && _lastName.text.trim().isNotEmpty;
 
+  /// Un proche adulte (conjoint/autre) passe par une invitation — demande
+  /// d'accès qu'il devra accepter — alors qu'un enfant est ajouté
+  /// directement comme compte géré (maquette design-v2, #5250).
+  bool get _isInvitation => _relationship != DependentRelationship.enfant;
+
   @override
   void dispose() {
     _firstName.dispose();
@@ -677,6 +682,44 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
                         );
                     Navigator.pop(context);
                   },
+          ),
+          if (_isInvitation) ...[
+            const SizedBox(height: 12),
+            _InvitationReassuranceNotice(
+              firstName: _firstName.text.trim(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Encart de réassurance sous le CTA d'invitation d'un proche adulte,
+/// rappelant que l'invité garde la main sur l'accès accordé (maquette
+/// design-v2, #5250).
+class _InvitationReassuranceNotice extends StatelessWidget {
+  const _InvitationReassuranceNotice({required this.firstName});
+
+  final String firstName;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = firstName.isEmpty ? 'Votre proche' : firstName;
+    return NubiaCard(
+      key: const Key('invitation_reassurance_notice'),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.shield, size: 20, color: NubiaColors.n400),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "$name choisira ce qu'il vous autorise, et pourra retirer cet "
+              'accès à tout moment depuis son profil. Vous en serez informé.',
+              style: const TextStyle(fontSize: 11.5, color: NubiaColors.n500),
+            ),
           ),
         ],
       ),
