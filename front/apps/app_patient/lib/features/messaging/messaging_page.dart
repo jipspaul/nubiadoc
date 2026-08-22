@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import 'messaging_bloc.dart';
 import 'messaging_event.dart';
 import 'messaging_state.dart';
@@ -442,13 +444,117 @@ class _MessageBubble extends StatelessWidget {
           color: isPatient ? cs.primaryContainer : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(
-          message.text ?? '',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isPatient ? cs.onPrimaryContainer : cs.onSurfaceVariant,
-              ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message.text ?? '',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color:
+                        isPatient ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+                  ),
+            ),
+            for (final attachment in message.attachments) ...[
+              const SizedBox(height: 8),
+              _AttachmentCard(attachment: attachment),
+            ],
+          ],
         ),
       ),
     );
+  }
+}
+
+/// Carte pièce jointe cliquable liée au coffre documentaire (#5282) : icône +
+/// titre + sous-ligne + chevron, tap → navigation vers le document dans la
+/// feature `documents`. Tokens Nubia verbatim maquette design-v2 (point 6) :
+/// fond `n50`, bordure `n200`, rayon 10px, icône émeraude.
+class _AttachmentCard extends StatelessWidget {
+  const _AttachmentCard({required this.attachment});
+
+  final MessageAttachment attachment;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return InkWell(
+      key: Key('messaging_attachment_${attachment.documentId}'),
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => context
+          .push('${AppRouter.documents}?id=${attachment.documentId}'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: NubiaColors.n50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: NubiaColors.n200),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _iconFor(attachment.category),
+              size: 18,
+              color: NubiaColors.brand600,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    attachment.title,
+                    style: textTheme.labelMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (attachment.subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      attachment.subtitle!,
+                      style:
+                          textTheme.labelSmall?.copyWith(color: NubiaColors.n500),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, size: 18, color: NubiaColors.n400),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static IconData _iconFor(DocumentCategory category) {
+    switch (category) {
+      case DocumentCategory.quote:
+        return Icons.request_quote_outlined;
+      case DocumentCategory.invoice:
+        return Icons.receipt_long_outlined;
+      case DocumentCategory.prescription:
+        return Icons.medication_outlined;
+      case DocumentCategory.xray:
+        return Icons.image_outlined;
+      case DocumentCategory.cbct:
+        return Icons.view_in_ar_outlined;
+      case DocumentCategory.photo:
+        return Icons.photo_camera_outlined;
+      case DocumentCategory.report:
+        return Icons.description_outlined;
+      case DocumentCategory.consent:
+        return Icons.verified_user_outlined;
+      case DocumentCategory.instructions:
+        return Icons.assignment_outlined;
+      case DocumentCategory.mutualCard:
+      case DocumentCategory.vitalCard:
+        return Icons.badge_outlined;
+      case DocumentCategory.other:
+        return Icons.description_outlined;
+    }
   }
 }

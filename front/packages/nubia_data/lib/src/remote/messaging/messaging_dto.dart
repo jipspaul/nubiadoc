@@ -1,5 +1,7 @@
 import 'package:nubia_domain/src/entities/message.dart';
 
+import '../documents/document_dto.dart';
+
 class ConversationDto {
   final String id;
   final String cabinetId;
@@ -71,6 +73,7 @@ class MessageDto {
   final String? orderRef;
   final int? orderLineCount;
   final int? orderAmountDueCents;
+  final List<MessageAttachmentDto> attachments;
 
   const MessageDto({
     required this.id,
@@ -84,6 +87,7 @@ class MessageDto {
     this.orderRef,
     this.orderLineCount,
     this.orderAmountDueCents,
+    this.attachments = const [],
   });
 
   /// Contrat réel : {id, body, sender, created_at, read_at} — pas de
@@ -108,6 +112,11 @@ class MessageDto {
         orderRef: json['order_ref'] as String?,
         orderLineCount: (json['order_line_count'] as num?)?.toInt(),
         orderAmountDueCents: (json['order_amount_due_cents'] as num?)?.toInt(),
+        attachments: (json['attachments'] as List<dynamic>?)
+                ?.map((e) =>
+                    MessageAttachmentDto.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
       );
 
   Message toDomain() => Message(
@@ -128,5 +137,38 @@ class MessageDto {
                 lineCount: orderLineCount ?? 0,
                 amountDueCents: orderAmountDueCents ?? 0,
               ),
+        attachments: attachments.map((a) => a.toDomain()).toList(),
+      );
+}
+
+/// Pièce jointe d'un message liée à un document du coffre-fort (#5282) —
+/// contrat anticipé `{document_id, title, subtitle, category}` par entrée de
+/// `attachments`, `category` suivant la même nomenclature que `DocumentDto`.
+class MessageAttachmentDto {
+  final String documentId;
+  final String title;
+  final String? subtitle;
+  final String? category;
+
+  const MessageAttachmentDto({
+    required this.documentId,
+    required this.title,
+    this.subtitle,
+    this.category,
+  });
+
+  factory MessageAttachmentDto.fromJson(Map<String, dynamic> json) =>
+      MessageAttachmentDto(
+        documentId: json['document_id'] as String,
+        title: json['title'] as String,
+        subtitle: json['subtitle'] as String?,
+        category: json['category'] as String?,
+      );
+
+  MessageAttachment toDomain() => MessageAttachment(
+        documentId: documentId,
+        title: title,
+        subtitle: subtitle,
+        category: DocumentDto.parseCategory(category ?? ''),
       );
 }

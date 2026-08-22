@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'document.dart';
+
 enum MessageSender { patient, cabinet }
 
 enum MessageUrgency { normal, urgent }
@@ -67,6 +69,12 @@ class Message extends Equatable {
   /// `null` quand le message ne porte aucune commande.
   final MessageOrderAttachment? attachedOrder;
 
+  /// Métadonnées d'affichage des documents référencés par [attachmentIds]
+  /// (#5282) : libellé/type/montant nécessaires à la carte pièce jointe du
+  /// fil. Ne duplique pas le stockage documentaire — chaque entrée pointe
+  /// vers un document existant du coffre-fort via son [MessageAttachment.documentId].
+  final List<MessageAttachment> attachments;
+
   const Message({
     required this.id,
     required this.conversationId,
@@ -77,6 +85,7 @@ class Message extends Equatable {
     required this.sentAt,
     this.readAt,
     this.attachedOrder,
+    this.attachments = const [],
   });
 
   @override
@@ -98,4 +107,25 @@ class MessageOrderAttachment extends Equatable {
 
   @override
   List<Object?> get props => [orderRef, lineCount, amountDueCents];
+}
+
+/// Métadonnées d'affichage d'une pièce jointe de [Message] liée à un document
+/// du coffre-fort documentaire (#5282) — titre + sous-ligne (ex. montant/reste
+/// à charge d'un devis) affichés dans la carte cliquable du fil ; le tap
+/// navigue vers le document [documentId] dans la feature `documents`.
+class MessageAttachment extends Equatable {
+  final String documentId;
+  final String title;
+  final String? subtitle;
+  final DocumentCategory category;
+
+  const MessageAttachment({
+    required this.documentId,
+    required this.title,
+    this.subtitle,
+    this.category = DocumentCategory.other,
+  });
+
+  @override
+  List<Object?> get props => [documentId, title, subtitle, category];
 }
