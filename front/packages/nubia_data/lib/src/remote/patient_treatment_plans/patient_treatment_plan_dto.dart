@@ -109,6 +109,11 @@ class PatientTreatmentPlanDto {
   final int? pendingQuotePatientShareCents;
   final String? nextAppointmentId;
   final String? nextAppointmentAt;
+  final String? practitionerName;
+  final String? proposedAt;
+  final int? currentStep;
+  final int? stepCount;
+  final String? currentPhaseTitle;
 
   const PatientTreatmentPlanDto({
     required this.id,
@@ -126,6 +131,11 @@ class PatientTreatmentPlanDto {
     this.pendingQuotePatientShareCents,
     this.nextAppointmentId,
     this.nextAppointmentAt,
+    this.practitionerName,
+    this.proposedAt,
+    this.currentStep,
+    this.stepCount,
+    this.currentPhaseTitle,
   });
 
   /// `GET /v1/treatment-plans` (liste) : ni coûts ni phases.
@@ -135,6 +145,7 @@ class PatientTreatmentPlanDto {
         title: json['title'] as String,
         status: json['status'] as String,
         createdAt: json['created_at'] as String?,
+        totalCostCents: json['total_cost_cents'] as int?,
         pendingQuoteId: json['pending_quote_id'] as String?,
         pendingQuoteLabel: json['pending_quote_label'] as String?,
         pendingQuoteReceivedAt: json['pending_quote_received_at'] as String?,
@@ -142,6 +153,11 @@ class PatientTreatmentPlanDto {
             json['pending_quote_patient_share_cents'] as int?,
         nextAppointmentId: json['next_appointment_id'] as String?,
         nextAppointmentAt: json['next_appointment_at'] as String?,
+        practitionerName: json['practitioner_name'] as String?,
+        proposedAt: json['proposed_at'] as String?,
+        currentStep: json['current_step'] as int?,
+        stepCount: json['step_count'] as int?,
+        currentPhaseTitle: json['current_phase_title'] as String?,
       );
 
   /// `GET /v1/treatment-plans/:id` (détail) : coûts + phases, pas de `created_at`.
@@ -187,5 +203,10 @@ class PatientTreatmentPlanDto {
         nextAppointmentId: nextAppointmentId,
         nextAppointmentAt:
             nextAppointmentAt != null ? DateTime.parse(nextAppointmentAt!) : null,
+        practitionerName: practitionerName,
+        proposedAt: proposedAt != null ? DateTime.parse(proposedAt!) : null,
+        currentStep: currentStep,
+        stepCount: stepCount,
+        currentPhaseTitle: currentPhaseTitle,
       );
 }

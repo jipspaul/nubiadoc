@@ -53,6 +53,32 @@ final _planWithNextAppointment = PatientTreatmentPlan(
   nextAppointmentAt: DateTime.utc(2026, 8, 11, 14, 30),
 );
 
+/// Plan « En cours » avec sous-titre praticien/date et progression — carte
+/// riche de la liste (#5288).
+final _planWithProgress = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Réhabilitation implantaire',
+  status: 'in_progress',
+  practitionerName: 'Amélie Rousseau',
+  proposedAt: DateTime.utc(2026, 7, 22),
+  currentStep: 2,
+  stepCount: 3,
+  currentPhaseTitle: 'endodontie',
+  totalCostCents: 163592,
+);
+
+/// Plan « Terminé » avec sous-titre et progression — toutes les étapes
+/// affichées comme faites, sans étape courante (#5288).
+final _donePlanWithProgress = PatientTreatmentPlan(
+  id: 'plan-3',
+  title: 'Maintenance parodontale',
+  status: 'done',
+  practitionerName: 'Amélie Rousseau',
+  proposedAt: DateTime.utc(2026, 7, 4),
+  stepCount: 2,
+  totalCostCents: 16800,
+);
+
 const _planDetail = PatientTreatmentPlan(
   id: 'plan-1',
   title: 'Réhabilitation implantaire',
@@ -558,6 +584,127 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(pushedLocation, '/treatment-plans/plan-1');
+    });
+
+    testWidgets(
+        'carte de plan — sous-titre praticien+date, barre segmentée, étape '
+        'courante et montant (#5288)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state)
+          .thenReturn(PatientTreatmentPlansLoaded([_planWithProgress]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      final card = find.byKey(const Key('treatment_plan_plan-1'));
+      expect(card, findsOneWidget);
+      expect(
+        find.descendant(
+          of: card,
+          matching: find.text('Dr Amélie Rousseau · proposé le 22 juillet'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+            of: card, matching: find.text('Étape 2 sur 3 · endodontie')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: card, matching: find.text('1 635,92 €')),
+        findsOneWidget,
+      );
+
+      final progressBar =
+          find.byKey(const Key('treatment_plan_plan-1_progress'));
+      expect(progressBar, findsOneWidget);
+      expect(
+        find.descendant(of: progressBar, matching: find.byType(Expanded)),
+        findsNWidgets(3),
+      );
+    });
+
+    testWidgets(
+        'carte de plan terminé — toutes les étapes faites, pas d\'étape '
+        'courante nommée (#5288)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state)
+          .thenReturn(PatientTreatmentPlansLoaded([_donePlanWithProgress]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      final card = find.byKey(const Key('treatment_plan_plan-3'));
+      expect(card, findsOneWidget);
+      expect(
+        find.descendant(
+          of: card,
+          matching: find.text('Dr Amélie Rousseau · proposé le 4 juillet'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: card, matching: find.text('Étape 2 sur 2')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: card, matching: find.text('168 €')),
+        findsOneWidget,
+      );
+
+      final progressBar =
+          find.byKey(const Key('treatment_plan_plan-3_progress'));
+      expect(
+        find.descendant(of: progressBar, matching: find.byType(Expanded)),
+        findsNWidgets(2),
+      );
+    });
+
+    testWidgets(
+        'tap sur la carte de plan terminé navigue vers le détail du plan '
+        '(#5288)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state)
+          .thenReturn(PatientTreatmentPlansLoaded([_donePlanWithProgress]));
+
+      String? pushedLocation;
+      final router = GoRouter(
+        initialLocation: '/treatment-plans',
+        routes: [
+          GoRoute(
+            path: '/treatment-plans',
+            builder: (_, __) => BlocProvider<PatientTreatmentPlansBloc>.value(
+              value: bloc,
+              child: const PatientTreatmentPlansBody(),
+            ),
+          ),
+          GoRoute(
+            path: '/treatment-plans/:id',
+            builder: (_, state) {
+              pushedLocation = state.uri.toString();
+              return const Scaffold(body: Text('detail'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Maintenance parodontale'));
+      await tester.pumpAndSettle();
+
+      expect(pushedLocation, '/treatment-plans/plan-3');
     });
 
     testWidgets('liste vide — état vide affiché, pas d\'encart d\'information',
