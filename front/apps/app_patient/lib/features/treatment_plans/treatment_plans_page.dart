@@ -32,10 +32,7 @@ class PatientTreatmentPlansBody extends StatelessWidget {
         builder: (context, state) {
           switch (state) {
             case PatientTreatmentPlansLoading():
-              return const Center(
-                key: Key('treatment_plans_loading'),
-                child: CircularProgressIndicator(),
-              );
+              return const _TreatmentPlansSkeleton();
             case PatientTreatmentPlansError(:final message):
               return NubiaErrorWidget(
                 message: message,
@@ -73,6 +70,46 @@ class PatientTreatmentPlansBody extends StatelessWidget {
               );
           }
         },
+      ),
+    );
+  }
+}
+
+/// Squelette de chargement — quelques cartes placeholder empilées, sur le
+/// modèle du coffre-fort documentaire (`_DocumentsSkeleton`).
+class _TreatmentPlansSkeleton extends StatelessWidget {
+  const _TreatmentPlansSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('treatment_plans_loading'),
+      padding: const EdgeInsets.all(16),
+      children: const [
+        _TreatmentPlanSkeletonCard(),
+        SizedBox(height: 12),
+        _TreatmentPlanSkeletonCard(),
+        SizedBox(height: 12),
+        _TreatmentPlanSkeletonCard(),
+      ],
+    );
+  }
+}
+
+class _TreatmentPlanSkeletonCard extends StatelessWidget {
+  const _TreatmentPlanSkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      child: Row(
+        children: [
+          Expanded(
+            child: NubiaSkeletonLoader(height: 16, width: 180),
+          ),
+          SizedBox(width: 12),
+          NubiaSkeletonLoader(height: 22, width: 72, borderRadius: 999),
+        ],
       ),
     );
   }
