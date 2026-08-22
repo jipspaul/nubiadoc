@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -590,6 +591,109 @@ void main() {
       final newOffset =
           tester.getCenter(find.text('Message le plus récent')).dy;
       expect(newOffset, greaterThan(oldOffset));
+    });
+  });
+
+  // #5282 — pièce jointe cliquable liée au coffre documentaire : une carte
+  // (icône + titre + sous-ligne + chevron) sous le texte du message, qui
+  // navigue vers la feature `documents` au tap.
+  group('MessagingPage — pièce jointe cliquable (#5282)', () {
+    testWidgets(
+        'un message avec pièce jointe affiche la carte et le tap ouvre le '
+        'coffre documentaire', (tester) async {
+      final withAttachment = Message(
+        id: 'msg-attach',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Voici le devis pour vos soins.',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 8, 4, 9, 0),
+        attachments: const [
+          MessageAttachment(
+            documentId: 'doc-devis-1',
+            title: 'Devis DEV-2041',
+            subtitle: '435,92 € · reste à charge 148,50 €',
+            category: DocumentCategory.quote,
+          ),
+        ],
+      );
+      when(() => mockGetMessages(any()))
+          .thenAnswer((_) async => Right([withAttachment]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      String? pushedLocation;
+      final router = GoRouter(
+        initialLocation: '/messaging',
+        routes: [
+          GoRoute(
+            path: '/messaging',
+            builder: (_, __) => BlocProvider.value(
+              value: bloc,
+              child: const Scaffold(body: MessagingPage()),
+            ),
+          ),
+          GoRoute(
+            path: '/documents',
+            builder: (_, state) {
+              pushedLocation = state.uri.toString();
+              return const Scaffold(body: Text('documents'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Devis DEV-2041'), findsOneWidget);
+      expect(
+        find.text('435,92 € · reste à charge 148,50 €'),
+        findsOneWidget,
+      );
+
+      final card = find.byKey(const Key('messaging_attachment_doc-devis-1'));
+      expect(card, findsOneWidget);
+      await tester.tap(card);
+      await tester.pumpAndSettle();
+
+      expect(pushedLocation, '/documents?id=doc-devis-1');
+    });
+
+    testWidgets('un message sans pièce jointe n\'affiche aucune carte',
+        (tester) async {
+      when(() => mockGetMessages(any())).thenAnswer((_) async => Right([_msg]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.chevron_right), findsNothing);
     });
   });
 }

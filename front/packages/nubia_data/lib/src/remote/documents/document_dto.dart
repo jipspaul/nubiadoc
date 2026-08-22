@@ -62,14 +62,16 @@ class DocumentDto {
   Document toDomain() => Document(
         id: id,
         name: filename,
-        category: _parseCategory(category),
+        category: parseCategory(category),
         createdAt: DateTime.parse(createdAt),
         fileSizeBytes: fileSizeBytes,
         mimeType: mimeType,
         sha256: sha256,
       );
 
-  static DocumentCategory _parseCategory(String raw) {
+  /// Partagé avec `MessageDto` (#5282) : les pièces jointes d'un message
+  /// référencent la même nomenclature de catégories que le coffre documentaire.
+  static DocumentCategory parseCategory(String raw) {
     switch (raw) {
       case 'devis':
         return DocumentCategory.quote;
