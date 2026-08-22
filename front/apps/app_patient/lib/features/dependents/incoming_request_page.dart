@@ -45,6 +45,8 @@ class _IncomingRequestBody extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _RequesterCard(request: state.request),
+              const SizedBox(height: 16),
+              const _RightsSummaryCard(),
               const SizedBox(height: 24),
               if (state.errorMessage != null) ...[
                 Text(
@@ -71,9 +73,9 @@ class _IncomingRequestBody extends StatelessWidget {
   }
 }
 
-/// Identité du demandeur — contexte minimal, le détail du périmètre proposé
-/// (« Ce qu'elle pourrait faire ») est hors scope ici (#5256). Son
-/// ajustement est porté par [_AdjustScopeCard] (#5257).
+/// Identité du demandeur — contexte minimal. Le détail du périmètre proposé
+/// est affiché juste après par [_RightsSummaryCard] (#5256) ; son ajustement
+/// est porté par [_AdjustScopeCard] (#5257).
 class _RequesterCard extends StatelessWidget {
   const _RequesterCard({required this.request});
 
@@ -126,6 +128,108 @@ class _RequesterCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Carte « Ce qu'elle pourrait faire » (#5256) : récapitulatif des droits
+/// proposés par la demande, avec en négatif ce qui reste explicitement hors
+/// d'atteinte (note 3 : un accès partagé se refuse par prudence tant que ses
+/// bornes ne sont pas énoncées ; les bornes affichées, il s'accepte).
+class _RightsSummaryCard extends StatelessWidget {
+  const _RightsSummaryCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return NubiaCard(
+      key: const Key('rights_summary_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Ce qu\'elle pourrait faire', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 12),
+          _RightsSummaryRow(
+            icon: Icons.check_circle,
+            iconColor: tokens.successFg,
+            textTheme: theme.textTheme,
+            spans: const [
+              TextSpan(text: 'Voir, prendre et annuler '),
+              TextSpan(
+                text: 'vos rendez-vous',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _RightsSummaryRow(
+            icon: Icons.check_circle,
+            iconColor: tokens.successFg,
+            textTheme: theme.textTheme,
+            spans: const [
+              TextSpan(text: 'Consulter '),
+              TextSpan(
+                text: 'vos documents',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              TextSpan(text: ' — ordonnances, devis, factures'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _RightsSummaryRow(
+            icon: Icons.cancel,
+            iconColor: tokens.dangerFg,
+            textTheme: theme.textTheme,
+            spans: const [
+              TextSpan(text: 'Elle n\'aura '),
+              TextSpan(text: 'pas', style: TextStyle(fontWeight: FontWeight.bold)),
+              TextSpan(text: ' accès à vos messages avec le cabinet'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _RightsSummaryRow(
+            icon: Icons.cancel,
+            iconColor: tokens.dangerFg,
+            textTheme: theme.textTheme,
+            spans: const [
+              TextSpan(text: 'Elle ne pourra '),
+              TextSpan(text: 'pas', style: TextStyle(fontWeight: FontWeight.bold)),
+              TextSpan(text: ' modifier vos consentements'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RightsSummaryRow extends StatelessWidget {
+  const _RightsSummaryRow({
+    required this.icon,
+    required this.iconColor,
+    required this.textTheme,
+    required this.spans,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final TextTheme textTheme;
+  final List<InlineSpan> spans;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: iconColor),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text.rich(
+            TextSpan(style: textTheme.bodyMedium, children: spans),
+          ),
+        ),
+      ],
     );
   }
 }

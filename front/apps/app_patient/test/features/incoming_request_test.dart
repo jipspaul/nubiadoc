@@ -1,8 +1,7 @@
 //! Tests : `IncomingRequestPage`/`IncomingRequestCubit` (#5258) — actions
 //! Accepter/Refuser + encart de révocation sur l'écran « Décider » côté
-//! invité, et carte « Ajuster avant d'accepter » (#5257). Le détail du
-//! périmètre proposé (« Ce qu'elle pourrait faire », #5256) est hors scope
-//! de ce ticket.
+//! invité, carte « Ajuster avant d'accepter » (#5257) et carte
+//! « Ce qu'elle pourrait faire » (#5256).
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
@@ -85,6 +84,9 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(
+          find.byKey(const Key('accept_access_request_button')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('accept_access_request_button')));
       await tester.pumpAndSettle();
 
@@ -102,11 +104,61 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(
+          find.byKey(const Key('refuse_access_request_button')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('refuse_access_request_button')));
       await tester.pumpAndSettle();
 
       verify(() => refuseUseCase('ar-1')).called(1);
       expect(find.text('Refusée'), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche la carte « Ce qu\'elle pourrait faire » avec les 2 lignes positives et les 2 négatives',
+        (tester) async {
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('rights_summary_card')), findsOneWidget);
+      expect(find.text('Ce qu\'elle pourrait faire'), findsOneWidget);
+
+      expect(
+        find.textContaining('Voir, prendre et annuler'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('vos rendez-vous'), findsOneWidget);
+      expect(find.textContaining('Consulter'), findsOneWidget);
+      expect(
+        find.textContaining('ordonnances, devis, factures'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('n\'aura'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('accès à vos messages avec le cabinet'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('ne pourra'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('modifier vos consentements'),
+        findsOneWidget,
+      );
+
+      final card = find.byKey(const Key('rights_summary_card'));
+      expect(
+        find.descendant(of: card, matching: find.byIcon(Icons.check_circle)),
+        findsNWidgets(2),
+      );
+      expect(
+        find.descendant(of: card, matching: find.byIcon(Icons.cancel)),
+        findsNWidgets(2),
+      );
     });
 
     testWidgets(
@@ -147,6 +199,9 @@ void main() {
           find.byKey(const Key('adjust_scope_toggle_documents')));
       expect(docsToggle.value, isFalse);
 
+      await tester.ensureVisible(
+          find.byKey(const Key('accept_access_request_button')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('accept_access_request_button')));
       await tester.pumpAndSettle();
 
@@ -161,6 +216,9 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(
+          find.byKey(const Key('refuse_access_request_button')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('refuse_access_request_button')));
       await tester.pumpAndSettle();
 
