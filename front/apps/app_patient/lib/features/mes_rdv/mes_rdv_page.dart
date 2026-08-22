@@ -382,9 +382,9 @@ class _AppointmentCard extends StatelessWidget {
             if (appointment.isUpcoming ||
                 appointment.canCancel ||
                 appointment.canModify ||
-                appointment.status == AppointmentStatus.completed) ...[
+                isHistory) ...[
               const SizedBox(height: 12),
-              _ActionButtons(appointment: appointment),
+              _ActionButtons(appointment: appointment, isHistory: isHistory),
             ],
             if (isHistory &&
                 (appointment.hasReport ||
@@ -446,8 +446,9 @@ class _AppointmentCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ActionButtons extends StatelessWidget {
-  const _ActionButtons({required this.appointment});
+  const _ActionButtons({required this.appointment, required this.isHistory});
   final Appointment appointment;
+  final bool isHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -455,28 +456,41 @@ class _ActionButtons extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        // #5270 : un RDV terminé facturé propose d'accéder à la facture ; à
-        // défaut de montant connu, repli sur « Reprendre RDV » plutôt que
-        // d'inventer un montant ou de laisser la carte sans action.
-        if (appointment.status == AppointmentStatus.completed)
-          if (appointment.invoiceAmountCents != null)
-            NubiaButton(
-              key: Key('invoice_${appointment.id}'),
-              label:
-                  'Facture · ${formatQuoteCents(appointment.invoiceAmountCents!, alwaysShowDecimals: true)}',
-              size: NubiaButtonSize.sm,
-              icon: Icons.receipt_long,
-              onPressed: () => context.push('/documents'),
-            )
-          else
-            NubiaButton(
-              key: Key('rebook_${appointment.id}'),
-              label: 'Reprendre RDV',
-              variant: NubiaButtonVariant.secondary,
-              size: NubiaButtonSize.sm,
-              icon: Icons.event_repeat,
-              onPressed: () => context.push('/appointments'),
+        // #5270 : un RDV terminé facturé propose en plus d'accéder à la
+        // facture quand le montant est connu (« Reprendre RDV » reste
+        // affiché juste après pour tout l'historique, cf. #5269).
+        if (appointment.status == AppointmentStatus.completed &&
+            appointment.invoiceAmountCents != null)
+          NubiaButton(
+            key: Key('invoice_${appointment.id}'),
+            label:
+                'Facture · ${formatQuoteCents(appointment.invoiceAmountCents!, alwaysShowDecimals: true)}',
+            size: NubiaButtonSize.sm,
+            icon: Icons.receipt_long,
+            onPressed: () => context.push('/documents'),
+          ),
+        // #5269 : action primaire de l'historique (Terminé/Absent/Annulé) —
+        // relance une prise de RDV avec le même praticien (son nom est
+        // transmis pour pré-remplir la recherche). Sans check-in/modifier/
+        // annuler sur l'historique : ces actions "à venir" n'ont plus
+        // d'objet une fois le RDV passé.
+        if (isHistory)
+          NubiaButton(
+            key: Key('rebook_${appointment.id}'),
+            label: 'Reprendre RDV',
+            variant: NubiaButtonVariant.secondary,
+            size: NubiaButtonSize.sm,
+            icon: Icons.replay,
+            // #5269 : practitionerId peut être vide (l'API ne l'expose pas
+            // toujours) — la reprise reste possible, simplement sans
+            // pré-sélection du praticien.
+            onPressed: () => context.push(
+              '/appointments',
+              extra: appointment.practitionerId.isNotEmpty
+                  ? appointment.practitionerName
+                  : null,
             ),
+          ),
         if (appointment.isUpcoming)
           NubiaButton(
             key: Key('checkin_${appointment.id}'),

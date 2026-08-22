@@ -227,11 +227,13 @@ class AppRouter {
           GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(
           path: appointments,
-          builder: (_, __) => BlocProvider(
+          // #5269 : « Reprendre RDV » (Mes RDV · historique) transmet le nom
+          // du praticien via `extra` pour repartir de la même recherche.
+          builder: (_, state) => BlocProvider(
             create: (_) => GetIt.instance<AppointmentsBloc>(),
             child: Scaffold(
               appBar: AppBar(title: const Text('Prendre un rendez-vous')),
-              body: const AppointmentsPage(),
+              body: AppointmentsPage(initialQuery: state.extra as String?),
             ),
           ),
         ),
