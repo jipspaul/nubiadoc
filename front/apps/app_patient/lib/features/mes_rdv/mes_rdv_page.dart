@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'mes_rdv_bloc.dart';
 import 'mes_rdv_event.dart';
@@ -678,29 +680,29 @@ class _ActionButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        // #5270 : un RDV terminé facturé propose en plus d'accéder à la
-        // facture quand le montant est connu (« Reprendre RDV » reste
-        // affiché juste après pour tout l'historique, cf. #5269).
-        if (appointment.status == AppointmentStatus.completed &&
-            appointment.invoiceAmountCents != null)
-          NubiaButton(
-            key: Key('invoice_${appointment.id}'),
-            label:
-                'Facture · ${formatQuoteCents(appointment.invoiceAmountCents!, alwaysShowDecimals: true)}',
-            size: NubiaButtonSize.sm,
-            icon: Icons.receipt_long,
-            onPressed: () => context.push('/documents'),
-          ),
-        // #5269 : action primaire de l'historique (Terminé/Absent/Annulé) —
-        // relance une prise de RDV avec le même praticien (son nom est
-        // transmis pour pré-remplir la recherche). Sans check-in/modifier/
-        // annuler sur l'historique : ces actions "à venir" n'ont plus
-        // d'objet une fois le RDV passé.
-        if (isHistory)
+    if (isHistory) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          // #5270 : un RDV terminé facturé propose en plus d'accéder à la
+          // facture quand le montant est connu (« Reprendre RDV » reste
+          // affiché juste après pour tout l'historique, cf. #5269).
+          if (appointment.status == AppointmentStatus.completed &&
+              appointment.invoiceAmountCents != null)
+            NubiaButton(
+              key: Key('invoice_${appointment.id}'),
+              label:
+                  'Facture · ${formatQuoteCents(appointment.invoiceAmountCents!, alwaysShowDecimals: true)}',
+              size: NubiaButtonSize.sm,
+              icon: Icons.receipt_long,
+              onPressed: () => context.push('/documents'),
+            ),
+          // #5269 : action primaire de l'historique (Terminé/Absent/Annulé)
+          // — relance une prise de RDV avec le même praticien (son nom est
+          // transmis pour pré-remplir la recherche). Sans check-in/modifier/
+          // annuler sur l'historique : ces actions "à venir" n'ont plus
+          // d'objet une fois le RDV passé.
           NubiaButton(
             key: Key('rebook_${appointment.id}'),
             label: 'Reprendre RDV',
@@ -717,69 +719,256 @@ class _ActionButtons extends StatelessWidget {
                   : null,
             ),
           ),
-        if (appointment.isUpcoming)
-          NubiaButton(
-            key: Key('questionnaire_${appointment.id}'),
-            label: 'Questionnaire médical',
-            variant: NubiaButtonVariant.secondary,
-            size: NubiaButtonSize.sm,
-            icon: Icons.assignment_outlined,
-            onPressed: () => context.push(
-              '/questionnaire-medical/${appointment.cabinetId}',
+        ],
+      );
+    }
+
+    // #5264 : maquette design-v2 point #2 — le `Wrap` de 4 boutons de même
+    // poids devient UNE action contextuelle primaire pleine largeur (`.act`)
+    // + un `PopupMenuButton` (`.more`) portant les actions secondaires, avec
+    // « Annuler » isolé en bas du menu. La destruction n'est plus à un
+    // doigt de la confirmation.
+    return Row(
+      children: [
+        if (appointment.isUpcoming) ...[
+          Expanded(child: _PrimaryAction(appointment: appointment)),
+          const SizedBox(width: 8),
+        ],
+        _MoreActionsMenu(appointment: appointment),
+      ],
+    );
+  }
+}
+
+/// Action contextuelle primaire (`.act`) : flex:1, hauteur 40, radius 11,
+/// bordure `n200`, fond blanc, label 13,5px/600 `n800`, icône `n500`.
+/// #5264 : seule action affichée à ce niveau — le reste passe dans le menu
+/// `⋯` ([_MoreActionsMenu]).
+class _PrimaryAction extends StatelessWidget {
+  const _PrimaryAction({required this.appointment});
+  final Appointment appointment;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ActRowButton(
+      key: Key('questionnaire_${appointment.id}'),
+      icon: Icons.assignment_outlined,
+      label: 'Questionnaire médical',
+      onPressed: () => context.push(
+        '/questionnaire-medical/${appointment.cabinetId}',
+      ),
+    );
+  }
+}
+
+/// Bouton `.act` partagé par [_PrimaryAction] : bordure `n200`, fond blanc,
+/// radius 11, hauteur 40.
+class _ActRowButton extends StatelessWidget {
+  const _ActRowButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 40,
+      child: Material(
+        color: NubiaColors.n0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(11),
+          side: const BorderSide(color: NubiaColors.n200),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18, color: NubiaColors.n500),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: NubiaColors.n800,
+                      ),
+                ),
+              ],
             ),
           ),
-        if (appointment.canModify)
-          NubiaButton(
-            key: Key('modify_${appointment.id}'),
-            label: 'Modifier',
-            variant: NubiaButtonVariant.secondary,
-            size: NubiaButtonSize.sm,
-            icon: Icons.edit_calendar_outlined,
-            onPressed: () async {
-              final modified =
-                  await context.push<bool>('/rdv/${appointment.id}/modifier');
-              if (modified == true && context.mounted) {
-                context.read<MesRdvBloc>().add(const MesRdvLoadRequested());
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Rendez-vous modifié')),
-                );
-              }
-            },
-          ),
-        if (appointment.canCancel)
-          NubiaButton(
-            key: Key('cancel_${appointment.id}'),
-            label: 'Annuler',
-            variant: NubiaButtonVariant.destructive,
-            size: NubiaButtonSize.sm,
-            icon: Icons.cancel_outlined,
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text('Annuler ce RDV ?'),
-                  content: const Text('Cette action est irréversible.'),
-                  actions: [
-                    TextButton(
-                      key: const Key('dialog_dismiss'),
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text('Annuler'),
-                    ),
-                    FilledButton(
-                      key: const Key('dialog_confirm'),
-                      onPressed: () => Navigator.of(context).pop(true),
-                      child: const Text('Confirmer'),
-                    ),
-                  ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Actions secondaires portées par le menu `⋯` (`.more`, carré 40px, même
+/// bordure/fond que `.act`, icône `more_horiz` `n500`) : Modifier, Ajouter
+/// au calendrier, Contacter le cabinet puis Annuler — isolé en dernier
+/// (séparateur) et en `danger/fg`. Modifier/Annuler restent gatés par
+/// `canModify`/`canCancel` (#3804, non régressés).
+class _MoreActionsMenu extends StatelessWidget {
+  const _MoreActionsMenu({required this.appointment});
+  final Appointment appointment;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: Material(
+        color: NubiaColors.n0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(11),
+          side: const BorderSide(color: NubiaColors.n200),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: PopupMenuButton<_RdvMenuAction>(
+          key: Key('more_actions_${appointment.id}'),
+          tooltip: 'Plus d\'actions',
+          padding: EdgeInsets.zero,
+          icon: const Icon(Icons.more_horiz, color: NubiaColors.n500),
+          onSelected: (action) => _onSelected(context, action),
+          itemBuilder: (context) => [
+            if (appointment.canModify)
+              PopupMenuItem(
+                key: Key('modify_${appointment.id}'),
+                value: _RdvMenuAction.modify,
+                child: const _MenuItemLabel(
+                  icon: Icons.edit_calendar_outlined,
+                  label: 'Modifier',
                 ),
-              );
-              if (confirmed == true && context.mounted) {
-                context
-                    .read<MesRdvBloc>()
-                    .add(MesRdvCancelRequested(appointment));
-              }
-            },
+              ),
+            PopupMenuItem(
+              key: Key('add_to_calendar_${appointment.id}'),
+              value: _RdvMenuAction.addToCalendar,
+              child: const _MenuItemLabel(
+                icon: Icons.event_outlined,
+                label: 'Ajouter au calendrier',
+              ),
+            ),
+            if (appointment.cabinetPhone != null)
+              PopupMenuItem(
+                key: Key('contact_cabinet_${appointment.id}'),
+                value: _RdvMenuAction.contactCabinet,
+                child: const _MenuItemLabel(
+                  icon: Icons.call_outlined,
+                  label: 'Contacter le cabinet',
+                ),
+              ),
+            if (appointment.canCancel) ...[
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                key: Key('cancel_${appointment.id}'),
+                value: _RdvMenuAction.cancel,
+                child: const _MenuItemLabel(
+                  icon: Icons.cancel_outlined,
+                  label: 'Annuler',
+                  color: NubiaColors.dangerFg,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onSelected(BuildContext context, _RdvMenuAction action) async {
+    switch (action) {
+      case _RdvMenuAction.modify:
+        final modified =
+            await context.push<bool>('/rdv/${appointment.id}/modifier');
+        if (modified == true && context.mounted) {
+          context.read<MesRdvBloc>().add(const MesRdvLoadRequested());
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rendez-vous modifié')),
+          );
+        }
+      case _RdvMenuAction.addToCalendar:
+        Share.share(
+          _calendarSummary(appointment),
+          subject: 'Rendez-vous · ${appointment.practitionerName}',
+        );
+      case _RdvMenuAction.contactCabinet:
+        callPhoneNumber(appointment.cabinetPhone!);
+      case _RdvMenuAction.cancel:
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Annuler ce RDV ?'),
+            content: const Text('Cette action est irréversible.'),
+            actions: [
+              TextButton(
+                key: const Key('dialog_dismiss'),
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                key: const Key('dialog_confirm'),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Confirmer'),
+              ),
+            ],
           ),
+        );
+        if (confirmed == true && context.mounted) {
+          context
+              .read<MesRdvBloc>()
+              .add(MesRdvCancelRequested(appointment));
+        }
+    }
+  }
+}
+
+enum _RdvMenuAction { modify, addToCalendar, contactCabinet, cancel }
+
+/// Résumé texte du RDV partagé par « Ajouter au calendrier » — en attendant
+/// une intégration native à l'agenda de l'appareil (hors scope #5264).
+String _calendarSummary(Appointment appointment) {
+  final local = appointment.startsAt.toLocal();
+  final date = '${local.day.toString().padLeft(2, '0')}/'
+      '${local.month.toString().padLeft(2, '0')}/${local.year}';
+  final time = '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
+  final summary = StringBuffer(
+    'RDV avec ${appointment.practitionerName} le $date à $time',
+  );
+  if (appointment.cabinetAddress != null) {
+    summary.write(' — ${appointment.cabinetAddress}');
+  }
+  return summary.toString();
+}
+
+class _MenuItemLabel extends StatelessWidget {
+  const _MenuItemLabel({required this.icon, required this.label, this.color});
+  final IconData icon;
+  final String label;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: color ?? NubiaColors.n500),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(
+            color: color ?? NubiaColors.n800,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
