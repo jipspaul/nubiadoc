@@ -381,7 +381,8 @@ class _AppointmentCard extends StatelessWidget {
             ],
             if (appointment.isUpcoming ||
                 appointment.canCancel ||
-                appointment.canModify) ...[
+                appointment.canModify ||
+                appointment.status == AppointmentStatus.completed) ...[
               const SizedBox(height: 12),
               _ActionButtons(appointment: appointment),
             ],
@@ -454,6 +455,28 @@ class _ActionButtons extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
+        // #5270 : un RDV terminé facturé propose d'accéder à la facture ; à
+        // défaut de montant connu, repli sur « Reprendre RDV » plutôt que
+        // d'inventer un montant ou de laisser la carte sans action.
+        if (appointment.status == AppointmentStatus.completed)
+          if (appointment.invoiceAmountCents != null)
+            NubiaButton(
+              key: Key('invoice_${appointment.id}'),
+              label:
+                  'Facture · ${formatQuoteCents(appointment.invoiceAmountCents!, alwaysShowDecimals: true)}',
+              size: NubiaButtonSize.sm,
+              icon: Icons.receipt_long,
+              onPressed: () => context.push('/documents'),
+            )
+          else
+            NubiaButton(
+              key: Key('rebook_${appointment.id}'),
+              label: 'Reprendre RDV',
+              variant: NubiaButtonVariant.secondary,
+              size: NubiaButtonSize.sm,
+              icon: Icons.event_repeat,
+              onPressed: () => context.push('/appointments'),
+            ),
         if (appointment.isUpcoming)
           NubiaButton(
             key: Key('checkin_${appointment.id}'),

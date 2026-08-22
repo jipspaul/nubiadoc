@@ -18,6 +18,7 @@ class AppointmentDto {
   final int? noShowFeeCents;
   final bool hasReport;
   final int prescriptionCount;
+  final int? invoiceAmountCents;
 
   const AppointmentDto({
     required this.id,
@@ -37,6 +38,7 @@ class AppointmentDto {
     this.noShowFeeCents,
     this.hasReport = false,
     this.prescriptionCount = 0,
+    this.invoiceAmountCents,
   });
 
   factory AppointmentDto.fromJson(Map<String, dynamic> json) {
@@ -105,6 +107,12 @@ class AppointmentDto {
     final hasReport = json['has_report'] as bool? ?? false;
     final prescriptionCount =
         (json['prescription_count'] as num?)?.toInt() ?? 0;
+    // #5270 : pas de clé stable côté API à ce jour — on lit défensivement les
+    // noms plausibles ; absent, `invoiceAmountCents` reste null et l'UI
+    // masque l'action « Facture » plutôt que d'inventer un montant.
+    final invoiceAmountCents =
+        (json['invoice_amount_cents'] as num?)?.toInt() ??
+        (json['invoice_amount'] as num?)?.toInt();
     return AppointmentDto(
       id: json['id'] as String,
       cabinetId: json['cabinet_id'] as String? ?? '',
@@ -123,6 +131,7 @@ class AppointmentDto {
       noShowFeeCents: noShowFeeCents,
       hasReport: hasReport,
       prescriptionCount: prescriptionCount,
+      invoiceAmountCents: invoiceAmountCents,
     );
   }
 
@@ -146,6 +155,7 @@ class AppointmentDto {
     noShowFeeCents: noShowFeeCents,
     hasReport: hasReport,
     prescriptionCount: prescriptionCount,
+    invoiceAmountCents: invoiceAmountCents,
   );
 
   // #3804 : le back envoie 'done' (jamais 'completed') et distingue
