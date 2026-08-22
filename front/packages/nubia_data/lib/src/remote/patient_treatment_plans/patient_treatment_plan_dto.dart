@@ -107,6 +107,8 @@ class PatientTreatmentPlanDto {
   final String? pendingQuoteLabel;
   final String? pendingQuoteReceivedAt;
   final int? pendingQuotePatientShareCents;
+  final String? nextAppointmentId;
+  final String? nextAppointmentAt;
 
   const PatientTreatmentPlanDto({
     required this.id,
@@ -122,6 +124,8 @@ class PatientTreatmentPlanDto {
     this.pendingQuoteLabel,
     this.pendingQuoteReceivedAt,
     this.pendingQuotePatientShareCents,
+    this.nextAppointmentId,
+    this.nextAppointmentAt,
   });
 
   /// `GET /v1/treatment-plans` (liste) : ni coûts ni phases.
@@ -136,6 +140,8 @@ class PatientTreatmentPlanDto {
         pendingQuoteReceivedAt: json['pending_quote_received_at'] as String?,
         pendingQuotePatientShareCents:
             json['pending_quote_patient_share_cents'] as int?,
+        nextAppointmentId: json['next_appointment_id'] as String?,
+        nextAppointmentAt: json['next_appointment_at'] as String?,
       );
 
   /// `GET /v1/treatment-plans/:id` (détail) : coûts + phases, pas de `created_at`.
@@ -158,6 +164,8 @@ class PatientTreatmentPlanDto {
         pendingQuoteReceivedAt: json['pending_quote_received_at'] as String?,
         pendingQuotePatientShareCents:
             json['pending_quote_patient_share_cents'] as int?,
+        nextAppointmentId: json['next_appointment_id'] as String?,
+        nextAppointmentAt: json['next_appointment_at'] as String?,
       );
 
   PatientTreatmentPlan toDomain() => PatientTreatmentPlan(
@@ -176,5 +184,8 @@ class PatientTreatmentPlanDto {
             ? DateTime.parse(pendingQuoteReceivedAt!)
             : null,
         pendingQuotePatientShareCents: pendingQuotePatientShareCents,
+        nextAppointmentId: nextAppointmentId,
+        nextAppointmentAt:
+            nextAppointmentAt != null ? DateTime.parse(nextAppointmentAt!) : null,
       );
 }
