@@ -51,6 +51,18 @@ class IncomingRequestCubit extends Cubit<IncomingRequestState>
     emit(IncomingRequestLoaded(request, scope: request.grantedScope));
   }
 
+  /// Ajuste le périmètre avant acceptation (#5257, carte « Ajuster avant
+  /// d'accepter ») : c'est l'invité qui décide de l'étendue finale, pas le
+  /// périmètre proposé par le demandeur.
+  void setScopeRight(AccessRight right, bool granted) {
+    final current = state;
+    if (current is! IncomingRequestLoaded) return;
+    final scope = Set<AccessRight>.from(current.scope);
+    granted ? scope.add(right) : scope.remove(right);
+    emit(IncomingRequestLoaded(current.request,
+        scope: scope, errorMessage: current.errorMessage));
+  }
+
   Future<void> accept(Set<AccessRight> scope) async {
     final current = state;
     if (current is! IncomingRequestLoaded) return;

@@ -1,7 +1,8 @@
 //! Tests : `IncomingRequestPage`/`IncomingRequestCubit` (#5258) — actions
 //! Accepter/Refuser + encart de révocation sur l'écran « Décider » côté
-//! invité. Le détail du périmètre proposé (#5256) et son ajustement (#5257)
-//! sont hors scope de ce ticket.
+//! invité, et carte « Ajuster avant d'accepter » (#5257). Le détail du
+//! périmètre proposé (« Ce qu'elle pourrait faire », #5256) est hors scope
+//! de ce ticket.
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
@@ -108,6 +109,50 @@ void main() {
       expect(find.text('Refusée'), findsOneWidget);
     });
 
+    testWidgets(
+        'affiche la carte d\'ajustement avec les deux toggles initialisés ON',
+        (tester) async {
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('adjust_scope_card')), findsOneWidget);
+      expect(find.text('Ajuster avant d\'accepter'), findsOneWidget);
+      expect(find.text('Mes rendez-vous'), findsOneWidget);
+      expect(find.text('Mes documents'), findsOneWidget);
+
+      final rdvToggle = tester.widget<NubiaToggle>(
+          find.byKey(const Key('adjust_scope_toggle_rendez_vous')));
+      final docsToggle = tester.widget<NubiaToggle>(
+          find.byKey(const Key('adjust_scope_toggle_documents')));
+      expect(rdvToggle.value, isTrue);
+      expect(docsToggle.value, isTrue);
+    });
+
+    testWidgets(
+        'basculer un toggle restreint le périmètre envoyé à l\'acceptation',
+        (tester) async {
+      when(() => acceptUseCase(any())).thenAnswer(
+        (_) async =>
+            Right(_request.copyWithStatus(AccessRequestStatus.acceptee)),
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester
+          .tap(find.byKey(const Key('adjust_scope_toggle_documents')));
+      await tester.pumpAndSettle();
+
+      final docsToggle = tester.widget<NubiaToggle>(
+          find.byKey(const Key('adjust_scope_toggle_documents')));
+      expect(docsToggle.value, isFalse);
+
+      await tester.tap(find.byKey(const Key('accept_access_request_button')));
+      await tester.pumpAndSettle();
+
+      verify(() => acceptUseCase('ar-1')).called(1);
+    });
+
     testWidgets('affiche le message d\'erreur si le refus échoue',
         (tester) async {
       when(() => refuseUseCase(any()))
@@ -150,6 +195,25 @@ void main() {
                 AccessRequestStatus.acceptee),
       ],
       verify: (_) => verify(() => acceptUseCase('ar-1')).called(1),
+    );
+
+    blocTest<IncomingRequestCubit, IncomingRequestState>(
+      'setScopeRight() retire/ajoute un droit du périmètre ajusté',
+      build: () => IncomingRequestCubit(
+        accept: acceptUseCase,
+        refuse: refuseUseCase,
+      )..load(_request),
+      act: (cubit) => cubit
+        ..setScopeRight(AccessRight.documents, false)
+        ..setScopeRight(AccessRight.rendezVous, false)
+        ..setScopeRight(AccessRight.rendezVous, true),
+      expect: () => [
+        isA<IncomingRequestLoaded>()
+            .having((s) => s.scope, 'scope', {AccessRight.rendezVous}),
+        isA<IncomingRequestLoaded>().having((s) => s.scope, 'scope', <AccessRight>{}),
+        isA<IncomingRequestLoaded>()
+            .having((s) => s.scope, 'scope', {AccessRight.rendezVous}),
+      ],
     );
 
     blocTest<IncomingRequestCubit, IncomingRequestState>(
