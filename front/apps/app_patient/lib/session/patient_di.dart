@@ -224,6 +224,7 @@ void registerPatient(GetIt gi) {
       getQuoteById: gi<GetQuoteByIdUseCase>(),
       initiateSignature: gi<InitiateSignatureUseCase>(),
       initiateDeposit: gi<InitiateDepositUseCase>(),
+      getDocumentSignedUrl: gi<GetDocumentSignedUrlUseCase>(),
     ),
   );
 

@@ -27,6 +27,9 @@ class MockInitiateSignatureUseCase extends Mock
 class MockInitiateDepositUseCase extends Mock
     implements InitiateDepositUseCase {}
 
+class MockGetDocumentSignedUrlUseCase extends Mock
+    implements GetDocumentSignedUrlUseCase {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -67,17 +70,34 @@ final _quoteWithModereItem = Quote(
   createdAt: DateTime(2026, 6, 1),
 );
 
+/// Devis signé avec un PDF horodaté disponible dans le coffre (#5243) : doit
+/// afficher le CTA secondaire « Télécharger le devis signé ».
+final _signedQuoteWithDocument = Quote(
+  id: 'q-signed',
+  cabinetId: 'cab-1',
+  practitionerName: 'Dr Lemaire',
+  items: const [],
+  totalCents: 15000,
+  patientShareCents: 8000,
+  depositCents: 4000,
+  status: QuoteStatus.signed,
+  createdAt: DateTime(2026, 6, 1),
+  documentId: 'doc-1',
+);
+
 FinancialBloc _makeBloc({
   required MockGetPendingQuotesUseCase getPendingQuotes,
   required MockGetQuoteByIdUseCase getQuoteById,
   required MockInitiateSignatureUseCase initiateSignature,
   required MockInitiateDepositUseCase initiateDeposit,
+  required MockGetDocumentSignedUrlUseCase getDocumentSignedUrl,
 }) =>
     FinancialBloc(
       getPendingQuotes: getPendingQuotes,
       getQuoteById: getQuoteById,
       initiateSignature: initiateSignature,
       initiateDeposit: initiateDeposit,
+      getDocumentSignedUrl: getDocumentSignedUrl,
     );
 
 Widget _wrap(FinancialBloc bloc) => MaterialApp(
@@ -97,6 +117,7 @@ void main() {
   late MockGetQuoteByIdUseCase mockGetQuoteById;
   late MockInitiateSignatureUseCase mockInitiateSignature;
   late MockInitiateDepositUseCase mockInitiateDeposit;
+  late MockGetDocumentSignedUrlUseCase mockGetDocumentSignedUrl;
 
   setUpAll(() {
     registerFallbackValue(_quote);
@@ -107,6 +128,7 @@ void main() {
     mockGetQuoteById = MockGetQuoteByIdUseCase();
     mockInitiateSignature = MockInitiateSignatureUseCase();
     mockInitiateDeposit = MockInitiateDepositUseCase();
+    mockGetDocumentSignedUrl = MockGetDocumentSignedUrlUseCase();
   });
 
   group('FinancialPage widget', () {
@@ -116,6 +138,7 @@ void main() {
         getQuoteById: mockGetQuoteById,
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
       );
 
       await tester.pumpWidget(_wrap(bloc));
@@ -133,6 +156,7 @@ void main() {
         getQuoteById: mockGetQuoteById,
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -151,6 +175,7 @@ void main() {
         getQuoteById: mockGetQuoteById,
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -175,6 +200,7 @@ void main() {
         getQuoteById: mockGetQuoteById,
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -205,6 +231,7 @@ void main() {
         getQuoteById: mockGetQuoteById,
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -228,6 +255,7 @@ void main() {
         getQuoteById: mockGetQuoteById,
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -255,6 +283,7 @@ void main() {
         getQuoteById: mockGetQuoteById,
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -282,6 +311,7 @@ void main() {
         getQuoteById: mockGetQuoteById,
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -292,6 +322,71 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('rac0_alternative_banner')), findsNothing);
+    });
+
+    testWidgets(
+        'affiche le CTA secondaire "Télécharger le devis signé" en état '
+        'signed avec documentId (#5243)', (tester) async {
+      when(() => mockGetPendingQuotes())
+          .thenAnswer((_) async => Right([_signedQuoteWithDocument]));
+      when(() => mockGetQuoteById(any()))
+          .thenAnswer((_) async => Right(_signedQuoteWithDocument));
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      bloc.add(const FinancialQuoteSelected('q-signed'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('btn_download')), findsOneWidget);
+      expect(find.text('Télécharger le devis signé'), findsOneWidget);
+    });
+
+    testWidgets(
+        'n\'affiche pas le CTA de téléchargement sans documentId',
+        (tester) async {
+      when(() => mockGetPendingQuotes())
+          .thenAnswer((_) async => Right([_quote]));
+      when(() => mockGetQuoteById(any())).thenAnswer((_) async {
+        final signedNoDoc = Quote(
+          id: _quote.id,
+          cabinetId: _quote.cabinetId,
+          practitionerName: _quote.practitionerName,
+          items: _quote.items,
+          totalCents: _quote.totalCents,
+          patientShareCents: _quote.patientShareCents,
+          depositCents: _quote.depositCents,
+          status: QuoteStatus.signed,
+          createdAt: _quote.createdAt,
+        );
+        return Right(signedNoDoc);
+      });
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      bloc.add(const FinancialQuoteSelected('q-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('btn_download')), findsNothing);
     });
   });
 
@@ -306,6 +401,7 @@ void main() {
           getQuoteById: mockGetQuoteById,
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
+          getDocumentSignedUrl: mockGetDocumentSignedUrl,
         );
       },
       act: (bloc) => bloc.add(const FinancialLoadRequested()),
@@ -325,6 +421,7 @@ void main() {
           getQuoteById: mockGetQuoteById,
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
+          getDocumentSignedUrl: mockGetDocumentSignedUrl,
         );
       },
       act: (bloc) => bloc.add(const FinancialLoadRequested()),
@@ -345,6 +442,7 @@ void main() {
           getQuoteById: mockGetQuoteById,
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
+          getDocumentSignedUrl: mockGetDocumentSignedUrl,
         );
       },
       act: (bloc) => bloc.add(const FinancialLoadRequested()),
@@ -365,6 +463,7 @@ void main() {
           getQuoteById: mockGetQuoteById,
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
+          getDocumentSignedUrl: mockGetDocumentSignedUrl,
         );
       },
       seed: () => FinancialLoaded([_quote]),
@@ -398,6 +497,7 @@ void main() {
           getQuoteById: mockGetQuoteById,
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
+          getDocumentSignedUrl: mockGetDocumentSignedUrl,
         );
       },
       seed: () => FinancialQuoteDetail(quote: _quote, quotes: [_quote]),
@@ -415,6 +515,7 @@ void main() {
         getQuoteById: mockGetQuoteById,
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
       ),
       seed: () => FinancialQuoteDetail(quote: _quote, quotes: [_quote]),
       act: (bloc) => bloc.add(const FinancialBackToList()),
@@ -422,6 +523,34 @@ void main() {
         isA<FinancialLoaded>()
             .having((s) => s.quotes.length, 'quotes.length', 1),
       ],
+    );
+
+    blocTest<FinancialBloc, FinancialState>(
+      'émet [QuoteDetail(documentUrl)] quand le téléchargement est demandé '
+      '(#5243)',
+      build: () {
+        when(() => mockGetDocumentSignedUrl(any()))
+            .thenAnswer((_) async => const Right('https://vault/doc-1'));
+        return _makeBloc(
+          getPendingQuotes: mockGetPendingQuotes,
+          getQuoteById: mockGetQuoteById,
+          initiateSignature: mockInitiateSignature,
+          initiateDeposit: mockInitiateDeposit,
+          getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        );
+      },
+      seed: () => FinancialQuoteDetail(
+        quote: _signedQuoteWithDocument,
+        quotes: [_signedQuoteWithDocument],
+      ),
+      act: (bloc) => bloc.add(const FinancialDownloadRequested()),
+      expect: () => [
+        isA<FinancialQuoteDetail>()
+            .having((s) => s.documentUrl, 'documentUrl', 'https://vault/doc-1'),
+      ],
+      verify: (_) {
+        verify(() => mockGetDocumentSignedUrl('doc-1')).called(1);
+      },
     );
   });
 }
