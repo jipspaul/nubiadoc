@@ -89,6 +89,29 @@ final _planWithPendingQuote = PatientTreatmentPlan(
   ],
 );
 
+/// Variante avec la phase 2 en cours et un rendez-vous programmé — CTA
+/// « Voir mon rendez-vous » (#5299).
+const _planWithScheduledAppointment = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Réhabilitation implantaire',
+  status: 'in_progress',
+  phases: [
+    PatientTreatmentPlanPhase(
+      id: 'phase-1',
+      position: 1,
+      title: 'Phase 1 · Extraction',
+      status: 'done',
+    ),
+    PatientTreatmentPlanPhase(
+      id: 'phase-2',
+      position: 2,
+      title: 'Phase 2 · Implant',
+      status: 'in_progress',
+      appointmentId: 'appt-42',
+    ),
+  ],
+);
+
 void main() {
   group('PatientTreatmentPlansBody (liste)', () {
     testWidgets('liste avec plans — affiche une ligne par plan',
@@ -312,6 +335,93 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(pushedLocation, '/financial?id=quote-42');
+    });
+
+    testWidgets(
+        'phase en cours sans rendez-vous programmé — pas de CTA (#5299)',
+        (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state)
+          .thenReturn(const PatientTreatmentPlanDetailLoaded(_planDetail));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(find.byKey(const Key('phase_phase-2_appointment_cta')),
+          findsNothing);
+    });
+
+    testWidgets(
+        'phase en cours avec rendez-vous programmé — CTA « Voir mon '
+        'rendez-vous » (#5299)', (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state).thenReturn(
+          const PatientTreatmentPlanDetailLoaded(
+              _planWithScheduledAppointment));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      // Pas de CTA sur la phase terminée.
+      expect(find.byKey(const Key('phase_phase-1_appointment_cta')),
+          findsNothing);
+
+      expect(find.byKey(const Key('phase_phase-2_appointment_cta')),
+          findsOneWidget);
+      expect(find.byIcon(Icons.event), findsOneWidget);
+      expect(find.text('Voir mon rendez-vous'), findsOneWidget);
+    });
+
+    testWidgets(
+        'CTA « Voir mon rendez-vous » navigue vers l\'écran des '
+        'rendez-vous (#5299)', (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state).thenReturn(
+          const PatientTreatmentPlanDetailLoaded(
+              _planWithScheduledAppointment));
+
+      String? pushedLocation;
+      final router = GoRouter(
+        initialLocation: '/treatment-plans/plan-1',
+        routes: [
+          GoRoute(
+            path: '/treatment-plans/plan-1',
+            builder: (_, __) =>
+                BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+              value: cubit,
+              child: const PatientTreatmentPlanDetailBody(),
+            ),
+          ),
+          GoRoute(
+            path: '/mes-rdv',
+            builder: (_, state) {
+              pushedLocation = state.uri.toString();
+              return const Scaffold(body: Text('mes-rdv'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+          find.byKey(const Key('phase_phase-2_appointment_cta')));
+      await tester
+          .tap(find.byKey(const Key('phase_phase-2_appointment_cta')));
+      await tester.pumpAndSettle();
+
+      expect(pushedLocation, '/mes-rdv?id=appt-42');
     });
   });
 }
