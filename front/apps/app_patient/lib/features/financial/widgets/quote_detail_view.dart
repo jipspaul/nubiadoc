@@ -32,6 +32,8 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
     final style = QuoteStatusStyle.of(quote.status);
     final canSign = quote.canSign;
     final canPay = quote.status == QuoteStatus.signed && quote.depositCents > 0;
+    final canDownload =
+        quote.status == QuoteStatus.signed && quote.documentId != null;
     // Obligation conventionnelle de présenter l'alternative RAC 0 (#4061) :
     // dès qu'une ligne est classifiée `modere`, une option 100% Santé (RAC 0)
     // existe forcément pour ce même type d'acte — le praticien doit pouvoir
@@ -127,6 +129,15 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                 onPressed: () => context
                     .read<FinancialBloc>()
                     .add(FinancialPaymentRequested(idempotencyKey: _payKey)),
+              ),
+            if (canDownload)
+              NubiaButton(
+                key: const Key('btn_download'),
+                label: 'Télécharger le devis signé',
+                variant: NubiaButtonVariant.secondary,
+                onPressed: () => context
+                    .read<FinancialBloc>()
+                    .add(const FinancialDownloadRequested()),
               ),
             NubiaButton(
               key: const Key('btn_back'),

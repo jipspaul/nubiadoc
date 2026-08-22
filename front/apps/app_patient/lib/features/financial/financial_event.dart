@@ -42,3 +42,9 @@ final class FinancialPaymentRequested extends FinancialEvent {
   @override
   List<Object?> get props => [idempotencyKey];
 }
+
+/// Demande le téléchargement du devis signé (PDF horodaté du coffre) pour
+/// le devis actuellement affiché en détail.
+final class FinancialDownloadRequested extends FinancialEvent {
+  const FinancialDownloadRequested();
+}

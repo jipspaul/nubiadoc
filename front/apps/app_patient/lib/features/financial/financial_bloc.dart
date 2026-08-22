@@ -13,22 +13,26 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     required GetQuoteByIdUseCase getQuoteById,
     required InitiateSignatureUseCase initiateSignature,
     required InitiateDepositUseCase initiateDeposit,
+    required GetDocumentSignedUrlUseCase getDocumentSignedUrl,
   })  : _getPendingQuotes = getPendingQuotes,
         _getQuoteById = getQuoteById,
         _initiateSignature = initiateSignature,
         _initiateDeposit = initiateDeposit,
+        _getDocumentSignedUrl = getDocumentSignedUrl,
         super(const FinancialInitial()) {
     on<FinancialLoadRequested>(_onLoad);
     on<FinancialQuoteSelected>(_onQuoteSelected);
     on<FinancialBackToList>(_onBackToList);
     on<FinancialSignatureRequested>(_onSignatureRequested);
     on<FinancialPaymentRequested>(_onPaymentRequested);
+    on<FinancialDownloadRequested>(_onDownloadRequested);
   }
 
   final GetPendingQuotesUseCase _getPendingQuotes;
   final GetQuoteByIdUseCase _getQuoteById;
   final InitiateSignatureUseCase _initiateSignature;
   final InitiateDepositUseCase _initiateDeposit;
+  final GetDocumentSignedUrlUseCase _getDocumentSignedUrl;
 
   Future<void> _onLoad(
     FinancialLoadRequested event,
@@ -124,6 +128,31 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     } catch (_) {
       safeEmit(FinancialError(
           message: 'Erreur lors du paiement.', quotes: current.quotes));
+    }
+  }
+
+  Future<void> _onDownloadRequested(
+    FinancialDownloadRequested event,
+    Emitter<FinancialState> emit,
+  ) async {
+    final current = state;
+    if (current is! FinancialQuoteDetail) return;
+    final documentId = current.quote.documentId;
+    if (documentId == null) return;
+    try {
+      final result = await _getDocumentSignedUrl(documentId);
+      result.fold(
+        (f) => safeEmit(
+            FinancialError(message: f.message, quotes: current.quotes)),
+        (url) => safeEmit(FinancialQuoteDetail(
+          quote: current.quote,
+          quotes: current.quotes,
+          documentUrl: url,
+        )),
+      );
+    } catch (_) {
+      safeEmit(FinancialError(
+          message: 'Erreur lors du téléchargement.', quotes: current.quotes));
     }
   }
 

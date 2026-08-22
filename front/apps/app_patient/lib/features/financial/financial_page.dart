@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'financial_bloc.dart';
@@ -26,7 +27,27 @@ class FinancialPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<FinancialBloc, FinancialState>(
+    return BlocConsumer<FinancialBloc, FinancialState>(
+      listenWhen: (_, s) =>
+          s is FinancialQuoteDetail && s.documentUrl != null,
+      listener: (context, state) {
+        if (state is FinancialQuoteDetail && state.documentUrl != null) {
+          openDocumentUrl(state.documentUrl!).then((opened) {
+            if (!opened && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Impossible d\'ouvrir ce document.'),
+                ),
+              );
+            }
+          });
+          // Repasse par un état sans documentUrl pour éviter de rouvrir le
+          // lien à chaque rebuild (cf. implant_passport_page.dart).
+          context
+              .read<FinancialBloc>()
+              .add(FinancialQuoteSelected(state.quote.id));
+        }
+      },
       builder: (context, state) {
         if (state is FinancialInitial || state is FinancialLoading) {
           return const FinancialLoadingView(key: Key('financial_loading'));
