@@ -5,6 +5,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import '../features/account_setup/account_setup_cubit.dart';
 import '../features/coverage_setup/coverage_setup_cubit.dart';
 import '../features/dependents/dependents_cubit.dart';
+import '../features/dependents/incoming_request_cubit.dart';
 import '../features/consents/consents_cubit.dart';
 import '../features/implant_passport/implant_detail_cubit.dart';
 import '../features/implant_passport/implant_passport_cubit.dart';
@@ -174,6 +175,13 @@ void registerPatient(GetIt gi) {
       list: gi<ListDependentsUseCase>(),
       add: gi<AddDependentUseCase>(),
       remove: gi<DeleteDependentUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<IncomingRequestCubit>(
+    () => IncomingRequestCubit(
+      accept: gi<AcceptAccessRequestUseCase>(),
+      refuse: gi<RefuseAccessRequestUseCase>(),
     ),
   );
 
