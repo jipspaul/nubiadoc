@@ -174,6 +174,7 @@ void registerPatient(GetIt gi) {
     () => DependentsCubit(
       list: gi<ListDependentsUseCase>(),
       listAccessRequests: gi<ListAccessRequestsUseCase>(),
+      getUpcomingAppointments: gi<GetUpcomingAppointmentsUseCase>(),
       add: gi<AddDependentUseCase>(),
       remove: gi<DeleteDependentUseCase>(),
     ),

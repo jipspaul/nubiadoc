@@ -13,6 +13,9 @@ class _MockList extends Mock implements ListDependentsUseCase {}
 class _MockListAccessRequests extends Mock
     implements ListAccessRequestsUseCase {}
 
+class _MockGetUpcomingAppointments extends Mock
+    implements GetUpcomingAppointmentsUseCase {}
+
 class _MockAdd extends Mock implements AddDependentUseCase {}
 
 class _MockDelete extends Mock implements DeleteDependentUseCase {}
@@ -46,15 +49,19 @@ void main() {
   group('DependentsCubit', () {
     late _MockList list;
     late _MockListAccessRequests listAccessRequests;
+    late _MockGetUpcomingAppointments getUpcomingAppointments;
     late _MockAdd add;
     late _MockDelete del;
 
     setUp(() {
       list = _MockList();
       listAccessRequests = _MockListAccessRequests();
+      getUpcomingAppointments = _MockGetUpcomingAppointments();
       add = _MockAdd();
       del = _MockDelete();
       when(() => listAccessRequests.call())
+          .thenAnswer((_) async => const Right([]));
+      when(() => getUpcomingAppointments.call())
           .thenAnswer((_) async => const Right([]));
     });
 
@@ -65,6 +72,7 @@ void main() {
         return DependentsCubit(
           list: list,
           listAccessRequests: listAccessRequests,
+          getUpcomingAppointments: getUpcomingAppointments,
           add: add,
           remove: del,
         );
@@ -95,6 +103,7 @@ void main() {
         return DependentsCubit(
           list: list,
           listAccessRequests: listAccessRequests,
+          getUpcomingAppointments: getUpcomingAppointments,
           add: add,
           remove: del,
         );
@@ -119,6 +128,7 @@ void main() {
         return DependentsCubit(
           list: list,
           listAccessRequests: listAccessRequests,
+          getUpcomingAppointments: getUpcomingAppointments,
           add: add,
           remove: del,
         );
