@@ -4,12 +4,18 @@ enum MessageSender { patient, cabinet }
 
 enum MessageUrgency { normal, urgent }
 
+/// Type d'interlocuteur d'un [Conversation] (#5285) : le patient échange soit
+/// avec son cabinet, soit avec sa pharmacie (`pharma_messaging`, backend
+/// distinct) — porté par le champ `type` du contrat `GET /v1/conversations`.
+enum ConversationInterlocutorType { cabinet, pharmacy }
+
 class Conversation extends Equatable {
   final String id;
   final String cabinetId;
   final String cabinetName;
   final int unreadCount;
   final Message? lastMessage;
+  final ConversationInterlocutorType interlocutorType;
 
   /// Horodatage du dernier message du fil (`last_message_at` du contrat liste).
   /// `null` si le fil n'a encore aucun message. Le contrat liste ne renvoie
@@ -27,6 +33,7 @@ class Conversation extends Equatable {
     this.lastMessage,
     this.lastMessageAt,
     this.lastMessagePreview,
+    this.interlocutorType = ConversationInterlocutorType.cabinet,
   });
 
   Conversation copyWith({int? unreadCount}) {
@@ -38,6 +45,7 @@ class Conversation extends Equatable {
       lastMessage: lastMessage,
       lastMessageAt: lastMessageAt,
       lastMessagePreview: lastMessagePreview,
+      interlocutorType: interlocutorType,
     );
   }
 

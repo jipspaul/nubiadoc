@@ -14,6 +14,11 @@ class ConversationDto {
   /// `last_message_preview` — aperçu du dernier message, tronqué côté serveur.
   final String? lastMessagePreview;
 
+  /// `type` — discriminant explicite du destinataire (`"cabinet"` ou
+  /// `"pharmacy"`, cf. `ConversationItem` côté API) ; absent des anciens
+  /// payloads, on retombe alors sur `"cabinet"`.
+  final String type;
+
   const ConversationDto({
     required this.id,
     required this.cabinetId,
@@ -22,6 +27,7 @@ class ConversationDto {
     this.lastMessage,
     this.lastMessageAt,
     this.lastMessagePreview,
+    this.type = 'cabinet',
   });
 
   factory ConversationDto.fromJson(Map<String, dynamic> json) =>
@@ -35,6 +41,7 @@ class ConversationDto {
             : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
         lastMessageAt: json['last_message_at'] as String?,
         lastMessagePreview: json['last_message_preview'] as String?,
+        type: json['type'] as String? ?? 'cabinet',
       );
 
   Conversation toDomain() => Conversation(
@@ -46,6 +53,9 @@ class ConversationDto {
         lastMessageAt:
             lastMessageAt == null ? null : DateTime.parse(lastMessageAt!),
         lastMessagePreview: lastMessagePreview,
+        interlocutorType: type == 'pharmacy'
+            ? ConversationInterlocutorType.pharmacy
+            : ConversationInterlocutorType.cabinet,
       );
 }
 
