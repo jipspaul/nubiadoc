@@ -114,6 +114,12 @@ class PatientTreatmentPlan extends Equatable {
   final DateTime? pendingQuoteReceivedAt;
   final int? pendingQuotePatientShareCents;
 
+  /// Rendez-vous programmé pour l'étape courante du plan, s'il y en a un —
+  /// rangée « Prochaine séance » en pied de carte sur la liste (#5289).
+  /// `null` si aucune séance n'est programmée.
+  final String? nextAppointmentId;
+  final DateTime? nextAppointmentAt;
+
   const PatientTreatmentPlan({
     required this.id,
     required this.title,
@@ -128,6 +134,8 @@ class PatientTreatmentPlan extends Equatable {
     this.pendingQuoteLabel,
     this.pendingQuoteReceivedAt,
     this.pendingQuotePatientShareCents,
+    this.nextAppointmentId,
+    this.nextAppointmentAt,
   });
 
   /// Somme des actes des phases déjà réalisées (`done`) — considérés réglés.

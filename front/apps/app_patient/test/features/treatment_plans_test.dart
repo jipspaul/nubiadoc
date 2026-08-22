@@ -43,6 +43,16 @@ const _donePlan = PatientTreatmentPlan(
   status: 'done',
 );
 
+/// Plan « En cours » avec une prochaine séance programmée — rangée `.nx`
+/// en pied de carte (#5289).
+final _planWithNextAppointment = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Réhabilitation implantaire',
+  status: 'in_progress',
+  nextAppointmentId: 'appt-42',
+  nextAppointmentAt: DateTime.utc(2026, 8, 11, 14, 30),
+);
+
 const _planDetail = PatientTreatmentPlan(
   id: 'plan-1',
   title: 'Réhabilitation implantaire',
@@ -410,6 +420,144 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(pushedLocation, '/financial?id=quote-99');
+    });
+
+    testWidgets(
+        'plan « En cours » sans prochaine séance — pas de rangée '
+        '« Prochaine séance » (#5289)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state)
+          .thenReturn(const PatientTreatmentPlansLoaded([_plan]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      expect(find.textContaining('Prochaine séance'), findsNothing);
+    });
+
+    testWidgets(
+        'plan « En cours » avec prochaine séance programmée — rangée '
+        '« Prochaine séance » en pied de carte (#5289)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state).thenReturn(
+          PatientTreatmentPlansLoaded([_planWithNextAppointment]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      final card = find.byKey(const Key('treatment_plan_plan-1'));
+      expect(card, findsOneWidget);
+      expect(find.byIcon(Icons.event), findsOneWidget);
+
+      final textSpan = tester
+          .widget<Text>(find.byKey(
+              const Key('treatment_plan_plan-1_next_appointment_label')))
+          .textSpan as TextSpan;
+      expect(textSpan.toPlainText(), 'Prochaine séance mardi 11 août, 14:30');
+      final boldSpan = textSpan.children!.last as TextSpan;
+      expect(boldSpan.style?.fontWeight, FontWeight.bold);
+
+      expect(
+        find.descendant(of: card, matching: find.text('Voir')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        '« Voir » sur la rangée « Prochaine séance » navigue vers l\'écran '
+        'du rendez-vous correspondant, sans déclencher le tap de la carte '
+        '(#5289)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state).thenReturn(
+          PatientTreatmentPlansLoaded([_planWithNextAppointment]));
+
+      String? pushedLocation;
+      final router = GoRouter(
+        initialLocation: '/treatment-plans',
+        routes: [
+          GoRoute(
+            path: '/treatment-plans',
+            builder: (_, __) => BlocProvider<PatientTreatmentPlansBloc>.value(
+              value: bloc,
+              child: const PatientTreatmentPlansBody(),
+            ),
+          ),
+          GoRoute(
+            path: '/mes-rdv',
+            builder: (_, state) {
+              pushedLocation = state.uri.toString();
+              return const Scaffold(body: Text('mes-rdv'));
+            },
+          ),
+          GoRoute(
+            path: '/treatment-plans/:id',
+            builder: (_, state) {
+              pushedLocation = state.uri.toString();
+              return const Scaffold(body: Text('detail'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      final nextAppointmentCta = find
+          .byKey(const Key('treatment_plan_plan-1_next_appointment_cta'));
+      await tester.ensureVisible(nextAppointmentCta);
+      await tester.tap(nextAppointmentCta);
+      await tester.pumpAndSettle();
+
+      expect(pushedLocation, '/mes-rdv?id=appt-42');
+    });
+
+    testWidgets(
+        'tap sur la carte (hors rangée « Prochaine séance ») navigue '
+        'toujours vers le détail du plan (#5289)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state).thenReturn(
+          PatientTreatmentPlansLoaded([_planWithNextAppointment]));
+
+      String? pushedLocation;
+      final router = GoRouter(
+        initialLocation: '/treatment-plans',
+        routes: [
+          GoRoute(
+            path: '/treatment-plans',
+            builder: (_, __) => BlocProvider<PatientTreatmentPlansBloc>.value(
+              value: bloc,
+              child: const PatientTreatmentPlansBody(),
+            ),
+          ),
+          GoRoute(
+            path: '/treatment-plans/:id',
+            builder: (_, state) {
+              pushedLocation = state.uri.toString();
+              return const Scaffold(body: Text('detail'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Réhabilitation implantaire'));
+      await tester.pumpAndSettle();
+
+      expect(pushedLocation, '/treatment-plans/plan-1');
     });
 
     testWidgets('liste vide — état vide affiché, pas d\'encart d\'information',

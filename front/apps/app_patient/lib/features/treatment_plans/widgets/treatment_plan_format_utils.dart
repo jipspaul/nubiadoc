@@ -52,3 +52,19 @@ String formatTreatmentPlanDayMonth(DateTime dt) =>
 /// la carte de phase (#5298).
 String formatTreatmentPlanTime(DateTime dt) =>
     '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+const _weekdays = [
+  'lundi',
+  'mardi',
+  'mercredi',
+  'jeudi',
+  'vendredi',
+  'samedi',
+  'dimanche',
+];
+
+/// Formate une date en « jour de la semaine + quantième + mois » (ex.
+/// « mardi 11 août ») — rangée « Prochaine séance » de la carte de plan
+/// (#5289).
+String formatTreatmentPlanWeekdayDayMonth(DateTime dt) =>
+    '${_weekdays[dt.weekday - 1]} ${formatTreatmentPlanDayMonth(dt)}';
