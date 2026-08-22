@@ -961,4 +961,111 @@ void main() {
       );
     });
   });
+
+  // #5276 — l'urgence ne doit pas exister uniquement dans la liste
+  // (`last?.urgency`) : ouvrir le fil ne doit pas faire disparaître le
+  // signal, et un message urgent ancien dans l'historique doit rester signalé.
+  group('MessagingPage — urgence portée par la bulle (#5276)', () {
+    testWidgets(
+        'une bulle urgente affiche le bandeau URGENT, une bulle normale non',
+        (tester) async {
+      final urgent = Message(
+        id: 'msg-urgent',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Votre couronne est arrivée du laboratoire.',
+        urgency: MessageUrgency.urgent,
+        sentAt: DateTime(2026, 6, 18, 9, 0),
+      );
+      final normal = Message(
+        id: 'msg-normal',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Merci pour votre visite.',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 9, 5),
+      );
+      when(() => mockGetMessages(any()))
+          .thenAnswer((_) async => Right([urgent, normal]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('URGENT'), findsOneWidget);
+
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('Merci pour votre visite.'),
+            matching: find.byType(Container),
+          ).first,
+          matching: find.text('URGENT'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'un message urgent plus ancien reste signalé même si le dernier '
+        "message du fil n'est pas urgent", (tester) async {
+      final older = Message(
+        id: 'msg-old-urgent',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Message urgent ancien',
+        urgency: MessageUrgency.urgent,
+        sentAt: DateTime(2026, 6, 18, 9, 0),
+      );
+      final newer = Message(
+        id: 'msg-new-normal',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Message récent normal',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 10, 0),
+      );
+      when(() => mockGetMessages(any()))
+          .thenAnswer((_) async => Right([older, newer]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Message urgent ancien'), findsOneWidget);
+      expect(find.text('URGENT'), findsOneWidget);
+    });
+  });
 }

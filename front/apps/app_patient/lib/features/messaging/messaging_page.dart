@@ -495,7 +495,9 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPatient = message.sender == MessageSender.patient;
+    final isUrgent = message.urgency == MessageUrgency.urgent;
     final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
     return Align(
       alignment: isPatient ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -505,13 +507,23 @@ class _MessageBubble extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.72,
         ),
         decoration: BoxDecoration(
-          color: isPatient ? cs.primaryContainer : cs.surfaceContainerHighest,
+          color: isUrgent
+              ? tokens.dangerBg
+              : isPatient
+                  ? cs.primaryContainer
+                  : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
+          border:
+              isUrgent ? Border.all(color: NubiaColors.dangerBorder) : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isUrgent) ...[
+              _UrgentBanner(color: tokens.dangerFg),
+              const SizedBox(height: 6),
+            ],
             Text(
               message.text ?? '',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -532,6 +544,36 @@ class _MessageBubble extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Bandeau d'urgence porté par la bulle (#5276), verbatim maquette design-v2
+/// (point 2) : `MessageUrgency` ne doit pas exister uniquement dans la liste
+/// (`_Trailing.urgent`) — sinon ouvrir la conversation fait disparaître le
+/// signal qui a fait cliquer, et un message urgent ancien dans l'historique
+/// n'est jamais signalé. Même teinte que `NubiaBadgeVariant.error`.
+class _UrgentBanner extends StatelessWidget {
+  const _UrgentBanner({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.priority_high, size: 13, color: color),
+        const SizedBox(width: 2),
+        Text(
+          'URGENT',
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }
