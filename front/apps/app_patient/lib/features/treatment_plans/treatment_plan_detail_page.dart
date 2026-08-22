@@ -50,16 +50,62 @@ class PatientTreatmentPlanDetailBody extends StatelessWidget {
         builder: (context, state) {
           switch (state) {
             case PatientTreatmentPlanDetailLoading():
-              return const Center(
-                key: Key('treatment_plan_detail_loading'),
-                child: CircularProgressIndicator(),
-              );
+              return const _PlanDetailSkeleton();
             case PatientTreatmentPlanDetailError(:final message):
               return NubiaErrorWidget(message: message);
             case PatientTreatmentPlanDetailLoaded(:final plan):
               return _PlanDetailView(plan: plan);
           }
         },
+      ),
+    );
+  }
+}
+
+class _PlanDetailSkeleton extends StatelessWidget {
+  const _PlanDetailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('treatment_plan_detail_loading'),
+      padding: const EdgeInsets.all(16),
+      children: const [
+        NubiaSkeletonLoader(height: 24, width: 220),
+        SizedBox(height: 16),
+        NubiaSkeletonLoader(height: 80, borderRadius: 12),
+        SizedBox(height: 24),
+        NubiaSkeletonLoader(height: 20, width: 100),
+        SizedBox(height: 12),
+        _PhaseSkeletonCard(),
+        SizedBox(height: 12),
+        _PhaseSkeletonCard(),
+        SizedBox(height: 12),
+        _PhaseSkeletonCard(),
+      ],
+    );
+  }
+}
+
+class _PhaseSkeletonCard extends StatelessWidget {
+  const _PhaseSkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              NubiaSkeletonLoader(height: 16, width: 140),
+              NubiaSkeletonLoader(height: 22, width: 72, borderRadius: 999),
+            ],
+          ),
+          SizedBox(height: 12),
+          NubiaSkeletonLoader(height: 12, width: 180),
+        ],
       ),
     );
   }
