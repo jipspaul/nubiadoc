@@ -13,6 +13,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -65,6 +66,25 @@ const _planDetail = PatientTreatmentPlan(
       position: 2,
       title: 'Phase 2 · Implant',
       status: 'requested',
+    ),
+  ],
+);
+
+/// Variante avec un devis en attente d'accord sur la phase 2 — bandeau
+/// warning + CTA « Consulter et signer le devis » (#5300).
+final _planWithPendingQuote = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Réhabilitation implantaire',
+  status: 'in_progress',
+  phases: [
+    _planDetail.phases[0],
+    PatientTreatmentPlanPhase(
+      id: 'phase-2',
+      position: 2,
+      title: 'Phase 2 · Implant',
+      status: 'requested',
+      pendingQuoteId: 'quote-42',
+      pendingQuoteSentAt: DateTime.utc(2026, 8, 9),
     ),
   ],
 );
@@ -196,6 +216,102 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        'phase sans devis en attente — pas de bandeau ni de CTA (#5300)',
+        (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state)
+          .thenReturn(const PatientTreatmentPlanDetailLoaded(_planDetail));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(find.byKey(const Key('phase_phase-2_pending_quote_banner')),
+          findsNothing);
+      expect(
+          find.byKey(const Key('phase_phase-2_quote_cta')), findsNothing);
+    });
+
+    testWidgets(
+        'phase avec devis en attente — bandeau warning + CTA (#5300)',
+        (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientTreatmentPlanDetailLoaded(_planWithPendingQuote));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(find.byKey(const Key('phase_phase-2_pending_quote_banner')),
+          findsOneWidget);
+      expect(find.byKey(const Key('phase_phase-2_quote_cta')), findsOneWidget);
+      expect(find.byIcon(Icons.description), findsOneWidget);
+      expect(find.byIcon(Icons.draw), findsOneWidget);
+      expect(find.text('Consulter et signer le devis'), findsOneWidget);
+
+      final textSpan = tester
+          .widget<Text>(find.descendant(
+            of: find.byKey(const Key('phase_phase-2_pending_quote_banner')),
+            matching: find.byType(Text),
+          ))
+          .textSpan as TextSpan;
+      expect(textSpan.toPlainText(),
+          'Un devis vous a été envoyé le 9 août. Cette étape ne peut pas '
+          'être programmée avant votre accord.');
+      final firstSpan = textSpan.children!.first as TextSpan;
+      expect(firstSpan.style?.fontWeight, FontWeight.bold);
+    });
+
+    testWidgets(
+        'CTA « Consulter et signer le devis » navigue vers l\'écran du '
+        'devis correspondant (#5300)', (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientTreatmentPlanDetailLoaded(_planWithPendingQuote));
+
+      String? pushedLocation;
+      final router = GoRouter(
+        initialLocation: '/treatment-plans/plan-1',
+        routes: [
+          GoRoute(
+            path: '/treatment-plans/plan-1',
+            builder: (_, __) =>
+                BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+              value: cubit,
+              child: const PatientTreatmentPlanDetailBody(),
+            ),
+          ),
+          GoRoute(
+            path: '/financial',
+            builder: (_, state) {
+              pushedLocation = state.uri.toString();
+              return const Scaffold(body: Text('financial'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      await tester
+          .ensureVisible(find.byKey(const Key('phase_phase-2_quote_cta')));
+      await tester.tap(find.byKey(const Key('phase_phase-2_quote_cta')));
+      await tester.pumpAndSettle();
+
+      expect(pushedLocation, '/financial?id=quote-42');
     });
   });
 }

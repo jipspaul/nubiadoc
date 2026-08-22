@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import 'treatment_plans_bloc.dart';
 import 'widgets/plan_cost_block.dart';
 import 'widgets/treatment_plan_format_utils.dart';
@@ -179,12 +181,81 @@ class _PlanDetailView extends StatelessWidget {
                             ),
                           ),
                       ],
+                      if (phase.pendingQuoteId != null) ...[
+                        const SizedBox(height: 12),
+                        _PendingQuoteBanner(
+                          key: Key('phase_${phase.id}_pending_quote_banner'),
+                          sentAt: phase.pendingQuoteSentAt,
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: NubiaButton(
+                            key: Key('phase_${phase.id}_quote_cta'),
+                            label: 'Consulter et signer le devis',
+                            icon: Icons.draw,
+                            onPressed: () => context.push(
+                                '${AppRouter.financial}?id=${phase.pendingQuoteId}'),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
           const SizedBox(height: 16),
           const _EstimatedAmountsNotice(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bandeau warning « devis en attente » sur la carte d'une phase à venir
+/// bloquée par un devis non signé (#5300). Maquette :
+/// `design/v2-screens/patient-mon-plan-de-soins.png`.
+class _PendingQuoteBanner extends StatelessWidget {
+  const _PendingQuoteBanner({super.key, required this.sentAt});
+
+  final DateTime? sentAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final sentAtLabel =
+        sentAt != null ? formatTreatmentPlanDayMonth(sentAt!.toLocal()) : null;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.warningBg,
+        border: Border.all(color: NubiaColors.warningBorder),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.description, size: 18, color: tokens.warningFg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: const TextStyle(fontSize: 12, color: Color(0xFF78350F)),
+                children: [
+                  TextSpan(
+                    text: sentAtLabel != null
+                        ? 'Un devis vous a été envoyé le $sentAtLabel.'
+                        : 'Un devis vous a été envoyé.',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const TextSpan(
+                    text: ' Cette étape ne peut pas être programmée avant '
+                        'votre accord.',
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

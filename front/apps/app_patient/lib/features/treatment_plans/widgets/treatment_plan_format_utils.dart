@@ -27,3 +27,23 @@ String _groupThousands(int value) {
   }
   return buffer.toString();
 }
+
+const _months = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+];
+
+/// Formate une date en « quantième + mois » (ex. « 9 août ») — bandeau
+/// « devis en attente » de la carte de phase (#5300).
+String formatTreatmentPlanDayMonth(DateTime dt) =>
+    '${dt.day} ${_months[dt.month - 1]}';

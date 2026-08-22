@@ -28,12 +28,20 @@ class PatientTreatmentPlanPhase extends Equatable {
   final String status;
   final List<PatientTreatmentPlanItem> items;
 
+  /// Devis envoyé et en attente de signature du patient pour cette phase,
+  /// s'il y en a un — bandeau « devis en attente » (#5300). `null` si la
+  /// phase n'est bloquée par aucun devis en attente d'accord.
+  final String? pendingQuoteId;
+  final DateTime? pendingQuoteSentAt;
+
   const PatientTreatmentPlanPhase({
     required this.id,
     required this.position,
     required this.title,
     required this.status,
     this.items = const [],
+    this.pendingQuoteId,
+    this.pendingQuoteSentAt,
   });
 
   @override
