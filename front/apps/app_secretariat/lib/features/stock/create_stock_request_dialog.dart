@@ -136,6 +136,7 @@ class _CreateStockRequestDialogState extends State<CreateStockRequestDialog> {
                             onRemove: _items.length > 1
                                 ? () => setState(() => _items.removeAt(i))
                                 : null,
+                            onChanged: () => setState(() {}),
                           ),
                         ),
                       TextButton.icon(
@@ -183,27 +184,37 @@ class _CreateStockRequestDialogState extends State<CreateStockRequestDialog> {
       );
       return;
     }
+
+    // Validation par ligne, au champ : chaque ligne est vérifiée (au lieu
+    // d'être `continue`-ée en silence), l'erreur est portée par le champ
+    // concerné et bloque l'envoi tant qu'elle n'est pas corrigée.
+    var hasError = false;
     final items = <StockRequestItem>[];
     for (final draft in _items) {
       final label = draft.labelController.text.trim();
-      if (label.isEmpty) continue;
-      final qty = int.tryParse(draft.qtyController.text.trim()) ?? 0;
-      if (qty <= 0) continue;
+      final qty = int.tryParse(draft.qtyController.text.trim());
+
+      draft.labelError = label.isEmpty ? 'Libellé requis.' : null;
+      draft.qtyError = (qty == null || qty <= 0) ? 'Quantité invalide.' : null;
+
+      if (draft.labelError != null || draft.qtyError != null) {
+        hasError = true;
+        continue;
+      }
+
       final note = draft.noteController.text.trim();
       items.add(StockRequestItem(
         label: label,
-        quantity: qty,
+        quantity: qty!,
         note: note.isEmpty ? null : note,
       ));
     }
-    if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ajoutez au moins un article avec une quantité.'),
-        ),
-      );
+
+    if (hasError) {
+      setState(() {});
       return;
     }
+
     Navigator.of(context).pop((pharmacyId: pharmacy.id, items: items));
   }
 }
@@ -212,6 +223,8 @@ class _ItemDraft {
   final labelController = TextEditingController();
   final qtyController = TextEditingController(text: '1');
   final noteController = TextEditingController();
+  String? labelError;
+  String? qtyError;
 
   void dispose() {
     labelController.dispose();
@@ -249,11 +262,13 @@ class _ItemRow extends StatelessWidget {
     required this.index,
     required this.draft,
     required this.onRemove,
+    required this.onChanged,
   });
 
   final int index;
   final _ItemDraft draft;
   final VoidCallback? onRemove;
+  final VoidCallback onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -266,6 +281,12 @@ class _ItemRow extends StatelessWidget {
             key: Key('stock_item_label_$index'),
             controller: draft.labelController,
             label: 'Article',
+            errorText: draft.labelError,
+            onChanged: (_) {
+              if (draft.labelError == null) return;
+              draft.labelError = null;
+              onChanged();
+            },
           ),
         ),
         const SizedBox(width: 8),
@@ -275,6 +296,12 @@ class _ItemRow extends StatelessWidget {
             variant: NubiaTextFieldVariant.numberStepper,
             controller: draft.qtyController,
             label: 'Qté',
+            errorText: draft.qtyError,
+            onChanged: (_) {
+              if (draft.qtyError == null) return;
+              draft.qtyError = null;
+              onChanged();
+            },
           ),
         ),
         if (onRemove != null)
