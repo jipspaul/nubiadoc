@@ -1,13 +1,13 @@
-abstract class AdminSecretiariatsEvent {
-  const AdminSecretiariatsEvent();
+abstract class AdminSecretariatsEvent {
+  const AdminSecretariatsEvent();
 }
 
-class AdminSecretiariatsLoadRequested extends AdminSecretiariatsEvent {
-  const AdminSecretiariatsLoadRequested();
+class AdminSecretariatsLoadRequested extends AdminSecretariatsEvent {
+  const AdminSecretariatsLoadRequested();
 }
 
-class AdminSecretiariatsInviteRequested extends AdminSecretiariatsEvent {
-  const AdminSecretiariatsInviteRequested({
+class AdminSecretariatsInviteRequested extends AdminSecretariatsEvent {
+  const AdminSecretariatsInviteRequested({
     required this.name,
     required this.email,
   });

@@ -11,57 +11,57 @@ import 'admin_secretariats_state.dart';
 import 'invite_secretariat_dialog.dart';
 
 /// Body-only content for the secrétariats admin list. Can be embedded in any
-/// layout that provides [AdminSecretiariatsBloc] via [BlocProvider] (e.g.
-/// [ProShell] bodyBuilder or the full-page [AdminSecretiariatsPage]).
-class AdminSecretiariatsBody extends StatefulWidget {
-  const AdminSecretiariatsBody({super.key});
+/// layout that provides [AdminSecretariatsBloc] via [BlocProvider] (e.g.
+/// [ProShell] bodyBuilder or the full-page [AdminSecretariatsPage]).
+class AdminSecretariatsBody extends StatefulWidget {
+  const AdminSecretariatsBody({super.key});
 
   @override
-  State<AdminSecretiariatsBody> createState() => _AdminSecretiariatsBodyState();
+  State<AdminSecretariatsBody> createState() => _AdminSecretariatsBodyState();
 }
 
-class _AdminSecretiariatsBodyState extends State<AdminSecretiariatsBody> {
+class _AdminSecretariatsBodyState extends State<AdminSecretariatsBody> {
   Completer<void>? _refreshCompleter;
 
   @override
   void initState() {
     super.initState();
     context
-        .read<AdminSecretiariatsBloc>()
-        .add(const AdminSecretiariatsLoadRequested());
+        .read<AdminSecretariatsBloc>()
+        .add(const AdminSecretariatsLoadRequested());
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+    return BlocConsumer<AdminSecretariatsBloc, AdminSecretariatsState>(
       listener: (context, state) {
-        if (state is AdminSecretiariatsLoaded ||
-            state is AdminSecretiariatsEmpty ||
-            state is AdminSecretiariatsError) {
+        if (state is AdminSecretariatsLoaded ||
+            state is AdminSecretariatsEmpty ||
+            state is AdminSecretariatsError) {
           _refreshCompleter?.complete();
           _refreshCompleter = null;
         }
-        if (state is AdminSecretiariatsInviteSent) {
+        if (state is AdminSecretariatsInviteSent) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Invitation envoyée à ${state.email}.')),
           );
         }
-        if (state is AdminSecretiariatsInviteFailed) {
+        if (state is AdminSecretariatsInviteFailed) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.message)),
           );
           context
-              .read<AdminSecretiariatsBloc>()
-              .add(const AdminSecretiariatsLoadRequested());
+              .read<AdminSecretariatsBloc>()
+              .add(const AdminSecretariatsLoadRequested());
         }
       },
       builder: (context, state) => switch (state) {
-        AdminSecretiariatsInitial() ||
-        AdminSecretiariatsLoading() ||
-        AdminSecretiariatsInviteSent() ||
-        AdminSecretiariatsInviteFailed() =>
+        AdminSecretariatsInitial() ||
+        AdminSecretariatsLoading() ||
+        AdminSecretariatsInviteSent() ||
+        AdminSecretariatsInviteFailed() =>
           const _SecretariatsSkeleton(),
-        AdminSecretiariatsEmpty() => NubiaEmptyState(
+        AdminSecretariatsEmpty() => NubiaEmptyState(
             key: const Key('admin_secretariats_empty'),
             icon: Icons.business_outlined,
             title: 'Aucun secrétariat enregistré.',
@@ -74,21 +74,21 @@ class _AdminSecretiariatsBodyState extends State<AdminSecretiariatsBody> {
               onPressed: () => _openInviteDialog(context),
             ),
           ),
-        AdminSecretiariatsLoaded(:final secretariats) => _SecretariatsList(
+        AdminSecretariatsLoaded(:final secretariats) => _SecretariatsList(
             secretariats: secretariats,
             onRefresh: () {
               _refreshCompleter = Completer<void>();
               context
-                  .read<AdminSecretiariatsBloc>()
-                  .add(const AdminSecretiariatsLoadRequested());
+                  .read<AdminSecretariatsBloc>()
+                  .add(const AdminSecretariatsLoadRequested());
               return _refreshCompleter!.future;
             },
           ),
-        AdminSecretiariatsError(:final message) => NubiaErrorWidget(
+        AdminSecretariatsError(:final message) => NubiaErrorWidget(
             message: message,
             onRetry: () => context
-                .read<AdminSecretiariatsBloc>()
-                .add(const AdminSecretiariatsLoadRequested()),
+                .read<AdminSecretariatsBloc>()
+                .add(const AdminSecretariatsLoadRequested()),
           ),
       },
     );
@@ -97,21 +97,21 @@ class _AdminSecretiariatsBodyState extends State<AdminSecretiariatsBody> {
 
 /// Ouvre la modale d'invitation puis dispatche l'invitation réelle.
 Future<void> _openInviteDialog(BuildContext context) async {
-  final bloc = context.read<AdminSecretiariatsBloc>();
+  final bloc = context.read<AdminSecretariatsBloc>();
   final result = await showDialog<({String name, String email})>(
     context: context,
     builder: (_) => const InviteSecretariatDialog(),
   );
   if (result != null) {
-    bloc.add(AdminSecretiariatsInviteRequested(
+    bloc.add(AdminSecretariatsInviteRequested(
       name: result.name,
       email: result.email,
     ));
   }
 }
 
-class AdminSecretiariatsPage extends StatelessWidget {
-  const AdminSecretiariatsPage({super.key});
+class AdminSecretariatsPage extends StatelessWidget {
+  const AdminSecretariatsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -124,8 +124,8 @@ class AdminSecretiariatsPage extends StatelessWidget {
             tooltip: 'Actualiser',
             icon: const Icon(Icons.refresh),
             onPressed: () => context
-                .read<AdminSecretiariatsBloc>()
-                .add(const AdminSecretiariatsLoadRequested()),
+                .read<AdminSecretariatsBloc>()
+                .add(const AdminSecretariatsLoadRequested()),
           ),
         ],
       ),
@@ -135,7 +135,7 @@ class AdminSecretiariatsPage extends StatelessWidget {
         icon: const Icon(Icons.add),
         label: const Text('Inviter un secrétariat'),
       ),
-      body: const AdminSecretiariatsBody(),
+      body: const AdminSecretariatsBody(),
     );
   }
 }
