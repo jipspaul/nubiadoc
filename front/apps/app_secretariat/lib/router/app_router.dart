@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -118,10 +119,13 @@ class AppRouter {
         // `ProConfig.shellConfig.destinations`) : deep-links/pushes ponctuels
         // qui restent volontairement hors du `StatefulShellRoute` ci-dessous
         // (#5154 — décision documentée dans `README.md`).
-        GoRoute(
-          path: a2uiDemo,
-          builder: (_, __) => const A2uiDemoPage(),
-        ),
+        // #5152 — route de démonstration : ne jamais l'enregistrer en
+        // release, sous peine d'être atteignable par URL en production.
+        if (kDebugMode)
+          GoRoute(
+            path: a2uiDemo,
+            builder: (_, __) => const A2uiDemoPage(),
+          ),
         GoRoute(
           path: teamMessages,
           builder: (_, __) => const CabinetTeamMessagesPage(),
