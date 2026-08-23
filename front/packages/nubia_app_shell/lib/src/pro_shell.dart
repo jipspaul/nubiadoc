@@ -18,6 +18,7 @@ class ProShell extends StatefulWidget {
     super.key,
     required this.config,
     required this.session,
+    this.body,
     this.bodyBuilder,
     this.trailingActions = const [],
     this.onSignOut,
@@ -30,8 +31,18 @@ class ProShell extends StatefulWidget {
   final ProConfig config;
   final AuthSession session;
 
+  /// Content rendered directly, taking priority over [bodyBuilder]. Intended
+  /// for callers wiring a `StatefulShellRoute` (see [ProNavDestination.route]
+  /// doc): go_router already resolves the active destination's widget, so
+  /// [ProShell] only owns the rail/drawer — it skips its own content
+  /// [Scaffold]/`AppBar` on desktop so the routed page's chrome (if any)
+  /// isn't duplicated. `null` (default) : legacy [bodyBuilder] behaviour,
+  /// unchanged for callers that don't route destinations individually.
+  final Widget? body;
+
   /// Provides the main content widget for the selected destination.
   /// Defaults to a labelled [NubiaEmptyState] placeholder when omitted.
+  /// Ignored when [body] is provided.
   final Widget Function(BuildContext context, ProNavDestination destination)?
       bodyBuilder;
 
@@ -122,8 +133,7 @@ class _ProShellState extends State<ProShell> {
     // shell (même pattern `CallbackShortcuts` que side_column.dart, #4941).
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
-        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
-            onSearchTap,
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true): onSearchTap,
       },
       child: shell,
     );
@@ -190,6 +200,28 @@ class _ProShellState extends State<ProShell> {
         ? NavigationRailLabelType.selected
         : NavigationRailLabelType.all;
 
+    // En mode [body] (StatefulShellRoute), la page routée porte déjà son
+    // propre Scaffold/AppBar le cas échéant (ex. bouton actualiser, FAB) —
+    // un second NubiaAppBar ici le dupliquerait. On ne fournit le
+    // NubiaAppBar générique (titre + recherche) que dans le mode
+    // [bodyBuilder] legacy, où aucune chrome par destination n'existe.
+    final content = widget.body ??
+        Scaffold(
+          appBar: NubiaAppBar(
+            title: current.label,
+            centerTitle: false,
+            actions: widget.searchHint != null && widget.onSearchTap != null
+                ? [
+                    _SearchTrigger(
+                      hint: widget.searchHint!,
+                      onTap: widget.onSearchTap!,
+                    ),
+                  ]
+                : null,
+          ),
+          body: _content(context, current),
+        );
+
     return Scaffold(
       body: Row(
         children: [
@@ -232,23 +264,7 @@ class _ProShellState extends State<ProShell> {
             ],
           ),
           const VerticalDivider(width: 1),
-          Expanded(
-            child: Scaffold(
-              appBar: NubiaAppBar(
-                title: current.label,
-                centerTitle: false,
-                actions: widget.searchHint != null && widget.onSearchTap != null
-                    ? [
-                        _SearchTrigger(
-                          hint: widget.searchHint!,
-                          onTap: widget.onSearchTap!,
-                        ),
-                      ]
-                    : null,
-              ),
-              body: _content(context, current),
-            ),
-          ),
+          Expanded(child: content),
         ],
       ),
     );
@@ -290,7 +306,7 @@ class _ProShellState extends State<ProShell> {
           ),
         ),
       ),
-      body: _content(context, current),
+      body: widget.body ?? _content(context, current),
     );
   }
 }
