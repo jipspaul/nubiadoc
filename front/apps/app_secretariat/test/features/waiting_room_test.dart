@@ -216,5 +216,91 @@ void main() {
       );
       expect(fab.onPressed, isNotNull);
     });
+
+    testWidgets(
+        'affiche le récap KPI (en attente / moyenne / au-delà de 30 min) — #5173',
+        (tester) async {
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: now.subtract(const Duration(minutes: 10)),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: now.subtract(const Duration(minutes: 40)),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_count')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_average')),
+          matching: find.text('25 min'),
+        ),
+        findsOneWidget,
+      );
+
+      final overThirtyValue = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_over_thirty')),
+          matching: find.text('1'),
+        ),
+      );
+      expect(overThirtyValue.style?.color, NubiaTokens.light.dangerFg);
+    });
+
+    testWidgets('file vide → KPI à 0 / 0 min / 0, pas de division par zéro',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_count')),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_average')),
+          matching: find.text('0 min'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_over_thirty')),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('pas de bandeau KPI hors état Loaded (chargement)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomInitial());
+      await tester.pumpWidget(buildPage());
+
+      expect(find.byKey(const Key('waiting_room_kpi_count')), findsNothing);
+    });
   });
 }

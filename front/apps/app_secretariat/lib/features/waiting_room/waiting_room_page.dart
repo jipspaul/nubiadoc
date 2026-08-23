@@ -7,6 +7,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'waiting_room_bloc.dart';
 import 'waiting_room_event.dart';
 import 'waiting_room_state.dart';
+import 'widgets/waiting_room_kpis.dart';
 
 /// Body-only content for the waiting room. Can be embedded in any layout
 /// that provides [WaitingRoomBloc] via [BlocProvider] (e.g. [ProShell]
@@ -71,7 +72,19 @@ class WaitingRoomPage extends StatelessWidget {
     return Scaffold(
       key: const Key('waiting_room_scaffold'),
       appBar: AppBar(
-        title: Text(NubiaL10n.waitingRoom),
+        title: Row(
+          children: [
+            Text(NubiaL10n.waitingRoom),
+            const SizedBox(width: 24),
+            Expanded(
+              child: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
+                builder: (context, state) => state is WaitingRoomLoaded
+                    ? WaitingRoomKpiBar(entries: state.entries)
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: NubiaL10n.refresh,
