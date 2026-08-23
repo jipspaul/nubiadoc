@@ -48,7 +48,7 @@ n'être rendu que par la Dashboard.
 - **Chrome par destination** : `ProShell` ne construit son propre `AppBar`
   générique que lorsque `body` n'est pas fourni. En mode `StatefulShellRoute`,
   chaque branche réutilise l'écran « page complète » déjà existant (son
-  propre `Scaffold`/`AppBar`/FAB — ex. `AdminSecretiariatsPage`,
+  propre `Scaffold`/`AppBar`/FAB — ex. `AdminSecretariatsPage`,
   `WaitingRoomPage`) : zéro régression fonctionnelle (bouton actualiser,
   raccourcis clavier, FAB de création, etc. tous conservés), zéro AppBar
   dupliqué. Seules `/` (Dashboard) et `/agenda` n'ont pas de `Scaffold`

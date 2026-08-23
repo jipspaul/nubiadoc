@@ -5,27 +5,27 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'admin_secretariats_event.dart';
 import 'admin_secretariats_state.dart';
 
-class AdminSecretiariatsBloc
-    extends Bloc<AdminSecretiariatsEvent, AdminSecretiariatsState>
-    with SafeEmitMixin<AdminSecretiariatsState> {
-  final ListSecretiariatsUseCase _listSecretariats;
+class AdminSecretariatsBloc
+    extends Bloc<AdminSecretariatsEvent, AdminSecretariatsState>
+    with SafeEmitMixin<AdminSecretariatsState> {
+  final ListSecretariatsUseCase _listSecretariats;
   final AddSecretariatUseCase _addSecretariat;
 
-  AdminSecretiariatsBloc({
-    required ListSecretiariatsUseCase listSecretariats,
+  AdminSecretariatsBloc({
+    required ListSecretariatsUseCase listSecretariats,
     required AddSecretariatUseCase addSecretariat,
   })  : _listSecretariats = listSecretariats,
         _addSecretariat = addSecretariat,
-        super(const AdminSecretiariatsInitial()) {
-    on<AdminSecretiariatsLoadRequested>(_onLoad);
-    on<AdminSecretiariatsInviteRequested>(_onInvite);
+        super(const AdminSecretariatsInitial()) {
+    on<AdminSecretariatsLoadRequested>(_onLoad);
+    on<AdminSecretariatsInviteRequested>(_onInvite);
   }
 
   /// Crée le secrétariat + provisionne son premier membre (le back envoie
   /// le mail d'invitation), puis recharge la liste.
   Future<void> _onInvite(
-    AdminSecretiariatsInviteRequested event,
-    Emitter<AdminSecretiariatsState> emit,
+    AdminSecretariatsInviteRequested event,
+    Emitter<AdminSecretariatsState> emit,
   ) async {
     try {
       final result = await _addSecretariat(
@@ -34,34 +34,34 @@ class AdminSecretiariatsBloc
       );
       await result.fold(
         (failure) async =>
-            safeEmit(AdminSecretiariatsInviteFailed(failure.message)),
+            safeEmit(AdminSecretariatsInviteFailed(failure.message)),
         (_) async {
-          safeEmit(AdminSecretiariatsInviteSent(event.email));
-          await _onLoad(const AdminSecretiariatsLoadRequested(), emit);
+          safeEmit(AdminSecretariatsInviteSent(event.email));
+          await _onLoad(const AdminSecretariatsLoadRequested(), emit);
         },
       );
     } catch (_) {
       safeEmit(
-        const AdminSecretiariatsInviteFailed("Échec de l'invitation."),
+        const AdminSecretariatsInviteFailed("Échec de l'invitation."),
       );
     }
   }
 
   Future<void> _onLoad(
-    AdminSecretiariatsLoadRequested event,
-    Emitter<AdminSecretiariatsState> emit,
+    AdminSecretariatsLoadRequested event,
+    Emitter<AdminSecretariatsState> emit,
   ) async {
-    emit(const AdminSecretiariatsLoading());
+    emit(const AdminSecretariatsLoading());
     try {
       final result = await _listSecretariats();
       result.fold(
-        (failure) => safeEmit(AdminSecretiariatsError(failure.message)),
+        (failure) => safeEmit(AdminSecretariatsError(failure.message)),
         (secretariats) => secretariats.isEmpty
-            ? safeEmit(const AdminSecretiariatsEmpty())
-            : safeEmit(AdminSecretiariatsLoaded(secretariats: secretariats)),
+            ? safeEmit(const AdminSecretariatsEmpty())
+            : safeEmit(AdminSecretariatsLoaded(secretariats: secretariats)),
       );
     } catch (_) {
-      safeEmit(const AdminSecretiariatsError('Erreur de chargement.'));
+      safeEmit(const AdminSecretariatsError('Erreur de chargement.'));
     }
   }
 }

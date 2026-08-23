@@ -87,7 +87,7 @@ void main() {
     late _MockMembersRepository membersRepo;
     late _MockSecretariatRepository secretariatRepo;
     late ListMembersUseCase listMembers;
-    late ListSecretiariatsUseCase listSecretariats;
+    late ListSecretariatsUseCase listSecretariats;
     late InviteMemberUseCase inviteMember;
 
     final members = [
@@ -118,7 +118,7 @@ void main() {
       membersRepo = _MockMembersRepository();
       secretariatRepo = _MockSecretariatRepository();
       listMembers = ListMembersUseCase(membersRepo);
-      listSecretariats = ListSecretiariatsUseCase(secretariatRepo);
+      listSecretariats = ListSecretariatsUseCase(secretariatRepo);
       inviteMember = InviteMemberUseCase(membersRepo);
     });
 

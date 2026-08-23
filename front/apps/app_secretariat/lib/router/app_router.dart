@@ -146,7 +146,7 @@ class AppRouter {
         // barre de navigation reste visible quelle que soit la route et
         // l'URL reflète toujours la destination active. Chaque branche
         // réutilise directement l'écran « page complète » existant (son
-        // propre `Scaffold`/`AppBar`/FAB, ex. `AdminSecretiariatsPage`) —
+        // propre `Scaffold`/`AppBar`/FAB, ex. `AdminSecretariatsPage`) —
         // `ProShell` ne fournit son propre `AppBar` générique que pour les
         // destinations qui n'en ont pas (dashboard, agenda), afin de ne
         // jamais dupliquer de barre de titre.
@@ -257,8 +257,8 @@ class AppRouter {
               GoRoute(
                 path: adminSecretariats,
                 builder: (_, __) => BlocProvider(
-                  create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
-                  child: const AdminSecretiariatsPage(),
+                  create: (_) => GetIt.instance<AdminSecretariatsBloc>(),
+                  child: const AdminSecretariatsPage(),
                 ),
               ),
             ]),
