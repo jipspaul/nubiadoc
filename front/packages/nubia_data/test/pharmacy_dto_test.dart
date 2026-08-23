@@ -213,6 +213,37 @@ void main() {
           StockItemAvailabilityStatus.outOfStock);
       expect(items[3].availability, isNull);
     });
+
+    test('pharmacie résolue (#5192) → StockRequest.pharmacy renseigné', () {
+      final request = StockRequestDto.fromJson({
+        'id': 's1',
+        'pharmacy_id': 'p1',
+        'pharmacy_name': 'Pharmacie du Théâtre',
+        'pharmacy_address': '8 rue Auber, 75009 Paris',
+        'pharmacy_phone': '01 47 42 18 03',
+        'items': const [],
+        'status': 'sent',
+        'created_at': '2026-07-01T10:00:00Z',
+      }).toDomain();
+
+      expect(request.pharmacy?.name, 'Pharmacie du Théâtre');
+      expect(request.pharmacy?.address, '8 rue Auber, 75009 Paris');
+      expect(request.pharmacy?.phone, '01 47 42 18 03');
+    });
+
+    test('pharmacie non résolue (#5192) → repli sur pharmacyId, pas de crash',
+        () {
+      final request = StockRequestDto.fromJson({
+        'id': 's1',
+        'pharmacy_id': 'p1',
+        'items': const [],
+        'status': 'sent',
+        'created_at': '2026-07-01T10:00:00Z',
+      }).toDomain();
+
+      expect(request.pharmacy, isNull);
+      expect(request.pharmacyId, 'p1');
+    });
   });
 
   group('PharmacyQuoteDto', () {

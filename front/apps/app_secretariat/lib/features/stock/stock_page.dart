@@ -102,6 +102,35 @@ class _StockPageState extends State<StockPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      request.pharmacy?.name ??
+                                          request.pharmacyId,
+                                      style:
+                                          Theme.of(context).textTheme.titleSmall,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (request.pharmacy?.address != null ||
+                                        request.pharmacy?.phone != null) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        [
+                                          request.pharmacy?.address,
+                                          request.pharmacy?.phone,
+                                        ]
+                                            .whereType<String>()
+                                            .join(' · '),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
                               StatusPill(
                                 label: _labels[request.status]!,
                                 variant: _variants[request.status]!,
