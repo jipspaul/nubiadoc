@@ -133,6 +133,13 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
 
+      // La carte héros CTA (#5199) pousse l'état vide sous le pli sur la
+      // petite surface de test : on scrolle avant de vérifier sa présence.
+      await tester.ensureVisible(
+        find.byKey(const Key('home_empty'), skipOffstage: false),
+      );
+      await tester.pumpAndSettle();
+
       expect(find.byKey(const Key('home_empty')), findsOneWidget);
     });
 
@@ -163,6 +170,13 @@ void main() {
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      // La carte héros CTA (#5199) pousse « Mon suivi » sous le pli sur la
+      // petite surface de test : on scrolle avant de vérifier sa présence.
+      await tester.ensureVisible(
+        find.byKey(const Key('treatment_progress_card'), skipOffstage: false),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('treatment_progress_card')), findsOneWidget);
@@ -251,6 +265,77 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Documents'), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche le CTA « Prendre rendez-vous » quand aucun RDV à venir',
+        (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('hero_appointment_cta')), findsOneWidget);
+      expect(find.text('Prendre rendez-vous'), findsOneWidget);
+    });
+
+    testWidgets('masque le CTA héros quand un RDV est déjà prévu',
+        (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_summary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('hero_appointment_cta')), findsNothing);
+    });
+
+    testWidgets('tap sur le CTA héros navigue vers /appointments',
+        (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      bloc.add(const HomeLoadRequested());
+
+      final authCubit = MockAuthCubit();
+      when(() => authCubit.state).thenReturn(const AuthUnauthenticated());
+
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: GoRouter(
+          initialLocation: '/',
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, __) => MultiBlocProvider(
+                providers: [
+                  BlocProvider.value(value: bloc),
+                  BlocProvider<AuthCubit>(create: (_) => authCubit),
+                ],
+                child: const Scaffold(body: HomePage()),
+              ),
+            ),
+            GoRoute(
+              path: '/appointments',
+              builder: (_, __) => const Scaffold(body: Text('Appointments')),
+            ),
+          ],
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('hero_appointment_cta')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Appointments'), findsOneWidget);
     });
 
     testWidgets('tap Réessayer dispatch HomeLoadRequested', (tester) async {
