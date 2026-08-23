@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -37,10 +39,31 @@ class WaitingRoomBody extends StatefulWidget {
 }
 
 class _WaitingRoomBodyState extends State<WaitingRoomBody> {
+  Timer? _refreshTimer;
+
+  /// Rafraîchissement périodique auto (poste secrétariat, personne ne
+  /// regarde en continu) — maquette design-v2, point 4 : « une salle
+  /// d'attente change sans qu'on la regarde ». L'âge de la donnée s'affiche
+  /// dans la barre d'outils ([_FreshnessIndicator]) ; le bouton refresh
+  /// manuel reste disponible en plus.
+  static const _autoRefreshInterval = Duration(seconds: 15);
+
   @override
   void initState() {
     super.initState();
     context.read<WaitingRoomBloc>().add(const WaitingRoomLoadRequested());
+    _refreshTimer = Timer.periodic(
+      _autoRefreshInterval,
+      (_) => context
+          .read<WaitingRoomBloc>()
+          .add(const WaitingRoomLoadRequested()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -172,12 +195,31 @@ class WaitingRoomPage extends StatelessWidget {
         appBar: AppBar(
           title: Row(
             children: [
-              Text(NubiaL10n.waitingRoom),
+              Flexible(
+                child: Text(
+                  NubiaL10n.waitingRoom,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
               const SizedBox(width: 24),
               Expanded(
                 child: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
                   builder: (context, state) => state is WaitingRoomLoaded
-                      ? WaitingRoomKpiBar(entries: state.entries)
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child:
+                                  WaitingRoomKpiBar(entries: state.entries),
+                            ),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: _FreshnessIndicator(
+                                loadedAt: state.loadedAt,
+                              ),
+                            ),
+                          ],
+                        )
                       : const SizedBox.shrink(),
                 ),
               ),
@@ -220,6 +262,54 @@ class WaitingRoomPage extends StatelessWidget {
           child: WaitingRoomBody(),
         ),
       ),
+    );
+  }
+}
+
+/// Pastille verte + texte relatif — âge de la dernière donnée reçue
+/// (maquette design-v2, point 4 : « Actualisé il y a 4 s »). Vit dans un
+/// widget dédié pour se rafraîchir à la seconde sans dépendre d'un nouvel
+/// état du bloc (#5161).
+class _FreshnessIndicator extends StatefulWidget {
+  const _FreshnessIndicator({required this.loadedAt});
+
+  final DateTime loadedAt;
+
+  @override
+  State<_FreshnessIndicator> createState() => _FreshnessIndicatorState();
+}
+
+class _FreshnessIndicatorState extends State<_FreshnessIndicator> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final elapsed = DateTime.now().difference(widget.loadedAt);
+    final age = elapsed.inSeconds < 60
+        ? '${elapsed.inSeconds} s'
+        : elapsed.inMinutes < 60
+            ? '${elapsed.inMinutes} min'
+            : '${elapsed.inHours} h';
+    return StatusPill(
+      key: const Key('waiting_room_freshness_indicator'),
+      icon: Icons.circle,
+      label: 'Actualisé il y a $age',
+      variant: StatusPillVariant.success,
+      flexibleLabel: true,
     );
   }
 }

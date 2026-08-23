@@ -25,10 +25,18 @@ class WaitingRoomLoading extends WaitingRoomState {
 }
 
 class WaitingRoomLoaded extends WaitingRoomState {
-  const WaitingRoomLoaded(this.entries);
+  WaitingRoomLoaded(this.entries, {DateTime? loadedAt})
+      : loadedAt = loadedAt ?? DateTime.now();
 
   final List<WaitingRoomEntry> entries;
 
+  /// Instant de réception des données affichées — source de l'indicateur
+  /// de fraîcheur (« Actualisé il y a N s », #5161).
+  final DateTime loadedAt;
+
+  // loadedAt est un horodatage d'affichage, pas une donnée métier : exclu
+  // de l'égalité pour ne pas casser la comparaison entre deux chargements
+  // identiques (bloc_test).
   @override
   bool operator ==(Object other) =>
       other is WaitingRoomLoaded &&
