@@ -59,6 +59,7 @@ class StockPage extends StatefulWidget {
 class _StockPageState extends State<StockPage> {
   String? _selectedId;
   String _query = '';
+  StockRequestStatus? _statusFilter;
   final FocusNode _focusNode = FocusNode();
 
   @override
@@ -89,18 +90,24 @@ class _StockPageState extends State<StockPage> {
   }
 
   /// Filtre client (aucun nouvel appel réseau) sur les libellés d'article et
-  /// le nom/id de pharmacie des demandes déjà chargées — #5187.
+  /// le nom/id de pharmacie des demandes déjà chargées — #5187, combiné à la
+  /// facette de statut sélectionnée — #5186.
   List<StockRequest> _filterRequests(List<StockRequest> requests) {
     final query = _query.trim().toLowerCase();
-    if (query.isEmpty) return requests;
-    return requests
-        .where((request) =>
-            (request.pharmacy?.name ?? request.pharmacyId)
-                .toLowerCase()
-                .contains(query) ||
-            request.items
-                .any((item) => item.label.toLowerCase().contains(query)))
-        .toList();
+    return requests.where((request) {
+      if (_statusFilter != null && request.status != _statusFilter) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      return (request.pharmacy?.name ?? request.pharmacyId)
+              .toLowerCase()
+              .contains(query) ||
+          request.items.any((item) => item.label.toLowerCase().contains(query));
+    }).toList();
+  }
+
+  void _onFacetSelected(StockRequestStatus status) {
+    setState(() => _statusFilter = _statusFilter == status ? null : status);
   }
 
   /// ↑/↓ change la sélection (surlignage + panneau), ⏎ ouvre la demande
@@ -217,13 +224,19 @@ class _StockPageState extends State<StockPage> {
                                 ),
                               ),
                             ),
+                            _StockStatusFacetBar(
+                              requests: requests,
+                              selected: _statusFilter,
+                              onSelected: _onFacetSelected,
+                            ),
                             Expanded(
                               child: filtered.isEmpty
-                                  ? const NubiaEmptyState(
+                                  ? NubiaEmptyState(
                                       icon: Icons.search_off,
                                       title: 'Aucun résultat',
-                                      subtitle:
-                                          'Aucune demande ne correspond à cette recherche.',
+                                      subtitle: _query.trim().isEmpty
+                                          ? 'Aucune demande avec ce statut.'
+                                          : 'Aucune demande ne correspond à cette recherche.',
                                     )
                                   : ListView.builder(
                                       key: const Key('stock_request_list'),
@@ -265,6 +278,158 @@ class _StockPageState extends State<StockPage> {
                 );
             }
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Libellés au pluriel des facettes de statut (maquette design-v2, #5186) —
+/// distincts de `_statusLabels` (singulier, pilules/timeline) qui reste
+/// inchangé. `cancelled` n'a pas de facette dédiée sur la maquette.
+const _facetLabels = {
+  StockRequestStatus.sent: 'Envoyées',
+  StockRequestStatus.accepted: 'Acceptées',
+  StockRequestStatus.fulfilled: 'Honorées',
+  StockRequestStatus.rejected: 'Refusées',
+};
+
+/// Rangée de facettes de statut au-dessus de la liste (#5186) : chips avec
+/// pastille de couleur + libellé + compteur. Cliquer une facette filtre la
+/// liste sur ce statut ; re-cliquer réinitialise (`onSelected` bascule).
+class _StockStatusFacetBar extends StatelessWidget {
+  const _StockStatusFacetBar({
+    required this.requests,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  /// Demandes chargées (non filtrées par la recherche) — source des
+  /// compteurs de chaque facette.
+  final List<StockRequest> requests;
+  final StockRequestStatus? selected;
+  final ValueChanged<StockRequestStatus> onSelected;
+
+  Color _dotColor(NubiaTokens tokens, StockRequestStatus status) {
+    switch (status) {
+      case StockRequestStatus.sent:
+        return tokens.infoFg;
+      case StockRequestStatus.accepted:
+        return NubiaColors.brand600;
+      case StockRequestStatus.fulfilled:
+        return tokens.successFg;
+      case StockRequestStatus.rejected:
+        return tokens.dangerFg;
+      case StockRequestStatus.cancelled:
+        return tokens.textTertiary;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final entry in _facetLabels.entries)
+            _StatusFacetChip(
+              key: Key('stock_facet_${entry.key.name}'),
+              label: entry.value,
+              count: requests.where((r) => r.status == entry.key).length,
+              dotColor: _dotColor(tokens, entry.key),
+              selected: entry.key == selected,
+              onTap: () => onSelected(entry.key),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Une facette de la [_StockStatusFacetBar] : pastille de couleur, libellé
+/// et compteur — même habillage que [NubiaChip] (fond/bordure `brand50`/
+/// `brand200` sélectionné) avec la pastille de couleur en plus.
+class _StatusFacetChip extends StatelessWidget {
+  const _StatusFacetChip({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.dotColor,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final Color dotColor;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final foreground =
+        selected ? NubiaColors.brand800 : Theme.of(context).colorScheme.onSurface;
+
+    return Semantics(
+      toggled: selected,
+      label: '$label ($count)',
+      child: Material(
+        color: selected ? NubiaColors.brand50 : Colors.transparent,
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: selected ? NubiaColors.brand200 : tokens.borderDefault,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration:
+                      BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: textTheme.labelMedium?.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: foreground,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: selected ? NubiaColors.brand200 : NubiaColors.n100,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: textTheme.labelSmall?.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          selected ? NubiaColors.brand800 : NubiaColors.n600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
