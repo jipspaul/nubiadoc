@@ -1,9 +1,19 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'consents_cubit.dart';
+
+// #5214 — nom du cabinet responsable et e-mail DPO ne sont exposés nulle
+// part côté patient (ni `ConsentsLoaded`, ni `patient_di.dart`, ni aucune
+// config de session) : pas de champ à lire tant que l'API/session cabinet
+// n'expose pas ces informations. TODO(#5214) : remplacer par la config du
+// cabinet dès qu'elle est exposée au front patient.
+const _kDataControllerName = 'Cabinet Nubia Opéra';
+const _kDpoEmail = 'dpo@nubia.fr';
 
 /// Libellés lisibles des finalités RGPD connues (fallback = purpose brut).
 // Doit couvrir exactement les finalités émises par l'API (api/src/auth/mod.rs,
@@ -100,11 +110,67 @@ class _ConsentsBody extends StatelessWidget {
                           .read<ConsentsCubit>()
                           .toggle(consent.purpose, v),
                 ),
+              const _ConsentsFooter(),
             ],
           );
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// Mentions RGPD obligatoires (responsable de traitement, hébergement HDS,
+/// contact DPO) — maquette `.foot2` (issue #5214). Formulation verbatim de
+/// la maquette : ne pas reformuler / retirer une fois en place.
+class _ConsentsFooter extends StatelessWidget {
+  const _ConsentsFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>();
+    final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: tokens?.textTertiary,
+        );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: NubiaCard(
+        key: const Key('consents_footer'),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.gavel, size: 18, color: tokens?.textTertiary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: RichText(
+                key: const Key('consents_footer_text'),
+                text: TextSpan(
+                  style: textStyle,
+                  children: [
+                    const TextSpan(
+                      text: 'Responsable de traitement : $_kDataControllerName. '
+                          'Données hébergées en France chez un hébergeur '
+                          'agréé HDS. Délégué à la protection des '
+                          'données : ',
+                    ),
+                    TextSpan(
+                      text: _kDpoEmail,
+                      style: textStyle?.copyWith(
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () => sendEmail(_kDpoEmail),
+                    ),
+                    const TextSpan(text: '.'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
