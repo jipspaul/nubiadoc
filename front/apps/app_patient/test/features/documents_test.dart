@@ -415,7 +415,8 @@ void main() {
     );
 
     blocTest<DocumentsBloc, DocumentsState>(
-      "émet [Uploading, UploadSuccess] lors d'un upload réussi",
+      'émet [Loaded+pendingUpload, Loaded avec le document inséré] '
+      "lors d'un upload réussi",
       build: () {
         when(() => mockUpload(
               bytes: any(named: 'bytes'),
@@ -436,14 +437,26 @@ void main() {
         category: DocumentCategory.quote,
       )),
       expect: () => [
-        const DocumentsUploading(),
-        isA<DocumentsUploadSuccess>()
-            .having((s) => s.document.id, 'id', 'doc-1'),
+        isA<DocumentsLoaded>()
+            .having((s) => s.documents, 'documents', isEmpty)
+            .having(
+              (s) => s.pendingUpload?.filename,
+              'pendingUpload.filename',
+              'test.pdf',
+            ),
+        isA<DocumentsLoaded>()
+            .having((s) => s.pendingUpload, 'pendingUpload', isNull)
+            .having(
+              (s) => s.documents.map((d) => d.id),
+              'documents',
+              ['doc-1'],
+            ),
       ],
     );
 
     blocTest<DocumentsBloc, DocumentsState>(
-      "émet [Uploading, UploadFailure] lors d'un upload en échec",
+      'émet [Loaded+pendingUpload, Loaded+pendingUpload en échec] '
+      "lors d'un upload en échec",
       build: () {
         when(() => mockUpload(
               bytes: any(named: 'bytes'),
@@ -466,9 +479,18 @@ void main() {
         category: DocumentCategory.quote,
       )),
       expect: () => [
-        const DocumentsUploading(),
-        isA<DocumentsUploadFailure>()
-            .having((s) => s.message, 'message', 'Upload impossible.'),
+        isA<DocumentsLoaded>().having(
+          (s) => s.pendingUpload?.failed,
+          'pendingUpload.failed',
+          false,
+        ),
+        isA<DocumentsLoaded>()
+            .having((s) => s.pendingUpload?.failed, 'pendingUpload.failed', true)
+            .having(
+              (s) => s.pendingUpload?.errorMessage,
+              'pendingUpload.errorMessage',
+              'Upload impossible.',
+            ),
       ],
     );
   });
