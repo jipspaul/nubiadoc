@@ -53,12 +53,12 @@ class _HomeContent extends StatefulWidget {
 
 /// Pilote l'entrée en cascade des sections de l'accueil : un unique
 /// [AnimationController] découpé en [Interval]s décalés de 60 ms par section
-/// (en-tête, métriques, à faire, mon suivi / état vide).
+/// (en-tête, héros RDV, métriques, à faire, mon suivi / état vide).
 class _HomeContentState extends State<_HomeContent>
     with SingleTickerProviderStateMixin {
   static const _staggerMs = 60;
   static const _sectionDurationMs = 320;
-  static const _sectionCount = 6;
+  static const _sectionCount = 7;
   static const _totalMs = _sectionDurationMs + (_sectionCount - 1) * _staggerMs;
 
   late final AnimationController _controller = AnimationController(
@@ -116,6 +116,7 @@ class _HomeContentState extends State<_HomeContent>
     final bool hasFinancial =
         s.documentsToSign > 0 || s.pendingPaymentsCents > 0;
     final bool hasShortcuts = s.unreadMessages > 0 || hasFinancial;
+    final bool hasNextAppointment = s.upcomingAppointments > 0;
     final bool allClear = s.upcomingAppointments == 0 &&
         s.documentsToSign == 0 &&
         s.unreadMessages == 0 &&
@@ -142,21 +143,23 @@ class _HomeContentState extends State<_HomeContent>
           ),
         ),
         const SizedBox(height: 20),
-        _staggered(context, 1, _MetricsRow(summary: s)),
+        _staggered(context, 1, _HeroAppointmentCard(summary: s)),
+        if (!hasNextAppointment) const SizedBox(height: 20),
+        _staggered(context, 2, _MetricsRow(summary: s)),
         const SizedBox(height: 28),
         if (hasShortcuts)
           _staggered(
             context,
-            2,
+            3,
             _TodoSection(summary: s),
           ),
         if (hasShortcuts) const SizedBox(height: 28),
-        _staggered(context, 3, const _QuickAccessGrid()),
+        _staggered(context, 4, const _QuickAccessGrid()),
         if (plan != null) ...[
           const SizedBox(height: 28),
           _staggered(
             context,
-            4,
+            5,
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -170,7 +173,7 @@ class _HomeContentState extends State<_HomeContent>
         if (allClear)
           _staggered(
             context,
-            5,
+            6,
             const Padding(
               padding: EdgeInsets.only(top: 24),
               child: NubiaEmptyState(
@@ -182,6 +185,95 @@ class _HomeContentState extends State<_HomeContent>
             ),
           ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Carte héros pleine largeur, fond `brand/700` (radius 22, ombre douce) —
+/// premier bloc de l'accueil (maquette `patient-accueil.png`, note #1).
+///
+/// Sans prochain RDV, la carte est un CTA « Prendre rendez-vous » vers
+/// l'annuaire (#5199). Avec un RDV, la variante détails est un ticket
+/// séparé (#5198, data : #5197) — pas encore livrée, la carte ne s'affiche
+/// alors pas plutôt que d'inventer un contenu hors maquette.
+class _HeroAppointmentCard extends StatelessWidget {
+  const _HeroAppointmentCard({required this.summary});
+
+  final DashboardSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    if (summary.upcomingAppointments > 0) {
+      return const SizedBox.shrink();
+    }
+
+    final textTheme = Theme.of(context).textTheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        // Ombre douce `sm` : 0 1px 2px rgba(28,25,23,.05).
+        boxShadow: [
+          BoxShadow(
+            color: NubiaColors.n900.withValues(alpha: 0.05),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Material(
+        key: const Key('hero_appointment_cta'),
+        color: NubiaColors.brand700,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.push(AppRouter.appointments),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.event_available, color: Colors.white),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Prendre rendez-vous',
+                        style: textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Aucun rendez-vous à venir — trouvez un créneau.',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
