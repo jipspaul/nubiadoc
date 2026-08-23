@@ -344,8 +344,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('0 Ko'), findsNothing);
-      // Le libellé de catégorie reste affiché seul.
-      expect(find.text('Ordonnance'), findsOneWidget);
+      // Le libellé de catégorie et la date restent affichés, sans taille.
+      expect(find.textContaining('Ordonnance · 1 janv.'), findsOneWidget);
     });
   });
 
