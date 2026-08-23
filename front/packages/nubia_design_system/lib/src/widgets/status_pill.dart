@@ -9,6 +9,11 @@ enum StatusPillVariant {
   warning,
   error,
   neutral,
+
+  /// Étape en cours (émeraude subtile — `primarySubtleBg`/`primarySubtleFg`),
+  /// distincte de [success] (vert) et [warning] (orange) — ex. demande de
+  /// stock « Acceptée » en attente de réception (#5179).
+  progress,
 }
 
 /// Pill d'état : étiquette colorée avec fond sémantique.
@@ -64,6 +69,9 @@ class StatusPill extends StatelessWidget {
       case StatusPillVariant.neutral:
         bg = tokens.neutralBg;
         fg = tokens.neutralFg;
+      case StatusPillVariant.progress:
+        bg = tokens.primarySubtleBg;
+        fg = tokens.primarySubtleFg;
     }
 
     return Container(
