@@ -256,6 +256,101 @@ void main() {
       expect(find.text('Attribuer'), findsNothing);
     });
 
+    testWidgets(
+        'colonne Estimation — valeur non nulle affichée en "~N min" — #5169',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            estimatedWaitMinutes: 12,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_entry_estimation_e1')),
+          matching: find.text('~12 min'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'colonne Estimation — nulle en tête de file → "—" + "à appeler", '
+        'jamais de valeur inventée — #5169', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final estimation = find.byKey(const Key('waiting_entry_estimation_e1'));
+      expect(
+        find.descendant(of: estimation, matching: find.text('—')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: estimation, matching: find.text('à appeler')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'colonne Estimation — nulle, sans RDV et pas en tête de file → '
+        '"—" + "à évaluer" — #5169', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            estimatedWaitMinutes: 5,
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Léa Bernard',
+            arrivedAt: DateTime(2026, 6, 19, 9, 5),
+            reason: 'Douleur dentaire',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final estimation = find.byKey(const Key('waiting_entry_estimation_e2'));
+      expect(
+        find.descendant(of: estimation, matching: find.text('—')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: estimation, matching: find.text('à évaluer')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('affiche un message si la salle est vide', (tester) async {
       when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());

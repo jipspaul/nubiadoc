@@ -208,7 +208,6 @@ class _WaitingEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final reason = entry.reason;
     final appointmentTime = entry.appointmentTime;
     final timeLabel = appointmentTime != null
@@ -228,48 +227,86 @@ class _WaitingEntryTile extends StatelessWidget {
       leading: NubiaAvatar(initials: _initials(entry.patientName)),
       title: entry.patientName,
       subtitle: subtitle,
-      trailing: Column(
+      trailing: Row(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          StatusPill(
-            label: isUnassigned ? 'Sans RDV' : 'En attente',
-            variant:
-                isUnassigned ? StatusPillVariant.warning : StatusPillVariant.info,
-          ),
-          if (isUnassigned) ...[
-            const SizedBox(height: 4),
-            const StatusPill(
-              label: 'Non attribué',
-              variant: StatusPillVariant.neutral,
-            ),
-          ],
-          if (entry.estimatedWaitMinutes != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              '~${entry.estimatedWaitMinutes} min',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: tokens.textTertiary,
-                  ),
-            ),
-          ],
-          if (isUnassigned) ...[
-            const SizedBox(height: 4),
-            NubiaButton(
-              key: Key('waiting_entry_assign_button_${entry.id}'),
-              label: 'Attribuer',
-              icon: Icons.person_add,
-              size: NubiaButtonSize.sm,
-              variant: NubiaButtonVariant.secondary,
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("Attribution d'un praticien à venir"),
-                ),
+          _EstimationColumn(entry: entry, position: position),
+          const SizedBox(width: 16),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              StatusPill(
+                label: isUnassigned ? 'Sans RDV' : 'En attente',
+                variant: isUnassigned
+                    ? StatusPillVariant.warning
+                    : StatusPillVariant.info,
               ),
-            ),
-          ],
+              if (isUnassigned) ...[
+                const SizedBox(height: 4),
+                const StatusPill(
+                  label: 'Non attribué',
+                  variant: StatusPillVariant.neutral,
+                ),
+              ],
+              if (isUnassigned) ...[
+                const SizedBox(height: 4),
+                NubiaButton(
+                  key: Key('waiting_entry_assign_button_${entry.id}'),
+                  label: 'Attribuer',
+                  icon: Icons.person_add,
+                  size: NubiaButtonSize.sm,
+                  variant: NubiaButtonVariant.secondary,
+                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Attribution d'un praticien à venir"),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Colonne « Estimation » dédiée (#5169) : `estimatedWaitMinutes` sort de la
+/// note de bas de page pour devenir sa propre colonne, sans jamais inventer
+/// de valeur quand le champ est nul.
+class _EstimationColumn extends StatelessWidget {
+  const _EstimationColumn({required this.entry, required this.position});
+
+  final WaitingRoomEntry entry;
+  final int position;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final style = Theme.of(context)
+        .textTheme
+        .labelSmall
+        ?.copyWith(color: tokens.textTertiary);
+    final minutes = entry.estimatedWaitMinutes;
+    final value = minutes != null ? '~$minutes min' : '—';
+    // Tête de file (#5169) : la première position n'a pas d'estimation car
+    // elle est sur le point d'être appelée, pas en attente d'un calcul.
+    final nullLabel =
+        minutes != null ? null : (position == 1 ? 'à appeler' : 'à évaluer');
+
+    return Column(
+      key: Key('waiting_entry_estimation_${entry.id}'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(value, style: style),
+        if (nullLabel != null) ...[
+          const SizedBox(height: 2),
+          Text(nullLabel, style: style),
+        ],
+      ],
     );
   }
 }
