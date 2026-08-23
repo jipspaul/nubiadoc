@@ -208,6 +208,54 @@ void main() {
       expect(find.textContaining('Arrivé il y a'), findsNothing);
     });
 
+    testWidgets(
+        'urgence sans RDV — pastille Sans RDV, praticien Non attribué, '
+        'action Attribuer — #5171', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Léa Bernard',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            reason: 'Douleur dentaire',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sans RDV'), findsOneWidget);
+      expect(find.text('Non attribué'), findsOneWidget);
+      expect(find.text('Attribuer'), findsOneWidget);
+      expect(find.text('En attente'), findsNothing);
+    });
+
+    testWidgets(
+        'RDV normal — pastille En attente, pas de Sans RDV/Attribuer — #5171',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('En attente'), findsOneWidget);
+      expect(find.text('Sans RDV'), findsNothing);
+      expect(find.text('Non attribué'), findsNothing);
+      expect(find.text('Attribuer'), findsNothing);
+    });
+
     testWidgets('affiche un message si la salle est vide', (tester) async {
       when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
