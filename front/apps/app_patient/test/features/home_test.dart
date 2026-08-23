@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -183,6 +184,73 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('treatment_progress_card')), findsNothing);
+    });
+
+    testWidgets(
+        'affiche la grille « Accès rapide » avec ses 4 tuiles de navigation',
+        (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Accès rapide'), findsOneWidget);
+      expect(
+        find.byKey(const Key('quick_access_prescriptions')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('quick_access_documents')), findsOneWidget);
+      expect(find.byKey(const Key('quick_access_pharmacy')), findsOneWidget);
+      expect(find.byKey(const Key('quick_access_dependents')), findsOneWidget);
+      expect(find.text('Mes ordonnances'), findsOneWidget);
+      expect(find.text('Mes documents'), findsOneWidget);
+      expect(find.text('Ma pharmacie'), findsOneWidget);
+      expect(find.text('Mes proches'), findsOneWidget);
+    });
+
+    testWidgets('tuile « Mes documents » navigue vers /documents',
+        (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      bloc.add(const HomeLoadRequested());
+
+      final authCubit = MockAuthCubit();
+      when(() => authCubit.state).thenReturn(const AuthUnauthenticated());
+
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: GoRouter(
+          initialLocation: '/',
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, __) => MultiBlocProvider(
+                providers: [
+                  BlocProvider.value(value: bloc),
+                  BlocProvider<AuthCubit>(create: (_) => authCubit),
+                ],
+                child: const Scaffold(body: HomePage()),
+              ),
+            ),
+            GoRoute(
+              path: '/documents',
+              builder: (_, __) => const Scaffold(body: Text('Documents')),
+            ),
+          ],
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('quick_access_documents')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Documents'), findsOneWidget);
     });
 
     testWidgets('tap Réessayer dispatch HomeLoadRequested', (tester) async {
