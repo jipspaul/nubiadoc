@@ -463,7 +463,15 @@ class _DocumentCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final (icon, label) = _categoryMeta(doc.category);
     final size = _formatSize(doc.fileSizeBytes);
-    final meta = size == null ? label : '$label · $size';
+    final issuer = doc.issuer;
+    // Provenance en premier élément de la méta (maquette design-v2, point 2) ;
+    // à défaut, on retombe sur le libellé de catégorie pour ne pas laisser
+    // la méta vide ni de séparateur « · » orphelin.
+    final metaParts = [
+      if (issuer != null && issuer.trim().isNotEmpty) issuer else label,
+      if (size != null) size,
+    ];
+    final meta = metaParts.join(' · ');
     final isNew = _isNew;
 
     return NubiaCard(
