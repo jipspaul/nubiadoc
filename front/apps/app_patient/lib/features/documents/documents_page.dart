@@ -34,6 +34,16 @@ class _DocumentsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocListener<DocumentsBloc, DocumentsState>(
+      listenWhen: (previous, current) {
+        if (current is DocumentsDownloadReady) return true;
+        if (current is DocumentsDownloadError) return true;
+        final previousPending =
+            previous is DocumentsLoaded ? previous.pendingUpload : null;
+        final currentPending =
+            current is DocumentsLoaded ? current.pendingUpload : null;
+        return currentPending?.failed == true &&
+            currentPending != previousPending;
+      },
       listener: (context, state) {
         if (state is DocumentsDownloadReady) {
           openDocumentUrl(state.url).then((opened) {
@@ -53,22 +63,14 @@ class _DocumentsBody extends StatelessWidget {
           ).showSnackBar(SnackBar(content: Text(state.message)));
           context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
         }
-        if (state is DocumentsUploading) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Envoi en cours…')));
-        }
-        if (state is DocumentsUploadSuccess) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Document envoyé.')));
-          context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
-        }
-        if (state is DocumentsUploadFailure) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(state.message)));
-          context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
+        if (state is DocumentsLoaded && state.pendingUpload?.failed == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                state.pendingUpload!.errorMessage ?? 'Erreur d\'envoi.',
+              ),
+            ),
+          );
         }
       },
       child: BlocBuilder<DocumentsBloc, DocumentsState>(
@@ -170,6 +172,7 @@ class _DocumentsLoaded extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final docs = state.filtered;
+    final pending = state.pendingUpload;
 
     return Stack(
       children: [
@@ -197,7 +200,7 @@ class _DocumentsLoaded extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: docs.isEmpty
+              child: docs.isEmpty && pending == null
                   ? NubiaEmptyState(
                       key: const Key('documents_empty'),
                       icon: Icons.folder_open_outlined,
@@ -225,10 +228,18 @@ class _DocumentsLoaded extends StatelessWidget {
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                        itemCount: docs.length,
+                        itemCount: docs.length + (pending != null ? 1 : 0),
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
-                          final doc = docs[index];
+                          if (pending != null && index == 0) {
+                            return _PendingUploadCard(
+                              pending: pending,
+                              onDismiss: () => context.read<DocumentsBloc>().add(
+                                const DocumentsUploadDismissed(),
+                              ),
+                            );
+                          }
+                          final doc = docs[index - (pending != null ? 1 : 0)];
                           return _DocumentCard(
                             key: Key('document_${doc.id}'),
                             doc: doc,
@@ -370,6 +381,88 @@ class _DocumentCard extends StatelessWidget {
             color: cs.primary,
             onPressed: onOpen,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ligne optimiste d'un envoi en cours — remplace le snackbar « Envoi en
+/// cours… » ; affiche une progression indéterminée puis, en cas d'échec, le
+/// message d'erreur avec une action de retrait.
+class _PendingUploadCard extends StatelessWidget {
+  const _PendingUploadCard({required this.pending, required this.onDismiss});
+
+  final PendingUpload pending;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final (icon, _) = _categoryMeta(pending.category);
+
+    return NubiaCard(
+      key: const Key('pending_upload'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: pending.failed ? tokens.dangerBg : tokens.primarySubtleBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              pending.failed ? Icons.error_outline : icon,
+              size: 20,
+              color: pending.failed ? tokens.dangerFg : cs.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  pending.filename,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleSmall,
+                ),
+                const SizedBox(height: 6),
+                if (pending.failed)
+                  Text(
+                    pending.errorMessage ?? 'Erreur d\'envoi.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: tokens.dangerFg,
+                    ),
+                  )
+                else
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      key: const Key('pending_upload_progress'),
+                      minHeight: 4,
+                      backgroundColor: tokens.primarySubtleBg,
+                      color: cs.primary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (pending.failed)
+            IconButton(
+              key: const Key('pending_upload_dismiss'),
+              icon: const Icon(Icons.close),
+              tooltip: 'Retirer',
+              color: tokens.dangerFg,
+              onPressed: onDismiss,
+            ),
         ],
       ),
     );
