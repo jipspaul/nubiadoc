@@ -470,6 +470,7 @@ class _DocumentCard extends StatelessWidget {
     final metaParts = [
       if (issuer != null && issuer.trim().isNotEmpty) issuer else label,
       if (size != null) size,
+      _formatShortDate(doc.createdAt),
     ];
     final meta = metaParts.join(' · ');
     final isNew = _isNew;
@@ -652,6 +653,27 @@ class _PendingUploadCard extends StatelessWidget {
     );
   }
 }
+
+const _shortMonthsFr = [
+  'janv.',
+  'févr.',
+  'mars',
+  'avr.',
+  'mai',
+  'juin',
+  'juil.',
+  'août',
+  'sept.',
+  'oct.',
+  'nov.',
+  'déc.',
+];
+
+/// Formate une date en libellé court FR (ex. « 10 août ») — repère temporel
+/// sur la carte document (maquette design-v2 : "l'ordonnance de la semaine
+/// dernière").
+String _formatShortDate(DateTime date) =>
+    '${date.day} ${_shortMonthsFr[date.month - 1]}';
 
 /// Formate une taille en octets en libellé lisible (o / Ko / Mo).
 ///
