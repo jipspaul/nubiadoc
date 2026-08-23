@@ -401,6 +401,8 @@ String _formatNextAppointment(DateTime at) {
   return '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}, $h:$m';
 }
 
+enum _DependentMenuAction { delete }
+
 class _DependentTile extends StatelessWidget {
   const _DependentTile({
     required this.dependent,
@@ -498,10 +500,23 @@ class _DependentTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
               ],
-              IconButton(
-                key: Key('delete_dependent_${dependent.id}'),
-                icon: const Icon(Icons.delete_outline),
-                onPressed: disabled ? null : () => _confirmDelete(context),
+              PopupMenuButton<_DependentMenuAction>(
+                key: Key('dependent_menu_${dependent.id}'),
+                icon: Icon(Icons.more_horiz, color: tokens.textTertiary),
+                enabled: !disabled,
+                onSelected: (action) {
+                  switch (action) {
+                    case _DependentMenuAction.delete:
+                      _confirmDelete(context);
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    key: Key('delete_dependent_${dependent.id}'),
+                    value: _DependentMenuAction.delete,
+                    child: const Text('Supprimer'),
+                  ),
+                ],
               ),
             ],
           ),

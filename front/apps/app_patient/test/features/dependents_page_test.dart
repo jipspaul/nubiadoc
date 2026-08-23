@@ -309,6 +309,9 @@ void main() {
 
     await _pump(tester, cubit);
 
+    await tester.tap(find.byKey(const Key('dependent_menu_dep-1')));
+    await tester.pumpAndSettle();
+
     expect(find.byKey(const Key('delete_dependent_dep-1')), findsOneWidget);
     await tester.tap(find.byKey(const Key('delete_dependent_dep-1')));
     await tester.pumpAndSettle();
@@ -864,6 +867,8 @@ void main() {
     expect(find.text('Prendre RDV'), findsNothing);
     expect(find.text('Documents'), findsNothing);
     // Le retrait du compte reste possible (nettoyage de la liste côté front).
+    await tester.tap(find.byKey(const Key('dependent_menu_dep-3')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('delete_dependent_dep-3')), findsOneWidget);
   });
 
