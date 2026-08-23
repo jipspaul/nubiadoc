@@ -133,13 +133,6 @@ class AppRouter {
             child: const PatientQuickCreatePage(),
           ),
         ),
-        GoRoute(
-          path: appointments,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<AppointmentsBloc>(),
-            child: const AppointmentsPage(),
-          ),
-        ),
         // #5154 — le `ProShell` enveloppe désormais TOUTES les destinations
         // de nav via `StatefulShellRoute.indexedStack` (une branche par
         // entrée de `ProConfig.shellConfig.destinations`, même ordre) : la
@@ -193,6 +186,15 @@ class AppRouter {
                 builder: (_, state) => BlocProvider(
                   create: (_) => GetIt.instance<PatientsBloc>(),
                   child: PatientsPage(openPatientId: state.extra as String?),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: appointments,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<AppointmentsBloc>(),
+                  child: const AppointmentsPage(),
                 ),
               ),
             ]),

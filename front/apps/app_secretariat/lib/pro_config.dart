@@ -33,6 +33,10 @@ class ProConfig {
   /// l'agenda), conformément à son rôle de synthèse.
   static const String dashboardRoute = '/';
 
+  /// Route de l'entrée « Prendre un RDV » (`AppointmentsPage`) — action du
+  /// quotidien, groupe « Patients » de la maquette design-v2 (#5150).
+  static const String appointmentsRoute = '/appointments';
+
   /// Route de l'entrée « Membres » — administration réservée aux
   /// secrétaires-admin. Masquée pour un secrétaire simple (403 sur
   /// `GET /v1/cabinet/members`, cf. #3468) via [shellConfigFor].
@@ -89,6 +93,13 @@ class ProConfig {
         label: 'Patients',
         icon: Icons.groups_outlined,
         route: '/patients',
+      ),
+      // Action du quotidien (verbe à l'infinitif, pas une rubrique) — groupe
+      // « Patients » de la maquette design-v2, cf. #5150.
+      shell.ProNavDestination(
+        label: 'Prendre un RDV',
+        icon: Icons.event_available,
+        route: appointmentsRoute,
       ),
       shell.ProNavDestination(
         label: 'Devis',
