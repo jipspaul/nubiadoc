@@ -150,7 +150,7 @@ class ProConfig {
         route: '/cabinet-payouts',
       ),
       shell.ProNavDestination(
-        label: "Journal d'accès",
+        label: "Journal d'audit",
         icon: Icons.history_outlined,
         route: auditLogRoute,
       ),
