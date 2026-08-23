@@ -230,11 +230,6 @@ class _WaitingEntryTile extends StatelessWidget {
   final WaitingRoomEntry entry;
   final int position;
 
-  static String _initials(String name) {
-    final trimmed = name.trim();
-    return trimmed.isNotEmpty ? trimmed[0].toUpperCase() : '?';
-  }
-
   @override
   Widget build(BuildContext context) {
     final reason = entry.reason;
@@ -257,7 +252,7 @@ class _WaitingEntryTile extends StatelessWidget {
     final bool isNext = position == 1;
 
     final row = ListRow(
-      leading: NubiaAvatar(initials: _initials(entry.patientName)),
+      leading: NubiaAvatar(initials: initialsFrom(entry.patientName)),
       title: entry.patientName,
       subtitle: subtitle,
       trailing: Row(
