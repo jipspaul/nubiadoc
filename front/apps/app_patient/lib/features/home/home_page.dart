@@ -148,7 +148,7 @@ class _HomeContentState extends State<_HomeContent>
           _staggered(
             context,
             2,
-            _TodoSection(summary: s, hasFinancial: hasFinancial),
+            _TodoSection(summary: s),
           ),
         if (hasShortcuts) const SizedBox(height: 28),
         _staggered(context, 3, const _QuickAccessGrid()),
@@ -266,46 +266,149 @@ class _MetricsRow extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-/// Section « À faire » : devis à signer/régler et messages non lus.
+/// Section « À faire » : liste d'actions (devis à signer, reste à charge,
+/// messages non lus) en lignes séparées — chacune porte un badge ou un
+/// montant + chevron vers sa cible (maquette `patient-accueil.png`, note #2).
+/// Le reste à charge s'affiche en euros formatés (`danger/fg`), jamais en
+/// chiffre nu.
 class _TodoSection extends StatelessWidget {
-  const _TodoSection({required this.summary, required this.hasFinancial});
+  const _TodoSection({required this.summary});
 
   final DashboardSummary summary;
-  final bool hasFinancial;
 
   @override
   Widget build(BuildContext context) {
     final s = summary;
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    final rows = <Widget>[
+      if (s.documentsToSign > 0)
+        ListRow(
+          key: const Key('card_devis'),
+          leading: _TodoLeadingIcon(
+            icon: Icons.draw_outlined,
+            background: tokens.warningBg,
+            color: tokens.warningFg,
+          ),
+          title: 'Devis à signer',
+          subtitle: 'Consultez et signez vos devis en attente.',
+          showDivider: false,
+          onTap: () => context.push('/financial'),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              NubiaBadge.count(count: s.documentsToSign),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            ],
+          ),
+        ),
+      if (s.pendingPaymentsCents > 0)
+        ListRow(
+          key: const Key('card_reste_a_charge'),
+          leading: _TodoLeadingIcon(
+            icon: Icons.receipt_long_outlined,
+            background: tokens.dangerBg,
+            color: tokens.dangerFg,
+          ),
+          title: 'Reste à charge',
+          subtitle: 'Factures en attente de règlement.',
+          showDivider: false,
+          onTap: () => context.push('/financial'),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _MetricsRow._formatEuros(s.pendingPaymentsCents),
+                style: textTheme.titleSmall?.copyWith(
+                  color: tokens.dangerFg,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            ],
+          ),
+        ),
+      if (s.unreadMessages > 0)
+        ListRow(
+          key: const Key('card_messages'),
+          leading: _TodoLeadingIcon(
+            icon: Icons.chat_bubble_outline,
+            background: tokens.primarySubtleBg,
+            color: cs.primary,
+          ),
+          title:
+              s.unreadMessages > 1 ? 'Messages du cabinet' : 'Message du cabinet',
+          subtitle: 'Vous avez du courrier de vos praticiens.',
+          showDivider: false,
+          onTap: () => context.push(AppRouter.messaging),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              NubiaBadge.count(count: s.unreadMessages),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            ],
+          ),
+        ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionLabel(label: 'À faire'),
+        _SectionLabel(label: 'À faire', count: rows.length),
         const SizedBox(height: 12),
-        if (hasFinancial) ...[
-          _PressableScale(
-            pressable: true,
-            child: _ShortcutCard(
-              key: const Key('card_devis'),
-              icon: Icons.description_outlined,
-              title: 'Devis à signer / à régler',
-              subtitle: 'Consultez, signez et réglez vos devis.',
-              count: s.documentsToSign > 0 ? s.documentsToSign : null,
-              onTap: () => context.push('/financial'),
-            ),
+        Container(
+          decoration: BoxDecoration(
+            color: NubiaColors.n0,
+            border: Border.all(color: NubiaColors.n200),
+            borderRadius: BorderRadius.circular(18),
           ),
-          const SizedBox(height: 12),
-        ],
-        if (s.unreadMessages > 0) ...[
-          _ShortcutCard(
-            key: const Key('card_messages'),
-            icon: Icons.chat_bubble_outline,
-            title: 'Messages non lus',
-            subtitle: 'Vous avez du courrier de vos praticiens.',
-            count: s.unreadMessages,
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var i = 0; i < rows.length; i++) ...[
+                rows[i],
+                if (i < rows.length - 1)
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: NubiaColors.n100,
+                  ),
+              ],
+            ],
           ),
-          const SizedBox(height: 12),
-        ],
+        ),
       ],
+    );
+  }
+}
+
+/// Pastille icône 40×40 (radius 10) d'une ligne « À faire ».
+class _TodoLeadingIcon extends StatelessWidget {
+  const _TodoLeadingIcon({
+    required this.icon,
+    required this.background,
+    required this.color,
+  });
+
+  final IconData icon;
+  final Color background;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, size: 20, color: color),
     );
   }
 }
@@ -474,20 +577,46 @@ class _QuickAccessTile extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+/// Libellé de section, avec une pastille compteur optionnelle (fond `n200`,
+/// texte `n600` — maquette `patient-accueil.png`, note #2).
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
+  const _SectionLabel({required this.label, this.count});
 
   final String label;
+  final int? count;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Text(
-      label,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: textTheme.titleSmall?.copyWith(
             color: cs.onSurface,
             fontWeight: FontWeight.w600,
           ),
+        ),
+        if (count != null) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: NubiaColors.n200,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$count',
+              style: textTheme.labelSmall?.copyWith(
+                color: NubiaColors.n600,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -607,76 +736,6 @@ class _TreatmentProgressTrack extends StatelessWidget {
               ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-/// Carte de raccourci « À faire » : pastille icône + titre/sous-titre + badge
-/// compteur. Informative — les tuiles au-dessus portent les actions
-/// principales de navigation.
-class _ShortcutCard extends StatelessWidget {
-  const _ShortcutCard({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.count,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final int? count;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tokens = Theme.of(context).extension<NubiaTokens>()!;
-    final textTheme = Theme.of(context).textTheme;
-
-    return NubiaCard(
-      state:
-          onTap != null ? NubiaCardState.interactive : NubiaCardState.static_,
-      onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: tokens.primarySubtleBg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 20, color: cs.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: textTheme.titleSmall),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          if (count != null)
-            NubiaBadge.count(count: count!)
-          else if (onTap != null)
-            Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
         ],
       ),
     );
