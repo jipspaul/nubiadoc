@@ -32,6 +32,9 @@ class _MockListConsents extends Mock implements ListConsentsUseCase {}
 
 class _MockSetConsent extends Mock implements SetConsentUseCase {}
 
+class _MockListPatientPharmacyOrders extends Mock
+    implements ListPatientPharmacyOrdersUseCase {}
+
 class _MockGetPrefs extends Mock implements GetNotificationPreferencesUseCase {}
 
 class _MockUpdatePrefs extends Mock
@@ -234,10 +237,12 @@ void main() {
   group('ConsentsCubit', () {
     late _MockListConsents list;
     late _MockSetConsent set;
+    late _MockListPatientPharmacyOrders listPharmacyOrders;
 
     setUp(() {
       list = _MockListConsents();
       set = _MockSetConsent();
+      listPharmacyOrders = _MockListPatientPharmacyOrders();
     });
 
     blocTest<ConsentsCubit, ConsentsState>(
@@ -248,7 +253,11 @@ void main() {
             .thenAnswer((_) async => const Right(null));
         when(() => list.call())
             .thenAnswer((_) async => const Right([_consent]));
-        return ConsentsCubit(list: list, set: set);
+        return ConsentsCubit(
+          list: list,
+          set: set,
+          listPharmacyOrders: listPharmacyOrders,
+        );
       },
       seed: () => const ConsentsLoaded([_consent]),
       act: (c) => c.toggle('marketing', true),

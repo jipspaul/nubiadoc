@@ -14,6 +14,9 @@ class MockListConsentsUseCase extends Mock implements ListConsentsUseCase {}
 
 class MockSetConsentUseCase extends Mock implements SetConsentUseCase {}
 
+class MockListPatientPharmacyOrdersUseCase extends Mock
+    implements ListPatientPharmacyOrdersUseCase {}
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -23,6 +26,22 @@ const _consents = [
   Consent(purpose: 'soins', granted: true),
 ];
 
+PharmacyOrder _order({
+  required String id,
+  required PharmacyOrderStatus status,
+  String? orderRef,
+  DateTime? createdAt,
+}) =>
+    PharmacyOrder(
+      id: id,
+      pharmacyId: 'pharma-1',
+      orderRef: orderRef,
+      prescriptionId: 'presc-$id',
+      status: status,
+      createdAt: createdAt ?? DateTime(2026, 1, 1),
+      updatedAt: createdAt ?? DateTime(2026, 1, 1),
+    );
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -30,13 +49,19 @@ const _consents = [
 void main() {
   late MockListConsentsUseCase mockList;
   late MockSetConsentUseCase mockSet;
+  late MockListPatientPharmacyOrdersUseCase mockListOrders;
 
   setUp(() {
     mockList = MockListConsentsUseCase();
     mockSet = MockSetConsentUseCase();
+    mockListOrders = MockListPatientPharmacyOrdersUseCase();
   });
 
-  ConsentsCubit makeCubit() => ConsentsCubit(list: mockList, set: mockSet);
+  ConsentsCubit makeCubit() => ConsentsCubit(
+        list: mockList,
+        set: mockSet,
+        listPharmacyOrders: mockListOrders,
+      );
 
   group('ConsentsCubit', () {
     blocTest<ConsentsCubit, ConsentsState>(
@@ -108,5 +133,57 @@ void main() {
         ),
       ],
     );
+  });
+
+  group('pendingPharmacyOrderRef (#5212)', () {
+    test('renvoie la référence de la commande non terminale la plus récente',
+        () async {
+      when(() => mockListOrders()).thenAnswer(
+        (_) async => Right([
+          _order(
+            id: '1',
+            status: PharmacyOrderStatus.pickedUp,
+            orderRef: 'CMD-OLD',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+          _order(
+            id: '2',
+            status: PharmacyOrderStatus.preparing,
+            orderRef: 'CMD-4821',
+            createdAt: DateTime(2026, 2, 1),
+          ),
+        ]),
+      );
+      final ref = await makeCubit().pendingPharmacyOrderRef();
+      expect(ref, 'CMD-4821');
+    });
+
+    test('renvoie null sans commande en cours', () async {
+      when(() => mockListOrders()).thenAnswer(
+        (_) async => Right([
+          _order(id: '1', status: PharmacyOrderStatus.pickedUp),
+          _order(id: '2', status: PharmacyOrderStatus.cancelled),
+        ]),
+      );
+      final ref = await makeCubit().pendingPharmacyOrderRef();
+      expect(ref, isNull);
+    });
+
+    test('renvoie null si la commande en cours n\'a pas de référence', () async {
+      when(() => mockListOrders()).thenAnswer(
+        (_) async => Right([
+          _order(id: '1', status: PharmacyOrderStatus.received, orderRef: null),
+        ]),
+      );
+      final ref = await makeCubit().pendingPharmacyOrderRef();
+      expect(ref, isNull);
+    });
+
+    test('renvoie null sur échec de la requête', () async {
+      when(() => mockListOrders())
+          .thenAnswer((_) async => const Left(NetworkFailure()));
+      final ref = await makeCubit().pendingPharmacyOrderRef();
+      expect(ref, isNull);
+    });
   });
 }
