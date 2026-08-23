@@ -44,10 +44,9 @@ const _kPharmacySharingPurpose = 'partage_pharmacie';
 void _handleToggle(BuildContext context, String purpose, bool granted) {
   if (purpose == _kPharmacySharingPurpose && !granted) {
     final cubit = context.read<ConsentsCubit>();
-    showModalBottomSheet<void>(
+    NubiaBottomSheet.show<void>(
       context: context,
-      isScrollControlled: true,
-      builder: (_) => BlocProvider.value(
+      child: BlocProvider.value(
         value: cubit,
         child: const _PharmacyWithdrawalSheet(),
       ),
@@ -79,8 +78,7 @@ class _ConsentsBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocConsumer<ConsentsCubit, ConsentsState>(
       listenWhen: (_, s) =>
-          s is ConsentsError ||
-          (s is ConsentsLoaded && s.toggleError != null),
+          s is ConsentsError || (s is ConsentsLoaded && s.toggleError != null),
       listener: (context, state) {
         final message = switch (state) {
           ConsentsError(:final message) => message,
@@ -173,7 +171,8 @@ class _ConsentsFooter extends StatelessWidget {
                   style: textStyle,
                   children: [
                     const TextSpan(
-                      text: 'Responsable de traitement : $_kDataControllerName. '
+                      text:
+                          'Responsable de traitement : $_kDataControllerName. '
                           'Données hébergées en France chez un hébergeur '
                           'agréé HDS. Délégué à la protection des '
                           'données : ',
@@ -284,12 +283,10 @@ class _RightsSection extends StatelessWidget {
 }
 
 /// Feuille de confirmation du retrait du partage pharmacie (maquette
-/// design-v2 `patient-consentements.png`, écran 2).
-///
-/// Ce widget ne couvre que le périmètre de #5212 : l'encart conditionnel
-/// « commande en cours ». Les blocs « ce qui change » / « ce qui ne change
-/// pas » de la maquette relèvent de #5211 (feuille de confirmation de
-/// retrait) et restent à ajouter par ce ticket.
+/// design-v2 `patient-consentements.png`, écran 2, #5211) : sépare ce qui
+/// change de ce qui ne change pas avant que le retrait ne soit confirmé —
+/// le geste ne doit plus être immédiat et silencieux. Porte aussi l'encart
+/// conditionnel « commande en cours » (#5212).
 class _PharmacyWithdrawalSheet extends StatefulWidget {
   const _PharmacyWithdrawalSheet();
 
@@ -305,22 +302,18 @@ class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
 
   Future<void> _confirm() async {
     setState(() => _submitting = true);
-    await context
-        .read<ConsentsCubit>()
-        .toggle(_kPharmacySharingPurpose, false);
+    await context.read<ConsentsCubit>().toggle(_kPharmacySharingPurpose, false);
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
+    final tokens = theme.extension<NubiaTokens>()!;
+    // Contenu potentiellement plus haut que l'écran (encart commande en
+    // cours + les deux blocs d'impact) : scrollable pour ne jamais déborder
+    // (même motif que `_BookingPanel`, `appointments_page.dart`, #5337).
+    return SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -347,9 +340,37 @@ class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
               );
             },
           ),
+          _ConsentImpactSection(
+            key: const Key('pharmacy_withdrawal_changes'),
+            title: 'Ce qui change',
+            icon: Icons.cancel,
+            iconColor: tokens.dangerFg,
+            // Nom de la pharmacie non exposé côté front patient (même limite
+            // que `_kDataControllerName` ci-dessus, #5214) : formulation
+            // générique plutôt qu'un nom inventé.
+            items: const [
+              'Vos prochaines ordonnances ne seront plus transmises à '
+                  'votre pharmacie.',
+              'Vous devrez présenter votre ordonnance papier ou le PDF de '
+                  'votre application.',
+            ],
+          ),
+          const SizedBox(height: 16),
+          _ConsentImpactSection(
+            key: const Key('pharmacy_withdrawal_unchanged'),
+            title: 'Ce qui ne change pas',
+            icon: Icons.check_circle,
+            iconColor: tokens.successFg,
+            items: const [
+              'Vos ordonnances passées restent dans vos documents.',
+              'Vos rendez-vous et votre suivi de soins sont inchangés.',
+            ],
+          ),
+          const SizedBox(height: 24),
           NubiaButton(
             key: const Key('pharmacy_withdrawal_confirm_button'),
             label: 'Retirer ce consentement',
+            icon: Icons.block,
             variant: NubiaButtonVariant.destructive,
             isLoading: _submitting,
             onPressed: _submitting ? null : _confirm,
@@ -359,11 +380,55 @@ class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
             key: const Key('pharmacy_withdrawal_cancel_button'),
             label: 'Annuler',
             variant: NubiaButtonVariant.secondary,
-            onPressed:
-                _submitting ? null : () => Navigator.of(context).pop(),
+            onPressed: _submitting ? null : () => Navigator.of(context).pop(),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Bloc « Ce qui change » / « Ce qui ne change pas » de la feuille de
+/// retrait (maquette design-v2, #5211) : sépare les conséquences concrètes
+/// du retrait de ce qui reste inchangé, pour que le geste ne soit plus
+/// silencieux.
+class _ConsentImpactSection extends StatelessWidget {
+  const _ConsentImpactSection({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.iconColor,
+    required this.items,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color iconColor;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        for (final item in items) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 20, color: iconColor),
+              const SizedBox(width: 8),
+              Expanded(child: Text(item, style: textTheme.bodyMedium)),
+            ],
+          ),
+          if (item != items.last) const SizedBox(height: 8),
+        ],
+      ],
     );
   }
 }
