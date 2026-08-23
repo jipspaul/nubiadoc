@@ -135,6 +135,8 @@ class _ConsentsBody extends StatelessWidget {
                           ? null
                           : (v) => _handleToggle(context, consent.purpose, v),
                     ),
+                    if (consent.purpose == _kPharmacySharingPurpose)
+                      _PharmacyRecipientChip(pharmacyName: state.pharmacyName),
                     _ConsentMetaRow(consent: consent),
                   ],
                 ),
@@ -212,6 +214,39 @@ class _ConsentMetaRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Chip `.wc` « pharmacie destinataire » sur la carte `partage_pharmacie`
+/// (maquette design-v2, `patient-consentements.png`, #5209) : identifie
+/// concrètement à qui les ordonnances sont transmises. Donnée = pharmacie
+/// déclarée du patient (`GET /v1/account/pharmacy`, [ConsentsLoaded.pharmacyName]).
+/// N'affiche rien tant qu'aucune pharmacie n'est déclarée — jamais de nom
+/// inventé ni de chip placeholder vide.
+class _PharmacyRecipientChip extends StatelessWidget {
+  const _PharmacyRecipientChip({required this.pharmacyName});
+
+  final String? pharmacyName;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = pharmacyName;
+    if (name == null || name.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: NubiaChip(
+          key: const Key('consent_pharmacy_chip'),
+          label: name,
+          icon: Icons.store,
+          variant: NubiaChipVariant.choice,
+          selected: true,
+          selectedBackground: NubiaColors.n50,
+          selectedBorder: NubiaColors.n200,
+        ),
       ),
     );
   }

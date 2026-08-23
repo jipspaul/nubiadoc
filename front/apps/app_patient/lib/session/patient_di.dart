@@ -202,6 +202,7 @@ void registerPatient(GetIt gi) {
       list: gi<ListConsentsUseCase>(),
       set: gi<SetConsentUseCase>(),
       listPharmacyOrders: gi<ListPatientPharmacyOrdersUseCase>(),
+      getMyPharmacy: gi<GetMyPharmacyUseCase>(),
     ),
   );
 

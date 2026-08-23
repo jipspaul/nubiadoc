@@ -17,6 +17,8 @@ class MockSetConsentUseCase extends Mock implements SetConsentUseCase {}
 class MockListPatientPharmacyOrdersUseCase extends Mock
     implements ListPatientPharmacyOrdersUseCase {}
 
+class MockGetMyPharmacyUseCase extends Mock implements GetMyPharmacyUseCase {}
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -50,17 +52,21 @@ void main() {
   late MockListConsentsUseCase mockList;
   late MockSetConsentUseCase mockSet;
   late MockListPatientPharmacyOrdersUseCase mockListOrders;
+  late MockGetMyPharmacyUseCase mockGetMyPharmacy;
 
   setUp(() {
     mockList = MockListConsentsUseCase();
     mockSet = MockSetConsentUseCase();
     mockListOrders = MockListPatientPharmacyOrdersUseCase();
+    mockGetMyPharmacy = MockGetMyPharmacyUseCase();
+    when(() => mockGetMyPharmacy()).thenAnswer((_) async => const Right(null));
   });
 
   ConsentsCubit makeCubit() => ConsentsCubit(
         list: mockList,
         set: mockSet,
         listPharmacyOrders: mockListOrders,
+        getMyPharmacy: mockGetMyPharmacy,
       );
 
   group('ConsentsCubit', () {
@@ -130,6 +136,66 @@ void main() {
           (s) => s.consents.firstWhere((c) => c.purpose == 'marketing').granted,
           'marketing granted',
           true,
+        ),
+      ],
+    );
+  });
+
+  group('load() pharmacyName (#5209)', () {
+    blocTest<ConsentsCubit, ConsentsState>(
+      'renseigne pharmacyName depuis la pharmacie déclarée',
+      build: () {
+        when(() => mockList()).thenAnswer((_) async => const Right(_consents));
+        when(() => mockGetMyPharmacy()).thenAnswer(
+          (_) async => const Right(Pharmacy(id: 'ph1', name: 'Pharmacie du Théâtre')),
+        );
+        return makeCubit();
+      },
+      act: (c) => c.load(),
+      expect: () => [
+        isA<ConsentsLoading>(),
+        isA<ConsentsLoaded>().having(
+          (s) => s.pharmacyName,
+          'pharmacyName',
+          'Pharmacie du Théâtre',
+        ),
+      ],
+    );
+
+    blocTest<ConsentsCubit, ConsentsState>(
+      'pharmacyName reste null sans pharmacie déclarée',
+      build: () {
+        when(() => mockList()).thenAnswer((_) async => const Right(_consents));
+        when(() => mockGetMyPharmacy())
+            .thenAnswer((_) async => const Right(null));
+        return makeCubit();
+      },
+      act: (c) => c.load(),
+      expect: () => [
+        isA<ConsentsLoading>(),
+        isA<ConsentsLoaded>().having(
+          (s) => s.pharmacyName,
+          'pharmacyName',
+          isNull,
+        ),
+      ],
+    );
+
+    blocTest<ConsentsCubit, ConsentsState>(
+      'pharmacyName reste null si la requête pharmacie échoue',
+      build: () {
+        when(() => mockList()).thenAnswer((_) async => const Right(_consents));
+        when(() => mockGetMyPharmacy())
+            .thenAnswer((_) async => const Left(NetworkFailure()));
+        return makeCubit();
+      },
+      act: (c) => c.load(),
+      expect: () => [
+        isA<ConsentsLoading>(),
+        isA<ConsentsLoaded>().having(
+          (s) => s.pharmacyName,
+          'pharmacyName',
+          isNull,
         ),
       ],
     );
