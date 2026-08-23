@@ -18,9 +18,13 @@ final class ConsentsLoaded extends ConsentsState {
 
   /// Purpose en cours d'écriture (bascule optimiste désactivée pendant l'appel).
   final String? pending;
-  const ConsentsLoaded(this.consents, {this.pending});
+
+  /// Message d'échec d'une bascule (#5215) : reste local à la ligne (SnackBar),
+  /// ne remplace jamais la liste par un écran d'erreur plein écran.
+  final String? toggleError;
+  const ConsentsLoaded(this.consents, {this.pending, this.toggleError});
   @override
-  List<Object?> get props => [consents, pending];
+  List<Object?> get props => [consents, pending, toggleError];
 }
 
 final class ConsentsError extends ConsentsState {
@@ -57,10 +61,12 @@ class ConsentsCubit extends Cubit<ConsentsState>
     emit(ConsentsLoaded(current.consents, pending: purpose));
     final result = await _set(purpose: purpose, granted: granted);
     await result.fold(
-      (f) async {
-        safeEmit(ConsentsError(f.message));
-        await load();
-      },
+      // Échec d'une bascule : erreur locale à la ligne (SnackBar), la liste
+      // reste affichée et la bascule revient à son état serveur — jamais de
+      // NubiaErrorWidget plein écran pour l'échec d'UN consentement (#5215).
+      (f) async => safeEmit(
+        ConsentsLoaded(current.consents, toggleError: f.message),
+      ),
       (_) async => load(),
     );
   }
