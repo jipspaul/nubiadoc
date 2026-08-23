@@ -105,6 +105,14 @@ class ProConfig {
         icon: Icons.chat_bubble_outline,
         route: '/messages',
       ),
+      // Messagerie interne au cabinet — anciennement icône trailing isolée,
+      // désormais voisine de « Messages » sous le même groupe (#5151) : deux
+      // messageries distinctes, enfin lisibles côte à côte.
+      shell.ProNavDestination(
+        label: 'Équipe',
+        icon: Icons.forum_outlined,
+        route: '/team-messages',
+      ),
       shell.ProNavDestination(
         label: 'Motifs de RDV',
         icon: Icons.event_note_outlined,
