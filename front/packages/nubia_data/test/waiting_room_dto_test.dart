@@ -64,5 +64,40 @@ void main() {
       expect(domain.reason, isNull);
       expect(domain.appointmentTime, isNull);
     });
+
+    // #5168 : colonne Praticien salle d'attente — même practitioner_id/nom
+    // que l'agenda.
+    test('fromJson mappe practitioner_id/practitioner_name quand présents',
+        () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+        'practitioner_id': 'pr-1',
+        'practitioner_name': 'Dr A. Rousseau',
+      });
+      expect(dto.practitionerId, 'pr-1');
+      expect(dto.practitionerName, 'Dr A. Rousseau');
+      final domain = dto.toDomain();
+      expect(domain.practitionerId, 'pr-1');
+      expect(domain.practitionerName, 'Dr A. Rousseau');
+    });
+
+    test('fromJson tolère practitioner_id/practitioner_name absents', () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+      });
+      expect(dto.practitionerId, isNull);
+      expect(dto.practitionerName, isNull);
+      final domain = dto.toDomain();
+      expect(domain.practitionerId, isNull);
+      expect(domain.practitionerName, isNull);
+    });
   });
 }

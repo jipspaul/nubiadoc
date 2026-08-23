@@ -491,6 +491,10 @@ pub struct WaitingRoomEntry {
     /// motif clinique ici, cloisonnement R.4127-72 inchangé (#5172).
     pub motif: Option<String>,
     pub starts_at: String,
+    pub practitioner_id: Uuid,
+    /// `provider.display_name` — même source que l'agenda (#5168), absent si le
+    /// praticien n'a pas de fiche `provider` (`LEFT JOIN`).
+    pub practitioner_name: Option<String>,
 }
 
 /// Réponse de `GET /v1/cabinet/waiting-room`.
@@ -527,10 +531,12 @@ pub async fn get_waiting_room(
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
                 "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
+                        a.practitioner_id, prov.display_name AS practitioner_name, \
                         p.first_name, p.last_name, \
                         GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
                  FROM appointment a \
                  LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 LEFT JOIN provider prov ON prov.practitioner_id = a.practitioner_id \
                  WHERE a.deleted_at IS NULL \
                    AND a.checkin_at IS NOT NULL \
                    AND a.status IN ('checked_in', 'in_progress') \
@@ -556,11 +562,13 @@ pub async fn get_waiting_room(
         // Un praticien ne voit que sa propre file d'attente, pas celle du cabinet entier.
         sqlx::query(
             "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
+                    a.practitioner_id, prov.display_name AS practitioner_name, \
                     p.first_name, p.last_name, \
                     GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
              FROM appointment a \
              LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
              JOIN practitioner pr ON pr.id = a.practitioner_id \
+             LEFT JOIN provider prov ON prov.practitioner_id = a.practitioner_id \
              WHERE a.deleted_at IS NULL \
                AND a.checkin_at IS NOT NULL \
                AND a.status IN ('checked_in', 'in_progress') \
@@ -578,10 +586,12 @@ pub async fn get_waiting_room(
     } else {
         sqlx::query(
             "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
+                    a.practitioner_id, prov.display_name AS practitioner_name, \
                     p.first_name, p.last_name, \
                     GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
              FROM appointment a \
              LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+             LEFT JOIN provider prov ON prov.practitioner_id = a.practitioner_id \
              WHERE a.deleted_at IS NULL \
                AND a.checkin_at IS NOT NULL \
                AND a.status IN ('checked_in', 'in_progress') \
@@ -612,6 +622,12 @@ pub async fn get_waiting_room(
             let motif: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
             let starts_at: chrono::DateTime<chrono::Utc> =
                 row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+            let practitioner_id: Uuid = row
+                .try_get("practitioner_id")
+                .map_err(|_| AppError::Internal)?;
+            let practitioner_name: Option<String> = row
+                .try_get("practitioner_name")
+                .map_err(|_| AppError::Internal)?;
 
             // Un champ nommé `patient_name_initials` contient des initiales pour
             // TOUT rôle — avant, seule la branche secretary minimisait, praticien/
@@ -639,6 +655,8 @@ pub async fn get_waiting_room(
                 status,
                 motif,
                 starts_at: starts_at.to_rfc3339(),
+                practitioner_id,
+                practitioner_name,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
