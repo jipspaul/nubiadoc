@@ -12,15 +12,19 @@ class StockBloc extends Bloc<StockEvent, StockState>
   StockBloc({
     required ListStockRequestsUseCase list,
     required CreateStockRequestUseCase create,
+    required ResendStockRequestUseCase resend,
   })  : _list = list,
         _create = create,
+        _resend = resend,
         super(const StockLoading()) {
     on<StockLoadRequested>(_onLoad);
     on<StockCreateRequested>(_onCreate);
+    on<StockResendRequested>(_onResend);
   }
 
   final ListStockRequestsUseCase _list;
   final CreateStockRequestUseCase _create;
+  final ResendStockRequestUseCase _resend;
 
   Future<void> _onLoad(
       StockLoadRequested event, Emitter<StockState> emit) async {
@@ -48,6 +52,24 @@ class StockBloc extends Bloc<StockEvent, StockState>
       (failure) => safeEmit(StockError(failure.message)),
       (created) =>
           safeEmit(StockLoaded([created, ...current.requests])),
+    );
+  }
+
+  Future<void> _onResend(
+    StockResendRequested event,
+    Emitter<StockState> emit,
+  ) async {
+    final current = state;
+    if (current is! StockLoaded || current.resendingId != null) return;
+
+    emit(StockLoaded(current.requests, resendingId: event.requestId));
+    final result = await _resend(event.requestId);
+    result.fold(
+      (failure) => safeEmit(StockError(failure.message)),
+      (updated) => safeEmit(StockLoaded([
+        for (final request in current.requests)
+          if (request.id == updated.id) updated else request,
+      ])),
     );
   }
 }

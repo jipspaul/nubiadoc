@@ -53,6 +53,14 @@ class PharmacyStockApi {
 
   Future<StockRequestDto> fulfill(String id) => _action(id, 'fulfill');
 
+  /// POST /v1/cabinet/stock-requests/{id}/resend (relance manuelle, cabinet).
+  Future<StockRequestDto> resend(String id) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$basePath/stock-requests/$id/resend',
+    );
+    return StockRequestDto.fromJson(response.data!);
+  }
+
   Future<StockRequestDto> _action(
     String id,
     String action, {

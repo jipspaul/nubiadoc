@@ -152,6 +152,7 @@ void registerPro(GetIt gi) {
       () => StockBloc(
         list: gi<ListStockRequestsUseCase>(),
         create: gi<CreateStockRequestUseCase>(),
+        resend: gi<ResendStockRequestUseCase>(),
       ),
     )
     ..registerFactory<CabinetStatsBloc>(

@@ -89,6 +89,10 @@ class _StockPageState extends State<StockPage> {
     }
   }
 
+  void _onResend(String requestId) {
+    context.read<StockBloc>().add(StockResendRequested(requestId));
+  }
+
   /// Filtre client (aucun nouvel appel réseau) sur les libellés d'article et
   /// le nom/id de pharmacie des demandes déjà chargées — #5187, combiné à la
   /// facette de statut sélectionnée — #5186.
@@ -133,6 +137,13 @@ class _StockPageState extends State<StockPage> {
       case LogicalKeyboardKey.numpadEnter:
         final index = currentIndex < 0 ? 0 : currentIndex;
         setState(() => _selectedId = requests[index].id);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.keyR:
+        final selected =
+            currentIndex < 0 ? null : requests[currentIndex];
+        if (selected != null && selected.status == StockRequestStatus.sent) {
+          _onResend(selected.id);
+        }
         return KeyEventResult.handled;
       default:
         return KeyEventResult.ignored;
@@ -184,7 +195,7 @@ class _StockPageState extends State<StockPage> {
                   onRetry: () =>
                       context.read<StockBloc>().add(const StockLoadRequested()),
                 );
-              case StockLoaded(:final requests):
+              case StockLoaded(:final requests, :final resendingId):
                 if (requests.isEmpty) {
                   return const NubiaEmptyState(
                     icon: Icons.inventory_2_outlined,
@@ -250,8 +261,12 @@ class _StockPageState extends State<StockPage> {
                                           child: _StockRequestRow(
                                             request: request,
                                             selected: request.id == _selectedId,
+                                            resending:
+                                                request.id == resendingId,
                                             onTap: () => setState(
                                                 () => _selectedId = request.id),
+                                            onResend: () =>
+                                                _onResend(request.id),
                                           ),
                                         );
                                       },
@@ -270,7 +285,9 @@ class _StockPageState extends State<StockPage> {
                         width: 392,
                         child: _StockDetailPanel(
                           request: selected,
+                          resending: selected.id == resendingId,
                           onClose: () => setState(() => _selectedId = null),
+                          onResend: () => _onResend(selected.id),
                         ),
                       ),
                   ],
@@ -651,12 +668,18 @@ class _StockRequestRow extends StatelessWidget {
   const _StockRequestRow({
     required this.request,
     required this.selected,
+    required this.resending,
     required this.onTap,
+    required this.onResend,
   });
 
   final StockRequest request;
   final bool selected;
+
+  /// Relance de cette demande en cours (bouton en loading) — #5183.
+  final bool resending;
   final VoidCallback onTap;
+  final VoidCallback onResend;
 
   @override
   Widget build(BuildContext context) {
@@ -710,6 +733,20 @@ class _StockRequestRow extends StatelessWidget {
             const SizedBox(height: 4),
             Text('Note pharmacie : ${request.responseNote}'),
           ],
+          if (request.status == StockRequestStatus.sent) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: NubiaButton(
+                key: Key('stock_resend_${request.id}'),
+                label: 'Relancer',
+                icon: Icons.notifications,
+                size: NubiaButtonSize.sm,
+                isLoading: resending,
+                onPressed: resending ? null : onResend,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -744,6 +781,7 @@ class _StockListFooter extends StatelessWidget {
         children: [
           Text('↑ ↓ naviguer', style: style),
           Text('⏎ ouvrir', style: style),
+          Text('R relancer', style: style),
           Text(
             '$count demande${count > 1 ? 's' : ''} affichée'
             '${count > 1 ? 's' : ''} sur $total',
@@ -758,10 +796,19 @@ class _StockListFooter extends StatelessWidget {
 /// Panneau détail (392px, cf. maquette `.det`) : en-tête, pharmacie,
 /// articles demandés et suivi de la demande sélectionnée.
 class _StockDetailPanel extends StatelessWidget {
-  const _StockDetailPanel({required this.request, required this.onClose});
+  const _StockDetailPanel({
+    required this.request,
+    required this.resending,
+    required this.onClose,
+    required this.onResend,
+  });
 
   final StockRequest request;
+
+  /// Relance de cette demande en cours (bouton en loading) — #5183.
+  final bool resending;
   final VoidCallback onClose;
+  final VoidCallback onResend;
 
   @override
   Widget build(BuildContext context) {
@@ -834,6 +881,16 @@ class _StockDetailPanel extends StatelessWidget {
                   '${item.note != null ? ' (${item.note})' : ''}',
                 ),
               ),
+            if (request.status == StockRequestStatus.sent) ...[
+              const SizedBox(height: 16),
+              NubiaButton(
+                key: Key('stock_detail_resend_${request.id}'),
+                label: 'Relancer la pharmacie',
+                icon: Icons.notifications,
+                isLoading: resending,
+                onPressed: resending ? null : onResend,
+              ),
+            ],
             const SizedBox(height: 16),
             Text('Suivi', style: textTheme.titleSmall),
             const SizedBox(height: 12),

@@ -194,6 +194,7 @@ export 'src/usecases/pharmacy/list_pharmacy_quotes_use_case.dart';
 export 'src/usecases/pharmacy/list_stock_requests_use_case.dart';
 export 'src/usecases/pharmacy/mark_pharmacy_order_ready_use_case.dart';
 export 'src/usecases/pharmacy/reject_pharmacy_order_use_case.dart';
+export 'src/usecases/pharmacy/resend_stock_request_use_case.dart';
 export 'src/usecases/pharmacy/respond_stock_request_use_case.dart';
 export 'src/usecases/pharmacy/search_pharmacies_use_case.dart';
 export 'src/usecases/pharmacy/select_pharmacy_context_use_case.dart';
