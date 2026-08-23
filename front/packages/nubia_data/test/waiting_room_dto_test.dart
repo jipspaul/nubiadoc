@@ -31,5 +31,38 @@ void main() {
       });
       expect(dto.id, 'entry-id-explicite');
     });
+
+    // #5172 : sous-titre salle d'attente = motif + heure de RDV.
+    test('fromJson mappe motif/starts_at quand présents', () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+        'motif': 'Détartrage',
+        'starts_at': '2026-07-13T10:00:00+00:00',
+      });
+      expect(dto.reason, 'Détartrage');
+      expect(dto.appointmentTime, '2026-07-13T10:00:00+00:00');
+      final domain = dto.toDomain();
+      expect(domain.reason, 'Détartrage');
+      expect(domain.appointmentTime, DateTime.parse('2026-07-13T10:00:00+00:00'));
+    });
+
+    test('fromJson tolère motif/starts_at absents (pas de crash)', () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+      });
+      expect(dto.reason, isNull);
+      expect(dto.appointmentTime, isNull);
+      final domain = dto.toDomain();
+      expect(domain.reason, isNull);
+      expect(domain.appointmentTime, isNull);
+    });
   });
 }

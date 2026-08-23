@@ -487,6 +487,10 @@ pub struct WaitingRoomEntry {
     pub checkin_at: Option<String>,
     pub wait_minutes: i64,
     pub status: String,
+    /// Motif admin du RDV (`appointment.motif`, cf. AgendaSlot.motif_admin) — pas de
+    /// motif clinique ici, cloisonnement R.4127-72 inchangé (#5172).
+    pub motif: Option<String>,
+    pub starts_at: String,
 }
 
 /// Réponse de `GET /v1/cabinet/waiting-room`.
@@ -522,7 +526,7 @@ pub async fn get_waiting_room(
     let rows = if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT a.id, a.status, a.checkin_at, \
+                "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
                         p.first_name, p.last_name, \
                         GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
                  FROM appointment a \
@@ -551,7 +555,7 @@ pub async fn get_waiting_room(
     } else if claims.role == "practitioner" {
         // Un praticien ne voit que sa propre file d'attente, pas celle du cabinet entier.
         sqlx::query(
-            "SELECT a.id, a.status, a.checkin_at, \
+            "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
                     p.first_name, p.last_name, \
                     GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
              FROM appointment a \
@@ -573,7 +577,7 @@ pub async fn get_waiting_room(
         .map_err(|_| AppError::Internal)?
     } else {
         sqlx::query(
-            "SELECT a.id, a.status, a.checkin_at, \
+            "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
                     p.first_name, p.last_name, \
                     GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
              FROM appointment a \
@@ -605,6 +609,9 @@ pub async fn get_waiting_room(
             let first: Option<String> =
                 row.try_get("first_name").map_err(|_| AppError::Internal)?;
             let last: Option<String> = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+            let motif: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
+            let starts_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("starts_at").map_err(|_| AppError::Internal)?;
 
             // Un champ nommé `patient_name_initials` contient des initiales pour
             // TOUT rôle — avant, seule la branche secretary minimisait, praticien/
@@ -630,6 +637,8 @@ pub async fn get_waiting_room(
                 checkin_at: checkin_at.map(|dt| dt.to_rfc3339()),
                 wait_minutes,
                 status,
+                motif,
+                starts_at: starts_at.to_rfc3339(),
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
