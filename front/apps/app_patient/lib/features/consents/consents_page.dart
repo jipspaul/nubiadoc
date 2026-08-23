@@ -44,11 +44,18 @@ class _ConsentsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ConsentsCubit, ConsentsState>(
-      listenWhen: (_, s) => s is ConsentsError,
+      listenWhen: (_, s) =>
+          s is ConsentsError ||
+          (s is ConsentsLoaded && s.toggleError != null),
       listener: (context, state) {
-        if (state is ConsentsError) {
+        final message = switch (state) {
+          ConsentsError(:final message) => message,
+          ConsentsLoaded(:final toggleError?) => toggleError,
+          _ => null,
+        };
+        if (message != null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
+            SnackBar(content: Text(message)),
           );
         }
       },
