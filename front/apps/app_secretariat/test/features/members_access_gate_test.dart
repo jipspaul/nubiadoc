@@ -103,16 +103,43 @@ void main() {
         config.destinations.where((d) => d.route == ProConfig.membersRoute),
         isEmpty,
       );
-      // Une seule destination retirée : pas de trou d'index.
+    });
+
+    test('canManageMembers=false : masque aussi l\'entrée « Secrétariats »',
+        () {
+      // #5156 : /admin-secretariats partage le même rôle admin strict que
+      // /admin-membres (ProAdminClaims côté back) et se gate donc via le
+      // même signal.
+      final config = ProConfig.shellConfigFor(
+          canManageMembers: false, canViewAuditLog: true);
+      expect(
+        config.destinations
+            .where((d) => d.route == ProConfig.secretariatsRoute),
+        isEmpty,
+      );
+      // Deux destinations retirées (Membres + Secrétariats) : pas de trou
+      // d'index.
       expect(config.destinations.length,
-          ProConfig.shellConfig.destinations.length - 1);
+          ProConfig.shellConfig.destinations.length - 2);
+    });
+
+    test('canManageMembers=true : conserve l\'entrée « Secrétariats »', () {
+      final config = ProConfig.shellConfigFor(
+          canManageMembers: true, canViewAuditLog: true);
+      expect(
+        config.destinations
+            .where((d) => d.route == ProConfig.secretariatsRoute),
+        isNotEmpty,
+      );
     });
 
     test(
         'canManageMembers=false : préserve les autres destinations et l\'ordre',
         () {
       final base = ProConfig.shellConfig.destinations
-          .where((d) => d.route != ProConfig.membersRoute)
+          .where((d) =>
+              d.route != ProConfig.membersRoute &&
+              d.route != ProConfig.secretariatsRoute)
           .map((d) => d.route)
           .toList();
       final filtered = ProConfig.shellConfigFor(
@@ -144,25 +171,28 @@ void main() {
         );
 
     // Surface haute : la nav complète (10 entrées) tient sans overflow du rail.
-    testWidgets('secrétaire-admin : « Membres » visible dans la nav',
+    testWidgets(
+        'secrétaire-admin : « Membres » et « Secrétariats » visibles dans la nav',
         (tester) async {
       await tester.binding.setSurfaceSize(const Size(1000, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(buildShell(canManageMembers: true));
       await tester.pumpAndSettle();
       expect(find.text('Membres'), findsWidgets);
+      expect(find.text('Secrétariats'), findsWidgets);
     });
 
-    testWidgets('secrétaire simple : « Membres » absent (pas d\'impasse 403)',
+    testWidgets(
+        'secrétaire simple : « Membres » et « Secrétariats » absents (pas d\'impasse 403)',
         (tester) async {
       await tester.binding.setSurfaceSize(const Size(1000, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(buildShell(canManageMembers: false));
       await tester.pumpAndSettle();
       expect(find.text('Membres'), findsNothing);
+      expect(find.text('Secrétariats'), findsNothing);
       // Les autres destinations restent présentes.
       expect(find.text('Agenda'), findsWidgets);
-      expect(find.text('Secrétariats'), findsWidgets);
     });
   });
 }
