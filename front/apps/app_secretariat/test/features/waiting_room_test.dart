@@ -416,6 +416,44 @@ void main() {
       expect(decoration.color, practitionerUnassignedColor);
     });
 
+    testWidgets(
+        'liseré émeraude sur la tête de file (position 1) uniquement, '
+        'jamais de fond de ligne — #5165', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 19, 9, 30),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final stripe = find.byKey(const Key('waiting_entry_next_stripe'));
+      expect(stripe, findsOneWidget);
+
+      final box = tester.widget<DecoratedBox>(stripe);
+      final decoration = box.decoration as BoxDecoration;
+      expect(decoration.color, isNull);
+      expect(
+        decoration.border,
+        const Border(
+          left: BorderSide(color: NubiaColors.brand700, width: 3),
+        ),
+      );
+    });
+
     testWidgets('affiche un message si la salle est vide', (tester) async {
       when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());

@@ -249,7 +249,11 @@ class _WaitingEntryTile extends StatelessWidget {
     // Urgence sans rendez-vous : aucun praticien attribué (#5171).
     final bool isUnassigned = entry.appointmentId == null;
 
-    return ListRow(
+    // Tête de file (#5165) : liseré émeraude à gauche, jamais un fond de
+    // ligne — le fond entrerait en concurrence avec la couleur du retard.
+    final bool isNext = position == 1;
+
+    final row = ListRow(
       leading: NubiaAvatar(initials: _initials(entry.patientName)),
       title: entry.patientName,
       subtitle: subtitle,
@@ -295,7 +299,7 @@ class _WaitingEntryTile extends StatelessWidget {
               label: NubiaL10n.call,
               icon: Icons.campaign,
               size: NubiaButtonSize.sm,
-              variant: position == 1
+              variant: isNext
                   ? NubiaButtonVariant.primary
                   : NubiaButtonVariant.secondary,
               onPressed: () => context
@@ -305,6 +309,19 @@ class _WaitingEntryTile extends StatelessWidget {
           ],
         ],
       ),
+    );
+
+    if (!isNext) {
+      return row;
+    }
+    return DecoratedBox(
+      key: const Key('waiting_entry_next_stripe'),
+      decoration: const BoxDecoration(
+        border: Border(
+          left: BorderSide(color: NubiaColors.brand700, width: 3),
+        ),
+      ),
+      child: row,
     );
   }
 }
