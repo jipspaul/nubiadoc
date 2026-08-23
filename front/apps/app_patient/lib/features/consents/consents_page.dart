@@ -164,13 +164,7 @@ class _ConsentsBody extends StatelessWidget {
           return ListView(
             key: const Key('consents_list'),
             children: [
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'Vous pouvez retirer un consentement à tout moment (RGPD). '
-                  'Le retrait prend effet immédiatement.',
-                ),
-              ),
+              const _ConsentsIntroBanner(),
               for (final consent in state.consents)
                 Column(
                   key: Key('consent_card_${consent.purpose}'),
@@ -211,6 +205,62 @@ class _ConsentsBody extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// Bandeau explicatif RGPD en tête de liste (maquette design-v2,
+/// `patient-consentements.png`, `.intro`, #5206) : reprend la formulation
+/// RGPD d'origine (« modifiable à tout moment », « prend effet
+/// immédiatement ») dans une carte à icône bouclier plutôt qu'un simple
+/// texte.
+class _ConsentsIntroBanner extends StatelessWidget {
+  const _ConsentsIntroBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      key: const Key('consents_intro_banner'),
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: NubiaColors.n0,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.shield, color: NubiaColors.brand700),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: NubiaColors.n700),
+                children: const [
+                  TextSpan(
+                    text: 'Vous décidez de ce que Nubia peut faire de vos '
+                        'données. ',
+                  ),
+                  TextSpan(
+                    text: 'Chaque choix est modifiable à tout moment',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: NubiaColors.n900,
+                    ),
+                  ),
+                  TextSpan(
+                    text: ' et prend effet immédiatement.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
