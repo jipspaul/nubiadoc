@@ -45,4 +45,10 @@ class StockRequestsRepositoryImpl implements StockRequestsRepository {
         () async => (await _api.fulfill(id)).toDomain(),
         errorMessage: 'Impossible de clore la demande.',
       );
+
+  @override
+  Future<Either<Failure, StockRequest>> resend(String id) => guardPharmacyCall(
+        () async => (await _api.resend(id)).toDomain(),
+        errorMessage: 'Impossible de relancer la pharmacie.',
+      );
 }

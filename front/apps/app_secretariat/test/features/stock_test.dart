@@ -454,5 +454,89 @@ void main() {
         expect(textWidget.style?.color, tokens.warningFg);
       });
     });
+
+    // #5183 — action « Relancer » sur les demandes `sent`.
+    group('relance d\'une demande sent (#5183)', () {
+      testWidgets(
+          'la ligne d\'une demande sent expose un bouton Relancer, absent '
+          'pour les autres statuts', (tester) async {
+        when(() => bloc.state)
+            .thenReturn(StockLoaded([sentRequest, fulfilledRequest]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('stock_resend_req-1')), findsOneWidget);
+        expect(find.byKey(const Key('stock_resend_req-2')), findsNothing);
+      });
+
+      testWidgets('cliquer Relancer sur la ligne déclenche StockResendRequested',
+          (tester) async {
+        when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('stock_resend_req-1')));
+        await tester.pumpAndSettle();
+
+        verify(() => bloc.add(const StockResendRequested('req-1'))).called(1);
+      });
+
+      testWidgets(
+          'le panneau détail affiche le CTA « Relancer la pharmacie » pour '
+          'une demande sent', (tester) async {
+        when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('stock_request_req-1')));
+        await tester.pumpAndSettle();
+
+        final cta = find.byKey(const Key('stock_detail_resend_req-1'));
+        expect(cta, findsOneWidget);
+
+        await tester.tap(cta);
+        await tester.pumpAndSettle();
+        verify(() => bloc.add(const StockResendRequested('req-1'))).called(1);
+      });
+
+      testWidgets(
+          'le panneau détail n\'affiche pas le CTA Relancer pour une '
+          'demande non sent', (tester) async {
+        when(() => bloc.state).thenReturn(StockLoaded([fulfilledRequest]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('stock_request_req-2')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('stock_detail_resend_req-2')),
+          findsNothing,
+        );
+      });
+
+      testWidgets('le raccourci R relance la demande sélectionnée si sent',
+          (tester) async {
+        when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+        await tester.pumpAndSettle();
+
+        verify(() => bloc.add(const StockResendRequested('req-1'))).called(1);
+      });
+
+      testWidgets('le pied de liste affiche le raccourci « R relancer »',
+          (tester) async {
+        when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        expect(find.text('R relancer'), findsOneWidget);
+      });
+    });
   });
 }

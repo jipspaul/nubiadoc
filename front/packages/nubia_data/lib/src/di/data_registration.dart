@@ -763,7 +763,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
       () => StockRequestsRepositoryImpl(gi()),
     )
     ..registerFactory(() => ListStockRequestsUseCase(gi()))
-    ..registerFactory(() => CreateStockRequestUseCase(gi()));
+    ..registerFactory(() => CreateStockRequestUseCase(gi()))
+    ..registerFactory(() => ResendStockRequestUseCase(gi()));
 
   if (includeClinical) {
     gi

@@ -254,6 +254,58 @@ async fn reject_with_note_and_cancel_flow() {
 }
 
 #[tokio::test]
+async fn resend_while_sent_then_blocked_after_accept() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, pharmacy_id) = seed(&db).await;
+    let pro = pro_jwt(cabinet_id, "secretary");
+    let pharma = pharma_jwt(pharmacy_id);
+
+    let (_, request) = call(
+        "POST",
+        "/v1/cabinet/stock-requests",
+        &pro,
+        Some(json!({"pharmacy_id": pharmacy_id,
+                    "items": [{"label": "Compresses stériles", "qty": 10}]})),
+    )
+    .await;
+    let id = request["id"].as_str().unwrap().to_string();
+
+    // Relance tant que `sent` : statut inchangé.
+    let (status, resent) = call(
+        "POST",
+        &format!("/v1/cabinet/stock-requests/{id}/resend"),
+        &pro,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(resent["status"], "sent");
+    assert_eq!(resent["id"], request["id"]);
+
+    // Une fois acceptée, la relance n'a plus de sens → 409.
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/stock-requests/{id}/accept"),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/cabinet/stock-requests/{id}/resend"),
+        &pro,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
 async fn validation_and_isolation() {
     if !db_available() {
         return;
