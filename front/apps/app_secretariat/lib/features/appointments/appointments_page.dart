@@ -110,17 +110,6 @@ StatusPillVariant statusVariant(CabinetAppointmentStatus status) {
   }
 }
 
-String _initialsFrom(String name) {
-  final parts = name.trim().split(RegExp(r'\s+'));
-  if (parts.isEmpty || parts.first.isEmpty) return '–';
-  if (parts.length == 1) {
-    final p = parts.first;
-    return (p.length <= 2 ? p : p.substring(0, 2)).toUpperCase();
-  }
-  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
-      .toUpperCase();
-}
-
 String _formatDateTime(DateTime dt) {
   final local = dt.toLocal();
   return '${local.day.toString().padLeft(2, '0')}/'
@@ -227,7 +216,7 @@ class _AppointmentCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 NubiaAvatar(
-                  initials: _initialsFrom(appointment.patientName),
+                  initials: initialsFrom(appointment.patientName),
                   radius: 20,
                 ),
                 const SizedBox(width: 12),
