@@ -24,6 +24,8 @@
   "@noNotifications": { "description": "Aucune notification" },
   "callNext": "Appeler suivant",
   "@callNext": { "description": "Bouton appeler patient suivant" },
+  "call": "Appeler",
+  "@call": { "description": "Bouton appeler ce patient (action par ligne)" },
   "patients": "Patients",
   "@patients": { "description": "Onglet Patients" },
   "quotes": "Devis",

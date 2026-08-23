@@ -16,6 +16,7 @@ abstract final class NubiaL10n {
   static const noWaitingRoom = "Aucun patient en salle d'attente.";
   static const noNotifications = 'Aucune notification.';
   static const callNext = 'Appeler suivant';
+  static const call = 'Appeler';
   static const patients = 'Patients';
   static const quotes = 'Devis';
   static const waitingRoom = "Salle d'attente";
