@@ -27,6 +27,15 @@ class ProConfig {
   /// `GET /v1/cabinet/audit-log`, #4155) via [shellConfigFor].
   static const String auditLogRoute = '/audit-log';
 
+  /// Route de l'entrée « Secrétariats ». `GET /v1/cabinet/secretariats`
+  /// (listing) est ouvert à tout membre pro (`ProMemberClaims`), mais sa
+  /// création/administration (`POST`/`PATCH`/`DELETE /v1/cabinet/secretariats`)
+  /// exige `ProAdminClaims` — le même rôle strict `admin` que
+  /// `GET /v1/cabinet/members` (#3468). On ne peut donc pas sonder le listing
+  /// lui-même (il ne renverra jamais 403) ; on réutilise le signal déjà
+  /// confirmé de [membersRoute] pour masquer cette entrée admin (#5156).
+  static const String secretariatsRoute = '/admin-secretariats';
+
   static const shell.ProConfig shellConfig = shell.ProConfig(
     appTitle: appTitle,
     spaceLabel: spaceLabel,
@@ -89,7 +98,7 @@ class ProConfig {
       shell.ProNavDestination(
         label: 'Secrétariats',
         icon: Icons.business_outlined,
-        route: '/admin-secretariats',
+        route: secretariatsRoute,
       ),
       shell.ProNavDestination(
         label: 'Statistiques',
@@ -109,18 +118,23 @@ class ProConfig {
     ],
   );
 
-  /// Config de navigation filtrée selon l'accès admin aux membres et au
-  /// journal d'accès, badges compteurs injectés sur les destinations
+  /// Config de navigation filtrée selon l'accès admin aux membres/secrétariats
+  /// et au journal d'accès, badges compteurs injectés sur les destinations
   /// correspondantes (#5388 : salle d'attente, demandes de créneau, devis
   /// expirants, messages non lus).
   ///
-  /// Les entrées « Membres »/« Journal d'accès » ne sont conservées que
-  /// lorsque l'accès correspondant est confirmé (secrétaire-admin ou
-  /// admin/manager) — sondé via 403 sur leurs endpoints respectifs
-  /// (`GET /v1/cabinet/members` #3468, `GET /v1/cabinet/audit-log` #4155).
-  /// Les autres destinations gardent leur ordre relatif — on retire l'entrée
-  /// de la liste plutôt que de la neutraliser, donc pas de trou d'index côté
-  /// [shell.ProShell].
+  /// Les entrées « Membres »/« Secrétariats »/« Journal d'accès » — le groupe
+  /// « Réglages du cabinet » de la maquette design-v2 — ne sont conservées que
+  /// lorsque l'accès correspondant est confirmé (#5156). [canManageMembers]
+  /// gate à la fois [membersRoute] et [secretariatsRoute] : les deux exigent
+  /// le rôle strict `admin` côté back (`ProAdminClaims`), et seul
+  /// `GET /v1/cabinet/members` renvoie 403 pour le sonder (`GET
+  /// /v1/cabinet/secretariats` est ouvert à tout membre, #3468). Le journal
+  /// d'accès reste gaté séparément (`ProAdminOrManagerClaims`, admin ou
+  /// manager, #4155). Les autres destinations gardent leur ordre relatif — on
+  /// retire l'entrée de la liste plutôt que de la neutraliser, donc pas de
+  /// trou d'index côté [shell.ProShell] ; si le groupe entier est retiré,
+  /// aucun en-tête ne reste (la nav n'a pas d'en-têtes de groupe).
   static shell.ProConfig shellConfigFor({
     required bool canManageMembers,
     required bool canViewAuditLog,
@@ -140,7 +154,8 @@ class ProConfig {
       spaceLabel: spaceLabel,
       destinations: shellConfig.destinations
           .where((d) =>
-              (canManageMembers || d.route != membersRoute) &&
+              (canManageMembers ||
+                  (d.route != membersRoute && d.route != secretariatsRoute)) &&
               (canViewAuditLog || d.route != auditLogRoute))
           .map((d) {
         final badgeCount = badgeCounts[d.route];

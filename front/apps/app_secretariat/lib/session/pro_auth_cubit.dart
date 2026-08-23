@@ -30,6 +30,18 @@ class AuthUnauthenticated extends AuthState {
 /// Professional auth cubit. Reuses the shared [LoginUseCase]; the role is
 /// fixed per app for the skeleton (see [ProConfig.role]).
 ///
+/// Rôles réels confirmés (#5156) : `GET /v1/me` expose déjà, par cabinet,
+/// `memberships[].role` (`api/src/auth/mod.rs::MeResponse`), dérivé de
+/// `cabinet_membership.role` — les valeurs en usage côté back sont `admin`,
+/// `manager`, `secretary` et `practitioner` (cf. `ProAdminClaims` qui exige
+/// `role == "admin"`, et `ProAdminOrManagerClaims` qui accepte `admin` ou
+/// `manager`, dans `api/src/auth/mod.rs`). Cette app fixe [ProConfig.role] à
+/// `secretary` pour toutes les sessions : le JWT `ProClaims` du login ne
+/// distingue pas secrétaire simple de secrétaire-admin/manager. En attendant
+/// que ce cubit dérive le rôle réel de `/v1/me`, les entrées de nav
+/// admin-only sont gatées via sonde 403 sur leurs endpoints (voir
+/// `ProConfig.shellConfigFor`, `MembersAccessCubit`, `AuditLogAccessCubit`).
+///
 /// TODO(nubia): parse `GET /v1/me` to derive role/cabinet from the JWT instead
 /// of assuming [ProConfig.role], and reject mismatched roles at login.
 class ProAuthCubit extends Cubit<AuthState> {

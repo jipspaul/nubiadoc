@@ -77,7 +77,9 @@ class DashboardPage extends StatelessWidget {
     // l'app fixe le rôle `secretary`, seul le 403 sur leurs endpoints
     // respectifs distingue le secrétaire-admin/manager du secrétaire simple
     // (#3468, #4155). Les entrées de nav correspondantes sont masquées dès
-    // que le 403 confirme le rôle insuffisant.
+    // que le 403 confirme le rôle insuffisant. Le même signal
+    // (`canManageMembers`) gate aussi « Secrétariats », dont le listing n'est
+    // pas admin-only mais dont la gestion l'est (#5156).
     return BlocProvider<MembersAccessCubit>(
       create: (_) => GetIt.instance<MembersAccessCubit>()..probe(),
       child: BlocProvider<AuditLogAccessCubit>(
