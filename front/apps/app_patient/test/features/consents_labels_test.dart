@@ -58,4 +58,39 @@ void main() {
     expect(find.text('partage_confrere'), findsNothing);
     expect(find.text('ia_scribe'), findsNothing);
   });
+
+  // #5216 — une finalité absente de _kConsentLabels doit afficher un libellé
+  // générique explicite, jamais sa clé technique brute en snake_case.
+  testWidgets(
+      'écran Consentements : une finalité inconnue affiche un libellé générique, pas la clé brute',
+      (tester) async {
+    const consents = [
+      Consent(purpose: 'purpose_non_documente', granted: false),
+    ];
+
+    final cubit = MockConsentsCubit();
+    whenListen(
+      cubit,
+      const Stream<ConsentsState>.empty(),
+      initialState: const ConsentsLoaded(consents),
+    );
+    when(() => cubit.load()).thenAnswer((_) async {});
+
+    GetIt.instance.registerFactory<ConsentsCubit>(() => cubit);
+    addTearDown(() => GetIt.instance.reset());
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NubiaTheme.light,
+        home: const Scaffold(body: ConsentsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Finalité non documentée — contactez le cabinet'),
+      findsOneWidget,
+    );
+    expect(find.text('purpose_non_documente'), findsNothing);
+  });
 }
