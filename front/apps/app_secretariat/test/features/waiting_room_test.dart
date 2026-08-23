@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -426,18 +427,33 @@ void main() {
       );
     });
 
-    testWidgets('FAB désactivé quand liste vide', (tester) async {
+    testWidgets('pas de FloatingActionButton — action call-next en barre '
+        "d'outils — #5167", (tester) async {
       when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      final fab = tester.widget<FloatingActionButton>(
-        find.byType(FloatingActionButton),
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(
+        find.byKey(const Key('waiting_room_call_next_button')),
+        findsOneWidget,
       );
-      expect(fab.onPressed, isNull);
     });
 
-    testWidgets('FAB actif quand patients présents', (tester) async {
+    testWidgets('action call-next désactivée quand liste vide — #5167',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('action call-next active quand patients présents — #5167',
+        (tester) async {
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
           WaitingRoomEntry(
@@ -452,10 +468,49 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      final fab = tester.widget<FloatingActionButton>(
-        find.byType(FloatingActionButton),
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
       );
-      expect(fab.onPressed, isNotNull);
+      expect(button.onPressed, isNotNull);
+    });
+
+    testWidgets(
+        '⌘⏎ déclenche WaitingRoomCallNextRequested quand la file '
+        "n'est pas vide — #5167", (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 20, 8, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const WaitingRoomCallNextRequested())).called(1);
+    });
+
+    testWidgets('⌘⏎ ne fait rien quand la file est vide — #5167',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+      await tester.pumpAndSettle();
+
+      verifyNever(() => bloc.add(const WaitingRoomCallNextRequested()));
     });
 
     testWidgets(
