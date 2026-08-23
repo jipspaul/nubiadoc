@@ -58,7 +58,7 @@ class _HomeContentState extends State<_HomeContent>
     with SingleTickerProviderStateMixin {
   static const _staggerMs = 60;
   static const _sectionDurationMs = 320;
-  static const _sectionCount = 5;
+  static const _sectionCount = 6;
   static const _totalMs = _sectionDurationMs + (_sectionCount - 1) * _staggerMs;
 
   late final AnimationController _controller = AnimationController(
@@ -150,11 +150,13 @@ class _HomeContentState extends State<_HomeContent>
             2,
             _TodoSection(summary: s, hasFinancial: hasFinancial),
           ),
+        if (hasShortcuts) const SizedBox(height: 28),
+        _staggered(context, 3, const _QuickAccessGrid()),
         if (plan != null) ...[
-          if (hasShortcuts) const SizedBox(height: 28),
+          const SizedBox(height: 28),
           _staggered(
             context,
-            3,
+            4,
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -168,7 +170,7 @@ class _HomeContentState extends State<_HomeContent>
         if (allClear)
           _staggered(
             context,
-            4,
+            5,
             const Padding(
               padding: EdgeInsets.only(top: 24),
               child: NubiaEmptyState(
@@ -304,6 +306,168 @@ class _TodoSection extends StatelessWidget {
           const SizedBox(height: 12),
         ],
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Section « Accès rapide » : grille 2×2 de raccourcis vers les wedges
+/// aujourd'hui enterrés dans le routeur (ordonnances, documents, pharmacie,
+/// proches — maquette `patient-accueil.png`, note #3). Les sous-titres
+/// d'état sont statiques : ils ne sont pas dans [DashboardSummary], leur
+/// câblage sur les données réelles est un ticket data séparé (#5201).
+class _QuickAccessGrid extends StatelessWidget {
+  const _QuickAccessGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel(label: 'Accès rapide'),
+        const SizedBox(height: 12),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _QuickAccessTile(
+                  key: const Key('quick_access_prescriptions'),
+                  icon: Icons.medication,
+                  iconBg: tokens.primarySubtleBg,
+                  iconColor: cs.primary,
+                  title: 'Mes ordonnances',
+                  subtitle: '1 active',
+                  // Pas de route ordonnances dédiée aujourd'hui (#5201) —
+                  // cible à confirmer avec le PO, on n'invente pas d'écran.
+                  onTap: null,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _QuickAccessTile(
+                  key: const Key('quick_access_documents'),
+                  icon: Icons.folder_open,
+                  iconBg: tokens.infoBg,
+                  iconColor: tokens.infoFg,
+                  title: 'Mes documents',
+                  subtitle: '12 fichiers',
+                  onTap: () => context.push(AppRouter.documents),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _QuickAccessTile(
+                  key: const Key('quick_access_pharmacy'),
+                  icon: Icons.local_pharmacy,
+                  iconBg: tokens.primarySubtleBg,
+                  iconColor: cs.primary,
+                  title: 'Ma pharmacie',
+                  subtitle: 'Pharmacie du Théâtre',
+                  onTap: () => context.push('/pharmacy'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _QuickAccessTile(
+                  key: const Key('quick_access_dependents'),
+                  icon: Icons.group,
+                  iconBg: tokens.primarySubtleBg,
+                  iconColor: cs.primary,
+                  title: 'Mes proches',
+                  subtitle: '2 comptes liés',
+                  onTap: () => context.push(AppRouter.profileDependents),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Tuile « Accès rapide » : pastille icône 38×38 (radius 11) en haut, titre
+/// + sous-titre d'état en bas. `min-height` 96, fond `n0`, bordure `n200`,
+/// radius 18 (maquette `patient-accueil.png`, note #3). Aucune logique
+/// réseau ici : [onTap] est fourni par l'appelant.
+class _QuickAccessTile extends StatelessWidget {
+  const _QuickAccessTile({
+    super.key,
+    required this.icon,
+    required this.iconBg,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconBg;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 96),
+      child: Material(
+        color: NubiaColors.n0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: NubiaColors.n200),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(icon, size: 19, color: iconColor),
+                ),
+                const SizedBox(height: 10),
+                Text(title, style: textTheme.titleSmall),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
