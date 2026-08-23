@@ -116,8 +116,9 @@ class _StockPageState extends State<StockPage> {
     if (event is! KeyDownEvent || requests.isEmpty) {
       return KeyEventResult.ignored;
     }
-    final currentIndex =
-        _selectedId == null ? -1 : requests.indexWhere((r) => r.id == _selectedId);
+    final currentIndex = _selectedId == null
+        ? -1
+        : requests.indexWhere((r) => r.id == _selectedId);
 
     switch (event.logicalKey) {
       case LogicalKeyboardKey.arrowDown:
@@ -180,17 +181,15 @@ class _StockPageState extends State<StockPage> {
               case StockError(:final message):
                 return NubiaErrorWidget(
                   message: message,
-                  onRetry: () => context
-                      .read<StockBloc>()
-                      .add(const StockLoadRequested()),
+                  onRetry: () =>
+                      context.read<StockBloc>().add(const StockLoadRequested()),
                 );
               case StockLoaded(:final requests):
                 if (requests.isEmpty) {
                   return const NubiaEmptyState(
                     icon: Icons.inventory_2_outlined,
                     title: 'Aucune demande de stock',
-                    subtitle:
-                        'Envoyez une demande à une pharmacie partenaire.',
+                    subtitle: 'Envoyez une demande à une pharmacie partenaire.',
                   );
                 }
                 final filtered = _filterRequests(requests);
@@ -209,6 +208,7 @@ class _StockPageState extends State<StockPage> {
                             _handleKey(event, filtered),
                         child: Column(
                           children: [
+                            _StockKpiBar(requests: requests),
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                               child: Align(
@@ -245,14 +245,13 @@ class _StockPageState extends State<StockPage> {
                                       itemBuilder: (context, index) {
                                         final request = filtered[index];
                                         return Padding(
-                                          padding: const EdgeInsets.only(
-                                              bottom: 12),
+                                          padding:
+                                              const EdgeInsets.only(bottom: 12),
                                           child: _StockRequestRow(
                                             request: request,
-                                            selected:
-                                                request.id == _selectedId,
-                                            onTap: () => setState(() =>
-                                                _selectedId = request.id),
+                                            selected: request.id == _selectedId,
+                                            onTap: () => setState(
+                                                () => _selectedId = request.id),
                                           ),
                                         );
                                       },
@@ -373,8 +372,9 @@ class _StatusFacetChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
-    final foreground =
-        selected ? NubiaColors.brand800 : Theme.of(context).colorScheme.onSurface;
+    final foreground = selected
+        ? NubiaColors.brand800
+        : Theme.of(context).colorScheme.onSurface;
 
     return Semantics(
       toggled: selected,
@@ -422,8 +422,7 @@ class _StatusFacetChip extends StatelessWidget {
                     style: textTheme.labelSmall?.copyWith(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color:
-                          selected ? NubiaColors.brand800 : NubiaColors.n600,
+                      color: selected ? NubiaColors.brand800 : NubiaColors.n600,
                     ),
                   ),
                 ),
@@ -432,6 +431,164 @@ class _StatusFacetChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Agrégats de la rangée de compteurs en tête d'écran (#5185), dérivés de la
+/// liste déjà chargée (`StockLoaded.requests`, aucun appel réseau).
+class _StockKpis {
+  const _StockKpis({
+    required this.pendingCount,
+    required this.acceptedCount,
+    required this.fulfilledThisMonthCount,
+    required this.partnerPharmaciesCount,
+  });
+
+  factory _StockKpis.fromRequests(
+    List<StockRequest> requests, {
+    DateTime? now,
+  }) {
+    final reference = now ?? DateTime.now();
+    var pendingCount = 0;
+    var acceptedCount = 0;
+    var fulfilledThisMonthCount = 0;
+    final pharmacyIds = <String>{};
+    for (final request in requests) {
+      switch (request.status) {
+        case StockRequestStatus.sent:
+          pendingCount++;
+        case StockRequestStatus.accepted:
+          acceptedCount++;
+        case StockRequestStatus.fulfilled:
+          final fulfilledAt = request.fulfilledAt;
+          if (fulfilledAt != null &&
+              fulfilledAt.year == reference.year &&
+              fulfilledAt.month == reference.month) {
+            fulfilledThisMonthCount++;
+          }
+        case StockRequestStatus.rejected:
+        case StockRequestStatus.cancelled:
+          break;
+      }
+      pharmacyIds.add(request.pharmacyId);
+    }
+    return _StockKpis(
+      pendingCount: pendingCount,
+      acceptedCount: acceptedCount,
+      fulfilledThisMonthCount: fulfilledThisMonthCount,
+      partnerPharmaciesCount: pharmacyIds.length,
+    );
+  }
+
+  final int pendingCount;
+  final int acceptedCount;
+  final int fulfilledThisMonthCount;
+  final int partnerPharmaciesCount;
+}
+
+/// Rangée de quatre compteurs en tête d'écran (#5185, maquette toolbar
+/// `.kpis`) : demandes en attente de réponse (accentué orange, `sent`),
+/// acceptées à recevoir (`accepted`), honorées ce mois (`fulfilled` du mois
+/// courant) et pharmacies partenaires distinctes.
+class _StockKpiBar extends StatelessWidget {
+  const _StockKpiBar({required this.requests});
+
+  final List<StockRequest> requests;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final kpis = _StockKpis.fromRequests(requests);
+
+    return Padding(
+      key: const Key('stock_kpi_bar'),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _StockKpiStat(
+              key: const Key('stock_kpi_pending'),
+              value: '${kpis.pendingCount}',
+              label: 'en attente de réponse',
+              valueColor: tokens.warningFg,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _StockKpiStat(
+              key: const Key('stock_kpi_accepted'),
+              value: '${kpis.acceptedCount}',
+              label: 'acceptées, à recevoir',
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _StockKpiStat(
+              key: const Key('stock_kpi_fulfilled'),
+              value: '${kpis.fulfilledThisMonthCount}',
+              label: 'honorées ce mois',
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _StockKpiStat(
+              key: const Key('stock_kpi_partners'),
+              value: '${kpis.partnerPharmaciesCount}',
+              label: 'pharmacies partenaires',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Une valeur (chiffres tabulaires, gras) et son libellé dessous — un
+/// compteur de la [_StockKpiBar].
+class _StockKpiStat extends StatelessWidget {
+  const _StockKpiStat({
+    super.key,
+    required this.value,
+    required this.label,
+    this.valueColor,
+  });
+
+  final String value;
+  final String label;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: valueColor ?? cs.onSurface,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: textTheme.bodySmall?.copyWith(
+            fontSize: 10.5,
+            color: NubiaColors.n500,
+          ),
+        ),
+      ],
     );
   }
 }

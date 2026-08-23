@@ -74,7 +74,8 @@ void main() {
       expect(find.text('Erreur réseau'), findsOneWidget);
     });
 
-    testWidgets('affiche la liste sans panneau détail tant que rien '
+    testWidgets(
+        'affiche la liste sans panneau détail tant que rien '
         'n\'est sélectionné', (tester) async {
       when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
       await tester.pumpWidget(buildPage());
@@ -123,8 +124,7 @@ void main() {
       expect(find.text('Réception au cabinet'), findsOneWidget);
     });
 
-    testWidgets(
-        'affiche — pour les étapes de suivi sans horodatage disponible',
+    testWidgets('affiche — pour les étapes de suivi sans horodatage disponible',
         (tester) async {
       when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
       await tester.pumpWidget(buildPage());
@@ -205,7 +205,8 @@ void main() {
 
       final button = find.byKey(const Key('new_stock_request_fab'));
       expect(button, findsOneWidget);
-      expect(find.descendant(of: button, matching: find.text('Nouvelle demande')),
+      expect(
+          find.descendant(of: button, matching: find.text('Nouvelle demande')),
           findsOneWidget);
 
       await tester.tap(button);
@@ -258,8 +259,7 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      await tester.enterText(
-          find.byKey(const Key('stock_search')), 'carpules');
+      await tester.enterText(find.byKey(const Key('stock_search')), 'carpules');
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('stock_request_req-1')), findsNothing);
@@ -328,8 +328,7 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets(
-        'cliquer une facette filtre la liste, re-cliquer réinitialise',
+    testWidgets('cliquer une facette filtre la liste, re-cliquer réinitialise',
         (tester) async {
       when(() => bloc.state).thenReturn(
           StockLoaded([sentRequest, fulfilledRequest, acceptedRequest]));
@@ -349,6 +348,111 @@ void main() {
       expect(find.byKey(const Key('stock_request_req-1')), findsOneWidget);
       expect(find.byKey(const Key('stock_request_req-2')), findsOneWidget);
       expect(find.byKey(const Key('stock_request_req-3')), findsOneWidget);
+    });
+
+    // #5185 — rangée de quatre compteurs (KPI) en tête d'écran.
+    group('rangée de compteurs (#5185)', () {
+      testWidgets(
+          'affiche les quatre compteurs avec libellés exacts et valeurs '
+          'dérivées de la liste chargée', (tester) async {
+        final now = DateTime.now();
+        final requests = [
+          StockRequest(
+            id: 'kpi-sent-1',
+            pharmacyId: 'pharma-1',
+            items: const [StockRequestItem(label: 'Gants', quantity: 1)],
+            status: StockRequestStatus.sent,
+            createdAt: now,
+          ),
+          StockRequest(
+            id: 'kpi-sent-2',
+            pharmacyId: 'pharma-1',
+            items: const [StockRequestItem(label: 'Gants', quantity: 1)],
+            status: StockRequestStatus.sent,
+            createdAt: now,
+          ),
+          StockRequest(
+            id: 'kpi-accepted-1',
+            pharmacyId: 'pharma-2',
+            items: const [StockRequestItem(label: 'Seringues', quantity: 1)],
+            status: StockRequestStatus.accepted,
+            createdAt: now,
+          ),
+          StockRequest(
+            id: 'kpi-fulfilled-this-month',
+            pharmacyId: 'pharma-2',
+            items: const [StockRequestItem(label: 'Compresses', quantity: 1)],
+            status: StockRequestStatus.fulfilled,
+            createdAt: now,
+            fulfilledAt: now,
+          ),
+          StockRequest(
+            id: 'kpi-fulfilled-last-year',
+            pharmacyId: 'pharma-3',
+            items: const [StockRequestItem(label: 'Masques', quantity: 1)],
+            status: StockRequestStatus.fulfilled,
+            createdAt: DateTime(now.year - 1, now.month, 1),
+            fulfilledAt: DateTime(now.year - 1, now.month, 1),
+          ),
+        ];
+        when(() => bloc.state).thenReturn(StockLoaded(requests));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('stock_kpi_bar')), findsOneWidget);
+
+        final pending = find.byKey(const Key('stock_kpi_pending'));
+        final accepted = find.byKey(const Key('stock_kpi_accepted'));
+        final fulfilled = find.byKey(const Key('stock_kpi_fulfilled'));
+        final partners = find.byKey(const Key('stock_kpi_partners'));
+
+        expect(
+          find.descendant(
+              of: pending, matching: find.text('en attente de réponse')),
+          findsOneWidget,
+        );
+        expect(find.descendant(of: pending, matching: find.text('2')),
+            findsOneWidget);
+
+        expect(
+          find.descendant(
+              of: accepted, matching: find.text('acceptées, à recevoir')),
+          findsOneWidget,
+        );
+        expect(find.descendant(of: accepted, matching: find.text('1')),
+            findsOneWidget);
+
+        expect(
+          find.descendant(
+              of: fulfilled, matching: find.text('honorées ce mois')),
+          findsOneWidget,
+        );
+        expect(find.descendant(of: fulfilled, matching: find.text('1')),
+            findsOneWidget);
+
+        expect(
+          find.descendant(
+              of: partners, matching: find.text('pharmacies partenaires')),
+          findsOneWidget,
+        );
+        expect(find.descendant(of: partners, matching: find.text('3')),
+            findsOneWidget);
+      });
+
+      testWidgets('accentue « en attente de réponse » en orange (warnFg)',
+          (tester) async {
+        when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        final valueFinder = find.descendant(
+          of: find.byKey(const Key('stock_kpi_pending')),
+          matching: find.text('1'),
+        );
+        final textWidget = tester.widget<Text>(valueFinder);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(textWidget.style?.color, tokens.warningFg);
+      });
     });
   });
 }
