@@ -19,7 +19,7 @@ const _statusLabels = {
 
 const _statusVariants = {
   StockRequestStatus.sent: StatusPillVariant.info,
-  StockRequestStatus.accepted: StatusPillVariant.warning,
+  StockRequestStatus.accepted: StatusPillVariant.progress,
   StockRequestStatus.rejected: StatusPillVariant.error,
   StockRequestStatus.fulfilled: StatusPillVariant.success,
   StockRequestStatus.cancelled: StatusPillVariant.neutral,
