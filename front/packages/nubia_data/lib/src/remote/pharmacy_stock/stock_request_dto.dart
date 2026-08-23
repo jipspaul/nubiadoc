@@ -16,6 +16,7 @@ class StockRequestDto {
   final String status;
   final String? responseNote;
   final String createdAt;
+  final String? respondedAt;
   final String? fulfilledAt;
 
   const StockRequestDto({
@@ -29,6 +30,7 @@ class StockRequestDto {
     required this.status,
     this.responseNote,
     required this.createdAt,
+    this.respondedAt,
     this.fulfilledAt,
   });
 
@@ -47,6 +49,7 @@ class StockRequestDto {
         responseNote: json['response_note'] as String?,
         createdAt: json['created_at'] as String? ??
             DateTime.fromMillisecondsSinceEpoch(0).toIso8601String(),
+        respondedAt: json['responded_at'] as String?,
         fulfilledAt: json['fulfilled_at'] as String?,
       );
 
@@ -75,6 +78,7 @@ class StockRequestDto {
         status: _parseStatus(status),
         responseNote: responseNote,
         createdAt: DateTime.parse(createdAt),
+        respondedAt: respondedAt != null ? DateTime.parse(respondedAt!) : null,
         fulfilledAt: fulfilledAt != null ? DateTime.parse(fulfilledAt!) : null,
       );
 

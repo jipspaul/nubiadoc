@@ -244,6 +244,34 @@ void main() {
       expect(request.pharmacy, isNull);
       expect(request.pharmacyId, 'p1');
     });
+
+    test('responded_at / fulfilled_at → respondedAt / fulfilledAt', () {
+      final request = StockRequestDto.fromJson({
+        'id': 's1',
+        'pharmacy_id': 'p1',
+        'items': const [],
+        'status': 'fulfilled',
+        'created_at': '2026-07-01T10:00:00Z',
+        'responded_at': '2026-07-02T09:00:00Z',
+        'fulfilled_at': '2026-07-03T14:00:00Z',
+      }).toDomain();
+
+      expect(request.respondedAt, DateTime.parse('2026-07-02T09:00:00Z'));
+      expect(request.fulfilledAt, DateTime.parse('2026-07-03T14:00:00Z'));
+    });
+
+    test('responded_at / fulfilled_at absents → null, pas de crash', () {
+      final request = StockRequestDto.fromJson({
+        'id': 's1',
+        'pharmacy_id': 'p1',
+        'items': const [],
+        'status': 'sent',
+        'created_at': '2026-07-01T10:00:00Z',
+      }).toDomain();
+
+      expect(request.respondedAt, isNull);
+      expect(request.fulfilledAt, isNull);
+    });
   });
 
   group('PharmacyQuoteDto', () {
