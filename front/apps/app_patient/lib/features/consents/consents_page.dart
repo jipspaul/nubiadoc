@@ -73,6 +73,20 @@ const _kConsentDescriptions = <String, String>{
 /// immédiates, comme avant.
 const _kPharmacySharingPurpose = 'partage_pharmacie';
 
+/// Finalités dont la base légale n'est pas le consentement révocable mais
+/// l'exécution du contrat de soin (maquette design-v2, groupe « Nécessaire
+/// au service », #5205) : bascule verrouillée (ON, non actionnable) plutôt
+/// qu'au même rang qu'une finalité comme le marketing.
+/// ⚠️ Mapping proposé, pas une vérité juridique tranchée — la distinction
+/// « nécessaire au service » / « optionnel » doit être validée par le DPO
+/// (le modèle `Consent` ne porte pas cette info). Regroupé ici en un seul
+/// endroit explicite pour rester facile à faire évoluer si le DPO change
+/// le périmètre, sans creuser dans l'arbre de widgets.
+const _kLockedConsentPurposes = <String, String>{
+  'soins': 'Requis pour être soigné',
+  'data_processing': 'Base légale : exécution du contrat',
+};
+
 /// Bascule un consentement — sauf le retrait du partage pharmacie, qui
 /// passe d'abord par une feuille de confirmation (#5211) signalant le cas
 /// particulier d'une commande déjà transmise (#5212).
@@ -161,11 +175,20 @@ class _ConsentsBody extends StatelessWidget {
               title: 'Aucun consentement à gérer',
             );
           }
+          final lockedConsents = state.consents
+              .where((c) => _kLockedConsentPurposes.containsKey(c.purpose))
+              .toList();
+          final otherConsents = state.consents
+              .where((c) => !_kLockedConsentPurposes.containsKey(c.purpose))
+              .toList();
+
           return ListView(
             key: const Key('consents_list'),
             children: [
               const _ConsentsIntroBanner(),
-              for (final consent in state.consents)
+              if (lockedConsents.isNotEmpty)
+                _LockedConsentsSection(consents: lockedConsents),
+              for (final consent in otherConsents)
                 Column(
                   key: Key('consent_card_${consent.purpose}'),
                   children: [
@@ -259,6 +282,169 @@ class _ConsentsIntroBanner extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Section « Nécessaire au service » (maquette design-v2,
+/// `patient-consentements.png`, #5205) : regroupe les finalités dont la
+/// base légale n'est pas le consentement révocable ([_kLockedConsentPurposes])
+/// sous un en-tête + badge « Non modifiable », séparément des bascules
+/// librement révocables (marketing, partage, ia_scribe…).
+class _LockedConsentsSection extends StatelessWidget {
+  const _LockedConsentsSection({required this.consents});
+
+  final List<Consent> consents;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return Padding(
+      key: const Key('consents_locked_section'),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Nécessaire au service',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                key: const Key('consents_locked_badge'),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: tokens.neutralBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Non modifiable',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: tokens.neutralFg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final consent in consents) ...[
+            _LockedConsentCard(
+              key: Key('consent_card_${consent.purpose}'),
+              consent: consent,
+              legalBasisLabel: _kLockedConsentPurposes[consent.purpose]!,
+            ),
+            const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Carte `.cc.req` d'une finalité verrouillée (maquette design-v2, #5205) :
+/// fond `--n50`, bord `--n300`, icône grise, bascule `on lock` (ON,
+/// `onChanged: null` — ne réagit pas au tap) et puce `.reqp` énonçant la
+/// base légale.
+class _LockedConsentCard extends StatelessWidget {
+  const _LockedConsentCard({
+    super.key,
+    required this.consent,
+    required this.legalBasisLabel,
+  });
+
+  final Consent consent;
+  final String legalBasisLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n300),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 12, 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.lock_outline, color: NubiaColors.n400),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _kConsentLabels[consent.purpose] ??
+                            _kUnknownConsentLabel,
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      if (_kConsentDescriptions[consent.purpose]
+                          case final description?) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: tokens.neutralFg),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Switch(
+                  key: Key('consent_${consent.purpose}'),
+                  value: true,
+                  onChanged: null,
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                key: Key('consent_required_pill_${consent.purpose}'),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: tokens.neutralBg,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock, size: 14, color: tokens.neutralFg),
+                    const SizedBox(width: 6),
+                    Text(
+                      legalBasisLabel,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: tokens.neutralFg,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          _ConsentMetaRow(consent: consent),
         ],
       ),
     );
