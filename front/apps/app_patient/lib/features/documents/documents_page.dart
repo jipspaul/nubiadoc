@@ -156,10 +156,17 @@ class _DocumentSkeletonCard extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _DocumentsLoaded extends StatelessWidget {
+class _DocumentsLoaded extends StatefulWidget {
   const _DocumentsLoaded({required this.state});
 
   final DocumentsLoaded state;
+
+  @override
+  State<_DocumentsLoaded> createState() => _DocumentsLoadedState();
+}
+
+class _DocumentsLoadedState extends State<_DocumentsLoaded> {
+  String _query = '';
 
   static const _chips = <(String, DocumentCategory?)>[
     ('Tous', null),
@@ -169,15 +176,35 @@ class _DocumentsLoaded extends StatelessWidget {
     ('Autre', DocumentCategory.other),
   ];
 
+  /// Filtrage recherche 100 % client — nom du document, insensible à la
+  /// casse. Se combine au filtre catégorie déjà appliqué par
+  /// [DocumentsLoaded.filtered] : aucun appel réseau supplémentaire.
+  List<Document> _search(List<Document> docs) {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return docs;
+    return docs
+        .where((doc) => doc.name.toLowerCase().contains(query))
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final docs = state.filtered;
+    final state = widget.state;
+    final docs = _search(state.filtered);
     final pending = state.pendingUpload;
 
     return Stack(
       children: [
         Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: NubiaSearchBar(
+                key: const Key('documents_search'),
+                hint: 'Rechercher un document…',
+                onChanged: (value) => setState(() => _query = value),
+              ),
+            ),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
