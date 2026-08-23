@@ -39,6 +39,14 @@ void main() {
     GetIt.instance.registerFactory<ConsentsCubit>(() => cubit);
     addTearDown(() => GetIt.instance.reset());
 
+    // Surface agrandie : la ligne méta statut daté (#5210) allonge chaque
+    // carte, sinon les dernières finalités sortent du cacheExtent de la
+    // liste et ne sont jamais construites par le SliverList.
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       MaterialApp(
         theme: NubiaTheme.light,

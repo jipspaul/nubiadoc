@@ -113,10 +113,19 @@ void main() {
     await tester.pumpAndSettle();
 
     verifyNever(() => cubit.toggle(any(), any()));
+    final sheet = find.byKey(const Key('pharmacy_withdrawal_sheet'));
     expect(find.text('Ce qui change'), findsOneWidget);
     expect(find.text('Ce qui ne change pas'), findsOneWidget);
-    expect(find.byIcon(Icons.cancel), findsNWidgets(2));
-    expect(find.byIcon(Icons.check_circle), findsNWidgets(2));
+    // Scopés à la feuille : la carte de consentement en arrière-plan porte
+    // aussi une icône `cancel`/`check_circle` (ligne méta statut, #5210).
+    expect(
+      find.descendant(of: sheet, matching: find.byIcon(Icons.cancel)),
+      findsNWidgets(2),
+    );
+    expect(
+      find.descendant(of: sheet, matching: find.byIcon(Icons.check_circle)),
+      findsNWidgets(2),
+    );
   });
 
   testWidgets('retrait du partage pharmacie : annuler ne bascule rien',
