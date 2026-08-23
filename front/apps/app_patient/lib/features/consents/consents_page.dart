@@ -19,6 +19,10 @@ const _kConsentLabels = <String, String>{
   'ia_scribe': 'Assistance IA (scribe)',
 };
 
+/// Libellé affiché quand `purpose` n'a pas d'entrée dans [_kConsentLabels] :
+/// jamais la clé technique brute (snake_case) sur cet écran RGPD.
+const _kUnknownConsentLabel = 'Finalité non documentée — contactez le cabinet';
+
 class ConsentsPage extends StatelessWidget {
   const ConsentsPage({super.key});
 
@@ -79,8 +83,9 @@ class _ConsentsBody extends StatelessWidget {
               for (final consent in state.consents)
                 SwitchListTile(
                   key: Key('consent_${consent.purpose}'),
-                  title:
-                      Text(_kConsentLabels[consent.purpose] ?? consent.purpose),
+                  title: Text(
+                    _kConsentLabels[consent.purpose] ?? _kUnknownConsentLabel,
+                  ),
                   value: consent.granted,
                   onChanged: state.pending == consent.purpose
                       ? null
