@@ -6,44 +6,12 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
 import 'package:nubia_core/nubia_core.dart';
-import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pro_config.dart';
 import '../../router/app_router.dart';
 import '../../session/pro_auth_cubit.dart';
-import '../admin_membres/admin_membres_bloc.dart';
-import '../admin_membres/admin_membres_page.dart';
 import '../admin_membres/members_access_cubit.dart';
-import '../admin_secretariats/admin_secretariats_bloc.dart';
-import '../admin_secretariats/admin_secretariats_page.dart';
-import '../appointment_motifs/appointment_motifs_bloc.dart';
-import '../appointment_motifs/appointment_motifs_page.dart';
-import '../agenda/agenda_page.dart';
 import '../audit_log/audit_log_access_cubit.dart';
-import '../audit_log/audit_log_bloc.dart';
-import '../audit_log/audit_log_event.dart';
-import '../audit_log/audit_log_page.dart';
-import '../bookable_slots/bookable_slots_bloc.dart';
-import '../bookable_slots/bookable_slots_page.dart';
-import '../cabinet_stats/cabinet_stats_bloc.dart';
-import '../cabinet_stats/cabinet_stats_event.dart';
-import '../cabinet_stats/cabinet_stats_page.dart';
-import '../cabinet_payouts/cabinet_payouts_bloc.dart';
-import '../cabinet_payouts/cabinet_payouts_event.dart';
-import '../cabinet_payouts/cabinet_payouts_page.dart';
-import '../cabinet_messaging/cabinet_messaging_bloc.dart';
-import '../cabinet_messaging/cabinet_messaging_event.dart';
-import '../cabinet_messaging/cabinet_messaging_page.dart';
-import '../devis/devis_bloc.dart';
-import '../devis/devis_page.dart';
-import '../patients/patients_bloc.dart';
-import '../patients/patients_page.dart';
-import '../stock/stock_bloc.dart';
-import '../stock/stock_page.dart';
-import '../waiting_list/waiting_list_bloc.dart';
-import '../waiting_list/waiting_list_page.dart';
-import '../waiting_room/waiting_room_bloc.dart';
-import '../waiting_room/waiting_room_page.dart';
 import 'cash_collection_cubit.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_content.dart';
@@ -54,13 +22,20 @@ import 'rail_badges_cubit.dart';
 import 'waiting_room_summary_cubit.dart';
 import 'widgets/global_search_dialog.dart';
 
-/// Entry point for the authenticated secrétariat home. Delegates layout to
-/// [ProShell] (NavigationRail on desktop, Drawer on mobile). Clinical
-/// filtering is enforced inside [ProShell] via [AuthSession.canAccessClinical];
-/// all destinations here are administrative-only so the filter is redundant
-/// but provides defense-in-depth.
-class DashboardPage extends StatelessWidget {
-  const DashboardPage({super.key});
+/// Shell scaffold shared by every route of the `StatefulShellRoute` declared
+/// in `app_router.dart` — wraps [navigationShell] in [ProShell] so the
+/// navigation rail/drawer persists across ALL destinations (`/patients`,
+/// `/devis`, …), not just `/`. Décision « surface de navigation unique »
+/// (#5154) : voir `front/apps/app_secretariat/README.md`.
+///
+/// [navigationShell] already resolves the active destination's content —
+/// [ProShell] is given it as `body`, so it only owns the rail/drawer here
+/// (no per-destination `bodyBuilder`, no risk of `bodyBuilder`/`pro_config`
+/// order drifting apart).
+class SecretariatShell extends StatelessWidget {
+  const SecretariatShell({super.key, required this.navigationShell});
+
+  final StatefulNavigationShell navigationShell;
 
   @override
   Widget build(BuildContext context) {
@@ -100,41 +75,44 @@ class DashboardPage extends StatelessWidget {
     final canViewAuditLog =
         context.watch<AuditLogAccessCubit>().canViewAuditLog;
     final badges = context.watch<RailBadgesCubit>().state;
+    final config = ProConfig.shellConfigFor(
+      canManageMembers: canManageMembers,
+      canViewAuditLog: canViewAuditLog,
+      waitingRoomCount: badges.waitingRoomCount,
+      waitingListCount: badges.waitingListCount,
+      expiringQuotesCount: badges.expiringQuotesCount,
+      unreadMessagesCount: badges.unreadMessagesCount,
+    );
+    // `ProConfig.shellConfig` (non filtré) est la liste de référence des
+    // branches du `StatefulShellRoute` — même ordre, déclaré une seule fois
+    // (`app_router.dart`) — donc `navigationShell.currentIndex` s'y résout
+    // toujours, indépendamment du filtrage admin/audit appliqué à `config`.
+    final currentRoute =
+        ProConfig.shellConfig.destinations[navigationShell.currentIndex].route;
     return ProShell(
-      config: ProConfig.shellConfigFor(
-        canManageMembers: canManageMembers,
-        canViewAuditLog: canViewAuditLog,
-        waitingRoomCount: badges.waitingRoomCount,
-        waitingListCount: badges.waitingListCount,
-        expiringQuotesCount: badges.expiringQuotesCount,
-        unreadMessagesCount: badges.unreadMessagesCount,
-      ),
+      config: config,
       session: session,
       // Synchronise l'onglet sélectionné avec l'URL go_router dans les 2
-      // sens : `currentRoute` pilote la sélection depuis `state.uri.path`
+      // sens : `currentRoute` pilote la sélection depuis la branche active
       // (navigation directe / reload / retour navigateur, #4813/#5692), et
-      // `onNavigate` pousse l'URL via `context.go` quand l'utilisateur
-      // clique une destination dans le rail/drawer.
-      currentRoute: GoRouterState.of(context).uri.path,
-      onNavigate: (destination) => context.go(destination.route),
-      bodyBuilder: (ctx, destination) {
-        final builder = _dashboardBodyBuilders(session)[destination.route];
-        final body = builder != null
-            ? builder(ctx)
-            : Center(
-                child: NubiaEmptyState(
-                  icon: Icons.construction_outlined,
-                  title: destination.label,
-                ),
-              );
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ContextBanner(label: session.contextLabel),
-            Expanded(child: body),
-          ],
+      // `onNavigate` bascule de branche quand l'utilisateur clique une
+      // destination dans le rail/drawer.
+      currentRoute: currentRoute,
+      onNavigate: (destination) {
+        final index = ProConfig.shellConfig.destinations
+            .indexWhere((d) => d.route == destination.route);
+        navigationShell.goBranch(
+          index,
+          initialLocation: index == navigationShell.currentIndex,
         );
       },
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ContextBanner(label: session.contextLabel),
+          Expanded(child: navigationShell),
+        ],
+      ),
       trailingActions: [
         IconButton(
           key: const Key('nav_team_messages'),
@@ -159,93 +137,45 @@ class DashboardPage extends StatelessWidget {
   }
 }
 
-/// Table des corps d'écran par route, indexée sur [NavDestination.route] —
-/// remplace la chaîne `if/else if` historique du `bodyBuilder` (#5372).
-/// Fallback (route absente de la table) : [NubiaEmptyState] dans le
-/// `bodyBuilder` ci-dessus.
-Map<String, WidgetBuilder> _dashboardBodyBuilders(AuthSession session) {
-  return {
-    ProConfig.dashboardRoute: (_) => BlocProvider(
-          create: (_) => DashboardBloc(
-            getAgenda: GetIt.instance<GetCabinetAgendaUseCase>(),
-            listWaitingList: GetIt.instance<ListWaitingListUseCase>(),
-            listBookableSlots: GetIt.instance<ListBookableSlotsUseCase>(),
-          )..add(const DashboardLoadRequested()),
-          child: BlocProvider<CashCollectionCubit>(
-            create: (_) => GetIt.instance<CashCollectionCubit>()..load(),
-            child: BlocProvider<WaitingRoomSummaryCubit>(
+/// Contenu de la branche « Tableau de bord » (`ProConfig.dashboardRoute`) du
+/// `StatefulShellRoute` — construit ses propres BLoC/Cubit de synthèse,
+/// indépendamment de [SecretariatShell] qui l'héberge.
+class DashboardBody extends StatelessWidget {
+  const DashboardBody({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final session = switch (context.watch<ProAuthCubit>().state) {
+      AuthAuthenticated(:final session) => session,
+      _ => const AuthSession(
+          kind: UserKind.pro,
+          userId: 'me',
+          role: ProConfig.role,
+        ),
+    };
+    return BlocProvider(
+      create: (_) => DashboardBloc(
+        getAgenda: GetIt.instance<GetCabinetAgendaUseCase>(),
+        listWaitingList: GetIt.instance<ListWaitingListUseCase>(),
+        listBookableSlots: GetIt.instance<ListBookableSlotsUseCase>(),
+      )..add(const DashboardLoadRequested()),
+      child: BlocProvider<CashCollectionCubit>(
+        create: (_) => GetIt.instance<CashCollectionCubit>()..load(),
+        child: BlocProvider<WaitingRoomSummaryCubit>(
+          create: (_) => GetIt.instance<WaitingRoomSummaryCubit>()..load(),
+          child: BlocProvider<PatientMessagesSummaryCubit>(
+            create: (_) =>
+                GetIt.instance<PatientMessagesSummaryCubit>()..load(),
+            child: BlocProvider<ExpiringQuotesSummaryCubit>(
               create: (_) =>
-                  GetIt.instance<WaitingRoomSummaryCubit>()..load(),
-              child: BlocProvider<PatientMessagesSummaryCubit>(
-                create: (_) =>
-                    GetIt.instance<PatientMessagesSummaryCubit>()..load(),
-                child: BlocProvider<ExpiringQuotesSummaryCubit>(
-                  create: (_) =>
-                      GetIt.instance<ExpiringQuotesSummaryCubit>()..load(),
-                  child: DashboardContent(session: session),
-                ),
-              ),
+                  GetIt.instance<ExpiringQuotesSummaryCubit>()..load(),
+              child: DashboardContent(session: session),
             ),
           ),
         ),
-    '/salle-attente': (_) => BlocProvider(
-          create: (_) => GetIt.instance<WaitingRoomBloc>(),
-          child: const WaitingRoomBody(),
-        ),
-    '/agenda': (_) => const AgendaPage(),
-    '/admin-secretariats': (_) => BlocProvider(
-          create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
-          child: const AdminSecretiariatsBody(),
-        ),
-    '/bookable-slots': (_) => BlocProvider(
-          create: (_) => GetIt.instance<BookableSlotsBloc>(),
-          child: const BookableSlotsBody(),
-        ),
-    '/liste-attente': (_) => BlocProvider(
-          create: (_) => GetIt.instance<WaitingListBloc>(),
-          child: const WaitingListPage(),
-        ),
-    '/patients': (_) => BlocProvider(
-          create: (_) => GetIt.instance<PatientsBloc>(),
-          child: const PatientsPage(),
-        ),
-    '/devis': (_) => BlocProvider(
-          create: (_) => GetIt.instance<DevisBloc>(),
-          child: const DevisPage(),
-        ),
-    '/stock': (_) => BlocProvider(
-          create: (_) => GetIt.instance<StockBloc>(),
-          child: const StockPage(),
-        ),
-    '/messages': (_) => BlocProvider(
-          create: (_) => GetIt.instance<CabinetMessagingBloc>()
-            ..add(const CabinetMessagingConversationsLoadRequested()),
-          child: const CabinetMessagingPage(),
-        ),
-    '/admin-membres': (_) => BlocProvider(
-          create: (_) => GetIt.instance<AdminMembresBloc>(),
-          child: const AdminMembresPage(),
-        ),
-    '/appointment-motifs': (_) => BlocProvider(
-          create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
-          child: const AppointmentMotifsPage(),
-        ),
-    '/cabinet-stats': (_) => BlocProvider(
-          create: (_) => GetIt.instance<CabinetStatsBloc>()
-            ..add(const CabinetStatsLoadRequested()),
-          child: const CabinetStatsBody(),
-        ),
-    '/cabinet-payouts': (_) => BlocProvider(
-          create: (_) => GetIt.instance<CabinetPayoutsBloc>()
-            ..add(const CabinetPayoutsLoadRequested()),
-          child: const CabinetPayoutsBody(),
-        ),
-    ProConfig.auditLogRoute: (_) => BlocProvider(
-          create: (_) => GetIt.instance<AuditLogBloc>()
-            ..add(const AuditLogLoadRequested()),
-          child: const AuditLogBody(),
-        ),
-  };
+      ),
+    );
+  }
 }
 
 /// Coloured banner displaying the current secrétariat/establishment context.

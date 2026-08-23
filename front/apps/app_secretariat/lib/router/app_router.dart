@@ -114,60 +114,17 @@ class AppRouter {
             invitationToken: state.uri.queryParameters['invitation_token'],
           ),
         ),
-        GoRoute(path: home, builder: (_, __) => const DashboardPage()),
+        // Routes secondaires — pas des destinations de nav (absentes de
+        // `ProConfig.shellConfig.destinations`) : deep-links/pushes ponctuels
+        // qui restent volontairement hors du `StatefulShellRoute` ci-dessous
+        // (#5154 — décision documentée dans `README.md`).
         GoRoute(
-          path: agenda,
-          builder: (_, __) => const Scaffold(body: AgendaPage()),
+          path: a2uiDemo,
+          builder: (_, __) => const A2uiDemoPage(),
         ),
-        GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(
           path: teamMessages,
           builder: (_, __) => const CabinetTeamMessagesPage(),
-        ),
-        GoRoute(
-          path: salleAttente,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<WaitingRoomBloc>(),
-            child: const WaitingRoomPage(),
-          ),
-        ),
-        GoRoute(
-          path: cabinetStats,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<CabinetStatsBloc>()
-              ..add(const CabinetStatsLoadRequested()),
-            child: const CabinetStatsPage(),
-          ),
-        ),
-        GoRoute(
-          path: cabinetPayouts,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<CabinetPayoutsBloc>()
-              ..add(const CabinetPayoutsLoadRequested()),
-            child: const CabinetPayoutsPage(),
-          ),
-        ),
-        GoRoute(
-          path: auditLog,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<AuditLogBloc>()
-              ..add(const AuditLogLoadRequested()),
-            child: const AuditLogPage(),
-          ),
-        ),
-        GoRoute(
-          path: bookableSlots,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<BookableSlotsBloc>(),
-            child: const BookableSlotsPage(),
-          ),
-        ),
-        GoRoute(
-          path: patients,
-          builder: (_, state) => BlocProvider(
-            create: (_) => GetIt.instance<PatientsBloc>(),
-            child: PatientsPage(openPatientId: state.extra as String?),
-          ),
         ),
         GoRoute(
           path: patientNew,
@@ -183,66 +140,159 @@ class AppRouter {
             child: const AppointmentsPage(),
           ),
         ),
-        GoRoute(
-          path: listeAttente,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<WaitingListBloc>(),
-            child: const WaitingListPage(),
-          ),
-        ),
-        GoRoute(
-          path: devis,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<DevisBloc>(),
-            child: const DevisPage(),
-          ),
-          routes: [
-            GoRoute(
-              path: ':id',
-              builder: (_, state) => BlocProvider(
-                create: (_) => GetIt.instance<DevisBloc>(),
-                child: DevisDetailPage(
-                  id: state.pathParameters['id']!,
+        // #5154 — le `ProShell` enveloppe désormais TOUTES les destinations
+        // de nav via `StatefulShellRoute.indexedStack` (une branche par
+        // entrée de `ProConfig.shellConfig.destinations`, même ordre) : la
+        // barre de navigation reste visible quelle que soit la route et
+        // l'URL reflète toujours la destination active. Chaque branche
+        // réutilise directement l'écran « page complète » existant (son
+        // propre `Scaffold`/`AppBar`/FAB, ex. `AdminSecretiariatsPage`) —
+        // `ProShell` ne fournit son propre `AppBar` générique que pour les
+        // destinations qui n'en ont pas (dashboard, agenda), afin de ne
+        // jamais dupliquer de barre de titre.
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) =>
+              SecretariatShell(navigationShell: navigationShell),
+          branches: [
+            StatefulShellBranch(routes: [
+              GoRoute(path: home, builder: (_, __) => const DashboardBody()),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: salleAttente,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<WaitingRoomBloc>(),
+                  child: const WaitingRoomPage(),
                 ),
               ),
-            ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: listeAttente,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<WaitingListBloc>(),
+                  child: const WaitingListPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(path: agenda, builder: (_, __) => const AgendaPage()),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: bookableSlots,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<BookableSlotsBloc>(),
+                  child: const BookableSlotsPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: patients,
+                builder: (_, state) => BlocProvider(
+                  create: (_) => GetIt.instance<PatientsBloc>(),
+                  child: PatientsPage(openPatientId: state.extra as String?),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: devis,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<DevisBloc>(),
+                  child: const DevisPage(),
+                ),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (_, state) => BlocProvider(
+                      create: (_) => GetIt.instance<DevisBloc>(),
+                      child: DevisDetailPage(
+                        id: state.pathParameters['id']!,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: stock,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<StockBloc>(),
+                  child: const StockPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: messages,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<CabinetMessagingBloc>()
+                    ..add(const CabinetMessagingConversationsLoadRequested()),
+                  child: const CabinetMessagingPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: appointmentMotifs,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
+                  child: const AppointmentMotifsPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: adminMembres,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<AdminMembresBloc>(),
+                  child: const AdminMembresPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: adminSecretariats,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
+                  child: const AdminSecretiariatsPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: cabinetStats,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<CabinetStatsBloc>()
+                    ..add(const CabinetStatsLoadRequested()),
+                  child: const CabinetStatsPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: cabinetPayouts,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<CabinetPayoutsBloc>()
+                    ..add(const CabinetPayoutsLoadRequested()),
+                  child: const CabinetPayoutsPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: auditLog,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<AuditLogBloc>()
+                    ..add(const AuditLogLoadRequested()),
+                  child: const AuditLogPage(),
+                ),
+              ),
+            ]),
           ],
-        ),
-        GoRoute(
-          path: stock,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<StockBloc>(),
-            child: const StockPage(),
-          ),
-        ),
-        GoRoute(
-          path: messages,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<CabinetMessagingBloc>()
-              ..add(const CabinetMessagingConversationsLoadRequested()),
-            child: const CabinetMessagingPage(),
-          ),
-        ),
-        GoRoute(
-          path: adminMembres,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<AdminMembresBloc>(),
-            child: const AdminMembresPage(),
-          ),
-        ),
-        GoRoute(
-          path: appointmentMotifs,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
-            child: const AppointmentMotifsPage(),
-          ),
-        ),
-        GoRoute(
-          path: adminSecretariats,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
-            child: const AdminSecretiariatsPage(),
-          ),
         ),
       ],
     );
