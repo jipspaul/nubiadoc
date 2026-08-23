@@ -22,7 +22,7 @@ const _statusVariants = {
   StockRequestStatus.accepted: StatusPillVariant.warning,
   StockRequestStatus.rejected: StatusPillVariant.error,
   StockRequestStatus.fulfilled: StatusPillVariant.success,
-  StockRequestStatus.cancelled: StatusPillVariant.error,
+  StockRequestStatus.cancelled: StatusPillVariant.neutral,
 };
 
 /// Formate « jj/mm » (heure locale).
