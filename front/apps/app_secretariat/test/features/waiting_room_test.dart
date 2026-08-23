@@ -170,6 +170,53 @@ void main() {
         }
       },
     );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'CallNext conserve la liste avec actionError en cas d\'échec — #5159',
+      build: () {
+        when(() => repo.callNext()).thenAnswer(
+          (_) async => Left(const NetworkFailure('Erreur réseau')),
+        );
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entries),
+      act: (bloc) => bloc.add(const WaitingRoomCallNextRequested()),
+      expect: () => [
+        WaitingRoomLoaded(entries, actionInProgress: true),
+        WaitingRoomLoaded(
+          entries,
+          actionInProgress: false,
+          actionError: 'Erreur réseau',
+        ),
+      ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'CallNext recharge la liste et efface actionError après succès — #5159',
+      build: () {
+        when(() => repo.callNext())
+            .thenAnswer((_) async => Right(entries.first));
+        when(() => repo.list()).thenAnswer((_) async => Right(entries));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(
+        entries,
+        actionError: 'Erreur réseau',
+      ),
+      act: (bloc) => bloc.add(const WaitingRoomCallNextRequested()),
+      // L'anti-flicker (#5161) évite de repasser par WaitingRoomLoading une
+      // fois une liste déjà chargée.
+      expect: () => [
+        WaitingRoomLoaded(entries, actionInProgress: true),
+        WaitingRoomLoaded(entries),
+      ],
+    );
   });
 
   // --- WaitingRoomPage widget test ---------------------------------------------
@@ -1017,6 +1064,59 @@ void main() {
       expect(find.byKey(const Key('waiting_room_list')), findsOneWidget);
       expect(find.text('Marie Curie'), findsOneWidget);
       expect(find.text('Paul Martin'), findsOneWidget);
+    });
+
+    testWidgets(
+        'actionError sur un état Loaded — la liste reste visible, l\'erreur '
+        'est signalée sans écran plein page — #5159', (tester) async {
+      final loadedEntries = [
+        WaitingRoomEntry(
+          id: 'e1',
+          cabinetId: 'c1',
+          patientId: 'p1',
+          patientName: 'Marie Curie',
+          arrivedAt: DateTime(2026, 6, 19, 9, 0),
+        ),
+      ];
+      final controller = StreamController<WaitingRoomState>();
+      addTearDown(controller.close);
+      whenListen<WaitingRoomState>(
+        bloc,
+        controller.stream,
+        initialState: WaitingRoomLoaded(loadedEntries),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final withError = WaitingRoomLoaded(
+        loadedEntries,
+        actionError: 'Erreur réseau',
+      );
+      when(() => bloc.state).thenReturn(withError);
+      controller.add(withError);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('waiting_room_list')), findsOneWidget);
+      expect(find.byType(NubiaErrorWidget), findsNothing);
+      expect(find.text('Erreur réseau'), findsOneWidget);
+    });
+
+    testWidgets(
+        'WaitingRoomError reste plein écran avec bouton Réessayer — #5159',
+        (tester) async {
+      when(() => bloc.state)
+          .thenReturn(const WaitingRoomError('Erreur réseau'));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NubiaErrorWidget), findsOneWidget);
+      expect(find.byKey(const Key('waiting_room_list')), findsNothing);
+
+      await tester.tap(find.text('Réessayer'));
+      await tester.pumpAndSettle();
+
+      // 1 dispatch au montage (initState) + 1 au tap sur Réessayer.
+      verify(() => bloc.add(const WaitingRoomLoadRequested())).called(2);
     });
 
     testWidgets(

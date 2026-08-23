@@ -47,14 +47,35 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
     WaitingRoomCallNextRequested event,
     Emitter<WaitingRoomState> emit,
   ) async {
+    final current = state;
+    // Échec d'action signalé en ligne, sans jamais masquer une liste déjà
+    // chargée (#5159) — WaitingRoomError reste réservé à l'échec du
+    // chargement initial (état non-Loaded).
+    if (current is! WaitingRoomLoaded) {
+      try {
+        final result = await _callNext();
+        await result.fold(
+          (failure) async => safeEmit(WaitingRoomError(failure.message)),
+          (_) async => _onLoad(const WaitingRoomLoadRequested(), emit),
+        );
+      } catch (_) {
+        safeEmit(const WaitingRoomError('Erreur inattendue.'));
+      }
+      return;
+    }
+    safeEmit(current.copyWith(actionInProgress: true, clearActionError: true));
     try {
       final result = await _callNext();
       await result.fold(
-        (failure) async => safeEmit(WaitingRoomError(failure.message)),
+        (failure) async => safeEmit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
         (_) async => _onLoad(const WaitingRoomLoadRequested(), emit),
       );
     } catch (_) {
-      safeEmit(const WaitingRoomError('Erreur inattendue.'));
+      safeEmit(current.copyWith(
+          actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 

@@ -68,46 +68,58 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
-      builder: (context, state) {
-        if (state is WaitingRoomLoaded) {
-          final entries = state.entries;
-          if (entries.isEmpty) {
-            return const NubiaEmptyState(
-              key: Key('waiting_room_empty'),
-              icon: Icons.people_outline,
-              title: 'Salle d\'attente vide',
-              subtitle: NubiaL10n.noWaitingRoom,
-            );
-          }
-          final mostOverdue = _mostOverdueEntry(entries);
-          return Column(
-            children: [
-              if (mostOverdue != null) _OverThresholdBanner(entry: mostOverdue),
-              Expanded(
-                child: ListView.builder(
-                  key: const Key('waiting_room_list'),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: entries.length,
-                  itemBuilder: (_, i) => _WaitingEntryTile(
-                    entry: entries[i],
-                    position: i + 1,
+    return BlocListener<WaitingRoomBloc, WaitingRoomState>(
+      listenWhen: (_, current) =>
+          current is WaitingRoomLoaded && current.actionError != null,
+      listener: (context, state) {
+        if (state is WaitingRoomLoaded && state.actionError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.actionError!)),
+          );
+        }
+      },
+      child: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
+        builder: (context, state) {
+          if (state is WaitingRoomLoaded) {
+            final entries = state.entries;
+            if (entries.isEmpty) {
+              return const NubiaEmptyState(
+                key: Key('waiting_room_empty'),
+                icon: Icons.people_outline,
+                title: 'Salle d\'attente vide',
+                subtitle: NubiaL10n.noWaitingRoom,
+              );
+            }
+            final mostOverdue = _mostOverdueEntry(entries);
+            return Column(
+              children: [
+                if (mostOverdue != null)
+                  _OverThresholdBanner(entry: mostOverdue),
+                Expanded(
+                  child: ListView.builder(
+                    key: const Key('waiting_room_list'),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: entries.length,
+                    itemBuilder: (_, i) => _WaitingEntryTile(
+                      entry: entries[i],
+                      position: i + 1,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          );
-        }
-        if (state is WaitingRoomError) {
-          return NubiaErrorWidget(
-            message: state.message,
-            onRetry: () => context
-                .read<WaitingRoomBloc>()
-                .add(const WaitingRoomLoadRequested()),
-          );
-        }
-        return const Center(child: CircularProgressIndicator());
-      },
+              ],
+            );
+          }
+          if (state is WaitingRoomError) {
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<WaitingRoomBloc>()
+                  .add(const WaitingRoomLoadRequested()),
+            );
+          }
+          return const Center(child: CircularProgressIndicator());
+        },
+      ),
     );
   }
 }
