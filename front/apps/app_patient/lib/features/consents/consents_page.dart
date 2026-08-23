@@ -8,6 +8,16 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'consents_cubit.dart';
 
+/// Sous-titre compteur de l'en-tête (maquette design-v2,
+/// `patient-consentements.png`, #5207) : « N accordés · N refusés » dérivé
+/// de `consent.granted`. Une finalité verrouillée base-légale toujours ON
+/// compte comme accordée, jamais comme refusée.
+String _consentsSubtitle(List<Consent> consents) {
+  final grantedCount = consents.where((c) => c.granted).length;
+  final refusedCount = consents.length - grantedCount;
+  return '$grantedCount accordés · $refusedCount refusés';
+}
+
 // #5214 — nom du cabinet responsable et e-mail DPO ne sont exposés nulle
 // part côté patient (ni `ConsentsLoaded`, ni `patient_di.dart`, ni aucune
 // config de session) : pas de champ à lire tant que l'API/session cabinet
@@ -89,7 +99,24 @@ class ConsentsPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => GetIt.instance<ConsentsCubit>()..load(),
       child: Scaffold(
-        appBar: AppBar(title: const Text('Consentements')),
+        appBar: AppBar(
+          title: BlocBuilder<ConsentsCubit, ConsentsState>(
+            builder: (context, state) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Mes consentements'),
+                  if (state is ConsentsLoaded)
+                    Text(
+                      _consentsSubtitle(state.consents),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
         body: const _ConsentsBody(),
       ),
     );
