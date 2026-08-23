@@ -708,29 +708,84 @@ class _StockRequestRow extends StatelessWidget {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Column(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      request.pharmacy?.name ?? request.pharmacyId,
-                      style: textTheme.titleSmall,
-                      overflow: TextOverflow.ellipsis,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _formatDayMonth(request.createdAt),
+                          style: textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            height: 1.1,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        Text(
+                          _formatTime(request.createdAt),
+                          style: textTheme.bodySmall?.copyWith(
+                            fontSize: 11,
+                            height: 1.1,
+                            color: NubiaColors.n500,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
                     ),
-                    if (request.pharmacy?.address != null ||
-                        request.pharmacy?.phone != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        [request.pharmacy?.address, request.pharmacy?.phone]
-                            .whereType<String>()
-                            .join(' · '),
-                        style: textTheme.bodySmall,
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 22,
+                      height: 22,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: NubiaColors.brand50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: NubiaColors.brand100),
                       ),
-                    ],
+                      child: const Icon(
+                        Icons.local_pharmacy,
+                        color: NubiaColors.brand600,
+                        size: 13,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            request.pharmacy?.name ?? request.pharmacyId,
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (request.pharmacy?.address != null ||
+                              request.pharmacy?.phone != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              [request.pharmacy?.address, request.pharmacy?.phone]
+                                  .whereType<String>()
+                                  .join(' · '),
+                              style: textTheme.bodySmall?.copyWith(
+                                fontSize: 11,
+                                color: NubiaColors.n500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               StatusPill(
                 label: _statusLabels[request.status]!,
                 variant: _statusVariants[request.status]!,
