@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import '../../session/auth_cubit.dart';
 import 'home_bloc.dart';
 import 'home_event.dart';
@@ -52,12 +53,12 @@ class _HomeContent extends StatefulWidget {
 
 /// Pilote l'entrée en cascade des sections de l'accueil : un unique
 /// [AnimationController] découpé en [Interval]s décalés de 60 ms par section
-/// (en-tête, métriques, à faire / état vide).
+/// (en-tête, métriques, à faire, mon suivi / état vide).
 class _HomeContentState extends State<_HomeContent>
     with SingleTickerProviderStateMixin {
   static const _staggerMs = 60;
   static const _sectionDurationMs = 320;
-  static const _sectionCount = 4;
+  static const _sectionCount = 5;
   static const _totalMs = _sectionDurationMs + (_sectionCount - 1) * _staggerMs;
 
   late final AnimationController _controller = AnimationController(
@@ -108,6 +109,7 @@ class _HomeContentState extends State<_HomeContent>
         : 'Patient';
 
     final s = widget.state.summary;
+    final plan = widget.state.treatmentPlan;
 
     // Devis à signer/régler : point d'entrée visible vers le wedge financier
     // (l'écran devis n'a pas d'onglet dédié dans la barre du bas).
@@ -148,10 +150,25 @@ class _HomeContentState extends State<_HomeContent>
             2,
             _TodoSection(summary: s, hasFinancial: hasFinancial),
           ),
-        if (allClear)
+        if (plan != null) ...[
+          if (hasShortcuts) const SizedBox(height: 28),
           _staggered(
             context,
             3,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _SectionLabel(label: 'Mon suivi'),
+                const SizedBox(height: 12),
+                _TreatmentProgressCard(plan: plan),
+              ],
+            ),
+          ),
+        ],
+        if (allClear)
+          _staggered(
+            context,
+            4,
             const Padding(
               padding: EdgeInsets.only(top: 24),
               child: NubiaEmptyState(
@@ -307,6 +324,127 @@ class _SectionLabel extends StatelessWidget {
             color: cs.onSurface,
             fontWeight: FontWeight.w600,
           ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Carte « Plan de traitement » de la section « Mon suivi » (#5202) : icône
+/// accent sable, compteur d'étapes, barre segmentée et libellé de la
+/// prochaine étape. Seul endroit de l'accueil où l'accent sable
+/// ([NubiaTokens.accent]) est autorisé — règle design #4 de la maquette
+/// `patient-accueil.png`. Un tap ouvre la liste des plans de traitement.
+///
+/// Les étapes affichées viennent de [PatientTreatmentPlan.currentStep] /
+/// [PatientTreatmentPlan.stepCount], jamais codées en dur.
+class _TreatmentProgressCard extends StatelessWidget {
+  const _TreatmentProgressCard({required this.plan});
+
+  final PatientTreatmentPlan plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final total = plan.stepCount!;
+    final completed = ((plan.currentStep ?? total) - 1).clamp(0, total).toInt();
+
+    return Material(
+      key: const Key('treatment_progress_card'),
+      color: NubiaColors.n0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: NubiaColors.n200),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push(AppRouter.treatmentPlans),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.workspace_premium, size: 20, color: tokens.accent),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Plan de traitement',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Text(
+                    '$completed / $total étapes',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: NubiaColors.n500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _TreatmentProgressTrack(total: total, completed: completed),
+              const SizedBox(height: 12),
+              Text.rich(
+                TextSpan(
+                  style:
+                      const TextStyle(fontSize: 12.5, color: NubiaColors.n600),
+                  children: [
+                    const TextSpan(text: 'Prochaine étape · '),
+                    TextSpan(
+                      text: plan.currentPhaseTitle!,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: NubiaColors.n900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Barre `track` segmentée : un segment par étape, plein `brand/600` pour
+/// les étapes complétées, `n200` pour les restantes (#5202).
+class _TreatmentProgressTrack extends StatelessWidget {
+  const _TreatmentProgressTrack({required this.total, required this.completed});
+
+  final int total;
+  final int completed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 8,
+      padding: const EdgeInsets.all(1),
+      decoration: BoxDecoration(
+        color: NubiaColors.n100,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < total; i++) ...[
+            if (i > 0) const SizedBox(width: 3),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color:
+                      i < completed ? NubiaColors.brand600 : NubiaColors.n200,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

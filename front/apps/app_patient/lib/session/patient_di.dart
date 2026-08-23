@@ -225,7 +225,10 @@ void registerPatient(GetIt gi) {
   );
 
   gi.registerFactory<HomeBloc>(
-    () => HomeBloc(getDashboardSummary: gi<GetDashboardSummaryUseCase>()),
+    () => HomeBloc(
+      getDashboardSummary: gi<GetDashboardSummaryUseCase>(),
+      listTreatmentPlans: gi<ListPatientTreatmentPlansUseCase>(),
+    ),
   );
 
   gi.registerFactory<FinancialBloc>(
