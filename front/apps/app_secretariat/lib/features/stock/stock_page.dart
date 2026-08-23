@@ -117,95 +117,112 @@ class _StockPageState extends State<StockPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Stock'),
-        actions: [
-          IconButton(
-            tooltip: 'Actualiser',
-            icon: const Icon(Icons.refresh),
-            onPressed: () =>
-                context.read<StockBloc>().add(const StockLoadRequested()),
-          ),
-        ],
-      ),
-      body: BlocBuilder<StockBloc, StockState>(
-        builder: (context, state) {
-          switch (state) {
-            case StockLoading():
-              return const _StockLoadingSkeleton();
-            case StockError(:final message):
-              return NubiaErrorWidget(
-                message: message,
-                onRetry: () => context
-                    .read<StockBloc>()
-                    .add(const StockLoadRequested()),
-              );
-            case StockLoaded(:final requests):
-              if (requests.isEmpty) {
-                return const NubiaEmptyState(
-                  icon: Icons.inventory_2_outlined,
-                  title: 'Aucune demande de stock',
-                  subtitle:
-                      'Envoyez une demande à une pharmacie partenaire.',
+    // #5188 — ⌘N ouvre la création de demande, comme les autres écrans
+    // refondus. Le raccourci bulle depuis le `Focus` de la liste (l.163,
+    // focus initial demandé en l.70) jusqu'à ce `CallbackShortcuts`.
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyN, meta: true): _onCreate,
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Stock'),
+          actions: [
+            IconButton(
+              tooltip: 'Actualiser',
+              icon: const Icon(Icons.refresh),
+              onPressed: () =>
+                  context.read<StockBloc>().add(const StockLoadRequested()),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: NubiaButton(
+                key: const Key('new_stock_request_fab'),
+                label: 'Nouvelle demande',
+                icon: Icons.add,
+                onPressed: _onCreate,
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: NubiaBadge.label(label: '⌘N'),
+            ),
+          ],
+        ),
+        body: BlocBuilder<StockBloc, StockState>(
+          builder: (context, state) {
+            switch (state) {
+              case StockLoading():
+                return const _StockLoadingSkeleton();
+              case StockError(:final message):
+                return NubiaErrorWidget(
+                  message: message,
+                  onRetry: () => context
+                      .read<StockBloc>()
+                      .add(const StockLoadRequested()),
                 );
-              }
-              final selectedIndex =
-                  requests.indexWhere((r) => r.id == _selectedId);
-              final selected =
-                  selectedIndex == -1 ? null : requests[selectedIndex];
+              case StockLoaded(:final requests):
+                if (requests.isEmpty) {
+                  return const NubiaEmptyState(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'Aucune demande de stock',
+                    subtitle:
+                        'Envoyez une demande à une pharmacie partenaire.',
+                  );
+                }
+                final selectedIndex =
+                    requests.indexWhere((r) => r.id == _selectedId);
+                final selected =
+                    selectedIndex == -1 ? null : requests[selectedIndex];
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Focus(
-                      focusNode: _focusNode,
-                      onKeyEvent: (node, event) => _handleKey(event, requests),
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: ListView.builder(
-                              key: const Key('stock_request_list'),
-                              padding: const EdgeInsets.all(16),
-                              itemCount: requests.length,
-                              itemBuilder: (context, index) {
-                                final request = requests[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _StockRequestRow(
-                                    request: request,
-                                    selected: request.id == _selectedId,
-                                    onTap: () => setState(
-                                        () => _selectedId = request.id),
-                                  ),
-                                );
-                              },
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Focus(
+                        focusNode: _focusNode,
+                        onKeyEvent: (node, event) =>
+                            _handleKey(event, requests),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: ListView.builder(
+                                key: const Key('stock_request_list'),
+                                padding: const EdgeInsets.all(16),
+                                itemCount: requests.length,
+                                itemBuilder: (context, index) {
+                                  final request = requests[index];
+                                  return Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 12),
+                                    child: _StockRequestRow(
+                                      request: request,
+                                      selected: request.id == _selectedId,
+                                      onTap: () => setState(
+                                          () => _selectedId = request.id),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                          _StockListFooter(count: requests.length),
-                        ],
+                            _StockListFooter(count: requests.length),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  if (selected != null)
-                    SizedBox(
-                      width: 392,
-                      child: _StockDetailPanel(
-                        request: selected,
-                        onClose: () => setState(() => _selectedId = null),
+                    if (selected != null)
+                      SizedBox(
+                        width: 392,
+                        child: _StockDetailPanel(
+                          request: selected,
+                          onClose: () => setState(() => _selectedId = null),
+                        ),
                       ),
-                    ),
-                ],
-              );
-          }
-        },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('new_stock_request_fab'),
-        onPressed: _onCreate,
-        icon: const Icon(Icons.add),
-        label: const Text('Nouvelle demande'),
+                  ],
+                );
+            }
+          },
+        ),
       ),
     );
   }

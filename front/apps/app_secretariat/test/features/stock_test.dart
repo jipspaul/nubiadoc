@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'package:app_secretariat/features/stock/create_stock_request_dialog.dart';
 import 'package:app_secretariat/features/stock/stock_bloc.dart';
 import 'package:app_secretariat/features/stock/stock_event.dart';
 import 'package:app_secretariat/features/stock/stock_page.dart';
@@ -190,6 +191,39 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('stock_detail_panel_req-2')), findsOneWidget);
       expect(find.byKey(const Key('stock_detail_panel_req-1')), findsNothing);
+    });
+
+    // #5188 — bouton toolbar « Nouvelle demande » (⌘N) au lieu du FAB.
+    testWidgets(
+        'le FAB a disparu, un bouton toolbar « Nouvelle demande » ouvre '
+        'la création', (tester) async {
+      when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FloatingActionButton), findsNothing);
+
+      final button = find.byKey(const Key('new_stock_request_fab'));
+      expect(button, findsOneWidget);
+      expect(find.descendant(of: button, matching: find.text('Nouvelle demande')),
+          findsOneWidget);
+
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.byType(CreateStockRequestDialog), findsOneWidget);
+    });
+
+    testWidgets('⌘N ouvre la création de demande', (tester) async {
+      when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CreateStockRequestDialog), findsOneWidget);
     });
   });
 }
