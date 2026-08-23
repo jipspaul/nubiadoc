@@ -288,6 +288,21 @@ class _WaitingEntryTile extends StatelessWidget {
               ],
             ],
           ),
+          if (!isUnassigned) ...[
+            const SizedBox(width: 16),
+            NubiaButton(
+              key: Key('waiting_entry_call_button_${entry.id}'),
+              label: NubiaL10n.call,
+              icon: Icons.campaign,
+              size: NubiaButtonSize.sm,
+              variant: position == 1
+                  ? NubiaButtonVariant.primary
+                  : NubiaButtonVariant.secondary,
+              onPressed: () => context
+                  .read<WaitingRoomBloc>()
+                  .add(WaitingRoomCallRequested(entry.id)),
+            ),
+          ],
         ],
       ),
     );

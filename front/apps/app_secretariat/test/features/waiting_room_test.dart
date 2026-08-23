@@ -669,5 +669,169 @@ void main() {
       expect(find.text('Marie Curie'), findsOneWidget);
       expect(find.text('Paul Martin'), findsOneWidget);
     });
+
+    testWidgets(
+        'chaque ligne (hors sans-RDV) a son propre bouton Appeler, tête de '
+        'file en variant plein — #5166', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            appointmentId: 'appt-2',
+            arrivedAt: DateTime(2026, 6, 19, 9, 5),
+          ),
+          // Sans-RDV : pas de bouton Appeler (déjà l'action Attribuer).
+          WaitingRoomEntry(
+            id: 'e3',
+            cabinetId: 'c1',
+            patientId: 'p3',
+            patientName: 'Léa Bernard',
+            arrivedAt: DateTime(2026, 6, 19, 9, 10),
+            reason: 'Douleur dentaire',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('waiting_entry_call_button_e1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('waiting_entry_call_button_e2')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('waiting_entry_call_button_e3')),
+        findsNothing,
+      );
+
+      final headButton = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_entry_call_button_e1')),
+      );
+      expect(headButton.variant, NubiaButtonVariant.primary);
+
+      final otherButton = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_entry_call_button_e2')),
+      );
+      expect(otherButton.variant, NubiaButtonVariant.secondary);
+    });
+
+    testWidgets(
+        'tap sur le bouton Appeler d\'une ligne dispatche '
+        'WaitingRoomCallRequested pour CETTE entrée — #5166', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            appointmentId: 'appt-2',
+            arrivedAt: DateTime(2026, 6, 19, 9, 5),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('waiting_entry_call_button_e2')));
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const WaitingRoomCallRequested('e2'))).called(1);
+      verifyNever(() => bloc.add(const WaitingRoomCallRequested('e1')));
+    });
+  });
+
+  // --- WaitingRoomBloc — appel par ligne (#5166) -------------------------------
+  group('WaitingRoomBloc — WaitingRoomCallRequested (#5166)', () {
+    late _MockWaitingRoomRepository repo;
+    late ListWaitingRoomUseCase listUseCase;
+    late CallNextUseCase callNextUseCase;
+
+    final entries = [
+      WaitingRoomEntry(
+        id: 'e1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Marie Curie',
+        arrivedAt: DateTime(2026, 6, 19, 9, 0),
+      ),
+      WaitingRoomEntry(
+        id: 'e2',
+        cabinetId: 'c1',
+        patientId: 'p2',
+        patientName: 'Paul Martin',
+        arrivedAt: DateTime(2026, 6, 19, 9, 5),
+      ),
+      WaitingRoomEntry(
+        id: 'e3',
+        cabinetId: 'c1',
+        patientId: 'p3',
+        patientName: 'Léa Bernard',
+        arrivedAt: DateTime(2026, 6, 19, 9, 10),
+      ),
+    ];
+
+    setUp(() {
+      repo = _MockWaitingRoomRepository();
+      listUseCase = ListWaitingRoomUseCase(repo);
+      callNextUseCase = CallNextUseCase(repo);
+    });
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'appeler la tête de file appelle bien le back (callNext)',
+      build: () {
+        when(() => repo.callNext()).thenAnswer((_) async => Right(entries[0]));
+        when(() => repo.list()).thenAnswer((_) async => Right(entries));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entries),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('e1')),
+      verify: (_) {
+        verify(() => repo.callNext()).called(1);
+      },
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'appeler la ligne 3 (e3) ne déclenche aucun appel back — n\'appelle '
+      'pas la ligne 1',
+      build: () {
+        when(() => repo.callNext()).thenAnswer((_) async => Right(entries[0]));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entries),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('e3')),
+      expect: () => <WaitingRoomState>[],
+      verify: (_) {
+        verifyNever(() => repo.callNext());
+      },
+    );
   });
 }

@@ -18,6 +18,7 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
         super(const WaitingRoomInitial()) {
     on<WaitingRoomLoadRequested>(_onLoad);
     on<WaitingRoomCallNextRequested>(_onCallNext);
+    on<WaitingRoomCallRequested>(_onCallRequested);
   }
 
   Future<void> _onLoad(
@@ -49,5 +50,21 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
     } catch (_) {
       safeEmit(const WaitingRoomError('Erreur inattendue.'));
     }
+  }
+
+  /// Appel d'une entrée précise (#5166 — bouton « Appeler » par ligne).
+  /// La tête de file peut être appelée : c'est équivalent à « appeler le
+  /// suivant ». Cibler une autre entrée nécessite un endpoint back dédié qui
+  /// n'existe pas encore (`CallNextUseCase` n'appelle que la tête de file) :
+  /// en attendant, la demande est ignorée sans réordonner ni appeler
+  /// personne d'autre.
+  Future<void> _onCallRequested(
+    WaitingRoomCallRequested event,
+    Emitter<WaitingRoomState> emit,
+  ) async {
+    final current = state;
+    if (current is! WaitingRoomLoaded || current.entries.isEmpty) return;
+    if (current.entries.first.id != event.entryId) return;
+    await _onCallNext(const WaitingRoomCallNextRequested(), emit);
   }
 }
