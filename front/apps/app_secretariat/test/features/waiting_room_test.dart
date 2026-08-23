@@ -384,5 +384,76 @@ void main() {
 
       expect(find.byKey(const Key('waiting_room_kpi_count')), findsNothing);
     });
+
+    testWidgets(
+        'aucune entrée > 30 min → pas de bandeau d\'alerte — #5170',
+        (tester) async {
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: now.subtract(const Duration(minutes: 10)),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('waiting_room_alert_banner')),
+        findsNothing,
+      );
+      // La liste reste visible.
+      expect(find.byKey(const Key('waiting_room_list')), findsOneWidget);
+    });
+
+    testWidgets(
+        'entrée > 30 min → bandeau nommant le patient le plus en retard, '
+        'action Prévenir le praticien, liste toujours visible — #5170',
+        (tester) async {
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: now.subtract(const Duration(minutes: 38)),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: now.subtract(const Duration(minutes: 10)),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('waiting_room_alert_banner')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Marie Curie attend depuis 38 min'),
+          findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_alert_banner')),
+          matching: find.text('Prévenir le praticien'),
+        ),
+        findsOneWidget,
+      );
+      // Le bandeau s'ajoute au-dessus de la liste, sans la masquer.
+      expect(find.byKey(const Key('waiting_room_list')), findsOneWidget);
+      expect(find.text('Marie Curie'), findsOneWidget);
+      expect(find.text('Paul Martin'), findsOneWidget);
+    });
   });
 }
