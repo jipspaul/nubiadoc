@@ -20,6 +20,9 @@ import 'package:app_patient/session/auth_cubit.dart';
 class MockGetDashboardSummaryUseCase extends Mock
     implements GetDashboardSummaryUseCase {}
 
+class MockListPatientTreatmentPlansUseCase extends Mock
+    implements ListPatientTreatmentPlansUseCase {}
+
 class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
 class _MockHomeBloc extends MockBloc<HomeEvent, HomeState>
@@ -43,6 +46,15 @@ const _emptySummary = DashboardSummary(
   unreadMessages: 0,
 );
 
+const _activePlan = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Plan orthodontique',
+  status: 'in_progress',
+  currentStep: 4,
+  stepCount: 5,
+  currentPhaseTitle: 'Pose de la couronne',
+);
+
 Widget _wrap(HomeBloc bloc) {
   final authCubit = MockAuthCubit();
   when(() => authCubit.state).thenReturn(const AuthUnauthenticated());
@@ -58,8 +70,11 @@ Widget _wrap(HomeBloc bloc) {
   );
 }
 
-HomeBloc _makeBloc(MockGetDashboardSummaryUseCase uc) =>
-    HomeBloc(getDashboardSummary: uc);
+HomeBloc _makeBloc(
+  MockGetDashboardSummaryUseCase uc,
+  MockListPatientTreatmentPlansUseCase listPlans,
+) =>
+    HomeBloc(getDashboardSummary: uc, listTreatmentPlans: listPlans);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -71,15 +86,19 @@ void main() {
   });
 
   late MockGetDashboardSummaryUseCase mockGetSummary;
+  late MockListPatientTreatmentPlansUseCase mockListPlans;
 
   setUp(() {
     mockGetSummary = MockGetDashboardSummaryUseCase();
+    mockListPlans = MockListPatientTreatmentPlansUseCase();
+    when(() => mockListPlans())
+        .thenAnswer((_) async => const Right(<PatientTreatmentPlan>[]));
   });
 
   group('HomePage', () {
     testWidgets('affiche un indicateur de chargement en état initial',
         (tester) async {
-      final bloc = _makeBloc(mockGetSummary);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
 
       await tester.pumpWidget(_wrap(bloc));
 
@@ -90,7 +109,7 @@ void main() {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_summary));
 
-      final bloc = _makeBloc(mockGetSummary);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -107,7 +126,7 @@ void main() {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_emptySummary));
 
-      final bloc = _makeBloc(mockGetSummary);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -121,7 +140,7 @@ void main() {
         (_) async => const Left(NetworkFailure('Erreur réseau.')),
       );
 
-      final bloc = _makeBloc(mockGetSummary);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -129,6 +148,41 @@ void main() {
 
       expect(find.text('Erreur réseau.'), findsOneWidget);
       expect(find.text('Réessayer'), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche la carte « Mon suivi » quand un plan actif a des données '
+        'de progression', (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+      when(() => mockListPlans())
+          .thenAnswer((_) async => const Right([_activePlan]));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('treatment_progress_card')), findsOneWidget);
+      expect(find.text('Plan de traitement'), findsOneWidget);
+      expect(find.text('3 / 5 étapes'), findsOneWidget);
+      expect(find.textContaining('Prochaine étape'), findsOneWidget);
+    });
+
+    testWidgets(
+        'masque la carte « Mon suivi » quand aucun plan actif n\'a de '
+        'données de progression', (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_summary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('treatment_progress_card')), findsNothing);
     });
 
     testWidgets('tap Réessayer dispatch HomeLoadRequested', (tester) async {
@@ -162,7 +216,7 @@ void main() {
       build: () {
         when(() => mockGetSummary())
             .thenAnswer((_) async => const Right(_summary));
-        return _makeBloc(mockGetSummary);
+        return _makeBloc(mockGetSummary, mockListPlans);
       },
       act: (bloc) => bloc.add(const HomeLoadRequested()),
       expect: () => [
@@ -181,7 +235,7 @@ void main() {
         when(() => mockGetSummary()).thenAnswer(
           (_) async => const Left(NetworkFailure('Erreur réseau.')),
         );
-        return _makeBloc(mockGetSummary);
+        return _makeBloc(mockGetSummary, mockListPlans);
       },
       act: (bloc) => bloc.add(const HomeLoadRequested()),
       expect: () => [

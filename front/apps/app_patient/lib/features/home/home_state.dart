@@ -19,10 +19,15 @@ final class HomeLoading extends HomeState {
 final class HomeLoaded extends HomeState {
   final DashboardSummary summary;
 
-  const HomeLoaded(this.summary);
+  /// Plan de traitement actif à afficher dans la carte « Mon suivi »
+  /// (#5202) — `null` si le patient n'a aucun plan en cours avec des
+  /// données de progression.
+  final PatientTreatmentPlan? treatmentPlan;
+
+  const HomeLoaded(this.summary, {this.treatmentPlan});
 
   @override
-  List<Object?> get props => [summary];
+  List<Object?> get props => [summary, treatmentPlan];
 }
 
 final class HomeError extends HomeState {
