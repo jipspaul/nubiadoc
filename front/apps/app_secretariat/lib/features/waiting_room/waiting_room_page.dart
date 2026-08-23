@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -147,50 +148,75 @@ class _OverThresholdBanner extends StatelessWidget {
 class WaitingRoomPage extends StatelessWidget {
   const WaitingRoomPage({super.key});
 
+  /// Déclenche l'appel du patient suivant si la file n'est pas vide — partagé
+  /// entre le bouton de la barre d'outils et le raccourci ⌘⏎ (#5167 : la
+  /// maquette design-v2 remplace le `FloatingActionButton.extended`, motif
+  /// mobile qui masque une ligne sur un comptoir clavier-souris).
+  static void _callNext(BuildContext context) {
+    final bloc = context.read<WaitingRoomBloc>();
+    final state = bloc.state;
+    if (state is WaitingRoomLoaded && state.entries.isNotEmpty) {
+      bloc.add(const WaitingRoomCallNextRequested());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: const Key('waiting_room_scaffold'),
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Text(NubiaL10n.waitingRoom),
-            const SizedBox(width: 24),
-            Expanded(
-              child: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
-                builder: (context, state) => state is WaitingRoomLoaded
-                    ? WaitingRoomKpiBar(entries: state.entries)
-                    : const SizedBox.shrink(),
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true): () =>
+            _callNext(context),
+      },
+      child: Scaffold(
+        key: const Key('waiting_room_scaffold'),
+        appBar: AppBar(
+          title: Row(
+            children: [
+              Text(NubiaL10n.waitingRoom),
+              const SizedBox(width: 24),
+              Expanded(
+                child: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
+                  builder: (context, state) => state is WaitingRoomLoaded
+                      ? WaitingRoomKpiBar(entries: state.entries)
+                      : const SizedBox.shrink(),
+                ),
               ),
+            ],
+          ),
+          actions: [
+            IconButton(
+              tooltip: NubiaL10n.refresh,
+              icon: const Icon(Icons.refresh),
+              onPressed: () => context
+                  .read<WaitingRoomBloc>()
+                  .add(const WaitingRoomLoadRequested()),
+            ),
+            BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
+              builder: (context, state) {
+                final hasPatients =
+                    state is WaitingRoomLoaded && state.entries.isNotEmpty;
+                return Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: NubiaButton(
+                    key: const Key('waiting_room_call_next_button'),
+                    label: NubiaL10n.callNext,
+                    icon: Icons.skip_next,
+                    onPressed: hasPatients ? () => _callNext(context) : null,
+                  ),
+                );
+              },
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 8, right: 16),
+              child: NubiaBadge.label(label: '⌘⏎'),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: NubiaL10n.refresh,
-            icon: const Icon(Icons.refresh),
-            onPressed: () => context
-                .read<WaitingRoomBloc>()
-                .add(const WaitingRoomLoadRequested()),
-          ),
-        ],
+        body: const Focus(
+          autofocus: true,
+          child: WaitingRoomBody(),
+        ),
       ),
-      floatingActionButton: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
-        builder: (context, state) {
-          final hasPatients =
-              state is WaitingRoomLoaded && state.entries.isNotEmpty;
-          return FloatingActionButton.extended(
-            onPressed: hasPatients
-                ? () => context
-                    .read<WaitingRoomBloc>()
-                    .add(const WaitingRoomCallNextRequested())
-                : null,
-            icon: const Icon(Icons.skip_next),
-            label: Text(NubiaL10n.callNext),
-          );
-        },
-      ),
-      body: const WaitingRoomBody(),
     );
   }
 }
