@@ -213,6 +213,59 @@ void main() {
       expect(find.byType(CreateStockRequestDialog), findsOneWidget);
     });
 
+    // #5187 — recherche par article / pharmacie.
+    testWidgets('affiche le champ de recherche avec le placeholder exact',
+        (tester) async {
+      when(() => bloc.state)
+          .thenReturn(StockLoaded([sentRequest, fulfilledRequest]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('stock_search')), findsOneWidget);
+      expect(find.text('Article, pharmacie…'), findsOneWidget);
+    });
+
+    testWidgets('la recherche filtre par libellé d\'article', (tester) async {
+      when(() => bloc.state)
+          .thenReturn(StockLoaded([sentRequest, fulfilledRequest]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const Key('stock_search')), 'compresses');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('stock_request_req-1')), findsNothing);
+      expect(find.byKey(const Key('stock_request_req-2')), findsOneWidget);
+    });
+
+    testWidgets('la recherche filtre par nom de pharmacie', (tester) async {
+      when(() => bloc.state)
+          .thenReturn(StockLoaded([sentRequest, fulfilledRequest]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('stock_search')), 'auber');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('stock_request_req-1')), findsOneWidget);
+      expect(find.byKey(const Key('stock_request_req-2')), findsNothing);
+    });
+
+    testWidgets('affiche un état vide quand la recherche ne trouve rien',
+        (tester) async {
+      when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const Key('stock_search')), 'carpules');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('stock_request_req-1')), findsNothing);
+      expect(find.byType(NubiaEmptyState), findsOneWidget);
+    });
+
     testWidgets('⌘N ouvre la création de demande', (tester) async {
       when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
       await tester.pumpWidget(buildPage());

@@ -58,6 +58,7 @@ class StockPage extends StatefulWidget {
 
 class _StockPageState extends State<StockPage> {
   String? _selectedId;
+  String _query = '';
   final FocusNode _focusNode = FocusNode();
 
   @override
@@ -85,6 +86,21 @@ class _StockPageState extends State<StockPage> {
         items: result.items,
       ));
     }
+  }
+
+  /// Filtre client (aucun nouvel appel réseau) sur les libellés d'article et
+  /// le nom/id de pharmacie des demandes déjà chargées — #5187.
+  List<StockRequest> _filterRequests(List<StockRequest> requests) {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return requests;
+    return requests
+        .where((request) =>
+            (request.pharmacy?.name ?? request.pharmacyId)
+                .toLowerCase()
+                .contains(query) ||
+            request.items
+                .any((item) => item.label.toLowerCase().contains(query)))
+        .toList();
   }
 
   /// ↑/↓ change la sélection (surlignage + panneau), ⏎ ouvre la demande
@@ -170,10 +186,11 @@ class _StockPageState extends State<StockPage> {
                         'Envoyez une demande à une pharmacie partenaire.',
                   );
                 }
+                final filtered = _filterRequests(requests);
                 final selectedIndex =
-                    requests.indexWhere((r) => r.id == _selectedId);
+                    filtered.indexWhere((r) => r.id == _selectedId);
                 final selected =
-                    selectedIndex == -1 ? null : requests[selectedIndex];
+                    selectedIndex == -1 ? null : filtered[selectedIndex];
 
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -182,30 +199,56 @@ class _StockPageState extends State<StockPage> {
                       child: Focus(
                         focusNode: _focusNode,
                         onKeyEvent: (node, event) =>
-                            _handleKey(event, requests),
+                            _handleKey(event, filtered),
                         child: Column(
                           children: [
-                            Expanded(
-                              child: ListView.builder(
-                                key: const Key('stock_request_list'),
-                                padding: const EdgeInsets.all(16),
-                                itemCount: requests.length,
-                                itemBuilder: (context, index) {
-                                  final request = requests[index];
-                                  return Padding(
-                                    padding:
-                                        const EdgeInsets.only(bottom: 12),
-                                    child: _StockRequestRow(
-                                      request: request,
-                                      selected: request.id == _selectedId,
-                                      onTap: () => setState(
-                                          () => _selectedId = request.id),
-                                    ),
-                                  );
-                                },
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: SizedBox(
+                                  width: 280,
+                                  child: NubiaSearchBar(
+                                    key: const Key('stock_search'),
+                                    hint: 'Article, pharmacie…',
+                                    onChanged: (value) =>
+                                        setState(() => _query = value),
+                                  ),
+                                ),
                               ),
                             ),
-                            _StockListFooter(count: requests.length),
+                            Expanded(
+                              child: filtered.isEmpty
+                                  ? const NubiaEmptyState(
+                                      icon: Icons.search_off,
+                                      title: 'Aucun résultat',
+                                      subtitle:
+                                          'Aucune demande ne correspond à cette recherche.',
+                                    )
+                                  : ListView.builder(
+                                      key: const Key('stock_request_list'),
+                                      padding: const EdgeInsets.all(16),
+                                      itemCount: filtered.length,
+                                      itemBuilder: (context, index) {
+                                        final request = filtered[index];
+                                        return Padding(
+                                          padding: const EdgeInsets.only(
+                                              bottom: 12),
+                                          child: _StockRequestRow(
+                                            request: request,
+                                            selected:
+                                                request.id == _selectedId,
+                                            onTap: () => setState(() =>
+                                                _selectedId = request.id),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                            ),
+                            _StockListFooter(
+                              count: filtered.length,
+                              total: requests.length,
+                            ),
                           ],
                         ),
                       ),
@@ -353,9 +396,13 @@ class _StockRequestRow extends StatelessWidget {
 
 /// Pied de la liste maître : raccourcis clavier + compteur affiché.
 class _StockListFooter extends StatelessWidget {
-  const _StockListFooter({required this.count});
+  const _StockListFooter({required this.count, required this.total});
 
+  /// Nombre de demandes affichées après filtrage (recherche).
   final int count;
+
+  /// Nombre total de demandes chargées, avant filtrage.
+  final int total;
 
   @override
   Widget build(BuildContext context) {
@@ -377,7 +424,7 @@ class _StockListFooter extends StatelessWidget {
           Text('⏎ ouvrir', style: style),
           Text(
             '$count demande${count > 1 ? 's' : ''} affichée'
-            '${count > 1 ? 's' : ''} sur $count',
+            '${count > 1 ? 's' : ''} sur $total',
             style: style,
           ),
         ],
