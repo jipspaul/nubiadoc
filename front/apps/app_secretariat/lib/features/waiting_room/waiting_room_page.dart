@@ -260,7 +260,9 @@ class _WaitingEntryTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _PractitionerColumn(entry: entry),
-          const SizedBox(width: 16),
+          const SizedBox(width: 8),
+          _WaitColumn(entry: entry),
+          const SizedBox(width: 8),
           _EstimationColumn(entry: entry, position: position),
           const SizedBox(width: 16),
           Column(
@@ -359,13 +361,72 @@ class _PractitionerColumn extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 96),
+          constraints: const BoxConstraints(maxWidth: 84),
           child: Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: style,
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Colonne « Attente » dédiée (#5162) : `waitSoFar` sort du sous-titre pour
+/// devenir sa propre colonne, en gros, dont la couleur monte par seuils
+/// (15 / 20 / 30 min) — sinon 38 min ressemble à 3 min. Sous-label « arrivé
+/// à HH:MM » dérivé de `arrivedAt`, valeur non inventée.
+class _WaitColumn extends StatelessWidget {
+  const _WaitColumn({required this.entry});
+
+  final WaitingRoomEntry entry;
+
+  static Color _colorFor(NubiaTokens tokens, int minutes) {
+    if (minutes >= 30) return tokens.dangerFg;
+    if (minutes >= 20) return tokens.warningFg;
+    if (minutes >= 15) return tokens.infoFg;
+    return NubiaColors.n900;
+  }
+
+  // Formatage conservé : minutes seules sous 60, sinon « h + min ».
+  static String _formatWait(Duration wait) {
+    final minutes = wait.inMinutes;
+    if (minutes < 60) return '$minutes min';
+    final hours = minutes ~/ 60;
+    final remainder = (minutes % 60).toString().padLeft(2, '0');
+    return '${hours}h$remainder';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final wait = entry.waitSoFar;
+    final arrivedAt = entry.arrivedAt;
+    final arrivedLabel = 'arrivé à '
+        '${arrivedAt.hour.toString().padLeft(2, '0')}:'
+        '${arrivedAt.minute.toString().padLeft(2, '0')}';
+
+    return Column(
+      key: Key('waiting_entry_wait_${entry.id}'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          _formatWait(wait),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: _colorFor(tokens, wait.inMinutes),
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          arrivedLabel,
+          style: Theme.of(context)
+              .textTheme
+              .labelSmall
+              ?.copyWith(color: tokens.textTertiary),
         ),
       ],
     );

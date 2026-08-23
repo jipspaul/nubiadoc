@@ -356,6 +356,117 @@ void main() {
       );
     });
 
+    group('colonne Attente — couleur par seuils 15/20/30 min — #5162', () {
+      Future<void> pumpWithWait(WidgetTester tester, int minutes) async {
+        final now = DateTime.now();
+        when(() => bloc.state).thenReturn(
+          WaitingRoomLoaded([
+            WaitingRoomEntry(
+              id: 'e1',
+              cabinetId: 'c1',
+              patientId: 'p1',
+              patientName: 'Marie Curie',
+              arrivedAt: now.subtract(Duration(minutes: minutes)),
+            ),
+          ]),
+        );
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+      }
+
+      Color colorOfWaitText(WidgetTester tester, String text) {
+        final finder = find.descendant(
+          of: find.byKey(const Key('waiting_entry_wait_e1')),
+          matching: find.text(text),
+        );
+        return tester.widget<Text>(finder).style!.color!;
+      }
+
+      testWidgets('14 min → couleur neutre (n900)', (tester) async {
+        await pumpWithWait(tester, 14);
+        expect(colorOfWaitText(tester, '14 min'), NubiaColors.n900);
+      });
+
+      testWidgets('15 min → infoFg', (tester) async {
+        await pumpWithWait(tester, 15);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(colorOfWaitText(tester, '15 min'), tokens.infoFg);
+      });
+
+      testWidgets('19 min → infoFg (toujours sous le seuil warning)',
+          (tester) async {
+        await pumpWithWait(tester, 19);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(colorOfWaitText(tester, '19 min'), tokens.infoFg);
+      });
+
+      testWidgets('20 min → warningFg', (tester) async {
+        await pumpWithWait(tester, 20);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(colorOfWaitText(tester, '20 min'), tokens.warningFg);
+      });
+
+      testWidgets('29 min → warningFg (toujours sous le seuil danger)',
+          (tester) async {
+        await pumpWithWait(tester, 29);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(colorOfWaitText(tester, '29 min'), tokens.warningFg);
+      });
+
+      testWidgets('30 min → dangerFg', (tester) async {
+        await pumpWithWait(tester, 30);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(colorOfWaitText(tester, '30 min'), tokens.dangerFg);
+      });
+
+      testWidgets(
+          'la valeur est affichée en plus grand que le sous-titre — #5162',
+          (tester) async {
+        await pumpWithWait(tester, 14);
+        final waitText = tester.widget<Text>(
+          find.descendant(
+            of: find.byKey(const Key('waiting_entry_wait_e1')),
+            matching: find.text('14 min'),
+          ),
+        );
+        final context = tester.element(find.byKey(
+          const Key('waiting_entry_wait_e1'),
+        ));
+        final titleLargeSize =
+            Theme.of(context).textTheme.titleLarge?.fontSize;
+        expect(waitText.style?.fontSize, titleLargeSize);
+        expect(waitText.style?.fontSize, greaterThan(
+          Theme.of(context).textTheme.bodySmall?.fontSize ?? 0,
+        ));
+      });
+    });
+
+    testWidgets(
+        'colonne Attente — sous-label "arrivé à HH:MM" dérivé de '
+        'arrivedAt, sans valeur inventée — #5162', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: DateTime(2026, 6, 19, 9, 52),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_entry_wait_e1')),
+          matching: find.text('arrivé à 09:52'),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets(
         'colonne Praticien — nom + pastille couleur du practitionerId — #5168',
         (tester) async {
