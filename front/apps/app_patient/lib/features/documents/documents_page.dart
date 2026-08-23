@@ -227,10 +227,12 @@ class _DocumentsLoaded extends StatelessWidget {
                       },
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                        itemCount: docs.length + (pending != null ? 1 : 0),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                        itemCount:
+                            docs.length + (pending != null ? 1 : 0) + 1,
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
+                          final pendingOffset = pending != null ? 1 : 0;
                           if (pending != null && index == 0) {
                             return _PendingUploadCard(
                               pending: pending,
@@ -239,29 +241,25 @@ class _DocumentsLoaded extends StatelessWidget {
                               ),
                             );
                           }
-                          final doc = docs[index - (pending != null ? 1 : 0)];
-                          return _DocumentCard(
-                            key: Key('document_${doc.id}'),
-                            doc: doc,
-                            onOpen: () => context.read<DocumentsBloc>().add(
-                              DocumentsDownloadRequested(doc.id),
-                            ),
+                          final docIndex = index - pendingOffset;
+                          if (docIndex < docs.length) {
+                            final doc = docs[docIndex];
+                            return _DocumentCard(
+                              key: Key('document_${doc.id}'),
+                              doc: doc,
+                              onOpen: () => context.read<DocumentsBloc>().add(
+                                DocumentsDownloadRequested(doc.id),
+                              ),
+                            );
+                          }
+                          return _AddDocumentDropZone(
+                            onTap: () => _pickAndUpload(context),
                           );
                         },
                       ),
                     ),
             ),
           ],
-        ),
-        Positioned(
-          right: 16,
-          bottom: 16,
-          child: FloatingActionButton(
-            key: const Key('upload_fab'),
-            tooltip: 'Envoyer un document',
-            onPressed: () => _pickAndUpload(context),
-            child: const Icon(Icons.upload_file_outlined),
-          ),
         ),
       ],
     );
@@ -316,6 +314,92 @@ class _DocumentsLoaded extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Zone de dépôt en fin de liste — remplace le FAB flottant : sur une app
+/// patient l'ajout est occasionnel, la zone reste visible sans masquer le
+/// contenu (maquette design-v2, point 5).
+class _AddDocumentDropZone extends StatelessWidget {
+  const _AddDocumentDropZone({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return SizedBox(
+      key: const Key('upload_fab'),
+      width: double.infinity,
+      height: 52,
+      child: CustomPaint(
+        foregroundPainter: const _DashedRRectPainter(
+          color: NubiaColors.n300,
+          radius: 14,
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.upload_file_outlined, size: 20, color: cs.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Ajouter un document',
+                  style: textTheme.labelLarge?.copyWith(color: cs.primary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bordure pointillée d'un rectangle arrondi — Flutter n'a pas de
+/// `BorderStyle.dashed` natif (maquette, zone de dépôt documents).
+class _DashedRRectPainter extends CustomPainter {
+  const _DashedRRectPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  static const _dashWidth = 4.0;
+  static const _dashGap = 3.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rrect);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = distance + _dashWidth;
+        canvas.drawPath(
+          metric.extractPath(distance, next.clamp(0, metric.length)),
+          paint,
+        );
+        distance = next + _dashGap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRRectPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
 }
 
 // ---------------------------------------------------------------------------
