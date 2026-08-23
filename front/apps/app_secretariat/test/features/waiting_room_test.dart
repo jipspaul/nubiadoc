@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -510,6 +512,103 @@ void main() {
         find.byKey(const Key('waiting_room_call_next_button')),
       );
       expect(button.onPressed, isNotNull);
+    });
+
+    testWidgets(
+        'le libellé de l\'action call-next nomme la tête de file — #5164',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Marc Dubois',
+            arrivedAt: DateTime(2026, 6, 20, 8, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e3',
+            cabinetId: 'c1',
+            patientId: 'p3',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 20, 8, 5),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
+      );
+      expect(button.label, 'Appeler Marc Dubois');
+    });
+
+    testWidgets(
+        'le libellé de l\'action call-next reste générique et l\'action '
+        'désactivée quand la file est vide — #5164', (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
+      );
+      expect(button.label, isNot(contains('null')));
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets(
+        'le nom dans le libellé se met à jour quand la tête de file '
+        'change — #5164', (tester) async {
+      final controller = StreamController<WaitingRoomState>();
+      addTearDown(controller.close);
+      whenListen<WaitingRoomState>(
+        bloc,
+        controller.stream,
+        initialState: WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 20, 7, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<NubiaButton>(
+              find.byKey(const Key('waiting_room_call_next_button')),
+            )
+            .label,
+        'Appeler Paul Martin',
+      );
+
+      final next = WaitingRoomLoaded([
+        WaitingRoomEntry(
+          id: 'e2',
+          cabinetId: 'c1',
+          patientId: 'p2',
+          patientName: 'Marc Dubois',
+          arrivedAt: DateTime(2026, 6, 20, 8, 0),
+        ),
+      ]);
+      when(() => bloc.state).thenReturn(next);
+      controller.add(next);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<NubiaButton>(
+              find.byKey(const Key('waiting_room_call_next_button')),
+            )
+            .label,
+        'Appeler Marc Dubois',
+      );
     });
 
     testWidgets(

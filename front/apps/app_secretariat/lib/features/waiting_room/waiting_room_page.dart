@@ -195,11 +195,14 @@ class WaitingRoomPage extends StatelessWidget {
               builder: (context, state) {
                 final hasPatients =
                     state is WaitingRoomLoaded && state.entries.isNotEmpty;
+                final label = hasPatients
+                    ? NubiaL10n.callNextNamed(state.entries.first.patientName)
+                    : NubiaL10n.callNext;
                 return Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: NubiaButton(
                     key: const Key('waiting_room_call_next_button'),
-                    label: NubiaL10n.callNext,
+                    label: label,
                     icon: Icons.skip_next,
                     onPressed: hasPatients ? () => _callNext(context) : null,
                   ),
