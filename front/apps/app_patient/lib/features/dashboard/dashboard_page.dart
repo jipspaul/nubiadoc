@@ -5,9 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../router/app_router.dart';
-import '../appointments/appointments_bloc.dart';
-import '../appointments/appointments_page.dart';
 import '../documents/documents_page.dart';
+import '../home/home_bloc.dart';
+import '../home/home_event.dart';
+import '../home/home_page.dart';
 import '../mes_rdv/mes_rdv_page.dart';
 import '../messaging/messaging_bloc.dart';
 import '../messaging/messaging_event.dart';
@@ -20,13 +21,15 @@ import '../profile/profile_bloc.dart';
 import '../profile/profile_event.dart';
 import '../profile/profile_page.dart';
 
-/// Patient home shell: 5-tab bottom nav (Rechercher / Mes RDV / Messages /
+/// Patient home shell: 5-tab bottom nav (Accueil / Mes RDV / Messages /
 /// Documents / Profil).
 ///
-/// L'onglet « Rechercher » affiche l'annuaire ([AppointmentsPage] : barre de
-/// recherche + carte + liste des praticiens). Le shell lui-même ne doit pas
-/// dépendre d'un appel réseau : un échec d'un onglet ne doit pas bloquer
-/// l'accès aux autres (Mes RDV, Messages, Documents, Profil).
+/// L'onglet « Accueil » affiche le tableau de bord ([HomePage]). L'annuaire
+/// (recherche de praticiens) n'a plus d'onglet : il ne reste accessible que
+/// via la loupe de l'en-tête, qui ouvre `AppRouter.appointments` (#5194). Le
+/// shell lui-même ne doit pas dépendre d'un appel réseau : un échec d'un
+/// onglet ne doit pas bloquer l'accès aux autres (Mes RDV, Messages,
+/// Documents, Profil).
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -38,9 +41,10 @@ class _DashboardPageState extends State<DashboardPage> {
   int _index = 0;
   late final MessagingBloc _messagingBloc;
   late final NotificationsBloc _notificationsBloc;
+  late final HomeBloc _homeBloc;
 
   static const _tabs = [
-    (label: 'Rechercher', icon: Icons.search),
+    (label: 'Accueil', icon: Icons.home_outlined),
     (label: 'Mes RDV', icon: Icons.event_outlined),
     (label: 'Messages', icon: Icons.chat_bubble_outline),
     (label: 'Documents', icon: Icons.folder_outlined),
@@ -54,12 +58,14 @@ class _DashboardPageState extends State<DashboardPage> {
       ..add(const MessagingConversationsLoadRequested());
     _notificationsBloc = GetIt.instance<NotificationsBloc>()
       ..add(const NotificationsLoadRequested());
+    _homeBloc = GetIt.instance<HomeBloc>()..add(const HomeLoadRequested());
   }
 
   @override
   void dispose() {
     _messagingBloc.close();
     _notificationsBloc.close();
+    _homeBloc.close();
     super.dispose();
   }
 
@@ -69,16 +75,20 @@ class _DashboardPageState extends State<DashboardPage> {
       providers: [
         BlocProvider.value(value: _messagingBloc),
         BlocProvider.value(value: _notificationsBloc),
+        BlocProvider.value(value: _homeBloc),
       ],
       child: Scaffold(
         appBar: NubiaAppBar(
-          title: _tabs[_index].label,
+          // L'onglet Accueil porte déjà sa propre salutation « Bonjour
+          // <prénom> » dans le contenu (HomePage, #5195) : pas de titre de
+          // barre dupliqué au-dessus (maquette `patient-accueil.png`).
+          title: _index == 0 ? '' : _tabs[_index].label,
           actions: [
             _HeaderIconButton(
               key: const Key('header_action_search'),
               icon: Icons.search,
               tooltip: 'Annuaire',
-              onPressed: () => setState(() => _index = 0),
+              onPressed: () => context.push(AppRouter.appointments),
             ),
             BlocSelector<NotificationsBloc, NotificationsState, bool>(
               selector: (s) => s is NotificationsLoaded && s.unreadCount > 0,
@@ -94,12 +104,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ],
         ),
         body: switch (_index) {
-          0 => BlocProvider(
-              create: (_) => GetIt.instance<AppointmentsBloc>(),
-              child: AppointmentsPage(
-                onViewMyAppointments: () => setState(() => _index = 1),
-              ),
-            ),
+          0 => const HomePage(),
           1 => const MesRdvPage(),
           2 => const MessagingPage(),
           3 => const DocumentsPage(),

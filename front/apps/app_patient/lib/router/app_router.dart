@@ -231,11 +231,17 @@ class AppRouter {
           path: appointments,
           // #5269 : « Reprendre RDV » (Mes RDV · historique) transmet le nom
           // du praticien via `extra` pour repartir de la même recherche.
-          builder: (_, state) => BlocProvider(
+          builder: (context, state) => BlocProvider(
             create: (_) => GetIt.instance<AppointmentsBloc>(),
             child: Scaffold(
               appBar: AppBar(title: const Text('Prendre un rendez-vous')),
-              body: AppointmentsPage(initialQuery: state.extra as String?),
+              body: AppointmentsPage(
+                initialQuery: state.extra as String?,
+                // #5194 : l'annuaire n'est plus un onglet du shell — « Voir
+                // mes RDV » sur l'écran de confirmation pousse la route
+                // dédiée au lieu de basculer un onglet du DashboardPage.
+                onViewMyAppointments: () => context.push(mesRdv),
+              ),
             ),
           ),
         ),
