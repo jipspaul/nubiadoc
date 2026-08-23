@@ -121,8 +121,9 @@ void main() {
         expect(loaded, isA<WaitingRoomLoaded>());
         for (final entry in (loaded as WaitingRoomLoaded).entries) {
           expect(entry.patientName, isNotEmpty);
-          // WaitingRoomEntry n'a pas de champ motif ni notes_medicales :
-          // cette contrainte est garantie structurellement par le type.
+          // WaitingRoomEntry porte `reason` (motif admin, ex. "Détartrage" —
+          // #5172) mais aucun champ clinique (notes médicales, diagnostic) :
+          // cette dernière contrainte est garantie structurellement par le type.
         }
       },
     );
@@ -172,6 +173,39 @@ void main() {
       expect(find.text('Notes médicales'), findsNothing);
       expect(find.textContaining('motif'), findsNothing);
       expect(find.textContaining('notes'), findsNothing);
+    });
+
+    testWidgets(
+        'sous-titre = motif + heure de RDV, plus de Position/Arrivé — #5172',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            reason: 'Détartrage',
+            appointmentTime: DateTime(2026, 6, 19, 10, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 19, 9, 30),
+            reason: 'Douleur dentaire',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Détartrage · RDV 10:00'), findsOneWidget);
+      expect(find.text('Douleur dentaire'), findsOneWidget);
+      expect(find.textContaining('Position'), findsNothing);
+      expect(find.textContaining('Arrivé il y a'), findsNothing);
     });
 
     testWidgets('affiche un message si la salle est vide', (tester) async {

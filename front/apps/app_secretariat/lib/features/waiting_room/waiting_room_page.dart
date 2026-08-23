@@ -129,15 +129,22 @@ class _WaitingEntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
-    final wait = entry.waitSoFar;
-    final waitLabel = wait.inMinutes < 60
-        ? '${wait.inMinutes} min'
-        : '${wait.inHours} h ${wait.inMinutes.remainder(60)} min';
+    final reason = entry.reason;
+    final appointmentTime = entry.appointmentTime;
+    final timeLabel = appointmentTime != null
+        ? '${appointmentTime.hour.toString().padLeft(2, '0')}:'
+            '${appointmentTime.minute.toString().padLeft(2, '0')}'
+        : null;
+    final subtitle = reason == null || reason.isEmpty
+        ? null
+        : timeLabel == null
+            ? reason
+            : '$reason · RDV $timeLabel';
 
     return ListRow(
       leading: NubiaAvatar(initials: _initials(entry.patientName)),
       title: entry.patientName,
-      subtitle: 'Position $position · Arrivé il y a $waitLabel',
+      subtitle: subtitle,
       trailing: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
