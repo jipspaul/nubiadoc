@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../session/auth_cubit.dart';
 import 'home_bloc.dart';
@@ -40,10 +41,62 @@ class HomePage extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _HomeContent extends StatelessWidget {
+class _HomeContent extends StatefulWidget {
   const _HomeContent({required this.state});
 
   final HomeLoaded state;
+
+  @override
+  State<_HomeContent> createState() => _HomeContentState();
+}
+
+/// Pilote l'entrée en cascade des sections de l'accueil : un unique
+/// [AnimationController] découpé en [Interval]s décalés de 60 ms par section
+/// (en-tête, métriques, à faire / état vide).
+class _HomeContentState extends State<_HomeContent>
+    with SingleTickerProviderStateMixin {
+  static const _staggerMs = 60;
+  static const _sectionDurationMs = 320;
+  static const _sectionCount = 4;
+  static const _totalMs = _sectionDurationMs + (_sectionCount - 1) * _staggerMs;
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: _totalMs),
+  )..forward();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Animation<double> _sectionAnimation(int index) {
+    final startMs = index * _staggerMs;
+    final endMs = startMs + _sectionDurationMs;
+    return CurvedAnimation(
+      parent: _controller,
+      curve: Interval(
+        startMs / _totalMs,
+        (endMs / _totalMs).clamp(0.0, 1.0),
+        curve: Curves.easeOutCubic,
+      ),
+    );
+  }
+
+  Widget _staggered(BuildContext context, int index, Widget child) {
+    if (MediaQuery.of(context).disableAnimations) return child;
+    final animation = _sectionAnimation(index);
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: animation.drive(
+          Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero),
+        ),
+        child: child,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +107,7 @@ class _HomeContent extends StatelessWidget {
         ? (authState.session.displayName ?? 'Patient')
         : 'Patient';
 
-    final s = state.summary;
+    final s = widget.state.summary;
 
     // Devis à signer/régler : point d'entrée visible vers le wedge financier
     // (l'écran devis n'a pas d'onglet dédié dans la barre du bas).
@@ -70,101 +123,116 @@ class _HomeContent extends StatelessWidget {
       key: const Key('home_content'),
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
       children: [
-        Text(
-          'Bonjour $name 👋',
-          style: textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Voici votre espace santé',
-          style: textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-        ),
-        const SizedBox(height: 20),
-        // Trois tuiles de métriques : à signer / à régler / prochain RDV.
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        _staggered(
+          context,
+          0,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: MetricTile(
-                  key: const Key('card_documents'),
-                  icon: Icons.edit_document,
-                  value: '${s.documentsToSign}',
-                  label: 'À signer',
-                  variant: s.documentsToSign > 0
-                      ? MetricTileVariant.warning
-                      : MetricTileVariant.neutral,
-                  // Les devis à signer vivent dans le wedge financier.
-                  onTap: s.documentsToSign > 0
-                      ? () => context.push('/financial')
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: MetricTile(
-                  key: const Key('card_financial'),
-                  icon: Icons.receipt_long_outlined,
-                  value: _formatEuros(s.pendingPaymentsCents),
-                  label: 'À régler',
-                  variant: s.pendingPaymentsCents > 0
-                      ? MetricTileVariant.danger
-                      : MetricTileVariant.neutral,
-                  onTap: s.pendingPaymentsCents > 0
-                      ? () => context.push('/financial')
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: MetricTile(
-                  key: const Key('card_appointments'),
-                  icon: Icons.event_outlined,
-                  value: '${s.upcomingAppointments}',
-                  label: 'Prochain RDV',
-                  onTap: () => context.push('/appointments'),
-                ),
+              Text('Bonjour $name 👋', style: textTheme.headlineSmall),
+              const SizedBox(height: 4),
+              Text(
+                'Voici votre espace santé',
+                style:
+                    textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 20),
+        _staggered(context, 1, _MetricsRow(summary: s)),
         const SizedBox(height: 28),
-        if (hasShortcuts) ...[
-          const _SectionLabel(label: 'À faire'),
-          const SizedBox(height: 12),
-          if (hasFinancial) ...[
-            _ShortcutCard(
-              key: const Key('card_devis'),
-              icon: Icons.description_outlined,
-              title: 'Devis à signer / à régler',
-              subtitle: 'Consultez, signez et réglez vos devis.',
-              count: s.documentsToSign > 0 ? s.documentsToSign : null,
-              onTap: () => context.push('/financial'),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (s.unreadMessages > 0) ...[
-            _ShortcutCard(
-              key: const Key('card_messages'),
-              icon: Icons.chat_bubble_outline,
-              title: 'Messages non lus',
-              subtitle: 'Vous avez du courrier de vos praticiens.',
-              count: s.unreadMessages,
-            ),
-            const SizedBox(height: 12),
-          ],
-        ],
+        if (hasShortcuts)
+          _staggered(
+            context,
+            2,
+            _TodoSection(summary: s, hasFinancial: hasFinancial),
+          ),
         if (allClear)
-          const Padding(
-            padding: EdgeInsets.only(top: 24),
-            child: NubiaEmptyState(
-              key: Key('home_empty'),
-              icon: Icons.check_circle_outline,
-              title: 'Tout est à jour',
-              subtitle: 'Aucune action en attente.',
+          _staggered(
+            context,
+            3,
+            const Padding(
+              padding: EdgeInsets.only(top: 24),
+              child: NubiaEmptyState(
+                key: Key('home_empty'),
+                icon: Icons.check_circle_outline,
+                title: 'Tout est à jour',
+                subtitle: 'Aucune action en attente.',
+              ),
             ),
           ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Trois tuiles de métriques : à signer / à régler / prochain RDV.
+class _MetricsRow extends StatelessWidget {
+  const _MetricsRow({required this.summary});
+
+  final DashboardSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = summary;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _PressableScale(
+              pressable: s.documentsToSign > 0,
+              child: MetricTile(
+                key: const Key('card_documents'),
+                icon: Icons.edit_document,
+                value: '${s.documentsToSign}',
+                label: 'À signer',
+                variant: s.documentsToSign > 0
+                    ? MetricTileVariant.warning
+                    : MetricTileVariant.neutral,
+                // Les devis à signer vivent dans le wedge financier.
+                onTap: s.documentsToSign > 0
+                    ? () => context.push('/financial')
+                    : null,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _PressableScale(
+              pressable: s.pendingPaymentsCents > 0,
+              child: MetricTile(
+                key: const Key('card_financial'),
+                icon: Icons.receipt_long_outlined,
+                value: _formatEuros(s.pendingPaymentsCents),
+                label: 'À régler',
+                variant: s.pendingPaymentsCents > 0
+                    ? MetricTileVariant.danger
+                    : MetricTileVariant.neutral,
+                onTap: s.pendingPaymentsCents > 0
+                    ? () => context.push('/financial')
+                    : null,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _PressableScale(
+              pressable: true,
+              child: MetricTile(
+                key: const Key('card_appointments'),
+                icon: Icons.event_outlined,
+                value: '${s.upcomingAppointments}',
+                label: 'Prochain RDV',
+                onTap: () => context.push('/appointments'),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -174,6 +242,52 @@ class _HomeContent extends StatelessWidget {
         ? value.toStringAsFixed(0)
         : value.toStringAsFixed(2);
     return '${text.replaceAll('.', ',')} €';
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Section « À faire » : devis à signer/régler et messages non lus.
+class _TodoSection extends StatelessWidget {
+  const _TodoSection({required this.summary, required this.hasFinancial});
+
+  final DashboardSummary summary;
+  final bool hasFinancial;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = summary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel(label: 'À faire'),
+        const SizedBox(height: 12),
+        if (hasFinancial) ...[
+          _PressableScale(
+            pressable: true,
+            child: _ShortcutCard(
+              key: const Key('card_devis'),
+              icon: Icons.description_outlined,
+              title: 'Devis à signer / à régler',
+              subtitle: 'Consultez, signez et réglez vos devis.',
+              count: s.documentsToSign > 0 ? s.documentsToSign : null,
+              onTap: () => context.push('/financial'),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (s.unreadMessages > 0) ...[
+          _ShortcutCard(
+            key: const Key('card_messages'),
+            icon: Icons.chat_bubble_outline,
+            title: 'Messages non lus',
+            subtitle: 'Vous avez du courrier de vos praticiens.',
+            count: s.unreadMessages,
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
   }
 }
 
@@ -262,6 +376,46 @@ class _ShortcutCard extends StatelessWidget {
           else if (onTap != null)
             Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Retour tactile discret : réduit [child] à 0.97 pendant l'appui.
+///
+/// N'utilise pas [GestureDetector] pour ne pas entrer en concurrence avec le
+/// geste de tap propre à [child] (ex. l'[InkWell] interne d'un [MetricTile])
+/// dans l'arène de gestes ; [Listener] observe le pointeur sans l'intercepter.
+class _PressableScale extends StatefulWidget {
+  const _PressableScale({required this.child, this.pressable = true});
+
+  final Widget child;
+  final bool pressable;
+
+  @override
+  State<_PressableScale> createState() => _PressableScaleState();
+}
+
+class _PressableScaleState extends State<_PressableScale> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: widget.pressable ? (_) => _setPressed(true) : null,
+      onPointerUp: widget.pressable ? (_) => _setPressed(false) : null,
+      onPointerCancel: widget.pressable ? (_) => _setPressed(false) : null,
+      child: AnimatedScale(
+        scale: _pressed && widget.pressable ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: widget.child,
       ),
     );
   }
