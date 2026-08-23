@@ -44,11 +44,31 @@ class _DashboardPageState extends State<DashboardPage> {
   late final HomeBloc _homeBloc;
 
   static const _tabs = [
-    (label: 'Accueil', icon: Icons.home_outlined),
-    (label: 'Mes RDV', icon: Icons.event_outlined),
-    (label: 'Messages', icon: Icons.chat_bubble_outline),
-    (label: 'Documents', icon: Icons.folder_outlined),
-    (label: 'Profil', icon: Icons.person_outline),
+    (
+      label: 'Accueil',
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home,
+    ),
+    (
+      label: 'Mes RDV',
+      icon: Icons.event_outlined,
+      selectedIcon: Icons.event_outlined,
+    ),
+    (
+      label: 'Messages',
+      icon: Icons.chat_bubble_outline,
+      selectedIcon: Icons.chat_bubble_outline,
+    ),
+    (
+      label: 'Documents',
+      icon: Icons.folder_outlined,
+      selectedIcon: Icons.folder_outlined,
+    ),
+    (
+      label: 'Profil',
+      icon: Icons.person_outline,
+      selectedIcon: Icons.person_outline,
+    ),
   ];
 
   @override
@@ -139,6 +159,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             child: Icon(_tabs[i].icon),
                           )
                         : Icon(_tabs[i].icon),
+                    selectedIcon: Icon(_tabs[i].selectedIcon),
                     label: _tabs[i].label,
                   ),
               ],
