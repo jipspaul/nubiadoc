@@ -278,5 +278,77 @@ void main() {
 
       expect(find.byType(CreateStockRequestDialog), findsOneWidget);
     });
+
+    // #5186 — facettes de filtrage par statut.
+    final acceptedRequest = StockRequest(
+      id: 'req-3',
+      pharmacyId: 'pharma-3',
+      items: const [StockRequestItem(label: 'Seringues', quantity: 10)],
+      status: StockRequestStatus.accepted,
+      createdAt: DateTime(2026, 8, 9, 8),
+    );
+
+    testWidgets(
+        'affiche les facettes de statut avec libellés et compteurs exacts',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+          StockLoaded([sentRequest, fulfilledRequest, acceptedRequest]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final sentFacet = find.byKey(const Key('stock_facet_sent'));
+      final acceptedFacet = find.byKey(const Key('stock_facet_accepted'));
+      final fulfilledFacet = find.byKey(const Key('stock_facet_fulfilled'));
+      final rejectedFacet = find.byKey(const Key('stock_facet_rejected'));
+
+      expect(sentFacet, findsOneWidget);
+      expect(acceptedFacet, findsOneWidget);
+      expect(fulfilledFacet, findsOneWidget);
+      expect(rejectedFacet, findsOneWidget);
+
+      expect(find.descendant(of: sentFacet, matching: find.text('Envoyées')),
+          findsOneWidget);
+      expect(
+          find.descendant(of: acceptedFacet, matching: find.text('Acceptées')),
+          findsOneWidget);
+      expect(
+          find.descendant(of: fulfilledFacet, matching: find.text('Honorées')),
+          findsOneWidget);
+      expect(
+          find.descendant(of: rejectedFacet, matching: find.text('Refusées')),
+          findsOneWidget);
+
+      expect(find.descendant(of: sentFacet, matching: find.text('1')),
+          findsOneWidget);
+      expect(find.descendant(of: acceptedFacet, matching: find.text('1')),
+          findsOneWidget);
+      expect(find.descendant(of: fulfilledFacet, matching: find.text('1')),
+          findsOneWidget);
+      expect(find.descendant(of: rejectedFacet, matching: find.text('0')),
+          findsOneWidget);
+    });
+
+    testWidgets(
+        'cliquer une facette filtre la liste, re-cliquer réinitialise',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+          StockLoaded([sentRequest, fulfilledRequest, acceptedRequest]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('stock_facet_fulfilled')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('stock_request_req-2')), findsOneWidget);
+      expect(find.byKey(const Key('stock_request_req-1')), findsNothing);
+      expect(find.byKey(const Key('stock_request_req-3')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('stock_facet_fulfilled')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('stock_request_req-1')), findsOneWidget);
+      expect(find.byKey(const Key('stock_request_req-2')), findsOneWidget);
+      expect(find.byKey(const Key('stock_request_req-3')), findsOneWidget);
+    });
   });
 }
