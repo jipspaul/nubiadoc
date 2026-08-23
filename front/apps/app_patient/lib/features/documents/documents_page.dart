@@ -168,13 +168,23 @@ class _DocumentsLoaded extends StatefulWidget {
 class _DocumentsLoadedState extends State<_DocumentsLoaded> {
   String _query = '';
 
-  static const _chips = <(String, DocumentCategory?)>[
-    ('Tous', null),
-    ('Ordonnances', DocumentCategory.prescription),
-    ('Carte mutuelle', DocumentCategory.mutualCard),
-    ('Carte vitale', DocumentCategory.vitalCard),
-    ('Autre', DocumentCategory.other),
-  ];
+  /// Facettes calculées à partir des catégories réellement présentes dans
+  /// [documents] — « Tous » reste toujours en tête avec le total ; les
+  /// autres puces n'apparaissent que si au moins un document de la
+  /// catégorie existe (maquette design-v2, point 3).
+  static List<(String, DocumentCategory?, int)> _facets(
+    List<Document> documents,
+  ) {
+    final counts = <DocumentCategory, int>{};
+    for (final doc in documents) {
+      counts.update(doc.category, (n) => n + 1, ifAbsent: () => 1);
+    }
+    return [
+      ('Tous', null, documents.length),
+      for (final cat in DocumentCategory.values)
+        if (counts[cat] != null) (_categoryMeta(cat).$2, cat, counts[cat]!),
+    ];
+  }
 
   /// Filtrage recherche 100 % client — nom du document, insensible à la
   /// casse. Se combine au filtre catégorie déjà appliqué par
@@ -192,6 +202,7 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
     final state = widget.state;
     final docs = _search(state.filtered);
     final pending = state.pendingUpload;
+    final facets = _facets(state.documents);
 
     return Stack(
       children: [
@@ -210,12 +221,12 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(
                 children: [
-                  for (final (label, cat) in _chips) ...[
+                  for (final (label, cat, count) in facets) ...[
                     ChoiceChip(
                       key: cat == null
                           ? const Key('filter_all')
                           : Key('filter_${cat.name}'),
-                      label: Text(label),
+                      label: Text('$label $count'),
                       selected: state.activeFilter == cat,
                       onSelected: (_) => context.read<DocumentsBloc>().add(
                         DocumentsFilterChanged(cat),
