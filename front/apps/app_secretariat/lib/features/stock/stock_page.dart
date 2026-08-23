@@ -897,14 +897,64 @@ class _StockDetailPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Text('Articles demandés', style: textTheme.titleSmall),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text('Articles demandés', style: textTheme.titleSmall),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${request.items.length} ligne'
+                  '${request.items.length > 1 ? 's' : ''} · '
+                  '${request.items.fold<int>(0, (sum, item) => sum + item.quantity)} '
+                  'unités',
+                  style: textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             for (final item in request.items)
               Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  '• ${item.quantity} × ${item.label}'
-                  '${item.note != null ? ' (${item.note})' : ''}',
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 38,
+                      child: Text(
+                        '${item.quantity}',
+                        textAlign: TextAlign.right,
+                        style: textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.label,
+                            style: textTheme.bodySmall?.copyWith(fontSize: 12.5),
+                          ),
+                          if (item.note != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              item.note!,
+                              style: textTheme.bodySmall?.copyWith(
+                                fontSize: 11,
+                                color: NubiaColors.n500,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             if (request.status == StockRequestStatus.sent) ...[
