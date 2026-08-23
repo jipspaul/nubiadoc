@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'consents_cubit.dart';
 
@@ -120,15 +121,22 @@ class _ConsentsBody extends StatelessWidget {
                 ),
               ),
               for (final consent in state.consents)
-                SwitchListTile(
-                  key: Key('consent_${consent.purpose}'),
-                  title: Text(
-                    _kConsentLabels[consent.purpose] ?? _kUnknownConsentLabel,
-                  ),
-                  value: consent.granted,
-                  onChanged: state.pending == consent.purpose
-                      ? null
-                      : (v) => _handleToggle(context, consent.purpose, v),
+                Column(
+                  key: Key('consent_card_${consent.purpose}'),
+                  children: [
+                    SwitchListTile(
+                      key: Key('consent_${consent.purpose}'),
+                      title: Text(
+                        _kConsentLabels[consent.purpose] ??
+                            _kUnknownConsentLabel,
+                      ),
+                      value: consent.granted,
+                      onChanged: state.pending == consent.purpose
+                          ? null
+                          : (v) => _handleToggle(context, consent.purpose, v),
+                    ),
+                    _ConsentMetaRow(consent: consent),
+                  ],
                 ),
               const _ConsentsFooter(),
               const _RightsSection(),
@@ -137,6 +145,74 @@ class _ConsentsBody extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// Ligne méta « statut daté » d'un consentement (maquette design-v2,
+/// `patient-consentements.png`, #5210) : le RGPD impose de pouvoir prouver
+/// la date du consentement, pas seulement son état actuel (accordé/refusé).
+class _ConsentMetaRow extends StatelessWidget {
+  const _ConsentMetaRow({required this.consent});
+
+  final Consent consent;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: tokens.textTertiary,
+        );
+
+    final String statusLabel;
+    final IconData statusIcon;
+    if (consent.granted) {
+      statusLabel = consent.grantedAt != null
+          ? 'Accordé le ${NubiaDate.dayLong(consent.grantedAt)}'
+          : 'Accordé';
+      statusIcon = Icons.check_circle;
+    } else if (consent.revokedAt != null) {
+      statusLabel = 'Refusé le ${NubiaDate.dayLong(consent.revokedAt)}';
+      statusIcon = Icons.cancel;
+    } else {
+      statusLabel = 'Jamais accordé';
+      statusIcon = Icons.cancel;
+    }
+
+    return Container(
+      key: Key('consent_meta_${consent.purpose}'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: tokens.borderSubtle)),
+      ),
+      child: Row(
+        children: [
+          Icon(statusIcon, size: 16, color: tokens.textTertiary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              statusLabel,
+              style: textStyle,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          GestureDetector(
+            key: Key('consent_details_${consent.purpose}'),
+            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Détails du consentement bientôt disponibles.'),
+              ),
+            ),
+            child: Text(
+              'Détails',
+              style: textStyle?.copyWith(
+                color: NubiaColors.brand700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -314,6 +390,7 @@ class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
     // cours + les deux blocs d'impact) : scrollable pour ne jamais déborder
     // (même motif que `_BookingPanel`, `appointments_page.dart`, #5337).
     return SingleChildScrollView(
+      key: const Key('pharmacy_withdrawal_sheet'),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
