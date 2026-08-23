@@ -505,15 +505,15 @@ class _DependentTile extends StatelessWidget {
               ),
             ],
           ),
-          if (nextAppointmentAt != null) ...[
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Divider(height: 1, color: tokens.borderSubtle),
-            ),
-            const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Divider(height: 1, color: tokens.borderSubtle),
+          ),
+          const SizedBox(height: 12),
+          if (nextAppointmentAt != null)
             Row(
               children: [
-                Icon(Icons.event, size: 18, color: tokens.textTertiary),
+                const Icon(Icons.event, size: 18, color: NubiaColors.brand600),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -521,9 +521,44 @@ class _DependentTile extends StatelessWidget {
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
+                GestureDetector(
+                  key: Key('dependent_${dependent.id}_next_appointment_cta'),
+                  onTap: () => context.push(AppRouter.mesRdv),
+                  child: Text(
+                    'Voir',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: NubiaColors.brand700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 18, color: tokens.textTertiary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Aucun rendez-vous à venir',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: tokens.textTertiary),
+                  ),
+                ),
+                GestureDetector(
+                  key: Key('dependent_${dependent.id}_plan_appointment_cta'),
+                  onTap: () => context.push(AppRouter.book),
+                  child: Text(
+                    'Planifier',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: NubiaColors.brand700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ],
             ),
-          ],
           const SizedBox(height: 12),
           if (dependent.hasParentalAccessExpired)
             _ParentalAccessExpiredNotice(firstName: dependent.firstName)
