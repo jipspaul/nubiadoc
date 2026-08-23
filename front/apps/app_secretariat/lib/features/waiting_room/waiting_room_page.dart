@@ -141,6 +141,9 @@ class _WaitingEntryTile extends StatelessWidget {
             ? reason
             : '$reason · RDV $timeLabel';
 
+    // Urgence sans rendez-vous : aucun praticien attribué (#5171).
+    final bool isUnassigned = entry.appointmentId == null;
+
     return ListRow(
       leading: NubiaAvatar(initials: _initials(entry.patientName)),
       title: entry.patientName,
@@ -149,10 +152,18 @@ class _WaitingEntryTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          const StatusPill(
-            label: 'En attente',
-            variant: StatusPillVariant.info,
+          StatusPill(
+            label: isUnassigned ? 'Sans RDV' : 'En attente',
+            variant:
+                isUnassigned ? StatusPillVariant.warning : StatusPillVariant.info,
           ),
+          if (isUnassigned) ...[
+            const SizedBox(height: 4),
+            const StatusPill(
+              label: 'Non attribué',
+              variant: StatusPillVariant.neutral,
+            ),
+          ],
           if (entry.estimatedWaitMinutes != null) ...[
             const SizedBox(height: 4),
             Text(
@@ -160,6 +171,21 @@ class _WaitingEntryTile extends StatelessWidget {
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: tokens.textTertiary,
                   ),
+            ),
+          ],
+          if (isUnassigned) ...[
+            const SizedBox(height: 4),
+            NubiaButton(
+              key: Key('waiting_entry_assign_button_${entry.id}'),
+              label: 'Attribuer',
+              icon: Icons.person_add,
+              size: NubiaButtonSize.sm,
+              variant: NubiaButtonVariant.secondary,
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Attribution d'un praticien à venir"),
+                ),
+              ),
             ),
           ],
         ],
