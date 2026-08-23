@@ -70,8 +70,7 @@ void main() {
       "retrait du partage pharmacie : aucun encart sans commande en cours",
       (tester) async {
     final cubit = MockConsentsCubit();
-    when(() => cubit.pendingPharmacyOrderRef())
-        .thenAnswer((_) async => null);
+    when(() => cubit.pendingPharmacyOrderRef()).thenAnswer((_) async => null);
     await pumpConsentsPage(tester, cubit);
 
     await tester.tap(find.byKey(const Key('consent_partage_pharmacie')));
@@ -90,8 +89,7 @@ void main() {
   testWidgets('retrait du partage pharmacie : confirmer appelle toggle',
       (tester) async {
     final cubit = MockConsentsCubit();
-    when(() => cubit.pendingPharmacyOrderRef())
-        .thenAnswer((_) async => null);
+    when(() => cubit.pendingPharmacyOrderRef()).thenAnswer((_) async => null);
     await pumpConsentsPage(tester, cubit);
 
     await tester.tap(find.byKey(const Key('consent_partage_pharmacie')));
@@ -103,11 +101,28 @@ void main() {
     verify(() => cubit.toggle('partage_pharmacie', false)).called(1);
   });
 
+  testWidgets(
+      'retrait du partage pharmacie : bascule pas immédiate, blocs '
+      '« ce qui change » / « ce qui ne change pas » affichés (#5211)',
+      (tester) async {
+    final cubit = MockConsentsCubit();
+    when(() => cubit.pendingPharmacyOrderRef()).thenAnswer((_) async => null);
+    await pumpConsentsPage(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('consent_partage_pharmacie')));
+    await tester.pumpAndSettle();
+
+    verifyNever(() => cubit.toggle(any(), any()));
+    expect(find.text('Ce qui change'), findsOneWidget);
+    expect(find.text('Ce qui ne change pas'), findsOneWidget);
+    expect(find.byIcon(Icons.cancel), findsNWidgets(2));
+    expect(find.byIcon(Icons.check_circle), findsNWidgets(2));
+  });
+
   testWidgets('retrait du partage pharmacie : annuler ne bascule rien',
       (tester) async {
     final cubit = MockConsentsCubit();
-    when(() => cubit.pendingPharmacyOrderRef())
-        .thenAnswer((_) async => null);
+    when(() => cubit.pendingPharmacyOrderRef()).thenAnswer((_) async => null);
     await pumpConsentsPage(tester, cubit);
 
     await tester.tap(find.byKey(const Key('consent_partage_pharmacie')));
