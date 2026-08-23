@@ -110,6 +110,46 @@ void main() {
     );
 
     blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'un rechargement alors qu\'une liste est déjà chargée ne repasse pas '
+      'par WaitingRoomLoading — anti-flicker #5161',
+      build: () {
+        when(() => repo.list()).thenAnswer((_) async => Right(entries));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      // Seed avec une liste différente de celle renvoyée par le repo pour
+      // que le rechargement produise bien un nouvel état (sinon bloc_test
+      // ne verrait aucune émission — cf. dédoublonnage de Cubit.emit).
+      seed: () => WaitingRoomLoaded([]),
+      act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
+      expect: () => [
+        WaitingRoomLoaded(entries),
+      ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'l\'horodatage de chargement se remet à jour à chaque rechargement '
+      'réussi — #5161',
+      build: () {
+        when(() => repo.list()).thenAnswer((_) async => Right(entries));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
+      verify: (bloc) {
+        final loaded = bloc.state as WaitingRoomLoaded;
+        expect(
+          DateTime.now().difference(loaded.loadedAt).inSeconds,
+          lessThan(5),
+        );
+      },
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
       'les entrées chargées n\'exposent aucun champ clinique',
       build: () {
         when(() => repo.list()).thenAnswer((_) async => Right(entries));
@@ -152,6 +192,67 @@ void main() {
       when(() => bloc.state).thenReturn(const WaitingRoomInitial());
       await tester.pumpWidget(buildPage());
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets(
+        'un timer périodique dispatche WaitingRoomLoadRequested, annulé au '
+        'dispose — #5161', (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomInitial());
+      await tester.pumpWidget(buildPage());
+
+      // Chargement initial au montage.
+      verify(() => bloc.add(const WaitingRoomLoadRequested())).called(1);
+
+      await tester.pump(const Duration(seconds: 15));
+      verify(() => bloc.add(const WaitingRoomLoadRequested())).called(1);
+
+      await tester.pump(const Duration(seconds: 15));
+      verify(() => bloc.add(const WaitingRoomLoadRequested())).called(1);
+
+      // Démonter la page annule le timer — plus aucun dispatch après coup,
+      // et pas de timer qui fuit (le test échouerait sinon au teardown).
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 30));
+      verifyNever(() => bloc.add(const WaitingRoomLoadRequested()));
+    });
+
+    testWidgets(
+        'affiche l\'âge de la donnée en barre d\'outils — #5161',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded(
+          [
+            WaitingRoomEntry(
+              id: 'e1',
+              cabinetId: 'c1',
+              patientId: 'p1',
+              patientName: 'Marie Curie',
+              arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            ),
+          ],
+          loadedAt: DateTime.now(),
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      addTearDown(() => tester.pumpWidget(const SizedBox.shrink()));
+
+      expect(
+        find.byKey(const Key('waiting_room_freshness_indicator')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Actualisé il y a'), findsOneWidget);
+    });
+
+    testWidgets(
+        'pas d\'indicateur de fraîcheur hors état Loaded (chargement) — '
+        '#5161', (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomInitial());
+      await tester.pumpWidget(buildPage());
+
+      expect(
+        find.byKey(const Key('waiting_room_freshness_indicator')),
+        findsNothing,
+      );
     });
 
     testWidgets('affiche les patients — aucun champ clinique visible',
@@ -568,7 +669,7 @@ void main() {
     });
 
     testWidgets('affiche un message si la salle est vide', (tester) async {
-      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -580,7 +681,7 @@ void main() {
 
     testWidgets('pas de FloatingActionButton — action call-next en barre '
         "d'outils — #5167", (tester) async {
-      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -593,7 +694,7 @@ void main() {
 
     testWidgets('action call-next désactivée quand liste vide — #5167',
         (tester) async {
-      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -658,7 +759,7 @@ void main() {
     testWidgets(
         'le libellé de l\'action call-next reste générique et l\'action '
         'désactivée quand la file est vide — #5164', (tester) async {
-      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -749,7 +850,7 @@ void main() {
 
     testWidgets('⌘⏎ ne fait rien quand la file est vide — #5167',
         (tester) async {
-      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -812,7 +913,7 @@ void main() {
 
     testWidgets('file vide → KPI à 0 / 0 min / 0, pas de division par zéro',
         (tester) async {
-      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 

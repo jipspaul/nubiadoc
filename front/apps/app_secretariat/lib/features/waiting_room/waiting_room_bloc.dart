@@ -25,7 +25,13 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
     WaitingRoomLoadRequested event,
     Emitter<WaitingRoomState> emit,
   ) async {
-    emit(const WaitingRoomLoading());
+    // Une fois une première liste chargée, un rechargement (bouton manuel ou
+    // rafraîchissement périodique, #5161) ne repasse plus par
+    // WaitingRoomLoading — l'ancienne liste reste affichée pendant l'appel,
+    // évitant le spinner plein écran qui clignoterait en boucle.
+    if (state is! WaitingRoomLoaded) {
+      emit(const WaitingRoomLoading());
+    }
     try {
       final result = await _list();
       result.fold(
