@@ -15,6 +15,22 @@ class ProConfig {
   static const ProRole role = ProRole.secretary;
   static const bool includeClinical = false;
 
+  /// Route du « Tableau de bord » (`DashboardPage`).
+  ///
+  /// #5155 — analyse du recoupement avec [AgendaPage] (`/agenda`), tranchée :
+  /// les deux entrées sont conservées, rôles distincts.
+  /// - Tableau de bord (`DashboardContent`) : synthèse opérationnelle de
+  ///   *la journée en cours uniquement*, lecture seule (`TodayFlowCard`), plus
+  ///   la charge du cabinet (salle d'attente, demandes de créneau, caisse,
+  ///   occupation de la semaine, praticiens présents). Aucune action de
+  ///   RDV (pas de création/confirmation) ; `TodayFlowCard` renvoie
+  ///   explicitement vers `/agenda` (« Ouvrir l'agenda »).
+  /// - Agenda (`AgendaPage`) : outil opérationnel complet sur *la semaine*,
+  ///   avec filtre par praticien, créneaux disponibles et actions de
+  ///   gestion des RDV (création, confirmation).
+  /// Aucune fusion/suppression : le dashboard n'expose qu'un extrait de la
+  /// journée (pas de duplication de la grille semaine ni des actions de
+  /// l'agenda), conformément à son rôle de synthèse.
   static const String dashboardRoute = '/';
 
   /// Route de l'entrée « Membres » — administration réservée aux
@@ -40,6 +56,8 @@ class ProConfig {
     appTitle: appTitle,
     spaceLabel: spaceLabel,
     destinations: [
+      // Synthèse du jour, pas un doublon de l'Agenda — voir la décision
+      // #5155 documentée sur [dashboardRoute].
       shell.ProNavDestination(
         label: 'Tableau de bord',
         icon: Icons.dashboard_outlined,
@@ -55,6 +73,8 @@ class ProConfig {
         icon: Icons.format_list_bulleted_outlined,
         route: '/liste-attente',
       ),
+      // Outil complet de gestion des RDV sur la semaine (filtre praticien,
+      // création, confirmation) — voir la décision #5155 sur [dashboardRoute].
       shell.ProNavDestination(
         label: 'Agenda',
         icon: Icons.calendar_month_outlined,
