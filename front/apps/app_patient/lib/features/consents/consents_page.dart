@@ -73,6 +73,80 @@ const _kConsentDescriptions = <String, String>{
 /// immédiates, comme avant.
 const _kPharmacySharingPurpose = 'partage_pharmacie';
 
+/// Regroupement des finalités librement révocables en sections « Partages »,
+/// « Technologies », « Communications » (maquette design-v2,
+/// `patient-consentements.png`, #5204). La section « Nécessaire au service »
+/// est gérée séparément, voir [_kLockedConsentPurposes].
+class _ConsentSectionDef {
+  const _ConsentSectionDef({required this.title, this.badge, required this.purposes});
+
+  final String title;
+  final String? badge;
+  final List<String> purposes;
+}
+
+/// Titre du groupe par défaut d'une finalité émise par l'API mais absente de
+/// [_kConsentSections] : visible plutôt que masquée (critère d'acceptation
+/// #5204).
+const _kDefaultConsentSectionTitle = 'Autres';
+
+const _kConsentSections = <_ConsentSectionDef>[
+  _ConsentSectionDef(
+    title: 'Partages',
+    badge: 'vous décidez',
+    purposes: ['partage_pharmacie', 'partage_confrere'],
+  ),
+  _ConsentSectionDef(
+    title: 'Technologies',
+    purposes: ['ia_scribe'],
+  ),
+  _ConsentSectionDef(
+    title: 'Communications',
+    purposes: ['marketing'],
+  ),
+];
+
+/// Icône ronde à gauche de chaque carte de finalité (maquette design-v2,
+/// #5204). Fallback générique pour une finalité non couverte plutôt qu'une
+/// icône trompeuse.
+const _kConsentIcons = <String, IconData>{
+  'partage_pharmacie': Icons.local_pharmacy_outlined,
+  'partage_confrere': Icons.groups_outlined,
+  'ia_scribe': Icons.smart_toy_outlined,
+  'marketing': Icons.campaign_outlined,
+};
+const _kDefaultConsentIcon = Icons.privacy_tip_outlined;
+
+/// Répartit [consents] dans les sections de [_kConsentSections], dans
+/// l'ordre déclaré, puis regroupe tout ce qui n'y est pas mappé sous
+/// [_kDefaultConsentSectionTitle] (jamais masqué).
+List<({String title, String? badge, List<Consent> consents})>
+    _groupConsentsBySection(List<Consent> consents) {
+  final byPurpose = {for (final c in consents) c.purpose: c};
+  final assigned = <String>{};
+  final sections = <({String title, String? badge, List<Consent> consents})>[];
+
+  for (final def in _kConsentSections) {
+    final matched = [
+      for (final purpose in def.purposes)
+        if (byPurpose[purpose] case final consent?) consent,
+    ];
+    assigned.addAll(def.purposes);
+    if (matched.isNotEmpty) {
+      sections.add((title: def.title, badge: def.badge, consents: matched));
+    }
+  }
+
+  final leftover =
+      consents.where((c) => !assigned.contains(c.purpose)).toList();
+  if (leftover.isNotEmpty) {
+    sections.add(
+      (title: _kDefaultConsentSectionTitle, badge: null, consents: leftover),
+    );
+  }
+  return sections;
+}
+
 /// Finalités dont la base légale n'est pas le consentement révocable mais
 /// l'exécution du contrat de soin (maquette design-v2, groupe « Nécessaire
 /// au service », #5205) : bascule verrouillée (ON, non actionnable) plutôt
@@ -181,6 +255,7 @@ class _ConsentsBody extends StatelessWidget {
           final otherConsents = state.consents
               .where((c) => !_kLockedConsentPurposes.containsKey(c.purpose))
               .toList();
+          final otherSections = _groupConsentsBySection(otherConsents);
 
           return ListView(
             key: const Key('consents_list'),
@@ -188,38 +263,13 @@ class _ConsentsBody extends StatelessWidget {
               const _ConsentsIntroBanner(),
               if (lockedConsents.isNotEmpty)
                 _LockedConsentsSection(consents: lockedConsents),
-              for (final consent in otherConsents)
-                Column(
-                  key: Key('consent_card_${consent.purpose}'),
-                  children: [
-                    SwitchListTile(
-                      key: Key('consent_${consent.purpose}'),
-                      title: Text(
-                        _kConsentLabels[consent.purpose] ??
-                            _kUnknownConsentLabel,
-                      ),
-                      subtitle: _kConsentDescriptions[consent.purpose] == null
-                          ? null
-                          : Text(
-                              _kConsentDescriptions[consent.purpose]!,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .extension<NubiaTokens>()
-                                        ?.neutralFg,
-                                  ),
-                            ),
-                      value: consent.granted,
-                      onChanged: state.pending == consent.purpose
-                          ? null
-                          : (v) => _handleToggle(context, consent.purpose, v),
-                    ),
-                    if (consent.purpose == _kPharmacySharingPurpose)
-                      _PharmacyRecipientChip(pharmacyName: state.pharmacyName),
-                    _ConsentMetaRow(consent: consent),
-                  ],
+              for (final section in otherSections)
+                _ConsentSection(
+                  title: section.title,
+                  badge: section.badge,
+                  consents: section.consents,
+                  pharmacyName: state.pharmacyName,
+                  pendingPurpose: state.pending,
                 ),
               const _ConsentsFooter(),
               const _RightsSection(),
@@ -444,6 +494,170 @@ class _LockedConsentCard extends StatelessWidget {
               ),
             ),
           ),
+          _ConsentMetaRow(consent: consent),
+        ],
+      ),
+    );
+  }
+}
+
+/// Section groupée d'une des finalités librement révocables (« Partages »,
+/// « Technologies », « Communications », maquette design-v2, #5204) : en-tête
+/// `.gh` + badge optionnel, suivi des cartes `.cc` de chaque finalité du
+/// groupe.
+class _ConsentSection extends StatelessWidget {
+  const _ConsentSection({
+    required this.title,
+    this.badge,
+    required this.consents,
+    required this.pharmacyName,
+    required this.pendingPurpose,
+  });
+
+  final String title;
+  final String? badge;
+  final List<Consent> consents;
+  final String? pharmacyName;
+  final String? pendingPurpose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return Padding(
+      key: Key('consents_section_$title'),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              if (badge case final badgeLabel?) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: tokens.primarySubtleBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    badgeLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: tokens.primarySubtleFg,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final consent in consents) ...[
+            _ConsentCard(
+              consent: consent,
+              pharmacyName: pharmacyName,
+              pending: pendingPurpose == consent.purpose,
+            ),
+            const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Carte `.cc` d'une finalité librement révocable (maquette design-v2,
+/// #5204) : fond blanc, bord `--n200`, rayon 14, icône ronde à gauche, titre
+/// + description, bascule à droite.
+class _ConsentCard extends StatelessWidget {
+  const _ConsentCard({
+    required this.consent,
+    required this.pharmacyName,
+    required this.pending,
+  });
+
+  final Consent consent;
+  final String? pharmacyName;
+  final bool pending;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return Container(
+      key: Key('consent_card_${consent.purpose}'),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: NubiaColors.n0,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 12, 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: tokens.primarySubtleBg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Icon(
+                      _kConsentIcons[consent.purpose] ?? _kDefaultConsentIcon,
+                      color: tokens.primarySubtleFg,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _kConsentLabels[consent.purpose] ??
+                            _kUnknownConsentLabel,
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      if (_kConsentDescriptions[consent.purpose]
+                          case final description?) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          key: Key('consent_description_${consent.purpose}'),
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: tokens.neutralFg),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Switch(
+                  key: Key('consent_${consent.purpose}'),
+                  value: consent.granted,
+                  onChanged: pending
+                      ? null
+                      : (v) => _handleToggle(context, consent.purpose, v),
+                ),
+              ],
+            ),
+          ),
+          if (consent.purpose == _kPharmacySharingPurpose)
+            _PharmacyRecipientChip(pharmacyName: pharmacyName),
           _ConsentMetaRow(consent: consent),
         ],
       ),
