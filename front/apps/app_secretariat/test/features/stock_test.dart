@@ -54,10 +54,11 @@ void main() {
       fulfilledAt: DateTime(2026, 8, 12, 14, 30),
     );
 
-    testWidgets('affiche un loader en état de chargement', (tester) async {
+    testWidgets('affiche un squelette en état de chargement', (tester) async {
       when(() => bloc.state).thenReturn(const StockLoading());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
     });
 
     testWidgets('affiche un état vide sans demande', (tester) async {

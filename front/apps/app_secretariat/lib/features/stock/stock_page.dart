@@ -133,7 +133,7 @@ class _StockPageState extends State<StockPage> {
         builder: (context, state) {
           switch (state) {
             case StockLoading():
-              return const Center(child: CircularProgressIndicator());
+              return const _StockLoadingSkeleton();
             case StockError(:final message):
               return NubiaErrorWidget(
                 message: message,
@@ -206,6 +206,57 @@ class _StockPageState extends State<StockPage> {
         onPressed: _onCreate,
         icon: const Icon(Icons.add),
         label: const Text('Nouvelle demande'),
+      ),
+    );
+  }
+}
+
+/// Squelette de chargement — lignes fantômes reprenant la structure de la
+/// liste plutôt qu'un spinner nu, au même rythme que les autres écrans
+/// refondus (cf. `app_pharmacie/stock_page.dart`).
+class _StockLoadingSkeleton extends StatelessWidget {
+  const _StockLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _StockRequestRowSkeleton(),
+          SizedBox(height: 12),
+          _StockRequestRowSkeleton(),
+          SizedBox(height: 12),
+          _StockRequestRowSkeleton(),
+        ],
+      ),
+    );
+  }
+}
+
+class _StockRequestRowSkeleton extends StatelessWidget {
+  const _StockRequestRowSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: NubiaSkeletonLoader(height: 16, width: 160)),
+              SizedBox(width: 12),
+              NubiaSkeletonLoader(height: 20, width: 72),
+            ],
+          ),
+          SizedBox(height: 6),
+          NubiaSkeletonLoader(height: 12, width: 90),
+          SizedBox(height: 12),
+          NubiaSkeletonLoader(height: 14, width: double.infinity),
+          SizedBox(height: 6),
+          NubiaSkeletonLoader(height: 14, width: double.infinity),
+        ],
       ),
     );
   }
