@@ -111,6 +111,7 @@ class _ConsentsBody extends StatelessWidget {
                           .toggle(consent.purpose, v),
                 ),
               const _ConsentsFooter(),
+              const _RightsSection(),
             ],
           );
         }
@@ -170,6 +171,91 @@ class _ConsentsFooter extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Section « Vos droits » (maquette design-v2, #5213) : trois droits RGPD
+/// opposables (export, historique, suppression) absents des bascules de
+/// consentement au-dessus. Les 3 destinations n'existent pas encore côté
+/// front (écrans hors périmètre de ce ticket) : le tap affiche un message
+/// explicite plutôt qu'un no-op silencieux.
+class _RightsSection extends StatelessWidget {
+  const _RightsSection();
+
+  void _showComingSoon(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final chevron = Icon(Icons.chevron_right, color: cs.onSurfaceVariant);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Vos droits',
+            style: textTheme.titleSmall?.copyWith(
+              color: cs.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          NubiaCard(
+            key: const Key('consents_rights_card'),
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                ListRow(
+                  key: const Key('right_export_data'),
+                  leading: const Icon(Icons.download),
+                  title: 'Exporter mes données',
+                  subtitle: 'Copie complète, format lisible · sous 30 jours',
+                  trailing: chevron,
+                  onTap: () => _showComingSoon(
+                    context,
+                    'Export des données bientôt disponible.',
+                  ),
+                ),
+                ListRow(
+                  key: const Key('right_choices_history'),
+                  leading: const Icon(Icons.history),
+                  title: 'Historique de mes choix',
+                  // Compteur = nb d'entrées d'audit
+                  // (`0008_audit_consent.sql`, action='update_consent').
+                  // Seul `GET /v1/cabinet/audit-log` (côté pro) existe
+                  // aujourd'hui : aucune API front patient ne l'expose,
+                  // donc masqué plutôt qu'une valeur inventée.
+                  trailing: chevron,
+                  onTap: () => _showComingSoon(
+                    context,
+                    'Historique des choix bientôt disponible.',
+                  ),
+                ),
+                ListRow(
+                  key: const Key('right_delete_account'),
+                  leading: const Icon(Icons.person_off),
+                  title: 'Supprimer mon compte',
+                  subtitle: 'Sous réserve des durées légales de conservation',
+                  showDivider: false,
+                  trailing: chevron,
+                  onTap: () => _showComingSoon(
+                    context,
+                    'Suppression de compte bientôt disponible.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
