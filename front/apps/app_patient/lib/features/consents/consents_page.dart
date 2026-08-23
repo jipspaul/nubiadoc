@@ -34,6 +34,30 @@ const _kConsentLabels = <String, String>{
 /// jamais la clé technique brute (snake_case) sur cet écran RGPD.
 const _kUnknownConsentLabel = 'Finalité non documentée — contactez le cabinet';
 
+/// Phrases « qui accède à quoi, pour quoi faire » par finalité (maquette
+/// design-v2, `patient-consentements.png`, #5208) : le libellé seul
+/// n'informe pas — exigence de consentement éclairé. Verbatim maquette,
+/// même contrainte de couverture que [_kConsentLabels] (#3706) : doit
+/// couvrir exactement les mêmes finalités, testé en comparant les deux
+/// jeux de clés.
+const _kConsentDescriptions = <String, String>{
+  'data_processing':
+      'Conservation sécurisée de votre dossier chez un hébergeur agréé '
+          'données de santé, en France.',
+  'marketing': 'Nouveautés du cabinet, offres de prévention. Sans effet sur '
+      'vos rappels de rendez-vous.',
+  'soins': 'Votre praticien enregistre les actes réalisés et son '
+      'compte-rendu dans votre dossier médical.',
+  'partage_pharmacie':
+      'Vos ordonnances sont transmises à la pharmacie que vous avez '
+          'choisie, pour préparation avant votre passage.',
+  'partage_confrere':
+      "Un autre praticien peut consulter votre dossier s'il vous prend en "
+          'charge — second avis, urgence, remplacement.',
+  'ia_scribe': 'Votre praticien peut dicter son compte-rendu ; une IA le '
+      "met en forme. L'enregistrement n'est pas conservé.",
+};
+
 /// Seule finalité dont le retrait passe par une feuille de confirmation
 /// (maquette design-v2, #5211/#5212) : les autres bascules restent
 /// immédiates, comme avant.
@@ -130,6 +154,19 @@ class _ConsentsBody extends StatelessWidget {
                         _kConsentLabels[consent.purpose] ??
                             _kUnknownConsentLabel,
                       ),
+                      subtitle: _kConsentDescriptions[consent.purpose] == null
+                          ? null
+                          : Text(
+                              _kConsentDescriptions[consent.purpose]!,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .extension<NubiaTokens>()
+                                        ?.neutralFg,
+                                  ),
+                            ),
                       value: consent.granted,
                       onChanged: state.pending == consent.purpose
                           ? null
