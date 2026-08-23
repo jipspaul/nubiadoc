@@ -197,6 +197,46 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
         .toList();
   }
 
+  /// Regroupe [docs] (déjà filtrés/recherchés) par période sur `createdAt` :
+  /// « Cette semaine » (7 derniers jours) puis un groupe par mois libellé
+  /// « Mois AAAA », du plus récent au plus ancien — une liste plate ne donne
+  /// aucun point d'ancrage pour chercher un document médical (maquette
+  /// design-v2, point 1).
+  static List<(String, Key, List<Document>)> _groupByPeriod(
+    List<Document> docs,
+  ) {
+    final now = DateTime.now();
+    final thisWeek = <Document>[];
+    final byMonth = <(int, int), List<Document>>{};
+    for (final doc in docs) {
+      if (now.difference(doc.createdAt) <= const Duration(days: 7)) {
+        thisWeek.add(doc);
+      } else {
+        final key = (doc.createdAt.year, doc.createdAt.month);
+        byMonth.putIfAbsent(key, () => []).add(doc);
+      }
+    }
+    int byDateDesc(Document a, Document b) =>
+        b.createdAt.compareTo(a.createdAt);
+    thisWeek.sort(byDateDesc);
+    final monthKeys = byMonth.keys.toList()
+      ..sort((a, b) {
+        final byYear = b.$1.compareTo(a.$1);
+        return byYear != 0 ? byYear : b.$2.compareTo(a.$2);
+      });
+
+    return [
+      if (thisWeek.isNotEmpty)
+        ('Cette semaine', const Key('doc_group_this_week'), thisWeek),
+      for (final key in monthKeys)
+        (
+          '${_fullMonthsFr[key.$2 - 1]} ${key.$1}',
+          Key('doc_group_${key.$1}_${key.$2}'),
+          byMonth[key]!..sort(byDateDesc),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
@@ -263,37 +303,41 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                           orElse: () => const DocumentsLoading(),
                         );
                       },
-                      child: ListView.separated(
+                      child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                        itemCount:
-                            docs.length + (pending != null ? 1 : 0) + 1,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final pendingOffset = pending != null ? 1 : 0;
-                          if (pending != null && index == 0) {
-                            return _PendingUploadCard(
+                        children: [
+                          if (pending != null) ...[
+                            _PendingUploadCard(
                               pending: pending,
                               onDismiss: () => context.read<DocumentsBloc>().add(
                                 const DocumentsUploadDismissed(),
                               ),
-                            );
-                          }
-                          final docIndex = index - pendingOffset;
-                          if (docIndex < docs.length) {
-                            final doc = docs[docIndex];
-                            return _DocumentCard(
-                              key: Key('document_${doc.id}'),
-                              doc: doc,
-                              onOpen: () => context.read<DocumentsBloc>().add(
-                                DocumentsDownloadRequested(doc.id),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          for (final (label, key, items)
+                              in _groupByPeriod(docs)) ...[
+                            _DocumentGroupHeader(
+                              key: key,
+                              label: label,
+                              count: items.length,
+                            ),
+                            for (final doc in items) ...[
+                              _DocumentCard(
+                                key: Key('document_${doc.id}'),
+                                doc: doc,
+                                onOpen: () => context.read<DocumentsBloc>().add(
+                                  DocumentsDownloadRequested(doc.id),
+                                ),
                               ),
-                            );
-                          }
-                          return _AddDocumentDropZone(
+                              const SizedBox(height: 12),
+                            ],
+                          ],
+                          _AddDocumentDropZone(
                             onTap: () => _pickAndUpload(context),
-                          );
-                        },
+                          ),
+                        ],
                       ),
                     ),
             ),
@@ -438,6 +482,48 @@ class _DashedRRectPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DashedRRectPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.radius != radius;
+}
+
+// ---------------------------------------------------------------------------
+
+/// En-tête de groupe de période au-dessus d'un lot de cartes document —
+/// capitales grises et compteur à droite (maquette design-v2, point 1).
+class _DocumentGroupHeader extends StatelessWidget {
+  const _DocumentGroupHeader({
+    super.key,
+    required this.label,
+    required this.count,
+  });
+
+  final String label;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label.toUpperCase(),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+                color: NubiaColors.n400,
+              ),
+            ),
+          ),
+          Text(
+            '$count document${count > 1 ? 's' : ''}',
+            style: const TextStyle(fontSize: 12, color: NubiaColors.n400),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -667,6 +753,21 @@ const _shortMonthsFr = [
   'oct.',
   'nov.',
   'déc.',
+];
+
+const _fullMonthsFr = [
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
 ];
 
 /// Formate une date en libellé court FR (ex. « 10 août ») — repère temporel
