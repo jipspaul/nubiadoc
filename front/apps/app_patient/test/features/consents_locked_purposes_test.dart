@@ -94,10 +94,10 @@ void main() {
     final cubit = await pumpConsentsPage(tester);
 
     expect(find.byKey(const Key('consent_marketing')), findsOneWidget);
-    final marketingTile = tester.widget<SwitchListTile>(
+    final marketingSwitch = tester.widget<Switch>(
       find.byKey(const Key('consent_marketing')),
     );
-    expect(marketingTile.onChanged, isNotNull);
+    expect(marketingSwitch.onChanged, isNotNull);
 
     await tester.tap(find.byKey(const Key('consent_marketing')));
     await tester.pump();

@@ -129,9 +129,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final tile = tester.widget<SwitchListTile>(
-      find.byKey(const Key('consent_purpose_non_documente')),
+    expect(
+      find.byKey(const Key('consent_description_purpose_non_documente')),
+      findsNothing,
     );
-    expect(tile.subtitle, isNull);
   });
 }
