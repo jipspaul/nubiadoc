@@ -108,7 +108,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Ordonnances'));
+    await tester.tap(find.byKey(const Key('filter_prescription')));
     await tester.pumpAndSettle();
 
     await tester.enterText(

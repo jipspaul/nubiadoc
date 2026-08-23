@@ -268,16 +268,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 5 chips visibles (Tous + 4 catégories)
-      expect(find.byType(ChoiceChip), findsNWidgets(5));
+      // 4 chips visibles (Tous + 3 catégories réellement présentes)
+      expect(find.byType(ChoiceChip), findsNWidgets(4));
 
       // 3 docs visibles avant filtrage
       expect(find.byKey(const Key('document_p1')), findsOneWidget);
       expect(find.byKey(const Key('document_r1')), findsOneWidget);
       expect(find.byKey(const Key('document_i1')), findsOneWidget);
 
-      // Tap chip 'Ordonnances'
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Ordonnances'));
+      // Tap chip 'Ordonnance' (filtre catégorie prescription)
+      await tester.tap(find.byKey(const Key('filter_prescription')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('document_p1')), findsOneWidget);
