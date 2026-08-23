@@ -455,6 +455,66 @@ void main() {
       });
     });
 
+    // #5182 — délai d'attente affiché pour les demandes `sent`.
+    group('délai d\'attente d\'une demande sent (#5182)', () {
+      testWidgets(
+          'affiche « En attente » et l\'ancienneté en heures sous 24 h',
+          (tester) async {
+        final waitingHours = StockRequest(
+          id: 'req-waiting-hours',
+          pharmacyId: 'pharma-1',
+          items: const [StockRequestItem(label: 'Gants', quantity: 1)],
+          status: StockRequestStatus.sent,
+          createdAt: DateTime.now().subtract(const Duration(hours: 2)),
+        );
+        when(() => bloc.state).thenReturn(StockLoaded([waitingHours]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        expect(find.text('En attente'), findsOneWidget);
+        expect(find.text('depuis 2 h'), findsOneWidget);
+      });
+
+      testWidgets(
+          'affiche l\'ancienneté en jours à partir de 24 h', (tester) async {
+        final waitingDays = StockRequest(
+          id: 'req-waiting-days',
+          pharmacyId: 'pharma-1',
+          items: const [StockRequestItem(label: 'Gants', quantity: 1)],
+          status: StockRequestStatus.sent,
+          createdAt: DateTime.now().subtract(const Duration(days: 5)),
+        );
+        when(() => bloc.state).thenReturn(StockLoaded([waitingDays]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        expect(find.text('En attente'), findsOneWidget);
+        expect(find.text('depuis 5 jours'), findsOneWidget);
+      });
+
+      testWidgets(
+          'la note pharmacie reste affichée pour les statuts avec réponse',
+          (tester) async {
+        final rejectedWithNote = StockRequest(
+          id: 'req-rejected',
+          pharmacyId: 'pharma-1',
+          items: const [StockRequestItem(label: 'Gants', quantity: 1)],
+          status: StockRequestStatus.rejected,
+          responseNote: 'Rupture fournisseur',
+          createdAt: DateTime(2026, 8, 7, 14, 40),
+        );
+        when(() => bloc.state).thenReturn(StockLoaded([rejectedWithNote]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Note pharmacie : Rupture fournisseur'),
+          findsOneWidget,
+        );
+        expect(find.text('En attente'), findsNothing);
+      });
+    });
+
     // #5183 — action « Relancer » sur les demandes `sent`.
     group('relance d\'une demande sent (#5183)', () {
       testWidgets(

@@ -43,6 +43,20 @@ String _formatTime(DateTime dt) {
 String _formatDateTime(DateTime dt) =>
     '${_formatDayMonth(dt)} · ${_formatTime(dt)}';
 
+/// Ancienneté lisible d'une demande `sent` sans réponse — maquette design-v2,
+/// colonne « Réponse » (#5182) : « depuis 2 h » (< 24 h) ou « depuis 5 jours »
+/// (≥ 24 h), calculée sur `createdAt`. Le délai post-réponse (`respondedAt`)
+/// fait l'objet d'un ticket data séparé.
+String _formatWaitingSince(DateTime createdAt, {DateTime? now}) {
+  final elapsed = (now ?? DateTime.now()).difference(createdAt);
+  if (elapsed.inDays >= 1) {
+    final days = elapsed.inDays;
+    return 'depuis $days jour${days > 1 ? 's' : ''}';
+  }
+  final hours = elapsed.inHours < 1 ? 1 : elapsed.inHours;
+  return 'depuis $hours h';
+}
+
 /// Écran « Stock » côté cabinet (lot B5, #3507) : demandes de stock envoyées
 /// aux pharmacies partenaires (`POST /v1/cabinet/stock-requests`) et suivi de
 /// leur statut (`sent` → `accepted`/`rejected` → `fulfilled`, ou `cancelled`).
@@ -729,7 +743,19 @@ class _StockRequestRow extends StatelessWidget {
               '• ${item.quantity} × ${item.label}'
               '${item.note != null ? ' (${item.note})' : ''}',
             ),
-          if (request.responseNote != null) ...[
+          if (request.status == StockRequestStatus.sent) ...[
+            const SizedBox(height: 4),
+            Text(
+              'En attente',
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              _formatWaitingSince(request.createdAt),
+              style: textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
+            ),
+          ] else if (request.responseNote != null) ...[
             const SizedBox(height: 4),
             Text('Note pharmacie : ${request.responseNote}'),
           ],
