@@ -8,7 +8,6 @@ import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
 import 'package:nubia_core/nubia_core.dart';
 
 import '../../pro_config.dart';
-import '../../router/app_router.dart';
 import '../../session/pro_auth_cubit.dart';
 import '../admin_membres/members_access_cubit.dart';
 import '../audit_log/audit_log_access_cubit.dart';
@@ -114,12 +113,6 @@ class SecretariatShell extends StatelessWidget {
         ],
       ),
       trailingActions: [
-        IconButton(
-          key: const Key('nav_team_messages'),
-          tooltip: 'Messagerie interne',
-          icon: const Icon(Icons.forum_outlined),
-          onPressed: () => context.push(AppRouter.teamMessages),
-        ),
         // Playground A2UI : artefact de dev, jamais visible en production.
         if (kDebugMode)
           IconButton(

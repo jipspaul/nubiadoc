@@ -127,10 +127,6 @@ class AppRouter {
             builder: (_, __) => const A2uiDemoPage(),
           ),
         GoRoute(
-          path: teamMessages,
-          builder: (_, __) => const CabinetTeamMessagesPage(),
-        ),
-        GoRoute(
           path: patientNew,
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<PatientsBloc>(),
@@ -237,6 +233,12 @@ class AppRouter {
                     ..add(const CabinetMessagingConversationsLoadRequested()),
                   child: const CabinetMessagingPage(),
                 ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: teamMessages,
+                builder: (_, __) => const CabinetTeamMessagesPage(),
               ),
             ]),
             StatefulShellBranch(routes: [
