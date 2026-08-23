@@ -272,6 +272,7 @@ class _ItemRow extends StatelessWidget {
         Expanded(
           child: NubiaTextField(
             key: Key('stock_item_qty_$index'),
+            variant: NubiaTextFieldVariant.numberStepper,
             controller: draft.qtyController,
             label: 'Qté',
           ),
