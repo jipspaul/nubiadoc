@@ -450,6 +450,12 @@ class _DocumentCard extends StatelessWidget {
   final Document doc;
   final VoidCallback onOpen;
 
+  /// Un document déposé par le cabinet est une information, pas un fichier :
+  /// les dépôts de la semaine écoulée portent une pastille « Nouveau »
+  /// (maquette design-v2, point 2).
+  bool get _isNew =>
+      DateTime.now().difference(doc.createdAt) <= const Duration(days: 7);
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -458,6 +464,7 @@ class _DocumentCard extends StatelessWidget {
     final (icon, label) = _categoryMeta(doc.category);
     final size = _formatSize(doc.fileSizeBytes);
     final meta = size == null ? label : '$label · $size';
+    final isNew = _isNew;
 
     return NubiaCard(
       state: NubiaCardState.interactive,
@@ -465,14 +472,34 @@ class _DocumentCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: tokens.primarySubtleBg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 20, color: cs.primary),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: tokens.primarySubtleBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: cs.primary),
+              ),
+              if (isNew)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    key: const Key('document_new_dot'),
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: NubiaColors.brand600,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: cs.surface, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -486,13 +513,40 @@ class _DocumentCard extends StatelessWidget {
                   style: textTheme.titleSmall,
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  meta,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
+                Row(
+                  children: [
+                    if (isNew) ...[
+                      Container(
+                        key: const Key('document_new_tag'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: tokens.primarySubtleBg,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Nouveau',
+                          style: textTheme.labelSmall?.copyWith(
+                            color: tokens.primarySubtleFg,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
