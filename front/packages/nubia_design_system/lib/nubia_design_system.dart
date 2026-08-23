@@ -4,6 +4,7 @@
 export 'src/theme/nubia_colors.dart';
 export 'src/theme/nubia_theme.dart';
 export 'src/theme/nubia_tokens.dart';
+export 'src/theme/practitioner_color.dart';
 
 // Format
 export 'src/format/money_format.dart';

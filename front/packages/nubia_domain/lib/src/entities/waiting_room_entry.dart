@@ -13,6 +13,10 @@ class WaitingRoomEntry extends Equatable {
   /// Motif admin du RDV (ex. "Détartrage") — pas de motif clinique (#5172).
   final String? reason;
   final DateTime? appointmentTime;
+  /// Praticien attendu (#5168) — `null` quand l'urgence n'est pas encore
+  /// attribuée (cf. [appointmentId]).
+  final String? practitionerId;
+  final String? practitionerName;
 
   const WaitingRoomEntry({
     required this.id,
@@ -24,6 +28,8 @@ class WaitingRoomEntry extends Equatable {
     this.estimatedWaitMinutes,
     this.reason,
     this.appointmentTime,
+    this.practitionerId,
+    this.practitionerName,
   });
 
   Duration get waitSoFar => DateTime.now().difference(arrivedAt);

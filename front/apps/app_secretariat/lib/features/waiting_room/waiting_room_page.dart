@@ -231,6 +231,8 @@ class _WaitingEntryTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          _PractitionerColumn(entry: entry),
+          const SizedBox(width: 16),
           _EstimationColumn(entry: entry, position: position),
           const SizedBox(width: 16),
           Column(
@@ -243,13 +245,6 @@ class _WaitingEntryTile extends StatelessWidget {
                     ? StatusPillVariant.warning
                     : StatusPillVariant.info,
               ),
-              if (isUnassigned) ...[
-                const SizedBox(height: 4),
-                const StatusPill(
-                  label: 'Non attribué',
-                  variant: StatusPillVariant.neutral,
-                ),
-              ],
               if (isUnassigned) ...[
                 const SizedBox(height: 4),
                 NubiaButton(
@@ -269,6 +264,54 @@ class _WaitingEntryTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Colonne « Praticien » (#5168) : nom + pastille carrée, même code couleur
+/// que la grille agenda (couleur dérivée de `practitionerId` via
+/// [practitionerColor], partagée entre les deux écrans). « Non attribué »
+/// quand l'urgence n'a pas encore de praticien (cf. #5171).
+class _PractitionerColumn extends StatelessWidget {
+  const _PractitionerColumn({required this.entry});
+
+  final WaitingRoomEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final name = entry.practitionerName;
+    final hasPractitioner = name != null && name.isNotEmpty;
+    final label = hasPractitioner ? name : 'Non attribué';
+    final color = practitionerColor(entry.practitionerId);
+    final style = Theme.of(context)
+        .textTheme
+        .labelSmall
+        ?.copyWith(color: tokens.textTertiary);
+
+    return Row(
+      key: Key('waiting_entry_practitioner_${entry.id}'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 6),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 96),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        ),
+      ],
     );
   }
 }

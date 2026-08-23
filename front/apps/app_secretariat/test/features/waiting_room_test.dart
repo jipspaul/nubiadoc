@@ -244,6 +244,8 @@ void main() {
             patientName: 'Marie Curie',
             appointmentId: 'appt-1',
             arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            practitionerId: 'pr-1',
+            practitionerName: 'Dr A. Rousseau',
           ),
         ]),
       );
@@ -349,6 +351,68 @@ void main() {
         find.descendant(of: estimation, matching: find.text('à évaluer')),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        'colonne Praticien — nom + pastille couleur du practitionerId — #5168',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            practitionerId: 'pr-rousseau',
+            practitionerName: 'Dr A. Rousseau',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final column = find.byKey(const Key('waiting_entry_practitioner_e1'));
+      expect(
+        find.descendant(of: column, matching: find.text('Dr A. Rousseau')),
+        findsOneWidget,
+      );
+      final dot = tester.widget<Container>(
+        find.descendant(of: column, matching: find.byType(Container)),
+      );
+      final decoration = dot.decoration as BoxDecoration;
+      expect(decoration.color, practitionerColor('pr-rousseau'));
+    });
+
+    testWidgets(
+        'colonne Praticien — "Non attribué" et pastille neutre sans '
+        'practitionerId — #5168', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Léa Bernard',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            reason: 'Douleur dentaire',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final column = find.byKey(const Key('waiting_entry_practitioner_e1'));
+      expect(
+        find.descendant(of: column, matching: find.text('Non attribué')),
+        findsOneWidget,
+      );
+      final dot = tester.widget<Container>(
+        find.descendant(of: column, matching: find.byType(Container)),
+      );
+      final decoration = dot.decoration as BoxDecoration;
+      expect(decoration.color, practitionerUnassignedColor);
     });
 
     testWidgets('affiche un message si la salle est vide', (tester) async {
