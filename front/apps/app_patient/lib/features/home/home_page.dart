@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -39,6 +41,24 @@ class HomePage extends StatelessWidget {
       },
     );
   }
+}
+
+/// Garantit que les symboles `intl` (dont `fr_FR`) sont chargés avant le
+/// premier `DateFormat` — la charge est synchrone (données CLDR embarquées),
+/// donc sûre à appeler depuis `build`. Idempotent : ne refait le travail
+/// qu'une fois par process.
+bool _dateFormattingInitialized = false;
+
+/// Date du jour en français, ex. « Mardi 11 août » (sans année, 1re lettre
+/// du jour capitalisée — sous-titre de l'en-tête, maquette
+/// `patient-accueil.png`).
+String _todayLabel() {
+  if (!_dateFormattingInitialized) {
+    initializeDateFormatting();
+    _dateFormattingInitialized = true;
+  }
+  final formatted = DateFormat('EEEE d MMMM', 'fr_FR').format(DateTime.now());
+  return formatted[0].toUpperCase() + formatted.substring(1);
 }
 
 // ---------------------------------------------------------------------------
@@ -138,10 +158,10 @@ class _HomeContentState extends State<_HomeContent>
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Bonjour $name 👋', style: textTheme.headlineSmall),
+              Text('Bonjour $name', style: textTheme.headlineSmall),
               const SizedBox(height: 4),
               Text(
-                'Voici votre espace santé',
+                _todayLabel(),
                 style:
                     textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
               ),

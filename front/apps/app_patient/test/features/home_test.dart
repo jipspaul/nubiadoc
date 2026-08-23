@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -128,6 +130,60 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche la date du jour en sous-titre et « Bonjour Patient » par '
+        'défaut quand non authentifié', (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      final today = DateFormat('EEEE d MMMM', 'fr_FR').format(DateTime.now());
+      final expectedSubtitle = today[0].toUpperCase() + today.substring(1);
+
+      expect(find.text('Bonjour Patient'), findsOneWidget);
+      expect(find.text(expectedSubtitle), findsOneWidget);
+      expect(find.text('Voici votre espace santé'), findsNothing);
+    });
+
+    testWidgets('affiche « Bonjour <prénom> » quand authentifié',
+        (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      final authCubit = MockAuthCubit();
+      when(() => authCubit.state).thenReturn(
+        const AuthAuthenticated(
+          AuthSession(
+            kind: UserKind.patient,
+            userId: 'user-1',
+            displayName: 'Camille',
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider.value(value: bloc),
+            BlocProvider<AuthCubit>(create: (_) => authCubit),
+          ],
+          child: const Scaffold(body: HomePage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bonjour Camille'), findsOneWidget);
     });
 
     testWidgets('affiche les cartes de résumé en état loaded', (tester) async {
