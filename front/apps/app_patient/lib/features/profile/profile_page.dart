@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -297,6 +296,19 @@ class _ProfileContent extends StatelessWidget {
             ],
           ),
         ),
+        if (kDebugMode) ...[
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: NubiaButton(
+              key: const Key('a2ui_demo_tile'),
+              label: 'Démo A2UI',
+              icon: Icons.auto_awesome_outlined,
+              variant: NubiaButtonVariant.secondary,
+              onPressed: () => context.push('/a2ui-demo'),
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
