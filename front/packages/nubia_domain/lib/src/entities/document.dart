@@ -23,6 +23,9 @@ class Document extends Equatable {
   final int fileSizeBytes;
   final String mimeType;
   final String? sha256; // integrity check
+  // Émetteur/provenance, ex. "Dr A. Rousseau", "Cabinet Nubia Opéra",
+  // "Ajoutée par vous".
+  final String? issuer;
 
   const Document({
     required this.id,
@@ -32,6 +35,7 @@ class Document extends Equatable {
     required this.fileSizeBytes,
     required this.mimeType,
     this.sha256,
+    this.issuer,
   });
 
   @override
