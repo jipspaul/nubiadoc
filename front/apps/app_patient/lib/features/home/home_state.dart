@@ -24,10 +24,15 @@ final class HomeLoaded extends HomeState {
   /// données de progression.
   final PatientTreatmentPlan? treatmentPlan;
 
-  const HomeLoaded(this.summary, {this.treatmentPlan});
+  /// Détail du prochain RDV (date, praticien, motif, adresse) pour la carte
+  /// héros (#5198) — `null` si aucun RDV à venir ou si le chargement a
+  /// échoué (la carte héros retombe alors sur son état par défaut).
+  final Appointment? nextAppointment;
+
+  const HomeLoaded(this.summary, {this.treatmentPlan, this.nextAppointment});
 
   @override
-  List<Object?> get props => [summary, treatmentPlan];
+  List<Object?> get props => [summary, treatmentPlan, nextAppointment];
 }
 
 final class HomeError extends HomeState {

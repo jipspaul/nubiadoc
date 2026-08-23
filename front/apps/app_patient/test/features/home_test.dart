@@ -24,6 +24,9 @@ class MockGetDashboardSummaryUseCase extends Mock
 class MockListPatientTreatmentPlansUseCase extends Mock
     implements ListPatientTreatmentPlansUseCase {}
 
+class MockGetUpcomingAppointmentsUseCase extends Mock
+    implements GetUpcomingAppointmentsUseCase {}
+
 class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
 class _MockHomeBloc extends MockBloc<HomeEvent, HomeState>
@@ -56,6 +59,18 @@ const _activePlan = PatientTreatmentPlan(
   currentPhaseTitle: 'Pose de la couronne',
 );
 
+final _nextAppointment = Appointment(
+  id: 'appt-1',
+  cabinetId: 'cabinet-1',
+  practitionerName: 'Dr Amélie Rousseau',
+  practitionerSpecialty: 'Dentiste',
+  startsAt: DateTime.now().toUtc().add(const Duration(days: 2)),
+  duration: const Duration(minutes: 30),
+  motif: 'Détartrage',
+  status: AppointmentStatus.confirmed,
+  cabinetAddress: 'Cabinet Nubia Opéra — 12 rue de la Paix, 75002 Paris',
+);
+
 Widget _wrap(HomeBloc bloc) {
   final authCubit = MockAuthCubit();
   when(() => authCubit.state).thenReturn(const AuthUnauthenticated());
@@ -74,8 +89,13 @@ Widget _wrap(HomeBloc bloc) {
 HomeBloc _makeBloc(
   MockGetDashboardSummaryUseCase uc,
   MockListPatientTreatmentPlansUseCase listPlans,
+  MockGetUpcomingAppointmentsUseCase getUpcoming,
 ) =>
-    HomeBloc(getDashboardSummary: uc, listTreatmentPlans: listPlans);
+    HomeBloc(
+      getDashboardSummary: uc,
+      listTreatmentPlans: listPlans,
+      getUpcomingAppointments: getUpcoming,
+    );
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -88,18 +108,22 @@ void main() {
 
   late MockGetDashboardSummaryUseCase mockGetSummary;
   late MockListPatientTreatmentPlansUseCase mockListPlans;
+  late MockGetUpcomingAppointmentsUseCase mockGetUpcoming;
 
   setUp(() {
     mockGetSummary = MockGetDashboardSummaryUseCase();
     mockListPlans = MockListPatientTreatmentPlansUseCase();
+    mockGetUpcoming = MockGetUpcomingAppointmentsUseCase();
     when(() => mockListPlans())
         .thenAnswer((_) async => const Right(<PatientTreatmentPlan>[]));
+    when(() => mockGetUpcoming())
+        .thenAnswer((_) async => const Right(<Appointment>[]));
   });
 
   group('HomePage', () {
     testWidgets('affiche un indicateur de chargement en état initial',
         (tester) async {
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
 
       await tester.pumpWidget(_wrap(bloc));
 
@@ -110,16 +134,28 @@ void main() {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_summary));
 
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('home_content')), findsOneWidget);
-      expect(find.byKey(const Key('card_appointments')), findsOneWidget);
       expect(find.byKey(const Key('card_documents')), findsOneWidget);
       expect(find.byKey(const Key('card_messages')), findsOneWidget);
+    });
+
+    testWidgets('la tuile-compteur « Prochain RDV » a disparu', (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_summary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('card_appointments')), findsNothing);
     });
 
     testWidgets('affiche l\'état vide quand le résumé est vide',
@@ -127,7 +163,7 @@ void main() {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_emptySummary));
 
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -148,7 +184,7 @@ void main() {
         (_) async => const Left(NetworkFailure('Erreur réseau.')),
       );
 
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -166,7 +202,7 @@ void main() {
       when(() => mockListPlans())
           .thenAnswer((_) async => const Right([_activePlan]));
 
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -191,7 +227,7 @@ void main() {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_summary));
 
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -206,7 +242,7 @@ void main() {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_emptySummary));
 
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -231,7 +267,7 @@ void main() {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_emptySummary));
 
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       bloc.add(const HomeLoadRequested());
 
       final authCubit = MockAuthCubit();
@@ -273,7 +309,7 @@ void main() {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_emptySummary));
 
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -288,7 +324,7 @@ void main() {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_summary));
 
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       bloc.add(const HomeLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -297,12 +333,86 @@ void main() {
       expect(find.byKey(const Key('hero_appointment_cta')), findsNothing);
     });
 
+    testWidgets(
+        'affiche le détail du prochain RDV (date, praticien, motif, adresse) '
+        'dans la carte héros', (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_summary));
+      when(() => mockGetUpcoming())
+          .thenAnswer((_) async => Right([_nextAppointment]));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('hero_appointment_detail')), findsOneWidget);
+      expect(find.byKey(const Key('hero_appointment_cta')), findsNothing);
+      expect(find.textContaining('Dans'), findsOneWidget);
+      expect(
+        find.textContaining('Dr Amélie Rousseau · Détartrage'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Cabinet Nubia Opéra'),
+        findsOneWidget,
+      );
+      expect(find.text('Itinéraire'), findsOneWidget);
+      expect(find.text('Préparer'), findsOneWidget);
+    });
+
+    testWidgets('bouton « Préparer » navigue vers /rdv/:id/prepare',
+        (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_summary));
+      when(() => mockGetUpcoming())
+          .thenAnswer((_) async => Right([_nextAppointment]));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      final authCubit = MockAuthCubit();
+      when(() => authCubit.state).thenReturn(const AuthUnauthenticated());
+
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: GoRouter(
+          initialLocation: '/',
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, __) => MultiBlocProvider(
+                providers: [
+                  BlocProvider.value(value: bloc),
+                  BlocProvider<AuthCubit>(create: (_) => authCubit),
+                ],
+                child: const Scaffold(body: HomePage()),
+              ),
+            ),
+            GoRoute(
+              path: '/rdv/:id/prepare',
+              builder: (_, state) => Scaffold(
+                body: Text('Prepare ${state.pathParameters['id']}'),
+              ),
+            ),
+          ],
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('hero_prepare_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Prepare appt-1'), findsOneWidget);
+    });
+
     testWidgets('tap sur le CTA héros navigue vers /appointments',
         (tester) async {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_emptySummary));
 
-      final bloc = _makeBloc(mockGetSummary, mockListPlans);
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       bloc.add(const HomeLoadRequested());
 
       final authCubit = MockAuthCubit();
@@ -369,7 +479,7 @@ void main() {
       build: () {
         when(() => mockGetSummary())
             .thenAnswer((_) async => const Right(_summary));
-        return _makeBloc(mockGetSummary, mockListPlans);
+        return _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       },
       act: (bloc) => bloc.add(const HomeLoadRequested()),
       expect: () => [
@@ -388,7 +498,7 @@ void main() {
         when(() => mockGetSummary()).thenAnswer(
           (_) async => const Left(NetworkFailure('Erreur réseau.')),
         );
-        return _makeBloc(mockGetSummary, mockListPlans);
+        return _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
       },
       act: (bloc) => bloc.add(const HomeLoadRequested()),
       expect: () => [

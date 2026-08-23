@@ -228,6 +228,7 @@ void registerPatient(GetIt gi) {
     () => HomeBloc(
       getDashboardSummary: gi<GetDashboardSummaryUseCase>(),
       listTreatmentPlans: gi<ListPatientTreatmentPlansUseCase>(),
+      getUpcomingAppointments: gi<GetUpcomingAppointmentsUseCase>(),
     ),
   );
 
