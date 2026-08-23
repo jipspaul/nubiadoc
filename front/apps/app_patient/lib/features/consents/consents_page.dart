@@ -33,6 +33,30 @@ const _kConsentLabels = <String, String>{
 /// jamais la clé technique brute (snake_case) sur cet écran RGPD.
 const _kUnknownConsentLabel = 'Finalité non documentée — contactez le cabinet';
 
+/// Seule finalité dont le retrait passe par une feuille de confirmation
+/// (maquette design-v2, #5211/#5212) : les autres bascules restent
+/// immédiates, comme avant.
+const _kPharmacySharingPurpose = 'partage_pharmacie';
+
+/// Bascule un consentement — sauf le retrait du partage pharmacie, qui
+/// passe d'abord par une feuille de confirmation (#5211) signalant le cas
+/// particulier d'une commande déjà transmise (#5212).
+void _handleToggle(BuildContext context, String purpose, bool granted) {
+  if (purpose == _kPharmacySharingPurpose && !granted) {
+    final cubit = context.read<ConsentsCubit>();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => BlocProvider.value(
+        value: cubit,
+        child: const _PharmacyWithdrawalSheet(),
+      ),
+    );
+    return;
+  }
+  context.read<ConsentsCubit>().toggle(purpose, granted);
+}
+
 class ConsentsPage extends StatelessWidget {
   const ConsentsPage({super.key});
 
@@ -106,9 +130,7 @@ class _ConsentsBody extends StatelessWidget {
                   value: consent.granted,
                   onChanged: state.pending == consent.purpose
                       ? null
-                      : (v) => context
-                          .read<ConsentsCubit>()
-                          .toggle(consent.purpose, v),
+                      : (v) => _handleToggle(context, consent.purpose, v),
                 ),
               const _ConsentsFooter(),
               const _RightsSection(),
@@ -253,6 +275,143 @@ class _RightsSection extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Feuille de confirmation du retrait du partage pharmacie (maquette
+/// design-v2 `patient-consentements.png`, écran 2).
+///
+/// Ce widget ne couvre que le périmètre de #5212 : l'encart conditionnel
+/// « commande en cours ». Les blocs « ce qui change » / « ce qui ne change
+/// pas » de la maquette relèvent de #5211 (feuille de confirmation de
+/// retrait) et restent à ajouter par ce ticket.
+class _PharmacyWithdrawalSheet extends StatefulWidget {
+  const _PharmacyWithdrawalSheet();
+
+  @override
+  State<_PharmacyWithdrawalSheet> createState() =>
+      _PharmacyWithdrawalSheetState();
+}
+
+class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
+  late final Future<String?> _pendingOrderRef =
+      context.read<ConsentsCubit>().pendingPharmacyOrderRef();
+  bool _submitting = false;
+
+  Future<void> _confirm() async {
+    setState(() => _submitting = true);
+    await context
+        .read<ConsentsCubit>()
+        .toggle(_kPharmacySharingPurpose, false);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Retirer le partage avec votre pharmacie ?',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ce choix prend effet immédiatement et reste modifiable.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          FutureBuilder<String?>(
+            key: const Key('pharmacy_withdrawal_pending_order'),
+            future: _pendingOrderRef,
+            builder: (context, snapshot) {
+              final orderRef = snapshot.data;
+              if (orderRef == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _PendingOrderBanner(orderRef: orderRef),
+              );
+            },
+          ),
+          NubiaButton(
+            key: const Key('pharmacy_withdrawal_confirm_button'),
+            label: 'Retirer ce consentement',
+            variant: NubiaButtonVariant.destructive,
+            isLoading: _submitting,
+            onPressed: _submitting ? null : _confirm,
+          ),
+          const SizedBox(height: 8),
+          NubiaButton(
+            key: const Key('pharmacy_withdrawal_cancel_button'),
+            label: 'Annuler',
+            variant: NubiaButtonVariant.secondary,
+            onPressed:
+                _submitting ? null : () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Encart `.warnb` « commande en cours » (verbatim maquette design-v2) :
+/// signale que le retrait ne s'applique qu'aux ordonnances futures, la
+/// commande déjà transmise étant honorée normalement. [orderRef] vient
+/// toujours de la donnée — jamais codé en dur (critère d'acceptation #5212).
+class _PendingOrderBanner extends StatelessWidget {
+  const _PendingOrderBanner({required this.orderRef});
+
+  final String orderRef;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>();
+    final textTheme = Theme.of(context).textTheme;
+    final textStyle = textTheme.bodySmall?.copyWith(color: tokens?.warningFg);
+
+    return Container(
+      key: const Key('pharmacy_pending_order_banner'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens?.warningBg,
+        border: Border.all(color: NubiaColors.warningBorder),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info, size: 18, color: tokens?.warningFg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: textStyle,
+                children: [
+                  const TextSpan(
+                    text: 'Une commande est en cours. ',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextSpan(
+                    text: 'La commande $orderRef, déjà transmise, sera '
+                        'honorée normalement — le retrait ne s\'applique '
+                        "qu'aux ordonnances futures.",
+                  ),
+                ],
+              ),
             ),
           ),
         ],

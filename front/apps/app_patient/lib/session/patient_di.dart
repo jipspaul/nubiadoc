@@ -201,6 +201,7 @@ void registerPatient(GetIt gi) {
     () => ConsentsCubit(
       list: gi<ListConsentsUseCase>(),
       set: gi<SetConsentUseCase>(),
+      listPharmacyOrders: gi<ListPatientPharmacyOrdersUseCase>(),
     ),
   );
 

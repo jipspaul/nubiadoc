@@ -39,12 +39,29 @@ class ConsentsCubit extends Cubit<ConsentsState>
   ConsentsCubit({
     required ListConsentsUseCase list,
     required SetConsentUseCase set,
+    required ListPatientPharmacyOrdersUseCase listPharmacyOrders,
   })  : _list = list,
         _set = set,
+        _listPharmacyOrders = listPharmacyOrders,
         super(const ConsentsLoading());
 
   final ListConsentsUseCase _list;
   final SetConsentUseCase _set;
+  final ListPatientPharmacyOrdersUseCase _listPharmacyOrders;
+
+  /// Référence de la commande pharmacie transmise et non honorée la plus
+  /// récente (#5212, encart « commande en cours » de la feuille de retrait
+  /// du partage pharmacie). `null` si aucune commande en cours, ou si le
+  /// back ne l'expose pas encore (`PharmacyOrder.orderRef`) : jamais de
+  /// numéro inventé côté front.
+  Future<String?> pendingPharmacyOrderRef() async {
+    final result = await _listPharmacyOrders();
+    return result.fold((_) => null, (orders) {
+      final pending = orders.where((o) => !o.status.isTerminal).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return pending.isEmpty ? null : pending.first.orderRef;
+    });
+  }
 
   Future<void> load() async {
     emit(const ConsentsLoading());
