@@ -61,6 +61,14 @@ class ProConfig {
   /// que les écrans quotidiens restent en haut du rail/drawer.
   static const String settingsGroup = 'Réglages du cabinet';
 
+  /// Les 5 groupes nommés de la colonne de navigation (#5137, maquette
+  /// design-v2 « Architecture de navigation ») — chaque destination
+  /// appartient à exactement un de ces groupes, dans cet ordre.
+  static const String todayGroup = 'Ma journée';
+  static const String patientsGroup = 'Patients';
+  static const String billingGroup = 'Facturation';
+  static const String messagesGroup = 'Messages';
+
   static const shell.ProConfig shellConfig = shell.ProConfig(
     appTitle: appTitle,
     spaceLabel: spaceLabel,
@@ -73,6 +81,7 @@ class ProConfig {
         label: 'Tableau de bord',
         icon: Icons.space_dashboard,
         route: dashboardRoute,
+        group: todayGroup,
       ),
       // Outil complet de gestion des RDV sur la semaine (filtre praticien,
       // création, confirmation) — voir la décision #5155 sur [dashboardRoute].
@@ -80,22 +89,26 @@ class ProConfig {
         label: 'Agenda',
         icon: Icons.calendar_month,
         route: '/agenda',
+        group: todayGroup,
       ),
       shell.ProNavDestination(
         label: 'Salle d\'attente',
         icon: Icons.meeting_room,
         route: '/salle-attente',
+        group: todayGroup,
       ),
       shell.ProNavDestination(
         label: 'Demandes de créneau',
         icon: Icons.hourglass_top,
         route: '/liste-attente',
+        group: todayGroup,
       ),
       // Groupe « Patients ».
       shell.ProNavDestination(
         label: 'Fiches patients',
         icon: Icons.groups,
         route: '/patients',
+        group: patientsGroup,
       ),
       // Action du quotidien (verbe à l'infinitif, pas une rubrique) — groupe
       // « Patients » de la maquette design-v2, cf. #5150.
@@ -103,23 +116,27 @@ class ProConfig {
         label: 'Prendre un RDV',
         icon: Icons.event_available,
         route: appointmentsRoute,
+        group: patientsGroup,
       ),
       // Groupe « Facturation ».
       shell.ProNavDestination(
         label: 'Devis',
         icon: Icons.description,
         route: '/devis',
+        group: billingGroup,
       ),
       shell.ProNavDestination(
         label: 'Encaissements',
         icon: Icons.payments,
         route: '/cabinet-payouts',
+        group: billingGroup,
       ),
       // Groupe « Messages ».
       shell.ProNavDestination(
         label: 'Patients',
         icon: Icons.chat_bubble,
         route: '/messages',
+        group: messagesGroup,
       ),
       // Messagerie interne au cabinet — anciennement icône trailing isolée,
       // désormais voisine de « Messages » sous le même groupe (#5151) : deux
@@ -128,6 +145,7 @@ class ProConfig {
         label: 'Équipe',
         icon: Icons.forum,
         route: '/team-messages',
+        group: messagesGroup,
       ),
       // Groupe « Réglages du cabinet » (repliable, replié par défaut — #5139).
       shell.ProNavDestination(
