@@ -76,32 +76,97 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
         }
       },
       builder: (context, state) {
-        return Column(
+        return Row(
           children: [
             Expanded(
-              child: switch (state) {
-                CabinetTeamMessagesLoading() => const Center(
-                    key: Key('team_messages_loading'),
-                    child: CircularProgressIndicator(),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: switch (state) {
+                      CabinetTeamMessagesLoading() => const Center(
+                          key: Key('team_messages_loading'),
+                          child: CircularProgressIndicator(),
+                        ),
+                      CabinetTeamMessagesError(:final message) =>
+                        NubiaErrorWidget(
+                          key: const Key('team_messages_error'),
+                          message: message,
+                          onRetry: () =>
+                              context.read<CabinetTeamMessagesCubit>().load(),
+                        ),
+                      CabinetTeamMessagesLoaded(:final messages) =>
+                        _MessagesList(messages: messages),
+                    },
                   ),
-                CabinetTeamMessagesError(:final message) => NubiaErrorWidget(
-                    key: const Key('team_messages_error'),
-                    message: message,
-                    onRetry: () =>
-                        context.read<CabinetTeamMessagesCubit>().load(),
+                  _Composer(
+                    controller: _controller,
+                    enabled:
+                        state is CabinetTeamMessagesLoaded && !state.sending,
+                    onSend: () => _send(context),
                   ),
-                CabinetTeamMessagesLoaded(:final messages) =>
-                  _MessagesList(messages: messages),
-              },
+                ],
+              ),
             ),
-            _Composer(
-              controller: _controller,
-              enabled: state is CabinetTeamMessagesLoaded && !state.sending,
-              onSend: () => _send(context),
-            ),
+            const _TeamMessagesAside(),
           ],
         );
       },
+    );
+  }
+}
+
+/// Colonne latérale du fil (#5135) : encart rappelant que ce fil est
+/// interne au cabinet, distinct de la messagerie patient (#4156).
+class _TeamMessagesAside extends StatelessWidget {
+  const _TeamMessagesAside();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('team_messages_aside'),
+      width: 260,
+      padding: const EdgeInsets.all(12),
+      decoration: const BoxDecoration(
+        border: Border(left: BorderSide(color: NubiaColors.n200)),
+      ),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [_ClinicalDataReminderNote()],
+      ),
+    );
+  }
+}
+
+/// Encart note (#5135) : le fil du cabinet est distinct de la messagerie
+/// patient, les échanges cliniques restent dans le dossier médical.
+class _ClinicalDataReminderNote extends StatelessWidget {
+  const _ClinicalDataReminderNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('team_messages_aside_note'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield, size: 16, color: NubiaColors.n500),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Ce fil est interne au cabinet et distinct de la messagerie '
+              'patient. Les échanges cliniques doivent rester dans le '
+              'dossier médical.',
+              style: TextStyle(fontSize: 11.5, color: NubiaColors.n600),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -247,9 +312,33 @@ class _Composer extends StatelessWidget {
                 _KeyHint(shortcut: '⇧⏎', label: 'nouvelle ligne'),
               ],
             ),
+            const SizedBox(height: 6),
+            const _NoClinicalDataHint(),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Rappel sous le composeur (#5135) : ce fil est interne au cabinet, pas de
+/// données cliniques (#4156).
+class _NoClinicalDataHint extends StatelessWidget {
+  const _NoClinicalDataHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      key: Key('team_message_no_clinical_data_hint'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.shield, size: 14, color: NubiaColors.n500),
+        SizedBox(width: 4),
+        Text(
+          'Aucune donnée clinique dans ce fil',
+          style: TextStyle(fontSize: 11.5, color: NubiaColors.n500),
+        ),
+      ],
     );
   }
 }

@@ -157,4 +157,44 @@ void main() {
     expect(find.text('⇧⏎'), findsOneWidget);
     expect(find.text('nouvelle ligne'), findsOneWidget);
   });
+
+  testWidgets(
+      'rappel « aucune donnée clinique » sous le composeur et en colonne '
+      '(#5135)', (tester) async {
+    when(() => listMessages())
+        .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('team_message_no_clinical_data_hint')),
+      findsOneWidget,
+    );
+    expect(find.text('Aucune donnée clinique dans ce fil'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('team_message_no_clinical_data_hint')),
+        matching: find.byIcon(Icons.shield),
+      ),
+      findsOneWidget,
+    );
+
+    expect(find.byKey(const Key('team_messages_aside_note')), findsOneWidget);
+    expect(
+      find.text(
+        'Ce fil est interne au cabinet et distinct de la messagerie '
+        'patient. Les échanges cliniques doivent rester dans le '
+        'dossier médical.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('team_messages_aside_note')),
+        matching: find.byIcon(Icons.shield),
+      ),
+      findsOneWidget,
+    );
+  });
 }
