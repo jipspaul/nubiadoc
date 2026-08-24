@@ -90,7 +90,7 @@ class ProConfig {
         route: '/bookable-slots',
       ),
       shell.ProNavDestination(
-        label: 'Patients',
+        label: 'Fiches patients',
         icon: Icons.groups_outlined,
         route: '/patients',
       ),
