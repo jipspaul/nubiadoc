@@ -145,8 +145,8 @@ class ProConfig {
         route: '/cabinet-stats',
       ),
       shell.ProNavDestination(
-        label: 'Rapprochement bancaire',
-        icon: Icons.account_balance_outlined,
+        label: 'Encaissements',
+        icon: Icons.payments_outlined,
         route: '/cabinet-payouts',
       ),
       shell.ProNavDestination(
