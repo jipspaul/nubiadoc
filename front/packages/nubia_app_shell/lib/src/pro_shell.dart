@@ -5,10 +5,27 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'config.dart';
 
+/// Largeur fixe de la barre latérale desktop (#5138, maquette design-v2
+/// secrétariat, colonne « Proposé ») — remplace le rail d'icônes à largeur
+/// variable (56/256px selon [NavigationRailLabelType]).
+const double _sidebarWidth = 250;
+
+/// Couleur du texte/icône d'une entrée non sélectionnée (#5138, verbatim
+/// maquette) — n'existe dans aucun token [NubiaColors]/[NubiaTokens] existant
+/// (palette neutre chaude la plus proche, `n300`/`n400`, ne correspond pas).
+const Color _sidebarText = Color(0xFFC4BFB9);
+
+/// Couleur d'un intitulé de groupe (`.grpl`, #5138, verbatim maquette).
+const Color _sidebarGroupLabel = Color(0xFF6B6660);
+
+/// Fond d'une entrée sélectionnée : `rgba(255,255,255,.11)` (#5138, verbatim
+/// maquette) — 0.11 × 255 ≈ 28 (0x1C) d'alpha sur blanc pur.
+const Color _sidebarActiveBg = Color(0x1CFFFFFF);
+
 /// Shared scaffold for the professional apps (praticien + secrétariat).
 ///
-/// Desktop (width ≥ 720 px): [NavigationRail] on the left + content area on
-/// the right.  Mobile: [Drawer] with a hamburger [AppBar].
+/// Desktop (width ≥ 720 px): a 250px labelled sidebar (#5138) on the left +
+/// content area on the right.  Mobile: [Drawer] with a hamburger [AppBar].
 ///
 /// Destinations flagged with [ProNavDestination.requiresClinical] are
 /// automatically hidden when [session.canAccessClinical] is false, ensuring
@@ -155,7 +172,8 @@ class _ProShellState extends State<ProShell> {
     return rows;
   }
 
-  void _selectRow(List<ProNavDestination> destinations, List<_NavRow> rows, int i) {
+  void _selectRow(
+      List<ProNavDestination> destinations, List<_NavRow> rows, int i) {
     final row = rows[i];
     final group = row.group;
     if (group != null) {
@@ -240,34 +258,113 @@ class _ProShellState extends State<ProShell> {
   }
 
   /// Chevron d'en-tête de groupe (#5139, maquette design-v2 secrétariat) :
-  /// `chevron_right` replié, `expand_more` déplié — 13px, couleur tertiaire
-  /// du thème.
-  Widget _groupHeaderIcon(BuildContext context, bool collapsed) {
+  /// `chevron_right` replié, `expand_more` déplié — 13px. [color] par défaut
+  /// tertiaire du thème (drawer mobile clair) ; la barre latérale sombre
+  /// (#5138) passe explicitement [_sidebarGroupLabel].
+  Widget _groupHeaderIcon(BuildContext context, bool collapsed,
+      {Color? color}) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     return Icon(
       collapsed ? Icons.chevron_right : Icons.expand_more,
       size: 13,
-      color: tokens.textTertiary,
+      color: color ?? tokens.textTertiary,
     );
   }
 
-  /// En-tête de groupe repliable pour le rail desktop (#5139) — même index
-  /// que les autres [NavigationRailDestination] : le tap est intercepté par
-  /// [_selectRow] pour replier/déplier au lieu de naviguer.
-  NavigationRailDestination _groupHeaderRailDestination(
+  /// En-tête de groupe repliable de la barre latérale desktop (#5138,
+  /// verbatim maquette `.grpl`) — 9.5px/700, letter-spacing .8px,
+  /// `_sidebarGroupLabel`. Casse d'origine conservée (pas de
+  /// `.toUpperCase()`) : Flutter n'a pas d'équivalent à `text-transform`
+  /// CSS qui laisserait la donnée intacte, et `row.group` est le texte
+  /// exact recherché par les tests existants (#5139). Le tap (toute la
+  /// ligne) est intercepté par [_selectRow] pour replier/déplier au lieu de
+  /// naviguer.
+  Widget _sidebarGroupHeader(
     BuildContext context,
-    _NavRow row,
-  ) {
-    final tokens = Theme.of(context).extension<NubiaTokens>()!;
-    return NavigationRailDestination(
-      icon: _groupHeaderIcon(context, row.collapsed),
-      label: Text(
-        row.group!,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.4,
-          color: tokens.textTertiary,
+    _NavRow row, {
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
+          child: Row(
+            children: [
+              _groupHeaderIcon(context, row.collapsed,
+                  color: _sidebarGroupLabel),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  row.group!,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: _sidebarGroupLabel,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Entrée de la barre latérale desktop (#5138, verbatim maquette `.nv`) :
+  /// hauteur 32px, radius 8px, icône 18px + libellé 13px/500. Sélectionnée
+  /// (`.on`) : fond `rgba(255,255,255,.11)`, texte blanc, icône remplie
+  /// (FILL 1 — sans effet visuel tant que la police d'icônes du projet
+  /// (`MaterialIcons`, glyphes fixes) ne supporte pas l'axe variable `fill`,
+  /// mais correct et prêt pour une police d'icônes variable future).
+  Widget _sidebarEntry(
+    BuildContext context, {
+    required Widget icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final color = selected ? Colors.white : _sidebarText;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected ? _sidebarActiveBg : null,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              IconTheme.merge(
+                data: IconThemeData(
+                  size: 18,
+                  color: color,
+                  fill: selected ? 1 : 0,
+                ),
+                child: icon,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -297,17 +394,20 @@ class _ProShellState extends State<ProShell> {
     );
   }
 
-  Widget _trailing(BuildContext context) {
+  /// [dark] : fond sombre de la barre latérale desktop (#5138) — `false`
+  /// (défaut) conserve le rendu clair existant du drawer mobile.
+  Widget _trailing(BuildContext context, {bool dark = false}) {
     final session = widget.session;
     final cabinetName = session.contextLabel ?? widget.config.appTitle;
     final name = session.displayName ?? _proRoleLabel(session.role);
-    return Column(
+    final column = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _UserFooter(
           initials: initialsFrom(name),
           name: name,
           roleLine: '${_proRoleLabel(session.role)} · $cabinetName',
+          dark: dark,
         ),
         ...widget.trailingActions,
         if (widget.onSignOut != null)
@@ -318,6 +418,11 @@ class _ProShellState extends State<ProShell> {
           ),
       ],
     );
+    if (!dark) return column;
+    return IconTheme.merge(
+      data: const IconThemeData(color: _sidebarText),
+      child: column,
+    );
   }
 
   Widget _buildDesktop(
@@ -327,19 +432,6 @@ class _ProShellState extends State<ProShell> {
     int rowIndex,
     ProNavDestination current,
   ) {
-    // `NavigationRail` ne défile pas ses propres destinations : au-delà
-    // d'un certain nombre d'entrées (ex. app_secretariat, #4153, 12
-    // destinations), `NavigationRailLabelType.all` (icône + libellé empilés
-    // par destination) déborde verticalement sur les écrans/viewports plus
-    // petits. Bascule automatique en mode compact (libellé visible
-    // uniquement pour l'entrée sélectionnée) au-delà du seuil — recommandé
-    // par Flutter lui-même pour les rails à nombreuses destinations, aucune
-    // action requise côté apps consommatrices.
-    const maxDestinationsForFullLabels = 9;
-    final labelType = destinations.length > maxDestinationsForFullLabels
-        ? NavigationRailLabelType.selected
-        : NavigationRailLabelType.all;
-
     // En mode [body] (StatefulShellRoute), la page routée porte déjà son
     // propre Scaffold/AppBar le cas échéant (ex. bouton actualiser, FAB) —
     // un second NubiaAppBar ici le dupliquerait. On ne fournit le
@@ -365,42 +457,60 @@ class _ProShellState extends State<ProShell> {
     return Scaffold(
       body: Row(
         children: [
-          NavigationRail(
-            selectedIndex: rowIndex,
-            onDestinationSelected: (i) => _selectRow(destinations, rows, i),
-            labelType: labelType,
-            // En-tête cabinet (#5140, maquette design-v2 secrétariat) —
-            // remplace le monogramme nu introduit par #3363/#3375.
-            leading: _BrandHeader(
-              cabinetName:
-                  widget.session.contextLabel ?? widget.config.appTitle,
-              subtitle: widget.config.spaceLabel,
-            ),
-            trailing: Expanded(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  // Le pied utilisateur (#5140) s'ajoute aux actions/déconnexion
-                  // existantes : sur un rail compact avec de nombreuses
-                  // destinations, l'espace restant peut être plus petit que ce
-                  // contenu — SingleChildScrollView absorbe le débordement au
-                  // lieu de le faire déborder du rail (#5142 avait déjà 12+
-                  // destinations).
-                  child: SingleChildScrollView(child: _trailing(context)),
-                ),
+          // Barre latérale libellée, 250px, fond sombre (#5138, remplace le
+          // `NavigationRail` d'icônes — verbatim maquette design-v2
+          // secrétariat, colonne « Proposé »). Les libellés sont toujours
+          // visibles (plus de bascule icône-seule au-delà d'un seuil de
+          // destinations).
+          Container(
+            width: _sidebarWidth,
+            color: NubiaColors.n900,
+            child: SafeArea(
+              right: false,
+              child: Column(
+                children: [
+                  // En-tête cabinet (#5140, maquette design-v2 secrétariat) —
+                  // remplace le monogramme nu introduit par #3363/#3375.
+                  _BrandHeader(
+                    cabinetName:
+                        widget.session.contextLabel ?? widget.config.appTitle,
+                    subtitle: widget.config.spaceLabel,
+                    dark: true,
+                  ),
+                  // Colonne scrollable indépendante du reste : contrairement
+                  // au `NavigationRail` (#4153, ne défilait pas au-delà d'une
+                  // dizaine de destinations), l'excédent défile sans faire
+                  // déborder l'en-tête/le pied de la barre latérale.
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      children: [
+                        for (int i = 0; i < rows.length; i++)
+                          if (rows[i].destination != null)
+                            _sidebarEntry(
+                              context,
+                              icon:
+                                  _iconWithBadge(context, rows[i].destination!),
+                              label: rows[i].destination!.label,
+                              selected: i == rowIndex,
+                              onTap: () => _selectRow(destinations, rows, i),
+                            )
+                          else
+                            _sidebarGroupHeader(
+                              context,
+                              rows[i],
+                              onTap: () => _selectRow(destinations, rows, i),
+                            ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _trailing(context, dark: true),
+                  ),
+                ],
               ),
             ),
-            destinations: [
-              for (final row in rows)
-                if (row.destination != null)
-                  NavigationRailDestination(
-                    icon: _iconWithBadge(context, row.destination!),
-                    label: Text(row.destination!.label),
-                  )
-                else
-                  _groupHeaderRailDestination(context, row),
-            ],
           ),
           const VerticalDivider(width: 1),
           Expanded(child: content),
@@ -564,15 +674,25 @@ String _proRoleLabel(ProRole role) {
 /// `GET /v1/me` n'alimente pas ce champ pour les sessions pro (cf.
 /// `pro_auth_cubit.dart`), l'appelant retombe sur [ProConfig.appTitle].
 class _BrandHeader extends StatelessWidget {
-  const _BrandHeader({required this.cabinetName, required this.subtitle});
+  const _BrandHeader({
+    required this.cabinetName,
+    required this.subtitle,
+    this.dark = false,
+  });
 
   final String cabinetName;
   final String subtitle;
+
+  /// Fond sombre de la barre latérale desktop (#5138) — `false` (défaut)
+  /// conserve le rendu clair existant du drawer mobile.
+  final bool dark;
 
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final cs = Theme.of(context).colorScheme;
+    final titleColor = dark ? Colors.white : cs.onSurface;
+    final subtitleColor = dark ? _sidebarText : tokens.textTertiary;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: Column(
@@ -604,7 +724,7 @@ class _BrandHeader extends StatelessWidget {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: cs.onSurface,
+              color: titleColor,
             ),
           ),
           Text(
@@ -612,7 +732,7 @@ class _BrandHeader extends StatelessWidget {
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 10.5, color: tokens.textTertiary),
+            style: TextStyle(fontSize: 10.5, color: subtitleColor),
           ),
         ],
       ),
@@ -629,22 +749,31 @@ class _UserFooter extends StatelessWidget {
     required this.initials,
     required this.name,
     required this.roleLine,
+    this.dark = false,
   });
 
   final String initials;
   final String name;
   final String roleLine;
 
+  /// Fond sombre de la barre latérale desktop (#5138) — `false` (défaut)
+  /// conserve le rendu clair existant du drawer mobile.
+  final bool dark;
+
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final cs = Theme.of(context).colorScheme;
+    final dividerColor =
+        dark ? Colors.white.withValues(alpha: 0.08) : tokens.borderSubtle;
+    final nameColor = dark ? Colors.white : cs.onSurface;
+    final roleColor = dark ? _sidebarText : tokens.textTertiary;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+          Divider(height: 1, thickness: 1, color: dividerColor),
           const SizedBox(height: 8),
           NubiaAvatar(initials: initials, radius: 14),
           const SizedBox(height: 4),
@@ -656,7 +785,7 @@ class _UserFooter extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: cs.onSurface,
+              color: nameColor,
             ),
           ),
           Text(
@@ -664,7 +793,7 @@ class _UserFooter extends StatelessWidget {
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 10, color: tokens.textTertiary),
+            style: TextStyle(fontSize: 10, color: roleColor),
           ),
           const SizedBox(height: 8),
         ],
