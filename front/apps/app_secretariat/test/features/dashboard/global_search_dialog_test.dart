@@ -4,10 +4,12 @@
 
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_app_shell/nubia_app_shell.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -37,6 +39,19 @@ final _quote = CabinetQuote(
   createdAt: DateTime(2026, 2, 1),
 );
 
+const _testDestinations = [
+  ProNavDestination(
+    label: 'Tableau de bord',
+    icon: Icons.dashboard_outlined,
+    route: '/',
+  ),
+  ProNavDestination(
+    label: 'Agenda',
+    icon: Icons.calendar_month_outlined,
+    route: '/agenda',
+  ),
+];
+
 Widget _harness(GoRouter router) =>
     MaterialApp.router(theme: NubiaTheme.light, routerConfig: router);
 
@@ -47,13 +62,30 @@ GoRouter _buildRouter() => GoRouter(
           path: '/',
           builder: (context, _) => Scaffold(
             body: Center(
-              child: ElevatedButton(
-                key: const Key('open_global_search'),
-                onPressed: () => openGlobalSearchDialog(context),
-                child: const Text('Rechercher'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ElevatedButton(
+                    key: const Key('open_global_search'),
+                    onPressed: () => openGlobalSearchDialog(context),
+                    child: const Text('Rechercher'),
+                  ),
+                  ElevatedButton(
+                    key: const Key('open_global_search_with_destinations'),
+                    onPressed: () => openGlobalSearchDialog(
+                      context,
+                      destinations: _testDestinations,
+                    ),
+                    child: const Text('Rechercher (⌘K)'),
+                  ),
+                ],
               ),
             ),
           ),
+        ),
+        GoRoute(
+          path: '/agenda',
+          builder: (_, __) => const Scaffold(body: Text('agenda page')),
         ),
         GoRoute(
           path: '/patients',
@@ -175,6 +207,99 @@ void main() {
 
       expect(find.byKey(const Key('global_search_results')), findsOneWidget);
       verify(() => listPatients(q: 'Marc')).called(1);
+    },
+  );
+
+  testWidgets(
+    '#5143 : la palette liste les destinations de nav et taper les filtre '
+    'par libellé',
+    (tester) async {
+      when(() => listPatients(q: 'Agenda'))
+          .thenAnswer((_) async => Right([]));
+      when(() => listQuotes()).thenAnswer((_) async => Right([]));
+
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(
+        find.byKey(const Key('open_global_search_with_destinations')),
+      );
+      await tester.pumpAndSettle();
+
+      final destinationsList =
+          find.byKey(const Key('global_search_destinations'));
+      expect(
+        find.descendant(
+          of: destinationsList,
+          matching: find.text('Tableau de bord'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: destinationsList, matching: find.text('Agenda')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(find.byType(TextField), 'Agenda');
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: destinationsList,
+          matching: find.text('Tableau de bord'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: destinationsList, matching: find.text('Agenda')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    '#5143 : cliquer une destination filtrée ferme la palette et navigue '
+    'vers sa route',
+    (tester) async {
+      when(() => listPatients(q: 'Agenda'))
+          .thenAnswer((_) async => Right([]));
+      when(() => listQuotes()).thenAnswer((_) async => Right([]));
+
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(
+        find.byKey(const Key('open_global_search_with_destinations')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Agenda');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ListTile, 'Agenda'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('global_search_dialog')), findsNothing);
+      expect(find.text('agenda page'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '#5143 : ↓ puis Entrée navigue vers une destination sans souris ni '
+    'saisie',
+    (tester) async {
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(
+        find.byKey(const Key('open_global_search_with_destinations')),
+      );
+      await tester.pumpAndSettle();
+
+      // Liste complète visible sans avoir tapé : ↓ déplace la sélection de
+      // « Tableau de bord » (1re entrée) vers « Agenda » (2e), Entrée y
+      // navigue — aucun clic ni frappe de texte.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('global_search_dialog')), findsNothing);
+      expect(find.text('agenda page'), findsOneWidget);
     },
   );
 }

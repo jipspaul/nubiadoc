@@ -121,10 +121,14 @@ class SecretariatShell extends StatelessWidget {
             onPressed: () => context.push('/a2ui-demo'),
           ),
       ],
-      // #5389 — point d'entrée de recherche globale (patient/devis/commande)
-      // dans la barre de titre, déclenché au clic ou par ⌘K.
+      // #5143/#5389 — point d'entrée de recherche globale (destinations de
+      // nav + patient/devis/commande) dans la barre de titre, déclenché au
+      // clic ou par ⌘K.
       searchHint: 'Patient, devis, commande…',
-      onSearchTap: () => openGlobalSearchDialog(context),
+      onSearchTap: () => openGlobalSearchDialog(
+        context,
+        destinations: config.destinations,
+      ),
       onSignOut: () => context.read<ProAuthCubit>().signOut(),
     );
   }
