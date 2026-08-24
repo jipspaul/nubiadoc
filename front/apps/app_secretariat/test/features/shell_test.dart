@@ -21,6 +21,53 @@ void main() {
     });
   });
 
+  // --- Badges compteurs — couleurs sémantiques (#5142) --------------------------
+  group('ProConfig.shellConfigFor — couleurs des badges', () {
+    late Map<String, shell.ProNavDestination> destinationsByRoute;
+
+    setUp(() {
+      final config = ProConfig.shellConfigFor(
+        canManageMembers: true,
+        canViewAuditLog: true,
+        waitingRoomCount: 5,
+        waitingListCount: 3,
+        expiringQuotesCount: 2,
+        unreadMessagesCount: 4,
+      );
+      destinationsByRoute = {
+        for (final d in config.destinations) d.route: d,
+      };
+    });
+
+    test('Salle d\'attente : badge vert (personnes présentes)', () {
+      expect(
+        destinationsByRoute['/salle-attente']?.badgeColor,
+        shell.ProNavBadgeColor.brand,
+      );
+    });
+
+    test('Demandes de créneau : badge ambre', () {
+      expect(
+        destinationsByRoute['/liste-attente']?.badgeColor,
+        shell.ProNavBadgeColor.warning,
+      );
+    });
+
+    test('Devis : badge ambre (en attente de signature)', () {
+      expect(
+        destinationsByRoute['/devis']?.badgeColor,
+        shell.ProNavBadgeColor.warning,
+      );
+    });
+
+    test('Messages › Patients : badge vert (non lus)', () {
+      expect(
+        destinationsByRoute['/messages']?.badgeColor,
+        shell.ProNavBadgeColor.brand,
+      );
+    });
+  });
+
   // --- Widget tests : ProShell avec config secrétariat -------------------------
   group('ProShell — garde clinique secrétariat', () {
     const secretarySession = AuthSession(
