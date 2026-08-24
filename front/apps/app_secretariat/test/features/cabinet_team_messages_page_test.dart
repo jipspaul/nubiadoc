@@ -4,6 +4,7 @@
 
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
@@ -102,5 +103,58 @@ void main() {
 
     expect(find.byKey(const Key('team_messages_error')), findsOneWidget);
     expect(find.text('Erreur serveur.'), findsOneWidget);
+  });
+
+  testWidgets(
+      '⇧⏎ insère une nouvelle ligne sans envoyer, ⏎ seul envoie (#5136)',
+      (tester) async {
+    when(() => listMessages())
+        .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+    when(() => sendMessage(any())).thenAnswer((_) async => const Right('m1'));
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('team_message_input')));
+    await tester.enterText(
+      find.byKey(const Key('team_message_input')),
+      'Bonjour',
+    );
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+
+    final field = tester.widget<TextField>(find.descendant(
+      of: find.byKey(const Key('team_message_input')),
+      matching: find.byType(TextField),
+    ));
+    expect(field.controller!.text, 'Bonjour\n');
+    verifyNever(() => sendMessage(any()));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    verify(() => sendMessage('Bonjour')).called(1);
+  });
+
+  testWidgets('rappels clavier ⏎ envoyer / ⇧⏎ nouvelle ligne affichés',
+      (tester) async {
+    when(() => listMessages())
+        .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('team_message_keyboard_hints')),
+      findsOneWidget,
+    );
+    expect(find.text('⏎'), findsOneWidget);
+    expect(find.text('envoyer'), findsOneWidget);
+    expect(find.text('⇧⏎'), findsOneWidget);
+    expect(find.text('nouvelle ligne'), findsOneWidget);
   });
 }
