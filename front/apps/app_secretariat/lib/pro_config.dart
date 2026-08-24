@@ -112,7 +112,7 @@ class ProConfig {
         route: '/stock',
       ),
       shell.ProNavDestination(
-        label: 'Messages',
+        label: 'Patients',
         icon: Icons.chat_bubble_outline,
         route: '/messages',
       ),
