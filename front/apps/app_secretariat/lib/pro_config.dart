@@ -60,38 +60,35 @@ class ProConfig {
     appTitle: appTitle,
     spaceLabel: spaceLabel,
     destinations: [
-      // Synthèse du jour, pas un doublon de l'Agenda — voir la décision
-      // #5155 documentée sur [dashboardRoute].
+      // Groupe « Ma journée » (maquette design-v2, #5141) — synthèse du jour,
+      // pas un doublon de l'Agenda — voir la décision #5155 documentée sur
+      // [dashboardRoute].
       shell.ProNavDestination(
         label: 'Tableau de bord',
-        icon: Icons.dashboard_outlined,
+        icon: Icons.space_dashboard,
         route: dashboardRoute,
-      ),
-      shell.ProNavDestination(
-        label: 'Salle d\'attente',
-        icon: Icons.airline_seat_recline_normal_outlined,
-        route: '/salle-attente',
-      ),
-      shell.ProNavDestination(
-        label: 'Demandes de créneau',
-        icon: Icons.format_list_bulleted_outlined,
-        route: '/liste-attente',
       ),
       // Outil complet de gestion des RDV sur la semaine (filtre praticien,
       // création, confirmation) — voir la décision #5155 sur [dashboardRoute].
       shell.ProNavDestination(
         label: 'Agenda',
-        icon: Icons.calendar_month_outlined,
+        icon: Icons.calendar_month,
         route: '/agenda',
       ),
       shell.ProNavDestination(
-        label: 'Créneaux ouverts',
-        icon: Icons.event_available_outlined,
-        route: '/bookable-slots',
+        label: 'Salle d\'attente',
+        icon: Icons.meeting_room,
+        route: '/salle-attente',
       ),
       shell.ProNavDestination(
+        label: 'Demandes de créneau',
+        icon: Icons.hourglass_top,
+        route: '/liste-attente',
+      ),
+      // Groupe « Patients ».
+      shell.ProNavDestination(
         label: 'Fiches patients',
-        icon: Icons.groups_outlined,
+        icon: Icons.groups,
         route: '/patients',
       ),
       // Action du quotidien (verbe à l'infinitif, pas une rubrique) — groupe
@@ -101,19 +98,21 @@ class ProConfig {
         icon: Icons.event_available,
         route: appointmentsRoute,
       ),
+      // Groupe « Facturation ».
       shell.ProNavDestination(
         label: 'Devis',
-        icon: Icons.receipt_long_outlined,
+        icon: Icons.description,
         route: '/devis',
       ),
       shell.ProNavDestination(
-        label: 'Stock',
-        icon: Icons.inventory_2_outlined,
-        route: '/stock',
+        label: 'Encaissements',
+        icon: Icons.payments,
+        route: '/cabinet-payouts',
       ),
+      // Groupe « Messages ».
       shell.ProNavDestination(
         label: 'Patients',
-        icon: Icons.chat_bubble_outline,
+        icon: Icons.chat_bubble,
         route: '/messages',
       ),
       // Messagerie interne au cabinet — anciennement icône trailing isolée,
@@ -121,13 +120,29 @@ class ProConfig {
       // messageries distinctes, enfin lisibles côte à côte.
       shell.ProNavDestination(
         label: 'Équipe',
-        icon: Icons.forum_outlined,
+        icon: Icons.forum,
         route: '/team-messages',
+      ),
+      // Groupe « Réglages du cabinet » (replié dans la maquette).
+      shell.ProNavDestination(
+        label: 'Statistiques',
+        icon: Icons.bar_chart,
+        route: '/cabinet-stats',
+      ),
+      shell.ProNavDestination(
+        label: 'Créneaux ouverts',
+        icon: Icons.event_available_outlined,
+        route: '/bookable-slots',
       ),
       shell.ProNavDestination(
         label: 'Motifs de RDV',
         icon: Icons.event_note_outlined,
         route: '/appointment-motifs',
+      ),
+      shell.ProNavDestination(
+        label: 'Stock',
+        icon: Icons.inventory_2,
+        route: '/stock',
       ),
       shell.ProNavDestination(
         label: 'Membres',
@@ -136,22 +151,12 @@ class ProConfig {
       ),
       shell.ProNavDestination(
         label: 'Secrétariats',
-        icon: Icons.business_outlined,
+        icon: Icons.business,
         route: secretariatsRoute,
       ),
       shell.ProNavDestination(
-        label: 'Statistiques',
-        icon: Icons.bar_chart_outlined,
-        route: '/cabinet-stats',
-      ),
-      shell.ProNavDestination(
-        label: 'Encaissements',
-        icon: Icons.payments_outlined,
-        route: '/cabinet-payouts',
-      ),
-      shell.ProNavDestination(
         label: "Journal d'audit",
-        icon: Icons.history_outlined,
+        icon: Icons.history,
         route: auditLogRoute,
       ),
     ],

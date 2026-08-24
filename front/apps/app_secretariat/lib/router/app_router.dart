@@ -147,8 +147,14 @@ class AppRouter {
           builder: (context, state, navigationShell) =>
               SecretariatShell(navigationShell: navigationShell),
           branches: [
+            // Ordre des branches = ordre de `ProConfig.shellConfig.destinations`
+            // (#5141 — groupes « Ma journée » / Patients / Facturation /
+            // Messages / Réglages du cabinet de la maquette design-v2).
             StatefulShellBranch(routes: [
               GoRoute(path: home, builder: (_, __) => const DashboardBody()),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(path: agenda, builder: (_, __) => const AgendaPage()),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
@@ -165,18 +171,6 @@ class AppRouter {
                 builder: (_, __) => BlocProvider(
                   create: (_) => GetIt.instance<WaitingListBloc>(),
                   child: const WaitingListPage(),
-                ),
-              ),
-            ]),
-            StatefulShellBranch(routes: [
-              GoRoute(path: agenda, builder: (_, __) => const AgendaPage()),
-            ]),
-            StatefulShellBranch(routes: [
-              GoRoute(
-                path: bookableSlots,
-                builder: (_, __) => BlocProvider(
-                  create: (_) => GetIt.instance<BookableSlotsBloc>(),
-                  child: const BookableSlotsPage(),
                 ),
               ),
             ]),
@@ -220,10 +214,11 @@ class AppRouter {
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
-                path: stock,
+                path: cabinetPayouts,
                 builder: (_, __) => BlocProvider(
-                  create: (_) => GetIt.instance<StockBloc>(),
-                  child: const StockPage(),
+                  create: (_) => GetIt.instance<CabinetPayoutsBloc>()
+                    ..add(const CabinetPayoutsLoadRequested()),
+                  child: const CabinetPayoutsPage(),
                 ),
               ),
             ]),
@@ -245,10 +240,38 @@ class AppRouter {
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
+                path: cabinetStats,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<CabinetStatsBloc>()
+                    ..add(const CabinetStatsLoadRequested()),
+                  child: const CabinetStatsPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: bookableSlots,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<BookableSlotsBloc>(),
+                  child: const BookableSlotsPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
                 path: appointmentMotifs,
                 builder: (_, __) => BlocProvider(
                   create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
                   child: const AppointmentMotifsPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: stock,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<StockBloc>(),
+                  child: const StockPage(),
                 ),
               ),
             ]),
@@ -267,26 +290,6 @@ class AppRouter {
                 builder: (_, __) => BlocProvider(
                   create: (_) => GetIt.instance<AdminSecretariatsBloc>(),
                   child: const AdminSecretariatsPage(),
-                ),
-              ),
-            ]),
-            StatefulShellBranch(routes: [
-              GoRoute(
-                path: cabinetStats,
-                builder: (_, __) => BlocProvider(
-                  create: (_) => GetIt.instance<CabinetStatsBloc>()
-                    ..add(const CabinetStatsLoadRequested()),
-                  child: const CabinetStatsPage(),
-                ),
-              ),
-            ]),
-            StatefulShellBranch(routes: [
-              GoRoute(
-                path: cabinetPayouts,
-                builder: (_, __) => BlocProvider(
-                  create: (_) => GetIt.instance<CabinetPayoutsBloc>()
-                    ..add(const CabinetPayoutsLoadRequested()),
-                  child: const CabinetPayoutsPage(),
                 ),
               ),
             ]),
