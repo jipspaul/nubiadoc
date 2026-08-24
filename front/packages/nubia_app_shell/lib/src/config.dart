@@ -18,6 +18,7 @@ class ProNavDestination {
     this.requiresClinical = false,
     this.badgeCount,
     this.badgeColor = ProNavBadgeColor.brand,
+    this.group,
   });
 
   final String label;
@@ -36,6 +37,15 @@ class ProNavDestination {
   /// Couleur sémantique du badge (#5142) — ignorée si [badgeCount] est
   /// `null`/`0`. Par défaut [ProNavBadgeColor.brand].
   final ProNavBadgeColor badgeColor;
+
+  /// En-tête de groupe (#5139) sous lequel cette destination est nichée dans
+  /// le rail/drawer, ex. « Réglages du cabinet ». `null` (défaut) : aucun
+  /// groupe, la destination s'affiche directement — comportement inchangé
+  /// pour les apps qui ne groupent pas encore leurs entrées. Les
+  /// destinations partageant le même [group] doivent être contiguës dans
+  /// [ProConfig.destinations] : elles forment une seule section, sous un
+  /// unique en-tête repliable.
+  final String? group;
 }
 
 /// Configuration passed from each professional app to [ProShell].
@@ -44,9 +54,16 @@ class ProConfig {
     required this.appTitle,
     required this.spaceLabel,
     required this.destinations,
+    this.collapsedGroups = const {},
   });
 
   final String appTitle;
   final String spaceLabel;
   final List<ProNavDestination> destinations;
+
+  /// Noms de [ProNavDestination.group] repliés par défaut (#5139), ex.
+  /// « Réglages du cabinet » — un paramétrage ouvert quelques fois par an,
+  /// masqué derrière son en-tête jusqu'au clic. Vide par défaut : aucun
+  /// groupe replié, comportement inchangé pour les apps sans groupes.
+  final Set<String> collapsedGroups;
 }

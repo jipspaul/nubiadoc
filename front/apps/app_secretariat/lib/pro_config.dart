@@ -56,9 +56,15 @@ class ProConfig {
   /// confirmé de [membersRoute] pour masquer cette entrée admin (#5156).
   static const String secretariatsRoute = '/admin-secretariats';
 
+  /// Groupe « Réglages du cabinet » (#5139, maquette design-v2) — paramétrage
+  /// ouvert quelques fois par an, replié par défaut derrière son chevron pour
+  /// que les écrans quotidiens restent en haut du rail/drawer.
+  static const String settingsGroup = 'Réglages du cabinet';
+
   static const shell.ProConfig shellConfig = shell.ProConfig(
     appTitle: appTitle,
     spaceLabel: spaceLabel,
+    collapsedGroups: {settingsGroup},
     destinations: [
       // Groupe « Ma journée » (maquette design-v2, #5141) — synthèse du jour,
       // pas un doublon de l'Agenda — voir la décision #5155 documentée sur
@@ -123,41 +129,48 @@ class ProConfig {
         icon: Icons.forum,
         route: '/team-messages',
       ),
-      // Groupe « Réglages du cabinet » (replié dans la maquette).
+      // Groupe « Réglages du cabinet » (repliable, replié par défaut — #5139).
       shell.ProNavDestination(
         label: 'Statistiques',
         icon: Icons.bar_chart,
         route: '/cabinet-stats',
+        group: settingsGroup,
       ),
       shell.ProNavDestination(
         label: 'Créneaux ouverts',
         icon: Icons.event_available_outlined,
         route: '/bookable-slots',
+        group: settingsGroup,
       ),
       shell.ProNavDestination(
         label: 'Motifs de RDV',
         icon: Icons.event_note_outlined,
         route: '/appointment-motifs',
+        group: settingsGroup,
       ),
       shell.ProNavDestination(
         label: 'Stock',
         icon: Icons.inventory_2,
         route: '/stock',
+        group: settingsGroup,
       ),
       shell.ProNavDestination(
         label: 'Membres',
         icon: Icons.group_outlined,
         route: membersRoute,
+        group: settingsGroup,
       ),
       shell.ProNavDestination(
         label: 'Secrétariats',
         icon: Icons.business,
         route: secretariatsRoute,
+        group: settingsGroup,
       ),
       shell.ProNavDestination(
         label: "Journal d'audit",
         icon: Icons.history,
         route: auditLogRoute,
+        group: settingsGroup,
       ),
     ],
   );
@@ -189,8 +202,9 @@ class ProConfig {
   /// d'accès reste gaté séparément (`ProAdminOrManagerClaims`, admin ou
   /// manager, #4155). Les autres destinations gardent leur ordre relatif — on
   /// retire l'entrée de la liste plutôt que de la neutraliser, donc pas de
-  /// trou d'index côté [shell.ProShell] ; si le groupe entier est retiré,
-  /// aucun en-tête ne reste (la nav n'a pas d'en-têtes de groupe).
+  /// trou d'index côté [shell.ProShell] ; si le groupe entier est retiré, son
+  /// en-tête disparaît aussi — [shell.ProShell] n'affiche jamais l'en-tête
+  /// d'un groupe vide (#5139).
   static shell.ProConfig shellConfigFor({
     required bool canManageMembers,
     required bool canViewAuditLog,
@@ -208,6 +222,7 @@ class ProConfig {
     return shell.ProConfig(
       appTitle: appTitle,
       spaceLabel: spaceLabel,
+      collapsedGroups: const {settingsGroup},
       destinations: shellConfig.destinations
           .where((d) =>
               (canManageMembers ||
@@ -223,6 +238,7 @@ class ProConfig {
           requiresClinical: d.requiresClinical,
           badgeCount: badgeCount,
           badgeColor: _badgeColors[d.route] ?? d.badgeColor,
+          group: d.group,
         );
       }).toList(),
     );
