@@ -2,6 +2,7 @@
 //! staff↔staff, distinct de la messagerie patient (cabinet_messaging).
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -176,34 +177,113 @@ class _Composer extends StatelessWidget {
   final bool enabled;
   final VoidCallback onSend;
 
+  // ⇧⏎ insère un saut de ligne sans envoyer, ⏎ seul envoie (#4538 conservé).
+  // Géré manuellement : le clavier physique ne distingue pas les deux dans
+  // un champ multiligne sans interception explicite.
+  void _insertNewline() {
+    final selection = controller.selection;
+    final text = controller.text;
+    final start = selection.start < 0 ? text.length : selection.start;
+    final end = selection.end < 0 ? text.length : selection.end;
+    controller.value = TextEditingValue(
+      text: text.replaceRange(start, end, '\n'),
+      selection: TextSelection.collapsed(offset: start + 1),
+    );
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.enter) {
+      return KeyEventResult.ignored;
+    }
+    if (!enabled) return KeyEventResult.ignored;
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      _insertNewline();
+    } else {
+      onSend();
+    }
+    return KeyEventResult.handled;
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: NubiaTextField(
-                key: const Key('team_message_input'),
-                variant: NubiaTextFieldVariant.outlined,
-                controller: controller,
-                enabled: enabled,
-                hint: 'Écrire un message à l\'équipe…',
-                onChanged: (_) {},
-                // #4538 : Entrée envoie (réflexe universel dans un chat).
-                onSubmitted: enabled ? (_) => onSend() : null,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Focus(
+                    onKeyEvent: _handleKey,
+                    child: NubiaTextField(
+                      key: const Key('team_message_input'),
+                      variant: NubiaTextFieldVariant.multiline,
+                      controller: controller,
+                      enabled: enabled,
+                      hint: 'Écrire à l\'équipe…',
+                      onChanged: (_) {},
+                      // #4538 : Entrée envoie (réflexe universel dans un chat).
+                      onSubmitted: enabled ? (_) => onSend() : null,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  key: const Key('team_message_send_button'),
+                  onPressed: enabled ? onSend : null,
+                  icon: const Icon(Icons.send_outlined),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              key: const Key('team_message_send_button'),
-              onPressed: enabled ? onSend : null,
-              icon: const Icon(Icons.send_outlined),
+            const SizedBox(height: 6),
+            const Row(
+              key: Key('team_message_keyboard_hints'),
+              children: [
+                _KeyHint(shortcut: '⏎', label: 'envoyer'),
+                SizedBox(width: 8),
+                _KeyHint(shortcut: '⇧⏎', label: 'nouvelle ligne'),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Rappel clavier sous le composeur : pastille de raccourci + libellé.
+class _KeyHint extends StatelessWidget {
+  const _KeyHint({required this.shortcut, required this.label});
+
+  final String shortcut;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: NubiaColors.n50,
+            border: Border.all(color: NubiaColors.n200),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            shortcut,
+            style: const TextStyle(fontSize: 10, color: NubiaColors.n600),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: NubiaColors.n600),
+        ),
+      ],
     );
   }
 }
