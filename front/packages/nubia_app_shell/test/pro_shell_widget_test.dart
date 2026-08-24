@@ -222,4 +222,132 @@ void main() {
       },
     );
   });
+
+  // --- Groupe repliable (#5139) -----------------------------------------
+  group('ProShell — groupe repliable', () {
+    const groupName = 'Réglages du cabinet';
+    const groupedDestinations = [
+      ProNavDestination(
+        label: 'Agenda',
+        icon: Icons.calendar_today,
+        route: '/agenda',
+      ),
+      ProNavDestination(
+        label: 'Statistiques',
+        icon: Icons.bar_chart,
+        route: '/cabinet-stats',
+        group: groupName,
+      ),
+      ProNavDestination(
+        label: 'Membres',
+        icon: Icons.group_outlined,
+        route: '/admin-membres',
+        group: groupName,
+      ),
+    ];
+
+    const groupedConfig = ProConfig(
+      appTitle: 'Nubia Pro',
+      spaceLabel: 'Cabinet Test',
+      destinations: groupedDestinations,
+      collapsedGroups: {groupName},
+    );
+
+    const session = AuthSession(
+      kind: UserKind.pro,
+      userId: 'user-5',
+      role: ProRole.secretary,
+    );
+
+    testWidgets(
+      'replié par défaut : les entrées du groupe sont masquées (drawer '
+      'mobile)',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(400, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: groupedConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.menu));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Agenda'), findsWidgets);
+        expect(find.text(groupName), findsOneWidget);
+        expect(find.text('Statistiques'), findsNothing);
+        expect(find.text('Membres'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      "cliquer l'en-tête révèle les entrées, recliquer les masque (drawer "
+      'mobile)',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(400, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: groupedConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.menu));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text(groupName));
+        await tester.pumpAndSettle();
+        expect(find.text('Statistiques'), findsOneWidget);
+        expect(find.text('Membres'), findsOneWidget);
+
+        await tester.tap(find.text(groupName));
+        await tester.pumpAndSettle();
+        expect(find.text('Statistiques'), findsNothing);
+        expect(find.text('Membres'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      "replié par défaut : les entrées du groupe sont masquées (rail "
+      'desktop)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: groupedConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Agenda'), findsWidgets);
+        expect(find.text(groupName), findsWidgets);
+        expect(find.text('Statistiques'), findsNothing);
+        expect(find.text('Membres'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      "l'entrée active d'un groupe replié reste visible (rail desktop)",
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(
+              config: groupedConfig,
+              session: session,
+              currentRoute: '/cabinet-stats',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Statistiques'), findsWidgets);
+      },
+    );
+  });
 }

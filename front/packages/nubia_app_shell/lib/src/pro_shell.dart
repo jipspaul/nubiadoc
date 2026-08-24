@@ -81,8 +81,25 @@ class ProShell extends StatefulWidget {
   State<ProShell> createState() => _ProShellState();
 }
 
+/// One row of the flattened rail/drawer list (#5139) : either a navigable
+/// [destination], or a collapsible group [header] — both occupy one index so
+/// they share the rail's/drawer's tap handling ([_ProShellState._selectRow]
+/// tells them apart via [group]).
+class _NavRow {
+  const _NavRow.destination(this.destination)
+      : group = null,
+        collapsed = false;
+
+  const _NavRow.header(this.group, this.collapsed) : destination = null;
+
+  final ProNavDestination? destination;
+  final String? group;
+  final bool collapsed;
+}
+
 class _ProShellState extends State<ProShell> {
   int _index = 0;
+  late final Set<String> _collapsedGroups = {...widget.config.collapsedGroups};
 
   List<ProNavDestination> get _destinations => widget.config.destinations
       .where((d) => !d.requiresClinical || widget.session.canAccessClinical)
@@ -103,12 +120,59 @@ class _ProShellState extends State<ProShell> {
     return _index.clamp(0, destinations.length - 1);
   }
 
-  void _select(List<ProNavDestination> destinations, int i) {
-    final destination = destinations[i];
+  /// [_collapsedGroups], sauf le groupe de [current] (#5139) — la nav ne
+  /// doit jamais masquer la destination actuellement affichée, même si son
+  /// groupe est replié par défaut ou a été replié manuellement.
+  Set<String> _effectiveCollapsedGroups(ProNavDestination current) {
+    final group = current.group;
+    if (group == null || !_collapsedGroups.contains(group)) {
+      return _collapsedGroups;
+    }
+    return {..._collapsedGroups}..remove(group);
+  }
+
+  /// Aplatit [destinations] en lignes de rail/drawer (#5139) : une ligne
+  /// d'en-tête cliquable par groupe — toujours visible, même repliée —
+  /// suivie de ses destinations, omises tant que le groupe appartient à
+  /// [collapsedGroups].
+  List<_NavRow> _buildRows(
+    List<ProNavDestination> destinations,
+    Set<String> collapsedGroups,
+  ) {
+    final rows = <_NavRow>[];
+    String? lastGroup;
+    for (final d in destinations) {
+      if (d.group != lastGroup) {
+        lastGroup = d.group;
+        if (d.group != null) {
+          rows.add(_NavRow.header(d.group!, collapsedGroups.contains(d.group)));
+        }
+      }
+      if (d.group == null || !collapsedGroups.contains(d.group)) {
+        rows.add(_NavRow.destination(d));
+      }
+    }
+    return rows;
+  }
+
+  void _selectRow(List<ProNavDestination> destinations, List<_NavRow> rows, int i) {
+    final row = rows[i];
+    final group = row.group;
+    if (group != null) {
+      setState(() {
+        if (_collapsedGroups.contains(group)) {
+          _collapsedGroups.remove(group);
+        } else {
+          _collapsedGroups.add(group);
+        }
+      });
+      return;
+    }
+    final destination = row.destination!;
     if (widget.onNavigate != null) {
       widget.onNavigate!(destination);
     } else {
-      setState(() => _index = i);
+      setState(() => _index = destinations.indexOf(destination));
     }
   }
 
@@ -117,12 +181,14 @@ class _ProShellState extends State<ProShell> {
     final destinations = _destinations;
     final index = _resolveIndex(destinations);
     final current = destinations[index];
+    final rows = _buildRows(destinations, _effectiveCollapsedGroups(current));
+    final rowIndex = rows.indexWhere((r) => r.destination == current);
 
     final shell = LayoutBuilder(
       builder: (context, constraints) {
         return constraints.maxWidth >= 720
-            ? _buildDesktop(context, destinations, index, current)
-            : _buildMobile(context, destinations, index, current);
+            ? _buildDesktop(context, destinations, rows, rowIndex, current)
+            : _buildMobile(context, destinations, rows, rowIndex, current);
       },
     );
 
@@ -173,6 +239,64 @@ class _ProShellState extends State<ProShell> {
     );
   }
 
+  /// Chevron d'en-tête de groupe (#5139, maquette design-v2 secrétariat) :
+  /// `chevron_right` replié, `expand_more` déplié — 13px, couleur tertiaire
+  /// du thème.
+  Widget _groupHeaderIcon(BuildContext context, bool collapsed) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Icon(
+      collapsed ? Icons.chevron_right : Icons.expand_more,
+      size: 13,
+      color: tokens.textTertiary,
+    );
+  }
+
+  /// En-tête de groupe repliable pour le rail desktop (#5139) — même index
+  /// que les autres [NavigationRailDestination] : le tap est intercepté par
+  /// [_selectRow] pour replier/déplier au lieu de naviguer.
+  NavigationRailDestination _groupHeaderRailDestination(
+    BuildContext context,
+    _NavRow row,
+  ) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return NavigationRailDestination(
+      icon: _groupHeaderIcon(context, row.collapsed),
+      label: Text(
+        row.group!,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.4,
+          color: tokens.textTertiary,
+        ),
+      ),
+    );
+  }
+
+  /// En-tête de groupe repliable pour le drawer mobile (#5139) — [onTap]
+  /// replie/déplie sans fermer le drawer (contrairement aux entrées de
+  /// destination, qui naviguent et le referment).
+  Widget _groupHeaderListTile(
+    BuildContext context,
+    _NavRow row, {
+    required VoidCallback onTap,
+  }) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return ListTile(
+      dense: true,
+      leading: _groupHeaderIcon(context, row.collapsed),
+      title: Text(
+        row.group!,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+            ),
+      ),
+      onTap: onTap,
+    );
+  }
+
   Widget _trailing(BuildContext context) {
     final session = widget.session;
     final cabinetName = session.contextLabel ?? widget.config.appTitle;
@@ -199,7 +323,8 @@ class _ProShellState extends State<ProShell> {
   Widget _buildDesktop(
     BuildContext context,
     List<ProNavDestination> destinations,
-    int index,
+    List<_NavRow> rows,
+    int rowIndex,
     ProNavDestination current,
   ) {
     // `NavigationRail` ne défile pas ses propres destinations : au-delà
@@ -241,8 +366,8 @@ class _ProShellState extends State<ProShell> {
       body: Row(
         children: [
           NavigationRail(
-            selectedIndex: index,
-            onDestinationSelected: (i) => _select(destinations, i),
+            selectedIndex: rowIndex,
+            onDestinationSelected: (i) => _selectRow(destinations, rows, i),
             labelType: labelType,
             // En-tête cabinet (#5140, maquette design-v2 secrétariat) —
             // remplace le monogramme nu introduit par #3363/#3375.
@@ -267,11 +392,14 @@ class _ProShellState extends State<ProShell> {
               ),
             ),
             destinations: [
-              for (final d in destinations)
-                NavigationRailDestination(
-                  icon: _iconWithBadge(context, d),
-                  label: Text(d.label),
-                ),
+              for (final row in rows)
+                if (row.destination != null)
+                  NavigationRailDestination(
+                    icon: _iconWithBadge(context, row.destination!),
+                    label: Text(row.destination!.label),
+                  )
+                else
+                  _groupHeaderRailDestination(context, row),
             ],
           ),
           const VerticalDivider(width: 1),
@@ -284,7 +412,8 @@ class _ProShellState extends State<ProShell> {
   Widget _buildMobile(
     BuildContext context,
     List<ProNavDestination> destinations,
-    int index,
+    List<_NavRow> rows,
+    int rowIndex,
     ProNavDestination current,
   ) {
     return Scaffold(
@@ -300,16 +429,23 @@ class _ProShellState extends State<ProShell> {
                 ),
               ),
               const Divider(),
-              for (int i = 0; i < destinations.length; i++)
-                ListTile(
-                  leading: _iconWithBadge(context, destinations[i]),
-                  title: Text(destinations[i].label),
-                  selected: i == index,
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    _select(destinations, i);
-                  },
-                ),
+              for (int i = 0; i < rows.length; i++)
+                if (rows[i].destination != null)
+                  ListTile(
+                    leading: _iconWithBadge(context, rows[i].destination!),
+                    title: Text(rows[i].destination!.label),
+                    selected: i == rowIndex,
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _selectRow(destinations, rows, i);
+                    },
+                  )
+                else
+                  _groupHeaderListTile(
+                    context,
+                    rows[i],
+                    onTap: () => _selectRow(destinations, rows, i),
+                  ),
               const Spacer(),
               _trailing(context),
               const SizedBox(height: 8),

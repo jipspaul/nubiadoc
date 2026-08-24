@@ -172,12 +172,22 @@ void main() {
 
     // Surface haute : la nav complète (10 entrées) tient sans overflow du rail.
     testWidgets(
-        'secrétaire-admin : « Membres » et « Secrétariats » visibles dans la nav',
-        (tester) async {
+        'secrétaire-admin : « Membres » et « Secrétariats » visibles dans la nav '
+        'une fois le groupe « Réglages du cabinet » déplié (#5139, replié par '
+        'défaut)', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1000, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(buildShell(canManageMembers: true));
       await tester.pumpAndSettle();
+      expect(find.text('Membres'), findsNothing);
+      expect(find.text('Secrétariats'), findsNothing);
+
+      // Rail compact (>9 destinations, #4153) : le libellé de l'en-tête
+      // n'est peint (opacité) que pour l'entrée sélectionnée — on tape sur
+      // son chevron, toujours visible, plutôt que sur le texte du groupe.
+      await tester.tap(find.byIcon(Icons.chevron_right));
+      await tester.pumpAndSettle();
+
       expect(find.text('Membres'), findsWidgets);
       expect(find.text('Secrétariats'), findsWidgets);
     });
