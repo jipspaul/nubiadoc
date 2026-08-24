@@ -174,9 +174,17 @@ class _ProShellState extends State<ProShell> {
   }
 
   Widget _trailing(BuildContext context) {
+    final session = widget.session;
+    final cabinetName = session.contextLabel ?? widget.config.appTitle;
+    final name = session.displayName ?? _proRoleLabel(session.role);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        _UserFooter(
+          initials: initialsFrom(name),
+          name: name,
+          roleLine: '${_proRoleLabel(session.role)} · $cabinetName',
+        ),
         ...widget.trailingActions,
         if (widget.onSignOut != null)
           IconButton(
@@ -236,29 +244,25 @@ class _ProShellState extends State<ProShell> {
             selectedIndex: index,
             onDestinationSelected: (i) => _select(destinations, i),
             labelType: labelType,
-            // Monogramme Nubia — le FlutterLogo par défaut faisait
-            // « démo non finie » (#3363/#3375).
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                child: Text(
-                  'N',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
+            // En-tête cabinet (#5140, maquette design-v2 secrétariat) —
+            // remplace le monogramme nu introduit par #3363/#3375.
+            leading: _BrandHeader(
+              cabinetName:
+                  widget.session.contextLabel ?? widget.config.appTitle,
+              subtitle: widget.config.spaceLabel,
             ),
             trailing: Expanded(
               child: Align(
                 alignment: Alignment.bottomCenter,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: _trailing(context),
+                  // Le pied utilisateur (#5140) s'ajoute aux actions/déconnexion
+                  // existantes : sur un rail compact avec de nombreuses
+                  // destinations, l'espace restant peut être plus petit que ce
+                  // contenu — SingleChildScrollView absorbe le débordement au
+                  // lieu de le faire déborder du rail (#5142 avait déjà 12+
+                  // destinations).
+                  child: SingleChildScrollView(child: _trailing(context)),
                 ),
               ),
             ),
@@ -393,6 +397,141 @@ class _SearchShortcutBadge extends StatelessWidget {
               color: tokens.textTertiary,
               fontWeight: FontWeight.w600,
             ),
+      ),
+    );
+  }
+}
+
+/// Libellé FR d'un [ProRole], pour le pied utilisateur du rail (#5140) — pas
+/// de mapping partagé existant, [MemberRole._roleLabel] (admin_membres_page)
+/// couvre un enum métier distinct.
+String _proRoleLabel(ProRole role) {
+  switch (role) {
+    case ProRole.admin:
+      return 'Administrateur';
+    case ProRole.practitioner:
+      return 'Praticien';
+    case ProRole.secretary:
+      return 'Secrétaire';
+    case ProRole.pharmacist:
+      return 'Pharmacien';
+    case ProRole.nurse:
+      return 'Infirmier';
+    case ProRole.unknown:
+      return 'Membre';
+  }
+}
+
+/// En-tête d'identité du cabinet en haut du rail (#5140, maquette design-v2
+/// secrétariat) — monogramme + nom du cabinet + sous-titre d'espace.
+/// [cabinetName] vient de [AuthSession.contextLabel] ; tant que
+/// `GET /v1/me` n'alimente pas ce champ pour les sessions pro (cf.
+/// `pro_auth_cubit.dart`), l'appelant retombe sur [ProConfig.appTitle].
+class _BrandHeader extends StatelessWidget {
+  const _BrandHeader({required this.cabinetName, required this.subtitle});
+
+  final String cabinetName;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: NubiaColors.brand600,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'N',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            cabinetName,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 10.5, color: tokens.textTertiary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pied utilisateur en bas du rail (#5140, maquette design-v2 secrétariat) —
+/// avatar initiales + nom + rôle·cabinet, séparé des destinations par un
+/// filet ([NubiaTokens.borderSubtle], même style que `week_occupancy_card.dart`
+/// / `today_flow_card.dart`).
+class _UserFooter extends StatelessWidget {
+  const _UserFooter({
+    required this.initials,
+    required this.name,
+    required this.roleLine,
+  });
+
+  final String initials;
+  final String name;
+  final String roleLine;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+          const SizedBox(height: 8),
+          NubiaAvatar(initials: initials, radius: 14),
+          const SizedBox(height: 4),
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: cs.onSurface,
+            ),
+          ),
+          Text(
+            roleLine,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 10, color: tokens.textTertiary),
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
