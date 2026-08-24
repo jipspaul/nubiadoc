@@ -107,6 +107,28 @@ void main() {
       ),
     ];
 
+    const coloredBadgeDestinations = [
+      ProNavDestination(
+        label: 'Salle d\'attente',
+        icon: Icons.meeting_room,
+        route: '/salle-attente',
+        badgeCount: 5,
+      ),
+      ProNavDestination(
+        label: 'Demandes de créneau',
+        icon: Icons.hourglass_top,
+        route: '/liste-attente',
+        badgeCount: 3,
+        badgeColor: ProNavBadgeColor.warning,
+      ),
+    ];
+
+    const coloredBadgeConfig = ProConfig(
+      appTitle: 'Nubia Pro',
+      spaceLabel: 'Cabinet Test',
+      destinations: coloredBadgeDestinations,
+    );
+
     const badgeConfig = ProConfig(
       appTitle: 'Nubia Pro',
       spaceLabel: 'Cabinet Test',
@@ -120,7 +142,7 @@ void main() {
     );
 
     testWidgets(
-      'badgeCount > 0 : badge rouge visible avec le compteur (rail desktop)',
+      'badgeCount > 0 : badge visible avec le compteur (rail desktop)',
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -134,6 +156,28 @@ void main() {
         final visible = badges.where((b) => b.isLabelVisible == true);
         expect(visible, hasLength(1));
         expect((visible.first.label as Text).data, '5');
+      },
+    );
+
+    testWidgets(
+      'badgeColor.brand → vert (--brand600), badgeColor.warning → ambre '
+      '(--warnFg) (#5142)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: coloredBadgeConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final badges = tester.widgetList<Badge>(find.byType(Badge)).toList();
+        final byLabel = {
+          for (final b in badges) (b.label as Text).data: b,
+        };
+
+        expect(byLabel['5']?.backgroundColor, NubiaColors.brand600);
+        expect(byLabel['3']?.backgroundColor, NubiaTokens.light.warningFg);
       },
     );
 

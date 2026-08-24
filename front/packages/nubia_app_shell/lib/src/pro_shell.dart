@@ -151,16 +151,23 @@ class _ProShellState extends State<ProShell> {
     );
   }
 
-  /// Icône de destination surmontée d'un badge compteur rouge (#5387) quand
+  /// Icône de destination surmontée d'un badge compteur (#5387) quand
   /// [ProNavDestination.badgeCount] est renseigné et non nul — même icône
-  /// nue sinon (pas de pastille vide).
+  /// nue sinon (pas de pastille vide). Couleur sémantique selon
+  /// [ProNavDestination.badgeColor] : vert (`--brand600`, personnes
+  /// présentes / non lus) ou ambre (`--warnFg`, à traiter avant échéance),
+  /// conformément à la maquette « Architecture de navigation » (#5142).
   Widget _iconWithBadge(BuildContext context, ProNavDestination destination) {
     final count = destination.badgeCount;
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final badgeColor = switch (destination.badgeColor) {
+      ProNavBadgeColor.brand => NubiaColors.brand600,
+      ProNavBadgeColor.warning => tokens.warningFg,
+    };
     return Badge(
       label: Text('$count'),
       isLabelVisible: count != null && count > 0,
-      backgroundColor: tokens.dangerFg,
+      backgroundColor: badgeColor,
       textColor: Colors.white,
       child: Icon(destination.icon),
     );

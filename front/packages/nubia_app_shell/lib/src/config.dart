@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 
+/// Couleur sémantique d'un badge compteur de navigation (#5142) : verte pour
+/// une charge « personnes présentes / non lus », ambre pour une charge
+/// « à traiter avant échéance ». Résolue en [Color] par [ProShell], qui a
+/// accès aux [NubiaTokens] du thème courant.
+enum ProNavBadgeColor { brand, warning }
+
 /// A destination entry in the [ProShell] side navigation.
 ///
 /// [requiresClinical] gates the entry behind [AuthSession.canAccessClinical]:
@@ -11,6 +17,7 @@ class ProNavDestination {
     required this.route,
     this.requiresClinical = false,
     this.badgeCount,
+    this.badgeColor = ProNavBadgeColor.brand,
   });
 
   final String label;
@@ -21,10 +28,14 @@ class ProNavDestination {
   final String route;
   final bool requiresClinical;
 
-  /// Compteur affiché en badge rouge sur l'icône de la destination (rail
-  /// desktop ET drawer mobile). `null` ou `0` : aucun badge — rétro-compatible
-  /// avec les apps qui ne le fournissent pas encore (#5387).
+  /// Compteur affiché en badge sur l'icône de la destination (rail desktop
+  /// ET drawer mobile). `null` ou `0` : aucun badge — rétro-compatible avec
+  /// les apps qui ne le fournissent pas encore (#5387).
   final int? badgeCount;
+
+  /// Couleur sémantique du badge (#5142) — ignorée si [badgeCount] est
+  /// `null`/`0`. Par défaut [ProNavBadgeColor.brand].
+  final ProNavBadgeColor badgeColor;
 }
 
 /// Configuration passed from each professional app to [ProShell].

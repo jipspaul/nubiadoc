@@ -157,10 +157,22 @@ class ProConfig {
     ],
   );
 
+  /// Couleur de badge par route (#5142, maquette « Architecture de
+  /// navigation ») : vert (`--brand600`) pour une charge « présents / non
+  /// lus », ambre (`--warnFg`) pour une charge « à traiter » (demandes de
+  /// créneau, devis en attente de signature).
+  static const Map<String, shell.ProNavBadgeColor> _badgeColors = {
+    '/salle-attente': shell.ProNavBadgeColor.brand,
+    '/liste-attente': shell.ProNavBadgeColor.warning,
+    '/devis': shell.ProNavBadgeColor.warning,
+    '/messages': shell.ProNavBadgeColor.brand,
+  };
+
   /// Config de navigation filtrée selon l'accès admin aux membres/secrétariats
   /// et au journal d'accès, badges compteurs injectés sur les destinations
   /// correspondantes (#5388 : salle d'attente, demandes de créneau, devis
-  /// expirants, messages non lus).
+  /// expirants, messages non lus ; #5142 : couleurs vert/ambre conformes à
+  /// la maquette).
   ///
   /// Les entrées « Membres »/« Secrétariats »/« Journal d'accès » — le groupe
   /// « Réglages du cabinet » de la maquette design-v2 — ne sont conservées que
@@ -205,6 +217,7 @@ class ProConfig {
           route: d.route,
           requiresClinical: d.requiresClinical,
           badgeCount: badgeCount,
+          badgeColor: _badgeColors[d.route] ?? d.badgeColor,
         );
       }).toList(),
     );
