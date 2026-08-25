@@ -35,6 +35,28 @@ class _PatientsPageState extends State<PatientsPage> {
   Timer? _debounce;
   bool _openPatientHandled = false;
 
+  /// Id du patient affiché dans le volet latéral (design-v2, #5116) — la
+  /// fiche n'est plus une `showModalBottomSheet` mais un panneau persistant
+  /// à droite de la liste : sélectionner un autre patient met juste à jour
+  /// cet id, sans fermer/rouvrir le panneau.
+  String? _selectedPatientId;
+
+  void _selectPatient(String patientId) {
+    setState(() => _selectedPatientId = patientId);
+  }
+
+  void _closePatientSheet() {
+    setState(() => _selectedPatientId = null);
+  }
+
+  CabinetPatient? _findPatient(List<CabinetPatient> patients, String? id) {
+    if (id == null) return null;
+    for (final p in patients) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
   /// Filtres rapides à bascule de la barre d'outils (design-v2, note #5) :
   /// Impayés / Alertes / Sans RDV à venir. Combinés en ET quand plusieurs
   /// sont actifs, appliqués côté client sur `state.patients` — aucun fetch
@@ -140,9 +162,9 @@ class _PatientsPageState extends State<PatientsPage> {
                   }
                 }
                 if (match != null) {
-                  final patient = match;
+                  final patientId = match.id;
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) _showPatientSheet(context, patient);
+                    if (mounted) _selectPatient(patientId);
                   });
                 }
               }
@@ -157,7 +179,13 @@ class _PatientsPageState extends State<PatientsPage> {
                 _totalCount = state.patients.length;
               }
               final filteredPatients = _applyFilters(state.patients);
-              return Column(
+              final selectedPatient =
+                  _findPatient(state.patients, _selectedPatientId);
+              // Le contenu maître (recherche + filtres + tableau) reste un
+              // widget à part entière : le volet latéral se contente de
+              // l'accompagner dans un `Row` — pas de fusion des deux (design-
+              // v2, #5116 — « fiche reste un composant distinct de la liste »).
+              final listColumn = Column(
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -247,11 +275,33 @@ class _PatientsPageState extends State<PatientsPage> {
                             child: ListView.builder(
                               padding: const EdgeInsets.only(bottom: 16),
                               itemCount: filteredPatients.length,
-                              itemBuilder: (_, i) =>
-                                  PatientTableRow(patient: filteredPatients[i]),
+                              itemBuilder: (_, i) {
+                                final rowPatient = filteredPatients[i];
+                                return PatientTableRow(
+                                  patient: rowPatient,
+                                  selected:
+                                      rowPatient.id == _selectedPatientId,
+                                  onTap: () => _selectPatient(rowPatient.id),
+                                );
+                              },
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                ],
+              );
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: listColumn),
+                  if (selectedPatient != null)
+                    SizedBox(
+                      width: 396,
+                      child: _PatientSheet(
+                        key: Key('patient_sheet_${selectedPatient.id}'),
+                        patient: selectedPatient,
+                        onClose: _closePatientSheet,
                       ),
                     ),
                 ],
@@ -494,9 +544,20 @@ int _ageInYears(DateTime birthDate) {
 /// — Patient (avatar + nom + naissance/âge), Contact, Dernière visite,
 /// Solde (aligné à droite), Alertes & étiquettes — puis le chevron.
 class PatientTableRow extends StatelessWidget {
-  const PatientTableRow({super.key, required this.patient});
+  const PatientTableRow({
+    super.key,
+    required this.patient,
+    this.selected = false,
+    this.onTap,
+  });
 
   final CabinetPatient patient;
+
+  /// Ligne surlignée (design-v2, `.row.on`) quand la fiche de ce patient est
+  /// ouverte dans le volet latéral — fond `brand50` + accent `brand700` sur
+  /// la bordure gauche.
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -602,11 +663,26 @@ class PatientTableRow extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _showPatientSheet(context, patient),
-            child: content,
+        Container(
+          key: Key('patient_row_${patient.id}'),
+          color: selected ? NubiaColors.brand50 : Colors.transparent,
+          // `foregroundDecoration` (pas `decoration`) : peint la bordure
+          // par-dessus le contenu sans lui ajouter de padding implicite,
+          // pour ne pas décaler les colonnes fixes du tableau (cf. #5116).
+          foregroundDecoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: selected ? NubiaColors.brand700 : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              child: content,
+            ),
           ),
         ),
         Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
@@ -669,25 +745,24 @@ class _PatientAlertBadgeState extends State<PatientAlertBadge> {
   }
 }
 
-/// Ouvre la fiche patient (informations administratives) dans une carte DS.
-void _showPatientSheet(BuildContext context, CabinetPatient patient) {
-  showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    builder: (ctx) => _PatientSheet(patient: patient),
-  );
-}
-
+/// Fiche patient (informations administratives) — volet latéral persistant
+/// (design-v2, #5116) : bordure gauche `borderSubtle`, fermeture explicite
+/// via [onClose], sans repli sur `showModalBottomSheet`.
 class _PatientSheet extends StatelessWidget {
-  const _PatientSheet({required this.patient});
+  const _PatientSheet({
+    super.key,
+    required this.patient,
+    required this.onClose,
+  });
 
   final CabinetPatient patient;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
 
     // Uniquement des champs administratifs (cloisonnement : zéro clinique).
     final rows = <(IconData, String, String)>[
@@ -708,9 +783,12 @@ class _PatientSheet extends StatelessWidget {
         (Icons.history, 'Dernière visite', _formatDate(patient.lastVisitAt!)),
     ];
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: tokens.borderSubtle)),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -732,6 +810,12 @@ class _PatientSheet extends StatelessWidget {
                   ),
                 ),
                 PatientAlertBadge(patientId: patient.id),
+                IconButton(
+                  key: const Key('patient_sheet_close'),
+                  tooltip: 'Fermer',
+                  icon: const Icon(Icons.close),
+                  onPressed: onClose,
+                ),
               ],
             ),
             const SizedBox(height: 16),
