@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -26,6 +27,20 @@ final _message1 = CabinetTeamMessage(
   senderName: 'Dr Martin',
   body: 'Réunion à 12h30.',
   createdAt: DateTime(2026, 1, 1, 9, 30),
+);
+
+final _messageWithPatientReference = CabinetTeamMessage(
+  id: 'm2',
+  senderId: 'u1',
+  senderName: 'Dr Martin',
+  body: 'Peux-tu reprogrammer le labo ?',
+  createdAt: DateTime(2026, 1, 1, 10),
+  reference: const CabinetTeamMessageReference(
+    type: CabinetTeamMessageReferenceType.patient,
+    targetId: 'p1',
+    title: 'Couronne céramo-métallique · dent 26',
+    subtitle: 'Labo Kléber · à programmer',
+  ),
 );
 
 void main() {
@@ -46,6 +61,36 @@ void main() {
         theme: NubiaTheme.light,
         home: const CabinetTeamMessagesPage(),
       );
+
+  Widget buildRoutedPage() {
+    final router = GoRouter(
+      initialLocation: '/team-messages',
+      routes: [
+        GoRoute(
+          path: '/team-messages',
+          builder: (_, __) => const CabinetTeamMessagesPage(),
+        ),
+        GoRoute(
+          path: '/patients',
+          builder: (_, state) => Scaffold(
+            key: const Key('patients_page_stub'),
+            body: Text('Patient ${state.extra}'),
+          ),
+        ),
+        GoRoute(
+          path: '/devis/:id',
+          builder: (_, state) => Scaffold(
+            key: const Key('devis_page_stub'),
+            body: Text('Devis ${state.pathParameters['id']}'),
+          ),
+        ),
+      ],
+    );
+    return MaterialApp.router(
+      theme: NubiaTheme.light,
+      routerConfig: router,
+    );
+  }
 
   testWidgets('aucun message → empty state', (tester) async {
     when(() => listMessages())
@@ -368,6 +413,133 @@ void main() {
         find.descendant(
           of: find.byKey(const Key('team_messages_aside_note')),
           matching: find.byIcon(Icons.shield),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('référence à un objet du produit (#5131)', () {
+    testWidgets(
+        'message avec référence → carte affichée (icône, 2 lignes, Ouvrir)',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([_messageWithPatientReference]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final chip = find.byKey(const Key('team_message_reference_p1'));
+      expect(chip, findsOneWidget);
+      expect(
+        find.descendant(
+          of: chip,
+          matching: find.byIcon(Icons.person_outline),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: chip,
+          matching: find.text('Couronne céramo-métallique · dent 26'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: chip,
+          matching: find.text('Labo Kléber · à programmer'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: chip, matching: find.text('Ouvrir')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('message sans référence → pas de carte affichée',
+        (tester) async {
+      when(() => listMessages()).thenAnswer((_) async => Right([_message1]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_message_reference_p1')), findsNothing);
+    });
+
+    testWidgets('tap Ouvrir → navigue vers la route existante de l\'objet cité',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([_messageWithPatientReference]));
+
+      await tester.pumpWidget(buildRoutedPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('team_message_reference_open_p1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('patients_page_stub')), findsOneWidget);
+      expect(find.text('Patient p1'), findsOneWidget);
+    });
+
+    testWidgets(
+        'composeur → bouton « Joindre un patient, un devis… » avec icône link',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = find.byKey(const Key('team_message_attach_reference_button'));
+      expect(button, findsOneWidget);
+      expect(find.text('Joindre un patient, un devis…'), findsOneWidget);
+      expect(
+        find.descendant(of: button, matching: find.byIcon(Icons.link)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'desktop → récap « Éléments cités aujourd\'hui » dans le panneau Équipe',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final recap = find.byKey(const Key('team_aside_cited_references'));
+      expect(recap, findsOneWidget);
+      expect(
+        find.descendant(
+          of: recap,
+          matching: find.text('Éléments cités aujourd\'hui'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: recap, matching: find.text('Couronne · dent 26')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: recap, matching: find.text('Travaux labo')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: recap, matching: find.text('Demande de stock')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: recap,
+          matching: find.text('Pharmacie du Théâtre'),
         ),
         findsOneWidget,
       );

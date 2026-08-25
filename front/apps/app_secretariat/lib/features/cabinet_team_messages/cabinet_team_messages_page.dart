@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -176,6 +177,35 @@ class _TeamMember {
   final bool present;
 }
 
+/// Ligne du récap « Éléments cités aujourd'hui » (#5131) : objets produit
+/// référencés dans le fil du jour, verbatim de la maquette design-v2.
+/// Données fictives en attendant que le fil expose vraiment `reference`
+/// (même limite que [_TeamMember] ci-dessus : pas d'agrégat serveur dédié).
+class _CitedReference {
+  const _CitedReference({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+}
+
+const _citedReferencesToday = [
+  _CitedReference(
+    icon: Icons.precision_manufacturing,
+    title: 'Couronne · dent 26',
+    subtitle: 'Travaux labo',
+  ),
+  _CitedReference(
+    icon: Icons.inventory_2,
+    title: 'Demande de stock',
+    subtitle: 'Pharmacie du Théâtre',
+  ),
+];
+
 const _teamMembers = [
   _TeamMember(
     name: 'Sarah Lemoine',
@@ -235,6 +265,8 @@ class _TeamAside extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           for (final member in _teamMembers) _TeamMemberRow(member: member),
+          const SizedBox(height: 20),
+          const _CitedReferencesRecap(),
           const Spacer(),
           const _ClinicalDataReminderNote(),
         ],
@@ -323,6 +355,92 @@ class _TeamMemberRow extends StatelessWidget {
                 ),
                 Text(
                   member.subtitle,
+                  style: textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Récap « Éléments cités aujourd'hui » (#5131) : objets produit référencés
+/// dans le fil, en-tête + icône `link` puis une ligne par objet.
+class _CitedReferencesRecap extends StatelessWidget {
+  const _CitedReferencesRecap();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      key: const Key('team_aside_cited_references'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.link, size: 18, color: cs.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Éléments cités aujourd\'hui',
+                style: textTheme.labelLarge?.copyWith(color: cs.onSurface),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        for (final cited in _citedReferencesToday)
+          _CitedReferenceRow(cited: cited),
+      ],
+    );
+  }
+}
+
+class _CitedReferenceRow extends StatelessWidget {
+  const _CitedReferenceRow({required this.cited});
+
+  final _CitedReference cited;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: NubiaColors.brand50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(cited.icon, size: 16, color: NubiaColors.brand700),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  cited.title,
+                  style: textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: NubiaColors.n700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  cited.subtitle,
                   style: textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -439,10 +557,110 @@ class _MessagesList extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(m.body),
+              if (m.reference != null) _ReferenceChip(reference: m.reference!),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+/// Icône `.ref` associée à un type de référence (#5131, spec design verbatim).
+IconData _referenceIcon(CabinetTeamMessageReferenceType type) =>
+    switch (type) {
+      CabinetTeamMessageReferenceType.patient => Icons.person_outline,
+      CabinetTeamMessageReferenceType.devis => Icons.description_outlined,
+      CabinetTeamMessageReferenceType.labWorkOrder =>
+        Icons.precision_manufacturing,
+      CabinetTeamMessageReferenceType.stockRequest => Icons.inventory_2,
+      CabinetTeamMessageReferenceType.agendaSlot => Icons.calendar_month,
+    };
+
+/// Cible du lien `Ouvrir` d'une référence (#5131) : route existante
+/// correspondante quand `app_secretariat` en a une (patient, devis, stock,
+/// agenda). Le bon de travail labo n'a pas d'écran dans cette app (seulement
+/// dans `app_practicien`) — fallback informatif en attendant.
+void _openReference(
+  BuildContext context,
+  CabinetTeamMessageReference reference,
+) {
+  switch (reference.type) {
+    case CabinetTeamMessageReferenceType.patient:
+      context.push('/patients', extra: reference.targetId);
+    case CabinetTeamMessageReferenceType.devis:
+      context.push('/devis/${reference.targetId}');
+    case CabinetTeamMessageReferenceType.stockRequest:
+      context.push('/stock');
+    case CabinetTeamMessageReferenceType.agendaSlot:
+      context.push('/agenda');
+    case CabinetTeamMessageReferenceType.labWorkOrder:
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bon de travail labo : écran à venir')),
+      );
+  }
+}
+
+/// Carte référence inline (`.ref`, #5131) : transforme un message en fil de
+/// travail en pointant vers l'objet réel du produit qu'il cite.
+class _ReferenceChip extends StatelessWidget {
+  const _ReferenceChip({required this.reference});
+
+  final CabinetTeamMessageReference reference;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: Key('team_message_reference_${reference.targetId}'),
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(_referenceIcon(reference.type), size: 20, color: NubiaColors.brand700),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  reference.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: NubiaColors.n700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  reference.subtitle,
+                  style: const TextStyle(fontSize: 12, color: NubiaColors.n500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          InkWell(
+            key: Key('team_message_reference_open_${reference.targetId}'),
+            onTap: () => _openReference(context, reference),
+            child: const Text(
+              'Ouvrir',
+              style: TextStyle(
+                color: NubiaColors.brand700,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -493,6 +711,32 @@ class _Composer extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              // Scroll horizontal : sur un composeur étroit (mobile), le
+              // libellé complet du bouton ne tient pas dans la largeur
+              // disponible — NubiaButton ne wrappe pas son label.
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: NubiaButton(
+                  key: const Key('team_message_attach_reference_button'),
+                  label: 'Joindre un patient, un devis…',
+                  icon: Icons.link,
+                  variant: NubiaButtonVariant.secondary,
+                  size: NubiaButtonSize.sm,
+                  onPressed: enabled
+                      ? () => ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Joindre un objet du produit au message : '
+                                'à venir',
+                              ),
+                            ),
+                          )
+                      : null,
+                ),
+              ),
+            ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
