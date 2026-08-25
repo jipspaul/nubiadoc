@@ -748,7 +748,18 @@ class _PatientAlertBadgeState extends State<PatientAlertBadge> {
 /// Fiche patient (informations administratives) — volet latéral persistant
 /// (design-v2, #5116) : bordure gauche `borderSubtle`, fermeture explicite
 /// via [onClose], sans repli sur `showModalBottomSheet`.
-class _PatientSheet extends StatelessWidget {
+///
+/// design-v2 (#5115) : chargement unique. Ouvrir un patient déclenchait
+/// jusqu'ici quatre fetch indépendants (`GetCabinetPatient`,
+/// `ListPatientTags`, `ListPatientDocuments`, `ListPatientAlerts`), chacun
+/// avec son propre état de chargement et un échec silencieux
+/// (`SizedBox.shrink()`) — une fiche pouvait s'afficher sans solde ni
+/// étiquettes sans que rien ne le signale. Les 4 appels partent désormais
+/// en parallèle depuis un seul point de déclenchement (`_load`), avec un
+/// état de chargement unique et un échec visible par section. Les alertes
+/// restent best-effort (#4093/#4094) : leur échec seul n'empêche pas de
+/// consulter le reste de la fiche, mais devient visible.
+class _PatientSheet extends StatefulWidget {
   const _PatientSheet({
     super.key,
     required this.patient,
@@ -759,12 +770,85 @@ class _PatientSheet extends StatelessWidget {
   final VoidCallback onClose;
 
   @override
+  State<_PatientSheet> createState() => _PatientSheetState();
+}
+
+class _PatientSheetState extends State<_PatientSheet> {
+  bool _loading = true;
+  CabinetPatient? _patientDetail;
+  String? _balanceError;
+  List<PatientTag>? _tags;
+  String? _tagsError;
+  List<PatientDocument>? _documents;
+  String? _documentsError;
+  List<PatientAlert>? _alerts;
+  String? _alertsError;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final detailFuture =
+        GetIt.instance<GetCabinetPatientUseCase>()(widget.patient.id);
+    final tagsFuture =
+        GetIt.instance<ListPatientTagsUseCase>()(widget.patient.id);
+    final documentsFuture =
+        GetIt.instance<ListPatientDocumentsUseCase>()(widget.patient.id);
+    final alertsFuture =
+        GetIt.instance<ListPatientAlertsUseCase>()(widget.patient.id);
+
+    // Synchronisation des 4 appels sans dépendre de leur type de retour
+    // respectif (chaque future est ensuite ré-attendue individuellement
+    // ci-dessous — déjà résolue, donc immédiate).
+    await Future.wait<Object?>(<Future<Object?>>[
+      detailFuture,
+      tagsFuture,
+      documentsFuture,
+      alertsFuture,
+    ]);
+    if (!mounted) return;
+
+    final detailResult = await detailFuture;
+    final tagsResult = await tagsFuture;
+    final documentsResult = await documentsFuture;
+    final alertsResult = await alertsFuture;
+
+    setState(() {
+      detailResult.fold(
+        (failure) => _balanceError = failure.message,
+        (patient) => _patientDetail = patient,
+      );
+      tagsResult.fold(
+        (failure) => _tagsError = failure.message,
+        (tags) => _tags = tags,
+      );
+      documentsResult.fold(
+        (failure) => _documentsError = failure.message,
+        (documents) => _documents = documents,
+      );
+      // Best-effort (#4093/#4094) : un échec des alertes seules ne bloque
+      // pas le reste de la fiche — voir _PatientSheetAlertIndicator.
+      alertsResult.fold(
+        (failure) => _alertsError = failure.message,
+        (alerts) => _alerts = alerts,
+      );
+      _loading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final patient = widget.patient;
 
     // Uniquement des champs administratifs (cloisonnement : zéro clinique).
+    // Ces champs viennent de la liste (déjà en mémoire) — pas du fetch
+    // consolidé ci-dessus, donc toujours disponibles immédiatement.
     final rows = <(IconData, String, String)>[
       if (patient.birthDate != null)
         (Icons.cake_outlined, 'Naissance', _formatDate(patient.birthDate!)),
@@ -809,12 +893,15 @@ class _PatientSheet extends StatelessWidget {
                     ),
                   ),
                 ),
-                PatientAlertBadge(patientId: patient.id),
+                _PatientSheetAlertIndicator(
+                  alerts: _alerts,
+                  error: _alertsError,
+                ),
                 IconButton(
                   key: const Key('patient_sheet_close'),
                   tooltip: 'Fermer',
                   icon: const Icon(Icons.close),
-                  onPressed: onClose,
+                  onPressed: widget.onClose,
                 ),
               ],
             ),
@@ -864,16 +951,103 @@ class _PatientSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            PatientBalanceSection(patientId: patient.id),
-            const SizedBox(height: 16),
-            PatientTagsSection(patientId: patient.id),
-            const SizedBox(height: 16),
-            PatientDocumentsSection(patientId: patient.id),
+            if (_loading)
+              const _PatientSheetSectionsSkeleton()
+            else ...[
+              PatientBalanceSection(
+                patient: _patientDetail,
+                error: _balanceError,
+              ),
+              const SizedBox(height: 16),
+              PatientTagsSection(
+                patientId: patient.id,
+                initialTags: _tags,
+                initialError: _tagsError,
+              ),
+              const SizedBox(height: 16),
+              PatientDocumentsSection(
+                documents: _documents,
+                error: _documentsError,
+              ),
+            ],
             const SizedBox(height: 16),
             const _PatientSheetConfidentialityNotice(),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Indicateur d'alertes de l'en-tête de fiche (design-v2, #5115) : alimenté
+/// par le chargement unique de [_PatientSheetState] — plus de second appel
+/// `ListPatientAlertsUseCase` redondant avec celui déjà fait pour le badge
+/// de la ligne du tableau (`PatientAlertBadge`). Best-effort (#4093/#4094) :
+/// un échec n'empêche pas de consulter le reste de la fiche, mais devient
+/// visible (icône d'erreur + tooltip) au lieu d'un `SizedBox.shrink()`
+/// silencieux.
+class _PatientSheetAlertIndicator extends StatelessWidget {
+  const _PatientSheetAlertIndicator({
+    required this.alerts,
+    required this.error,
+  });
+
+  final List<PatientAlert>? alerts;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Tooltip(
+          message: 'Alertes indisponibles : $error',
+          child: Icon(
+            Icons.error_outline,
+            key: const Key('patient_sheet_alerts_error'),
+            size: 20,
+            color: cs.error,
+          ),
+        ),
+      );
+    }
+    final list = alerts ?? const [];
+    if (list.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Tooltip(
+        message: list.map((a) => a.message).join('\n'),
+        child: Icon(
+          Icons.warning_amber_outlined,
+          key: const Key('patient_sheet_alerts'),
+          size: 20,
+          color: cs.error,
+        ),
+      ),
+    );
+  }
+}
+
+/// Skeleton du chargement unique de la fiche (design-v2, #5115) : un seul
+/// bloc pour les 3 sections dépendantes du fetch consolidé (solde,
+/// étiquettes, documents) — remplace les 3 skeletons indépendants qui
+/// apparaissaient et disparaissaient chacun à son rythme.
+class _PatientSheetSectionsSkeleton extends StatelessWidget {
+  const _PatientSheetSectionsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      key: Key('patient_sheet_sections_loading'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        NubiaSkeletonLoader(height: 20, borderRadius: 4),
+        SizedBox(height: 16),
+        NubiaSkeletonLoader(height: 32, borderRadius: 16),
+        SizedBox(height: 16),
+        NubiaSkeletonLoader(height: 48, borderRadius: 8),
+      ],
     );
   }
 }
@@ -917,66 +1091,46 @@ class _PatientSheetConfidentialityNotice extends StatelessWidget {
   }
 }
 
-/// Solde restant dû du patient (US-4.6.2, #4044/#4045). Fetch dédié via
-/// `GetCabinetPatientUseCase` : la liste (`PatientsLoaded`, source de
-/// `_PatientSheet`) n'expose pas `balanceDueCents`, seul le détail
-/// (`GET /cabinet/patients/:id`) le renvoie.
-class PatientBalanceSection extends StatefulWidget {
-  const PatientBalanceSection({super.key, required this.patientId});
+/// Solde restant dû du patient (US-4.6.2, #4044/#4045) — présentation pure :
+/// [patient] et [error] proviennent du chargement unique de la fiche
+/// (`_PatientSheetState._load`, design-v2 #5115), la liste (`PatientsLoaded`)
+/// n'exposant pas `balanceDueCents` (seul le détail
+/// `GET /cabinet/patients/:id` le renvoie). Best-effort : une fiche patient
+/// reste consultable même si le solde ne charge pas, mais l'échec est
+/// désormais visible — fini le `SizedBox.shrink()` silencieux.
+class PatientBalanceSection extends StatelessWidget {
+  const PatientBalanceSection({
+    super.key,
+    required this.patient,
+    required this.error,
+  });
 
-  final String patientId;
-
-  @override
-  State<PatientBalanceSection> createState() => _PatientBalanceSectionState();
-}
-
-class _PatientBalanceSectionState extends State<PatientBalanceSection> {
-  int? _balanceCents;
-  int? _noShowCount;
-  List<GuardianshipLink>? _guardians;
-  String? _error;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final result =
-        await GetIt.instance<GetCabinetPatientUseCase>()(widget.patientId);
-    if (!mounted) return;
-    result.fold(
-      (failure) => setState(() {
-        _error = failure.message;
-        _loading = false;
-      }),
-      (patient) => setState(() {
-        _balanceCents = patient.balanceDueCents;
-        // Même fetch que le solde (#4090/#4091) — pas d'appel réseau dédié.
-        _noShowCount = patient.noShowCount;
-        _guardians = patient.guardians;
-        _loading = false;
-      }),
-    );
-  }
+  /// Détail patient déjà chargé par la fiche, `null` si [error] est défini.
+  final CabinetPatient? patient;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    if (_loading) {
-      return const NubiaSkeletonLoader(height: 20, borderRadius: 4);
+    if (error != null) {
+      return Row(
+        children: [
+          Icon(Icons.error_outline, size: 18, color: cs.error),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Solde indisponible : $error',
+              key: const Key('patient_balance_error'),
+              style: TextStyle(color: cs.error),
+            ),
+          ),
+        ],
+      );
     }
-    if (_error != null) {
-      // Best-effort : une fiche patient reste consultable même si le solde
-      // ne charge pas (ex. hors-ligne) — pas de blocage de l'écran.
-      return const SizedBox.shrink();
-    }
-    final cents = _balanceCents ?? 0;
-    final noShowCount = _noShowCount;
-    final guardians = _guardians ?? const [];
+    final cents = patient?.balanceDueCents ?? 0;
+    final noShowCount = patient?.noShowCount;
+    final guardians = patient?.guardians ?? const [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1031,10 +1185,22 @@ class _PatientBalanceSectionState extends State<PatientBalanceSection> {
 
 /// Étiquettes administratives du patient (#4041) — chargement, ajout,
 /// suppression. Distinct du journal clinique : zéro donnée de santé.
+///
+/// design-v2 (#5115) : [initialTags]/[initialError] viennent du chargement
+/// unique de la fiche (`_PatientSheetState._load`) — plus de fetch au
+/// montage. Un rechargement ([_reload]) reste local à cette section : il
+/// n'a lieu qu'après une mutation (ajout/suppression), pas à l'ouverture.
 class PatientTagsSection extends StatefulWidget {
-  const PatientTagsSection({super.key, required this.patientId});
+  const PatientTagsSection({
+    super.key,
+    required this.patientId,
+    required this.initialTags,
+    required this.initialError,
+  });
 
   final String patientId;
+  final List<PatientTag>? initialTags;
+  final String? initialError;
 
   @override
   State<PatientTagsSection> createState() => _PatientTagsSectionState();
@@ -1048,10 +1214,13 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _tags = widget.initialTags;
+    _error = widget.initialError;
   }
 
-  Future<void> _load() async {
+  /// Recharge après une mutation (ajout/suppression) — le chargement
+  /// initial, lui, est fait une seule fois par `_PatientSheetState` (#5115).
+  Future<void> _reload() async {
     final result =
         await GetIt.instance<ListPatientTagsUseCase>()(widget.patientId);
     if (!mounted) return;
@@ -1075,7 +1244,7 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
     result.fold(
       (failure) => ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(failure.message))),
-      (_) => _load(),
+      (_) => _reload(),
     );
   }
 
@@ -1088,7 +1257,7 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
     result.fold(
       (failure) => ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(failure.message))),
-      (_) => _load(),
+      (_) => _reload(),
     );
   }
 
@@ -1184,38 +1353,19 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
 /// Documents du dossier patient (GED, §4.4, #4042) — liste vide/remplie.
 /// Upload hors scope ici : `POST .../documents` déjà exposé côté API,
 /// reste à câbler dans un futur écran dédié si besoin.
-class PatientDocumentsSection extends StatefulWidget {
-  const PatientDocumentsSection({super.key, required this.patientId});
+///
+/// design-v2 (#5115) : présentation pure — [documents]/[error] viennent du
+/// chargement unique de la fiche (`_PatientSheetState._load`), plus de
+/// fetch dédié ni de skeleton local.
+class PatientDocumentsSection extends StatelessWidget {
+  const PatientDocumentsSection({
+    super.key,
+    required this.documents,
+    required this.error,
+  });
 
-  final String patientId;
-
-  @override
-  State<PatientDocumentsSection> createState() =>
-      _PatientDocumentsSectionState();
-}
-
-class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
-  List<PatientDocument>? _documents;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final result =
-        await GetIt.instance<ListPatientDocumentsUseCase>()(widget.patientId);
-    if (!mounted) return;
-    result.fold(
-      (failure) => setState(() => _error = failure.message),
-      (documents) => setState(() {
-        _documents = documents;
-        _error = null;
-      }),
-    );
-  }
+  final List<PatientDocument>? documents;
+  final String? error;
 
   IconData _iconFor(String mimeType) {
     if (mimeType.startsWith('image/')) return Icons.image_outlined;
@@ -1234,18 +1384,20 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
-    final documents = _documents;
+    final docs = documents;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Documents', style: textTheme.titleSmall),
         const SizedBox(height: 8),
-        if (_error != null)
-          Text(_error!, style: TextStyle(color: cs.error))
-        else if (documents == null)
-          const NubiaSkeletonLoader(height: 48, borderRadius: 8)
-        else if (documents.isEmpty)
+        if (error != null)
+          Text(
+            'Documents indisponibles : $error',
+            key: const Key('patient_documents_error'),
+            style: TextStyle(color: cs.error),
+          )
+        else if (docs == null || docs.isEmpty)
           Text(
             'Aucun document.',
             key: const Key('patient_documents_empty'),
@@ -1255,7 +1407,7 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
           Column(
             key: const Key('patient_documents_list'),
             children: [
-              for (final doc in documents)
+              for (final doc in docs)
                 ListRow(
                   key: Key('patient_document_${doc.id}'),
                   leading: Icon(_iconFor(doc.mimeType), color: cs.primary),
