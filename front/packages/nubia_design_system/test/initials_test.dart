@@ -17,4 +17,12 @@ void main() {
       expect(initialsFrom('   '), isNotEmpty);
     });
   });
+
+  group('NubiaInitials.of (#5124)', () {
+    test('mêmes règles que initialsFrom', () {
+      expect(NubiaInitials.of('Marc Dubois'), 'MD');
+      expect(NubiaInitials.of('Léa'), 'LÉ');
+      expect(NubiaInitials.of(''), isNotEmpty);
+    });
+  });
 }
