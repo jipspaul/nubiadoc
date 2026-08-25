@@ -195,14 +195,22 @@ class _ButtonContent extends StatelessWidget {
         children: [
           Icon(icon, size: fontSize + 2),
           const SizedBox(width: 6),
-          Text(label,
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
               style:
-                  TextStyle(fontSize: fontSize, fontWeight: FontWeight.w500)),
+                  TextStyle(fontSize: fontSize, fontWeight: FontWeight.w500),
+            ),
+          ),
         ],
       );
     }
-    return Text(label,
-        style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w500));
+    return Text(
+      label,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w500),
+    );
   }
 }
 
