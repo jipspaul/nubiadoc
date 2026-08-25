@@ -89,6 +89,23 @@ const _implantWithMriFlagButNoMaterial = ImplantItem(
   mriCompatibility: 'Compatible IRM sous conditions',
 );
 
+const _implantWithDeviceIdentification = ImplantItem(
+  id: 'implant-4',
+  brand: 'Implant molaire 36',
+  manufacturer: 'Nobel Biocare',
+  model: 'Replace Select Tapered',
+  reference: '36214',
+  lotNumber: 'NB-4471-22A',
+  dimensions: 'Ø 4,3 mm · L 11,5 mm',
+  material: 'Titane grade 4',
+);
+
+const _implantWithReferenceOnly = ImplantItem(
+  id: 'implant-5',
+  brand: 'Nobel Biocare',
+  reference: '36214',
+);
+
 void main() {
   late _MockExportImplantPassport exportUseCase;
 
@@ -307,6 +324,66 @@ void main() {
         find.byKey(const Key('implant_detail_mri_safety_alert')),
         findsNothing,
       );
+    });
+
+    testWidgets(
+        "n'affiche pas le bloc « Identification du dispositif » si aucune "
+        'donnée du dispositif', (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithFollowUp));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_detail_device_identification_card')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'affiche le bloc « Identification du dispositif » avec les six '
+        'libellés, référence et n° de lot en mono', (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithDeviceIdentification));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_detail_device_identification_card')),
+        findsOneWidget,
+      );
+      expect(find.text('Identification du dispositif'), findsOneWidget);
+      expect(find.byIcon(Icons.inventory_2), findsOneWidget);
+
+      expect(find.text('Fabricant'), findsOneWidget);
+      expect(find.text('Nobel Biocare'), findsOneWidget);
+      expect(find.text('Modèle'), findsOneWidget);
+      expect(find.text('Replace Select Tapered'), findsOneWidget);
+      expect(find.text('Référence'), findsOneWidget);
+      expect(find.text('N° de lot'), findsOneWidget);
+      expect(find.text('Dimensions'), findsOneWidget);
+      expect(find.text('Ø 4,3 mm · L 11,5 mm'), findsOneWidget);
+      expect(find.text('Matériau'), findsOneWidget);
+      expect(find.text('Titane grade 4'), findsOneWidget);
+
+      final reference = tester.widget<Text>(find.text('36214'));
+      expect(reference.style?.fontFamily, 'monospace');
+      final lotNumber = tester.widget<Text>(find.text('NB-4471-22A'));
+      expect(lotNumber.style?.fontFamily, 'monospace');
+    });
+
+    testWidgets(
+        "n'affiche que les lignes renseignées dans le bloc "
+        '« Identification du dispositif »', (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithReferenceOnly));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_detail_device_identification_card')),
+        findsOneWidget,
+      );
+      expect(find.text('Référence'), findsOneWidget);
+      expect(find.text('Fabricant'), findsNothing);
+      expect(find.text('Modèle'), findsNothing);
+      expect(find.text('N° de lot'), findsNothing);
+      expect(find.text('Dimensions'), findsNothing);
+      expect(find.text('Matériau'), findsNothing);
     });
   });
 
