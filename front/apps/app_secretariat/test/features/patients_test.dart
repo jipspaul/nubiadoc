@@ -22,6 +22,13 @@ class _MockPatientsBloc extends MockBloc<PatientsEvent, PatientsState>
 
 class _MockListPatientAlerts extends Mock implements ListPatientAlertsUseCase {}
 
+class _MockGetCabinetPatient extends Mock implements GetCabinetPatientUseCase {}
+
+class _MockListPatientTags extends Mock implements ListPatientTagsUseCase {}
+
+class _MockListPatientDocuments extends Mock
+    implements ListPatientDocumentsUseCase {}
+
 void main() {
   // --- Cloisonnement invariant --------------------------------------------------
   group('ProConfig — cloisonnement', () {
@@ -366,6 +373,56 @@ void main() {
       expect(find.byType(ListRow), findsNWidgets(2));
       expect(find.text('Alice Martin'), findsOneWidget);
       expect(find.text('Bob Dupont'), findsOneWidget);
+    });
+
+    testWidgets(
+        'fiche patient — bandeau de cloisonnement précisant le cas « AVK »',
+        (tester) async {
+      final patient = CabinetPatient(
+        id: 'p1',
+        cabinetId: 'c1',
+        firstName: 'Alice',
+        lastName: 'Martin',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      when(() => bloc.state).thenReturn(PatientsLoaded([patient]));
+
+      final getPatient = _MockGetCabinetPatient();
+      when(() => getPatient(any())).thenAnswer((_) async => Right(patient));
+      GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
+        () => getPatient,
+      );
+
+      final listTags = _MockListPatientTags();
+      when(() => listTags(any())).thenAnswer((_) async => const Right([]));
+      GetIt.instance.registerFactory<ListPatientTagsUseCase>(() => listTags);
+
+      final listDocuments = _MockListPatientDocuments();
+      when(() => listDocuments(any()))
+          .thenAnswer((_) async => const Right([]));
+      GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
+        () => listDocuments,
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(ListRow));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('patient_sheet_confidentiality_notice')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Cloisonnement secrétariat'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('AVK'), findsOneWidget);
+      expect(
+        find.textContaining("consigne d'accueil"),
+        findsOneWidget,
+      );
     });
   });
 }
