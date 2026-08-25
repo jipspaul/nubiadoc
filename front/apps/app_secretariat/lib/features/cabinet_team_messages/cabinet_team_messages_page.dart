@@ -76,7 +76,7 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
         }
       },
       builder: (context, state) {
-        return Column(
+        final thread = Column(
           children: [
             Expanded(
               child: switch (state) {
@@ -99,7 +99,195 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
             ),
           ],
         );
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 900) return thread;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: thread),
+                const _TeamAside(),
+              ],
+            );
+          },
+        );
       },
+    );
+  }
+}
+
+/// Membre du panneau « Équipe » (#5133) : roster + présence du cabinet,
+/// visible en colonne latérale sur desktop pour savoir depuis le comptoir
+/// qui est disponible. Données fictives verbatim de la maquette design-v2 en
+/// attendant une API de présence dédiée (aucune ne réunit aujourd'hui tous
+/// les rôles du cabinet sans restriction admin, cf. `MembersAccessCubit`).
+class _TeamMember {
+  const _TeamMember({
+    required this.name,
+    required this.subtitle,
+    required this.initials,
+    required this.present,
+  });
+
+  final String name;
+  final String subtitle;
+  final String initials;
+  final bool present;
+}
+
+const _teamMembers = [
+  _TeamMember(
+    name: 'Sarah Lemoine',
+    subtitle: 'Secrétaire · vous',
+    initials: 'SL',
+    present: true,
+  ),
+  _TeamMember(
+    name: 'Dr Amélie Rousseau',
+    subtitle: 'Praticienne · en consultation',
+    initials: 'AR',
+    present: true,
+  ),
+  _TeamMember(
+    name: 'Dr Marc Lefèvre',
+    subtitle: 'Praticien · absent',
+    initials: 'ML',
+    present: false,
+  ),
+  _TeamMember(
+    name: 'Claire Béranger',
+    subtitle: 'Assistante',
+    initials: 'CB',
+    present: true,
+  ),
+];
+
+class _TeamAside extends StatelessWidget {
+  const _TeamAside();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      key: const Key('team_aside'),
+      width: 260,
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        border: Border(left: BorderSide(color: NubiaColors.n200)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.groups, size: 20, color: cs.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Text(
+                'Équipe',
+                style: textTheme.titleMedium?.copyWith(color: cs.onSurface),
+              ),
+              const SizedBox(width: 8),
+              _TeamCountBadge(count: _teamMembers.length),
+            ],
+          ),
+          const SizedBox(height: 16),
+          for (final member in _teamMembers) _TeamMemberRow(member: member),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeamCountBadge extends StatelessWidget {
+  const _TeamCountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('team_aside_count_badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: NubiaColors.n100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$count',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: NubiaColors.n700,
+        ),
+      ),
+    );
+  }
+}
+
+class _TeamMemberRow extends StatelessWidget {
+  const _TeamMemberRow({required this.member});
+
+  final _TeamMember member;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      key: Key('team_member_${member.initials}'),
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              NubiaAvatar(initials: member.initials, radius: 18),
+              Positioned(
+                right: -1,
+                bottom: -1,
+                child: Container(
+                  key: Key('team_member_status_${member.initials}'),
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: member.present
+                        ? NubiaColors.successFg
+                        : NubiaColors.n300,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: cs.surface, width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  member.name,
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  member.subtitle,
+                  style: textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

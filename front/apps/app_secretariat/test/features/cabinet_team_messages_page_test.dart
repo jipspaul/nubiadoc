@@ -175,4 +175,74 @@ void main() {
     expect(find.text('⇧⏎'), findsOneWidget);
     expect(find.text('nouvelle ligne'), findsOneWidget);
   });
+
+  group('panneau « Équipe » (#5133)', () {
+    testWidgets('desktop → liste les 4 membres avec pastille de présence',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_aside')), findsOneWidget);
+      expect(find.text('Équipe'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('team_aside_count_badge')),
+          matching: find.text('4'),
+        ),
+        findsOneWidget,
+      );
+
+      expect(find.byKey(const Key('team_member_SL')), findsOneWidget);
+      expect(find.text('Sarah Lemoine'), findsOneWidget);
+      expect(find.text('Secrétaire · vous'), findsOneWidget);
+
+      expect(find.byKey(const Key('team_member_AR')), findsOneWidget);
+      expect(find.text('Dr Amélie Rousseau'), findsOneWidget);
+      expect(find.text('Praticienne · en consultation'), findsOneWidget);
+
+      expect(find.byKey(const Key('team_member_ML')), findsOneWidget);
+      expect(find.text('Dr Marc Lefèvre'), findsOneWidget);
+      expect(find.text('Praticien · absent'), findsOneWidget);
+
+      expect(find.byKey(const Key('team_member_CB')), findsOneWidget);
+      expect(find.text('Claire Béranger'), findsOneWidget);
+      expect(find.text('Assistante'), findsOneWidget);
+
+      final presentPastille = tester.widget<Container>(
+        find.byKey(const Key('team_member_status_SL')),
+      );
+      final presentDecoration =
+          presentPastille.decoration! as BoxDecoration;
+      expect(presentDecoration.color, NubiaColors.successFg);
+
+      final absentPastille = tester.widget<Container>(
+        find.byKey(const Key('team_member_status_ML')),
+      );
+      final absentDecoration = absentPastille.decoration! as BoxDecoration;
+      expect(absentDecoration.color, NubiaColors.n300);
+    });
+
+    testWidgets('étroit (mobile) → panneau « Équipe » masqué', (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_aside')), findsNothing);
+    });
+  });
 }
