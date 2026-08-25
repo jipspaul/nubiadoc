@@ -1,5 +1,5 @@
 //! Tests widget : `PatientBalanceSection` (#4045) — solde=0 et solde>0,
-//! (#4090) — compteur de lapins (`noShowCount`) 0 et 3, même fetch,
+//! (#4090) — compteur de rendez-vous manqués (`noShowCount`) 0 et 3, même fetch,
 //! (#4092) — indicateur tuteur, patient avec vs sans tuteur déclaré.
 
 import 'package:dartz/dartz.dart';
@@ -86,7 +86,8 @@ void main() {
     expect(find.text('Solde : 1 245,67 €'), findsOneWidget);
   });
 
-  testWidgets('0 lapin : affiché sans mise en avant', (tester) async {
+  testWidgets('0 rendez-vous manqué : affiché sans mise en avant',
+      (tester) async {
     when(() => getPatient('patient-1')).thenAnswer(
       (_) async => Right(_patient(balanceDueCents: 0, noShowCount: 0)),
     );
@@ -94,13 +95,14 @@ void main() {
     await tester.pumpWidget(buildSection());
     await tester.pumpAndSettle();
 
-    expect(find.text('Lapins : 0'), findsOneWidget);
+    expect(find.text('Rendez-vous manqués : 0'), findsOneWidget);
     final text =
         tester.widget<Text>(find.byKey(const Key('patient_no_show_count')));
     expect(text.style?.color, isNull);
   });
 
-  testWidgets('3 lapins : affiché en évidence (couleur error)', (tester) async {
+  testWidgets('3 rendez-vous manqués : affiché en évidence (couleur error)',
+      (tester) async {
     when(() => getPatient('patient-1')).thenAnswer(
       (_) async => Right(_patient(balanceDueCents: 0, noShowCount: 3)),
     );
@@ -108,7 +110,7 @@ void main() {
     await tester.pumpWidget(buildSection());
     await tester.pumpAndSettle();
 
-    expect(find.text('Lapins : 3'), findsOneWidget);
+    expect(find.text('Rendez-vous manqués : 3'), findsOneWidget);
     final text =
         tester.widget<Text>(find.byKey(const Key('patient_no_show_count')));
     final cs = Theme.of(tester.element(find.byType(Scaffold))).colorScheme;

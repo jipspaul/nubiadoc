@@ -554,7 +554,7 @@ class _PatientBalanceSectionState extends State<PatientBalanceSection> {
                   size: 18, color: cs.onSurfaceVariant),
               const SizedBox(width: 10),
               Text(
-                'Lapins : $noShowCount',
+                'Rendez-vous manqués : $noShowCount',
                 key: const Key('patient_no_show_count'),
                 style: noShowCount > 0
                     ? TextStyle(color: cs.error, fontWeight: FontWeight.w600)
