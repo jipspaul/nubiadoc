@@ -54,6 +54,7 @@ class CabinetTeamMessageDto {
   final bool pinned;
   final String? pinnedBy;
   final String? pinnedAt;
+  final List<String> mentions;
 
   const CabinetTeamMessageDto({
     required this.id,
@@ -65,6 +66,7 @@ class CabinetTeamMessageDto {
     this.pinned = false,
     this.pinnedBy,
     this.pinnedAt,
+    this.mentions = const [],
   });
 
   factory CabinetTeamMessageDto.fromJson(Map<String, dynamic> json) =>
@@ -81,6 +83,10 @@ class CabinetTeamMessageDto {
         pinned: json['pinned'] as bool? ?? false,
         pinnedBy: json['pinned_by'] as String?,
         pinnedAt: json['pinned_at'] as String?,
+        mentions: (json['mentions'] as List<dynamic>?)
+                ?.map((m) => m as String)
+                .toList() ??
+            const [],
       );
 
   CabinetTeamMessage toDomain() => CabinetTeamMessage(
@@ -93,5 +99,6 @@ class CabinetTeamMessageDto {
         pinned: pinned,
         pinnedBy: pinnedBy,
         pinnedAt: pinnedAt != null ? DateTime.parse(pinnedAt!) : null,
+        mentions: mentions,
       );
 }

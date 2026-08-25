@@ -44,6 +44,10 @@ class CabinetTeamMessage extends Equatable {
   final String? pinnedBy;
   final DateTime? pinnedAt;
 
+  /// Noms des membres mentionnés (`@Nom`) dans [body] (#5129) : une mention
+  /// est une tâche adressée, distincte visuellement du reste du message.
+  final List<String> mentions;
+
   const CabinetTeamMessage({
     required this.id,
     required this.senderId,
@@ -54,6 +58,7 @@ class CabinetTeamMessage extends Equatable {
     this.pinned = false,
     this.pinnedBy,
     this.pinnedAt,
+    this.mentions = const [],
   });
 
   @override
@@ -67,5 +72,6 @@ class CabinetTeamMessage extends Equatable {
         pinned,
         pinnedBy,
         pinnedAt,
+        mentions,
       ];
 }
