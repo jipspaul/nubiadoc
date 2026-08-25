@@ -450,5 +450,109 @@ void main() {
         findsOneWidget,
       );
     });
+
+    // ── Filtres rapides (#5118) ─────────────────────────────────────────
+
+    testWidgets(
+        'affiche les trois filtres rapides avec leur compteur dérivé de '
+        'la liste', (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+            balanceDueCents: 1500,
+          ),
+          CabinetPatient(
+            id: 'p2',
+            cabinetId: 'c1',
+            firstName: 'Bob',
+            lastName: 'Dupont',
+            createdAt: DateTime(2026, 1, 1),
+            hasActiveAlerts: true,
+          ),
+          CabinetPatient(
+            id: 'p3',
+            cabinetId: 'c1',
+            firstName: 'Chloé',
+            lastName: 'Petit',
+            createdAt: DateTime(2026, 1, 1),
+            hasUpcomingAppointment: false,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Impayés'), findsOneWidget);
+      expect(find.textContaining('Alertes'), findsOneWidget);
+      expect(find.textContaining('Sans RDV à venir'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('patients_quick_filter_unpaid')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('patients_quick_filter_alerts')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key('patients_quick_filter_noUpcomingAppointment'),
+          ),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'activer le filtre « Impayés » restreint la liste au sous-ensemble '
+        'correspondant', (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+            balanceDueCents: 1500,
+          ),
+          CabinetPatient(
+            id: 'p2',
+            cabinetId: 'c1',
+            firstName: 'Bob',
+            lastName: 'Dupont',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ListRow), findsNWidgets(2));
+
+      await tester.tap(find.byKey(const Key('patients_quick_filter_unpaid')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ListRow), findsNWidgets(1));
+      expect(find.text('Alice Martin'), findsOneWidget);
+      expect(find.text('Bob Dupont'), findsNothing);
+
+      // Réactiver le filtre restaure la liste complète.
+      await tester.tap(find.byKey(const Key('patients_quick_filter_unpaid')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListRow), findsNWidgets(2));
+    });
   });
 }

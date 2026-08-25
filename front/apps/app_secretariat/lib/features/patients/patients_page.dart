@@ -35,6 +35,28 @@ class _PatientsPageState extends State<PatientsPage> {
   Timer? _debounce;
   bool _openPatientHandled = false;
 
+  /// Filtres rapides à bascule de la barre d'outils (design-v2, note #5) :
+  /// Impayés / Alertes / Sans RDV à venir. Combinés en ET quand plusieurs
+  /// sont actifs, appliqués côté client sur `state.patients` — aucun fetch
+  /// dédié par filtre.
+  final Set<_QuickFilter> _activeFilters = {};
+
+  void _toggleFilter(_QuickFilter filter) {
+    setState(() {
+      if (!_activeFilters.remove(filter)) _activeFilters.add(filter);
+    });
+  }
+
+  List<CabinetPatient> _applyFilters(List<CabinetPatient> patients) {
+    if (_activeFilters.isEmpty) return patients;
+    return patients.where((p) {
+      for (final filter in _activeFilters) {
+        if (!filter.matches(p)) return false;
+      }
+      return true;
+    }).toList();
+  }
+
   /// Total de patients du cabinet (design-v2, note #7 — « N résultats sur
   /// M »). Capturé sur le dernier chargement non filtré (`_query` vide) :
   /// il n'existe pas d'endpoint de comptage dédié, donc M reste figé sur la
@@ -134,6 +156,7 @@ class _PatientsPageState extends State<PatientsPage> {
               if (_query.isEmpty) {
                 _totalCount = state.patients.length;
               }
+              final filteredPatients = _applyFilters(state.patients);
               return Column(
                 children: [
                   Padding(
@@ -176,6 +199,26 @@ class _PatientsPageState extends State<PatientsPage> {
                       ],
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Wrap(
+                      key: const Key('patients_quick_filters'),
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final filter in _QuickFilter.values)
+                          _QuickFilterChip(
+                            key: Key('patients_quick_filter_${filter.name}'),
+                            label: filter.label,
+                            count: filter.countIn(state.patients),
+                            selected: _activeFilters.contains(filter),
+                            icon: filter.icon,
+                            iconColor: filter.iconColor,
+                            onTap: () => _toggleFilter(filter),
+                          ),
+                      ],
+                    ),
+                  ),
                   if (state.patients.isEmpty)
                     Expanded(
                       child: Center(
@@ -185,13 +228,23 @@ class _PatientsPageState extends State<PatientsPage> {
                         ),
                       ),
                     )
+                  else if (filteredPatients.isEmpty)
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          'Aucun patient ne correspond aux filtres '
+                          'sélectionnés.',
+                          key: const Key('patients_filters_no_results'),
+                        ),
+                      ),
+                    )
                   else
                     Expanded(
                       child: ListView.builder(
                         padding: const EdgeInsets.only(bottom: 16),
-                        itemCount: state.patients.length,
+                        itemCount: filteredPatients.length,
                         itemBuilder: (_, i) =>
-                            _PatientRow(patient: state.patients[i]),
+                            _PatientRow(patient: filteredPatients[i]),
                       ),
                     ),
                 ],
@@ -208,6 +261,105 @@ class _PatientsPageState extends State<PatientsPage> {
             // PatientsInitial, PatientsLoading
             return const _PatientsSkeleton();
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Filtres rapides de la barre d'outils Fiches patients (design-v2, note
+/// #5) : Impayés / Alertes / Sans RDV à venir. `matches`/`countIn` lisent
+/// exclusivement les champs déjà présents sur [CabinetPatient] (aucun fetch
+/// dédié) — `hasActiveAlerts`/`hasUpcomingAppointment` restent `null` tant
+/// que la liste paginée n'est pas enrichie par le ticket dépendant, auquel
+/// cas le filtre correspondant ne retient aucun patient.
+enum _QuickFilter {
+  unpaid('Impayés'),
+  alerts('Alertes'),
+  noUpcomingAppointment('Sans RDV à venir');
+
+  const _QuickFilter(this.label);
+
+  final String label;
+
+  IconData? get icon => this == _QuickFilter.unpaid ? Icons.error : null;
+
+  Color? get iconColor =>
+      this == _QuickFilter.unpaid ? NubiaColors.dangerFg : null;
+
+  bool matches(CabinetPatient patient) {
+    switch (this) {
+      case _QuickFilter.unpaid:
+        return (patient.balanceDueCents ?? 0) > 0;
+      case _QuickFilter.alerts:
+        return patient.hasActiveAlerts == true;
+      case _QuickFilter.noUpcomingAppointment:
+        return patient.hasUpcomingAppointment == false;
+    }
+  }
+
+  int countIn(List<CabinetPatient> patients) =>
+      patients.where(matches).length;
+}
+
+/// Puce de filtre rapide à bascule (design-v2, `.fltr`) : libellé + compteur
+/// gris tabular-nums, fond `n100` quand actif (`.fc.on`).
+class _QuickFilterChip extends StatelessWidget {
+  const _QuickFilterChip({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    this.icon,
+    this.iconColor,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+  final IconData? icon;
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: selected ? NubiaColors.n100 : Colors.transparent,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected ? NubiaColors.n100 : tokens.borderDefault,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Semantics(
+          toggled: selected,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 15, color: iconColor ?? cs.error),
+                  const SizedBox(width: 4),
+                ],
+                Text(label, style: textTheme.bodyMedium),
+                const SizedBox(width: 6),
+                Text(
+                  '$count',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: NubiaColors.n500,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
