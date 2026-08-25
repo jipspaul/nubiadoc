@@ -14,6 +14,9 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
       : _getPayouts = getPayouts,
         super(const CabinetPayoutsLoading()) {
     on<CabinetPayoutsLoadRequested>(_onLoad);
+    on<CabinetPayoutSelected>(_onSelected);
+    on<CabinetPayoutMarkedReconciled>(_onMarkedReconciled);
+    on<CabinetPayoutFlaggedToAccountant>(_onFlaggedToAccountant);
   }
 
   final GetCabinetPayoutsUseCase _getPayouts;
@@ -29,4 +32,58 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
       (payouts) => safeEmit(CabinetPayoutsLoaded(payouts)),
     );
   }
+
+  void _onSelected(
+    CabinetPayoutSelected event,
+    Emitter<CabinetPayoutsState> emit,
+  ) {
+    final current = state;
+    if (current is! CabinetPayoutsLoaded) return;
+    final alreadySelected = current.selectedPayoutId == event.id;
+    safeEmit(
+      CabinetPayoutsLoaded(
+        current.payouts,
+        selectedPayoutId: alreadySelected ? null : event.id,
+      ),
+    );
+  }
+
+  /// Marque le virement comme rapproché — décision humaine déclenchée par
+  /// l'action, jamais automatique. `reconciliationStatus` reste le seul
+  /// pilote du badge.
+  void _onMarkedReconciled(
+    CabinetPayoutMarkedReconciled event,
+    Emitter<CabinetPayoutsState> emit,
+  ) {
+    final current = state;
+    if (current is! CabinetPayoutsLoaded) return;
+    safeEmit(
+      CabinetPayoutsLoaded(
+        [
+          for (final payout in current.payouts)
+            if (payout.id == event.id) _reconciled(payout) else payout,
+        ],
+        selectedPayoutId: current.selectedPayoutId,
+      ),
+    );
+  }
+
+  /// Signale l'écart au comptable : aucun état métier dédié côté virement,
+  /// le feedback est porté par l'UI (snackbar).
+  void _onFlaggedToAccountant(
+    CabinetPayoutFlaggedToAccountant event,
+    Emitter<CabinetPayoutsState> emit,
+  ) {}
+
+  /// Copie le payout avec le statut rapproché (le domaine n'expose pas de
+  /// `copyWith`).
+  CabinetPayout _reconciled(CabinetPayout payout) => CabinetPayout(
+        id: payout.id,
+        provider: payout.provider,
+        amountCents: payout.amountCents,
+        currency: payout.currency,
+        arrivalDate: payout.arrivalDate,
+        reconciliationStatus: PayoutReconciliationStatus.reconciled,
+        internalPaymentsTotalCents: payout.internalPaymentsTotalCents,
+      );
 }

@@ -51,6 +51,10 @@ Widget _wrap(CabinetPayoutsBloc bloc) => MaterialApp(
     );
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(const CabinetPayoutsLoadRequested());
+  });
+
   testWidgets(
     'un virement sans somme de paiements internes correspondante '
     'est marqué "à vérifier"',
@@ -76,5 +80,135 @@ void main() {
     await tester.pumpWidget(_wrap(bloc));
 
     expect(find.byKey(const Key('cabinet_payouts_empty')), findsOneWidget);
+  });
+
+  group('volet de détail — actions de résolution (#5111)', () {
+    testWidgets(
+      'aucun virement sélectionné → pas d\'actions de rapprochement',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state)
+            .thenReturn(CabinetPayoutsLoaded([_reconciled, _toVerify]));
+        await tester.pumpWidget(_wrap(bloc));
+
+        expect(
+          find.byKey(const Key('payout_action_mark_reconciled')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('payout_action_flag_accountant')),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'virement sélectionné → CTA "Marquer comme rapproché" (icône check) '
+      'et bouton secondaire "Signaler au comptable"',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_reconciled, _toVerify],
+            selectedPayoutId: _toVerify.id,
+          ),
+        );
+        // `Scaffold` requis : le volet contient des boutons Material
+        // (`FilledButton`/`OutlinedButton`) qui exigent un ancêtre `Material`.
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(find.text('Marquer comme rapproché'), findsOneWidget);
+        expect(find.byIcon(Icons.check), findsOneWidget);
+        expect(find.text('Signaler au comptable'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'tap sur "Marquer comme rapproché" émet CabinetPayoutMarkedReconciled',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_reconciled, _toVerify],
+            selectedPayoutId: _toVerify.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(
+          find.byKey(const Key('payout_action_mark_reconciled')),
+        );
+        await tester.pump();
+
+        verify(
+          () => bloc.add(
+            any(
+              that: isA<CabinetPayoutMarkedReconciled>()
+                  .having((e) => e.id, 'id', _toVerify.id),
+            ),
+          ),
+        ).called(1);
+      },
+    );
+
+    testWidgets(
+      'tap sur "Signaler au comptable" émet CabinetPayoutFlaggedToAccountant '
+      'et affiche un feedback',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_reconciled, _toVerify],
+            selectedPayoutId: _toVerify.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(
+          find.byKey(const Key('payout_action_flag_accountant')),
+        );
+        await tester.pump();
+
+        verify(
+          () => bloc.add(
+            any(
+              that: isA<CabinetPayoutFlaggedToAccountant>()
+                  .having((e) => e.id, 'id', _toVerify.id),
+            ),
+          ),
+        ).called(1);
+        expect(find.text('Signalé au comptable.'), findsOneWidget);
+      },
+    );
   });
 }
