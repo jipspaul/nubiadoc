@@ -43,6 +43,19 @@ String _pad2(int n) => n.toString().padLeft(2, '0');
 
 String _formatDate(DateTime d) => '${_pad2(d.day)}/${_pad2(d.month)}/${d.year}';
 
+/// Paiement interne non rapprochable par le prestataire dont le montant
+/// égale exactement l'écart (#5110) — signale une « piste probable » sans
+/// jamais rapprocher automatiquement quoi que ce soit.
+InternalPayment? _probableLead(CabinetPayout payout) {
+  for (final payment in payout.internalPayments) {
+    if (!payment.reconcilableByProvider &&
+        payment.amountCents == payout.differenceCents.abs()) {
+      return payment;
+    }
+  }
+  return null;
+}
+
 /// Corps de l'écran — consommable dans `ProShell.bodyBuilder`.
 class CabinetPayoutsBody extends StatelessWidget {
   const CabinetPayoutsBody({super.key});
@@ -201,6 +214,7 @@ class _PayoutDetailPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final reconciled =
         payout.reconciliationStatus == PayoutReconciliationStatus.reconciled;
+    final probableLead = _probableLead(payout);
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(
@@ -246,6 +260,10 @@ class _PayoutDetailPanel extends StatelessWidget {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
+            if (probableLead != null) ...[
+              const SizedBox(height: 12),
+              _ProbableLeadCard(payout: payout, lead: probableLead),
+            ],
             const Spacer(),
             NubiaButton(
               key: const Key('payout_action_flag_accountant'),
@@ -275,6 +293,60 @@ class _PayoutDetailPanel extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Encart « Piste probable » (#5110) : signale un paiement non rapprochable
+/// par le prestataire (espèces, chèque…) dont le montant égale exactement
+/// l'écart. Purement indicatif — aucun rapprochement automatique, la
+/// décision reste humaine (boutons du pied de volet, #5111).
+class _ProbableLeadCard extends StatelessWidget {
+  const _ProbableLeadCard({required this.payout, required this.lead});
+
+  final CabinetPayout payout;
+  final InternalPayment lead;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      key: const Key('payout_probable_lead'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.warningBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: NubiaColors.warningBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lightbulb_outline, size: 18, color: tokens.warningFg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: textTheme.bodySmall?.copyWith(color: tokens.warningFg),
+                children: [
+                  const TextSpan(
+                    text: 'Piste probable : ',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextSpan(
+                    text: 'le paiement en ${lead.methodLabel} de '
+                        '${NubiaMoney.formatCents(lead.amountCents)} ne '
+                        'transite pas par ${_providerLabel(payout.provider)} '
+                        "— il explique exactement l'écart. À rapprocher de "
+                        'la caisse, pas du virement.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
