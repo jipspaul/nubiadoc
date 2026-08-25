@@ -74,6 +74,18 @@ void main() {
     expect(text.style?.color, cs.error);
   });
 
+  testWidgets(
+      'solde > 999 € : séparateur de milliers (#5123, NubiaMoney.formatCents)',
+      (tester) async {
+    when(() => getPatient('patient-1'))
+        .thenAnswer((_) async => Right(_patient(balanceDueCents: 124567)));
+
+    await tester.pumpWidget(buildSection());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Solde : 1 245,67 €'), findsOneWidget);
+  });
+
   testWidgets('0 lapin : affiché sans mise en avant', (tester) async {
     when(() => getPatient('patient-1')).thenAnswer(
       (_) async => Right(_patient(balanceDueCents: 0, noShowCount: 0)),
