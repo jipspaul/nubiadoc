@@ -559,11 +559,6 @@ List<CabinetTeamMessage> _filterMessages(
       .toList();
 }
 
-String _pad2(int n) => n.toString().padLeft(2, '0');
-
-String _formatTimestamp(DateTime d) =>
-    '${_pad2(d.day)}/${_pad2(d.month)} ${_pad2(d.hour)}:${_pad2(d.minute)}';
-
 /// Squelette de chargement du fil : esquisse plusieurs lignes de message
 /// (auteur/heure + corps), cohérent avec [_MessagesList].
 class _MessagesSkeleton extends StatelessWidget {
@@ -641,10 +636,12 @@ class _MessagesList extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    _formatTimestamp(m.createdAt),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                    NubiaDate.timeOnly(m.createdAt),
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: NubiaColors.n400,
+                      fontFeatures: tabularFigures,
+                    ),
                   ),
                 ],
               ),
