@@ -365,8 +365,49 @@ class _PatientSheet extends StatelessWidget {
             PatientTagsSection(patientId: patient.id),
             const SizedBox(height: 16),
             PatientDocumentsSection(patientId: patient.id),
+            const SizedBox(height: 16),
+            const _PatientSheetConfidentialityNotice(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Bandeau de cloisonnement en bas de fiche (design-v2, note #9) : la
+/// mention passait jusqu'ici par les seuls commentaires de code (lignes
+/// 16-19, 174-175, 272) — elle passe désormais à l'écran, avec le cas
+/// ambigu des étiquettes (#4041) explicité : une étiquette comme « AVK »
+/// est une consigne d'accueil saisie par le cabinet, pas un élément du
+/// dossier médical.
+class _PatientSheetConfidentialityNotice extends StatelessWidget {
+  const _PatientSheetConfidentialityNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('patient_sheet_confidentiality_notice'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield, size: 18, color: NubiaColors.n500),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Cloisonnement secrétariat : aucune donnée clinique. Les '
+              "étiquettes sont administratives — « AVK » est ici une "
+              "consigne d'accueil saisie par le cabinet, pas un élément "
+              'du dossier médical.',
+              style: TextStyle(fontSize: 11.5, color: NubiaColors.n600),
+            ),
+          ),
+        ],
       ),
     );
   }
