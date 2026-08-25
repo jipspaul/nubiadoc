@@ -29,6 +29,24 @@ final _message1 = CabinetTeamMessage(
   createdAt: DateTime(2026, 1, 1, 9, 30),
 );
 
+final _messageFromPractitioner = CabinetTeamMessage(
+  id: 'm7',
+  senderId: 'u2',
+  senderName: 'Dr Amélie Rousseau',
+  senderRole: 'Praticienne',
+  body: 'Je passe au cabinet à 14h.',
+  createdAt: DateTime(2026, 1, 1, 11),
+);
+
+final _messageFromStaff = CabinetTeamMessage(
+  id: 'm8',
+  senderId: 'u3',
+  senderName: 'Claire Béranger',
+  senderRole: 'Assistante',
+  body: 'Le colis est arrivé.',
+  createdAt: DateTime(2026, 1, 1, 11, 5),
+);
+
 final _messageWithPatientReference = CabinetTeamMessage(
   id: 'm2',
   senderId: 'u1',
@@ -219,6 +237,43 @@ void main() {
     expect(find.text('envoyer'), findsOneWidget);
     expect(find.text('⇧⏎'), findsOneWidget);
     expect(find.text('nouvelle ligne'), findsOneWidget);
+  });
+
+  group('badge rôle de l\'auteur (#5125)', () {
+    testWidgets('message d\'un praticien → badge violet avec le libellé',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([_messageFromPractitioner]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Praticienne'), findsOneWidget);
+      final pill = tester.widget<StatusPill>(find.byType(StatusPill));
+      expect(pill.variant, StatusPillVariant.practitioner);
+    });
+
+    testWidgets('message du staff → badge neutre avec le libellé',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([_messageFromStaff]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Assistante'), findsOneWidget);
+      final pill = tester.widget<StatusPill>(find.byType(StatusPill));
+      expect(pill.variant, StatusPillVariant.neutral);
+    });
+
+    testWidgets('message sans rôle → pas de badge affiché', (tester) async {
+      when(() => listMessages()).thenAnswer((_) async => Right([_message1]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StatusPill), findsNothing);
+    });
   });
 
   group('panneau « Équipe » (#5133)', () {

@@ -33,6 +33,11 @@ class CabinetTeamMessage extends Equatable {
   final String id;
   final String senderId;
   final String senderName;
+
+  /// Libellé de rôle de l'auteur (#5125), ex. `Praticienne`, `Secrétaire` —
+  /// affiché en badge à côté de [senderName] dans un fil où praticiens et
+  /// secrétariat se mêlent. `null` : pas de badge (rétro-compatibilité).
+  final String? senderRole;
   final String body;
   final DateTime createdAt;
   final CabinetTeamMessageReference? reference;
@@ -52,6 +57,7 @@ class CabinetTeamMessage extends Equatable {
     required this.id,
     required this.senderId,
     required this.senderName,
+    this.senderRole,
     required this.body,
     required this.createdAt,
     this.reference,
@@ -66,6 +72,7 @@ class CabinetTeamMessage extends Equatable {
         id,
         senderId,
         senderName,
+        senderRole,
         body,
         createdAt,
         reference,

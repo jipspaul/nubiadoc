@@ -48,6 +48,7 @@ class CabinetTeamMessageDto {
   final String id;
   final String senderId;
   final String senderName;
+  final String? senderRole;
   final String body;
   final String createdAt;
   final CabinetTeamMessageReferenceDto? reference;
@@ -60,6 +61,7 @@ class CabinetTeamMessageDto {
     required this.id,
     required this.senderId,
     required this.senderName,
+    this.senderRole,
     required this.body,
     required this.createdAt,
     this.reference,
@@ -74,6 +76,7 @@ class CabinetTeamMessageDto {
         id: json['id'] as String,
         senderId: json['sender_id'] as String,
         senderName: json['sender_name'] as String,
+        senderRole: json['sender_role'] as String?,
         body: json['body'] as String,
         createdAt: json['created_at'] as String,
         reference: json['reference'] != null
@@ -93,6 +96,7 @@ class CabinetTeamMessageDto {
         id: id,
         senderId: senderId,
         senderName: senderName,
+        senderRole: senderRole,
         body: body,
         createdAt: DateTime.parse(createdAt),
         reference: reference?.toDomain(),
