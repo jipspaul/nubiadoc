@@ -91,14 +91,18 @@ class NubiaDate {
     return la.year == lb.year && la.month == lb.month && la.day == lb.day;
   }
 
-  /// Libellé du séparateur de jour d'un fil de messages (#5278) : jour
-  /// courant → « Aujourd'hui » ; sinon → jour de semaine + jour + mois, ex.
-  /// « Mardi 22 juillet ». [dateTime] peut être en UTC : converti via
-  /// `.toLocal()` avant comparaison, pour éviter le bug #3856.
+  /// Libellé du séparateur de jour d'un fil de messages (#5278, #5127) :
+  /// jour courant → « Aujourd'hui » ; veille → « Hier » ; sinon → jour de
+  /// semaine + jour + mois, ex. « Mardi 22 juillet ». [dateTime] peut être
+  /// en UTC : converti via `.toLocal()` avant comparaison, pour éviter le
+  /// bug #3856.
   static String daySeparatorLabel(DateTime dateTime, {DateTime? now}) {
     final dt = dateTime.toLocal();
     final reference = now ?? DateTime.now();
     if (isSameDay(dt, reference)) return "Aujourd'hui";
+    final yesterday =
+        DateTime(reference.year, reference.month, reference.day - 1);
+    if (isSameDay(dt, yesterday)) return 'Hier';
     return '${_weekdaysFull[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
   }
 
