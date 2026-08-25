@@ -194,6 +194,8 @@ class _TeamAside extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           for (final member in _teamMembers) _TeamMemberRow(member: member),
+          const Spacer(),
+          const _ClinicalDataReminderNote(),
         ],
       ),
     );
@@ -469,9 +471,72 @@ class _Composer extends StatelessWidget {
                 _KeyHint(shortcut: '⇧⏎', label: 'nouvelle ligne'),
               ],
             ),
+            const SizedBox(height: 6),
+            const _NoClinicalDataHint(),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Encart note (#5135) : le fil du cabinet est distinct de la messagerie
+/// patient, les échanges cliniques restent dans le dossier médical.
+class _ClinicalDataReminderNote extends StatelessWidget {
+  const _ClinicalDataReminderNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('team_messages_aside_note'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield, size: 16, color: NubiaColors.n500),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Ce fil est interne au cabinet et distinct de la messagerie '
+              'patient. Les échanges cliniques doivent rester dans le '
+              'dossier médical.',
+              style: TextStyle(fontSize: 11.5, color: NubiaColors.n600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rappel sous le composeur (#5135) : ce fil est interne au cabinet, pas de
+/// données cliniques (#4156).
+class _NoClinicalDataHint extends StatelessWidget {
+  const _NoClinicalDataHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      key: Key('team_message_no_clinical_data_hint'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.shield, size: 14, color: NubiaColors.n500),
+        SizedBox(width: 4),
+        // Flexible : sur mobile étroit (400 px, cf. le test #5133 du panneau
+        // « Équipe ») le libellé dépasse la largeur du composeur et fait
+        // déborder la Row. Flexible le laisse se replier au lieu de rogner.
+        Flexible(
+          child: Text(
+            'Aucune donnée clinique dans ce fil',
+            style: TextStyle(fontSize: 11.5, color: NubiaColors.n500),
+          ),
+        ),
+      ],
     );
   }
 }

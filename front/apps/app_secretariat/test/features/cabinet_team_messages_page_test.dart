@@ -245,4 +245,67 @@ void main() {
       expect(find.byKey(const Key('team_aside')), findsNothing);
     });
   });
+
+  group('rappel « aucune donnée clinique » (#5135)', () {
+    testWidgets('affiché sous le composeur, à toute largeur', (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('team_message_no_clinical_data_hint')),
+        findsOneWidget,
+      );
+      expect(find.text('Aucune donnée clinique dans ce fil'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('team_message_no_clinical_data_hint')),
+          matching: find.byIcon(Icons.shield),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    // La note vit en bas du panneau « Équipe » (#5133), donc desktop
+    // uniquement : sous 900 px de large la colonne latérale est masquée.
+    testWidgets('desktop → note épinglée en bas du panneau « Équipe »',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_messages_aside_note')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('team_aside')),
+          matching: find.byKey(const Key('team_messages_aside_note')),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Ce fil est interne au cabinet et distinct de la messagerie '
+          'patient. Les échanges cliniques doivent rester dans le '
+          'dossier médical.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('team_messages_aside_note')),
+          matching: find.byIcon(Icons.shield),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
 }
