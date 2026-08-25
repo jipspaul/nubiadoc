@@ -35,6 +35,12 @@ class _PatientsPageState extends State<PatientsPage> {
   Timer? _debounce;
   bool _openPatientHandled = false;
 
+  /// Total de patients du cabinet (design-v2, note #7 — « N résultats sur
+  /// M »). Capturé sur le dernier chargement non filtré (`_query` vide) :
+  /// il n'existe pas d'endpoint de comptage dédié, donc M reste figé sur la
+  /// dernière liste complète tant qu'une recherche est en cours.
+  int _totalCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -125,16 +131,49 @@ class _PatientsPageState extends State<PatientsPage> {
                   subtitle: NubiaL10n.noPatients,
                 );
               }
+              if (_query.isEmpty) {
+                _totalCount = state.patients.length;
+              }
               return Column(
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        hintText: 'Rechercher un patient',
-                      ),
-                      onChanged: _onSearchChanged,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.search),
+                              hintText: 'Rechercher un patient',
+                            ),
+                            onChanged: _onSearchChanged,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: '${state.patients.length}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: NubiaColors.n900,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: ' résultats sur $_totalCount',
+                                  style: const TextStyle(
+                                    color: NubiaColors.n500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            key: const Key('patients_search_results_count'),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   if (state.patients.isEmpty)
