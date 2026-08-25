@@ -2,6 +2,8 @@
 //! state, envoi d'un message et affichage, distinct de la messagerie
 //! patient.
 
+import 'dart:async';
+
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -90,6 +92,22 @@ void main() {
 
     verify(() => sendMessage('Réunion à 12h30.')).called(1);
     expect(find.byKey(const Key('team_message_m1')), findsOneWidget);
+  });
+
+  testWidgets(
+      'chargement → skeleton affiché (pas de CircularProgressIndicator)',
+      (tester) async {
+    final completer = Completer<Either<Failure, List<CabinetTeamMessage>>>();
+    when(() => listMessages()).thenAnswer((_) => completer.future);
+
+    await tester.pumpWidget(buildPage());
+    await tester.pump();
+
+    expect(find.byKey(const Key('team_messages_loading')), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    completer.complete(const Right(<CabinetTeamMessage>[]));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('erreur de chargement → NubiaErrorWidget avec bouton réessayer',

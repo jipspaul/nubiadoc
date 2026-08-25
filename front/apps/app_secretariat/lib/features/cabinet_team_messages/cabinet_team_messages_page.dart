@@ -83,9 +83,8 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
                 children: [
                   Expanded(
                     child: switch (state) {
-                      CabinetTeamMessagesLoading() => const Center(
+                      CabinetTeamMessagesLoading() => const _MessagesSkeleton(
                           key: Key('team_messages_loading'),
-                          child: CircularProgressIndicator(),
                         ),
                       CabinetTeamMessagesError(:final message) =>
                         NubiaErrorWidget(
@@ -175,6 +174,42 @@ String _pad2(int n) => n.toString().padLeft(2, '0');
 
 String _formatTimestamp(DateTime d) =>
     '${_pad2(d.day)}/${_pad2(d.month)} ${_pad2(d.hour)}:${_pad2(d.minute)}';
+
+/// Squelette de chargement du fil : esquisse plusieurs lignes de message
+/// (auteur/heure + corps), cohérent avec [_MessagesList].
+class _MessagesSkeleton extends StatelessWidget {
+  const _MessagesSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        for (var i = 0; i < 6; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: const [
+                    NubiaSkeletonLoader(width: 96, height: 12),
+                    SizedBox(width: 8),
+                    NubiaSkeletonLoader(width: 48, height: 10),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                NubiaSkeletonLoader(
+                  width: 220 + (i % 3) * 40,
+                  height: 14,
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
 
 class _MessagesList extends StatelessWidget {
   const _MessagesList({required this.messages});
