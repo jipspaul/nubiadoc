@@ -20,28 +20,67 @@ class CabinetTeamMessagesPage extends StatelessWidget {
         listMessages: GetIt.instance<ListCabinetTeamMessagesUseCase>(),
         sendMessage: GetIt.instance<SendCabinetTeamMessageUseCase>(),
       ),
-      child: const Scaffold(
-        appBar: _TeamMessagesAppBar(),
-        body: _TeamMessagesBody(),
-      ),
+      child: const _TeamMessagesScaffold(),
+    );
+  }
+}
+
+/// Porte la requête de recherche du fil (#5132) : pas d'état cubit dédié, le
+/// fil est court (cf. docstring cubit) donc un filtrage local suffit et
+/// laisse `CabinetTeamMessagesLoaded` inchangé quand la recherche est vide.
+class _TeamMessagesScaffold extends StatefulWidget {
+  const _TeamMessagesScaffold();
+
+  @override
+  State<_TeamMessagesScaffold> createState() => _TeamMessagesScaffoldState();
+}
+
+class _TeamMessagesScaffoldState extends State<_TeamMessagesScaffold> {
+  String _searchQuery = '';
+
+  void _onSearchChanged(String value) => setState(() => _searchQuery = value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _TeamMessagesAppBar(onSearchChanged: _onSearchChanged),
+      body: _TeamMessagesBody(searchQuery: _searchQuery),
     );
   }
 }
 
 class _TeamMessagesAppBar extends StatelessWidget
     implements PreferredSizeWidget {
-  const _TeamMessagesAppBar();
+  const _TeamMessagesAppBar({required this.onSearchChanged});
+
+  final ValueChanged<String> onSearchChanged;
 
   @override
-  Widget build(BuildContext context) =>
-      AppBar(title: const Text('Messagerie interne'));
+  Widget build(BuildContext context) => AppBar(
+        title: const Text('Messagerie interne'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: SizedBox(
+              width: 230,
+              child: NubiaSearchBar(
+                key: const Key('team_messages_search'),
+                hint: 'Rechercher dans le fil…',
+                onChanged: onSearchChanged,
+              ),
+            ),
+          ),
+        ],
+      );
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
 
 class _TeamMessagesBody extends StatefulWidget {
-  const _TeamMessagesBody();
+  const _TeamMessagesBody({required this.searchQuery});
+
+  final String searchQuery;
 
   @override
   State<_TeamMessagesBody> createState() => _TeamMessagesBodyState();
@@ -88,8 +127,10 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
                     onRetry: () =>
                         context.read<CabinetTeamMessagesCubit>().load(),
                   ),
-                CabinetTeamMessagesLoaded(:final messages) =>
-                  _MessagesList(messages: messages),
+                CabinetTeamMessagesLoaded(:final messages) => _MessagesList(
+                    messages: _filterMessages(messages, widget.searchQuery),
+                    isSearching: widget.searchQuery.trim().isNotEmpty,
+                  ),
               },
             ),
             _Composer(
@@ -294,6 +335,19 @@ class _TeamMemberRow extends StatelessWidget {
   }
 }
 
+List<CabinetTeamMessage> _filterMessages(
+  List<CabinetTeamMessage> messages,
+  String query,
+) {
+  final trimmed = query.trim().toLowerCase();
+  if (trimmed.isEmpty) return messages;
+  return messages
+      .where((m) =>
+          m.body.toLowerCase().contains(trimmed) ||
+          m.senderName.toLowerCase().contains(trimmed))
+      .toList();
+}
+
 String _pad2(int n) => n.toString().padLeft(2, '0');
 
 String _formatTimestamp(DateTime d) =>
@@ -336,18 +390,21 @@ class _MessagesSkeleton extends StatelessWidget {
 }
 
 class _MessagesList extends StatelessWidget {
-  const _MessagesList({required this.messages});
+  const _MessagesList({required this.messages, this.isSearching = false});
 
   final List<CabinetTeamMessage> messages;
+  final bool isSearching;
 
   @override
   Widget build(BuildContext context) {
     if (messages.isEmpty) {
-      return const NubiaEmptyState(
-        key: Key('team_messages_empty'),
-        icon: Icons.forum_outlined,
-        title: 'Aucun message',
-        subtitle: 'Écrivez le premier message à votre équipe.',
+      return NubiaEmptyState(
+        key: const Key('team_messages_empty'),
+        icon: isSearching ? Icons.search_off : Icons.forum_outlined,
+        title: isSearching ? 'Aucun résultat' : 'Aucun message',
+        subtitle: isSearching
+            ? 'Essayez un autre terme de recherche.'
+            : 'Écrivez le premier message à votre équipe.',
       );
     }
     return ListView.builder(
