@@ -93,4 +93,31 @@ void main() {
       expect(message.pinnedAt, DateTime.parse('2026-08-02T09:00:00Z'));
     });
   });
+
+  group('CabinetTeamMessageDto (#5129 — mention d\'un membre)', () {
+    test('fromJson sans mentions → liste vide par défaut', () {
+      final dto = CabinetTeamMessageDto.fromJson({
+        'id': 'm1',
+        'sender_id': 'u1',
+        'sender_name': 'Dr Martin',
+        'body': 'Réunion à 12h30.',
+        'created_at': '2026-01-01T09:30:00Z',
+      });
+
+      expect(dto.toDomain().mentions, isEmpty);
+    });
+
+    test('fromJson avec mentions → mappées sur le domaine', () {
+      final dto = CabinetTeamMessageDto.fromJson({
+        'id': 'm5',
+        'sender_id': 'u1',
+        'sender_name': 'Dr Martin',
+        'body': '@Sarah tu peux la contacter ?',
+        'created_at': '2026-01-01T09:30:00Z',
+        'mentions': ['Sarah'],
+      });
+
+      expect(dto.toDomain().mentions, ['Sarah']);
+    });
+  });
 }

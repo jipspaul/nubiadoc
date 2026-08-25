@@ -430,6 +430,78 @@ void main() {
     });
   });
 
+  group('mention d\'un membre (#5129)', () {
+    final messageWithMention = CabinetTeamMessage(
+      id: 'm5',
+      senderId: 'u1',
+      senderName: 'Dr Martin',
+      body: '@Sarah tu peux la contacter ?',
+      createdAt: DateTime(2026, 1, 1, 9, 30),
+      mentions: const ['Sarah'],
+    );
+
+    testWidgets('mention @Nom dans le corps → stylée en pilule émeraude',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([messageWithMention]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final mentionText = find.text('@Sarah');
+      expect(mentionText, findsOneWidget);
+
+      final mentionWidget = tester.widget<Text>(mentionText);
+      expect(mentionWidget.style?.color, NubiaColors.brand800);
+      expect(mentionWidget.style?.fontWeight, FontWeight.w600);
+
+      final pill = tester.widget<Container>(
+        find.ancestor(of: mentionText, matching: find.byType(Container)).first,
+      );
+      final decoration = pill.decoration! as BoxDecoration;
+      expect(decoration.color, NubiaColors.brand50);
+      expect(decoration.borderRadius, BorderRadius.circular(4));
+    });
+
+    testWidgets('composeur → bouton « Mentionner » avec icône alternate_email',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = find.byKey(const Key('team_message_mention_button'));
+      expect(button, findsOneWidget);
+      expect(find.text('Mentionner'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: button,
+          matching: find.byIcon(Icons.alternate_email),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('tap « Mentionner » → insère @ dans le composeur',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('team_message_mention_button')));
+      await tester.pump();
+
+      final field = tester.widget<TextField>(find.descendant(
+        of: find.byKey(const Key('team_message_input')),
+        matching: find.byType(TextField),
+      ));
+      expect(field.controller!.text, '@');
+    });
+  });
+
   group('rappel « aucune donnée clinique » (#5135)', () {
     testWidgets('affiché sous le composeur, à toute largeur', (tester) async {
       when(() => listMessages())

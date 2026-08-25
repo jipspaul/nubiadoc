@@ -10,6 +10,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'cabinet_team_messages_cubit.dart';
+import 'mention_text_parser.dart';
 
 class CabinetTeamMessagesPage extends StatelessWidget {
   const CabinetTeamMessagesPage({super.key});
@@ -648,12 +649,57 @@ class _MessagesList extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 2),
-              Text(m.body),
+              _MessageBody(body: m.body),
               if (m.reference != null) _ReferenceChip(reference: m.reference!),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+/// Rendu riche du corps d'un message (#5129) : met en surbrillance les
+/// mentions `@Nom` (pilule émeraude, `.mention` de la maquette) — une
+/// mention est une tâche adressée, pas un message d'ambiance. Le parsing
+/// est délégué à [parseMentionSegments], pur et testable indépendamment.
+class _MessageBody extends StatelessWidget {
+  const _MessageBody({required this.body});
+
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = DefaultTextStyle.of(context).style;
+    return Text.rich(
+      TextSpan(
+        children: [
+          for (final segment in parseMentionSegments(body))
+            if (segment.isMention)
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: NubiaColors.brand50,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    segment.text,
+                    style: baseStyle.copyWith(
+                      color: NubiaColors.brand800,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              )
+            else
+              TextSpan(text: segment.text, style: baseStyle),
+        ],
+      ),
     );
   }
 }
@@ -782,6 +828,20 @@ class _Composer extends StatelessWidget {
     );
   }
 
+  /// Affordance « Mentionner » (#5129) : insère `@` à la position du
+  /// curseur pour amorcer une mention `@Nom`, mise en avant par
+  /// [_MessageBody] une fois le message envoyé.
+  void _insertMention() {
+    final selection = controller.selection;
+    final text = controller.text;
+    final start = selection.start < 0 ? text.length : selection.start;
+    final end = selection.end < 0 ? text.length : selection.end;
+    controller.value = TextEditingValue(
+      text: text.replaceRange(start, end, '@'),
+      selection: TextSelection.collapsed(offset: start + 1),
+    );
+  }
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.enter) {
       return KeyEventResult.ignored;
@@ -843,6 +903,15 @@ class _Composer extends StatelessWidget {
                                 ),
                               )
                           : null,
+                    ),
+                    const SizedBox(width: 8),
+                    NubiaButton(
+                      key: const Key('team_message_mention_button'),
+                      label: 'Mentionner',
+                      icon: Icons.alternate_email,
+                      variant: NubiaButtonVariant.secondary,
+                      size: NubiaButtonSize.sm,
+                      onPressed: enabled ? _insertMention : null,
                     ),
                   ],
                 ),
