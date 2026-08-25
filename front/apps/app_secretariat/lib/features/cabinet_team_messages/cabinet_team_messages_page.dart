@@ -12,6 +12,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'cabinet_team_messages_cubit.dart';
 import 'mention_text_parser.dart';
+import 'message_grouping.dart';
 
 class CabinetTeamMessagesPage extends StatelessWidget {
   const CabinetTeamMessagesPage({super.key});
@@ -608,9 +609,13 @@ sealed class _ThreadItem {
 }
 
 class _MessageThreadItem extends _ThreadItem {
-  const _MessageThreadItem(this.message);
+  const _MessageThreadItem(this.message, {required this.isContinuation});
 
   final CabinetTeamMessage message;
+
+  /// #5126 : ce message continue-t-il le groupe du précédent (même auteur,
+  /// même jour) ? Décidé par [isMessageContinuation], pas inline ici.
+  final bool isContinuation;
 }
 
 class _DaySeparatorThreadItem extends _ThreadItem {
@@ -627,13 +632,18 @@ class _DaySeparatorThreadItem extends _ThreadItem {
 List<_ThreadItem> _threadItemsFor(List<CabinetTeamMessage> messages) {
   final items = <_ThreadItem>[];
   DateTime? previousDay;
+  CabinetTeamMessage? previousMessage;
   for (final message in messages) {
     if (previousDay == null ||
         !NubiaDate.isSameDay(previousDay, message.createdAt)) {
       items.add(_DaySeparatorThreadItem(message.createdAt));
       previousDay = message.createdAt;
     }
-    items.add(_MessageThreadItem(message));
+    items.add(_MessageThreadItem(
+      message,
+      isContinuation: isMessageContinuation(message, previousMessage),
+    ));
+    previousMessage = message;
   }
   return items;
 }
@@ -664,12 +674,50 @@ class _MessagesList extends StatelessWidget {
       itemBuilder: (context, i) {
         return switch (items[i]) {
           _DaySeparatorThreadItem(:final day) => _DaySeparator(day: day),
-          _MessageThreadItem(:final message) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Column(
-                key: Key('team_message_${message.id}'),
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          _MessageThreadItem(:final message, :final isContinuation) =>
+            _MessageGroupItem(message: message, isContinuation: isContinuation),
+        };
+      },
+    );
+  }
+}
+
+/// Un message du fil (#5126, spec design verbatim `.grp`/`.grp.cont`) :
+/// un groupe (auteur différent du précédent, ou premier message d'un
+/// nouveau jour) affiche avatar + nom + heure ; une continuation
+/// (même auteur, même jour) n'affiche que le corps, l'avatar restant
+/// masqué (`opacity: 0`, pas retiré) pour garder la gouttière alignée sur
+/// le nom du groupe.
+class _MessageGroupItem extends StatelessWidget {
+  const _MessageGroupItem({
+    required this.message,
+    required this.isContinuation,
+  });
+
+  final CabinetTeamMessage message;
+  final bool isContinuation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: isContinuation ? 2 : 14, bottom: 12),
+      child: Row(
+        key: Key('team_message_${message.id}'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Opacity(
+            opacity: isContinuation ? 0 : 1,
+            child: NubiaAvatar(
+              initials: initialsFrom(message.senderName),
+              radius: 16,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!isContinuation) ...[
                   Row(
                     children: [
                       Text(
@@ -692,14 +740,15 @@ class _MessagesList extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  _MessageBody(body: message.body),
-                  if (message.reference != null)
-                    _ReferenceChip(reference: message.reference!),
                 ],
-              ),
+                _MessageBody(body: message.body),
+                if (message.reference != null)
+                  _ReferenceChip(reference: message.reference!),
+              ],
             ),
-        };
-      },
+          ),
+        ],
+      ),
     );
   }
 }

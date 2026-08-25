@@ -626,6 +626,108 @@ void main() {
     });
   });
 
+  group('regroupement des messages consécutifs (#5126)', () {
+    testWidgets(
+        'même auteur, même jour → le second message n\'affiche ni nom ni '
+        'heure, avatar masqué', (tester) async {
+      final first = CabinetTeamMessage(
+        id: 'g1',
+        senderId: 'u1',
+        senderName: 'Dr Amélie Rousseau',
+        body: 'Parfait.',
+        createdAt: DateTime(2026, 1, 1, 8, 20),
+      );
+      final continuation = CabinetTeamMessage(
+        id: 'g2',
+        senderId: 'u1',
+        senderName: 'Dr Amélie Rousseau',
+        body: 'Idéalement jeudi ou vendredi matin.',
+        createdAt: DateTime(2026, 1, 1, 8, 21),
+      );
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([first, continuation]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dr Amélie Rousseau'), findsOneWidget);
+      expect(find.text('Idéalement jeudi ou vendredi matin.'), findsOneWidget);
+
+      final continuationItem = find.byKey(const Key('team_message_g2'));
+      expect(
+        find.descendant(
+          of: continuationItem,
+          matching: find.text('Dr Amélie Rousseau'),
+        ),
+        findsNothing,
+      );
+
+      final avatarOpacity = tester.widget<Opacity>(find.descendant(
+        of: continuationItem,
+        matching: find.byType(Opacity),
+      ));
+      expect(avatarOpacity.opacity, 0);
+
+      final headerOpacity = tester.widget<Opacity>(find.descendant(
+        of: find.byKey(const Key('team_message_g1')),
+        matching: find.byType(Opacity),
+      ));
+      expect(headerOpacity.opacity, 1);
+    });
+
+    testWidgets('auteur différent → en-tête complet réaffiché',
+        (tester) async {
+      final first = CabinetTeamMessage(
+        id: 'g3',
+        senderId: 'u1',
+        senderName: 'Dr Amélie Rousseau',
+        body: 'Parfait.',
+        createdAt: DateTime(2026, 1, 1, 8, 20),
+      );
+      final other = CabinetTeamMessage(
+        id: 'g4',
+        senderId: 'u2',
+        senderName: 'Sarah Lemoine',
+        body: 'Message envoyé via la messagerie patient.',
+        createdAt: DateTime(2026, 1, 1, 9, 4),
+      );
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([first, other]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dr Amélie Rousseau'), findsOneWidget);
+      expect(find.text('Sarah Lemoine'), findsOneWidget);
+    });
+
+    testWidgets(
+        'même auteur, jour différent → en-tête complet réaffiché malgré le '
+        'même auteur', (tester) async {
+      final yesterday = CabinetTeamMessage(
+        id: 'g5',
+        senderId: 'u1',
+        senderName: 'Dr Amélie Rousseau',
+        body: 'Message d\'hier.',
+        createdAt: DateTime(2026, 1, 1, 23, 50),
+      );
+      final today = CabinetTeamMessage(
+        id: 'g6',
+        senderId: 'u1',
+        senderName: 'Dr Amélie Rousseau',
+        body: 'Message du lendemain.',
+        createdAt: DateTime(2026, 1, 2, 8),
+      );
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([yesterday, today]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dr Amélie Rousseau'), findsNWidgets(2));
+    });
+  });
+
   group('référence à un objet du produit (#5131)', () {
     testWidgets(
         'message avec référence → carte affichée (icône, 2 lignes, Ouvrir)',
