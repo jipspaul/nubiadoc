@@ -1,5 +1,6 @@
 // lib/presentation/widgets/status_pill.dart
 import 'package:flutter/material.dart';
+import 'package:nubia_design_system/src/theme/nubia_colors.dart';
 import 'package:nubia_design_system/src/theme/nubia_tokens.dart';
 
 /// Variants sémantiques du [StatusPill].
@@ -14,6 +15,11 @@ enum StatusPillVariant {
   /// distincte de [success] (vert) et [warning] (orange) — ex. demande de
   /// stock « Acceptée » en attente de réception (#5179).
   progress,
+
+  /// Rôle praticien (violet, #5125) — distingue l'auteur d'un message dans
+  /// un fil où praticiens et staff se mêlent, ex. badge rôle de la
+  /// messagerie interne d'équipe.
+  practitioner,
 }
 
 /// Pill d'état : étiquette colorée avec fond sémantique.
@@ -72,6 +78,9 @@ class StatusPill extends StatelessWidget {
       case StatusPillVariant.progress:
         bg = tokens.primarySubtleBg;
         fg = tokens.primarySubtleFg;
+      case StatusPillVariant.practitioner:
+        bg = NubiaColors.roleViolet100;
+        fg = NubiaColors.roleViolet700;
     }
 
     return Container(

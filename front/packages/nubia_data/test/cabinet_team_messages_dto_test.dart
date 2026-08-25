@@ -94,6 +94,33 @@ void main() {
     });
   });
 
+  group('CabinetTeamMessageDto (#5125 — rôle de l\'auteur)', () {
+    test('fromJson sans sender_role → rôle nul (rétro-compatibilité)', () {
+      final dto = CabinetTeamMessageDto.fromJson({
+        'id': 'm1',
+        'sender_id': 'u1',
+        'sender_name': 'Dr Martin',
+        'body': 'Réunion à 12h30.',
+        'created_at': '2026-01-01T09:30:00Z',
+      });
+
+      expect(dto.toDomain().senderRole, isNull);
+    });
+
+    test('fromJson avec sender_role → mappé sur le domaine', () {
+      final dto = CabinetTeamMessageDto.fromJson({
+        'id': 'm6',
+        'sender_id': 'u1',
+        'sender_name': 'Dr Amélie Rousseau',
+        'sender_role': 'Praticienne',
+        'body': 'Peux-tu reprogrammer le labo ?',
+        'created_at': '2026-01-01T09:30:00Z',
+      });
+
+      expect(dto.toDomain().senderRole, 'Praticienne');
+    });
+  });
+
   group('CabinetTeamMessageDto (#5129 — mention d\'un membre)', () {
     test('fromJson sans mentions → liste vide par défaut', () {
       final dto = CabinetTeamMessageDto.fromJson({
