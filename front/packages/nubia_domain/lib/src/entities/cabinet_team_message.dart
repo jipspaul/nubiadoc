@@ -37,6 +37,13 @@ class CabinetTeamMessage extends Equatable {
   final DateTime createdAt;
   final CabinetTeamMessageReference? reference;
 
+  /// Épinglage (#5130) : garde visible une consigne durable (fermeture
+  /// exceptionnelle, changement d'horaire) en tête de fil / aside, plutôt
+  /// que de la laisser se noyer dans le fil.
+  final bool pinned;
+  final String? pinnedBy;
+  final DateTime? pinnedAt;
+
   const CabinetTeamMessage({
     required this.id,
     required this.senderId,
@@ -44,9 +51,21 @@ class CabinetTeamMessage extends Equatable {
     required this.body,
     required this.createdAt,
     this.reference,
+    this.pinned = false,
+    this.pinnedBy,
+    this.pinnedAt,
   });
 
   @override
-  List<Object?> get props =>
-      [id, senderId, senderName, body, createdAt, reference];
+  List<Object?> get props => [
+        id,
+        senderId,
+        senderName,
+        body,
+        createdAt,
+        reference,
+        pinned,
+        pinnedBy,
+        pinnedAt,
+      ];
 }

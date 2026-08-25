@@ -291,6 +291,80 @@ void main() {
     });
   });
 
+  group('bloc épinglé (#5130)', () {
+    final pinnedMessage = CabinetTeamMessage(
+      id: 'm3',
+      senderId: 'u1',
+      senderName: 'Dr A. Rousseau',
+      body: 'Fermeture exceptionnelle le vendredi 15 août. '
+          'Ne pas placer de rendez-vous.',
+      createdAt: DateTime(2026, 8, 2),
+      pinned: true,
+      pinnedBy: 'u1',
+      pinnedAt: DateTime(2026, 8, 2),
+    );
+
+    testWidgets(
+        'desktop → message épinglé affiché avec libellé, auteur et date',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([_message1, pinnedMessage]));
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final notice = find.byKey(const Key('team_messages_pinned_notice'));
+      expect(notice, findsOneWidget);
+      expect(
+        find.descendant(of: notice, matching: find.text('ÉPINGLÉ')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: notice,
+          matching: find.text(
+            'Fermeture exceptionnelle le vendredi 15 août. '
+            'Ne pas placer de rendez-vous.',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: notice,
+          matching: find.text('Par Dr A. Rousseau · 2 août'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: notice, matching: find.byIcon(Icons.push_pin)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('aucun message épinglé → pas de bloc affiché', (tester) async {
+      when(() => listMessages()).thenAnswer((_) async => Right([_message1]));
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('team_messages_pinned_notice')),
+        findsNothing,
+      );
+    });
+  });
+
   group('recherche dans le fil (#5132)', () {
     final message2 = CabinetTeamMessage(
       id: 'm2',
@@ -497,6 +571,24 @@ void main() {
       expect(find.text('Joindre un patient, un devis…'), findsOneWidget);
       expect(
         find.descendant(of: button, matching: find.byIcon(Icons.link)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'composeur → bouton « Épingler » avec icône push_pin',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = find.byKey(const Key('team_message_pin_button'));
+      expect(button, findsOneWidget);
+      expect(find.text('Épingler'), findsOneWidget);
+      expect(
+        find.descendant(of: button, matching: find.byIcon(Icons.push_pin)),
         findsOneWidget,
       );
     });

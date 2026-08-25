@@ -59,4 +59,38 @@ void main() {
       expect(dto.toDomain().reference, isNull);
     });
   });
+
+  group('CabinetTeamMessageDto (#5130 — épinglage)', () {
+    test('fromJson sans champs d\'épinglage → non épinglé par défaut', () {
+      final dto = CabinetTeamMessageDto.fromJson({
+        'id': 'm1',
+        'sender_id': 'u1',
+        'sender_name': 'Dr Martin',
+        'body': 'Réunion à 12h30.',
+        'created_at': '2026-01-01T09:30:00Z',
+      });
+
+      expect(dto.toDomain().pinned, isFalse);
+      expect(dto.toDomain().pinnedBy, isNull);
+      expect(dto.toDomain().pinnedAt, isNull);
+    });
+
+    test('fromJson avec épinglage → mappé sur le domaine', () {
+      final dto = CabinetTeamMessageDto.fromJson({
+        'id': 'm4',
+        'sender_id': 'u1',
+        'sender_name': 'Dr A. Rousseau',
+        'body': 'Fermeture exceptionnelle le vendredi 15 août.',
+        'created_at': '2026-08-02T09:00:00Z',
+        'pinned': true,
+        'pinned_by': 'u1',
+        'pinned_at': '2026-08-02T09:00:00Z',
+      });
+
+      final message = dto.toDomain();
+      expect(message.pinned, isTrue);
+      expect(message.pinnedBy, 'u1');
+      expect(message.pinnedAt, DateTime.parse('2026-08-02T09:00:00Z'));
+    });
+  });
 }
