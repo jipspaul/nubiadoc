@@ -376,6 +376,32 @@ void main() {
     });
 
     testWidgets(
+        'affiche le compteur « N résultats sur M » (design-v2, note #7)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded(
+          List.generate(
+            4,
+            (i) => CabinetPatient(
+              id: 'p$i',
+              cabinetId: 'c1',
+              firstName: 'Patient',
+              lastName: '$i',
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final counter = tester.widget<Text>(
+        find.byKey(const Key('patients_search_results_count')),
+      );
+      expect(counter.textSpan!.toPlainText(), '4 résultats sur 4');
+    });
+
+    testWidgets(
         'fiche patient — bandeau de cloisonnement précisant le cas « AVK »',
         (tester) async {
       final patient = CabinetPatient(
