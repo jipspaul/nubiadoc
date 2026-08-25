@@ -34,5 +34,6 @@ abstract class SearchRepository {
     required String holdToken,
     required String motif,
     required String idempotencyKey,
+    String? onBehalfOf,
   });
 }

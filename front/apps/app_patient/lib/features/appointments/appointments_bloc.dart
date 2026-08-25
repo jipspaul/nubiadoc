@@ -290,6 +290,7 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
         holdToken: holdToken!,
         motif: motif,
         idempotencyKey: '${slot.id}-booking-$holdToken',
+        onBehalfOf: event.onBehalfOf,
       );
       result.fold(
         (failure) => safeEmit(AppointmentsError(failure.message)),

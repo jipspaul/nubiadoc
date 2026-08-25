@@ -12,11 +12,13 @@ class ConfirmBookingUseCase {
     required String holdToken,
     required String motif,
     required String idempotencyKey,
+    String? onBehalfOf,
   }) =>
       _repository.confirmBooking(
         slotId: slotId,
         holdToken: holdToken,
         motif: motif,
         idempotencyKey: idempotencyKey,
+        onBehalfOf: onBehalfOf,
       );
 }

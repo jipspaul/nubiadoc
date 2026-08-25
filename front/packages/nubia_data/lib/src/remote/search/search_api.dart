@@ -68,10 +68,16 @@ class SearchApi {
     required String holdToken,
     required String motif,
     required String idempotencyKey,
+    String? onBehalfOf,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/bookings',
-      data: {'slot_id': slotId, 'hold_token': holdToken, 'motif': motif},
+      data: {
+        'slot_id': slotId,
+        'hold_token': holdToken,
+        'motif': motif,
+        if (onBehalfOf != null) 'on_behalf_of': onBehalfOf,
+      },
       options: Options(headers: {'Idempotency-Key': idempotencyKey}),
     );
     return response.data!['appointment_id'] as String;
