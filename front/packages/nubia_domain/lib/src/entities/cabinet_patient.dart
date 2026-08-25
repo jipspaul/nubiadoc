@@ -53,6 +53,17 @@ class CabinetPatient extends Equatable {
   /// Proches gérés par ce patient (#4091). Mêmes conditions que [guardians].
   final List<GuardianshipLink>? dependents;
 
+  /// Alerte administrative active (impayé échu, document manquant — #4093),
+  /// pour le filtre rapide « Alertes » (#5118). Même disponibilité que
+  /// [balanceDueCents] : `null` tant que la liste paginée ne l'expose pas
+  /// (dépend du ticket d'endpoint enrichi).
+  final bool? hasActiveAlerts;
+
+  /// Rendez-vous à venir programmé, pour le filtre rapide « Sans RDV à
+  /// venir » (#5118). Mêmes conditions de disponibilité que
+  /// [hasActiveAlerts].
+  final bool? hasUpcomingAppointment;
+
   const CabinetPatient({
     required this.id,
     required this.cabinetId,
@@ -68,6 +79,8 @@ class CabinetPatient extends Equatable {
     this.noShowCount,
     this.guardians,
     this.dependents,
+    this.hasActiveAlerts,
+    this.hasUpcomingAppointment,
   });
 
   /// #4542 : quelques dossiers ont `firstName`/`lastName` vides côté back
