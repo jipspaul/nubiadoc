@@ -1,17 +1,13 @@
 //! Tests widget : `PatientDocumentsSection` (#4042) — liste vide/remplie.
+//! (#5115) — présentation pure : les données viennent du chargement unique
+//! de la fiche, l'échec est désormais visible.
 
-import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:get_it/get_it.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_secretariat/features/patients/patients_page.dart';
-
-class _MockListPatientDocuments extends Mock
-    implements ListPatientDocumentsUseCase {}
 
 PatientDocument _doc(String suffix, {String mimeType = 'application/pdf'}) =>
     PatientDocument(
@@ -24,27 +20,16 @@ PatientDocument _doc(String suffix, {String mimeType = 'application/pdf'}) =>
     );
 
 void main() {
-  late _MockListPatientDocuments listDocs;
-
-  setUp(() {
-    listDocs = _MockListPatientDocuments();
-    GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
-      () => listDocs,
-    );
-    addTearDown(GetIt.instance.reset);
-  });
-
-  Widget buildSection() => MaterialApp(
+  Widget buildSection({List<PatientDocument>? documents, String? error}) =>
+      MaterialApp(
         theme: NubiaTheme.light,
         home: Scaffold(
-          body: const PatientDocumentsSection(patientId: 'patient-1'),
+          body: PatientDocumentsSection(documents: documents, error: error),
         ),
       );
 
   testWidgets('liste vide — affiche le message vide', (tester) async {
-    when(() => listDocs('patient-1')).thenAnswer((_) async => const Right([]));
-
-    await tester.pumpWidget(buildSection());
+    await tester.pumpWidget(buildSection(documents: const []));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('patient_documents_empty')), findsOneWidget);
@@ -52,16 +37,27 @@ void main() {
   });
 
   testWidgets('liste remplie — affiche les documents', (tester) async {
-    when(() => listDocs('patient-1')).thenAnswer(
-      (_) async => Right([_doc('a'), _doc('b', mimeType: 'image/png')]),
+    await tester.pumpWidget(
+      buildSection(
+        documents: [_doc('a'), _doc('b', mimeType: 'image/png')],
+      ),
     );
-
-    await tester.pumpWidget(buildSection());
     await tester.pumpAndSettle();
 
     expect(find.byType(ListRow), findsNWidgets(2));
     expect(find.text('devis_a.pdf'), findsOneWidget);
     expect(find.text('devis_b.pdf'), findsOneWidget);
+    expect(find.byKey(const Key('patient_documents_empty')), findsNothing);
+  });
+
+  // ── Échec visible (#5115) ────────────────────────────────────────────
+
+  testWidgets('échec du chargement — message visible', (tester) async {
+    await tester.pumpWidget(buildSection(error: 'Erreur réseau'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_documents_error')), findsOneWidget);
+    expect(find.textContaining('Erreur réseau'), findsOneWidget);
     expect(find.byKey(const Key('patient_documents_empty')), findsNothing);
   });
 }

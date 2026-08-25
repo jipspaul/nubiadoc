@@ -1,4 +1,7 @@
 //! Tests widget : `PatientTagsSection` (#4041) — 0, 1, 3 étiquettes.
+//! (#5115) — les étiquettes initiales viennent du chargement unique de la
+//! fiche (plus de fetch au montage) ; un échec initial reste visible ; le
+//! rechargement après mutation (ajout/suppression) reste local.
 
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -39,17 +42,20 @@ void main() {
     addTearDown(GetIt.instance.reset);
   });
 
-  Widget buildSection() => MaterialApp(
+  Widget buildSection({List<PatientTag>? initialTags, String? initialError}) =>
+      MaterialApp(
         theme: NubiaTheme.light,
         home: Scaffold(
-          body: const PatientTagsSection(patientId: 'patient-1'),
+          body: PatientTagsSection(
+            patientId: 'patient-1',
+            initialTags: initialTags,
+            initialError: initialError,
+          ),
         ),
       );
 
   testWidgets('0 étiquette — affiche le message vide', (tester) async {
-    when(() => listTags('patient-1')).thenAnswer((_) async => const Right([]));
-
-    await tester.pumpWidget(buildSection());
+    await tester.pumpWidget(buildSection(initialTags: const []));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('patient_tags_empty')), findsOneWidget);
@@ -57,10 +63,7 @@ void main() {
   });
 
   testWidgets('1 étiquette — affiche 1 chip', (tester) async {
-    when(() => listTags('patient-1'))
-        .thenAnswer((_) async => Right([_tag('a')]));
-
-    await tester.pumpWidget(buildSection());
+    await tester.pumpWidget(buildSection(initialTags: [_tag('a')]));
     await tester.pumpAndSettle();
 
     expect(find.byType(NubiaChip), findsOneWidget);
@@ -69,11 +72,9 @@ void main() {
   });
 
   testWidgets('3 étiquettes — affiche 3 chips', (tester) async {
-    when(() => listTags('patient-1')).thenAnswer(
-      (_) async => Right([_tag('a'), _tag('b'), _tag('c')]),
+    await tester.pumpWidget(
+      buildSection(initialTags: [_tag('a'), _tag('b'), _tag('c')]),
     );
-
-    await tester.pumpWidget(buildSection());
     await tester.pumpAndSettle();
 
     expect(find.byType(NubiaChip), findsNWidgets(3));
@@ -82,14 +83,14 @@ void main() {
     expect(find.text('Étiquette c'), findsOneWidget);
   });
 
-  testWidgets('supprimer un chip appelle DeletePatientTagUseCase',
-      (tester) async {
-    when(() => listTags('patient-1'))
-        .thenAnswer((_) async => Right([_tag('a')]));
+  testWidgets(
+      'supprimer un chip appelle DeletePatientTagUseCase et recharge la '
+      'liste', (tester) async {
     when(() => deleteTag('patient-1', 'tag-a'))
         .thenAnswer((_) async => const Right(null));
+    when(() => listTags('patient-1')).thenAnswer((_) async => const Right([]));
 
-    await tester.pumpWidget(buildSection());
+    await tester.pumpWidget(buildSection(initialTags: [_tag('a')]));
     await tester.pumpAndSettle();
 
     // Le chip input expose un InkWell dédié sur l'icône « × » (onRemove),
@@ -103,5 +104,16 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(() => deleteTag('patient-1', 'tag-a')).called(1);
+    // Rechargement local après mutation (pas au montage, #5115).
+    verify(() => listTags('patient-1')).called(1);
+  });
+
+  // ── Échec visible (#5115) ────────────────────────────────────────────
+
+  testWidgets('échec du chargement initial — message visible', (tester) async {
+    await tester.pumpWidget(buildSection(initialError: 'Erreur réseau'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Erreur réseau'), findsOneWidget);
   });
 }
