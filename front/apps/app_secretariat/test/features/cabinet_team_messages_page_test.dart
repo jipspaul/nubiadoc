@@ -176,43 +176,136 @@ void main() {
     expect(find.text('nouvelle ligne'), findsOneWidget);
   });
 
-  testWidgets(
-      'rappel « aucune donnée clinique » sous le composeur et en colonne '
-      '(#5135)', (tester) async {
-    when(() => listMessages())
-        .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+  group('panneau « Équipe » (#5133)', () {
+    testWidgets('desktop → liste les 4 membres avec pastille de présence',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
 
-    await tester.pumpWidget(buildPage());
-    await tester.pumpAndSettle();
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    expect(
-      find.byKey(const Key('team_message_no_clinical_data_hint')),
-      findsOneWidget,
-    );
-    expect(find.text('Aucune donnée clinique dans ce fil'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('team_message_no_clinical_data_hint')),
-        matching: find.byIcon(Icons.shield),
-      ),
-      findsOneWidget,
-    );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('team_messages_aside_note')), findsOneWidget);
-    expect(
-      find.text(
-        'Ce fil est interne au cabinet et distinct de la messagerie '
-        'patient. Les échanges cliniques doivent rester dans le '
-        'dossier médical.',
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('team_messages_aside_note')),
-        matching: find.byIcon(Icons.shield),
-      ),
-      findsOneWidget,
-    );
+      expect(find.byKey(const Key('team_aside')), findsOneWidget);
+      expect(find.text('Équipe'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('team_aside_count_badge')),
+          matching: find.text('4'),
+        ),
+        findsOneWidget,
+      );
+
+      expect(find.byKey(const Key('team_member_SL')), findsOneWidget);
+      expect(find.text('Sarah Lemoine'), findsOneWidget);
+      expect(find.text('Secrétaire · vous'), findsOneWidget);
+
+      expect(find.byKey(const Key('team_member_AR')), findsOneWidget);
+      expect(find.text('Dr Amélie Rousseau'), findsOneWidget);
+      expect(find.text('Praticienne · en consultation'), findsOneWidget);
+
+      expect(find.byKey(const Key('team_member_ML')), findsOneWidget);
+      expect(find.text('Dr Marc Lefèvre'), findsOneWidget);
+      expect(find.text('Praticien · absent'), findsOneWidget);
+
+      expect(find.byKey(const Key('team_member_CB')), findsOneWidget);
+      expect(find.text('Claire Béranger'), findsOneWidget);
+      expect(find.text('Assistante'), findsOneWidget);
+
+      final presentPastille = tester.widget<Container>(
+        find.byKey(const Key('team_member_status_SL')),
+      );
+      final presentDecoration =
+          presentPastille.decoration! as BoxDecoration;
+      expect(presentDecoration.color, NubiaColors.successFg);
+
+      final absentPastille = tester.widget<Container>(
+        find.byKey(const Key('team_member_status_ML')),
+      );
+      final absentDecoration = absentPastille.decoration! as BoxDecoration;
+      expect(absentDecoration.color, NubiaColors.n300);
+    });
+
+    testWidgets('étroit (mobile) → panneau « Équipe » masqué', (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_aside')), findsNothing);
+    });
+  });
+
+  group('rappel « aucune donnée clinique » (#5135)', () {
+    testWidgets('affiché sous le composeur, à toute largeur', (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('team_message_no_clinical_data_hint')),
+        findsOneWidget,
+      );
+      expect(find.text('Aucune donnée clinique dans ce fil'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('team_message_no_clinical_data_hint')),
+          matching: find.byIcon(Icons.shield),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    // La note vit en bas du panneau « Équipe » (#5133), donc desktop
+    // uniquement : sous 900 px de large la colonne latérale est masquée.
+    testWidgets('desktop → note épinglée en bas du panneau « Équipe »',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_messages_aside_note')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('team_aside')),
+          matching: find.byKey(const Key('team_messages_aside_note')),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Ce fil est interne au cabinet et distinct de la messagerie '
+          'patient. Les échanges cliniques doivent rester dans le '
+          'dossier médical.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('team_messages_aside_note')),
+          matching: find.byIcon(Icons.shield),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }

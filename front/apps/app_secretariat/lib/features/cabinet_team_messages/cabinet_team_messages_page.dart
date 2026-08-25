@@ -76,92 +76,216 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
         }
       },
       builder: (context, state) {
-        return Row(
+        final thread = Column(
           children: [
             Expanded(
-              child: Column(
-                children: [
-                  Expanded(
-                    child: switch (state) {
-                      CabinetTeamMessagesLoading() => const _MessagesSkeleton(
-                          key: Key('team_messages_loading'),
-                        ),
-                      CabinetTeamMessagesError(:final message) =>
-                        NubiaErrorWidget(
-                          key: const Key('team_messages_error'),
-                          message: message,
-                          onRetry: () =>
-                              context.read<CabinetTeamMessagesCubit>().load(),
-                        ),
-                      CabinetTeamMessagesLoaded(:final messages) =>
-                        _MessagesList(messages: messages),
-                    },
+              child: switch (state) {
+                CabinetTeamMessagesLoading() =>
+                  const _MessagesSkeleton(key: Key('team_messages_loading')),
+                CabinetTeamMessagesError(:final message) => NubiaErrorWidget(
+                    key: const Key('team_messages_error'),
+                    message: message,
+                    onRetry: () =>
+                        context.read<CabinetTeamMessagesCubit>().load(),
                   ),
-                  _Composer(
-                    controller: _controller,
-                    enabled:
-                        state is CabinetTeamMessagesLoaded && !state.sending,
-                    onSend: () => _send(context),
-                  ),
-                ],
-              ),
+                CabinetTeamMessagesLoaded(:final messages) =>
+                  _MessagesList(messages: messages),
+              },
             ),
-            const _TeamMessagesAside(),
+            _Composer(
+              controller: _controller,
+              enabled: state is CabinetTeamMessagesLoaded && !state.sending,
+              onSend: () => _send(context),
+            ),
           ],
+        );
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 900) return thread;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: thread),
+                const _TeamAside(),
+              ],
+            );
+          },
         );
       },
     );
   }
 }
 
-/// Colonne latérale du fil (#5135) : encart rappelant que ce fil est
-/// interne au cabinet, distinct de la messagerie patient (#4156).
-class _TeamMessagesAside extends StatelessWidget {
-  const _TeamMessagesAside();
+/// Membre du panneau « Équipe » (#5133) : roster + présence du cabinet,
+/// visible en colonne latérale sur desktop pour savoir depuis le comptoir
+/// qui est disponible. Données fictives verbatim de la maquette design-v2 en
+/// attendant une API de présence dédiée (aucune ne réunit aujourd'hui tous
+/// les rôles du cabinet sans restriction admin, cf. `MembersAccessCubit`).
+class _TeamMember {
+  const _TeamMember({
+    required this.name,
+    required this.subtitle,
+    required this.initials,
+    required this.present,
+  });
+
+  final String name;
+  final String subtitle;
+  final String initials;
+  final bool present;
+}
+
+const _teamMembers = [
+  _TeamMember(
+    name: 'Sarah Lemoine',
+    subtitle: 'Secrétaire · vous',
+    initials: 'SL',
+    present: true,
+  ),
+  _TeamMember(
+    name: 'Dr Amélie Rousseau',
+    subtitle: 'Praticienne · en consultation',
+    initials: 'AR',
+    present: true,
+  ),
+  _TeamMember(
+    name: 'Dr Marc Lefèvre',
+    subtitle: 'Praticien · absent',
+    initials: 'ML',
+    present: false,
+  ),
+  _TeamMember(
+    name: 'Claire Béranger',
+    subtitle: 'Assistante',
+    initials: 'CB',
+    present: true,
+  ),
+];
+
+class _TeamAside extends StatelessWidget {
+  const _TeamAside();
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
-      key: const Key('team_messages_aside'),
+      key: const Key('team_aside'),
       width: 260,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
         border: Border(left: BorderSide(color: NubiaColors.n200)),
       ),
-      child: const Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [_ClinicalDataReminderNote()],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.groups, size: 20, color: cs.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Text(
+                'Équipe',
+                style: textTheme.titleMedium?.copyWith(color: cs.onSurface),
+              ),
+              const SizedBox(width: 8),
+              _TeamCountBadge(count: _teamMembers.length),
+            ],
+          ),
+          const SizedBox(height: 16),
+          for (final member in _teamMembers) _TeamMemberRow(member: member),
+          const Spacer(),
+          const _ClinicalDataReminderNote(),
+        ],
       ),
     );
   }
 }
 
-/// Encart note (#5135) : le fil du cabinet est distinct de la messagerie
-/// patient, les échanges cliniques restent dans le dossier médical.
-class _ClinicalDataReminderNote extends StatelessWidget {
-  const _ClinicalDataReminderNote();
+class _TeamCountBadge extends StatelessWidget {
+  const _TeamCountBadge({required this.count});
+
+  final int count;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      key: const Key('team_messages_aside_note'),
-      padding: const EdgeInsets.all(10),
+      key: const Key('team_aside_count_badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: NubiaColors.n50,
-        border: Border.all(color: NubiaColors.n200),
-        borderRadius: BorderRadius.circular(10),
+        color: NubiaColors.n100,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Text(
+        '$count',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: NubiaColors.n700,
+        ),
+      ),
+    );
+  }
+}
+
+class _TeamMemberRow extends StatelessWidget {
+  const _TeamMemberRow({required this.member});
+
+  final _TeamMember member;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      key: Key('team_member_${member.initials}'),
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(Icons.shield, size: 16, color: NubiaColors.n500),
-          SizedBox(width: 8),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              NubiaAvatar(initials: member.initials, radius: 18),
+              Positioned(
+                right: -1,
+                bottom: -1,
+                child: Container(
+                  key: Key('team_member_status_${member.initials}'),
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: member.present
+                        ? NubiaColors.successFg
+                        : NubiaColors.n300,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: cs.surface, width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              'Ce fil est interne au cabinet et distinct de la messagerie '
-              'patient. Les échanges cliniques doivent rester dans le '
-              'dossier médical.',
-              style: TextStyle(fontSize: 11.5, color: NubiaColors.n600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  member.name,
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  member.subtitle,
+                  style: textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ],
@@ -351,6 +475,40 @@ class _Composer extends StatelessWidget {
             const _NoClinicalDataHint(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Encart note (#5135) : le fil du cabinet est distinct de la messagerie
+/// patient, les échanges cliniques restent dans le dossier médical.
+class _ClinicalDataReminderNote extends StatelessWidget {
+  const _ClinicalDataReminderNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('team_messages_aside_note'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield, size: 16, color: NubiaColors.n500),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Ce fil est interne au cabinet et distinct de la messagerie '
+              'patient. Les échanges cliniques doivent rester dans le '
+              'dossier médical.',
+              style: TextStyle(fontSize: 11.5, color: NubiaColors.n600),
+            ),
+          ),
+        ],
       ),
     );
   }
