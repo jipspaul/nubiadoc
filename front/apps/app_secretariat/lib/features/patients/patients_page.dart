@@ -180,7 +180,7 @@ class _PatientRow extends StatelessWidget {
 
     return ListRow(
       leading:
-          NubiaAvatar(initials: initialsFrom(patient.fullName), radius: 20),
+          NubiaAvatar(initials: NubiaInitials.of(patient.fullName), radius: 20),
       title: patient.fullName,
       subtitle: parts.isEmpty ? null : parts.join(' · '),
       trailing: Row(
@@ -298,7 +298,7 @@ class _PatientSheet extends StatelessWidget {
             Row(
               children: [
                 NubiaAvatar(
-                  initials: initialsFrom(patient.fullName),
+                  initials: NubiaInitials.of(patient.fullName),
                   radius: 24,
                 ),
                 const SizedBox(width: 12),
