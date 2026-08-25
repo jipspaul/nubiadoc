@@ -246,6 +246,71 @@ void main() {
     });
   });
 
+  group('recherche dans le fil (#5132)', () {
+    final message2 = CabinetTeamMessage(
+      id: 'm2',
+      senderId: 'u2',
+      senderName: 'Claire Béranger',
+      body: 'Qu\'est-ce qu\'on avait dit pour les congés ?',
+      createdAt: DateTime(2026, 1, 2, 10),
+    );
+
+    testWidgets('barre de recherche visible avec le placeholder attendu',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_messages_search')), findsOneWidget);
+      expect(find.text('Rechercher dans le fil…'), findsOneWidget);
+    });
+
+    testWidgets('taper un terme filtre le fil affiché', (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([_message1, message2]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_message_m1')), findsOneWidget);
+      expect(find.byKey(const Key('team_message_m2')), findsOneWidget);
+
+      final searchField = find.descendant(
+        of: find.byKey(const Key('team_messages_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(searchField, 'congés');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_message_m1')), findsNothing);
+      expect(find.byKey(const Key('team_message_m2')), findsOneWidget);
+    });
+
+    testWidgets('vider la recherche restaure le fil complet', (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([_message1, message2]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final searchField = find.descendant(
+        of: find.byKey(const Key('team_messages_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(searchField, 'congés');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('team_message_m1')), findsNothing);
+
+      await tester.enterText(searchField, '');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_message_m1')), findsOneWidget);
+      expect(find.byKey(const Key('team_message_m2')), findsOneWidget);
+    });
+  });
+
   group('rappel « aucune donnée clinique » (#5135)', () {
     testWidgets('affiché sous le composeur, à toute largeur', (tester) async {
       when(() => listMessages())
