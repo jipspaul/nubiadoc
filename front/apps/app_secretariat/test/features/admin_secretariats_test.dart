@@ -16,9 +16,9 @@ import 'package:app_secretariat/pro_config.dart';
 class _MockSecretariatRepository extends Mock
     implements SecretariatRepository {}
 
-class _MockAdminSecretiariatsBloc
-    extends MockBloc<AdminSecretiariatsEvent, AdminSecretiariatsState>
-    implements AdminSecretiariatsBloc {}
+class _MockAdminSecretariatsBloc
+    extends MockBloc<AdminSecretariatsEvent, AdminSecretariatsState>
+    implements AdminSecretariatsBloc {}
 
 void main() {
   // --- Cloisonnement invariant --------------------------------------------------
@@ -65,10 +65,10 @@ void main() {
     });
   });
 
-  // --- AdminSecretiariatsBloc --------------------------------------------------
-  group('AdminSecretiariatsBloc', () {
+  // --- AdminSecretariatsBloc --------------------------------------------------
+  group('AdminSecretariatsBloc', () {
     late _MockSecretariatRepository secretariatRepo;
-    late ListSecretiariatsUseCase listSecretariats;
+    late ListSecretariatsUseCase listSecretariats;
 
     final secretariats = [
       Secretariat(
@@ -83,44 +83,44 @@ void main() {
 
     setUp(() {
       secretariatRepo = _MockSecretariatRepository();
-      listSecretariats = ListSecretiariatsUseCase(secretariatRepo);
+      listSecretariats = ListSecretariatsUseCase(secretariatRepo);
     });
 
-    blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+    blocTest<AdminSecretariatsBloc, AdminSecretariatsState>(
       'émet Loading puis Loaded sur succès',
       build: () {
         when(() => secretariatRepo.list())
             .thenAnswer((_) async => Right(secretariats));
-        return AdminSecretiariatsBloc(
+        return AdminSecretariatsBloc(
           listSecretariats: listSecretariats,
           addSecretariat: AddSecretariatUseCase(secretariatRepo),
         );
       },
-      act: (bloc) => bloc.add(const AdminSecretiariatsLoadRequested()),
+      act: (bloc) => bloc.add(const AdminSecretariatsLoadRequested()),
       expect: () => [
-        const AdminSecretiariatsLoading(),
-        AdminSecretiariatsLoaded(secretariats: secretariats),
+        const AdminSecretariatsLoading(),
+        AdminSecretariatsLoaded(secretariats: secretariats),
       ],
     );
 
-    blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+    blocTest<AdminSecretariatsBloc, AdminSecretariatsState>(
       'émet Loading puis Empty sur liste vide',
       build: () {
         when(() => secretariatRepo.list())
             .thenAnswer((_) async => const Right([]));
-        return AdminSecretiariatsBloc(
+        return AdminSecretariatsBloc(
           listSecretariats: listSecretariats,
           addSecretariat: AddSecretariatUseCase(secretariatRepo),
         );
       },
-      act: (bloc) => bloc.add(const AdminSecretiariatsLoadRequested()),
+      act: (bloc) => bloc.add(const AdminSecretariatsLoadRequested()),
       expect: () => [
-        const AdminSecretiariatsLoading(),
-        const AdminSecretiariatsEmpty(),
+        const AdminSecretariatsLoading(),
+        const AdminSecretariatsEmpty(),
       ],
     );
 
-    blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+    blocTest<AdminSecretariatsBloc, AdminSecretariatsState>(
       'invitation → InviteSent puis rechargement de la liste',
       build: () {
         when(() => secretariatRepo.invite(
@@ -129,19 +129,19 @@ void main() {
             )).thenAnswer((_) async => Right(secretariats.first));
         when(() => secretariatRepo.list())
             .thenAnswer((_) async => Right(secretariats));
-        return AdminSecretiariatsBloc(
+        return AdminSecretariatsBloc(
           listSecretariats: listSecretariats,
           addSecretariat: AddSecretariatUseCase(secretariatRepo),
         );
       },
-      act: (bloc) => bloc.add(const AdminSecretiariatsInviteRequested(
+      act: (bloc) => bloc.add(const AdminSecretariatsInviteRequested(
         name: 'Secrétariat Rhône',
         email: 'contact@rhone.test',
       )),
       expect: () => [
-        const AdminSecretiariatsInviteSent('contact@rhone.test'),
-        const AdminSecretiariatsLoading(),
-        AdminSecretiariatsLoaded(secretariats: secretariats),
+        const AdminSecretariatsInviteSent('contact@rhone.test'),
+        const AdminSecretariatsLoading(),
+        AdminSecretariatsLoaded(secretariats: secretariats),
       ],
       verify: (_) {
         verify(() => secretariatRepo.invite(
@@ -151,7 +151,7 @@ void main() {
       },
     );
 
-    blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+    blocTest<AdminSecretariatsBloc, AdminSecretariatsState>(
       'échec d\'invitation → InviteFailed, pas de rechargement',
       build: () {
         when(() => secretariatRepo.invite(
@@ -162,55 +162,55 @@ void main() {
             ServerFailure(message: 'Impossible d\'inviter le secrétariat.'),
           ),
         );
-        return AdminSecretiariatsBloc(
+        return AdminSecretariatsBloc(
           listSecretariats: listSecretariats,
           addSecretariat: AddSecretariatUseCase(secretariatRepo),
         );
       },
-      act: (bloc) => bloc.add(const AdminSecretiariatsInviteRequested(
+      act: (bloc) => bloc.add(const AdminSecretariatsInviteRequested(
         name: 'Secrétariat Rhône',
         email: 'contact@rhone.test',
       )),
       expect: () => [
-        const AdminSecretiariatsInviteFailed(
+        const AdminSecretariatsInviteFailed(
           'Impossible d\'inviter le secrétariat.',
         ),
       ],
     );
 
-    blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+    blocTest<AdminSecretariatsBloc, AdminSecretariatsState>(
       'émet Loading puis Error sur échec',
       build: () {
         when(() => secretariatRepo.list()).thenAnswer(
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
-        return AdminSecretiariatsBloc(
+        return AdminSecretariatsBloc(
           listSecretariats: listSecretariats,
           addSecretariat: AddSecretariatUseCase(secretariatRepo),
         );
       },
-      act: (bloc) => bloc.add(const AdminSecretiariatsLoadRequested()),
+      act: (bloc) => bloc.add(const AdminSecretariatsLoadRequested()),
       expect: () => [
-        const AdminSecretiariatsLoading(),
-        const AdminSecretiariatsError('Erreur réseau'),
+        const AdminSecretariatsLoading(),
+        const AdminSecretariatsError('Erreur réseau'),
       ],
     );
 
-    blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+    blocTest<AdminSecretariatsBloc, AdminSecretariatsState>(
       'les secrétariats chargés n\'exposent aucun champ clinique',
       build: () {
         when(() => secretariatRepo.list())
             .thenAnswer((_) async => Right(secretariats));
-        return AdminSecretiariatsBloc(
+        return AdminSecretariatsBloc(
           listSecretariats: listSecretariats,
           addSecretariat: AddSecretariatUseCase(secretariatRepo),
         );
       },
-      act: (bloc) => bloc.add(const AdminSecretiariatsLoadRequested()),
+      act: (bloc) => bloc.add(const AdminSecretariatsLoadRequested()),
       verify: (bloc) {
         final loaded = bloc.state;
-        expect(loaded, isA<AdminSecretiariatsLoaded>());
-        for (final s in (loaded as AdminSecretiariatsLoaded).secretariats) {
+        expect(loaded, isA<AdminSecretariatsLoaded>());
+        for (final s in (loaded as AdminSecretariatsLoaded).secretariats) {
           expect(s.name, isNotEmpty);
           // Secretariat ne porte pas motif ni notes_medicales :
           // garantie structurelle par le type.
@@ -219,24 +219,24 @@ void main() {
     );
   });
 
-  // --- AdminSecretiariatsPage widget tests -------------------------------------
-  group('AdminSecretiariatsPage', () {
-    late _MockAdminSecretiariatsBloc bloc;
+  // --- AdminSecretariatsPage widget tests -------------------------------------
+  group('AdminSecretariatsPage', () {
+    late _MockAdminSecretariatsBloc bloc;
 
     setUp(() {
-      bloc = _MockAdminSecretiariatsBloc();
+      bloc = _MockAdminSecretariatsBloc();
     });
 
     Widget buildPage() => MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<AdminSecretiariatsBloc>.value(
+          home: BlocProvider<AdminSecretariatsBloc>.value(
             value: bloc,
-            child: const AdminSecretiariatsPage(),
+            child: const AdminSecretariatsPage(),
           ),
         );
 
     testWidgets('affiche le skeleton en état Initial', (tester) async {
-      when(() => bloc.state).thenReturn(const AdminSecretiariatsInitial());
+      when(() => bloc.state).thenReturn(const AdminSecretariatsInitial());
       await tester.pumpWidget(buildPage());
       expect(
         find.byKey(const Key('admin_secretariats_skeleton')),
@@ -246,7 +246,7 @@ void main() {
     });
 
     testWidgets('affiche le skeleton en état Loading', (tester) async {
-      when(() => bloc.state).thenReturn(const AdminSecretiariatsLoading());
+      when(() => bloc.state).thenReturn(const AdminSecretariatsLoading());
       await tester.pumpWidget(buildPage());
       expect(
         find.byKey(const Key('admin_secretariats_skeleton')),
@@ -255,7 +255,7 @@ void main() {
     });
 
     testWidgets('affiche l\'état vide', (tester) async {
-      when(() => bloc.state).thenReturn(const AdminSecretiariatsEmpty());
+      when(() => bloc.state).thenReturn(const AdminSecretariatsEmpty());
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -266,7 +266,7 @@ void main() {
     testWidgets('affiche les secrétariats — aucun champ clinique visible',
         (tester) async {
       when(() => bloc.state).thenReturn(
-        AdminSecretiariatsLoaded(
+        AdminSecretariatsLoaded(
           secretariats: [
             Secretariat(
               id: 's1',
@@ -295,7 +295,7 @@ void main() {
 
     testWidgets('le FAB ouvre la modale d\'invitation (action admin)',
         (tester) async {
-      when(() => bloc.state).thenReturn(const AdminSecretiariatsEmpty());
+      when(() => bloc.state).thenReturn(const AdminSecretariatsEmpty());
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -311,17 +311,17 @@ void main() {
 
     testWidgets('affiche le message d\'erreur', (tester) async {
       when(() => bloc.state)
-          .thenReturn(const AdminSecretiariatsError('Erreur de connexion'));
+          .thenReturn(const AdminSecretariatsError('Erreur de connexion'));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
       expect(find.text('Erreur de connexion'), findsOneWidget);
     });
 
-    testWidgets('pull-to-refresh déclenche AdminSecretiariatsLoadRequested',
+    testWidgets('pull-to-refresh déclenche AdminSecretariatsLoadRequested',
         (tester) async {
       when(() => bloc.state).thenReturn(
-        AdminSecretiariatsLoaded(
+        AdminSecretariatsLoaded(
           secretariats: [
             Secretariat(
               id: 's1',
@@ -346,7 +346,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
 
       // 1 appel depuis initState + 1 depuis le pull-to-refresh
-      verify(() => bloc.add(const AdminSecretiariatsLoadRequested())).called(2);
+      verify(() => bloc.add(const AdminSecretariatsLoadRequested())).called(2);
     });
   });
 }

@@ -31,13 +31,14 @@ async fn app_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
-fn make_pro_token(cabinet_id: Uuid, role: &str) -> String {
+fn make_pro_token(cabinet_id: Uuid, role: &str, secretariat_id: Option<Uuid>) -> String {
     #[derive(serde::Serialize)]
     struct Claims {
         sub: Uuid,
         kind: String,
         cabinet_id: Uuid,
         role: String,
+        secretariat_id: Option<Uuid>,
         exp: u64,
     }
     let exp = SystemTime::now()
@@ -52,6 +53,7 @@ fn make_pro_token(cabinet_id: Uuid, role: &str) -> String {
             kind: "pro".into(),
             cabinet_id,
             role: role.into(),
+            secretariat_id,
             exp,
         },
         &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
@@ -59,11 +61,25 @@ fn make_pro_token(cabinet_id: Uuid, role: &str) -> String {
     .unwrap()
 }
 
-/// Fixture : cabinet + patient + conversation.
-async fn insert_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid) {
+/// Fixture : cabinet + secrétariat + praticien (rattaché au secrétariat) +
+/// patient + RDV existant (requis par le filtre R10, #5715) + conversation.
+async fn insert_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
     let conversation_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let secretariat_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("convwrite+{}@nubia.test", prac_user_id))
+    .execute(db)
+    .await
+    .unwrap();
 
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -79,12 +95,60 @@ async fn insert_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     .execute(&mut *tx)
     .await
     .unwrap();
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat ConvWrite')",
+    )
+    .bind(secretariat_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO provider (id, practitioner_id, cabinet_id, user_id, display_name, specialite) \
+         VALUES ($1, $2, $3, $4, 'Dr ConvWrite', 'dentaire')",
+    )
+    .bind(provider_id)
+    .bind(prac_id)
+    .bind(cabinet_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
+         VALUES ($1, $2, true)",
+    )
+    .bind(provider_id)
+    .bind(secretariat_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
     sqlx::query(
         "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
          VALUES ($1, $2, 'Conv', 'Write')",
     )
     .bind(patient_id)
     .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 day', \
+                 now() - interval '1 day' + interval '30 min', 'confirmed')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
     .execute(&mut *tx)
     .await
     .unwrap();
@@ -97,7 +161,7 @@ async fn insert_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid) {
         .unwrap();
     tx.commit().await.unwrap();
 
-    (cabinet_id, patient_id, conversation_id)
+    (cabinet_id, patient_id, conversation_id, secretariat_id)
 }
 
 async fn cleanup_fixture(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid, conversation_id: Uuid) {
@@ -117,8 +181,36 @@ async fn cleanup_fixture(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid, conver
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM patient WHERE id = $1")
         .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query(
+        "DELETE FROM provider_secretariat \
+         WHERE provider_id IN (SELECT id FROM provider WHERE cabinet_id = $1)",
+    )
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .ok();
+    sqlx::query("DELETE FROM provider WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM secretariat WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
+        .bind(cabinet_id)
         .execute(&mut *tx)
         .await
         .ok();
@@ -170,9 +262,9 @@ async fn secretary_sends_message_201() {
         return;
     }
     let owner = owner_pool().await;
-    let (cabinet_id, patient_id, conversation_id) = insert_fixture(&owner).await;
+    let (cabinet_id, patient_id, conversation_id, secretariat_id) = insert_fixture(&owner).await;
 
-    let token = make_pro_token(cabinet_id, "secretary");
+    let token = make_pro_token(cabinet_id, "secretary", Some(secretariat_id));
     let (status, json) = post(
         &token,
         format!("/v1/cabinet/conversations/{conversation_id}/messages"),
@@ -210,9 +302,9 @@ async fn cross_tenant_send_returns_404() {
         return;
     }
     let owner = owner_pool().await;
-    let (cabinet_id, patient_id, conversation_id) = insert_fixture(&owner).await;
+    let (cabinet_id, patient_id, conversation_id, _secretariat_id) = insert_fixture(&owner).await;
 
-    let token = make_pro_token(Uuid::new_v4(), "practitioner");
+    let token = make_pro_token(Uuid::new_v4(), "practitioner", None);
     let (status, _) = post(
         &token,
         format!("/v1/cabinet/conversations/{conversation_id}/messages"),
@@ -233,9 +325,9 @@ async fn empty_body_returns_422() {
         return;
     }
     let owner = owner_pool().await;
-    let (cabinet_id, patient_id, conversation_id) = insert_fixture(&owner).await;
+    let (cabinet_id, patient_id, conversation_id, _secretariat_id) = insert_fixture(&owner).await;
 
-    let token = make_pro_token(cabinet_id, "practitioner");
+    let token = make_pro_token(cabinet_id, "practitioner", None);
     let (status, _) = post(
         &token,
         format!("/v1/cabinet/conversations/{conversation_id}/messages"),
@@ -256,7 +348,7 @@ async fn mark_read_204_sets_read_at() {
         return;
     }
     let owner = owner_pool().await;
-    let (cabinet_id, patient_id, conversation_id) = insert_fixture(&owner).await;
+    let (cabinet_id, patient_id, conversation_id, secretariat_id) = insert_fixture(&owner).await;
 
     // Insère un message patient non-lu.
     let message_id = Uuid::new_v4();
@@ -282,7 +374,7 @@ async fn mark_read_204_sets_read_at() {
         tx.commit().await.unwrap();
     }
 
-    let token = make_pro_token(cabinet_id, "secretary");
+    let token = make_pro_token(cabinet_id, "secretary", Some(secretariat_id));
     let (status, _) = post(
         &token,
         format!("/v1/cabinet/conversations/{conversation_id}/read"),
@@ -339,9 +431,9 @@ async fn cabinet_reads_conversation_messages_200() {
         return;
     }
     let db = owner_pool().await;
-    let (cabinet_id, patient_id, conversation_id) = insert_fixture(&db).await;
+    let (cabinet_id, patient_id, conversation_id, secretariat_id) = insert_fixture(&db).await;
 
-    let token = make_pro_token(cabinet_id, "secretary");
+    let token = make_pro_token(cabinet_id, "secretary", Some(secretariat_id));
 
     // Un message envoyé par le cabinet, pour peupler le fil.
     let (status, sent) = post(
@@ -382,9 +474,9 @@ async fn cabinet_reads_messages_cross_tenant_404() {
         return;
     }
     let db = owner_pool().await;
-    let (cabinet_id, patient_id, conversation_id) = insert_fixture(&db).await;
+    let (cabinet_id, patient_id, conversation_id, _secretariat_id) = insert_fixture(&db).await;
 
-    let other_token = make_pro_token(Uuid::new_v4(), "practitioner");
+    let other_token = make_pro_token(Uuid::new_v4(), "practitioner", None);
     let (status, _) = get(
         &other_token,
         format!("/v1/cabinet/conversations/{conversation_id}/messages"),
@@ -403,9 +495,9 @@ async fn cabinet_list_exposes_last_message_preview() {
         return;
     }
     let db = owner_pool().await;
-    let (cabinet_id, patient_id, conversation_id) = insert_fixture(&db).await;
+    let (cabinet_id, patient_id, conversation_id, _secretariat_id) = insert_fixture(&db).await;
 
-    let token = make_pro_token(cabinet_id, "practitioner");
+    let token = make_pro_token(cabinet_id, "practitioner", None);
     let (status, _) = post(
         &token,
         format!("/v1/cabinet/conversations/{conversation_id}/messages"),

@@ -4,9 +4,12 @@
 export 'src/theme/nubia_colors.dart';
 export 'src/theme/nubia_theme.dart';
 export 'src/theme/nubia_tokens.dart';
+export 'src/theme/practitioner_color.dart';
 
 // Format
+export 'src/format/initials.dart';
 export 'src/format/money_format.dart';
+export 'src/format/treatment_plan_status.dart';
 
 // Widgets
 export 'src/widgets/amount_header.dart';

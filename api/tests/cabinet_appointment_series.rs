@@ -764,3 +764,121 @@ async fn create_series_consumes_overlapping_open_slot() {
 
     cleanup_fixture(&db, &f).await;
 }
+
+/// #5700 : une occurrence chevauchant PLUSIEURS `availability_slot` `open`
+/// adjacents (cabinet à créneaux courts, RDV plus long) doit tous les
+/// consommer — le fix #4408 ne consommait que le premier trouvé (`LIMIT 1`),
+/// laissant les suivants fantômes (`is_available:true` mais 409
+/// `slot_taken` à la réservation).
+#[tokio::test]
+async fn create_series_consumes_all_overlapping_open_slots() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixture(&db, "consume-multi").await;
+    let slot_a_id = Uuid::new_v4();
+    let slot_b_id = Uuid::new_v4();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+             VALUES ($1, NULL, $2, $3, '2027-10-11T15:00:00Z', '2027-10-11T15:15:00Z', 'open', true), \
+                    ($4, NULL, $2, $3, '2027-10-11T15:15:00Z', '2027-10-11T15:30:00Z', 'open', true)",
+        )
+        .bind(slot_a_id)
+        .bind(f.cabinet_id)
+        .bind(f.practitioner_id)
+        .bind(slot_b_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/appointments/series")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), f.cabinet_id, "secretary")
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "practitioner_id": f.practitioner_id,
+                        "patient_id": f.patient_id,
+                        "motif": "QA-consume-multi-slot",
+                        "occurrences": [
+                            {"starts_at": "2027-10-11T15:00:00Z", "ends_at": "2027-10-11T15:30:00Z"}
+                        ]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let statuses: Vec<String> = {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let mut out = Vec::new();
+        for id in [slot_a_id, slot_b_id] {
+            let row = sqlx::query("SELECT status FROM availability_slot WHERE id = $1")
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+            out.push(row.try_get("status").unwrap());
+        }
+        tx.commit().await.unwrap();
+        out
+    };
+    assert_eq!(
+        statuses,
+        vec!["booked".to_string(), "booked".to_string()],
+        "les DEUX créneaux chevauchés par l'occurrence doivent être consommés, pas seulement le premier (fantôme #5700)"
+    );
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM availability_slot WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.unwrap();
+    }
+
+    cleanup_fixture(&db, &f).await;
+}

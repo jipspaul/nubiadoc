@@ -586,7 +586,20 @@ class _EntryCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
+                // Pastille praticien (#5168) : même couleur, dérivée de
+                // practitionerId via practitionerColor, que la colonne
+                // Praticien de la salle d'attente.
+                Container(
+                  key: Key('entry_practitioner_dot_${entry.id}'),
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: practitionerColor(entry.practitionerId),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 NubiaAvatar(
                   initials:
                       entry.isFree ? '+' : _initialsFrom(entry.patientName),

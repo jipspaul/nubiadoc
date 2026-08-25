@@ -91,18 +91,22 @@ void main() {
           ProConfig.shellConfig.destinations.length - 1);
     });
 
-    test('canManageMembers=false et canViewAuditLog=false : masque les deux',
-        () {
+    test(
+        'canManageMembers=false et canViewAuditLog=false : masque les trois '
+        'entrées admin', () {
       final config = ProConfig.shellConfigFor(
           canManageMembers: false, canViewAuditLog: false);
       expect(
         config.destinations.where((d) =>
             d.route == ProConfig.membersRoute ||
+            d.route == ProConfig.secretariatsRoute ||
             d.route == ProConfig.auditLogRoute),
         isEmpty,
       );
+      // Membres + Secrétariats (#5156, même signal canManageMembers) +
+      // Journal d'accès.
       expect(config.destinations.length,
-          ProConfig.shellConfig.destinations.length - 2);
+          ProConfig.shellConfig.destinations.length - 3);
     });
   });
 }

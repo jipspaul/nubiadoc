@@ -13,6 +13,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -62,7 +63,160 @@ void main() {
 
       expect(find.byKey(const Key('implant_passport_list')), findsOneWidget);
       expect(find.byKey(const Key('implant_implant-1')), findsOneWidget);
-      expect(find.text('Nobel Biocare'), findsOneWidget);
+      // #5319 : l'en-tête de carte est le nom anatomique (traduction FDI),
+      // pas la marque.
+      expect(find.text('Molaire inférieure gauche'), findsOneWidget);
+      expect(find.text('36'), findsOneWidget);
+      expect(find.text('FDI'), findsOneWidget);
+      // #5320 : champs en lignes étiquetées, plus de sous-titre concaténé.
+      expect(find.text('Posé le'), findsOneWidget);
+      expect(find.text('15 janvier 2025'), findsOneWidget);
+      expect(find.text('N° de lot'), findsOneWidget);
+      expect(find.text('LOT-42'), findsOneWidget);
+      expect(find.textContaining(' · '), findsNothing);
+      // Praticien absent sur `_implant` → ligne non rendue.
+      expect(find.text('Praticien'), findsNothing);
+    });
+
+    testWidgets(
+        'affiche la marque en titre et pas de vignette FDI quand '
+        'toothPosition est absent', (tester) async {
+      const implantWithoutTooth = ImplantItem(
+        id: 'implant-5',
+        brand: 'Straumann',
+      );
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([implantWithoutTooth]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Straumann'), findsOneWidget);
+      expect(find.text('FDI'), findsNothing);
+    });
+
+    testWidgets(
+        'affiche fabricant · modèle sous le nom anatomique quand renseignés',
+        (tester) async {
+      const implantWithManufacturerModel = ImplantItem(
+        id: 'implant-6',
+        brand: 'Nobel Biocare',
+        toothPosition: '36',
+        manufacturer: 'Nobel Biocare',
+        model: 'Replace Select',
+      );
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([implantWithManufacturerModel]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nobel Biocare · Replace Select'), findsOneWidget);
+    });
+
+    testWidgets('affiche le praticien sur sa propre ligne quand renseigné',
+        (tester) async {
+      const implantWithPractitioner = ImplantItem(
+        id: 'implant-4',
+        brand: 'Nobel Biocare',
+        lotNumber: 'NB-4471-22A',
+        placementDate: '2026-03-12',
+        practitioner: 'Dr Marc Lefèvre',
+      );
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([implantWithPractitioner]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Praticien'), findsOneWidget);
+      expect(find.text('Dr Marc Lefèvre'), findsOneWidget);
+    });
+
+    testWidgets(
+        '« Voir la fiche complète » navigue vers le détail de l\'implant '
+        'tapé, retour possible ensuite', (tester) async {
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant]));
+
+      ImplantItem? pushedImplant;
+      final router = GoRouter(
+        initialLocation: '/implant-passport',
+        routes: [
+          GoRoute(
+            path: '/implant-passport',
+            builder: (_, __) => const ImplantPassportPage(),
+          ),
+          GoRoute(
+            path: '/implant-passport/:id',
+            builder: (_, state) {
+              pushedImplant = state.extra as ImplantItem;
+              return const Scaffold(body: Text('implant detail'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      final detailLink = find.byKey(const Key('implant_detail_link_implant-1'));
+      await tester.ensureVisible(detailLink);
+      await tester.pumpAndSettle();
+      await tester.tap(detailLink);
+      await tester.pumpAndSettle();
+
+      expect(pushedImplant?.id, 'implant-1');
+      expect(find.text('implant detail'), findsOneWidget);
+
+      router.pop();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('implant_passport_list')), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche la carte "Emporter mon passeport" avec le décompte réel '
+        'et le bandeau légal', (tester) async {
+      const secondImplant = ImplantItem(
+        id: 'implant-2',
+        brand: 'Straumann',
+        lotNumber: 'LOT-99',
+      );
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant, secondImplant]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_passport_export_card')),
+        findsOneWidget,
+      );
+      expect(find.text('Emporter mon passeport'), findsOneWidget);
+      expect(
+        find.text(
+          'Un PDF officiel reprenant vos deux implants, leurs références '
+          'et leurs numéros de lot.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('implant_passport_export_button')),
+          findsOneWidget);
+      expect(
+        find.byKey(const Key('implant_passport_legal_notice')),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'La traçabilité des dispositifs médicaux implantables est une '
+          'obligation légale : votre praticien conserve ces informations, '
+          'et vous en avez une copie permanente.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('aucun implant → état vide dédié', (tester) async {
@@ -78,6 +232,55 @@ void main() {
         find.byKey(const Key('implant_passport_export_button')),
         findsOneWidget,
       );
+      // #5317 : le bandeau intro n'a de sens qu'avec des implants à décrire.
+      expect(
+        find.byKey(const Key('implant_passport_intro_banner')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        '#5317 bandeau intro + intertitre de groupe + sous-titre AppBar '
+        'avec le décompte réel (pluriel)', (tester) async {
+      const secondImplant = ImplantItem(
+        id: 'implant-2',
+        brand: 'Straumann',
+        lotNumber: 'LOT-99',
+      );
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant, secondImplant]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_passport_intro_banner')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Un document à conserver à vie.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'Il identifie les dispositifs posés dans votre bouche',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Implants posés'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('2 implants enregistrés'), findsOneWidget);
+    });
+
+    testWidgets('#5317 sous-titre AppBar au singulier pour un seul implant',
+        (tester) async {
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 implant enregistré'), findsOneWidget);
     });
   });
 

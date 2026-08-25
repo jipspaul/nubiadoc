@@ -112,13 +112,21 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
   --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=20s \
   -e APP_DATABASE_URL=postgres://nubia_app@127.0.0.1:5432/nubia \
   -e APP_PORT=3000 -e JWT_SECRET=dev-only-not-for-prod -e LOGIN_RATE_MAX_ATTEMPTS=10000 \
-  -e MLLP_PORT=2575 -e WEB_TUNNEL_PORT=3001 \
+  -e MLLP_PORT=2575 \
+  -e YOUSIGN_API_KEY="${YOUSIGN_API_KEY:-}" \
   localhost/nubia-api:latest >/dev/null
-# Tunnel web de réservation SSR public (ADR-013, #5356/#5628) : --network host
-# publie déjà 3001 comme les autres ports de ce conteneur (pas de -p à
-# ajouter) ; WEB_TUNNEL_PORT explicite ici pour que ce port apparaisse dans le
-# déploiement (cf. Caddyfile.snippet, reverse_proxy 192.168.1.100:3001) plutôt
-# que de dépendre silencieusement de la valeur par défaut du binaire.
+# #5688 : avant ce -e, YOUSIGN_API_KEY n'était jamais transmise au conteneur
+# (aucune plomberie CI -> LXC), donc POST /v1/quotes/:id/signature répondait
+# 502 upstream_unavailable pour 100% des appels, quel que soit le secret
+# Forgejo configuré. `${YOUSIGN_API_KEY:-}` reste vide tant que le secret
+# n'est pas renseigné : `yousign_client.rs` court-circuite alors proprement
+# en erreur explicite ("clé vide") plutôt que d'émettre un appel voué à
+# l'échec — comportement inchangé, seule la plomberie manquait.
+# Tunnel web de réservation SSR public (ADR-013, #5356) : plus de port dédié
+# séparé depuis #5628 (un `WEB_TUNNEL_PORT`/3001 distinct n'était raccordé à
+# aucun nom de domaine en production — cf. commentaire de main.rs) ; ces
+# pages sont désormais servies sur le même port que l'API (`APP_PORT`), déjà
+# exposé ci-dessus, donc rien à ajouter ici.
 # Lot B10 (interop HL7v2) : le listener MLLP reste désactivé tant que
 # MLLP_TLS_CERT_PATH/MLLP_TLS_KEY_PATH/MLLP_TLS_CLIENT_CA_PATH ne sont pas
 # fournis (pas de certs partenaires provisionnés pour l'instant — process

@@ -17,6 +17,7 @@ pub mod documents_messaging;
 pub mod marketplace;
 pub mod misc;
 pub mod notifications_devices;
+pub mod nurse_routes;
 pub mod pharmacy_routes;
 pub mod scheduling;
 pub mod secretariats;

@@ -33,6 +33,7 @@ class NubiaChip extends StatelessWidget {
     this.onRemove,
     this.selectedBackground,
     this.selectedForeground,
+    this.selectedBorder,
   });
 
   final String label;
@@ -54,6 +55,11 @@ class NubiaChip extends StatelessWidget {
   /// Texte/icône de l'état sélectionné quand [selectedBackground] est fourni.
   final Color? selectedForeground;
 
+  /// Bordure de l'état sélectionné. `null` = retombe sur [selectedBackground]
+  /// (comportement historique). Permet un ton de bordure distinct du fond
+  /// (ex. chip informatif `n50`/`n200`, maquette design-v2 #5209).
+  final Color? selectedBorder;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -66,7 +72,7 @@ class NubiaChip extends StatelessWidget {
         ? (selectedBackground ?? NubiaColors.brand50)
         : Colors.transparent;
     Color borderColor = selected
-        ? (selectedBackground ?? NubiaColors.brand200)
+        ? (selectedBorder ?? selectedBackground ?? NubiaColors.brand200)
         : tokens.borderDefault;
     Color foreground = selected
         ? (customTone

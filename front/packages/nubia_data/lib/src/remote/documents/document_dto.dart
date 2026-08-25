@@ -8,6 +8,7 @@ class DocumentDto {
   final int fileSizeBytes;
   final String createdAt;
   final String? sha256;
+  final String? issuer;
 
   const DocumentDto({
     required this.id,
@@ -17,6 +18,7 @@ class DocumentDto {
     required this.fileSizeBytes,
     required this.createdAt,
     this.sha256,
+    this.issuer,
   });
 
   factory DocumentDto.fromJson(Map<String, dynamic> json) => DocumentDto(
@@ -32,6 +34,9 @@ class DocumentDto {
             0,
         createdAt: json['created_at'] as String,
         sha256: json['sha256'] as String?,
+        // Contrat liste (GET /v1/documents) : champ pas encore renvoyé par
+        // le back — tolérant à l'absence, câblé pour quand il le sera (#5219).
+        issuer: json['issuer'] as String?,
       );
 
   /// Réponse de `POST /documents` (upload).
@@ -62,14 +67,17 @@ class DocumentDto {
   Document toDomain() => Document(
         id: id,
         name: filename,
-        category: _parseCategory(category),
+        category: parseCategory(category),
         createdAt: DateTime.parse(createdAt),
         fileSizeBytes: fileSizeBytes,
         mimeType: mimeType,
         sha256: sha256,
+        issuer: issuer,
       );
 
-  static DocumentCategory _parseCategory(String raw) {
+  /// Partagé avec `MessageDto` (#5282) : les pièces jointes d'un message
+  /// référencent la même nomenclature de catégories que le coffre documentaire.
+  static DocumentCategory parseCategory(String raw) {
     switch (raw) {
       case 'devis':
         return DocumentCategory.quote;

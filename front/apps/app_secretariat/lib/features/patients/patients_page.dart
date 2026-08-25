@@ -158,18 +158,6 @@ class _PatientsPageState extends State<PatientsPage> {
   }
 }
 
-/// Initiales à partir du nom complet (fallback avatar).
-String _initialsFrom(String name) {
-  final parts = name.trim().split(RegExp(r'\s+'));
-  if (parts.isEmpty || parts.first.isEmpty) return '–';
-  if (parts.length == 1) {
-    final p = parts.first;
-    return (p.length <= 2 ? p : p.substring(0, 2)).toUpperCase();
-  }
-  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
-      .toUpperCase();
-}
-
 /// Formate une date en « jj/mm/aaaa ».
 String _formatDate(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/'
     '${dt.month.toString().padLeft(2, '0')}/'
@@ -192,7 +180,7 @@ class _PatientRow extends StatelessWidget {
 
     return ListRow(
       leading:
-          NubiaAvatar(initials: _initialsFrom(patient.fullName), radius: 20),
+          NubiaAvatar(initials: initialsFrom(patient.fullName), radius: 20),
       title: patient.fullName,
       subtitle: parts.isEmpty ? null : parts.join(' · '),
       trailing: Row(
@@ -310,7 +298,7 @@ class _PatientSheet extends StatelessWidget {
             Row(
               children: [
                 NubiaAvatar(
-                  initials: _initialsFrom(patient.fullName),
+                  initials: initialsFrom(patient.fullName),
                   radius: 24,
                 ),
                 const SizedBox(width: 12),

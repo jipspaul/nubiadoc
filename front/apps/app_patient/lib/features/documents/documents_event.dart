@@ -57,3 +57,7 @@ final class DocumentsUploadRequested extends DocumentsEvent {
   @override
   List<Object?> get props => [bytes, filename, mimeType, category];
 }
+
+final class DocumentsUploadDismissed extends DocumentsEvent {
+  const DocumentsUploadDismissed();
+}

@@ -19,10 +19,20 @@ final class HomeLoading extends HomeState {
 final class HomeLoaded extends HomeState {
   final DashboardSummary summary;
 
-  const HomeLoaded(this.summary);
+  /// Plan de traitement actif à afficher dans la carte « Mon suivi »
+  /// (#5202) — `null` si le patient n'a aucun plan en cours avec des
+  /// données de progression.
+  final PatientTreatmentPlan? treatmentPlan;
+
+  /// Détail du prochain RDV (date, praticien, motif, adresse) pour la carte
+  /// héros (#5198) — `null` si aucun RDV à venir ou si le chargement a
+  /// échoué (la carte héros retombe alors sur son état par défaut).
+  final Appointment? nextAppointment;
+
+  const HomeLoaded(this.summary, {this.treatmentPlan, this.nextAppointment});
 
   @override
-  List<Object?> get props => [summary];
+  List<Object?> get props => [summary, treatmentPlan, nextAppointment];
 }
 
 final class HomeError extends HomeState {

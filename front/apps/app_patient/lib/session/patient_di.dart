@@ -5,7 +5,9 @@ import 'package:nubia_domain/nubia_domain.dart';
 import '../features/account_setup/account_setup_cubit.dart';
 import '../features/coverage_setup/coverage_setup_cubit.dart';
 import '../features/dependents/dependents_cubit.dart';
+import '../features/dependents/incoming_request_cubit.dart';
 import '../features/consents/consents_cubit.dart';
+import '../features/implant_passport/implant_detail_cubit.dart';
 import '../features/implant_passport/implant_passport_cubit.dart';
 import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/appointments/appointments_bloc.dart';
@@ -165,14 +167,33 @@ void registerPatient(GetIt gi) {
       updateAccount: gi<UpdateAccountUseCase>(),
       userSettings: gi<UserSettingsRepository>(),
       notificationRepo: gi<NotificationRepository>(),
+      getPendingQuotes: gi<GetPendingQuotesUseCase>(),
+      getCoverage: gi<GetCoverageUseCase>(),
+      getReferringDoctor: gi<GetReferringDoctorUseCase>(),
+      listDependents: gi<ListDependentsUseCase>(),
+      listConsents: gi<ListConsentsUseCase>(),
+      listImplants: gi<ListImplantPassportUseCase>(),
+      getMyPharmacy: gi<GetMyPharmacyUseCase>(),
     ),
   );
 
   gi.registerFactory<DependentsCubit>(
     () => DependentsCubit(
       list: gi<ListDependentsUseCase>(),
+      listAccessRequests: gi<ListAccessRequestsUseCase>(),
+      getUpcomingAppointments: gi<GetUpcomingAppointmentsUseCase>(),
+      getAccount: gi<GetAccountUseCase>(),
       add: gi<AddDependentUseCase>(),
       remove: gi<DeleteDependentUseCase>(),
+      resendAccessRequest: gi<ResendAccessRequestUseCase>(),
+      cancelAccessRequest: gi<CancelAccessRequestUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<IncomingRequestCubit>(
+    () => IncomingRequestCubit(
+      accept: gi<AcceptAccessRequestUseCase>(),
+      refuse: gi<RefuseAccessRequestUseCase>(),
     ),
   );
 
@@ -180,6 +201,8 @@ void registerPatient(GetIt gi) {
     () => ConsentsCubit(
       list: gi<ListConsentsUseCase>(),
       set: gi<SetConsentUseCase>(),
+      listPharmacyOrders: gi<ListPatientPharmacyOrdersUseCase>(),
+      getMyPharmacy: gi<GetMyPharmacyUseCase>(),
     ),
   );
 
@@ -190,6 +213,10 @@ void registerPatient(GetIt gi) {
     ),
   );
 
+  gi.registerFactory<ImplantDetailCubit>(
+    () => ImplantDetailCubit(export: gi<ExportImplantPassportUseCase>()),
+  );
+
   gi.registerFactory<NotificationPrefsCubit>(
     () => NotificationPrefsCubit(
       get: gi<GetNotificationPreferencesUseCase>(),
@@ -198,7 +225,11 @@ void registerPatient(GetIt gi) {
   );
 
   gi.registerFactory<HomeBloc>(
-    () => HomeBloc(getDashboardSummary: gi<GetDashboardSummaryUseCase>()),
+    () => HomeBloc(
+      getDashboardSummary: gi<GetDashboardSummaryUseCase>(),
+      listTreatmentPlans: gi<ListPatientTreatmentPlansUseCase>(),
+      getUpcomingAppointments: gi<GetUpcomingAppointmentsUseCase>(),
+    ),
   );
 
   gi.registerFactory<FinancialBloc>(
@@ -207,6 +238,7 @@ void registerPatient(GetIt gi) {
       getQuoteById: gi<GetQuoteByIdUseCase>(),
       initiateSignature: gi<InitiateSignatureUseCase>(),
       initiateDeposit: gi<InitiateDepositUseCase>(),
+      getDocumentSignedUrl: gi<GetDocumentSignedUrlUseCase>(),
     ),
   );
 

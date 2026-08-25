@@ -24,6 +24,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
     on<DocumentsFilterChanged>(_onFilterChanged);
     on<DocumentsDownloadRequested>(_onDownloadRequested);
     on<DocumentsUploadRequested>(_onUpload);
+    on<DocumentsUploadDismissed>(_onUploadDismissed);
   }
 
   Future<void> _onLoadRequested(
@@ -83,7 +84,16 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
     DocumentsUploadRequested event,
     Emitter<DocumentsState> emit,
   ) async {
-    emit(const DocumentsUploading());
+    final current = state;
+    final documents =
+        current is DocumentsLoaded ? current.documents : const <Document>[];
+    final activeFilter = current is DocumentsLoaded ? current.activeFilter : null;
+    final pending =
+        PendingUpload(filename: event.filename, category: event.category);
+
+    emit(
+      DocumentsLoaded(documents, activeFilter: activeFilter, pendingUpload: pending),
+    );
     try {
       final result = await _upload(
         bytes: event.bytes,
@@ -92,11 +102,35 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
         category: event.category,
       );
       result.fold(
-        (failure) => safeEmit(DocumentsUploadFailure(failure.message)),
-        (doc) => safeEmit(DocumentsUploadSuccess(doc)),
+        (failure) => safeEmit(
+          DocumentsLoaded(
+            documents,
+            activeFilter: activeFilter,
+            pendingUpload: pending.asFailed(failure.message),
+          ),
+        ),
+        (doc) => safeEmit(
+          DocumentsLoaded([doc, ...documents], activeFilter: activeFilter),
+        ),
       );
     } catch (_) {
-      safeEmit(const DocumentsUploadFailure('Erreur d\'envoi.'));
+      safeEmit(
+        DocumentsLoaded(
+          documents,
+          activeFilter: activeFilter,
+          pendingUpload: pending.asFailed('Erreur d\'envoi.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _onUploadDismissed(
+    DocumentsUploadDismissed event,
+    Emitter<DocumentsState> emit,
+  ) async {
+    final current = state;
+    if (current is DocumentsLoaded) {
+      safeEmit(DocumentsLoaded(current.documents, activeFilter: current.activeFilter));
     }
   }
 }

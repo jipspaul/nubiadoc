@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
@@ -14,6 +15,8 @@ import '../features/dashboard/dashboard_page.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/financial/financial_event.dart';
 import '../features/financial/financial_page.dart';
+import '../features/financial/financial_state.dart';
+import '../features/financial/widgets/financial_format_utils.dart';
 import '../features/documents/documents_page.dart';
 import '../features/treatment_plans/treatment_plan_detail_page.dart';
 import '../features/treatment_plans/treatment_plans_page.dart';
@@ -49,6 +52,7 @@ import '../features/pharmacy_orders/send_prescription_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/dependents/dependents_page.dart';
 import '../features/consents/consents_page.dart';
+import '../features/implant_passport/implant_detail_page.dart';
 import '../features/implant_passport/implant_passport_page.dart';
 import '../features/notification_prefs/notification_prefs_page.dart';
 import '../features/messaging/messaging_bloc.dart';
@@ -83,6 +87,7 @@ class AppRouter {
   static const profileNotifications = '/profile/notifications';
   static const profileReferringDoctor = '/profile/referring-doctor';
   static const implantPassport = '/implant-passport';
+  static const implantDetail = '/implant-passport/:id';
   static const messaging = '/messaging';
   static const reviews = '/reviews';
   static const notifications = '/notifications';
@@ -224,11 +229,19 @@ class AppRouter {
           GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(
           path: appointments,
-          builder: (_, __) => BlocProvider(
+          // #5269 : « Reprendre RDV » (Mes RDV · historique) transmet le nom
+          // du praticien via `extra` pour repartir de la même recherche.
+          builder: (context, state) => BlocProvider(
             create: (_) => GetIt.instance<AppointmentsBloc>(),
             child: Scaffold(
               appBar: AppBar(title: const Text('Prendre un rendez-vous')),
-              body: const AppointmentsPage(),
+              body: AppointmentsPage(
+                initialQuery: state.extra as String?,
+                // #5194 : l'annuaire n'est plus un onglet du shell — « Voir
+                // mes RDV » sur l'écran de confirmation pousse la route
+                // dédiée au lieu de basculer un onglet du DashboardPage.
+                onViewMyAppointments: () => context.push(mesRdv),
+              ),
             ),
           ),
         ),
@@ -257,7 +270,46 @@ class AppRouter {
             create: (_) => GetIt.instance<FinancialBloc>()
               ..add(const FinancialLoadRequested()),
             child: Scaffold(
-              appBar: AppBar(title: const Text('Mes devis')),
+              appBar: AppBar(
+                leading: BlocBuilder<FinancialBloc, FinancialState>(
+                  builder: (context, state) {
+                    if (state is FinancialQuoteDetail) {
+                      return IconButton(
+                        key: const Key('btn_appbar_back'),
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => context
+                            .read<FinancialBloc>()
+                            .add(const FinancialBackToList()),
+                      );
+                    }
+                    return const BackButton();
+                  },
+                ),
+                title: BlocBuilder<FinancialBloc, FinancialState>(
+                  builder: (context, state) => Text(
+                    state is FinancialQuoteDetail
+                        ? 'Plan de soins'
+                        : 'Mes devis',
+                  ),
+                ),
+                actions: [
+                  BlocBuilder<FinancialBloc, FinancialState>(
+                    builder: (context, state) {
+                      if (state is! FinancialQuoteDetail) {
+                        return const SizedBox.shrink();
+                      }
+                      final style = QuoteStatusStyle.of(state.quote.status);
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 16),
+                        child: StatusPill(
+                          label: style.label,
+                          variant: style.variant,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
               body: const FinancialPage(),
             ),
           ),
@@ -286,6 +338,11 @@ class AppRouter {
           builder: (_, __) => const ImplantPassportPage(),
         ),
         GoRoute(
+          path: implantDetail,
+          builder: (_, state) =>
+              ImplantDetailPage(implant: state.extra as ImplantItem),
+        ),
+        GoRoute(
           path: profileNotifications,
           builder: (_, __) => const NotificationPrefsPage(),
         ),
@@ -298,6 +355,19 @@ class AppRouter {
               appBar: AppBar(title: const Text('Messages')),
               body: const MessagingPage(),
             ),
+          ),
+        ),
+        // Route dédiée pour le fil (#5279) : le bouton retour matériel
+        // Android doit fermer la conversation, pas juste changer un état
+        // dans le même bloc. Bloc dédié (comme la route liste ci-dessus) :
+        // l'onglet Messages du dashboard garde son propre bloc, jamais muté
+        // vers un état de fil, donc il réaffiche toujours la liste au retour.
+        GoRoute(
+          path: '$messaging/:id',
+          builder: (_, state) => BlocProvider(
+            create: (_) => GetIt.instance<MessagingBloc>()
+              ..add(MessagingThreadOpened(state.extra as Conversation)),
+            child: const Scaffold(body: MessagingPage()),
           ),
         ),
         GoRoute(
@@ -321,7 +391,7 @@ class AppRouter {
               ..add(const NotificationsLoadRequested()),
             child: Scaffold(
               key: const Key('notifications_scaffold'),
-              appBar: AppBar(title: const Text('Notifications')),
+              appBar: const NotificationsAppBar(),
               body: const NotificationsPage(),
             ),
           ),

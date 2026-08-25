@@ -324,6 +324,44 @@ void main() {
       expect(find.byKey(const Key('entry_e-1')), findsOneWidget);
     });
 
+    // #5168 : pastille praticien de la grille agenda — même couleur, dérivée
+    // du practitionerId via practitionerColor, que la colonne Praticien de
+    // la salle d'attente (front/apps/app_secretariat/waiting_room_page.dart).
+    testWidgets(
+        'pastille praticien — couleur dérivée de practitionerId via practitionerColor — #5168',
+        (tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      final dot = tester.widget<Container>(
+        find.byKey(const Key('entry_practitioner_dot_e-1')),
+      );
+      final decoration = dot.decoration as BoxDecoration;
+      expect(decoration.color, practitionerColor(_entry.practitionerId));
+
+      await gi.reset();
+    });
+
     testWidgets('affiche l\'état vide quand aucun créneau', (tester) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))

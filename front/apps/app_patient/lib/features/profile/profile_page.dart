@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -38,7 +37,7 @@ class ProfilePage extends StatelessWidget {
       },
       builder: (context, state) {
         if (state is ProfileInitial || state is ProfileLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const _ProfileSkeleton();
         }
         if (state is ProfileError) {
           return NubiaErrorWidget(
@@ -54,6 +53,7 @@ class ProfilePage extends StatelessWidget {
             emailRdv: state.notifPrefs?.emailEnabled ?? true,
             pushRdv: state.notifPrefs?.pushEnabled ?? true,
             phoneUpdating: state.phoneUpdating,
+            accountSummary: state.accountSummary,
           );
         }
         if (state is ProfileToggleFailed) {
@@ -63,10 +63,93 @@ class ProfilePage extends StatelessWidget {
             emailRdv: state.previousState.notifPrefs?.emailEnabled ?? true,
             pushRdv: state.previousState.notifPrefs?.pushEnabled ?? true,
             phoneUpdating: false,
+            accountSummary: state.previousState.accountSummary,
           );
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _ProfileSkeleton extends StatelessWidget {
+  const _ProfileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('profile_loading'),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: const [
+        _ProfileHeaderSkeleton(),
+        SizedBox(height: 24),
+        NubiaSkeletonLoader(height: 16, width: 160),
+        SizedBox(height: 12),
+        _ProfileSectionSkeleton(rows: 2),
+        SizedBox(height: 24),
+        NubiaSkeletonLoader(height: 16, width: 140),
+        SizedBox(height: 12),
+        _ProfileSectionSkeleton(rows: 2),
+        SizedBox(height: 24),
+        NubiaSkeletonLoader(height: 16, width: 100),
+        SizedBox(height: 12),
+        _ProfileSectionSkeleton(rows: 1),
+      ],
+    );
+  }
+}
+
+class _ProfileHeaderSkeleton extends StatelessWidget {
+  const _ProfileHeaderSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      padding: EdgeInsets.all(20),
+      child: Row(
+        children: [
+          NubiaSkeletonLoader(height: 64, width: 64, borderRadius: 32),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NubiaSkeletonLoader(height: 16, width: 140),
+                SizedBox(height: 8),
+                NubiaSkeletonLoader(height: 12, width: 180),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileSectionSkeleton extends StatelessWidget {
+  const _ProfileSectionSkeleton({required this.rows});
+
+  final int rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return NubiaCard(
+      child: Column(
+        children: [
+          for (var i = 0; i < rows; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            const Row(
+              children: [
+                NubiaSkeletonLoader(height: 20, width: 20, borderRadius: 4),
+                SizedBox(width: 12),
+                Expanded(child: NubiaSkeletonLoader(height: 14)),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -80,6 +163,7 @@ class _ProfileContent extends StatelessWidget {
     required this.emailRdv,
     required this.pushRdv,
     required this.phoneUpdating,
+    required this.accountSummary,
   });
 
   final PatientAccount account;
@@ -87,6 +171,7 @@ class _ProfileContent extends StatelessWidget {
   final bool emailRdv;
   final bool pushRdv;
   final bool phoneUpdating;
+  final ProfileAccountSummary accountSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +193,11 @@ class _ProfileContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        const _SectionLabel(label: 'Notifications RDV'),
+        _SectionLabel(
+          label: 'Notifications RDV',
+          actionLabel: 'Toutes les préférences',
+          onActionTap: () => context.push(AppRouter.profileNotifications),
+        ),
         const SizedBox(height: 12),
         NubiaCard(
           child: Column(
@@ -158,62 +247,68 @@ class _ProfileContent extends StatelessWidget {
                 key: const Key('tile_financial'),
                 leading: const Icon(Icons.receipt_long_outlined),
                 title: 'Mes devis & paiements',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.quotesToSignLabel),
                 onTap: () => context.push(AppRouter.financial),
               ),
               ListRow(
                 key: const Key('tile_coverage'),
                 leading: const Icon(Icons.health_and_safety_outlined),
                 title: 'Couverture santé',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.coverageLabel),
                 onTap: () => context.push(AppRouter.coverageSetup),
               ),
               ListRow(
                 key: const Key('tile_referring_doctor'),
                 leading: const Icon(Icons.medical_services_outlined),
                 title: 'Médecin traitant',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.referringDoctorName),
                 onTap: () => context.push(AppRouter.profileReferringDoctor),
               ),
               ListRow(
                 key: const Key('tile_dependents'),
                 leading: const Icon(Icons.people_outline),
                 title: 'Mes proches',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.dependentsLabel),
                 onTap: () => context.push(AppRouter.profileDependents),
               ),
               ListRow(
                 key: const Key('tile_consents'),
                 leading: const Icon(Icons.verified_user_outlined),
                 title: 'Consentements',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.consentsGrantedLabel),
                 onTap: () => context.push(AppRouter.profileConsents),
               ),
               ListRow(
                 key: const Key('tile_implant_passport'),
                 leading: const Icon(Icons.medical_information_outlined),
                 title: 'Passeport implantaire',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.implantsLabel),
                 onTap: () => context.push(AppRouter.implantPassport),
-              ),
-              ListRow(
-                key: const Key('tile_notifications'),
-                leading: const Icon(Icons.notifications_outlined),
-                title: 'Préférences notifications',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push(AppRouter.profileNotifications),
               ),
               ListRow(
                 key: const Key('tile_pharmacy'),
                 leading: const Icon(Icons.local_pharmacy_outlined),
                 title: 'Ma pharmacie',
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _TileValue(accountSummary.pharmacyName),
                 showDivider: false,
                 onTap: () => context.push('/pharmacy'),
               ),
             ],
           ),
         ),
+        if (kDebugMode) ...[
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: NubiaButton(
+              key: const Key('a2ui_demo_tile'),
+              label: 'Démo A2UI',
+              icon: Icons.auto_awesome_outlined,
+              variant: NubiaButtonVariant.secondary,
+              onPressed: () => context.push('/a2ui-demo'),
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
@@ -233,19 +328,81 @@ class _ProfileContent extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
+  const _SectionLabel({
+    required this.label,
+    this.actionLabel,
+    this.onActionTap,
+  });
 
   final String label;
+  final String? actionLabel;
+  final VoidCallback? onActionTap;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Text(
+    final textTheme = Theme.of(context).textTheme;
+    final title = Text(
       label,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: cs.onSurface,
-            fontWeight: FontWeight.w600,
+      style: textTheme.titleSmall?.copyWith(
+        color: cs.onSurface,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+    if (actionLabel == null) return title;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        title,
+        InkWell(
+          key: const Key('section_notifications_action'),
+          onTap: onActionTap,
+          child: Text(
+            '$actionLabel ›',
+            style: textTheme.labelLarge?.copyWith(
+              color: cs.primary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Trailing d'une tuile « Mon compte » : valeur courante + chevron (#5232).
+/// [value] `null` → chevron seul (dégradation propre d'une donnée
+/// indisponible).
+class _TileValue extends StatelessWidget {
+  const _TileValue(this.value);
+
+  final String? value;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (value != null) ...[
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 120),
+            child: Text(
+              value!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style:
+                  textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+        Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+      ],
     );
   }
 }

@@ -261,6 +261,76 @@ pub async fn cancel_stock_request(
     Ok(Json(stock_from_row(&row)?))
 }
 
+/// `POST /v1/cabinet/stock-requests/{id}/resend` — relance manuelle tant que
+/// `sent` : renvoie la notification au staff pharmacie, sans changer de statut
+/// (le geste quotidien de l'écran Stock — #5183).
+pub async fn resend_stock_request(
+    State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
+    claims: ProSecretaryPlusClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<StockRequestDto>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(&format!(
+        "UPDATE stock_request SET updated_at = now() \
+         WHERE id = $1 AND status = 'sent' \
+         RETURNING {STOCK_COLUMNS}",
+    ))
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        let exists = sqlx::query("SELECT 1 FROM stock_request WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx.rollback().await.ok();
+        return Err(if exists.is_none() {
+            AppError::NotFound
+        } else {
+            AppError::InvalidStatus
+        });
+    };
+
+    let request = stock_from_row(&row)?;
+
+    let staff = notify::notify_pharmacy_staff(
+        &mut tx,
+        request.pharmacy_id,
+        "stock_request_received",
+        "Relance : demande de stock",
+        serde_json::json!({ "stock_request_id": request.id, "status": "sent" }),
+    )
+    .await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    for (app_user_id, notification_id) in staff {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    hub.publish_named(
+        &format!("pharmacy_orders:{}", request.pharmacy_id),
+        serde_json::json!({
+            "channel": format!("pharmacy_orders:{}", request.pharmacy_id),
+            "event": "stock_request_received",
+            "data": { "stock_request_id": request.id, "status": "sent" }
+        })
+        .to_string(),
+    );
+
+    Ok(Json(request))
+}
+
 // ── Espace pharmacie ──────────────────────────────────────────────────────────
 
 /// `GET /v1/pharmacy/stock-requests` — demandes reçues par la pharmacie.

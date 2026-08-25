@@ -15,6 +15,10 @@ class AppointmentDto {
   final String practitionerId;
   final bool beneficiaryIsSelf;
   final String? beneficiaryName;
+  final int? noShowFeeCents;
+  final bool hasReport;
+  final int prescriptionCount;
+  final int? invoiceAmountCents;
 
   const AppointmentDto({
     required this.id,
@@ -31,6 +35,10 @@ class AppointmentDto {
     this.practitionerId = '',
     this.beneficiaryIsSelf = true,
     this.beneficiaryName,
+    this.noShowFeeCents,
+    this.hasReport = false,
+    this.prescriptionCount = 0,
+    this.invoiceAmountCents,
   });
 
   factory AppointmentDto.fromJson(Map<String, dynamic> json) {
@@ -88,6 +96,23 @@ class AppointmentDto {
     final beneficiaryName = beneficiaryIsSelf || beneficiaryFullName.isEmpty
         ? null
         : beneficiaryFullName;
+    // #5272 : pas de clé stable côté API à ce jour — on lit défensivement les
+    // noms plausibles ; absent, `noShowFeeCents` reste null et l'UI masque le
+    // montant plutôt que d'en inventer un.
+    final noShowFeeCents =
+        (json['no_show_fee_cents'] as num?)?.toInt() ??
+        (json['no_show_fee'] as num?)?.toInt();
+    // #5271 : pas de clé stable côté API à ce jour — absente, les chips de
+    // synthèse documentaire restent masquées plutôt que d'inventer un doc.
+    final hasReport = json['has_report'] as bool? ?? false;
+    final prescriptionCount =
+        (json['prescription_count'] as num?)?.toInt() ?? 0;
+    // #5270 : pas de clé stable côté API à ce jour — on lit défensivement les
+    // noms plausibles ; absent, `invoiceAmountCents` reste null et l'UI
+    // masque l'action « Facture » plutôt que d'inventer un montant.
+    final invoiceAmountCents =
+        (json['invoice_amount_cents'] as num?)?.toInt() ??
+        (json['invoice_amount'] as num?)?.toInt();
     return AppointmentDto(
       id: json['id'] as String,
       cabinetId: json['cabinet_id'] as String? ?? '',
@@ -103,6 +128,10 @@ class AppointmentDto {
       practitionerId: practitionerId,
       beneficiaryIsSelf: beneficiaryIsSelf,
       beneficiaryName: beneficiaryName,
+      noShowFeeCents: noShowFeeCents,
+      hasReport: hasReport,
+      prescriptionCount: prescriptionCount,
+      invoiceAmountCents: invoiceAmountCents,
     );
   }
 
@@ -123,6 +152,10 @@ class AppointmentDto {
     practitionerId: practitionerId,
     beneficiaryIsSelf: beneficiaryIsSelf,
     beneficiaryName: beneficiaryName,
+    noShowFeeCents: noShowFeeCents,
+    hasReport: hasReport,
+    prescriptionCount: prescriptionCount,
+    invoiceAmountCents: invoiceAmountCents,
   );
 
   // #3804 : le back envoie 'done' (jamais 'completed') et distingue

@@ -27,3 +27,44 @@ String _groupThousands(int value) {
   }
   return buffer.toString();
 }
+
+const _months = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+];
+
+/// Formate une date en « quantième + mois » (ex. « 9 août ») — bandeau
+/// « devis en attente » de la carte de phase (#5300).
+String formatTreatmentPlanDayMonth(DateTime dt) =>
+    '${dt.day} ${_months[dt.month - 1]}';
+
+/// Formate une heure en « HH:mm » (ex. « 14:30 ») — ligne date/échéance de
+/// la carte de phase (#5298).
+String formatTreatmentPlanTime(DateTime dt) =>
+    '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+const _weekdays = [
+  'lundi',
+  'mardi',
+  'mercredi',
+  'jeudi',
+  'vendredi',
+  'samedi',
+  'dimanche',
+];
+
+/// Formate une date en « jour de la semaine + quantième + mois » (ex.
+/// « mardi 11 août ») — rangée « Prochaine séance » de la carte de plan
+/// (#5289).
+String formatTreatmentPlanWeekdayDayMonth(DateTime dt) =>
+    '${_weekdays[dt.weekday - 1]} ${formatTreatmentPlanDayMonth(dt)}';

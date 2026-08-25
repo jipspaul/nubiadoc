@@ -34,6 +34,16 @@ class _DocumentsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocListener<DocumentsBloc, DocumentsState>(
+      listenWhen: (previous, current) {
+        if (current is DocumentsDownloadReady) return true;
+        if (current is DocumentsDownloadError) return true;
+        final previousPending =
+            previous is DocumentsLoaded ? previous.pendingUpload : null;
+        final currentPending =
+            current is DocumentsLoaded ? current.pendingUpload : null;
+        return currentPending?.failed == true &&
+            currentPending != previousPending;
+      },
       listener: (context, state) {
         if (state is DocumentsDownloadReady) {
           openDocumentUrl(state.url).then((opened) {
@@ -53,22 +63,14 @@ class _DocumentsBody extends StatelessWidget {
           ).showSnackBar(SnackBar(content: Text(state.message)));
           context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
         }
-        if (state is DocumentsUploading) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Envoi en cours…')));
-        }
-        if (state is DocumentsUploadSuccess) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Document envoyé.')));
-          context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
-        }
-        if (state is DocumentsUploadFailure) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(state.message)));
-          context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
+        if (state is DocumentsLoaded && state.pendingUpload?.failed == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                state.pendingUpload!.errorMessage ?? 'Erreur d\'envoi.',
+              ),
+            ),
+          );
         }
       },
       child: BlocBuilder<DocumentsBloc, DocumentsState>(
@@ -154,38 +156,117 @@ class _DocumentSkeletonCard extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _DocumentsLoaded extends StatelessWidget {
+class _DocumentsLoaded extends StatefulWidget {
   const _DocumentsLoaded({required this.state});
 
   final DocumentsLoaded state;
 
-  static const _chips = <(String, DocumentCategory?)>[
-    ('Tous', null),
-    ('Ordonnances', DocumentCategory.prescription),
-    ('Carte mutuelle', DocumentCategory.mutualCard),
-    ('Carte vitale', DocumentCategory.vitalCard),
-    ('Autre', DocumentCategory.other),
-  ];
+  @override
+  State<_DocumentsLoaded> createState() => _DocumentsLoadedState();
+}
+
+class _DocumentsLoadedState extends State<_DocumentsLoaded> {
+  String _query = '';
+
+  /// Facettes calculées à partir des catégories réellement présentes dans
+  /// [documents] — « Tous » reste toujours en tête avec le total ; les
+  /// autres puces n'apparaissent que si au moins un document de la
+  /// catégorie existe (maquette design-v2, point 3).
+  static List<(String, DocumentCategory?, int)> _facets(
+    List<Document> documents,
+  ) {
+    final counts = <DocumentCategory, int>{};
+    for (final doc in documents) {
+      counts.update(doc.category, (n) => n + 1, ifAbsent: () => 1);
+    }
+    return [
+      ('Tous', null, documents.length),
+      for (final cat in DocumentCategory.values)
+        if (counts[cat] != null) (_categoryMeta(cat).$2, cat, counts[cat]!),
+    ];
+  }
+
+  /// Filtrage recherche 100 % client — nom du document, insensible à la
+  /// casse. Se combine au filtre catégorie déjà appliqué par
+  /// [DocumentsLoaded.filtered] : aucun appel réseau supplémentaire.
+  List<Document> _search(List<Document> docs) {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return docs;
+    return docs
+        .where((doc) => doc.name.toLowerCase().contains(query))
+        .toList();
+  }
+
+  /// Regroupe [docs] (déjà filtrés/recherchés) par période sur `createdAt` :
+  /// « Cette semaine » (7 derniers jours) puis un groupe par mois libellé
+  /// « Mois AAAA », du plus récent au plus ancien — une liste plate ne donne
+  /// aucun point d'ancrage pour chercher un document médical (maquette
+  /// design-v2, point 1).
+  static List<(String, Key, List<Document>)> _groupByPeriod(
+    List<Document> docs,
+  ) {
+    final now = DateTime.now();
+    final thisWeek = <Document>[];
+    final byMonth = <(int, int), List<Document>>{};
+    for (final doc in docs) {
+      if (now.difference(doc.createdAt) <= const Duration(days: 7)) {
+        thisWeek.add(doc);
+      } else {
+        final key = (doc.createdAt.year, doc.createdAt.month);
+        byMonth.putIfAbsent(key, () => []).add(doc);
+      }
+    }
+    int byDateDesc(Document a, Document b) =>
+        b.createdAt.compareTo(a.createdAt);
+    thisWeek.sort(byDateDesc);
+    final monthKeys = byMonth.keys.toList()
+      ..sort((a, b) {
+        final byYear = b.$1.compareTo(a.$1);
+        return byYear != 0 ? byYear : b.$2.compareTo(a.$2);
+      });
+
+    return [
+      if (thisWeek.isNotEmpty)
+        ('Cette semaine', const Key('doc_group_this_week'), thisWeek),
+      for (final key in monthKeys)
+        (
+          '${_fullMonthsFr[key.$2 - 1]} ${key.$1}',
+          Key('doc_group_${key.$1}_${key.$2}'),
+          byMonth[key]!..sort(byDateDesc),
+        ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    final docs = state.filtered;
+    final state = widget.state;
+    final docs = _search(state.filtered);
+    final pending = state.pendingUpload;
+    final facets = _facets(state.documents);
 
     return Stack(
       children: [
         Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: NubiaSearchBar(
+                key: const Key('documents_search'),
+                hint: 'Rechercher un document…',
+                onChanged: (value) => setState(() => _query = value),
+              ),
+            ),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(
                 children: [
-                  for (final (label, cat) in _chips) ...[
+                  for (final (label, cat, count) in facets) ...[
                     ChoiceChip(
                       key: cat == null
                           ? const Key('filter_all')
                           : Key('filter_${cat.name}'),
-                      label: Text(label),
+                      label: Text('$label $count'),
                       selected: state.activeFilter == cat,
                       onSelected: (_) => context.read<DocumentsBloc>().add(
                         DocumentsFilterChanged(cat),
@@ -197,7 +278,7 @@ class _DocumentsLoaded extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: docs.isEmpty
+              child: docs.isEmpty && pending == null
                   ? NubiaEmptyState(
                       key: const Key('documents_empty'),
                       icon: Icons.folder_open_outlined,
@@ -222,35 +303,45 @@ class _DocumentsLoaded extends StatelessWidget {
                           orElse: () => const DocumentsLoading(),
                         );
                       },
-                      child: ListView.separated(
+                      child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                        itemCount: docs.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final doc = docs[index];
-                          return _DocumentCard(
-                            key: Key('document_${doc.id}'),
-                            doc: doc,
-                            onOpen: () => context.read<DocumentsBloc>().add(
-                              DocumentsDownloadRequested(doc.id),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                        children: [
+                          if (pending != null) ...[
+                            _PendingUploadCard(
+                              pending: pending,
+                              onDismiss: () => context.read<DocumentsBloc>().add(
+                                const DocumentsUploadDismissed(),
+                              ),
                             ),
-                          );
-                        },
+                            const SizedBox(height: 12),
+                          ],
+                          for (final (label, key, items)
+                              in _groupByPeriod(docs)) ...[
+                            _DocumentGroupHeader(
+                              key: key,
+                              label: label,
+                              count: items.length,
+                            ),
+                            for (final doc in items) ...[
+                              _DocumentCard(
+                                key: Key('document_${doc.id}'),
+                                doc: doc,
+                                onOpen: () => context.read<DocumentsBloc>().add(
+                                  DocumentsDownloadRequested(doc.id),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                          ],
+                          _AddDocumentDropZone(
+                            onTap: () => _pickAndUpload(context),
+                          ),
+                        ],
                       ),
                     ),
             ),
           ],
-        ),
-        Positioned(
-          right: 16,
-          bottom: 16,
-          child: FloatingActionButton(
-            key: const Key('upload_fab'),
-            tooltip: 'Envoyer un document',
-            onPressed: () => _pickAndUpload(context),
-            child: const Icon(Icons.upload_file_outlined),
-          ),
         ),
       ],
     );
@@ -309,6 +400,134 @@ class _DocumentsLoaded extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+/// Zone de dépôt en fin de liste — remplace le FAB flottant : sur une app
+/// patient l'ajout est occasionnel, la zone reste visible sans masquer le
+/// contenu (maquette design-v2, point 5).
+class _AddDocumentDropZone extends StatelessWidget {
+  const _AddDocumentDropZone({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return SizedBox(
+      key: const Key('upload_fab'),
+      width: double.infinity,
+      height: 52,
+      child: CustomPaint(
+        foregroundPainter: const _DashedRRectPainter(
+          color: NubiaColors.n300,
+          radius: 14,
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.upload_file_outlined, size: 20, color: cs.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Ajouter un document',
+                  style: textTheme.labelLarge?.copyWith(color: cs.primary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bordure pointillée d'un rectangle arrondi — Flutter n'a pas de
+/// `BorderStyle.dashed` natif (maquette, zone de dépôt documents).
+class _DashedRRectPainter extends CustomPainter {
+  const _DashedRRectPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  static const _dashWidth = 4.0;
+  static const _dashGap = 3.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rrect);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = distance + _dashWidth;
+        canvas.drawPath(
+          metric.extractPath(distance, next.clamp(0, metric.length)),
+          paint,
+        );
+        distance = next + _dashGap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRRectPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
+}
+
+// ---------------------------------------------------------------------------
+
+/// En-tête de groupe de période au-dessus d'un lot de cartes document —
+/// capitales grises et compteur à droite (maquette design-v2, point 1).
+class _DocumentGroupHeader extends StatelessWidget {
+  const _DocumentGroupHeader({
+    super.key,
+    required this.label,
+    required this.count,
+  });
+
+  final String label;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label.toUpperCase(),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+                color: NubiaColors.n400,
+              ),
+            ),
+          ),
+          Text(
+            '$count document${count > 1 ? 's' : ''}',
+            style: const TextStyle(fontSize: 12, color: NubiaColors.n400),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 /// Ligne document en carte : pastille icône de type + nom + méta + action de
 /// téléchargement.
 class _DocumentCard extends StatelessWidget {
@@ -317,6 +536,12 @@ class _DocumentCard extends StatelessWidget {
   final Document doc;
   final VoidCallback onOpen;
 
+  /// Un document déposé par le cabinet est une information, pas un fichier :
+  /// les dépôts de la semaine écoulée portent une pastille « Nouveau »
+  /// (maquette design-v2, point 2).
+  bool get _isNew =>
+      DateTime.now().difference(doc.createdAt) <= const Duration(days: 7);
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -324,7 +549,17 @@ class _DocumentCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final (icon, label) = _categoryMeta(doc.category);
     final size = _formatSize(doc.fileSizeBytes);
-    final meta = size == null ? label : '$label · $size';
+    final issuer = doc.issuer;
+    // Provenance en premier élément de la méta (maquette design-v2, point 2) ;
+    // à défaut, on retombe sur le libellé de catégorie pour ne pas laisser
+    // la méta vide ni de séparateur « · » orphelin.
+    final metaParts = [
+      if (issuer != null && issuer.trim().isNotEmpty) issuer else label,
+      if (size != null) size,
+      _formatShortDate(doc.createdAt),
+    ];
+    final meta = metaParts.join(' · ');
+    final isNew = _isNew;
 
     return NubiaCard(
       state: NubiaCardState.interactive,
@@ -332,14 +567,34 @@ class _DocumentCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: tokens.primarySubtleBg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 20, color: cs.primary),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: tokens.primarySubtleBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: cs.primary),
+              ),
+              if (isNew)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    key: const Key('document_new_dot'),
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: NubiaColors.brand600,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: cs.surface, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -353,13 +608,40 @@ class _DocumentCard extends StatelessWidget {
                   style: textTheme.titleSmall,
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  meta,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
+                Row(
+                  children: [
+                    if (isNew) ...[
+                      Container(
+                        key: const Key('document_new_tag'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: tokens.primarySubtleBg,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Nouveau',
+                          style: textTheme.labelSmall?.copyWith(
+                            color: tokens.primarySubtleFg,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -375,6 +657,124 @@ class _DocumentCard extends StatelessWidget {
     );
   }
 }
+
+/// Ligne optimiste d'un envoi en cours — remplace le snackbar « Envoi en
+/// cours… » ; affiche une progression indéterminée puis, en cas d'échec, le
+/// message d'erreur avec une action de retrait.
+class _PendingUploadCard extends StatelessWidget {
+  const _PendingUploadCard({required this.pending, required this.onDismiss});
+
+  final PendingUpload pending;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final (icon, _) = _categoryMeta(pending.category);
+
+    return NubiaCard(
+      key: const Key('pending_upload'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: pending.failed ? tokens.dangerBg : tokens.primarySubtleBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              pending.failed ? Icons.error_outline : icon,
+              size: 20,
+              color: pending.failed ? tokens.dangerFg : cs.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  pending.filename,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleSmall,
+                ),
+                const SizedBox(height: 6),
+                if (pending.failed)
+                  Text(
+                    pending.errorMessage ?? 'Erreur d\'envoi.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: tokens.dangerFg,
+                    ),
+                  )
+                else
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      key: const Key('pending_upload_progress'),
+                      minHeight: 4,
+                      backgroundColor: tokens.primarySubtleBg,
+                      color: cs.primary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (pending.failed)
+            IconButton(
+              key: const Key('pending_upload_dismiss'),
+              icon: const Icon(Icons.close),
+              tooltip: 'Retirer',
+              color: tokens.dangerFg,
+              onPressed: onDismiss,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+const _shortMonthsFr = [
+  'janv.',
+  'févr.',
+  'mars',
+  'avr.',
+  'mai',
+  'juin',
+  'juil.',
+  'août',
+  'sept.',
+  'oct.',
+  'nov.',
+  'déc.',
+];
+
+const _fullMonthsFr = [
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
+];
+
+/// Formate une date en libellé court FR (ex. « 10 août ») — repère temporel
+/// sur la carte document (maquette design-v2 : "l'ordonnance de la semaine
+/// dernière").
+String _formatShortDate(DateTime date) =>
+    '${date.day} ${_shortMonthsFr[date.month - 1]}';
 
 /// Formate une taille en octets en libellé lisible (o / Ko / Mo).
 ///

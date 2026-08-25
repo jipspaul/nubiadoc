@@ -9,7 +9,7 @@ use axum::{
 };
 use chrono::TimeZone;
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
+use sqlx::{Acquire, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -487,6 +487,14 @@ pub struct WaitingRoomEntry {
     pub checkin_at: Option<String>,
     pub wait_minutes: i64,
     pub status: String,
+    /// Motif admin du RDV (`appointment.motif`, cf. AgendaSlot.motif_admin) — pas de
+    /// motif clinique ici, cloisonnement R.4127-72 inchangé (#5172).
+    pub motif: Option<String>,
+    pub starts_at: String,
+    pub practitioner_id: Uuid,
+    /// `provider.display_name` — même source que l'agenda (#5168), absent si le
+    /// praticien n'a pas de fiche `provider` (`LEFT JOIN`).
+    pub practitioner_name: Option<String>,
 }
 
 /// Réponse de `GET /v1/cabinet/waiting-room`.
@@ -522,11 +530,13 @@ pub async fn get_waiting_room(
     let rows = if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT a.id, a.status, a.checkin_at, \
+                "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
+                        a.practitioner_id, prov.display_name AS practitioner_name, \
                         p.first_name, p.last_name, \
                         GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
                  FROM appointment a \
                  LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 LEFT JOIN provider prov ON prov.practitioner_id = a.practitioner_id \
                  WHERE a.deleted_at IS NULL \
                    AND a.checkin_at IS NOT NULL \
                    AND a.status IN ('checked_in', 'in_progress') \
@@ -551,12 +561,14 @@ pub async fn get_waiting_room(
     } else if claims.role == "practitioner" {
         // Un praticien ne voit que sa propre file d'attente, pas celle du cabinet entier.
         sqlx::query(
-            "SELECT a.id, a.status, a.checkin_at, \
+            "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
+                    a.practitioner_id, prov.display_name AS practitioner_name, \
                     p.first_name, p.last_name, \
                     GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
              FROM appointment a \
              LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
              JOIN practitioner pr ON pr.id = a.practitioner_id \
+             LEFT JOIN provider prov ON prov.practitioner_id = a.practitioner_id \
              WHERE a.deleted_at IS NULL \
                AND a.checkin_at IS NOT NULL \
                AND a.status IN ('checked_in', 'in_progress') \
@@ -573,11 +585,13 @@ pub async fn get_waiting_room(
         .map_err(|_| AppError::Internal)?
     } else {
         sqlx::query(
-            "SELECT a.id, a.status, a.checkin_at, \
+            "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
+                    a.practitioner_id, prov.display_name AS practitioner_name, \
                     p.first_name, p.last_name, \
                     GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
              FROM appointment a \
              LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+             LEFT JOIN provider prov ON prov.practitioner_id = a.practitioner_id \
              WHERE a.deleted_at IS NULL \
                AND a.checkin_at IS NOT NULL \
                AND a.status IN ('checked_in', 'in_progress') \
@@ -605,6 +619,15 @@ pub async fn get_waiting_room(
             let first: Option<String> =
                 row.try_get("first_name").map_err(|_| AppError::Internal)?;
             let last: Option<String> = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+            let motif: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
+            let starts_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+            let practitioner_id: Uuid = row
+                .try_get("practitioner_id")
+                .map_err(|_| AppError::Internal)?;
+            let practitioner_name: Option<String> = row
+                .try_get("practitioner_name")
+                .map_err(|_| AppError::Internal)?;
 
             // Un champ nommé `patient_name_initials` contient des initiales pour
             // TOUT rôle — avant, seule la branche secretary minimisait, praticien/
@@ -630,6 +653,10 @@ pub async fn get_waiting_room(
                 checkin_at: checkin_at.map(|dt| dt.to_rfc3339()),
                 wait_minutes,
                 status,
+                motif,
+                starts_at: starts_at.to_rfc3339(),
+                practitioner_id,
+                practitioner_name,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
@@ -1678,12 +1705,25 @@ pub async fn no_show_appointment(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Best-effort : un AUTRE créneau `open` du même praticien peut déjà
+    // chevaucher cette plage et faire violer `slot_practitioner_no_overlap`
+    // (23P01) ici. Le no-show est l'opération primaire demandée : ce
+    // conflit ne doit jamais la faire échouer (#5698, symétrique de
+    // cancel_appointment #5392/#5393). On isole donc cette UPDATE dans un
+    // savepoint pour pouvoir l'abandonner sans annuler le reste de la tx.
     if let Some(sid) = slot_id {
-        sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+        let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+        let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
             .bind(sid)
-            .execute(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+            .execute(&mut *savepoint)
+            .await;
+        match release {
+            Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+            Err(e) if is_exclusion_violation(&e) => {
+                savepoint.rollback().await.map_err(|_| AppError::Internal)?
+            }
+            Err(_) => return Err(AppError::Internal),
+        }
     }
 
     sqlx::query(
@@ -1939,6 +1979,10 @@ pub async fn patch_cabinet_appointment(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
 
+    if let Some(motif) = body.motif.as_deref() {
+        crate::text_validation::reject_nul_byte(motif)?;
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -2047,12 +2091,25 @@ pub async fn patch_cabinet_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
+        // Best-effort : un AUTRE créneau `open` du même praticien peut déjà
+        // chevaucher cette plage et faire violer `slot_practitioner_no_overlap`
+        // (23P01) ici. Le no-show est l'opération primaire demandée : ce
+        // conflit ne doit jamais la faire échouer (#5698, symétrique de
+        // cancel_appointment #5392/#5393). On isole donc cette UPDATE dans un
+        // savepoint pour pouvoir l'abandonner sans annuler le reste de la tx.
         if let Some(sid) = slot_id {
-            sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+            let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+            let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
                 .bind(sid)
-                .execute(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
+                .execute(&mut *savepoint)
+                .await;
+            match release {
+                Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+                Err(e) if is_exclusion_violation(&e) => {
+                    savepoint.rollback().await.map_err(|_| AppError::Internal)?
+                }
+                Err(_) => return Err(AppError::Internal),
+            }
         }
 
         sqlx::query(
@@ -2164,13 +2221,26 @@ pub async fn patch_cabinet_appointment(
     };
 
     // Libère l'ancien créneau (comme cancel_appointment) puisqu'il n'est plus occupé.
+    // Best-effort : un AUTRE créneau `open` du même praticien peut déjà
+    // chevaucher cette plage et faire violer `slot_practitioner_no_overlap`
+    // (23P01) ici. La reprogrammation est l'opération primaire demandée : ce
+    // conflit ne doit jamais la faire échouer (#5698, symétrique de
+    // cancel_appointment #5392/#5393). On isole donc cette UPDATE dans un
+    // savepoint pour pouvoir l'abandonner sans annuler le reste de la tx.
     if new_starts_at.is_some() {
         if let Some(sid) = slot_id {
-            sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+            let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+            let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
                 .bind(sid)
-                .execute(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
+                .execute(&mut *savepoint)
+                .await;
+            match release {
+                Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+                Err(e) if is_exclusion_violation(&e) => {
+                    savepoint.rollback().await.map_err(|_| AppError::Internal)?
+                }
+                Err(_) => return Err(AppError::Internal),
+            }
         }
 
         // Consomme le créneau de destination (symétrique de create_appointment) :

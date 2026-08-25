@@ -85,5 +85,33 @@ void main() {
       expect(roundTripped.payments, prefs.payments);
       expect(roundTripped.prevention, prefs.prevention);
     });
+
+    // #5313 : heures calmes n'a pas encore de champ API — ne doit ni être
+    // envoyé au PATCH, ni requis en lecture (le GET ne le renvoie jamais).
+    test('quietHours n\'est pas envoyé au PATCH (pas de champ API)', () {
+      const prefs = NotificationPreferencesDto(
+        pushEnabled: true,
+        emailEnabled: true,
+        smsEnabled: true,
+        appointments: true,
+        documents: true,
+        messages: true,
+        payments: true,
+        prevention: true,
+        quietHours: false,
+      );
+
+      expect(prefs.toJson().containsKey('quietHours'), isFalse);
+    });
+
+    test('fromJson défaut quietHours à true en l\'absence de champ API', () {
+      final dto = NotificationPreferencesDto.fromJson({
+        'push_rdv': true,
+        'email_rdv': true,
+        'sms_rdv': true,
+      });
+
+      expect(dto.quietHours, isTrue);
+    });
   });
 }

@@ -9,6 +9,17 @@ class ImplantItem extends Equatable {
   final String? placementDate;
   final String? toothPosition;
   final String? notes;
+  final String? lastControlDate;
+  final String? nextControl;
+  final String? practitioner;
+  final String? office;
+  final String? prosthesis;
+  final String? manufacturer;
+  final String? model;
+  final String? reference;
+  final String? dimensions;
+  final String? material;
+  final String? mriCompatibility;
 
   const ImplantItem({
     required this.id,
@@ -17,8 +28,27 @@ class ImplantItem extends Equatable {
     this.placementDate,
     this.toothPosition,
     this.notes,
+    this.lastControlDate,
+    this.nextControl,
+    this.practitioner,
+    this.office,
+    this.prosthesis,
+    this.manufacturer,
+    this.model,
+    this.reference,
+    this.dimensions,
+    this.material,
+    this.mriCompatibility,
   });
 
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props => [
+        id,
+        manufacturer,
+        model,
+        reference,
+        dimensions,
+        material,
+        mriCompatibility,
+      ];
 }

@@ -7,5 +7,8 @@ class ExportImplantPassportUseCase {
 
   const ExportImplantPassportUseCase(this._repository);
 
-  Future<Either<Failure, String>> call() => _repository.exportPassport();
+  /// `implantId` limite l'export à cet implant seul (#5334) — sinon export
+  /// du passeport complet (comportement historique, #4142).
+  Future<Either<Failure, String>> call({String? implantId}) =>
+      _repository.exportPassport(implantId: implantId);
 }

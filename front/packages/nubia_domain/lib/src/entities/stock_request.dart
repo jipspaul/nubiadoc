@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'pharmacy.dart';
+
 /// Statuts d'une demande de stock cabinet → pharmacie.
 enum StockRequestStatus { sent, accepted, rejected, fulfilled, cancelled }
 
@@ -43,21 +45,28 @@ class StockRequestItem extends Equatable {
 class StockRequest extends Equatable {
   final String id;
   final String pharmacyId;
+
+  /// Pharmacie destinataire résolue (nom, adresse, téléphone) — `null` tant
+  /// que le back ne la renvoie pas ; l'UI retombe alors sur [pharmacyId].
+  final Pharmacy? pharmacy;
   final String? cabinetName;
   final List<StockRequestItem> items;
   final StockRequestStatus status;
   final String? responseNote;
   final DateTime createdAt;
+  final DateTime? respondedAt;
   final DateTime? fulfilledAt;
 
   const StockRequest({
     required this.id,
     required this.pharmacyId,
+    this.pharmacy,
     this.cabinetName,
     required this.items,
     required this.status,
     this.responseNote,
     required this.createdAt,
+    this.respondedAt,
     this.fulfilledAt,
   });
 

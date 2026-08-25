@@ -17,6 +17,11 @@ class NotificationPreferences extends Equatable {
   final bool payments;
   final bool prevention;
 
+  /// Heures calmes : ne pas notifier avant 8h ni après 21h, sauf urgence du
+  /// cabinet. Pas encore de champ API dédié (#5313) : géré côté local
+  /// uniquement, voir NotificationPreferencesDto (nubia_data).
+  final bool quietHours;
+
   const NotificationPreferences({
     required this.pushEnabled,
     required this.emailEnabled,
@@ -26,6 +31,7 @@ class NotificationPreferences extends Equatable {
     required this.messages,
     required this.payments,
     required this.prevention,
+    this.quietHours = true,
   });
 
   /// All channels and types enabled — sensible default before the first fetch.
@@ -37,7 +43,8 @@ class NotificationPreferences extends Equatable {
         documents = true,
         messages = true,
         payments = true,
-        prevention = true;
+        prevention = true,
+        quietHours = true;
 
   NotificationPreferences copyWith({
     bool? pushEnabled,
@@ -48,6 +55,7 @@ class NotificationPreferences extends Equatable {
     bool? messages,
     bool? payments,
     bool? prevention,
+    bool? quietHours,
   }) {
     return NotificationPreferences(
       pushEnabled: pushEnabled ?? this.pushEnabled,
@@ -58,6 +66,7 @@ class NotificationPreferences extends Equatable {
       messages: messages ?? this.messages,
       payments: payments ?? this.payments,
       prevention: prevention ?? this.prevention,
+      quietHours: quietHours ?? this.quietHours,
     );
   }
 
@@ -71,5 +80,6 @@ class NotificationPreferences extends Equatable {
         messages,
         payments,
         prevention,
+        quietHours,
       ];
 }

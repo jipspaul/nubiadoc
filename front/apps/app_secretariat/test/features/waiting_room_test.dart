@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -107,6 +110,46 @@ void main() {
     );
 
     blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'un rechargement alors qu\'une liste est déjà chargée ne repasse pas '
+      'par WaitingRoomLoading — anti-flicker #5161',
+      build: () {
+        when(() => repo.list()).thenAnswer((_) async => Right(entries));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      // Seed avec une liste différente de celle renvoyée par le repo pour
+      // que le rechargement produise bien un nouvel état (sinon bloc_test
+      // ne verrait aucune émission — cf. dédoublonnage de Cubit.emit).
+      seed: () => WaitingRoomLoaded([]),
+      act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
+      expect: () => [
+        WaitingRoomLoaded(entries),
+      ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'l\'horodatage de chargement se remet à jour à chaque rechargement '
+      'réussi — #5161',
+      build: () {
+        when(() => repo.list()).thenAnswer((_) async => Right(entries));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
+      verify: (bloc) {
+        final loaded = bloc.state as WaitingRoomLoaded;
+        expect(
+          DateTime.now().difference(loaded.loadedAt).inSeconds,
+          lessThan(5),
+        );
+      },
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
       'les entrées chargées n\'exposent aucun champ clinique',
       build: () {
         when(() => repo.list()).thenAnswer((_) async => Right(entries));
@@ -121,10 +164,58 @@ void main() {
         expect(loaded, isA<WaitingRoomLoaded>());
         for (final entry in (loaded as WaitingRoomLoaded).entries) {
           expect(entry.patientName, isNotEmpty);
-          // WaitingRoomEntry n'a pas de champ motif ni notes_medicales :
-          // cette contrainte est garantie structurellement par le type.
+          // WaitingRoomEntry porte `reason` (motif admin, ex. "Détartrage" —
+          // #5172) mais aucun champ clinique (notes médicales, diagnostic) :
+          // cette dernière contrainte est garantie structurellement par le type.
         }
       },
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'CallNext conserve la liste avec actionError en cas d\'échec — #5159',
+      build: () {
+        when(() => repo.callNext()).thenAnswer(
+          (_) async => Left(const NetworkFailure('Erreur réseau')),
+        );
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entries),
+      act: (bloc) => bloc.add(const WaitingRoomCallNextRequested()),
+      expect: () => [
+        WaitingRoomLoaded(entries, actionInProgress: true),
+        WaitingRoomLoaded(
+          entries,
+          actionInProgress: false,
+          actionError: 'Erreur réseau',
+        ),
+      ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'CallNext recharge la liste et efface actionError après succès — #5159',
+      build: () {
+        when(() => repo.callNext())
+            .thenAnswer((_) async => Right(entries.first));
+        when(() => repo.list()).thenAnswer((_) async => Right(entries));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(
+        entries,
+        actionError: 'Erreur réseau',
+      ),
+      act: (bloc) => bloc.add(const WaitingRoomCallNextRequested()),
+      // L'anti-flicker (#5161) évite de repasser par WaitingRoomLoading une
+      // fois une liste déjà chargée.
+      expect: () => [
+        WaitingRoomLoaded(entries, actionInProgress: true),
+        WaitingRoomLoaded(entries),
+      ],
     );
   });
 
@@ -148,6 +239,67 @@ void main() {
       when(() => bloc.state).thenReturn(const WaitingRoomInitial());
       await tester.pumpWidget(buildPage());
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets(
+        'un timer périodique dispatche WaitingRoomLoadRequested, annulé au '
+        'dispose — #5161', (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomInitial());
+      await tester.pumpWidget(buildPage());
+
+      // Chargement initial au montage.
+      verify(() => bloc.add(const WaitingRoomLoadRequested())).called(1);
+
+      await tester.pump(const Duration(seconds: 15));
+      verify(() => bloc.add(const WaitingRoomLoadRequested())).called(1);
+
+      await tester.pump(const Duration(seconds: 15));
+      verify(() => bloc.add(const WaitingRoomLoadRequested())).called(1);
+
+      // Démonter la page annule le timer — plus aucun dispatch après coup,
+      // et pas de timer qui fuit (le test échouerait sinon au teardown).
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 30));
+      verifyNever(() => bloc.add(const WaitingRoomLoadRequested()));
+    });
+
+    testWidgets(
+        'affiche l\'âge de la donnée en barre d\'outils — #5161',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded(
+          [
+            WaitingRoomEntry(
+              id: 'e1',
+              cabinetId: 'c1',
+              patientId: 'p1',
+              patientName: 'Marie Curie',
+              arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            ),
+          ],
+          loadedAt: DateTime.now(),
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      addTearDown(() => tester.pumpWidget(const SizedBox.shrink()));
+
+      expect(
+        find.byKey(const Key('waiting_room_freshness_indicator')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Actualisé il y a'), findsOneWidget);
+    });
+
+    testWidgets(
+        'pas d\'indicateur de fraîcheur hors état Loaded (chargement) — '
+        '#5161', (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomInitial());
+      await tester.pumpWidget(buildPage());
+
+      expect(
+        find.byKey(const Key('waiting_room_freshness_indicator')),
+        findsNothing,
+      );
     });
 
     testWidgets('affiche les patients — aucun champ clinique visible',
@@ -174,8 +326,397 @@ void main() {
       expect(find.textContaining('notes'), findsNothing);
     });
 
+    testWidgets(
+        'sous-titre = motif + heure de RDV, plus de Position/Arrivé — #5172',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            reason: 'Détartrage',
+            appointmentTime: DateTime(2026, 6, 19, 10, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 19, 9, 30),
+            reason: 'Douleur dentaire',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Détartrage · RDV 10:00'), findsOneWidget);
+      expect(find.text('Douleur dentaire'), findsOneWidget);
+      expect(find.textContaining('Position'), findsNothing);
+      expect(find.textContaining('Arrivé il y a'), findsNothing);
+    });
+
+    testWidgets(
+        'urgence sans RDV — pastille Sans RDV, praticien Non attribué, '
+        'action Attribuer — #5171', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Léa Bernard',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            reason: 'Douleur dentaire',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sans RDV'), findsOneWidget);
+      expect(find.text('Non attribué'), findsOneWidget);
+      expect(find.text('Attribuer'), findsOneWidget);
+      expect(find.text('En attente'), findsNothing);
+    });
+
+    testWidgets(
+        'RDV normal — pastille En attente, pas de Sans RDV/Attribuer — #5171',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            practitionerId: 'pr-1',
+            practitionerName: 'Dr A. Rousseau',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('En attente'), findsOneWidget);
+      expect(find.text('Sans RDV'), findsNothing);
+      expect(find.text('Non attribué'), findsNothing);
+      expect(find.text('Attribuer'), findsNothing);
+    });
+
+    testWidgets(
+        'colonne Estimation — valeur non nulle affichée en "~N min" — #5169',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            estimatedWaitMinutes: 12,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_entry_estimation_e1')),
+          matching: find.text('~12 min'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'colonne Estimation — nulle en tête de file → "—" + "à appeler", '
+        'jamais de valeur inventée — #5169', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final estimation = find.byKey(const Key('waiting_entry_estimation_e1'));
+      expect(
+        find.descendant(of: estimation, matching: find.text('—')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: estimation, matching: find.text('à appeler')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'colonne Estimation — nulle, sans RDV et pas en tête de file → '
+        '"—" + "à évaluer" — #5169', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            estimatedWaitMinutes: 5,
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Léa Bernard',
+            arrivedAt: DateTime(2026, 6, 19, 9, 5),
+            reason: 'Douleur dentaire',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final estimation = find.byKey(const Key('waiting_entry_estimation_e2'));
+      expect(
+        find.descendant(of: estimation, matching: find.text('—')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: estimation, matching: find.text('à évaluer')),
+        findsOneWidget,
+      );
+    });
+
+    group('colonne Attente — couleur par seuils 15/20/30 min — #5162', () {
+      Future<void> pumpWithWait(WidgetTester tester, int minutes) async {
+        final now = DateTime.now();
+        when(() => bloc.state).thenReturn(
+          WaitingRoomLoaded([
+            WaitingRoomEntry(
+              id: 'e1',
+              cabinetId: 'c1',
+              patientId: 'p1',
+              patientName: 'Marie Curie',
+              arrivedAt: now.subtract(Duration(minutes: minutes)),
+            ),
+          ]),
+        );
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+      }
+
+      Color colorOfWaitText(WidgetTester tester, String text) {
+        final finder = find.descendant(
+          of: find.byKey(const Key('waiting_entry_wait_e1')),
+          matching: find.text(text),
+        );
+        return tester.widget<Text>(finder).style!.color!;
+      }
+
+      testWidgets('14 min → couleur neutre (n900)', (tester) async {
+        await pumpWithWait(tester, 14);
+        expect(colorOfWaitText(tester, '14 min'), NubiaColors.n900);
+      });
+
+      testWidgets('15 min → infoFg', (tester) async {
+        await pumpWithWait(tester, 15);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(colorOfWaitText(tester, '15 min'), tokens.infoFg);
+      });
+
+      testWidgets('19 min → infoFg (toujours sous le seuil warning)',
+          (tester) async {
+        await pumpWithWait(tester, 19);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(colorOfWaitText(tester, '19 min'), tokens.infoFg);
+      });
+
+      testWidgets('20 min → warningFg', (tester) async {
+        await pumpWithWait(tester, 20);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(colorOfWaitText(tester, '20 min'), tokens.warningFg);
+      });
+
+      testWidgets('29 min → warningFg (toujours sous le seuil danger)',
+          (tester) async {
+        await pumpWithWait(tester, 29);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(colorOfWaitText(tester, '29 min'), tokens.warningFg);
+      });
+
+      testWidgets('30 min → dangerFg', (tester) async {
+        await pumpWithWait(tester, 30);
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+        expect(colorOfWaitText(tester, '30 min'), tokens.dangerFg);
+      });
+
+      testWidgets(
+          'la valeur est affichée en plus grand que le sous-titre — #5162',
+          (tester) async {
+        await pumpWithWait(tester, 14);
+        final waitText = tester.widget<Text>(
+          find.descendant(
+            of: find.byKey(const Key('waiting_entry_wait_e1')),
+            matching: find.text('14 min'),
+          ),
+        );
+        final context = tester.element(find.byKey(
+          const Key('waiting_entry_wait_e1'),
+        ));
+        final titleLargeSize =
+            Theme.of(context).textTheme.titleLarge?.fontSize;
+        expect(waitText.style?.fontSize, titleLargeSize);
+        expect(waitText.style?.fontSize, greaterThan(
+          Theme.of(context).textTheme.bodySmall?.fontSize ?? 0,
+        ));
+      });
+    });
+
+    testWidgets(
+        'colonne Attente — sous-label "arrivé à HH:MM" dérivé de '
+        'arrivedAt, sans valeur inventée — #5162', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: DateTime(2026, 6, 19, 9, 52),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_entry_wait_e1')),
+          matching: find.text('arrivé à 09:52'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'colonne Praticien — nom + pastille couleur du practitionerId — #5168',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            practitionerId: 'pr-rousseau',
+            practitionerName: 'Dr A. Rousseau',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final column = find.byKey(const Key('waiting_entry_practitioner_e1'));
+      expect(
+        find.descendant(of: column, matching: find.text('Dr A. Rousseau')),
+        findsOneWidget,
+      );
+      final dot = tester.widget<Container>(
+        find.descendant(of: column, matching: find.byType(Container)),
+      );
+      final decoration = dot.decoration as BoxDecoration;
+      expect(decoration.color, practitionerColor('pr-rousseau'));
+    });
+
+    testWidgets(
+        'colonne Praticien — "Non attribué" et pastille neutre sans '
+        'practitionerId — #5168', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Léa Bernard',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            reason: 'Douleur dentaire',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final column = find.byKey(const Key('waiting_entry_practitioner_e1'));
+      expect(
+        find.descendant(of: column, matching: find.text('Non attribué')),
+        findsOneWidget,
+      );
+      final dot = tester.widget<Container>(
+        find.descendant(of: column, matching: find.byType(Container)),
+      );
+      final decoration = dot.decoration as BoxDecoration;
+      expect(decoration.color, practitionerUnassignedColor);
+    });
+
+    testWidgets(
+        'liseré émeraude sur la tête de file (position 1) uniquement, '
+        'jamais de fond de ligne — #5165', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 19, 9, 30),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final stripe = find.byKey(const Key('waiting_entry_next_stripe'));
+      expect(stripe, findsOneWidget);
+
+      final box = tester.widget<DecoratedBox>(stripe);
+      final decoration = box.decoration as BoxDecoration;
+      expect(decoration.color, isNull);
+      expect(
+        decoration.border,
+        const Border(
+          left: BorderSide(color: NubiaColors.brand700, width: 3),
+        ),
+      );
+    });
+
     testWidgets('affiche un message si la salle est vide', (tester) async {
-      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -185,18 +726,33 @@ void main() {
       );
     });
 
-    testWidgets('FAB désactivé quand liste vide', (tester) async {
-      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+    testWidgets('pas de FloatingActionButton — action call-next en barre '
+        "d'outils — #5167", (tester) async {
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      final fab = tester.widget<FloatingActionButton>(
-        find.byType(FloatingActionButton),
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(
+        find.byKey(const Key('waiting_room_call_next_button')),
+        findsOneWidget,
       );
-      expect(fab.onPressed, isNull);
     });
 
-    testWidgets('FAB actif quand patients présents', (tester) async {
+    testWidgets('action call-next désactivée quand liste vide — #5167',
+        (tester) async {
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('action call-next active quand patients présents — #5167',
+        (tester) async {
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
           WaitingRoomEntry(
@@ -211,10 +767,520 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      final fab = tester.widget<FloatingActionButton>(
-        find.byType(FloatingActionButton),
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
       );
-      expect(fab.onPressed, isNotNull);
+      expect(button.onPressed, isNotNull);
     });
+
+    testWidgets(
+        'le libellé de l\'action call-next nomme la tête de file — #5164',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Marc Dubois',
+            arrivedAt: DateTime(2026, 6, 20, 8, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e3',
+            cabinetId: 'c1',
+            patientId: 'p3',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 20, 8, 5),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
+      );
+      expect(button.label, 'Appeler Marc Dubois');
+    });
+
+    testWidgets(
+        'le libellé de l\'action call-next reste générique et l\'action '
+        'désactivée quand la file est vide — #5164', (tester) async {
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
+      );
+      expect(button.label, isNot(contains('null')));
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets(
+        'le nom dans le libellé se met à jour quand la tête de file '
+        'change — #5164', (tester) async {
+      final controller = StreamController<WaitingRoomState>();
+      addTearDown(controller.close);
+      whenListen<WaitingRoomState>(
+        bloc,
+        controller.stream,
+        initialState: WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 20, 7, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<NubiaButton>(
+              find.byKey(const Key('waiting_room_call_next_button')),
+            )
+            .label,
+        'Appeler Paul Martin',
+      );
+
+      final next = WaitingRoomLoaded([
+        WaitingRoomEntry(
+          id: 'e2',
+          cabinetId: 'c1',
+          patientId: 'p2',
+          patientName: 'Marc Dubois',
+          arrivedAt: DateTime(2026, 6, 20, 8, 0),
+        ),
+      ]);
+      when(() => bloc.state).thenReturn(next);
+      controller.add(next);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<NubiaButton>(
+              find.byKey(const Key('waiting_room_call_next_button')),
+            )
+            .label,
+        'Appeler Marc Dubois',
+      );
+    });
+
+    testWidgets(
+        '⌘⏎ déclenche WaitingRoomCallNextRequested quand la file '
+        "n'est pas vide — #5167", (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 20, 8, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const WaitingRoomCallNextRequested())).called(1);
+    });
+
+    testWidgets('⌘⏎ ne fait rien quand la file est vide — #5167',
+        (tester) async {
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+      await tester.pumpAndSettle();
+
+      verifyNever(() => bloc.add(const WaitingRoomCallNextRequested()));
+    });
+
+    testWidgets(
+        'affiche le récap KPI (en attente / moyenne / au-delà de 30 min) — #5173',
+        (tester) async {
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: now.subtract(const Duration(minutes: 10)),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: now.subtract(const Duration(minutes: 40)),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_count')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_average')),
+          matching: find.text('25 min'),
+        ),
+        findsOneWidget,
+      );
+
+      final overThirtyValue = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_over_thirty')),
+          matching: find.text('1'),
+        ),
+      );
+      expect(overThirtyValue.style?.color, NubiaTokens.light.dangerFg);
+    });
+
+    testWidgets('file vide → KPI à 0 / 0 min / 0, pas de division par zéro',
+        (tester) async {
+      when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_count')),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_average')),
+          matching: find.text('0 min'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_over_thirty')),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('pas de bandeau KPI hors état Loaded (chargement)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomInitial());
+      await tester.pumpWidget(buildPage());
+
+      expect(find.byKey(const Key('waiting_room_kpi_count')), findsNothing);
+    });
+
+    testWidgets(
+        'aucune entrée > 30 min → pas de bandeau d\'alerte — #5170',
+        (tester) async {
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: now.subtract(const Duration(minutes: 10)),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('waiting_room_alert_banner')),
+        findsNothing,
+      );
+      // La liste reste visible.
+      expect(find.byKey(const Key('waiting_room_list')), findsOneWidget);
+    });
+
+    testWidgets(
+        'entrée > 30 min → bandeau nommant le patient le plus en retard, '
+        'action Prévenir le praticien, liste toujours visible — #5170',
+        (tester) async {
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: now.subtract(const Duration(minutes: 38)),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: now.subtract(const Duration(minutes: 10)),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('waiting_room_alert_banner')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Marie Curie attend depuis 38 min'),
+          findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_alert_banner')),
+          matching: find.text('Prévenir le praticien'),
+        ),
+        findsOneWidget,
+      );
+      // Le bandeau s'ajoute au-dessus de la liste, sans la masquer.
+      expect(find.byKey(const Key('waiting_room_list')), findsOneWidget);
+      expect(find.text('Marie Curie'), findsOneWidget);
+      expect(find.text('Paul Martin'), findsOneWidget);
+    });
+
+    testWidgets(
+        'actionError sur un état Loaded — la liste reste visible, l\'erreur '
+        'est signalée sans écran plein page — #5159', (tester) async {
+      final loadedEntries = [
+        WaitingRoomEntry(
+          id: 'e1',
+          cabinetId: 'c1',
+          patientId: 'p1',
+          patientName: 'Marie Curie',
+          arrivedAt: DateTime(2026, 6, 19, 9, 0),
+        ),
+      ];
+      final controller = StreamController<WaitingRoomState>();
+      addTearDown(controller.close);
+      whenListen<WaitingRoomState>(
+        bloc,
+        controller.stream,
+        initialState: WaitingRoomLoaded(loadedEntries),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final withError = WaitingRoomLoaded(
+        loadedEntries,
+        actionError: 'Erreur réseau',
+      );
+      when(() => bloc.state).thenReturn(withError);
+      controller.add(withError);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('waiting_room_list')), findsOneWidget);
+      expect(find.byType(NubiaErrorWidget), findsNothing);
+      expect(find.text('Erreur réseau'), findsOneWidget);
+    });
+
+    testWidgets(
+        'WaitingRoomError reste plein écran avec bouton Réessayer — #5159',
+        (tester) async {
+      when(() => bloc.state)
+          .thenReturn(const WaitingRoomError('Erreur réseau'));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NubiaErrorWidget), findsOneWidget);
+      expect(find.byKey(const Key('waiting_room_list')), findsNothing);
+
+      await tester.tap(find.text('Réessayer'));
+      await tester.pumpAndSettle();
+
+      // 1 dispatch au montage (initState) + 1 au tap sur Réessayer.
+      verify(() => bloc.add(const WaitingRoomLoadRequested())).called(2);
+    });
+
+    testWidgets(
+        'chaque ligne (hors sans-RDV) a son propre bouton Appeler, tête de '
+        'file en variant plein — #5166', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            appointmentId: 'appt-2',
+            arrivedAt: DateTime(2026, 6, 19, 9, 5),
+          ),
+          // Sans-RDV : pas de bouton Appeler (déjà l'action Attribuer).
+          WaitingRoomEntry(
+            id: 'e3',
+            cabinetId: 'c1',
+            patientId: 'p3',
+            patientName: 'Léa Bernard',
+            arrivedAt: DateTime(2026, 6, 19, 9, 10),
+            reason: 'Douleur dentaire',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('waiting_entry_call_button_e1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('waiting_entry_call_button_e2')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('waiting_entry_call_button_e3')),
+        findsNothing,
+      );
+
+      final headButton = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_entry_call_button_e1')),
+      );
+      expect(headButton.variant, NubiaButtonVariant.primary);
+
+      final otherButton = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_entry_call_button_e2')),
+      );
+      expect(otherButton.variant, NubiaButtonVariant.secondary);
+    });
+
+    testWidgets(
+        'tap sur le bouton Appeler d\'une ligne dispatche '
+        'WaitingRoomCallRequested pour CETTE entrée — #5166', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            appointmentId: 'appt-2',
+            arrivedAt: DateTime(2026, 6, 19, 9, 5),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('waiting_entry_call_button_e2')));
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const WaitingRoomCallRequested('e2'))).called(1);
+      verifyNever(() => bloc.add(const WaitingRoomCallRequested('e1')));
+    });
+  });
+
+  // --- WaitingRoomBloc — appel par ligne (#5166) -------------------------------
+  group('WaitingRoomBloc — WaitingRoomCallRequested (#5166)', () {
+    late _MockWaitingRoomRepository repo;
+    late ListWaitingRoomUseCase listUseCase;
+    late CallNextUseCase callNextUseCase;
+
+    final entries = [
+      WaitingRoomEntry(
+        id: 'e1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Marie Curie',
+        arrivedAt: DateTime(2026, 6, 19, 9, 0),
+      ),
+      WaitingRoomEntry(
+        id: 'e2',
+        cabinetId: 'c1',
+        patientId: 'p2',
+        patientName: 'Paul Martin',
+        arrivedAt: DateTime(2026, 6, 19, 9, 5),
+      ),
+      WaitingRoomEntry(
+        id: 'e3',
+        cabinetId: 'c1',
+        patientId: 'p3',
+        patientName: 'Léa Bernard',
+        arrivedAt: DateTime(2026, 6, 19, 9, 10),
+      ),
+    ];
+
+    setUp(() {
+      repo = _MockWaitingRoomRepository();
+      listUseCase = ListWaitingRoomUseCase(repo);
+      callNextUseCase = CallNextUseCase(repo);
+    });
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'appeler la tête de file appelle bien le back (callNext)',
+      build: () {
+        when(() => repo.callNext()).thenAnswer((_) async => Right(entries[0]));
+        when(() => repo.list()).thenAnswer((_) async => Right(entries));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entries),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('e1')),
+      verify: (_) {
+        verify(() => repo.callNext()).called(1);
+      },
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'appeler la ligne 3 (e3) ne déclenche aucun appel back — n\'appelle '
+      'pas la ligne 1',
+      build: () {
+        when(() => repo.callNext()).thenAnswer((_) async => Right(entries[0]));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entries),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('e3')),
+      expect: () => <WaitingRoomState>[],
+      verify: (_) {
+        verifyNever(() => repo.callNext());
+      },
+    );
   });
 }

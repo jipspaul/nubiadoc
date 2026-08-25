@@ -25,19 +25,57 @@ class WaitingRoomLoading extends WaitingRoomState {
 }
 
 class WaitingRoomLoaded extends WaitingRoomState {
-  const WaitingRoomLoaded(this.entries);
+  WaitingRoomLoaded(
+    this.entries, {
+    DateTime? loadedAt,
+    this.actionInProgress = false,
+    this.actionError,
+  }) : loadedAt = loadedAt ?? DateTime.now();
 
   final List<WaitingRoomEntry> entries;
 
+  /// Instant de réception des données affichées — source de l'indicateur
+  /// de fraîcheur (« Actualisé il y a N s », #5161).
+  final DateTime loadedAt;
+
+  /// Une action (appel suivant/ligne) est en cours côté back.
+  final bool actionInProgress;
+
+  /// Échec d'une action (ex. appel suivant) : signalé en ligne, sans
+  /// remplacer la liste par un écran plein écran (#5159) — contrairement à
+  /// [WaitingRoomError], réservé à l'échec du chargement initial.
+  final String? actionError;
+
+  WaitingRoomLoaded copyWith({
+    List<WaitingRoomEntry>? entries,
+    DateTime? loadedAt,
+    bool? actionInProgress,
+    String? actionError,
+    bool clearActionError = false,
+  }) =>
+      WaitingRoomLoaded(
+        entries ?? this.entries,
+        loadedAt: loadedAt ?? this.loadedAt,
+        actionInProgress: actionInProgress ?? this.actionInProgress,
+        actionError:
+            clearActionError ? null : (actionError ?? this.actionError),
+      );
+
+  // loadedAt est un horodatage d'affichage, pas une donnée métier : exclu
+  // de l'égalité pour ne pas casser la comparaison entre deux chargements
+  // identiques (bloc_test).
   @override
   bool operator ==(Object other) =>
       other is WaitingRoomLoaded &&
       other.entries.length == entries.length &&
       List.generate(entries.length, (i) => other.entries[i] == entries[i])
-          .every((b) => b);
+          .every((b) => b) &&
+      other.actionInProgress == actionInProgress &&
+      other.actionError == actionError;
 
   @override
-  int get hashCode => Object.hashAll(entries);
+  int get hashCode =>
+      Object.hash(Object.hashAll(entries), actionInProgress, actionError);
 }
 
 class WaitingRoomError extends WaitingRoomState {

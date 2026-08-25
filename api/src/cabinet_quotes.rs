@@ -528,9 +528,14 @@ pub struct CabinetQuoteDetail {
 /// Pendant clairement identifié de `GET /v1/cabinet/quotes` : le détail patient
 /// (`GET /v1/quotes/:id`) est réservé au token patient (403 pour un pro), d'où
 /// la nécessité d'une route cabinet dédiée pour le secrétariat.
+///
+/// `ProBillingClaims` (#4081/#5729) : même garde `permissions->>'billing'`
+/// que `list_cabinet_quotes` — sinon un membre à qui l'accès facturation a
+/// été explicitement retiré peut contourner la LISTE en devinant/récupérant
+/// l'UUID d'un devis ailleurs (fiche patient, notification, historique).
 pub async fn get_cabinet_quote(
     State(state): State<AppState>,
-    claims: crate::auth::ProSecretaryPlusClaims,
+    claims: crate::permissions::ProBillingClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<CabinetQuoteDetail>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -686,9 +691,13 @@ pub struct SendCabinetQuoteResponse {
 /// - Transition `draft → sent` : rend le devis visible côté patient (WEDGE).
 /// - Idempotence : un devis déjà `sent` renvoie `200` sans nouvelle écriture.
 /// - Devis `signed`/`refused`/`expired` → 409 (`invalid_status`).
+///
+/// `ProBillingClaims` (#4081/#5729) : même garde `permissions->>'billing'`
+/// que `list_cabinet_quotes`/`get_cabinet_quote` — sans ça, la vérification
+/// de statut ci-dessous s'exécutait AVANT tout contrôle RBAC facturation.
 pub async fn send_cabinet_quote(
     State(state): State<AppState>,
-    claims: crate::auth::ProSecretaryPlusClaims,
+    claims: crate::permissions::ProBillingClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SendCabinetQuoteResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;

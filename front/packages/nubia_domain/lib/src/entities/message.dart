@@ -1,8 +1,15 @@
 import 'package:equatable/equatable.dart';
 
+import 'document.dart';
+
 enum MessageSender { patient, cabinet }
 
 enum MessageUrgency { normal, urgent }
+
+/// Type d'interlocuteur d'un [Conversation] (#5285) : le patient échange soit
+/// avec son cabinet, soit avec sa pharmacie (`pharma_messaging`, backend
+/// distinct) — porté par le champ `type` du contrat `GET /v1/conversations`.
+enum ConversationInterlocutorType { cabinet, pharmacy }
 
 class Conversation extends Equatable {
   final String id;
@@ -10,6 +17,7 @@ class Conversation extends Equatable {
   final String cabinetName;
   final int unreadCount;
   final Message? lastMessage;
+  final ConversationInterlocutorType interlocutorType;
 
   /// Horodatage du dernier message du fil (`last_message_at` du contrat liste).
   /// `null` si le fil n'a encore aucun message. Le contrat liste ne renvoie
@@ -27,7 +35,21 @@ class Conversation extends Equatable {
     this.lastMessage,
     this.lastMessageAt,
     this.lastMessagePreview,
+    this.interlocutorType = ConversationInterlocutorType.cabinet,
   });
+
+  Conversation copyWith({int? unreadCount}) {
+    return Conversation(
+      id: id,
+      cabinetId: cabinetId,
+      cabinetName: cabinetName,
+      unreadCount: unreadCount ?? this.unreadCount,
+      lastMessage: lastMessage,
+      lastMessageAt: lastMessageAt,
+      lastMessagePreview: lastMessagePreview,
+      interlocutorType: interlocutorType,
+    );
+  }
 
   @override
   List<Object?> get props => [id];
@@ -47,6 +69,21 @@ class Message extends Equatable {
   /// `null` quand le message ne porte aucune commande.
   final MessageOrderAttachment? attachedOrder;
 
+  /// Métadonnées d'affichage des documents référencés par [attachmentIds]
+  /// (#5282) : libellé/type/montant nécessaires à la carte pièce jointe du
+  /// fil. Ne duplique pas le stockage documentaire — chaque entrée pointe
+  /// vers un document existant du coffre-fort via son [MessageAttachment.documentId].
+  final List<MessageAttachment> attachments;
+
+  /// Nom de l'émetteur (#5275), ex. « Dr Amélie Rousseau ». `null` pour un
+  /// message patient ou quand l'émetteur cabinet n'est pas une personne
+  /// nommée (ex. secrétariat) — voir [authorRole].
+  final String? authorName;
+
+  /// Rôle de l'émetteur (#5275), ex. « Secrétariat ». Affiché en tête de
+  /// bulle à défaut de [authorName] (message non signé par une personne).
+  final String? authorRole;
+
   const Message({
     required this.id,
     required this.conversationId,
@@ -57,6 +94,9 @@ class Message extends Equatable {
     required this.sentAt,
     this.readAt,
     this.attachedOrder,
+    this.attachments = const [],
+    this.authorName,
+    this.authorRole,
   });
 
   @override
@@ -78,4 +118,25 @@ class MessageOrderAttachment extends Equatable {
 
   @override
   List<Object?> get props => [orderRef, lineCount, amountDueCents];
+}
+
+/// Métadonnées d'affichage d'une pièce jointe de [Message] liée à un document
+/// du coffre-fort documentaire (#5282) — titre + sous-ligne (ex. montant/reste
+/// à charge d'un devis) affichés dans la carte cliquable du fil ; le tap
+/// navigue vers le document [documentId] dans la feature `documents`.
+class MessageAttachment extends Equatable {
+  final String documentId;
+  final String title;
+  final String? subtitle;
+  final DocumentCategory category;
+
+  const MessageAttachment({
+    required this.documentId,
+    required this.title,
+    this.subtitle,
+    this.category = DocumentCategory.other,
+  });
+
+  @override
+  List<Object?> get props => [documentId, title, subtitle, category];
 }

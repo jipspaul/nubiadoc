@@ -1,23 +1,36 @@
+import 'package:nubia_data/src/remote/pharmacy_directory/pharmacy_dto.dart';
+import 'package:nubia_domain/src/entities/pharmacy.dart';
 import 'package:nubia_domain/src/entities/stock_request.dart';
 
 class StockRequestDto {
   final String id;
   final String pharmacyId;
+
+  /// Champs pharmacie résolue — pas encore exposés par le back (#5192),
+  /// parsés défensivement pour être prêts dès qu'ils existeront.
+  final String? pharmacyName;
+  final String? pharmacyAddress;
+  final String? pharmacyPhone;
   final String? cabinetName;
   final List<Map<String, dynamic>> items;
   final String status;
   final String? responseNote;
   final String createdAt;
+  final String? respondedAt;
   final String? fulfilledAt;
 
   const StockRequestDto({
     required this.id,
     required this.pharmacyId,
+    this.pharmacyName,
+    this.pharmacyAddress,
+    this.pharmacyPhone,
     this.cabinetName,
     required this.items,
     required this.status,
     this.responseNote,
     required this.createdAt,
+    this.respondedAt,
     this.fulfilledAt,
   });
 
@@ -25,6 +38,9 @@ class StockRequestDto {
       StockRequestDto(
         id: json['id'] as String,
         pharmacyId: json['pharmacy_id'] as String? ?? '',
+        pharmacyName: json['pharmacy_name'] as String?,
+        pharmacyAddress: PharmacyDto.formatAddress(json['pharmacy_address']),
+        pharmacyPhone: json['pharmacy_phone'] as String?,
         cabinetName: json['cabinet_name'] as String?,
         items: (json['items'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
@@ -33,12 +49,21 @@ class StockRequestDto {
         responseNote: json['response_note'] as String?,
         createdAt: json['created_at'] as String? ??
             DateTime.fromMillisecondsSinceEpoch(0).toIso8601String(),
+        respondedAt: json['responded_at'] as String?,
         fulfilledAt: json['fulfilled_at'] as String?,
       );
 
   StockRequest toDomain() => StockRequest(
         id: id,
         pharmacyId: pharmacyId,
+        pharmacy: pharmacyName != null
+            ? Pharmacy(
+                id: pharmacyId,
+                name: pharmacyName!,
+                address: pharmacyAddress,
+                phone: pharmacyPhone,
+              )
+            : null,
         cabinetName: cabinetName,
         items: items
             .map(
@@ -53,6 +78,7 @@ class StockRequestDto {
         status: _parseStatus(status),
         responseNote: responseNote,
         createdAt: DateTime.parse(createdAt),
+        respondedAt: respondedAt != null ? DateTime.parse(respondedAt!) : null,
         fulfilledAt: fulfilledAt != null ? DateTime.parse(fulfilledAt!) : null,
       );
 

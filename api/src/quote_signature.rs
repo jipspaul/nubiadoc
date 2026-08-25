@@ -20,8 +20,9 @@
 //! Modes d'échec : devis signé → `409 quote_locked` ; devis refused/expired
 //! → `409 invalid_status` ; devis draft (masqué par `quote_patient_read`,
 //! migration 0134/#3487 — un brouillon cabinet n'est jamais visible du
-//! patient) / inexistant / hors patient → `404` ; provider injoignable →
-//! `502`.
+//! patient) / inexistant / hors patient → `404` ; provider injoignable/refus
+//! → `502 upstream_unavailable` ; provider non configuré (`YOUSIGN_API_KEY`
+//! absente, #5688) → `503 signature_provider_not_configured`.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -32,7 +33,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
-    AppState, QuoteSignatureClient,
+    AppState, QuoteSignatureClient, QuoteSignatureError,
 };
 
 /// Réponse de `POST /v1/quotes/:id/signature`.
@@ -58,7 +59,8 @@ pub struct InitiateQuoteSignatureResponse {
 ///   session à démarrer).
 /// - Devis `refused`/`expired` → `409 invalid_status` (`sent` est l'étape
 ///   obligatoire, même contrainte que `sign_quote`).
-/// - Provider injoignable/refus → `502`.
+/// - Provider injoignable/refus → `502`. Provider non configuré
+///   (`YOUSIGN_API_KEY` absente) → `503`.
 /// - Sinon : appelle le provider, crée une ligne `signature`, pose
 ///   `quote.signature_id` (le statut du devis, lui, **ne change pas**) et
 ///   renvoie `202 { signature_id, provider, redirect_url?, embed_token? }`.
@@ -80,15 +82,18 @@ pub async fn initiate_quote_signature(
             .await
             .map_err(|_| AppError::Internal)?;
 
+        // Ownership résolue par la policy RLS quote_patient_read (migration 0175,
+        // scope app.patient_account_id posé ci-dessus) : patient OU compte facturé
+        // (billed_to_account_id, #4098) — pas de JOIN patient ici (la table
+        // `patient` a sa propre RLS `patient_account_read`, migration 0029, sans
+        // branche tutelle, qui éliminerait la ligne de la dépendante AVANT que la
+        // clause billed_to_account_id ne puisse la sauver — cf. #5623).
         let row = sqlx::query(
             "SELECT q.cabinet_id, q.status \
              FROM quote q \
-             JOIN patient p ON p.id = q.patient_id \
-             WHERE q.id = $1 AND q.deleted_at IS NULL \
-               AND p.patient_account_id = $2",
+             WHERE q.id = $1 AND q.deleted_at IS NULL",
         )
         .bind(id)
-        .bind(claims.account_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?
@@ -110,9 +115,15 @@ pub async fn initiate_quote_signature(
 
     // ── 2. Appel provider — HORS transaction (pas de lock DB tenu pendant
     //    l'I/O réseau). ────────────────────────────────────────────────────
-    let session = client.create_session(id).await.map_err(|err| {
-        tracing::warn!(quote_id = %id, error = %err, "quote_signature: provider injoignable");
-        AppError::UpstreamUnavailable
+    let session = client.create_session(id).await.map_err(|err| match err {
+        QuoteSignatureError::NotConfigured => {
+            tracing::warn!(quote_id = %id, "quote_signature: provider Yousign non configuré (YOUSIGN_API_KEY absente)");
+            AppError::SignatureProviderNotConfigured
+        }
+        QuoteSignatureError::Failure(ref msg) => {
+            tracing::warn!(quote_id = %id, error = %msg, "quote_signature: provider injoignable");
+            AppError::UpstreamUnavailable
+        }
     })?;
 
     // ── 3. Persistance : signature + quote.signature_id (statut inchangé) ──

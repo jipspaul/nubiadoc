@@ -34,6 +34,19 @@ class Appointment extends Equatable {
   // renvoie pas de nom dans ce cas, redondant avec le compte du tuteur).
   final bool beneficiaryIsSelf;
   final String? beneficiaryName;
+  // #5272 : frais de non-présentation (charte du cabinet), facturés au
+  // patient sur un RDV `noShow` — null si l'API ne les expose pas (le
+  // montant ne doit jamais être codé en dur côté front).
+  final int? noShowFeeCents;
+  // #5271 : pilotage des chips de synthèse documentaire sur l'historique
+  // (compte-rendu / ordonnance(s)) — défauts « aucun document » pour rester
+  // rétrocompatible tant que l'API ne les expose pas.
+  final bool hasReport;
+  final int prescriptionCount;
+  // #5270 : montant de la facture (centimes) d'un RDV `completed` — null si
+  // le RDV n'est pas encore facturé ou si l'API ne l'expose pas (l'action
+  // « Facture · <montant> » reste masquée plutôt que d'inventer un montant).
+  final int? invoiceAmountCents;
 
   const Appointment({
     required this.id,
@@ -50,6 +63,10 @@ class Appointment extends Equatable {
     this.practitionerId = '',
     this.beneficiaryIsSelf = true,
     this.beneficiaryName,
+    this.noShowFeeCents,
+    this.hasReport = false,
+    this.prescriptionCount = 0,
+    this.invoiceAmountCents,
   });
 
   bool get isUpcoming =>

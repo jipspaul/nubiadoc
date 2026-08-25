@@ -360,6 +360,54 @@ async fn create_treatment_plan_empty_title_returns_422() {
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
 
+// ── Test 3bis (#5695) : octet NUL dans title → 422 (pas 500) ─────────────────
+
+#[tokio::test]
+async fn create_treatment_plan_nul_byte_in_title_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+
+    let token = make_practitioner_token(user_id, cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/treatment-plans")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "patient_id": patient_id, "title": "a\u{0}b" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let count: i64 = sqlx::query("SELECT count(*) AS n FROM treatment_plan WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap()
+        .try_get("n")
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(count, 0);
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
+
 // ── Test 4 : praticien sans relation de soin avec le patient → 403 (#4400) ───
 
 #[tokio::test]

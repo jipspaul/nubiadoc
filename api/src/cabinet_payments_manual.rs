@@ -15,7 +15,8 @@
 //! carte/SEPA doivent passer par le flux `PaymentIntent` existant, jamais
 //! par cette route) ou montant hors bornes → 422 ; patient ou devis
 //! inexistant/hors cabinet, ou devis n'appartenant pas au patient → 404 ;
-//! devis pas `signed` → 409 (#4311) ; montant > reste dû → 422 (#4311) ;
+//! devis pas `signed` → 409 (#4311) ; montant sous le plancher `deposit_pct`
+//! du devis → 422 (#3761/#4431/#5748) ; montant > reste dû → 422 (#4311) ;
 //! `Idempotency-Key` absent → 422, clé rejouée avec une empreinte différente
 //! → 409 (#4311, parité avec `billing_payments::create_payment_intent`).
 
@@ -74,6 +75,11 @@ pub struct ManualPaymentResponse {
 ///   avec le chemin Stripe qui exige la même chose avant tout PaymentIntent —
 ///   un règlement physique reçu avant signature n'a pas de contrepartie
 ///   contractuelle à solder).
+/// - Tant que le plancher d'acompte `deposit_pct` du devis n'est pas atteint,
+///   `amount_cents` ne peut pas laisser le total encaissé en dessous de ce
+///   plancher → `422` sinon (#3761/#4431/#5748, même garde que le chemin
+///   Stripe — sinon il suffit de passer par le guichet manuel pour la
+///   contourner entièrement).
 /// - `amount_cents` ne peut pas dépasser le reste dû (reste-à-charge patient
 ///   du devis, c.-à-d. total des lignes moins part AMO/AMC, moins les
 ///   paiements `pending`/`paid` déjà enregistrés, sous verrou `FOR UPDATE`
@@ -183,7 +189,7 @@ pub async fn create_manual_payment(
     // appartenir au patient donné (pas seulement au même cabinet) : évite
     // d'associer par erreur le règlement au devis d'un autre patient du cabinet.
     let quote_row = sqlx::query(
-        "SELECT status \
+        "SELECT status, deposit_pct::double precision AS deposit_pct \
          FROM quote \
          WHERE id = $1 AND cabinet_id = $2 AND patient_id = $3 AND deleted_at IS NULL \
          FOR UPDATE",
@@ -198,6 +204,9 @@ pub async fn create_manual_payment(
 
     let status: String = quote_row
         .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+    let deposit_pct: Option<f64> = quote_row
+        .try_get("deposit_pct")
         .map_err(|_| AppError::Internal)?;
 
     // #4311 : parité avec le chemin Stripe (billing_payments.rs:176-178) — un
@@ -241,7 +250,39 @@ pub async fn create_manual_payment(
     let already_committed_cents: i64 = already_committed_row
         .try_get("committed_cents")
         .map_err(|_| AppError::Internal)?;
-    let remaining_due_cents = patient_share_cents - already_committed_cents;
+
+    // #5683 : un payment_schedule ne crée aucune ligne `payment` — sans ce
+    // second SELECT (symétrique à payment_schedules.rs), la garde ci-dessous
+    // ignorait les échéanciers déjà posés et laissait engager le patient 2x
+    // son reste-à-charge (échéancier actif + paiement manuel).
+    let already_scheduled_row = sqlx::query(
+        "SELECT COALESCE(SUM(total_amount * 100), 0)::bigint AS scheduled_cents \
+         FROM payment_schedule \
+         WHERE quote_id = $1 AND status = 'active'",
+    )
+    .bind(body.quote_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let already_scheduled_cents: i64 = already_scheduled_row
+        .try_get("scheduled_cents")
+        .map_err(|_| AppError::Internal)?;
+
+    let remaining_due_cents =
+        patient_share_cents - already_committed_cents - already_scheduled_cents;
+
+    // Acompte obligatoire (#3761/#4431), même garde que
+    // billing_payments.rs:276-289 : le plancher `deposit_pct` doit s'appliquer
+    // quel que soit le canal d'encaissement, sinon il suffit de passer par le
+    // guichet manuel pour le contourner entièrement (#5748).
+    if let Some(pct) = deposit_pct {
+        let min_deposit_cents = ((patient_share_cents as f64) * pct / 100.0).ceil() as i64;
+        if already_committed_cents < min_deposit_cents
+            && already_committed_cents + body.amount_cents < min_deposit_cents
+        {
+            return Err(AppError::ValidationError);
+        }
+    }
 
     if body.amount_cents > remaining_due_cents {
         return Err(AppError::ValidationError);

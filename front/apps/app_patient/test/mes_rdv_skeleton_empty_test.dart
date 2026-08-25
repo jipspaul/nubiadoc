@@ -28,9 +28,14 @@ class _MesRdvPageStub extends StatelessWidget {
     return BlocBuilder<MesRdvBloc, MesRdvState>(
       builder: (context, state) {
         if (state is MesRdvLoading || state is MesRdvInitial) {
-          return const Center(
-            key: Key('mes_rdv_loading'),
-            child: CircularProgressIndicator(),
+          return ListView.builder(
+            key: const Key('mes_rdv_loading'),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: 3,
+            itemBuilder: (_, __) => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: NubiaSkeletonLoader(height: 56, borderRadius: 12),
+            ),
           );
         }
         if (state is MesRdvError) {
@@ -67,7 +72,7 @@ Widget _wrap(MesRdvBloc bloc) => MaterialApp(
 
 void main() {
   group('MesRdvPage — Loading', () {
-    testWidgets('affiche CircularProgressIndicator en état Loading',
+    testWidgets('affiche un squelette de cartes en état Loading',
         (tester) async {
       final bloc = _MockMesRdvBloc();
       when(() => bloc.state).thenReturn(const MesRdvLoading());
@@ -76,10 +81,11 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('mes_rdv_loading')), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
-    testWidgets('affiche CircularProgressIndicator en état Initial',
+    testWidgets('affiche un squelette de cartes en état Initial',
         (tester) async {
       final bloc = _MockMesRdvBloc();
       when(() => bloc.state).thenReturn(const MesRdvInitial());
@@ -88,6 +94,7 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('mes_rdv_loading')), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
   });
 

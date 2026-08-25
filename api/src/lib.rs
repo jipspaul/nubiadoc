@@ -24,6 +24,10 @@ pub use reminder_dispatch::{
 };
 pub use scaleway_storage_signer::ScalewayStorageSigner;
 pub use twilio_sms::TwilioSmsSender;
+pub use visit_offer_expiry::{
+    dispatch_visit_offer_expiry, run_visit_offer_expiry_loop, VisitOfferExpiryError,
+    VisitOfferExpirySummary,
+};
 pub use yousign_client::YousignClient;
 
 mod appointment_motifs;
@@ -83,6 +87,7 @@ mod messaging;
 mod ngap_acts;
 mod notifications;
 mod notify;
+mod nurse;
 mod orthodontics;
 mod patient_alerts;
 mod patient_detail;
@@ -120,6 +125,7 @@ mod text_validation;
 mod treatment_phases;
 mod treatment_plans;
 mod twilio_sms;
+mod visit_offer_expiry;
 mod waiting_list;
 pub mod web_tunnel;
 mod webhooks;
@@ -311,6 +317,29 @@ pub struct QuoteSignatureSession {
     pub embed_token: Option<String>,
 }
 
+/// Échec de [`QuoteSignatureClient::create_session`] (#4064, #5688).
+///
+/// `NotConfigured` distingue explicitement « provider non provisionné »
+/// (`YOUSIGN_API_KEY` absente — état structurel connu tant qu'aucun compte
+/// Yousign n'existe, cf. `deploy.yml`) d'une vraie panne/refus provider
+/// (`Failure`) : ces deux cas remontaient auparavant au même `502
+/// upstream_unavailable`, ce qui faisait passer une lacune de configuration
+/// (non-transitoire, n'implique aucun incident Yousign) pour une panne
+/// provider en production auprès du monitoring/QA (#5688).
+pub enum QuoteSignatureError {
+    NotConfigured,
+    Failure(String),
+}
+
+impl std::fmt::Display for QuoteSignatureError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotConfigured => write!(f, "yousign: provider non configuré"),
+            Self::Failure(msg) => write!(f, "{msg}"),
+        }
+    }
+}
+
 /// Client de démarrage de signature eIDAS pour un **devis** — swappable
 /// (stub en test, Yousign réel en prod, `yousign_client.rs`). #4064.
 ///
@@ -322,8 +351,12 @@ pub struct QuoteSignatureSession {
 #[async_trait]
 pub trait QuoteSignatureClient: Send + Sync {
     /// Démarre une session de signature pour `quote_id`. `Err` = provider
-    /// injoignable/refus — jamais de panic, jamais de valeur fabriquée.
-    async fn create_session(&self, quote_id: Uuid) -> Result<QuoteSignatureSession, String>;
+    /// non configuré/injoignable/refus — jamais de panic, jamais de valeur
+    /// fabriquée.
+    async fn create_session(
+        &self,
+        quote_id: Uuid,
+    ) -> Result<QuoteSignatureSession, QuoteSignatureError>;
 }
 
 /// Implémentation stub : session fixe, pour les tests et le dev local sans
@@ -332,7 +365,10 @@ pub struct StubQuoteSignatureClient;
 
 #[async_trait]
 impl QuoteSignatureClient for StubQuoteSignatureClient {
-    async fn create_session(&self, quote_id: Uuid) -> Result<QuoteSignatureSession, String> {
+    async fn create_session(
+        &self,
+        quote_id: Uuid,
+    ) -> Result<QuoteSignatureSession, QuoteSignatureError> {
         Ok(QuoteSignatureSession {
             external_id: format!("stub-sig-{quote_id}"),
             redirect_url: Some(format!("https://signature.stub/{quote_id}")),
@@ -502,6 +538,7 @@ fn build_router(
     let router = routes::notifications_devices::add(router);
     let router = routes::cr_prescriptions::add(router);
     let router = routes::pharmacy_routes::add(router);
+    let router = routes::nurse_routes::add(router);
     let router = routes::secretariats::add(router);
     let router = routes::webhooks_interop::add(router);
 

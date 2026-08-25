@@ -17,3 +17,18 @@ class StockCreateRequested extends StockEvent {
   final String pharmacyId;
   final List<StockRequestItem> items;
 }
+
+/// Relance manuelle d'une demande `sent` — le geste quotidien de l'écran
+/// Stock (#5183).
+class StockResendRequested extends StockEvent {
+  const StockResendRequested(this.requestId);
+
+  final String requestId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StockResendRequested && other.requestId == requestId;
+
+  @override
+  int get hashCode => requestId.hashCode;
+}
