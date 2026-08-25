@@ -565,6 +565,67 @@ void main() {
     });
   });
 
+  group('séparateurs de jour (#5127)', () {
+    testWidgets(
+        'messages de jours différents → séparateur "Hier"/"Aujourd\'hui" '
+        'devant le premier message de chaque jour', (tester) async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day, 9);
+      final yesterday = today.subtract(const Duration(days: 1));
+      final messageYesterday = CabinetTeamMessage(
+        id: 'y1',
+        senderId: 'u1',
+        senderName: 'Dr Martin',
+        body: 'Message d\'hier.',
+        createdAt: yesterday,
+      );
+      final messageToday = CabinetTeamMessage(
+        id: 't1',
+        senderId: 'u1',
+        senderName: 'Dr Martin',
+        body: 'Message d\'aujourd\'hui.',
+        createdAt: today,
+      );
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([messageYesterday, messageToday]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hier'), findsOneWidget);
+      expect(find.text("Aujourd'hui"), findsOneWidget);
+      expect(find.byKey(const Key('team_message_y1')), findsOneWidget);
+      expect(find.byKey(const Key('team_message_t1')), findsOneWidget);
+    });
+
+    testWidgets('plusieurs messages le même jour → un seul séparateur',
+        (tester) async {
+      final sameDayMessage1 = CabinetTeamMessage(
+        id: 's1',
+        senderId: 'u1',
+        senderName: 'Dr Martin',
+        body: 'Premier message du jour.',
+        createdAt: DateTime(2026, 1, 1, 9),
+      );
+      final sameDayMessage2 = CabinetTeamMessage(
+        id: 's2',
+        senderId: 'u2',
+        senderName: 'Claire Béranger',
+        body: 'Second message du même jour.',
+        createdAt: DateTime(2026, 1, 1, 10),
+      );
+      when(() => listMessages())
+          .thenAnswer((_) async => Right([sameDayMessage1, sameDayMessage2]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jeudi 1 janvier'), findsOneWidget);
+      expect(find.byKey(const Key('team_message_s1')), findsOneWidget);
+      expect(find.byKey(const Key('team_message_s2')), findsOneWidget);
+    });
+  });
+
   group('référence à un objet du produit (#5131)', () {
     testWidgets(
         'message avec référence → carte affichée (icône, 2 lignes, Ouvrir)',

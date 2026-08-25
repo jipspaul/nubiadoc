@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -600,6 +601,43 @@ class _MessagesSkeleton extends StatelessWidget {
   }
 }
 
+/// Élément du fil : soit un message, soit un séparateur de jour inséré
+/// devant le premier message d'une journée distincte (#5127).
+sealed class _ThreadItem {
+  const _ThreadItem();
+}
+
+class _MessageThreadItem extends _ThreadItem {
+  const _MessageThreadItem(this.message);
+
+  final CabinetTeamMessage message;
+}
+
+class _DaySeparatorThreadItem extends _ThreadItem {
+  const _DaySeparatorThreadItem(this.day);
+
+  final DateTime day;
+}
+
+/// Intercale un [_DaySeparatorThreadItem] devant le premier message de
+/// chaque journée distincte (comparaison `NubiaDate.isSameDay`, heure
+/// locale — #3856). [messages] est en ordre chronologique croissant, comme
+/// déjà consommé par [_MessagesList] (même pattern que la messagerie
+/// patient, `app_patient/features/messaging/messaging_page.dart`).
+List<_ThreadItem> _threadItemsFor(List<CabinetTeamMessage> messages) {
+  final items = <_ThreadItem>[];
+  DateTime? previousDay;
+  for (final message in messages) {
+    if (previousDay == null ||
+        !NubiaDate.isSameDay(previousDay, message.createdAt)) {
+      items.add(_DaySeparatorThreadItem(message.createdAt));
+      previousDay = message.createdAt;
+    }
+    items.add(_MessageThreadItem(message));
+  }
+  return items;
+}
+
 class _MessagesList extends StatelessWidget {
   const _MessagesList({required this.messages, this.isSearching = false});
 
@@ -618,43 +656,91 @@ class _MessagesList extends StatelessWidget {
             : 'Écrivez le premier message à votre équipe.',
       );
     }
+    final items = _threadItemsFor(messages);
     return ListView.builder(
       key: const Key('team_messages_list'),
       padding: const EdgeInsets.all(16),
-      itemCount: messages.length,
+      itemCount: items.length,
       itemBuilder: (context, i) {
-        final m = messages[i];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Column(
-            key: Key('team_message_${m.id}'),
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        return switch (items[i]) {
+          _DaySeparatorThreadItem(:final day) => _DaySeparator(day: day),
+          _MessageThreadItem(:final message) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                key: Key('team_message_${message.id}'),
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    m.senderName,
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                  Row(
+                    children: [
+                      Text(
+                        message.senderName,
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatTimestamp(message.createdAt),
+                        style:
+                            Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _formatTimestamp(m.createdAt),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
+                  const SizedBox(height: 2),
+                  _MessageBody(body: message.body),
+                  if (message.reference != null)
+                    _ReferenceChip(reference: message.reference!),
                 ],
               ),
-              const SizedBox(height: 2),
-              _MessageBody(body: m.body),
-              if (m.reference != null) _ReferenceChip(reference: m.reference!),
-            ],
-          ),
-        );
+            ),
+        };
       },
+    );
+  }
+}
+
+/// Séparateur de date du fil (#5127, spec design verbatim `.dsep`) : filet
+/// fin `n200` de chaque côté, pastille pilule centrale (`.t`) portant le
+/// libellé relatif (`Hier`/`Aujourd'hui`/date pleine) calculé par la
+/// foundation date partagée [NubiaDate.daySeparatorLabel], pas par une
+/// implémentation locale.
+class _DaySeparator extends StatelessWidget {
+  const _DaySeparator({required this.day});
+
+  final DateTime day;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          const Expanded(child: Divider(color: NubiaColors.n200, height: 1)),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+            decoration: BoxDecoration(
+              color: NubiaColors.n50,
+              border: Border.all(color: NubiaColors.n200),
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              NubiaDate.daySeparatorLabel(day),
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: NubiaColors.n500,
+              ),
+            ),
+          ),
+          const Expanded(child: Divider(color: NubiaColors.n200, height: 1)),
+        ],
+      ),
     );
   }
 }

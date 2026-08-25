@@ -92,6 +92,14 @@ void main() {
       );
     });
 
+    test('veille → "Hier"', () {
+      final now = DateTime(2026, 8, 17, 14, 30);
+      expect(
+        NubiaDate.daySeparatorLabel(DateTime(2026, 8, 16, 22, 0), now: now),
+        'Hier',
+      );
+    });
+
     test('jour antérieur → "<jour de semaine> <jour> <mois>"', () {
       final now = DateTime(2026, 8, 17, 14, 30);
       // 2026-07-21 est un mardi.
