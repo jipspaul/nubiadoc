@@ -237,7 +237,7 @@ async fn list_patients(server: axum::Router, token: &str) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-fn find_row<'a>(body: &'a serde_json::Value, patient_id: Uuid) -> &'a serde_json::Value {
+fn find_row(body: &serde_json::Value, patient_id: Uuid) -> &serde_json::Value {
     body["data"]
         .as_array()
         .unwrap()
