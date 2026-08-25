@@ -39,6 +39,11 @@ class CabinetTeamMessagesLoaded extends CabinetTeamMessagesState {
   final bool sending;
   final String? sendError;
 
+  /// Consigne(s) épinglée(s) (#5130), dérivée(s) du fil — pas de champ dédié
+  /// côté cubit, `messages` reste la source de vérité serveur.
+  List<CabinetTeamMessage> get pinnedMessages =>
+      messages.where((m) => m.pinned).toList();
+
   CabinetTeamMessagesLoaded copyWith({
     List<CabinetTeamMessage>? messages,
     bool? sending,

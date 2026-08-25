@@ -116,6 +116,9 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
         }
       },
       builder: (context, state) {
+        final pinnedMessages = state is CabinetTeamMessagesLoaded
+            ? state.pinnedMessages
+            : const <CabinetTeamMessage>[];
         final thread = Column(
           children: [
             Expanded(
@@ -148,7 +151,7 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(child: thread),
-                const _TeamAside(),
+                _TeamAside(pinnedMessages: pinnedMessages),
               ],
             );
           },
@@ -234,7 +237,9 @@ const _teamMembers = [
 ];
 
 class _TeamAside extends StatelessWidget {
-  const _TeamAside();
+  const _TeamAside({required this.pinnedMessages});
+
+  final List<CabinetTeamMessage> pinnedMessages;
 
   @override
   Widget build(BuildContext context) {
@@ -251,23 +256,38 @@ class _TeamAside extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.groups, size: 20, color: cs.onSurfaceVariant),
-              const SizedBox(width: 8),
-              Text(
-                'Équipe',
-                style: textTheme.titleMedium?.copyWith(color: cs.onSurface),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (pinnedMessages.isNotEmpty) ...[
+                    _PinnedNotice(message: pinnedMessages.first),
+                    const SizedBox(height: 20),
+                  ],
+                  Row(
+                    children: [
+                      Icon(Icons.groups, size: 20, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Équipe',
+                        style: textTheme.titleMedium
+                            ?.copyWith(color: cs.onSurface),
+                      ),
+                      const SizedBox(width: 8),
+                      _TeamCountBadge(count: _teamMembers.length),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  for (final member in _teamMembers)
+                    _TeamMemberRow(member: member),
+                  const SizedBox(height: 20),
+                  const _CitedReferencesRecap(),
+                ],
               ),
-              const SizedBox(width: 8),
-              _TeamCountBadge(count: _teamMembers.length),
-            ],
+            ),
           ),
-          const SizedBox(height: 16),
-          for (final member in _teamMembers) _TeamMemberRow(member: member),
           const SizedBox(height: 20),
-          const _CitedReferencesRecap(),
-          const Spacer(),
           const _ClinicalDataReminderNote(),
         ],
       ),
@@ -360,6 +380,78 @@ class _TeamMemberRow extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Mois en clair pour le méta du bloc épinglé (#5130) — même formule que
+/// `_formatDayLabel` dans `dashboard/dashboard_content.dart` (pas de
+/// dépendance `intl` dans ce package).
+const _pinnedNoticeMonths = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+];
+
+String _formatPinnedDate(DateTime d) => '${d.day} ${_pinnedNoticeMonths[d.month - 1]}';
+
+/// Bloc « Épinglé » (#5130) : garde visible en tête de l'aside une consigne
+/// durable (fermeture exceptionnelle, changement d'horaire) plutôt que de la
+/// laisser se noyer dans le fil. Teinte ambre `warn`, verbatim maquette.
+class _PinnedNotice extends StatelessWidget {
+  const _PinnedNotice({required this.message});
+
+  final CabinetTeamMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('team_messages_pinned_notice'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: NubiaColors.warningBg,
+        border: Border.all(color: NubiaColors.warningBorder),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.push_pin, size: 16, color: NubiaColors.warningFg),
+              SizedBox(width: 6),
+              Text(
+                'ÉPINGLÉ',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                  color: NubiaColors.warningFg,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message.body,
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Par ${message.senderName} · ${_formatPinnedDate(message.createdAt)}',
+            style: const TextStyle(fontSize: 11, color: NubiaColors.n500),
           ),
         ],
       ),
@@ -718,22 +810,41 @@ class _Composer extends StatelessWidget {
               // disponible — NubiaButton ne wrappe pas son label.
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                child: NubiaButton(
-                  key: const Key('team_message_attach_reference_button'),
-                  label: 'Joindre un patient, un devis…',
-                  icon: Icons.link,
-                  variant: NubiaButtonVariant.secondary,
-                  size: NubiaButtonSize.sm,
-                  onPressed: enabled
-                      ? () => ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Joindre un objet du produit au message : '
-                                'à venir',
-                              ),
-                            ),
-                          )
-                      : null,
+                child: Row(
+                  children: [
+                    NubiaButton(
+                      key: const Key('team_message_attach_reference_button'),
+                      label: 'Joindre un patient, un devis…',
+                      icon: Icons.link,
+                      variant: NubiaButtonVariant.secondary,
+                      size: NubiaButtonSize.sm,
+                      onPressed: enabled
+                          ? () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Joindre un objet du produit au message : '
+                                    'à venir',
+                                  ),
+                                ),
+                              )
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    NubiaButton(
+                      key: const Key('team_message_pin_button'),
+                      label: 'Épingler',
+                      icon: Icons.push_pin,
+                      variant: NubiaButtonVariant.secondary,
+                      size: NubiaButtonSize.sm,
+                      onPressed: enabled
+                          ? () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Épingler ce message : à venir'),
+                                ),
+                              )
+                          : null,
+                    ),
+                  ],
                 ),
               ),
             ),
