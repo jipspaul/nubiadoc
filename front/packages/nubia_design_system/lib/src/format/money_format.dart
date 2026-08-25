@@ -38,3 +38,16 @@ String _groupThousands(int value) {
   }
   return buffer.toString();
 }
+
+/// Fondation 1 du backlog monétaire (#5123) : point d'entrée `NubiaMoney.*`
+/// destiné à remplacer à terme `formatQuoteCents` et les formateurs locaux
+/// dupliqués (ex. `_formatBalance`) — enrobe [formatQuoteCents] pour ne pas
+/// re-diverger sur l'algorithme de regroupement des milliers.
+class NubiaMoney {
+  const NubiaMoney._();
+
+  /// Centimes → euros toujours avec deux décimales et séparateur de
+  /// milliers ; ex. `124567` → « 1 245,67 € », `0` → « 0,00 € ».
+  static String formatCents(int cents) =>
+      formatQuoteCents(cents, alwaysShowDecimals: true);
+}

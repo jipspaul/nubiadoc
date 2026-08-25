@@ -417,10 +417,6 @@ class _PatientBalanceSectionState extends State<PatientBalanceSection> {
     );
   }
 
-  /// Centimes → "12,34 €" (#4045).
-  String _formatBalance(int cents) =>
-      '${(cents / 100).toStringAsFixed(2).replaceAll('.', ',')} €';
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -445,7 +441,7 @@ class _PatientBalanceSectionState extends State<PatientBalanceSection> {
                 size: 18, color: cs.onSurfaceVariant),
             const SizedBox(width: 10),
             Text(
-              'Solde : ${_formatBalance(cents)}',
+              'Solde : ${NubiaMoney.formatCents(cents)}',
               key: const Key('patient_balance'),
               style: cents > 0
                   ? TextStyle(color: cs.error, fontWeight: FontWeight.w600)
