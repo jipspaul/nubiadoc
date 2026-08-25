@@ -527,9 +527,14 @@ class _NoClinicalDataHint extends StatelessWidget {
       children: [
         Icon(Icons.shield, size: 14, color: NubiaColors.n500),
         SizedBox(width: 4),
-        Text(
-          'Aucune donnée clinique dans ce fil',
-          style: TextStyle(fontSize: 11.5, color: NubiaColors.n500),
+        // Flexible : sur mobile étroit (400 px, cf. le test #5133 du panneau
+        // « Équipe ») le libellé dépasse la largeur du composeur et fait
+        // déborder la Row. Flexible le laisse se replier au lieu de rogner.
+        Flexible(
+          child: Text(
+            'Aucune donnée clinique dans ce fil',
+            style: TextStyle(fontSize: 11.5, color: NubiaColors.n500),
+          ),
         ),
       ],
     );
