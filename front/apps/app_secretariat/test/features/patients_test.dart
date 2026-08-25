@@ -370,9 +370,118 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      expect(find.byType(ListRow), findsNWidgets(2));
+      expect(find.byType(PatientTableRow), findsNWidgets(2));
       expect(find.text('Alice Martin'), findsOneWidget);
       expect(find.text('Bob Dupont'), findsOneWidget);
+    });
+
+    // ── Tableau cinq colonnes (#5117) ───────────────────────────────────
+
+    testWidgets(
+        'affiche les cinq en-têtes de colonnes (design-v2, note #5)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PatientsTableHeader), findsOneWidget);
+      expect(find.text('Patient'), findsOneWidget);
+      expect(find.text('Contact'), findsOneWidget);
+      expect(find.text('Dernière visite'), findsOneWidget);
+      expect(find.text('Solde'), findsOneWidget);
+      expect(find.text('Alertes & étiquettes'), findsOneWidget);
+    });
+
+    testWidgets(
+        'colonne Patient : date de naissance · âge sous le nom',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Julie',
+            lastName: 'Martin',
+            birthDate: DateTime(1985, 6, 7),
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('07/06/1985'), findsOneWidget);
+    });
+
+    testWidgets(
+        '« Dernière visite » affiche — quand lastVisitAt est absent',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+          CabinetPatient(
+            id: 'p2',
+            cabinetId: 'c1',
+            firstName: 'Bob',
+            lastName: 'Dupont',
+            createdAt: DateTime(2026, 1, 1),
+            lastVisitAt: DateTime(2026, 7, 22),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('—'), findsOneWidget);
+      expect(find.text('22/07/2026'), findsOneWidget);
+    });
+
+    testWidgets(
+        'solde : rouge « 148,50 € » si dû, gris « 0,00 € » si à jour',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+            balanceDueCents: 14850,
+          ),
+          CabinetPatient(
+            id: 'p2',
+            cabinetId: 'c1',
+            firstName: 'Bob',
+            lastName: 'Dupont',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final due = tester.widget<Text>(find.text('148,50 €'));
+      expect(due.style?.color, NubiaColors.dangerFg);
+
+      final upToDate = tester.widget<Text>(find.text('0,00 €'));
+      expect(upToDate.style?.color, NubiaColors.n500);
     });
 
     testWidgets(
@@ -433,7 +542,7 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(ListRow));
+      await tester.tap(find.byType(PatientTableRow));
       await tester.pumpAndSettle();
 
       expect(
@@ -488,7 +597,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Impayés'), findsOneWidget);
-      expect(find.textContaining('Alertes'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('patients_quick_filters')),
+          matching: find.textContaining('Alertes'),
+        ),
+        findsOneWidget,
+      );
       expect(find.textContaining('Sans RDV à venir'), findsOneWidget);
       expect(
         find.descendant(
@@ -540,19 +655,19 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      expect(find.byType(ListRow), findsNWidgets(2));
+      expect(find.byType(PatientTableRow), findsNWidgets(2));
 
       await tester.tap(find.byKey(const Key('patients_quick_filter_unpaid')));
       await tester.pumpAndSettle();
 
-      expect(find.byType(ListRow), findsNWidgets(1));
+      expect(find.byType(PatientTableRow), findsNWidgets(1));
       expect(find.text('Alice Martin'), findsOneWidget);
       expect(find.text('Bob Dupont'), findsNothing);
 
       // Réactiver le filtre restaure la liste complète.
       await tester.tap(find.byKey(const Key('patients_quick_filter_unpaid')));
       await tester.pumpAndSettle();
-      expect(find.byType(ListRow), findsNWidgets(2));
+      expect(find.byType(PatientTableRow), findsNWidgets(2));
     });
   });
 }

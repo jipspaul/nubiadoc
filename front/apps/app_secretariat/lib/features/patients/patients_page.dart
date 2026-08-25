@@ -240,11 +240,18 @@ class _PatientsPageState extends State<PatientsPage> {
                     )
                   else
                     Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        itemCount: filteredPatients.length,
-                        itemBuilder: (_, i) =>
-                            _PatientRow(patient: filteredPatients[i]),
+                      child: Column(
+                        children: [
+                          const PatientsTableHeader(),
+                          Expanded(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              itemCount: filteredPatients.length,
+                              itemBuilder: (_, i) =>
+                                  PatientTableRow(patient: filteredPatients[i]),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                 ],
@@ -371,34 +378,239 @@ String _formatDate(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/'
     '${dt.month.toString().padLeft(2, '0')}/'
     '${dt.year}';
 
-/// Ligne patient : avatar + nom + infos administratives + chevron.
-class _PatientRow extends StatelessWidget {
-  const _PatientRow({required this.patient});
+/// Largeurs des colonnes du tableau patients (design-v2, note #5) — grille
+/// `1fr 214px 116px 108px 176px 34px`, partagée entre [PatientsTableHeader]
+/// et [PatientTableRow] pour rester alignées.
+class _PatientColumns {
+  const _PatientColumns._();
+
+  static const double gap = 16;
+  static const double contact = 214;
+  static const double lastVisit = 116;
+  static const double balance = 108;
+  static const double alerts = 176;
+  static const double chevron = 20;
+}
+
+/// En-tête de colonnes du tableau patients (design-v2, note #5).
+class PatientsTableHeader extends StatelessWidget {
+  const PatientsTableHeader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final style = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: tokens.textTertiary,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          const SizedBox(width: 40 + 12), // aligné sous l'avatar de la ligne
+          Expanded(child: Text('Patient', style: style)),
+          const SizedBox(width: _PatientColumns.gap),
+          SizedBox(width: _PatientColumns.contact, child: Text('Contact', style: style)),
+          const SizedBox(width: _PatientColumns.gap),
+          SizedBox(
+            width: _PatientColumns.lastVisit,
+            child: Text('Dernière visite', style: style),
+          ),
+          const SizedBox(width: _PatientColumns.gap),
+          SizedBox(
+            width: _PatientColumns.balance,
+            child: Text('Solde', style: style, textAlign: TextAlign.right),
+          ),
+          const SizedBox(width: _PatientColumns.gap),
+          SizedBox(
+            width: _PatientColumns.alerts,
+            child: Text('Alertes & étiquettes', style: style),
+          ),
+          const SizedBox(width: _PatientColumns.gap),
+          const SizedBox(width: _PatientColumns.chevron),
+        ],
+      ),
+    );
+  }
+}
+
+/// Contenu de la colonne Contact (design-v2, note #5) : téléphone + email,
+/// ou tuteur légal quand renseigné (`GuardianshipLink`, #4091). Aucune
+/// donnée clinique — cloisonnement secrétariat.
+Widget _contactColumn(BuildContext context, CabinetPatient patient) {
+  final textTheme = Theme.of(context).textTheme;
+  final cs = Theme.of(context).colorScheme;
+  final style = textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant);
+
+  final guardians = patient.guardians ?? const [];
+  if (guardians.isNotEmpty) {
+    return Text(
+      'tuteur : ${guardians.first.fullName}',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+  }
+
+  final phone = patient.phone;
+  final email = patient.email;
+  final hasPhone = phone != null && phone.isNotEmpty;
+  final hasEmail = email != null && email.isNotEmpty;
+  if (!hasPhone && !hasEmail) return const SizedBox.shrink();
+
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (hasPhone)
+        Text(
+          phone,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style?.copyWith(fontFeatures: tabularFigures),
+        ),
+      if (hasEmail) ...[
+        if (hasPhone) const SizedBox(height: 2),
+        Text(email, maxLines: 1, overflow: TextOverflow.ellipsis, style: style),
+      ],
+    ],
+  );
+}
+
+/// Âge en années révolues à la date du jour.
+int _ageInYears(DateTime birthDate) {
+  final now = DateTime.now();
+  var age = now.year - birthDate.year;
+  if (now.month < birthDate.month ||
+      (now.month == birthDate.month && now.day < birthDate.day)) {
+    age--;
+  }
+  return age;
+}
+
+/// Ligne du tableau patients (design-v2, note #5) : cinq colonnes alignées
+/// — Patient (avatar + nom + naissance/âge), Contact, Dernière visite,
+/// Solde (aligné à droite), Alertes & étiquettes — puis le chevron.
+class PatientTableRow extends StatelessWidget {
+  const PatientTableRow({super.key, required this.patient});
 
   final CabinetPatient patient;
 
   @override
   Widget build(BuildContext context) {
-    // Sous-titre : informations administratives uniquement (contact). Aucune
-    // donnée clinique — cloisonnement secrétariat.
-    final parts = <String>[
-      if (patient.phone != null && patient.phone!.isNotEmpty) patient.phone!,
-      if (patient.email != null && patient.email!.isNotEmpty) patient.email!,
-    ];
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
-    return ListRow(
-      leading:
-          NubiaAvatar(initials: NubiaInitials.of(patient.fullName), radius: 20),
-      title: patient.fullName,
-      subtitle: parts.isEmpty ? null : parts.join(' · '),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PatientAlertBadge(patientId: patient.id),
-          const Icon(Icons.chevron_right),
-        ],
+    final birthDate = patient.birthDate;
+    final lastVisitAt = patient.lastVisitAt;
+    final balanceCents = patient.balanceDueCents ?? 0;
+    final balanceDue = balanceCents > 0;
+
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            NubiaAvatar(
+              initials: NubiaInitials.of(patient.fullName),
+              radius: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    patient.fullName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.titleMedium?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (birthDate != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_formatDate(birthDate)} · ${_ageInYears(birthDate)} ans',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: tokens.textTertiary,
+                        fontFeatures: tabularFigures,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: _PatientColumns.gap),
+            SizedBox(
+              width: _PatientColumns.contact,
+              child: _contactColumn(context, patient),
+            ),
+            const SizedBox(width: _PatientColumns.gap),
+            SizedBox(
+              width: _PatientColumns.lastVisit,
+              child: Text(
+                lastVisitAt != null ? _formatDate(lastVisitAt) : '—',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontFeatures: tabularFigures,
+                ),
+              ),
+            ),
+            const SizedBox(width: _PatientColumns.gap),
+            SizedBox(
+              width: _PatientColumns.balance,
+              child: Text(
+                NubiaMoney.formatCents(balanceCents),
+                textAlign: TextAlign.right,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: balanceDue ? NubiaColors.dangerFg : NubiaColors.n500,
+                  fontWeight: balanceDue ? FontWeight.w600 : FontWeight.w400,
+                  fontFeatures: tabularFigures,
+                ),
+              ),
+            ),
+            const SizedBox(width: _PatientColumns.gap),
+            SizedBox(
+              width: _PatientColumns.alerts,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: PatientAlertBadge(patientId: patient.id),
+              ),
+            ),
+            const SizedBox(width: _PatientColumns.gap),
+            SizedBox(
+              width: _PatientColumns.chevron,
+              child: const Icon(Icons.chevron_right),
+            ),
+          ],
+        ),
       ),
-      onTap: () => _showPatientSheet(context, patient),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showPatientSheet(context, patient),
+            child: content,
+          ),
+        ),
+        Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+      ],
     );
   }
 }
