@@ -705,10 +705,12 @@ class _AlertPastilleData {
 /// Pastilles d'alerte/étiquette accueil (#4093/#4094, design-v2 note #2) :
 /// remplace l'ancien `Tooltip` sur icône, dont le contenu n'apparaissait
 /// qu'au survol (jamais au clavier). Lues directement depuis les champs déjà
-/// chargés par la liste (`CabinetPatient`) — plus de fetch par ligne. Même
-/// best-effort qu'avant : `hasActiveAlerts`/`noShowCount`/`guardians`
-/// restent `null` tant que l'endpoint liste n'est pas enrichi (ticket
-/// dépendant), la ligne s'affiche alors simplement sans pastille.
+/// chargés par la liste (`CabinetPatient`) — plus de fetch par ligne.
+/// `balanceDueCents`/`noShowCount` sont enrichis par la liste paginée
+/// depuis #5112 ; `hasActiveAlerts`/`guardians` restent `null` tant que
+/// l'endpoint liste n'est pas enrichi pour ces champs (tickets dépendants
+/// distincts, #5118 notamment) — la ligne s'affiche alors simplement sans
+/// pastille correspondante (best-effort).
 class PatientAlertBadge extends StatelessWidget {
   const PatientAlertBadge({super.key, required this.patient});
 
