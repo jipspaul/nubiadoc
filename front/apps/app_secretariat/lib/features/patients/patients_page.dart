@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -57,102 +58,118 @@ class _PatientsPageState extends State<PatientsPage> {
     });
   }
 
+  Future<void> _onCreate() async {
+    final created = await context.push<CabinetPatient>(AppRouter.patientNew);
+    if (created != null && context.mounted) {
+      context.read<PatientsBloc>().add(const PatientsLoadRequested());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(NubiaL10n.patients),
-        actions: [
-          IconButton(
-            tooltip: NubiaL10n.refresh,
-            icon: const Icon(Icons.refresh),
-            onPressed: () =>
-                context.read<PatientsBloc>().add(const PatientsLoadRequested()),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        key: const Key('patients_new_button'),
-        tooltip: 'Nouveau patient',
-        onPressed: () async {
-          final created =
-              await context.push<CabinetPatient>(AppRouter.patientNew);
-          if (created != null && context.mounted) {
-            context.read<PatientsBloc>().add(const PatientsLoadRequested());
-          }
-        },
-        child: const Icon(Icons.person_add),
-      ),
-      body: BlocBuilder<PatientsBloc, PatientsState>(
-        builder: (context, state) {
-          if (state is PatientsLoaded) {
-            if (widget.openPatientId != null && !_openPatientHandled) {
-              _openPatientHandled = true;
-              CabinetPatient? match;
-              for (final p in state.patients) {
-                if (p.id == widget.openPatientId) {
-                  match = p;
-                  break;
-                }
-              }
-              if (match != null) {
-                final patient = match;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) _showPatientSheet(context, patient);
-                });
-              }
-            }
-            if (state.patients.isEmpty && _query.isEmpty) {
-              return const NubiaEmptyState(
-                icon: Icons.person_outline,
-                title: 'Aucun patient',
-                subtitle: NubiaL10n.noPatients,
-              );
-            }
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Rechercher un patient',
-                    ),
-                    onChanged: _onSearchChanged,
-                  ),
-                ),
-                if (state.patients.isEmpty)
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        'Aucun patient ne correspond à « $_query ».',
-                        key: const Key('patients_search_no_results'),
-                      ),
-                    ),
-                  )
-                else
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      itemCount: state.patients.length,
-                      itemBuilder: (_, i) =>
-                          _PatientRow(patient: state.patients[i]),
-                    ),
-                  ),
-              ],
-            );
-          }
-          if (state is PatientsError) {
-            return NubiaErrorWidget(
-              message: state.message,
-              onRetry: () => context
+    // design-v2 (#5121) : le FAB remonte dans la barre d'outils avec son
+    // raccourci ⌘N, même pattern que stock_page.dart (#5188).
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyN, meta: true): _onCreate,
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(NubiaL10n.patients),
+          actions: [
+            IconButton(
+              tooltip: NubiaL10n.refresh,
+              icon: const Icon(Icons.refresh),
+              onPressed: () => context
                   .read<PatientsBloc>()
                   .add(const PatientsLoadRequested()),
-            );
-          }
-          // PatientsInitial, PatientsLoading
-          return const _PatientsSkeleton();
-        },
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: NubiaButton(
+                key: const Key('patients_new_button'),
+                label: 'Nouveau patient',
+                icon: Icons.person_add,
+                onPressed: _onCreate,
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: NubiaBadge.label(label: '⌘N'),
+            ),
+          ],
+        ),
+        body: BlocBuilder<PatientsBloc, PatientsState>(
+          builder: (context, state) {
+            if (state is PatientsLoaded) {
+              if (widget.openPatientId != null && !_openPatientHandled) {
+                _openPatientHandled = true;
+                CabinetPatient? match;
+                for (final p in state.patients) {
+                  if (p.id == widget.openPatientId) {
+                    match = p;
+                    break;
+                  }
+                }
+                if (match != null) {
+                  final patient = match;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) _showPatientSheet(context, patient);
+                  });
+                }
+              }
+              if (state.patients.isEmpty && _query.isEmpty) {
+                return const NubiaEmptyState(
+                  icon: Icons.person_outline,
+                  title: 'Aucun patient',
+                  subtitle: NubiaL10n.noPatients,
+                );
+              }
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Rechercher un patient',
+                      ),
+                      onChanged: _onSearchChanged,
+                    ),
+                  ),
+                  if (state.patients.isEmpty)
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          'Aucun patient ne correspond à « $_query ».',
+                          key: const Key('patients_search_no_results'),
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        itemCount: state.patients.length,
+                        itemBuilder: (_, i) =>
+                            _PatientRow(patient: state.patients[i]),
+                      ),
+                    ),
+                ],
+              );
+            }
+            if (state is PatientsError) {
+              return NubiaErrorWidget(
+                message: state.message,
+                onRetry: () => context
+                    .read<PatientsBloc>()
+                    .add(const PatientsLoadRequested()),
+              );
+            }
+            // PatientsInitial, PatientsLoading
+            return const _PatientsSkeleton();
+          },
+        ),
       ),
     );
   }
