@@ -877,6 +877,7 @@ class _PatientSheetState extends State<_PatientSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _PatientSheetAlertsBanner(alerts: _alerts, error: _alertsError),
             Row(
               children: [
                 NubiaAvatar(
@@ -892,10 +893,6 @@ class _PatientSheetState extends State<_PatientSheet> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
-                _PatientSheetAlertIndicator(
-                  alerts: _alerts,
-                  error: _alertsError,
                 ),
                 IconButton(
                   key: const Key('patient_sheet_close'),
@@ -979,50 +976,109 @@ class _PatientSheetState extends State<_PatientSheet> {
   }
 }
 
-/// Indicateur d'alertes de l'en-tête de fiche (design-v2, #5115) : alimenté
-/// par le chargement unique de [_PatientSheetState] — plus de second appel
+/// Bloc d'alertes en tête de fiche (design-v2, #5114) : alimenté par le
+/// chargement unique de [_PatientSheetState] — plus de second appel
 /// `ListPatientAlertsUseCase` redondant avec celui déjà fait pour le badge
-/// de la ligne du tableau (`PatientAlertBadge`). Best-effort (#4093/#4094) :
-/// un échec n'empêche pas de consulter le reste de la fiche, mais devient
-/// visible (icône d'erreur + tooltip) au lieu d'un `SizedBox.shrink()`
-/// silencieux.
-class _PatientSheetAlertIndicator extends StatelessWidget {
-  const _PatientSheetAlertIndicator({
-    required this.alerts,
-    required this.error,
-  });
+/// de la ligne du tableau (`PatientAlertBadge`). Le détail de chaque alerte
+/// s'affiche désormais en clair (une puce par alerte) au lieu d'un tooltip
+/// sur une icône (note #2 de la maquette). Best-effort (#4093/#4094) : un
+/// échec n'empêche pas de consulter le reste de la fiche, mais devient
+/// visible au lieu d'un `SizedBox.shrink()` silencieux. Cloisonnement :
+/// `PatientAlert.message` ne contient que du texte administratif, zéro
+/// donnée clinique.
+class _PatientSheetAlertsBanner extends StatelessWidget {
+  const _PatientSheetAlertsBanner({required this.alerts, required this.error});
 
   final List<PatientAlert>? alerts;
   final String? error;
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
     if (error != null) {
       return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Tooltip(
-          message: 'Alertes indisponibles : $error',
-          child: Icon(
-            Icons.error_outline,
-            key: const Key('patient_sheet_alerts_error'),
-            size: 20,
-            color: cs.error,
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Container(
+          key: const Key('patient_sheet_alerts_error'),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: tokens.dangerBg,
+            border: Border.all(color: NubiaColors.dangerBorder),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.error, color: tokens.dangerFg, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Alertes accueil indisponibles.',
+                  style: textTheme.bodyMedium?.copyWith(color: tokens.dangerFg),
+                ),
+              ),
+            ],
           ),
         ),
       );
     }
+
     final list = alerts ?? const [];
     if (list.isEmpty) return const SizedBox.shrink();
+
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Tooltip(
-        message: list.map((a) => a.message).join('\n'),
-        child: Icon(
-          Icons.warning_amber_outlined,
-          key: const Key('patient_sheet_alerts'),
-          size: 20,
-          color: cs.error,
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Container(
+        key: const Key('patient_sheet_alerts_banner'),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: tokens.dangerBg,
+          border: Border.all(color: NubiaColors.dangerBorder),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.error, color: tokens.dangerFg, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${list.length} alerte${list.length > 1 ? 's' : ''}'
+                    ' accueil',
+                    style: textTheme.titleSmall?.copyWith(
+                      color: tokens.dangerFg,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final alert in list)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '• ',
+                      style:
+                          textTheme.bodyMedium?.copyWith(color: tokens.dangerFg),
+                    ),
+                    Expanded(
+                      child: Text(
+                        alert.message,
+                        style: textTheme.bodyMedium
+                            ?.copyWith(color: tokens.dangerFg),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
     );
