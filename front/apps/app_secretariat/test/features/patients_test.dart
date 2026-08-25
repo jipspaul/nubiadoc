@@ -377,8 +377,7 @@ void main() {
 
     // ── Tableau cinq colonnes (#5117) ───────────────────────────────────
 
-    testWidgets(
-        'affiche les cinq en-têtes de colonnes (design-v2, note #5)',
+    testWidgets('affiche les cinq en-têtes de colonnes (design-v2, note #5)',
         (tester) async {
       when(() => bloc.state).thenReturn(
         PatientsLoaded([
@@ -402,8 +401,7 @@ void main() {
       expect(find.text('Alertes & étiquettes'), findsOneWidget);
     });
 
-    testWidgets(
-        'colonne Patient : date de naissance · âge sous le nom',
+    testWidgets('colonne Patient : date de naissance · âge sous le nom',
         (tester) async {
       when(() => bloc.state).thenReturn(
         PatientsLoaded([
@@ -423,8 +421,7 @@ void main() {
       expect(find.textContaining('07/06/1985'), findsOneWidget);
     });
 
-    testWidgets(
-        '« Dernière visite » affiche — quand lastVisitAt est absent',
+    testWidgets('« Dernière visite » affiche — quand lastVisitAt est absent',
         (tester) async {
       when(() => bloc.state).thenReturn(
         PatientsLoaded([
@@ -452,8 +449,7 @@ void main() {
       expect(find.text('22/07/2026'), findsOneWidget);
     });
 
-    testWidgets(
-        'solde : rouge « 148,50 € » si dû, gris « 0,00 € » si à jour',
+    testWidgets('solde : rouge « 148,50 € » si dû, gris « 0,00 € » si à jour',
         (tester) async {
       when(() => bloc.state).thenReturn(
         PatientsLoaded([
@@ -513,6 +509,15 @@ void main() {
     testWidgets(
         'fiche patient — bandeau de cloisonnement précisant le cas « AVK »',
         (tester) async {
+      // Volet latéral (#5116) : la table 5 colonnes + le volet 396px ne
+      // tiennent que sur un écran large (maquette design-v2, note #4 —
+      // « écran de 1360 px ») — la surface de test par défaut (800px) est
+      // trop étroite une fois le volet ouvert.
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       final patient = CabinetPatient(
         id: 'p1',
         cabinetId: 'c1',
@@ -533,8 +538,7 @@ void main() {
       GetIt.instance.registerFactory<ListPatientTagsUseCase>(() => listTags);
 
       final listDocuments = _MockListPatientDocuments();
-      when(() => listDocuments(any()))
-          .thenAnswer((_) async => const Right([]));
+      when(() => listDocuments(any())).thenAnswer((_) async => const Right([]));
       GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
         () => listDocuments,
       );
@@ -558,6 +562,148 @@ void main() {
         find.textContaining("consigne d'accueil"),
         findsOneWidget,
       );
+    });
+
+    // ── Volet latéral (#5116) ────────────────────────────────────────────
+
+    group('volet latéral fiche patient', () {
+      late CabinetPatient alice;
+      late CabinetPatient bob;
+
+      setUp(() {
+        alice = CabinetPatient(
+          id: 'p1',
+          cabinetId: 'c1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          createdAt: DateTime(2026, 1, 1),
+        );
+        bob = CabinetPatient(
+          id: 'p2',
+          cabinetId: 'c1',
+          firstName: 'Bob',
+          lastName: 'Dupont',
+          createdAt: DateTime(2026, 1, 1),
+        );
+
+        final getPatient = _MockGetCabinetPatient();
+        when(() => getPatient(any())).thenAnswer(
+          (invocation) async => Right(
+            invocation.positionalArguments.first == alice.id ? alice : bob,
+          ),
+        );
+        GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
+          () => getPatient,
+        );
+
+        final listTags = _MockListPatientTags();
+        when(() => listTags(any())).thenAnswer((_) async => const Right([]));
+        GetIt.instance.registerFactory<ListPatientTagsUseCase>(() => listTags);
+
+        final listDocuments = _MockListPatientDocuments();
+        when(() => listDocuments(any()))
+            .thenAnswer((_) async => const Right([]));
+        GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
+          () => listDocuments,
+        );
+      });
+
+      testWidgets(
+          'la liste reste visible et navigable quand le volet est ouvert',
+          (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        // Le volet est ouvert…
+        expect(find.byKey(const Key('patient_sheet_p1')), findsOneWidget);
+        // …et la table (liste) reste affichée, avec les deux lignes.
+        expect(find.byType(PatientsTableHeader), findsOneWidget);
+        expect(find.byType(PatientTableRow), findsNWidgets(2));
+      });
+
+      testWidgets(
+          'sélectionner un autre patient met à jour le volet sans le fermer',
+          (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('patient_sheet_p1')), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('patient_row_p2')));
+        await tester.pumpAndSettle();
+
+        // Le volet précédent a disparu, le nouveau est affiché — sans
+        // repasser par un état "fermé" intermédiaire côté widget tree.
+        expect(find.byKey(const Key('patient_sheet_p1')), findsNothing);
+        expect(find.byKey(const Key('patient_sheet_p2')), findsOneWidget);
+      });
+
+      testWidgets(
+          'la ligne sélectionnée est surlignée (fond brand50 + accent gauche)',
+          (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        final selectedRow = tester.widget<Container>(
+          find.byKey(const Key('patient_row_p1')),
+        );
+        expect(selectedRow.color, NubiaColors.brand50);
+        final decoration = selectedRow.foregroundDecoration as BoxDecoration;
+        final border = decoration.border! as Border;
+        expect(border.left.color, NubiaColors.brand700);
+
+        final unselectedRow = tester.widget<Container>(
+          find.byKey(const Key('patient_row_p2')),
+        );
+        expect(unselectedRow.color, Colors.transparent);
+      });
+
+      testWidgets('le volet a un bouton de fermeture explicite',
+          (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('patient_sheet_p1')), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('patient_sheet_close')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('patient_sheet_p1')), findsNothing);
+      });
     });
 
     // ── Filtres rapides (#5118) ─────────────────────────────────────────
