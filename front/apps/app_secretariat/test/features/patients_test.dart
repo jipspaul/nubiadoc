@@ -252,9 +252,9 @@ void main() {
 
     setUp(() {
       bloc = _MockPatientsBloc();
-      // PatientAlertBadge (#4093/#4094) fetch son propre use case via GetIt,
-      // indépendamment du PatientsBloc mocké ci-dessus — sans ça, chaque
-      // ligne lève un GetIt StateError au premier build.
+      // _PatientSheet (#4093/#4094) fetch son propre use case via GetIt à
+      // l'ouverture de la fiche, indépendamment du PatientsBloc mocké
+      // ci-dessus — sans ça, ouvrir une fiche lève un GetIt StateError.
       final listAlerts = _MockListPatientAlerts();
       when(() => listAlerts(any())).thenAnswer((_) async => const Right([]));
       GetIt.instance.registerFactory<ListPatientAlertsUseCase>(

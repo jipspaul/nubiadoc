@@ -647,7 +647,7 @@ class PatientTableRow extends StatelessWidget {
               width: _PatientColumns.alerts,
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: PatientAlertBadge(patientId: patient.id),
+                child: PatientAlertBadge(patient: patient),
               ),
             ),
             const SizedBox(width: _PatientColumns.gap),
@@ -691,54 +691,119 @@ class PatientTableRow extends StatelessWidget {
   }
 }
 
-/// Badge d'alertes accueil (#4093/#4094) : icône + tooltip listant les
-/// messages, masqué (zéro largeur) si aucune alerte ou en cas d'erreur —
-/// même best-effort que `PatientBalanceSection` (une ligne/fiche patient
-/// reste consultable même si les alertes ne chargent pas). Fetch par ligne
-/// (pas d'endpoint bulk) : acceptable pour une liste secrétariat de taille
-/// bornée (dizaines, pas milliers, de patients par cabinet).
-class PatientAlertBadge extends StatefulWidget {
-  const PatientAlertBadge({super.key, required this.patientId});
+/// Sévérité d'une pastille d'alerte/étiquette (design-v2, note #2), mappée
+/// sur les tokens sémantiques Nubia.
+enum _AlertSeverity { danger, warn, info, neutral }
 
-  final String patientId;
+class _AlertPastilleData {
+  const _AlertPastilleData(this.label, this.severity);
 
-  @override
-  State<PatientAlertBadge> createState() => _PatientAlertBadgeState();
+  final String label;
+  final _AlertSeverity severity;
 }
 
-class _PatientAlertBadgeState extends State<PatientAlertBadge> {
-  List<PatientAlert>? _alerts;
+/// Pastilles d'alerte/étiquette accueil (#4093/#4094, design-v2 note #2) :
+/// remplace l'ancien `Tooltip` sur icône, dont le contenu n'apparaissait
+/// qu'au survol (jamais au clavier). Lues directement depuis les champs déjà
+/// chargés par la liste (`CabinetPatient`) — plus de fetch par ligne. Même
+/// best-effort qu'avant : `hasActiveAlerts`/`noShowCount`/`guardians`
+/// restent `null` tant que l'endpoint liste n'est pas enrichi (ticket
+/// dépendant), la ligne s'affiche alors simplement sans pastille.
+class PatientAlertBadge extends StatelessWidget {
+  const PatientAlertBadge({super.key, required this.patient});
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  final CabinetPatient patient;
 
-  Future<void> _load() async {
-    final result =
-        await GetIt.instance<ListPatientAlertsUseCase>()(widget.patientId);
-    if (!mounted) return;
-    result.fold(
-      (_) {}, // Best-effort : silencieux en cas d'erreur, pas de blocage.
-      (alerts) => setState(() => _alerts = alerts),
-    );
+  List<_AlertPastilleData> get _pastilles {
+    final pastilles = <_AlertPastilleData>[];
+    final balanceDue = patient.balanceDueCents ?? 0;
+    if (balanceDue > 0) {
+      pastilles
+          .add(const _AlertPastilleData('Impayé', _AlertSeverity.danger));
+    } else if (patient.hasActiveAlerts == true) {
+      pastilles.add(
+        const _AlertPastilleData('Alerte accueil', _AlertSeverity.danger),
+      );
+    }
+    final noShowCount = patient.noShowCount ?? 0;
+    if (noShowCount > 0) {
+      pastilles.add(
+        _AlertPastilleData(
+          '$noShowCount lapin${noShowCount > 1 ? 's' : ''}',
+          _AlertSeverity.warn,
+        ),
+      );
+    }
+    if ((patient.guardians ?? const []).isNotEmpty) {
+      pastilles.add(
+        const _AlertPastilleData('Mineur · tuteur', _AlertSeverity.info),
+      );
+    }
+    return pastilles;
   }
 
   @override
   Widget build(BuildContext context) {
-    final alerts = _alerts;
-    if (alerts == null || alerts.isEmpty) return const SizedBox.shrink();
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Tooltip(
-        message: alerts.map((a) => a.message).join('\n'),
-        child: Icon(
-          Icons.warning_amber_outlined,
-          key: const Key('patient_alert_badge'),
-          size: 20,
-          color: cs.error,
+    final pastilles = _pastilles;
+    if (pastilles.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      key: const Key('patient_alert_badge'),
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        for (final pastille in pastilles) _AlertPastille(data: pastille),
+      ],
+    );
+  }
+}
+
+/// Étiquette design-v2 : `font-size:10.5px;font-weight:600;
+/// border-radius:5px;padding:2px 7px` (verbatim maquette, note #2).
+class _AlertPastille extends StatelessWidget {
+  const _AlertPastille({required this.data});
+
+  final _AlertPastilleData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final (Color bg, Color fg, Color border) = switch (data.severity) {
+      _AlertSeverity.danger => (
+          tokens.dangerBg,
+          tokens.dangerFg,
+          NubiaColors.dangerBorder
+        ),
+      _AlertSeverity.warn => (
+          tokens.warningBg,
+          tokens.warningFg,
+          NubiaColors.warningBorder
+        ),
+      _AlertSeverity.info => (
+          tokens.infoBg,
+          tokens.infoFg,
+          NubiaColors.infoBorder
+        ),
+      _AlertSeverity.neutral => (
+          tokens.neutralBg,
+          tokens.neutralFg,
+          NubiaColors.n200
+        ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        data.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          color: fg,
         ),
       ),
     );
@@ -977,15 +1042,16 @@ class _PatientSheetState extends State<_PatientSheet> {
 }
 
 /// Bloc d'alertes en tête de fiche (design-v2, #5114) : alimenté par le
-/// chargement unique de [_PatientSheetState] — plus de second appel
-/// `ListPatientAlertsUseCase` redondant avec celui déjà fait pour le badge
-/// de la ligne du tableau (`PatientAlertBadge`). Le détail de chaque alerte
-/// s'affiche désormais en clair (une puce par alerte) au lieu d'un tooltip
-/// sur une icône (note #2 de la maquette). Best-effort (#4093/#4094) : un
-/// échec n'empêche pas de consulter le reste de la fiche, mais devient
-/// visible au lieu d'un `SizedBox.shrink()` silencieux. Cloisonnement :
-/// `PatientAlert.message` ne contient que du texte administratif, zéro
-/// donnée clinique.
+/// chargement unique de [_PatientSheetState] via `ListPatientAlertsUseCase`
+/// — distinct des pastilles de la colonne « Alertes & étiquettes » de la
+/// liste (`PatientAlertBadge`, #5113), qui lisent leurs propres champs déjà
+/// présents sur `CabinetPatient` sans appeler ce use case. Le détail de
+/// chaque alerte s'affiche en clair (une puce par alerte) au lieu d'un
+/// tooltip sur une icône (note #2 de la maquette). Best-effort
+/// (#4093/#4094) : un échec n'empêche pas de consulter le reste de la
+/// fiche, mais devient visible au lieu d'un `SizedBox.shrink()` silencieux.
+/// Cloisonnement : `PatientAlert.message` ne contient que du texte
+/// administratif, zéro donnée clinique.
 class _PatientSheetAlertsBanner extends StatelessWidget {
   const _PatientSheetAlertsBanner({required this.alerts, required this.error});
 

@@ -1,62 +1,85 @@
-//! Tests widget : `PatientAlertBadge` (#4093/#4094) — liste avec/sans alerte.
+//! Tests widget : `PatientAlertBadge` (#4093/#4094, design-v2 #5113) —
+//! pastilles lisibles en colonne, lues depuis `CabinetPatient` (liste),
+//! sans fetch ni `Tooltip`.
 
-import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:get_it/get_it.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_secretariat/features/patients/patients_page.dart';
 
-class _MockListPatientAlerts extends Mock implements ListPatientAlertsUseCase {}
-
 void main() {
-  late _MockListPatientAlerts listAlerts;
+  CabinetPatient patient({
+    int? balanceDueCents,
+    bool? hasActiveAlerts,
+    int? noShowCount,
+    List<GuardianshipLink>? guardians,
+  }) =>
+      CabinetPatient(
+        id: 'patient-1',
+        cabinetId: 'c1',
+        firstName: 'Alice',
+        lastName: 'Martin',
+        createdAt: DateTime(2026, 1, 1),
+        balanceDueCents: balanceDueCents,
+        hasActiveAlerts: hasActiveAlerts,
+        noShowCount: noShowCount,
+        guardians: guardians,
+      );
 
-  setUp(() {
-    listAlerts = _MockListPatientAlerts();
-    GetIt.instance.registerFactory<ListPatientAlertsUseCase>(() => listAlerts);
-    addTearDown(GetIt.instance.reset);
-  });
-
-  Widget buildBadge() => MaterialApp(
+  Widget buildBadge(CabinetPatient patient) => MaterialApp(
         theme: NubiaTheme.light,
         home: Scaffold(
-          body: const PatientAlertBadge(patientId: 'patient-1'),
+          body: PatientAlertBadge(patient: patient),
         ),
       );
 
-  testWidgets('aucune alerte — badge masqué', (tester) async {
-    when(() => listAlerts('patient-1'))
-        .thenAnswer((_) async => const Right([]));
-
-    await tester.pumpWidget(buildBadge());
+  testWidgets('aucune donnée d\'alerte — pastille masquée', (tester) async {
+    await tester.pumpWidget(buildBadge(patient()));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('patient_alert_badge')), findsNothing);
   });
 
-  testWidgets('au moins une alerte — badge visible avec tooltip',
+  testWidgets('solde dû — pastille « Impayé » lisible sans survol',
       (tester) async {
-    when(() => listAlerts('patient-1')).thenAnswer(
-      (_) async => const Right([
-        PatientAlert(
-          kind: 'unpaid_invoice',
-          message: 'Facture signée impayée depuis plus de 30 jours.',
-        ),
-      ]),
-    );
-
-    await tester.pumpWidget(buildBadge());
+    await tester.pumpWidget(buildBadge(patient(balanceDueCents: 14850)));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('patient_alert_badge')), findsOneWidget);
-    final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
-    expect(
-      tooltip.message,
-      'Facture signée impayée depuis plus de 30 jours.',
-    );
+    expect(find.text('Impayé'), findsOneWidget);
+    // Note #2 de la maquette : plus de `Tooltip`, le texte est déjà là.
+    expect(find.byType(Tooltip), findsNothing);
+  });
+
+  testWidgets('rendez-vous manqués — pastille « N lapins »', (tester) async {
+    await tester.pumpWidget(buildBadge(patient(noShowCount: 2)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 lapins'), findsOneWidget);
+  });
+
+  testWidgets('tuteur renseigné — pastille « Mineur · tuteur »',
+      (tester) async {
+    await tester.pumpWidget(buildBadge(patient(guardians: const [
+      GuardianshipLink(
+        accountId: 'g1',
+        firstName: 'Paul',
+        lastName: 'Martin',
+        relationship: 'parent',
+      ),
+    ])));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mineur · tuteur'), findsOneWidget);
+  });
+
+  testWidgets('alerte accueil active sans solde dû — pastille dédiée',
+      (tester) async {
+    await tester.pumpWidget(buildBadge(patient(hasActiveAlerts: true)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alerte accueil'), findsOneWidget);
   });
 }
