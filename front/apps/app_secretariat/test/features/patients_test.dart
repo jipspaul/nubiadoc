@@ -704,6 +704,87 @@ void main() {
 
         expect(find.byKey(const Key('patient_sheet_p1')), findsNothing);
       });
+
+      // ── Détail des alertes en clair dans la fiche (#5114) ──────────────
+      testWidgets(
+          'affiche le détail des alertes en clair, sans survol, avec le '
+          'décompte en titre', (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        GetIt.instance.unregister<ListPatientAlertsUseCase>();
+        final listAlerts = _MockListPatientAlerts();
+        when(() => listAlerts(any())).thenAnswer(
+          (_) async => const Right([
+            PatientAlert(
+              kind: 'unpaid_invoice',
+              message:
+                  'Solde impayé de 148,50 € depuis la facture du 22/07.',
+            ),
+            PatientAlert(
+              kind: 'missed_appointment',
+              message: 'Deux rendez-vous non honorés en 2026 — prévenir la '
+                  'veille.',
+            ),
+          ]),
+        );
+        GetIt.instance.registerFactory<ListPatientAlertsUseCase>(
+          () => listAlerts,
+        );
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('patient_sheet_alerts_banner')),
+          findsOneWidget,
+        );
+        expect(find.text('2 alertes accueil'), findsOneWidget);
+        expect(
+          find.text('Solde impayé de 148,50 € depuis la facture du 22/07.'),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            'Deux rendez-vous non honorés en 2026 — prévenir la veille.',
+          ),
+          findsOneWidget,
+        );
+        // « en clair », donc sans survol : pas de Tooltip dans le bloc lui-
+        // même (la table conserve son propre badge à tooltip, hors scope).
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('patient_sheet_alerts_banner')),
+            matching: find.byType(Tooltip),
+          ),
+          findsNothing,
+        );
+      });
+
+      testWidgets('aucune alerte — le bloc n\'apparaît pas', (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('patient_sheet_alerts_banner')),
+          findsNothing,
+        );
+      });
     });
 
     // ── Filtres rapides (#5118) ─────────────────────────────────────────
