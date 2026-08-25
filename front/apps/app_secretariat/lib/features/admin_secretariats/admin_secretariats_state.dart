@@ -1,27 +1,27 @@
 import 'package:equatable/equatable.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
-sealed class AdminSecretiariatsState extends Equatable {
-  const AdminSecretiariatsState();
+sealed class AdminSecretariatsState extends Equatable {
+  const AdminSecretariatsState();
 
   @override
   List<Object?> get props => [];
 }
 
-final class AdminSecretiariatsInitial extends AdminSecretiariatsState {
-  const AdminSecretiariatsInitial();
+final class AdminSecretariatsInitial extends AdminSecretariatsState {
+  const AdminSecretariatsInitial();
 }
 
-final class AdminSecretiariatsLoading extends AdminSecretiariatsState {
-  const AdminSecretiariatsLoading();
+final class AdminSecretariatsLoading extends AdminSecretariatsState {
+  const AdminSecretariatsLoading();
 }
 
-final class AdminSecretiariatsEmpty extends AdminSecretiariatsState {
-  const AdminSecretiariatsEmpty();
+final class AdminSecretariatsEmpty extends AdminSecretariatsState {
+  const AdminSecretariatsEmpty();
 }
 
-final class AdminSecretiariatsLoaded extends AdminSecretiariatsState {
-  const AdminSecretiariatsLoaded({required this.secretariats});
+final class AdminSecretariatsLoaded extends AdminSecretariatsState {
+  const AdminSecretariatsLoaded({required this.secretariats});
 
   final List<Secretariat> secretariats;
 
@@ -31,8 +31,8 @@ final class AdminSecretiariatsLoaded extends AdminSecretiariatsState {
 
 /// Invitation envoyée — état transitoire consommé par la page (snackbar)
 /// avant le rechargement de la liste.
-final class AdminSecretiariatsInviteSent extends AdminSecretiariatsState {
-  const AdminSecretiariatsInviteSent(this.email);
+final class AdminSecretariatsInviteSent extends AdminSecretariatsState {
+  const AdminSecretariatsInviteSent(this.email);
 
   final String email;
 
@@ -41,8 +41,8 @@ final class AdminSecretiariatsInviteSent extends AdminSecretiariatsState {
 }
 
 /// Échec d'invitation — la liste courante reste affichée derrière.
-final class AdminSecretiariatsInviteFailed extends AdminSecretiariatsState {
-  const AdminSecretiariatsInviteFailed(this.message);
+final class AdminSecretariatsInviteFailed extends AdminSecretariatsState {
+  const AdminSecretariatsInviteFailed(this.message);
 
   final String message;
 
@@ -50,8 +50,8 @@ final class AdminSecretiariatsInviteFailed extends AdminSecretiariatsState {
   List<Object?> get props => [message];
 }
 
-final class AdminSecretiariatsError extends AdminSecretiariatsState {
-  const AdminSecretiariatsError(this.message);
+final class AdminSecretariatsError extends AdminSecretariatsState {
+  const AdminSecretariatsError(this.message);
 
   final String message;
 

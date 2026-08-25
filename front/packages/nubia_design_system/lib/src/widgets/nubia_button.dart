@@ -47,7 +47,23 @@ class NubiaButton extends StatelessWidget {
     this.size = NubiaButtonSize.md,
     this.icon,
     this.isLoading = false,
-  });
+  })  : _iconOnly = false,
+        _diameter = 0;
+
+  /// Variante icône seule, circulaire (ex : envoi de message) — sans label.
+  ///
+  /// [diameter] : diamètre du cercle (42 par défaut).
+  const NubiaButton.icon({
+    super.key,
+    required IconData this.icon,
+    this.onPressed,
+    this.variant = NubiaButtonVariant.primary,
+    this.isLoading = false,
+    double diameter = 42,
+  })  : label = '',
+        size = NubiaButtonSize.md,
+        _iconOnly = true,
+        _diameter = diameter;
 
   final String label;
   final VoidCallback? onPressed;
@@ -55,10 +71,23 @@ class NubiaButton extends StatelessWidget {
   final NubiaButtonSize size;
   final IconData? icon;
   final bool isLoading;
+  final bool _iconOnly;
+  final double _diameter;
 
   @override
   Widget build(BuildContext context) {
     final bool disabled = onPressed == null || isLoading;
+
+    if (_iconOnly) {
+      return _IconOnlyBtn(
+        icon: icon!,
+        onPressed: disabled ? null : onPressed,
+        variant: variant,
+        isLoading: isLoading,
+        diameter: _diameter,
+      );
+    }
+
     final _SizeTokens sizeTokens = _SizeTokens.of(size);
 
     final Widget child = _ButtonContent(
@@ -266,6 +295,56 @@ class _TextBtn extends StatelessWidget {
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         child: child,
+      ),
+    );
+  }
+}
+
+class _IconOnlyBtn extends StatelessWidget {
+  const _IconOnlyBtn({
+    required this.icon,
+    required this.onPressed,
+    required this.variant,
+    required this.isLoading,
+    required this.diameter,
+  });
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final NubiaButtonVariant variant;
+  final bool isLoading;
+  final double diameter;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final bool destructive = variant == NubiaButtonVariant.destructive;
+    final Color background = destructive ? cs.error : cs.primary;
+    final Color foreground = destructive ? cs.onError : cs.onPrimary;
+
+    return SizedBox(
+      width: diameter,
+      height: diameter,
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          shape: const CircleBorder(),
+          backgroundColor: background,
+          foregroundColor: foreground,
+          padding: EdgeInsets.zero,
+          minimumSize: Size(diameter, diameter),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        child: isLoading
+            ? SizedBox(
+                width: diameter * 0.45,
+                height: diameter * 0.45,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: foreground,
+                ),
+              )
+            : Icon(icon, size: diameter * 0.48),
       ),
     );
   }

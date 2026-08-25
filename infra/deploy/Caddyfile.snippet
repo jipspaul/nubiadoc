@@ -40,12 +40,12 @@ api.nubia.example.com {
 }
 
 # Tunnel web de réservation, HTML rendu côté serveur (ADR-013, #5356) — module
-# api/src/web_tunnel/, routeur/port dédiés (WEB_TUNNEL_PORT, défaut 3001),
-# distinct du routeur /v1 de l'API. Sous-domaine séparé de `patient` (et non
-# un path-routing sur ce dernier) : les 3 pages du tunnel (/reservation/confirmer,
-# /<query_slug>/<locality_slug>, /<slug>) utilisent des chemins à un ou deux
-# segments qui entreraient en collision avec les routes GoRouter de l'app
-# Flutter patient (ex. /pharmacy, /login) si elles partageaient le domaine.
-reservation.nubia.example.com {
-    reverse_proxy 192.168.1.100:3001
-}
+# api/src/web_tunnel/. Pas de sous-domaine/bloc dédié ici : #5628 a montré
+# qu'un port séparé (WEB_TUNNEL_PORT) nécessitait un nouveau sous-domaine +
+# certificat TLS jamais raccordés sur le Caddy réel de l'hôte (config
+# manuelle, hors dépôt) — la fonctionnalité restait donc invisible malgré un
+# code fonctionnellement correct. Les 3 pages du tunnel (/reservation/confirmer,
+# /<query_slug>/<locality_slug>, /<slug>) sont désormais mergées dans le
+# routeur de l'API (même port, cf. main.rs) : le bloc `api` ci-dessus les
+# sert déjà, sans action supplémentaire côté Caddy. Pas de collision avec
+# /v1/... (préfixe fixe, jamais capturé par ces catch-all à 1/2 segments).

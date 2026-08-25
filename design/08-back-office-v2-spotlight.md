@@ -53,4 +53,12 @@ Le comparatif aligne, pour chaque besoin, l'écran V1 et son équivalent V2 :
 2. **Périmètre de l'assistant** au lancement : lecture seule (résumés/chiffres) vs. génération de vues vs. déclenchement d'actions (toujours validées).
 3. **Séquencement** : l'assistant IA est explicitement **post-traction** (`CLAUDE.md`) → la V2 *sans* assistant (juste Spotlight + fenêtres) est-elle livrable plus tôt ?
 
+## 7. Constat IA à traiter — shell app_secretariat (#5174)
+
+Hors périmètre design-v2 (aucun changement de shell/routeur dans cette itération), mais à signaler comme chantier d'architecture d'information distinct à planifier, aussi bien pour la V1 (sidebar) que pour la V2 (Spotlight) :
+
+- `front/apps/app_secretariat/lib/router/app_router.dart` déclare **14 destinations de premier niveau sans hiérarchie** (`AppRouter`, lignes 51→71).
+- Deux d'entre elles ont des noms quasi identiques : `salleAttente = '/salle-attente'` (ligne 59) et `listeAttente = '/liste-attente'` (ligne 67) — deux écrans distincts (`waiting_room_page.dart` vs `waiting_list_page.dart`), risque de confusion en navigation comme en maintenance.
+- Ce constat renforce le sujet déjà ouvert en §6 (V1 sidebar plate vs V2 Spotlight) : la refonte du shell (`ProShell`, cf. doc de `waiting_room_page.dart`) devra regrouper ces destinations par hiérarchie/famille (ex. « file d'attente » comme parent de salle d'attente + liste d'attente) et lever l'ambiguïté de nommage.
+
 > Maquettes : `mockups/Nubia Spotlight.html` (vivant), `mockups/Nubia Comparatif.html` (V1⟷V2 figé). Stories back-office : `user-stories.md` §H-J + §P. Specs API : `../docs/06` §WS7.

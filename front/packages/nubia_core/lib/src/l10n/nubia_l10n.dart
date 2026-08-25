@@ -16,6 +16,11 @@ abstract final class NubiaL10n {
   static const noWaitingRoom = "Aucun patient en salle d'attente.";
   static const noNotifications = 'Aucune notification.';
   static const callNext = 'Appeler suivant';
+  static const call = 'Appeler';
+
+  /// Libellé de l'action call-next nommant explicitement la tête de file
+  /// (ex. « Appeler Marc Dubois »).
+  static String callNextNamed(String patientName) => 'Appeler $patientName';
   static const patients = 'Patients';
   static const quotes = 'Devis';
   static const waitingRoom = "Salle d'attente";

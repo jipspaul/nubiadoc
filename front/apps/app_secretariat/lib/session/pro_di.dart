@@ -111,7 +111,7 @@ void registerPro(GetIt gi) {
     ..registerFactory<AdminMembresBloc>(
       () => AdminMembresBloc(
         listMembers: gi<ListMembersUseCase>(),
-        listSecretariats: gi<ListSecretiariatsUseCase>(),
+        listSecretariats: gi<ListSecretariatsUseCase>(),
         inviteMember: gi<InviteMemberUseCase>(),
       ),
     )
@@ -126,9 +126,9 @@ void registerPro(GetIt gi) {
         delete: gi<DeleteAppointmentMotifUseCase>(),
       ),
     )
-    ..registerFactory<AdminSecretiariatsBloc>(
-      () => AdminSecretiariatsBloc(
-        listSecretariats: gi<ListSecretiariatsUseCase>(),
+    ..registerFactory<AdminSecretariatsBloc>(
+      () => AdminSecretariatsBloc(
+        listSecretariats: gi<ListSecretariatsUseCase>(),
         addSecretariat: gi<AddSecretariatUseCase>(),
       ),
     )
@@ -152,6 +152,7 @@ void registerPro(GetIt gi) {
       () => StockBloc(
         list: gi<ListStockRequestsUseCase>(),
         create: gi<CreateStockRequestUseCase>(),
+        resend: gi<ResendStockRequestUseCase>(),
       ),
     )
     ..registerFactory<CabinetStatsBloc>(

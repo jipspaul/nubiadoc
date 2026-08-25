@@ -160,11 +160,11 @@ class _PlanCard extends StatelessWidget {
                 Expanded(
                   child: Text(plan.title, style: textTheme.titleMedium),
                 ),
-                Text(
-                  plan.status,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                StatusPill(
+                  label: treatmentPlanStatusLabels[plan.status] ??
+                      plan.status,
+                  variant: treatmentPlanStatusVariants[plan.status] ??
+                      StatusPillVariant.info,
                 ),
               ],
             ),
@@ -186,7 +186,12 @@ class _PlanCard extends StatelessWidget {
                       Expanded(
                         child: Text(phase.title, style: textTheme.bodyMedium),
                       ),
-                      Text(phase.status, style: textTheme.bodySmall),
+                      StatusPill(
+                        label: treatmentPlanStatusLabels[phase.status] ??
+                            phase.status,
+                        variant: treatmentPlanStatusVariants[phase.status] ??
+                            StatusPillVariant.info,
+                      ),
                     ],
                   ),
                 ),

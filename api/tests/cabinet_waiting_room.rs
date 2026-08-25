@@ -301,6 +301,18 @@ async fn waiting_room_pro_sees_initials() {
         data[0].get("wait_minutes").is_some(),
         "wait_minutes doit être présent"
     );
+    // #5168 : colonne Praticien salle d'attente — même practitioner_id/nom que
+    // l'agenda, résolu via provider.display_name (LEFT JOIN, cf. agenda_page).
+    assert_eq!(
+        data[0]["practitioner_id"].as_str().unwrap(),
+        f.prac_id.to_string(),
+        "practitioner_id doit être présent"
+    );
+    assert_eq!(
+        data[0]["practitioner_name"].as_str().unwrap(),
+        format!("Dr WR {}", f.prac_id),
+        "practitioner_name doit refléter provider.display_name"
+    );
 
     cleanup(&db, f.cabinet_id, f.prac_user_id).await;
 }

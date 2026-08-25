@@ -107,6 +107,28 @@ void main() {
       ),
     ];
 
+    const coloredBadgeDestinations = [
+      ProNavDestination(
+        label: 'Salle d\'attente',
+        icon: Icons.meeting_room,
+        route: '/salle-attente',
+        badgeCount: 5,
+      ),
+      ProNavDestination(
+        label: 'Demandes de créneau',
+        icon: Icons.hourglass_top,
+        route: '/liste-attente',
+        badgeCount: 3,
+        badgeColor: ProNavBadgeColor.warning,
+      ),
+    ];
+
+    const coloredBadgeConfig = ProConfig(
+      appTitle: 'Nubia Pro',
+      spaceLabel: 'Cabinet Test',
+      destinations: coloredBadgeDestinations,
+    );
+
     const badgeConfig = ProConfig(
       appTitle: 'Nubia Pro',
       spaceLabel: 'Cabinet Test',
@@ -120,7 +142,7 @@ void main() {
     );
 
     testWidgets(
-      'badgeCount > 0 : badge rouge visible avec le compteur (rail desktop)',
+      'badgeCount > 0 : badge visible avec le compteur (rail desktop)',
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -134,6 +156,28 @@ void main() {
         final visible = badges.where((b) => b.isLabelVisible == true);
         expect(visible, hasLength(1));
         expect((visible.first.label as Text).data, '5');
+      },
+    );
+
+    testWidgets(
+      'badgeColor.brand → vert (--brand600), badgeColor.warning → ambre '
+      '(--warnFg) (#5142)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: coloredBadgeConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final badges = tester.widgetList<Badge>(find.byType(Badge)).toList();
+        final byLabel = {
+          for (final b in badges) (b.label as Text).data: b,
+        };
+
+        expect(byLabel['5']?.backgroundColor, NubiaColors.brand600);
+        expect(byLabel['3']?.backgroundColor, NubiaTokens.light.warningFg);
       },
     );
 
@@ -175,6 +219,134 @@ void main() {
         final visible = badges.where((b) => b.isLabelVisible == true);
         expect(visible, hasLength(1));
         expect((visible.first.label as Text).data, '5');
+      },
+    );
+  });
+
+  // --- Groupe repliable (#5139) -----------------------------------------
+  group('ProShell — groupe repliable', () {
+    const groupName = 'Réglages du cabinet';
+    const groupedDestinations = [
+      ProNavDestination(
+        label: 'Agenda',
+        icon: Icons.calendar_today,
+        route: '/agenda',
+      ),
+      ProNavDestination(
+        label: 'Statistiques',
+        icon: Icons.bar_chart,
+        route: '/cabinet-stats',
+        group: groupName,
+      ),
+      ProNavDestination(
+        label: 'Membres',
+        icon: Icons.group_outlined,
+        route: '/admin-membres',
+        group: groupName,
+      ),
+    ];
+
+    const groupedConfig = ProConfig(
+      appTitle: 'Nubia Pro',
+      spaceLabel: 'Cabinet Test',
+      destinations: groupedDestinations,
+      collapsedGroups: {groupName},
+    );
+
+    const session = AuthSession(
+      kind: UserKind.pro,
+      userId: 'user-5',
+      role: ProRole.secretary,
+    );
+
+    testWidgets(
+      'replié par défaut : les entrées du groupe sont masquées (drawer '
+      'mobile)',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(400, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: groupedConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.menu));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Agenda'), findsWidgets);
+        expect(find.text(groupName), findsOneWidget);
+        expect(find.text('Statistiques'), findsNothing);
+        expect(find.text('Membres'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      "cliquer l'en-tête révèle les entrées, recliquer les masque (drawer "
+      'mobile)',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(400, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: groupedConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.menu));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text(groupName));
+        await tester.pumpAndSettle();
+        expect(find.text('Statistiques'), findsOneWidget);
+        expect(find.text('Membres'), findsOneWidget);
+
+        await tester.tap(find.text(groupName));
+        await tester.pumpAndSettle();
+        expect(find.text('Statistiques'), findsNothing);
+        expect(find.text('Membres'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      "replié par défaut : les entrées du groupe sont masquées (rail "
+      'desktop)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: groupedConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Agenda'), findsWidgets);
+        expect(find.text(groupName), findsWidgets);
+        expect(find.text('Statistiques'), findsNothing);
+        expect(find.text('Membres'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      "l'entrée active d'un groupe replié reste visible (rail desktop)",
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(
+              config: groupedConfig,
+              session: session,
+              currentRoute: '/cabinet-stats',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Statistiques'), findsWidgets);
       },
     );
   });

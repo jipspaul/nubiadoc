@@ -1,5 +1,8 @@
 // lib/presentation/widgets/nubia_text_field.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../theme/nubia_colors.dart';
 
 /// Variantes du [NubiaTextField].
 enum NubiaTextFieldVariant {
@@ -24,13 +27,21 @@ enum NubiaTextFieldVariant {
   /// Champ téléphone : icône préfixe + clavier téléphone.
   phone,
 
+  /// Champ email : icône préfixe `mail` + clavier email.
+  email,
+
   /// Champ avec widget suffixe personnalisé (ex. unité, bouton).
   withSuffix,
+
+  /// Champ quantité : clavier numérique, pas à pas (+/-) et valeur
+  /// plancher [NubiaTextField.min] — saisie non numérique impossible.
+  numberStepper,
 }
 
-/// Champ texte Nubia : 6 variantes.
+/// Champ texte Nubia : 10 variantes.
 ///
-/// - [variant] : outlined / filled / search / password / multiline / withSuffix.
+/// - [variant] : outlined / filled / search / password / multiline / amount /
+///   phone / email / withSuffix / numberStepper.
 /// - [controller] : contrôleur Flutter standard.
 /// - [label] : libellé flottant.
 /// - [hint] : texte placeholder.
@@ -41,9 +52,12 @@ enum NubiaTextFieldVariant {
 ///   #4538 — un chat/composer doit pouvoir se soumettre ainsi, réflexe
 ///   universel). `null` par défaut : aucun changement de comportement pour
 ///   les champs existants qui ne le renseignent pas.
-/// - [borderRadius] : rayon du contour (variantes `outlined`/`multiline`
-///   uniquement, #4933). `null` par défaut : garde le rayon Material par
-///   défaut pour les champs existants qui ne le renseignent pas.
+/// - [borderRadius] : rayon du contour (variantes `outlined`/`multiline`/
+///   `email` uniquement, #4933). `null` par défaut : garde le rayon Material
+///   par défaut pour les champs existants qui ne le renseignent pas.
+/// - [min] : valeur plancher (variante `numberStepper` uniquement, #5177).
+///   `1` par défaut. Le bouton `-` est désactivé et toute saisie/valeur
+///   inférieure est ramenée à cette borne à la perte du focus.
 class NubiaTextField extends StatefulWidget {
   const NubiaTextField({
     super.key,
@@ -58,6 +72,7 @@ class NubiaTextField extends StatefulWidget {
     this.maxLines,
     this.enabled = true,
     this.borderRadius,
+    this.min = 1,
   });
 
   final NubiaTextFieldVariant variant;
@@ -71,6 +86,7 @@ class NubiaTextField extends StatefulWidget {
   final int? maxLines;
   final bool enabled;
   final double? borderRadius;
+  final int min;
 
   @override
   State<NubiaTextField> createState() => _NubiaTextFieldState();
@@ -78,6 +94,45 @@ class NubiaTextField extends StatefulWidget {
 
 class _NubiaTextFieldState extends State<NubiaTextField> {
   bool _obscure = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.variant == NubiaTextFieldVariant.numberStepper) {
+      widget.controller?.addListener(_handleStepperControllerChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller?.removeListener(_handleStepperControllerChanged);
+    super.dispose();
+  }
+
+  void _handleStepperControllerChanged() => setState(() {});
+
+  void _step(int delta) {
+    final controller = widget.controller;
+    if (controller == null) return;
+    final current = int.tryParse(controller.text.trim()) ?? widget.min;
+    final next = current + delta < widget.min ? widget.min : current + delta;
+    controller.text = next.toString();
+    controller.selection = TextSelection.collapsed(
+      offset: controller.text.length,
+    );
+    widget.onChanged?.call(controller.text);
+  }
+
+  void _clampToMinOnFocusLost(bool hasFocus) {
+    if (hasFocus) return;
+    final controller = widget.controller;
+    if (controller == null) return;
+    final value = int.tryParse(controller.text.trim());
+    if (value == null || value < widget.min) {
+      controller.text = widget.min.toString();
+      widget.onChanged?.call(controller.text);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,8 +164,21 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
           decoration: _phone(context),
           keyboardType: TextInputType.phone,
         );
+      case NubiaTextFieldVariant.email:
+        return _buildTextField(
+          decoration: _email(context),
+          keyboardType: TextInputType.emailAddress,
+        );
       case NubiaTextFieldVariant.withSuffix:
         return _buildTextField(decoration: _withSuffix(context));
+      case NubiaTextFieldVariant.numberStepper:
+        return _buildTextField(
+          decoration: _numberStepper(context),
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          textAlign: TextAlign.center,
+          onFocusChange: _clampToMinOnFocusLost,
+        );
     }
   }
 
@@ -120,8 +188,11 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
     int? maxLines,
     TextInputType? keyboardType,
     TextStyle? style,
+    List<TextInputFormatter>? inputFormatters,
+    TextAlign textAlign = TextAlign.start,
+    ValueChanged<bool>? onFocusChange,
   }) {
-    return TextField(
+    final field = TextField(
       controller: widget.controller,
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
@@ -135,9 +206,13 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
       maxLines: obscureText ? 1 : (maxLines ?? 1),
       enabled: widget.enabled,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      textAlign: textAlign,
       style: style,
       decoration: decoration.copyWith(errorText: widget.errorText),
     );
+    if (onFocusChange == null) return field;
+    return Focus(onFocusChange: onFocusChange, child: field);
   }
 
   InputDecoration _base(BuildContext context) {
@@ -195,6 +270,37 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
     return _base(context).copyWith(
       border: const OutlineInputBorder(),
       prefixIcon: const Icon(Icons.phone_outlined),
+    );
+  }
+
+  InputDecoration _email(BuildContext context) {
+    return _base(context).copyWith(
+      prefixIcon: const Icon(Icons.mail, color: NubiaColors.n400),
+      border: OutlineInputBorder(
+        borderRadius: widget.borderRadius != null
+            ? BorderRadius.circular(widget.borderRadius!)
+            : const BorderRadius.all(Radius.circular(4)),
+      ),
+    );
+  }
+
+  InputDecoration _numberStepper(BuildContext context) {
+    final current = int.tryParse(widget.controller?.text.trim() ?? '');
+    final atMin = current != null && current <= widget.min;
+    return _base(context).copyWith(
+      border: const OutlineInputBorder(),
+      prefixIcon: IconButton(
+        icon: const Icon(Icons.remove),
+        tooltip: 'Diminuer',
+        onPressed: atMin ? null : () => _step(-1),
+      ),
+      suffixIcon: IconButton(
+        icon: const Icon(Icons.add),
+        tooltip: 'Augmenter',
+        onPressed: () => _step(1),
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+      suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
     );
   }
 

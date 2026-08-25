@@ -16,10 +16,28 @@ class ImplantDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fdiCode = implant.toothPosition;
+    final placementDate = implant.placementDate;
+    final isValidFdiCode = toothLabelFromFdi(fdiCode) != null;
+
     return BlocProvider(
       create: (_) => GetIt.instance<ImplantDetailCubit>(),
       child: Scaffold(
-        appBar: AppBar(title: Text(implant.brand)),
+        appBar: AppBar(
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(isValidFdiCode ? 'Implant · dent $fdiCode' : 'Implant'),
+              if (placementDate != null)
+                Text(
+                  'Posé le ${NubiaDate.dayLong(placementDate)}',
+                  style: theme.textTheme.bodySmall,
+                ),
+            ],
+          ),
+        ),
         body: _ImplantDetailBody(implant: implant),
       ),
     );
@@ -69,22 +87,24 @@ class _ImplantDetailBody extends StatelessWidget {
         final sharing =
             state is ImplantDetailLoading && state.action == ImplantDetailAction.share;
         final busy = exporting || sharing;
+        final toothLabel = toothLabelFromFdi(implant.toothPosition);
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _ImplantHero(implant: implant),
+              const SizedBox(height: 16),
               ListTile(
                 key: Key('implant_detail_${implant.id}'),
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.medical_information_outlined),
                 title: Text(implant.brand),
                 subtitle: Text([
-                  if (implant.toothPosition != null)
-                    'Position ${implant.toothPosition}',
+                  if (toothLabel != null) toothLabel,
                   if (implant.placementDate != null)
-                    'Posé le ${implant.placementDate}',
+                    'Posé le ${NubiaDate.dayLong(implant.placementDate!)}',
                   if (implant.lotNumber != null) 'Lot ${implant.lotNumber}',
                 ].join(' · ')),
               ),
@@ -96,6 +116,20 @@ class _ImplantDetailBody extends StatelessWidget {
                   implant.material != null) ...[
                 const SizedBox(height: 16),
                 _DeviceIdentificationCard(implant: implant),
+              ],
+              if (implant.mriCompatibility != null && implant.material != null) ...[
+                const SizedBox(height: 16),
+                _MriSafetyAlert(
+                  compatibility: implant.mriCompatibility!,
+                  material: implant.material!,
+                ),
+              ],
+              if (implant.placementDate != null ||
+                  implant.practitioner != null ||
+                  implant.office != null ||
+                  implant.prosthesis != null) ...[
+                const SizedBox(height: 16),
+                _PlacementCard(implant: implant),
               ],
               if (implant.lastControlDate != null ||
                   implant.nextControl != null) ...[
@@ -129,6 +163,151 @@ class _ImplantDetailBody extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Hero d'en-tête : vignette FDI, nom anatomique, fabricant·modèle et pill
+/// d'ancienneté (#5328). Chaque ligne ne s'affiche que si la donnée
+/// correspondante est renseignée.
+class _ImplantHero extends StatelessWidget {
+  const _ImplantHero({required this.implant});
+
+  final ImplantItem implant;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    final toothPosition = implant.toothPosition;
+    final anatomicalName = toothLabelFromFdi(toothPosition);
+    final placementDate = implant.placementDate;
+    final subtitle = [
+      if (implant.manufacturer != null) implant.manufacturer!,
+      if (implant.model != null) implant.model!,
+    ].join(' · ');
+
+    return Container(
+      key: const Key('implant_detail_hero'),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border.all(color: tokens.borderSubtle),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          if (toothPosition != null && anatomicalName != null) ...[
+            Container(
+              width: 72,
+              height: 72,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: NubiaColors.brand50,
+                border: Border.all(color: NubiaColors.brand100),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    toothPosition,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: NubiaColors.brand800,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    'FDI',
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: NubiaColors.brand700),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              anatomicalName,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall,
+            ),
+          ],
+          if (subtitle.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style:
+                  theme.textTheme.bodyMedium?.copyWith(color: NubiaColors.n600),
+            ),
+          ],
+          if (placementDate != null) ...[
+            const SizedBox(height: 12),
+            StatusPill(
+              variant: StatusPillVariant.success,
+              icon: Icons.check_circle,
+              label:
+                  'En place depuis ${NubiaDate.monthsSince(placementDate)} mois',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Bloc « Pose » : date, praticien, cabinet et prothèse posée (#5332).
+/// Chaque ligne ne s'affiche que si la donnée correspondante est renseignée.
+class _PlacementCard extends StatelessWidget {
+  const _PlacementCard({required this.implant});
+
+  final ImplantItem implant;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final placementDate = implant.placementDate;
+    final practitioner = implant.practitioner;
+    final office = implant.office;
+    final prosthesis = implant.prosthesis;
+
+    return NubiaCard(
+      key: const Key('implant_detail_placement_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.medical_services, color: NubiaColors.brand700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Pose',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          if (placementDate != null) ...[
+            const SizedBox(height: 12),
+            _FollowUpRow(
+              label: 'Date',
+              value: NubiaDate.dayLong(placementDate),
+            ),
+          ],
+          if (practitioner != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(label: 'Praticien', value: practitioner),
+          ],
+          if (office != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(label: 'Cabinet', value: office),
+          ],
+          if (prosthesis != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(label: 'Prothèse', value: prosthesis),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -289,6 +468,60 @@ class _FollowUpRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Alerte sécurité imagerie (#5329) : compatibilité IRM sous conditions.
+/// N'affiche le bloc que si `mriCompatibility` et `material` sont tous les
+/// deux renseignés — pas de dégradation vers un texte trompeur.
+class _MriSafetyAlert extends StatelessWidget {
+  const _MriSafetyAlert({required this.compatibility, required this.material});
+
+  final String compatibility;
+  final String material;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return Container(
+      key: const Key('implant_detail_mri_safety_alert'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.infoBg,
+        border: Border.all(color: NubiaColors.infoBorder),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.health_and_safety, color: tokens.infoFg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  compatibility,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: tokens.infoFg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$material. Signalez cet implant avant tout examen '
+                  "d'imagerie — présentez cette fiche au radiologue.",
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: tokens.infoFg),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

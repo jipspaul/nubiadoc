@@ -69,6 +69,48 @@ class AccountApi {
     await _dio.delete<void>('/account/dependents/$id');
   }
 
+  Future<List<AccessRequestDto>> getAccessRequests() async {
+    final response =
+        await _dio.get<List<dynamic>>('/account/access-requests');
+    return (response.data ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(AccessRequestDto.fromJson)
+        .toList();
+  }
+
+  Future<AccessRequestDto> sendAccessRequest(Map<String, dynamic> body) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+        '/account/access-requests',
+        data: body);
+    return AccessRequestDto.fromJson(response.data!);
+  }
+
+  Future<AccessRequestDto> resendAccessRequest(String id) async {
+    final response = await _dio
+        .post<Map<String, dynamic>>('/account/access-requests/$id/resend');
+    return AccessRequestDto.fromJson(response.data!);
+  }
+
+  Future<void> cancelAccessRequest(String id) async {
+    await _dio.delete<void>('/account/access-requests/$id');
+  }
+
+  Future<AccessRequestDto> acceptAccessRequest(String id) async {
+    final response = await _dio
+        .post<Map<String, dynamic>>('/account/access-requests/$id/accept');
+    return AccessRequestDto.fromJson(response.data!);
+  }
+
+  Future<AccessRequestDto> refuseAccessRequest(String id) async {
+    final response = await _dio
+        .post<Map<String, dynamic>>('/account/access-requests/$id/refuse');
+    return AccessRequestDto.fromJson(response.data!);
+  }
+
+  Future<void> revokeAccess(String id) async {
+    await _dio.post<void>('/account/access-requests/$id/revoke');
+  }
+
   Future<List<ConsentDto>> getConsents() async {
     final response = await _dio.get<List<dynamic>>('/account/consents');
     return (response.data ?? [])

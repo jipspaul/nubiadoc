@@ -23,6 +23,8 @@ export 'src/session/device_registration_service.dart';
 
 // Utils
 export 'src/utils/document_opener.dart';
+export 'src/utils/email_launcher.dart';
+export 'src/utils/fdi_tooth.dart';
 export 'src/utils/file_picker_service.dart';
 export 'src/utils/maps_launcher.dart';
 export 'src/utils/nubia_date.dart';

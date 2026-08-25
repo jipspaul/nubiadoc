@@ -500,6 +500,39 @@ ON CONFLICT (id) DO NOTHING;
 UPDATE patient_account SET pharmacy_id = 'f0000000-0000-0000-0000-0000000000f1'
   WHERE id = 'e0000000-0000-0000-0000-0000000000e1' AND pharmacy_id IS NULL;
 
+-- =====================================================================
+-- Infirmière démo (soins à domicile — app « type Uber » v1). Données fictives.
+-- Login infirmier.demo@nubia.test / Nubia2026! (kind='pro' → select-nurse-context).
+-- En ligne + géolocalisée à Lyon 3e pour recevoir les offres de visite.
+-- =====================================================================
+INSERT INTO app_user (id, email, password_hash, kind, status) VALUES
+  ('a0000000-0000-0000-0000-0000000000c1', 'infirmier.demo@nubia.test',
+   '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhUGhhcm1hMQ$fCY0xLKIcDQUEAFmRDhDnMzN+us/DWOgRb/KigP5x1w',
+   'pro', 'active')
+ON CONFLICT (id) DO NOTHING;
+-- ON CONFLICT DO UPDATE (pas DO NOTHING) : `geo` doit rester la source de
+-- vérité pour l'`address` affichée à chaque rejeu du seed. Un simple DO
+-- NOTHING laisserait une valeur `geo` périmée (ré-import partiel, ancien
+-- format de seed) survivre indéfiniment et désynchronisée de l'adresse Lyon
+-- documentée ci-dessus, cassant silencieusement le matching de proximité
+-- (issue #5728).
+INSERT INTO nurse (id, display_name, adeli, address, geo, service_radius_m, is_listed, is_online) VALUES
+  ('c0000000-0000-0000-0000-0000000000c1', 'Camille Infirmière', '751234567',
+   '{"line1": "10 rue de la Santé", "postal_code": "69003", "city": "Lyon"}',
+   ST_SetSRID(ST_MakePoint(4.8590, 45.7610), 4326)::geography, 20000, true, true)
+ON CONFLICT (id) DO UPDATE SET
+  display_name      = EXCLUDED.display_name,
+  adeli              = EXCLUDED.adeli,
+  address            = EXCLUDED.address,
+  geo                = EXCLUDED.geo,
+  service_radius_m   = EXCLUDED.service_radius_m,
+  is_listed          = EXCLUDED.is_listed,
+  is_online          = EXCLUDED.is_online;
+INSERT INTO nurse_membership (id, nurse_id, user_id, role) VALUES
+  ('c0000000-0000-0000-0000-0000000000c2', 'c0000000-0000-0000-0000-0000000000c1',
+   'a0000000-0000-0000-0000-0000000000c1', 'nurse')
+ON CONFLICT (id) DO NOTHING;
+
 COMMIT;
 
 \echo '✓ seed démo chargé (Cabinet Lyon, données fictives, idempotent)'

@@ -264,7 +264,7 @@ async fn create_schedule_on_signed_quote_then_patient_reads_it() {
                             {"date": "2026-09-01", "amount_cents": 5000},
                             {"date": "2026-10-01", "amount_cents": 5000}
                         ],
-                        "provider": "stripe"
+                        "provider": "alma"
                     })
                     .to_string(),
                 ))

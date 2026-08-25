@@ -24,4 +24,7 @@ abstract class StockRequestsRepository {
 
   /// POST /v1/pharmacy/stock-requests/{id}/fulfill
   Future<Either<Failure, StockRequest>> fulfill(String id);
+
+  /// POST /v1/cabinet/stock-requests/{id}/resend (relance manuelle, cabinet).
+  Future<Either<Failure, StockRequest>> resend(String id);
 }

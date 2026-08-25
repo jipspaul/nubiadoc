@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../../router/app_router.dart';
 import '../financial_bloc.dart';
 import '../financial_event.dart';
 import '../financial_state.dart';
 import 'financial_format_utils.dart';
+import 'ventilation_bar.dart';
 
 /// Détail d'un devis (actes, panier 100% Santé, acompte, signature) —
 /// extrait de `financial_page.dart` (#4061, CLAUDE.md plafond 700 lignes).
@@ -29,9 +32,10 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final quote = widget.state.quote;
-    final style = QuoteStatusStyle.of(quote.status);
     final canSign = quote.canSign;
     final canPay = quote.status == QuoteStatus.signed && quote.depositCents > 0;
+    final canDownload =
+        quote.status == QuoteStatus.signed && quote.documentId != null;
     // Obligation conventionnelle de présenter l'alternative RAC 0 (#4061) :
     // dès qu'une ligne est classifiée `modere`, une option 100% Santé (RAC 0)
     // existe forcément pour ce même type d'acte — le praticien doit pouvoir
@@ -48,25 +52,34 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Badge statut centré (mockup wedge).
-                Center(
-                  child: StatusPill(label: style.label, variant: style.variant),
-                ),
-                const SizedBox(height: 16),
-                // En-tête montant + bandeau reste à charge.
-                AmountHeader(
-                  label: 'Total du plan de soins',
-                  amount: formatQuoteCents(quote.totalCents),
-                  caption: quote.practitionerName.isNotEmpty
-                      ? quote.practitionerName
-                      : 'Devis du ${formatQuoteDate(quote.createdAt)}',
-                  remainingLabel: 'Reste à charge',
-                  remainingAmount: formatQuoteCents(quote.patientShareCents),
-                  remainingCaption: 'après remboursements',
-                ),
+                // En-tête montant : le montant héros suit le statut du devis
+                // (total avant signature, reste à charge après — #5235). Le
+                // détail du calcul Total → reste à charge est porté par la
+                // barre de ventilation ci-dessous (#5234).
+                if (quote.status == QuoteStatus.signed)
+                  AmountHeader(
+                    label: 'Reste à votre charge',
+                    amount: formatQuoteCents(quote.patientShareCents),
+                    caption:
+                        'sur ${formatQuoteCents(quote.totalCents)} · après remboursements',
+                  )
+                else
+                  AmountHeader(
+                    label: 'Total du plan de soins',
+                    amount: formatQuoteCents(quote.totalCents),
+                    caption: quote.practitionerName.isNotEmpty
+                        ? '${quote.practitionerName} · devis du ${formatQuoteDate(quote.createdAt)}'
+                        : 'Devis du ${formatQuoteDate(quote.createdAt)}',
+                  ),
                 const SizedBox(height: 20),
+                VentilationBar(quote: quote),
+                const SizedBox(height: 12),
                 if (hasRac0Alternative) ...[
-                  const _Rac0AlternativeBanner(),
+                  _Rac0AlternativeBanner(
+                    count: quote.items
+                        .where((i) => i.panierSante == PanierSante.modere)
+                        .length,
+                  ),
                   const SizedBox(height: 12),
                 ],
                 // Détail des actes.
@@ -99,8 +112,11 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (canPay) _DepositCard(quote: quote),
-                const _ReassuranceRow(),
+                if (canPay) ...[
+                  _DepositCard(quote: quote),
+                  _PaymentSchedule(quote: quote),
+                ],
+                _ReassuranceRow(canPay: canPay),
               ],
             ),
           ),
@@ -128,15 +144,15 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                     .read<FinancialBloc>()
                     .add(FinancialPaymentRequested(idempotencyKey: _payKey)),
               ),
-            NubiaButton(
-              key: const Key('btn_back'),
-              label: 'Retour à la liste',
-              variant: NubiaButtonVariant.tertiary,
-              size: NubiaButtonSize.lg,
-              onPressed: () => context
-                  .read<FinancialBloc>()
-                  .add(const FinancialBackToList()),
-            ),
+            if (canDownload)
+              NubiaButton(
+                key: const Key('btn_download'),
+                label: 'Télécharger le devis signé',
+                variant: NubiaButtonVariant.secondary,
+                onPressed: () => context
+                    .read<FinancialBloc>()
+                    .add(const FinancialDownloadRequested()),
+              ),
           ],
         ),
       ],
@@ -172,22 +188,35 @@ class PanierBadge extends StatelessWidget {
 
 /// Encart obligatoire (obligation conventionnelle) : rappelle qu'une
 /// alternative reste-à-charge zéro existe dès qu'un acte du devis est
-/// classifié `modere` (#4061).
+/// classifié `modere` (#4061). Teinté `warning` avec action « En parler au
+/// praticien » vers la messagerie, au lieu d'une phrase sans issue (#5237,
+/// maquette `design/v2-screens/patient-facturation.png`).
 class _Rac0AlternativeBanner extends StatelessWidget {
-  const _Rac0AlternativeBanner();
+  const _Rac0AlternativeBanner({required this.count});
+
+  final int count;
+
+  static const _titleColor = Color(0xFF78350F);
+  static const _bodyColor = Color(0xFF92400E);
+  static const _chipBorderColor = Color(0xFFFCD34D);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final tokens = theme.extension<NubiaTokens>()!;
 
-    return NubiaCard(
+    return Container(
       key: const Key('rac0_alternative_banner'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: tokens.warningBg,
+        border: Border.all(color: NubiaColors.warningBorder),
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, size: 20, color: tokens.primarySubtleFg),
+          Icon(Icons.savings, size: 20, color: tokens.warningFg),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -195,15 +224,51 @@ class _Rac0AlternativeBanner extends StatelessWidget {
               children: [
                 Text(
                   'Alternative reste à charge zéro disponible',
-                  style:
-                      theme.textTheme.labelLarge?.copyWith(color: cs.onSurface),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: _titleColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Un ou plusieurs actes de ce devis disposent d\'une option '
-                  '100% Santé (RAC 0). Parlez-en à votre praticien.',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
+                  count <= 1
+                      ? 'Un acte de ce devis a une option 100 % Santé.'
+                      : '$count actes de ce devis ont une option 100 % Santé.',
+                  style:
+                      theme.textTheme.bodySmall?.copyWith(color: _bodyColor),
+                ),
+                const SizedBox(height: 10),
+                Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    key: const Key('rac0_alternative_banner_cta'),
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => context.push(AppRouter.messaging),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _chipBorderColor),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.chat_bubble,
+                              size: 14, color: _titleColor),
+                          const SizedBox(width: 6),
+                          Text(
+                            'En parler au praticien',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: _titleColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -246,8 +311,10 @@ class _LineItemRow extends StatelessWidget {
                         Flexible(
                           child: Text(
                             item.label,
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: cs.onSurfaceVariant),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: cs.onSurface,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                         if (item.panierSante != PanierSante.unknown &&
@@ -329,12 +396,6 @@ class _DepositCard extends StatelessWidget {
                     style: theme.textTheme.labelLarge
                         ?.copyWith(color: cs.onSurface),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Solde à régler à la pose',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: cs.onSurfaceVariant),
-                  ),
                 ],
               ),
             ),
@@ -354,15 +415,161 @@ class _DepositCard extends StatelessWidget {
   }
 }
 
-/// Bandeau de réassurance : signature électronique sécurisée (eIDAS).
-class _ReassuranceRow extends StatelessWidget {
-  const _ReassuranceRow();
+/// Échéancier de paiement (acompte aujourd'hui, solde à la pose) — remplace
+/// la phrase « Solde à régler à la pose » de `_DepositCard` par une
+/// décomposition vérifiable des deux jalons (#5238). La somme des deux
+/// montants affichés égale toujours `quote.patientShareCents`.
+///
+/// Aucun champ `installmentDate` n'existe côté domaine aujourd'hui : on
+/// dégrade proprement en omettant la date plutôt que d'en inventer une.
+class _PaymentSchedule extends StatelessWidget {
+  const _PaymentSchedule({required this.quote});
+
+  final Quote quote;
+
+  @override
+  Widget build(BuildContext context) {
+    final balanceCents = quote.patientShareCents - quote.depositCents;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: NubiaCard(
+        key: const Key('payment_schedule'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _PaymentScheduleStep(
+              key: const Key('payment_schedule_step_deposit'),
+              dotColor: NubiaColors.brand600,
+              label: 'Aujourd\'hui · acompte',
+              amount: formatQuoteCents(quote.depositCents),
+              showConnector: true,
+            ),
+            _PaymentScheduleStep(
+              key: const Key('payment_schedule_step_balance'),
+              dotColor: NubiaColors.n300,
+              label: 'À la pose · solde',
+              amount: formatQuoteCents(balanceCents),
+              showConnector: false,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Un jalon de l'échéancier : puce à gauche (pleine émeraude pour l'acompte,
+/// grise pour le solde à venir), reliée au jalon suivant par un connecteur
+/// vertical fin quand [showConnector] est vrai.
+class _PaymentScheduleStep extends StatelessWidget {
+  const _PaymentScheduleStep({
+    super.key,
+    required this.dotColor,
+    required this.label,
+    required this.amount,
+    required this.showConnector,
+  });
+
+  final Color dotColor;
+  final String label;
+  final String amount;
+  final bool showConnector;
+
+  static const _dotSize = 10.0;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final tokens = theme.extension<NubiaTokens>()!;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Column(
+            children: [
+              const SizedBox(height: 4),
+              Container(
+                width: _dotSize,
+                height: _dotSize,
+                decoration:
+                    BoxDecoration(color: dotColor, shape: BoxShape.circle),
+              ),
+              if (showConnector)
+                Expanded(
+                  child: Container(width: 2, color: tokens.borderSubtle),
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: showConnector ? 16 : 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: cs.onSurface),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    amount,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: tabularFigures,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bandeau de réassurance : eIDAS avant signature, Stripe devant un paiement
+/// (#5242). Un seul bandeau à la fois, selon l'action en cours.
+class _ReassuranceRow extends StatelessWidget {
+  const _ReassuranceRow({required this.canPay});
+
+  final bool canPay;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    final TextSpan textSpan = canPay
+        ? const TextSpan(
+            text: 'Paiement sécurisé Stripe · ',
+            children: [
+              TextSpan(
+                text: 'aucune donnée bancaire',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              TextSpan(text: ' conservée par le cabinet'),
+            ],
+          )
+        : const TextSpan(
+            text: 'Signature électronique sécurisée ',
+            children: [
+              TextSpan(
+                text: '(eIDAS)',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              TextSpan(text: ' · devis chiffré et horodaté'),
+            ],
+          );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
@@ -372,16 +579,7 @@ class _ReassuranceRow extends StatelessWidget {
           const SizedBox(width: 9),
           Expanded(
             child: Text.rich(
-              TextSpan(
-                text: 'Signature électronique sécurisée ',
-                children: const [
-                  TextSpan(
-                    text: '(eIDAS)',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  TextSpan(text: ' · devis chiffré et horodaté'),
-                ],
-              ),
+              textSpan,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: tokens.textTertiary),
             ),

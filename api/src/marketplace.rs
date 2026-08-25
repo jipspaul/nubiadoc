@@ -479,8 +479,15 @@ pub async fn search_slots(
 ) -> Result<Json<SearchSlotsResponse>, AppError> {
     // #3796 : repli d'accents, même schéma que suggest_search.
     // #4394 : NUL byte non filtré → 500 au bind (même défaut que suggest_search).
+    // #5694 : idem pour sector/languages, jusque-là liés bruts.
     if let Some(q) = params.q.as_deref() {
         crate::text_validation::reject_nul_byte(q)?;
+    }
+    if let Some(sector) = params.sector.as_deref() {
+        crate::text_validation::reject_nul_byte(sector)?;
+    }
+    if let Some(languages) = params.languages.as_deref() {
+        crate::text_validation::reject_nul_byte(languages)?;
     }
     let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
@@ -765,8 +772,15 @@ pub async fn search_providers(
 ) -> Result<Json<SearchProvidersResponse>, AppError> {
     // #3796 : repli d'accents, même schéma que suggest_search/search_slots.
     // #4394 : NUL byte non filtré → 500 au bind.
+    // #5694 : idem pour sector/languages, jusque-là liés bruts.
     if let Some(q) = params.q.as_deref() {
         crate::text_validation::reject_nul_byte(q)?;
+    }
+    if let Some(sector) = params.sector.as_deref() {
+        crate::text_validation::reject_nul_byte(sector)?;
+    }
+    if let Some(languages) = params.languages.as_deref() {
+        crate::text_validation::reject_nul_byte(languages)?;
     }
     let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(

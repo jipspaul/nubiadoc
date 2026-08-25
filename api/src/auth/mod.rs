@@ -10,6 +10,7 @@ pub mod refresh;
 pub mod register;
 pub mod reset_password;
 pub mod select_context;
+pub mod select_nurse_context;
 pub mod select_pharmacy_context;
 
 use argon2::{
@@ -26,12 +27,14 @@ use axum::{
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::Row;
+use sqlx::{Acquire, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-use crate::{AppState, JobDispatcher, StorageClient};
+use crate::{
+    appointments_response::is_exclusion_violation, AppState, JobDispatcher, StorageClient,
+};
 
 /// Réponse de `POST /v1/auth/login`.
 #[derive(Serialize)]
@@ -103,7 +106,7 @@ struct PatientClaims {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ProClaims {
     /// Identifiant de l'utilisateur (`app_user.id`).
-    sub: Uuid,
+    pub(crate) sub: Uuid,
     /// Type de compte : "pro".
     kind: String,
     exp: u64,
@@ -169,6 +172,12 @@ pub(crate) enum AppError {
     /// (Yousign) injoignable ou en erreur → `502`, jamais une session
     /// fabriquée côté API.
     UpstreamUnavailable,
+    /// `POST /v1/quotes/:id/signature` (#5688) : `YOUSIGN_API_KEY` absente
+    /// (provider pas encore provisionné, cf. `deploy.yml`) — distinct d'une
+    /// vraie panne provider (`UpstreamUnavailable`) : `503`, pas `502`,
+    /// pour ne pas faire passer une lacune de configuration connue pour un
+    /// incident Yousign en production.
+    SignatureProviderNotConfigured,
     /// `POST /v1/cabinet/cash-register/closing` (#4071) : une clôture existe
     /// déjà pour ce cabinet+jour (`UNIQUE (cabinet_id, closing_date)`,
     /// migration 0165) — pré-vérifiée explicitement plutôt que de laisser
@@ -241,6 +250,12 @@ pub(crate) enum AppError {
     /// migrations 0190/0192) — pré-vérifié pour éviter de laisser remonter
     /// la violation FK Postgres (23503) en 500.
     ActLinkedToStock,
+    /// `POST /v1/account/visit-requests` (#5724) : le patient a déjà une
+    /// demande de visite infirmière active (index unique partiel, migration
+    /// 0234) — même anti-pattern que `MemberAlreadyExists` (#3828) :
+    /// `AppError::Conflict` rend `{"code":"verification_pending"}`, un
+    /// contrat trompeur pour un simple doublon de demande.
+    VisitRequestAlreadyActive,
 }
 
 impl IntoResponse for AppError {
@@ -439,6 +454,11 @@ impl IntoResponse for AppError {
                 Json(json!({"code": "upstream_unavailable"})),
             )
                 .into_response(),
+            AppError::SignatureProviderNotConfigured => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"code": "signature_provider_not_configured"})),
+            )
+                .into_response(),
             AppError::CashRegisterAlreadyClosed => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "cash_register_already_closed"})),
@@ -507,6 +527,11 @@ impl IntoResponse for AppError {
             AppError::ActLinkedToStock => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "act_linked_to_stock"})),
+            )
+                .into_response(),
+            AppError::VisitRequestAlreadyActive => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "visit_request_already_active"})),
             )
                 .into_response(),
         }
@@ -874,12 +899,35 @@ pub async fn pro_register(
         "{} {}",
         body.practitioner.first_name, body.practitioner.last_name
     );
-    let provider_row = sqlx::query(
-        "INSERT INTO provider (cabinet_id, user_id, display_name, rpps, adeli) \
-         VALUES ($1, $2, $3, $4, $5) RETURNING id",
+
+    // Ligne cabinet-interne (0002_cabinet_identity.sql), sans laquelle le cabinet
+    // n'a aucun praticien exploitable : `create_cabinet_slot` (scheduling.rs) et
+    // `get_cabinet_agenda` ne lisent que `practitioner`, jamais `provider`.
+    let practitioner_row = sqlx::query(
+        "INSERT INTO practitioner (cabinet_id, user_id, rpps, specialite) \
+         VALUES ($1, $2, $3, $4) RETURNING id",
     )
     .bind(cabinet_id)
     .bind(user_id)
+    .bind(&body.practitioner.rpps)
+    .bind(&body.cabinet.specialite)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = practitioner_row
+        .try_get(0)
+        .map_err(|_| AppError::Internal)?;
+
+    // Profil marketplace public, lié au praticien cabinet via `practitioner_id`
+    // (colonne nullable, 0009_marketplace.sql) — c'est ce lien que
+    // `create_cabinet_slot` utilise pour retrouver le provider associé.
+    let provider_row = sqlx::query(
+        "INSERT INTO provider (cabinet_id, user_id, practitioner_id, display_name, rpps, adeli) \
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .bind(practitioner_id)
     .bind(&display_name)
     .bind(&body.practitioner.rpps)
     .bind(&body.practitioner.adeli)
@@ -1345,7 +1393,7 @@ impl FromRequestParts<AppState> for ProAdminClaims {
 pub(crate) struct ProAdminOrManagerClaims {
     pub(crate) sub: Uuid,
     pub(crate) cabinet_id: Uuid,
-    role: String,
+    pub(crate) role: String,
 }
 
 #[async_trait]
@@ -1613,6 +1661,70 @@ pub(crate) struct PharmaContextClaims {
     pub(crate) pharmacy_id: Uuid,
     pub(crate) role: String,
     pub(crate) exp: u64,
+}
+
+/// Claims JWT émis par `POST /v1/auth/select-nurse-context` — porte `nurse_id` +
+/// `role` avec `kind = "nurse"`. GUC et audience distincts des tenants
+/// cabinet/pharmacie : un token nurse est rejeté (403) par les extracteurs
+/// `Pro*Claims`/`Pharma*Claims`, et réciproquement. Clone de `PharmaContextClaims`.
+#[derive(Serialize, Deserialize)]
+pub(crate) struct NurseContextClaims {
+    pub(crate) sub: Uuid,
+    pub(crate) kind: String,
+    pub(crate) nurse_id: Uuid,
+    pub(crate) role: String,
+    pub(crate) exp: u64,
+}
+
+/// Extracteur des endpoints `/v1/nurse/*` : exige un token `kind:"nurse"` (issu de
+/// select-nurse-context). Clone de `PharmaMemberClaims` (double passe : 403 si le
+/// token est valide mais pas un token infirmier).
+#[derive(Debug, Deserialize)]
+pub(crate) struct NurseMemberClaims {
+    #[allow(dead_code)] // présent dans le JWT ; les handlers scopent via nurse_id
+    pub(crate) sub: Uuid,
+    pub(crate) nurse_id: Uuid,
+    #[allow(dead_code)] // consommé par les endpoints réservés au rôle admin
+    pub(crate) role: String,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for NurseMemberClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        // Première passe : `kind` seul → 403 (pas 401) si le token est valide mais
+        // n'est pas un token infirmier (ex. pro/pharma/patient).
+        let basic = decode::<KindClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if basic.kind != "nurse" {
+            return Err(AppError::Forbidden);
+        }
+
+        // Deuxième passe : décode les champs infirmier obligatoires.
+        let claims = decode::<NurseMemberClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        Ok(claims)
+    }
 }
 
 /// Corps de la requête `PATCH /v1/cabinet/provider`.
@@ -1915,7 +2027,7 @@ fn is_valid_email_format(email: &str) -> bool {
 /// `provider`. `email` syntaxiquement invalide → `422` (#3879). Rôle `admin` requis.
 pub async fn post_cabinet_members(
     State(state): State<AppState>,
-    claims: ProAdminOrManagerClaims,
+    claims: ProAdminClaims,
     Json(body): Json<PostCabinetMemberBody>,
 ) -> Result<(StatusCode, Json<CabinetMemberItem>), AppError> {
     // Rôles valides pour `cabinet_membership` (cf. `patch_cabinet_member`) :
@@ -4122,6 +4234,26 @@ pub async fn post_account_dependents(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #5725 : le SELECT-puis-INSERT ci-dessous est une race TOCTOU sous
+    // requêtes concurrentes (double-tap, retries réseau) — N requêtes pour
+    // le même proche passent toutes le SELECT avant qu'aucun INSERT ne soit
+    // visible. On sérialise via un verrou advisory transactionnel sur le
+    // hash de l'identité (guardian + nom/prénom/date de naissance) : les
+    // transactions concurrentes pour la même identité font la queue ici, et
+    // seule la première voit encore "pas de doublon" au SELECT.
+    let lock_key = format!(
+        "{}|{}|{}|{}",
+        claims.account_id,
+        body.first_name.trim().to_lowercase(),
+        body.last_name.trim().to_lowercase(),
+        birth_date.map(|d| d.to_string()).unwrap_or_default(),
+    );
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(&lock_key)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     // #4475 : dependent_account_id est toujours neuf à la création, donc
     // l'index unique account_guardianship_active_pair_uidx (couple actif)
     // ne peut structurellement jamais matcher — un double-submit du même
@@ -4528,7 +4660,10 @@ pub async fn patch_account_dependent(
 ///
 /// Met `account_guardianship.active = false` + `updated_at = now()`.
 /// Tutelle inexistante ou déjà révoquée → `404` (anti-énumération §07 §2.9).
-/// Audité : `action:'revoke_guardianship'` (§07 §10).
+/// Cascade (#5679) : annule d'abord les RDV futurs actifs (`requested`/`confirmed`) du
+/// dépendant et libère leurs créneaux — sinon ils restent orphelins (créneau tenu, cabinet
+/// les voit toujours, tuteur perd tout accès dès la tutelle inactive, RLS §07).
+/// Audité : `action:'revoke_guardianship'` (§07 §10) + `'cancel_appointment'` par RDV annulé.
 pub async fn delete_account_dependent(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -4553,6 +4688,95 @@ pub async fn delete_account_dependent(
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
+
+    // Cascade AVANT la révocation : appointment_patient_read (migration 0196) exige la
+    // tutelle encore `active = true` pour voir les RDV du dépendant — désactiver
+    // account_guardianship en premier rendrait ces RDV illisibles dans CETTE même
+    // transaction (read-your-own-writes) avant même de pouvoir les annuler.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let pending_appointments = sqlx::query(
+        "SELECT a.id, a.cabinet_id, a.slot_id \
+         FROM appointment a \
+         JOIN patient p ON p.id = a.patient_id \
+         WHERE p.patient_account_id = $1 \
+           AND a.status IN ('requested', 'confirmed') \
+           AND a.starts_at > now() \
+           AND a.deleted_at IS NULL",
+    )
+    .bind(dependent_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    for appt_row in pending_appointments {
+        let appt_id: Uuid = appt_row.try_get("id").map_err(|_| AppError::Internal)?;
+        let appt_cabinet_id: Uuid = appt_row
+            .try_get("cabinet_id")
+            .map_err(|_| AppError::Internal)?;
+        let appt_slot_id: Option<Uuid> = appt_row
+            .try_get("slot_id")
+            .map_err(|_| AppError::Internal)?;
+
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(appt_cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        sqlx::query(
+            "UPDATE appointment \
+             SET status = 'cancelled', cancelled_at = now(), \
+                 cancel_reason = 'dependent_removed', updated_at = now() \
+             WHERE id = $1",
+        )
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        // Libération du créneau : best-effort, isolée dans un savepoint — même pattern
+        // que cancel_appointment (#5392) : un AUTRE créneau peut déjà chevaucher la
+        // plage et faire violer l'exclusion (23P01), sans que ça doive faire échouer
+        // la suppression du dépendant.
+        if let Some(sid) = appt_slot_id {
+            let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+            let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+                .bind(sid)
+                .execute(&mut *savepoint)
+                .await;
+            match release {
+                Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+                Err(e) if is_exclusion_violation(&e) => {
+                    savepoint.rollback().await.map_err(|_| AppError::Internal)?
+                }
+                Err(_) => return Err(AppError::Internal),
+            }
+        }
+
+        sqlx::query(
+            "INSERT INTO audit_log \
+             (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+             VALUES ($1, $2, 'patient', 'cancel_appointment', 'appointment', $3)",
+        )
+        .bind(appt_cabinet_id)
+        .bind(claims.sub)
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        tracing::info!(
+            guardian_account_id = %claims.account_id,
+            dependent_account_id = %dependent_id,
+            appointment_id = %appt_id,
+            "dependent's future appointment cancelled on guardianship revocation"
+        );
+    }
 
     // Soft-delete uniquement — jamais de DELETE SQL (§07 §10).
     sqlx::query(

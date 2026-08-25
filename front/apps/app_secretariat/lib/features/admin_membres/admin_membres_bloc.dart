@@ -8,12 +8,12 @@ import 'admin_membres_state.dart';
 class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState>
     with SafeEmitMixin<AdminMembresState> {
   final ListMembersUseCase _listMembers;
-  final ListSecretiariatsUseCase _listSecretariats;
+  final ListSecretariatsUseCase _listSecretariats;
   final InviteMemberUseCase _inviteMember;
 
   AdminMembresBloc({
     required ListMembersUseCase listMembers,
-    required ListSecretiariatsUseCase listSecretariats,
+    required ListSecretariatsUseCase listSecretariats,
     required InviteMemberUseCase inviteMember,
   })  : _listMembers = listMembers,
         _listSecretariats = listSecretariats,

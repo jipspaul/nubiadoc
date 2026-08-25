@@ -408,6 +408,11 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetNotificationPreferencesUseCase(gi()))
     ..registerFactory(() => ListConsentsUseCase(gi()))
     ..registerFactory(() => ListDependentsUseCase(gi()))
+    ..registerFactory(() => ListAccessRequestsUseCase(gi()))
+    ..registerFactory(() => AcceptAccessRequestUseCase(gi()))
+    ..registerFactory(() => RefuseAccessRequestUseCase(gi()))
+    ..registerFactory(() => ResendAccessRequestUseCase(gi()))
+    ..registerFactory(() => CancelAccessRequestUseCase(gi()))
     ..registerFactory(() => UploadCoverageCardUseCase(gi()))
     ..registerFactory(() => GetReferringDoctorUseCase(gi()))
     ..registerFactory(() => SetReferringDoctorUseCase(gi()))
@@ -740,7 +745,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListMembersUseCase(gi()))
     ..registerFactory(() => InviteMemberUseCase(gi()))
     ..registerFactory(() => UpdateMemberRoleUseCase(gi()))
-    ..registerFactory(() => ListSecretiariatsUseCase(gi()))
+    ..registerFactory(() => ListSecretariatsUseCase(gi()))
     ..registerFactory(() => AddSecretariatUseCase(gi()))
     ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
     ..registerFactory(() => GetCabinetConversationUseCase(gi()))
@@ -758,7 +763,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
       () => StockRequestsRepositoryImpl(gi()),
     )
     ..registerFactory(() => ListStockRequestsUseCase(gi()))
-    ..registerFactory(() => CreateStockRequestUseCase(gi()));
+    ..registerFactory(() => CreateStockRequestUseCase(gi()))
+    ..registerFactory(() => ResendStockRequestUseCase(gi()));
 
   if (includeClinical) {
     gi

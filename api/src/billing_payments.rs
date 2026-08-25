@@ -252,7 +252,26 @@ pub async fn create_payment_intent(
     let already_committed_cents: i64 = already_committed_row
         .try_get("committed_cents")
         .map_err(|_| AppError::Internal)?;
-    let remaining_due_cents = patient_share_cents - already_committed_cents;
+
+    // #5683 : un payment_schedule ne crée aucune ligne `payment` — sans ce
+    // second SELECT (symétrique à payment_schedules.rs), la garde ci-dessous
+    // ignorait les échéanciers déjà posés et laissait engager le patient 2x
+    // son reste-à-charge (échéancier actif + Stripe intent) — double-débit réel.
+    let already_scheduled_row = sqlx::query(
+        "SELECT COALESCE(SUM(total_amount * 100), 0)::bigint AS scheduled_cents \
+         FROM payment_schedule \
+         WHERE quote_id = $1 AND status = 'active'",
+    )
+    .bind(body.quote_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let already_scheduled_cents: i64 = already_scheduled_row
+        .try_get("scheduled_cents")
+        .map_err(|_| AppError::Internal)?;
+
+    let remaining_due_cents =
+        patient_share_cents - already_committed_cents - already_scheduled_cents;
 
     // Acompte obligatoire (#3761) : deposit_pct était stocké à la création du
     // devis mais jamais imposé — un patient pouvait régler un acompte

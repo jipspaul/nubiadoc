@@ -30,13 +30,21 @@ final class FinancialLoaded extends FinancialState {
 
 /// Détail d'un devis affiché — affiche CTA « Signer » ou « Payer ».
 final class FinancialQuoteDetail extends FinancialState {
-  const FinancialQuoteDetail({required this.quote, required this.quotes});
+  const FinancialQuoteDetail({
+    required this.quote,
+    required this.quotes,
+    this.documentUrl,
+  });
 
   final Quote quote;
   final List<Quote> quotes;
 
+  /// URL signée résolue par un téléchargement du devis signé en cours
+  /// (déclenche l'ouverture externe, cf. `implant_passport_cubit.dart`).
+  final String? documentUrl;
+
   @override
-  List<Object?> get props => [quote, quotes];
+  List<Object?> get props => [quote, quotes, documentUrl];
 }
 
 /// Paiement en cours.

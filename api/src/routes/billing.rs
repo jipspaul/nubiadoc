@@ -31,6 +31,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             axum::routing::post(payment_schedules::create_payment_schedule),
         )
         .route(
+            "/v1/cabinet/payment-schedules/:id",
+            axum::routing::delete(payment_schedules::cancel_payment_schedule),
+        )
+        .route(
             "/v1/cabinet/quotes",
             get(cabinet_quotes::list_cabinet_quotes),
         )

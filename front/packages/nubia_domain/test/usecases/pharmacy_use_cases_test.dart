@@ -166,6 +166,24 @@ void main() {
       verify(() => repo.reject('s1', note: 'rupture')).called(1);
       verify(() => repo.fulfill('s1')).called(1);
     });
+
+    test('ResendStockRequestUseCase délègue au repo (#5183)', () async {
+      final repo = MockStockRequestsRepository();
+      final request = StockRequest(
+        id: 's1',
+        pharmacyId: 'p1',
+        items: const [StockRequestItem(label: 'Compresses', quantity: 10)],
+        status: StockRequestStatus.sent,
+        createdAt: DateTime.utc(2026, 7, 1),
+      );
+      when(() => repo.resend('s1')).thenAnswer((_) async => Right(request));
+
+      final useCase = ResendStockRequestUseCase(repo);
+      final result = await useCase('s1');
+
+      expect(result, Right(request));
+      verify(() => repo.resend('s1')).called(1);
+    });
   });
 
   group('Ordonnance — praticien', () {

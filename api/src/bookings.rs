@@ -23,6 +23,11 @@ pub struct CreateBookingBody {
     /// Motif de consultation saisi par le patient (facultatif). Stocké sur
     /// l'appointment pour informer le praticien du motif de la venue (#3415).
     pub motif: Option<String>,
+    /// Réserve pour un dépendant plutôt que pour le compte appelant (#5681) —
+    /// même contrat que `on_behalf_of` sur `POST /v1/appointments`
+    /// (`appointments_create.rs`), jusqu'ici absent de ce endpoint alors que
+    /// c'est celui réellement utilisé par le funnel hold→confirm du front.
+    pub on_behalf_of: Option<Uuid>,
 }
 
 /// Réponse de `POST /v1/bookings`.
@@ -40,6 +45,9 @@ pub struct CreateBookingResponse {
 /// Idempotence optionnelle : si `idempotency_key` fournie et appointment existant
 /// pour ce cabinet + clé → retourne le RDV existant si l'empreinte (slot_id + motif)
 /// correspond, sinon `409 idempotency_key_conflict` (#3632).
+/// Si `on_behalf_of` est fourni, la tutelle active est vérifiée contre
+/// `account_guardianship` — sinon `422 guardianship_required` (#5681, même
+/// contrat que `create_appointment`).
 pub async fn create_booking(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -58,6 +66,32 @@ pub async fn create_booking(
         .or_else(|| body.idempotency_key.clone());
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Vérifie la tutelle si on agit pour un proche (même garde que
+    // create_appointment, `appointments_create.rs`).
+    if let Some(dependent_id) = body.on_behalf_of {
+        sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+            .bind(claims.account_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let guardianship = sqlx::query(
+            "SELECT id FROM account_guardianship \
+             WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+        )
+        .bind(claims.account_id)
+        .bind(dependent_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if guardianship.is_none() {
+            return Err(AppError::GuardianshipRequired);
+        }
+    }
+
+    let effective_account_id = body.on_behalf_of.unwrap_or(claims.account_id);
 
     // Résout le créneau pour obtenir cabinet_id + practitioner_id + starts_at/ends_at.
     // Via resolve_slot_for_booking (SECURITY DEFINER, migration 0128) : les
@@ -108,9 +142,10 @@ pub async fn create_booking(
     // divergence -> 409 au lieu d'absorber silencieusement la 2e réservation.
     if let Some(ref key) = idempotency_key {
         let fingerprint = format!(
-            "slot={}|motif={}",
+            "slot={}|motif={}|on_behalf_of={}",
             body.slot_id,
-            body.motif.as_deref().unwrap_or("")
+            body.motif.as_deref().unwrap_or(""),
+            body.on_behalf_of.map(|s| s.to_string()).unwrap_or_default(),
         );
 
         let existing = sqlx::query(
@@ -205,19 +240,22 @@ pub async fn create_booking(
 
     let hold_id: Uuid = hold_row.try_get("id").map_err(|_| AppError::Internal)?;
 
-    // Scope patient pour résoudre le dossier patient dans ce cabinet.
+    // Scope patient pour résoudre le dossier patient dans ce cabinet — celui du
+    // dépendant si `on_behalf_of` est fourni, sinon celui de l'appelant.
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
-        .bind(claims.account_id.to_string())
+        .bind(effective_account_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
     // Récupère-ou-crée le dossier patient de ce cabinet (réservation marketplace
-    // chez un nouveau praticien → pas encore de fiche). SECURITY DEFINER, cf.
-    // migration 0123. NULL uniquement si le compte n'existe pas → 404 légitime.
+    // chez un nouveau praticien → pas encore de fiche, ou dépendant jamais venu
+    // dans ce cabinet, cf. #3739/#3836 côté create_appointment). SECURITY
+    // DEFINER, cf. migration 0123. NULL uniquement si le compte n'existe pas →
+    // 404 légitime.
     let patient_id: Uuid =
         sqlx::query_scalar::<_, Option<Uuid>>("SELECT ensure_patient_for_cabinet($1, $2)")
-            .bind(claims.account_id)
+            .bind(effective_account_id)
             .bind(cabinet_id)
             .fetch_one(&mut *tx)
             .await
@@ -226,9 +264,10 @@ pub async fn create_booking(
 
     let fingerprint = idempotency_key.as_ref().map(|_| {
         format!(
-            "slot={}|motif={}",
+            "slot={}|motif={}|on_behalf_of={}",
             body.slot_id,
-            body.motif.as_deref().unwrap_or("")
+            body.motif.as_deref().unwrap_or(""),
+            body.on_behalf_of.map(|s| s.to_string()).unwrap_or_default(),
         )
     });
 

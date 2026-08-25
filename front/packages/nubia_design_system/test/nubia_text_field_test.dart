@@ -107,5 +107,105 @@ void main() {
       final field = tester.widget<TextField>(find.byType(TextField));
       expect(field.textInputAction, isNull);
     });
+
+    // #5177 : quantité stock — clavier numérique, pas à pas, plancher à 1.
+    group('numberStepper', () {
+      testWidgets('utilise un clavier numérique et filtre les non-chiffres', (
+        tester,
+      ) async {
+        final controller = TextEditingController(text: '1');
+        await tester.pumpWidget(
+          wrap(
+            NubiaTextField(
+              key: const Key('qty'),
+              variant: NubiaTextFieldVariant.numberStepper,
+              controller: controller,
+              label: 'Qté',
+            ),
+          ),
+        );
+
+        final field = tester.widget<TextField>(find.byType(TextField));
+        expect(field.keyboardType, TextInputType.number);
+
+        await tester.enterText(find.byType(TextField), 'abc12def');
+        expect(controller.text, '12');
+      });
+
+      testWidgets('le bouton + incrémente la valeur', (tester) async {
+        final controller = TextEditingController(text: '1');
+        await tester.pumpWidget(
+          wrap(
+            NubiaTextField(
+              variant: NubiaTextFieldVariant.numberStepper,
+              controller: controller,
+              label: 'Qté',
+            ),
+          ),
+        );
+
+        await tester.tap(find.byIcon(Icons.add));
+        await tester.pump();
+
+        expect(controller.text, '2');
+      });
+
+      testWidgets('le bouton - est désactivé au plancher (1)', (
+        tester,
+      ) async {
+        final controller = TextEditingController(text: '1');
+        await tester.pumpWidget(
+          wrap(
+            NubiaTextField(
+              variant: NubiaTextFieldVariant.numberStepper,
+              controller: controller,
+              label: 'Qté',
+            ),
+          ),
+        );
+
+        final minusButton = tester.widget<IconButton>(
+          find.ancestor(
+            of: find.byIcon(Icons.remove),
+            matching: find.byType(IconButton),
+          ),
+        );
+        expect(minusButton.onPressed, isNull);
+
+        await tester.tap(find.byIcon(Icons.add));
+        await tester.pump();
+        expect(controller.text, '2');
+
+        await tester.tap(find.byIcon(Icons.remove));
+        await tester.pump();
+        expect(controller.text, '1');
+      });
+
+      testWidgets('la perte de focus ramène une valeur invalide à 1', (
+        tester,
+      ) async {
+        final controller = TextEditingController(text: '1');
+        await tester.pumpWidget(
+          wrap(
+            Column(
+              children: [
+                NubiaTextField(
+                  variant: NubiaTextFieldVariant.numberStepper,
+                  controller: controller,
+                  label: 'Qté',
+                ),
+                const TextField(),
+              ],
+            ),
+          ),
+        );
+
+        await tester.enterText(find.byType(TextField).first, '');
+        await tester.tap(find.byType(TextField).last);
+        await tester.pump();
+
+        expect(controller.text, '1');
+      });
+    });
   });
 }

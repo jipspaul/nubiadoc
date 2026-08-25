@@ -9,6 +9,10 @@ class WaitingRoomEntryDto {
   final String? appointmentId;
   final String arrivedAt;
   final int? estimatedWaitMinutes;
+  final String? reason;
+  final String? appointmentTime;
+  final String? practitionerId;
+  final String? practitionerName;
 
   const WaitingRoomEntryDto({
     required this.id,
@@ -18,6 +22,10 @@ class WaitingRoomEntryDto {
     this.appointmentId,
     required this.arrivedAt,
     this.estimatedWaitMinutes,
+    this.reason,
+    this.appointmentTime,
+    this.practitionerId,
+    this.practitionerName,
   });
 
   factory WaitingRoomEntryDto.fromJson(Map<String, dynamic> json) =>
@@ -40,6 +48,10 @@ class WaitingRoomEntryDto {
             DateTime.now().toIso8601String(),
         estimatedWaitMinutes: (json['wait_minutes'] as num?)?.toInt() ??
             (json['estimated_wait_minutes'] as num?)?.toInt(),
+        reason: json['motif'] as String?,
+        appointmentTime: json['starts_at'] as String?,
+        practitionerId: json['practitioner_id'] as String?,
+        practitionerName: json['practitioner_name'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -57,6 +69,11 @@ class WaitingRoomEntryDto {
         appointmentId: appointmentId,
         arrivedAt: DateTime.parse(arrivedAt),
         estimatedWaitMinutes: estimatedWaitMinutes,
+        reason: reason,
+        appointmentTime:
+            appointmentTime != null ? DateTime.tryParse(appointmentTime!) : null,
+        practitionerId: practitionerId,
+        practitionerName: practitionerName,
       );
 }
 

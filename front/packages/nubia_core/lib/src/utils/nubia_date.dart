@@ -19,10 +19,98 @@ class NubiaDate {
     'décembre',
   ];
 
-  /// Formate une date ISO (`yyyy-MM-dd` ou ISO 8601 complet) en jour long
-  /// français, ex. `2026-07-04` → « 4 juillet 2026 ».
-  static String dayLong(String isoDate) {
-    final date = DateTime.parse(isoDate);
+  /// Formate une date (chaîne ISO `yyyy-MM-dd`/ISO 8601 complet, ou
+  /// [DateTime]) en jour long français, heure locale, ex. `2026-07-04` ou
+  /// `DateTime.utc(2026, 7, 4)` → « 4 juillet 2026 ». Retourne une chaîne
+  /// vide si [input] est `null` ou invalide (aucune valeur brute affichée).
+  static String dayLong(Object? input) {
+    final date = _parse(input)?.toLocal();
+    if (date == null) return '';
     return '${date.day} ${_months[date.month - 1]} ${date.year}';
+  }
+
+  static DateTime? _parse(Object? input) {
+    if (input is DateTime) return input;
+    if (input is String) {
+      return DateTime.tryParse(input);
+    }
+    return null;
+  }
+
+  static const _monthsAbbr = [
+    'jan',
+    'fév',
+    'mar',
+    'avr',
+    'mai',
+    'jun',
+    'jul',
+    'aoû',
+    'sep',
+    'oct',
+    'nov',
+    'déc',
+  ];
+
+  /// Horodatage relatif court, heure locale : même jour que [now] (défaut
+  /// `DateTime.now()`) → `HH:mm` ; sinon → `<jour> <mois abrégé>`, ex.
+  /// `8 août`. [dateTime] peut être en UTC (ex. ISO reçu du backend avec
+  /// offset +00:00) : converti via `.toLocal()` avant tout calcul, pour
+  /// éviter le bug #3856 (heure/jour UTC affichés au lieu de l'heure/jour
+  /// locale).
+  static String relative(DateTime dateTime, {DateTime? now}) {
+    final dt = dateTime.toLocal();
+    final reference = now ?? DateTime.now();
+    final sameDay = dt.year == reference.year &&
+        dt.month == reference.month &&
+        dt.day == reference.day;
+    if (sameDay) {
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
+      return '$h:$m';
+    }
+    return '${dt.day} ${_monthsAbbr[dt.month - 1]}';
+  }
+
+  static const _weekdaysFull = [
+    'Lundi',
+    'Mardi',
+    'Mercredi',
+    'Jeudi',
+    'Vendredi',
+    'Samedi',
+    'Dimanche',
+  ];
+
+  /// Vrai si [a] et [b] tombent le même jour calendaire en heure locale.
+  /// Convertit chaque date via `.toLocal()` avant comparaison, pour éviter
+  /// le bug #3856 (jour UTC comparé au lieu du jour local).
+  static bool isSameDay(DateTime a, DateTime b) {
+    final la = a.toLocal();
+    final lb = b.toLocal();
+    return la.year == lb.year && la.month == lb.month && la.day == lb.day;
+  }
+
+  /// Libellé du séparateur de jour d'un fil de messages (#5278) : jour
+  /// courant → « Aujourd'hui » ; sinon → jour de semaine + jour + mois, ex.
+  /// « Mardi 22 juillet ». [dateTime] peut être en UTC : converti via
+  /// `.toLocal()` avant comparaison, pour éviter le bug #3856.
+  static String daySeparatorLabel(DateTime dateTime, {DateTime? now}) {
+    final dt = dateTime.toLocal();
+    final reference = now ?? DateTime.now();
+    if (isSameDay(dt, reference)) return "Aujourd'hui";
+    return '${_weekdaysFull[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
+  }
+
+  /// Nombre de mois pleins écoulés entre une date ISO et [now] (heure locale,
+  /// défaut `DateTime.now()`), ex. posé le `2026-03-12`, le `2026-08-17` →
+  /// `5`. [now] est surtout utile pour des tests déterministes.
+  static int monthsSince(String isoDate, {DateTime? now}) {
+    final date = DateTime.parse(isoDate).toLocal();
+    final reference = now ?? DateTime.now();
+    var months =
+        (reference.year - date.year) * 12 + (reference.month - date.month);
+    if (reference.day < date.day) months--;
+    return months < 0 ? 0 : months;
   }
 }
