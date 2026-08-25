@@ -42,6 +42,23 @@ final _toVerify = CabinetPayout(
   internalPaymentsTotalCents: 0,
 );
 
+final _toVerifyWithCashLead = CabinetPayout(
+  id: 'po_mock_cash_lead',
+  provider: PayoutProvider.stripe,
+  amountCents: 184200,
+  currency: 'EUR',
+  arrivalDate: DateTime(2026, 8, 8),
+  reconciliationStatus: PayoutReconciliationStatus.toVerify,
+  internalPaymentsTotalCents: 202400,
+  internalPayments: const [
+    InternalPayment(
+      amountCents: 18200,
+      methodLabel: 'espèces',
+      reconcilableByProvider: false,
+    ),
+  ],
+);
+
 Widget _wrap(CabinetPayoutsBloc bloc) => MaterialApp(
       theme: NubiaTheme.light,
       home: BlocProvider<CabinetPayoutsBloc>.value(
@@ -208,6 +225,99 @@ void main() {
           ),
         ).called(1);
         expect(find.text('Signalé au comptable.'), findsOneWidget);
+      },
+    );
+  });
+
+  group('encart « piste probable » (#5110)', () {
+    testWidgets(
+      'un paiement espèces non rapprochable par le prestataire égal à '
+      "l'écart → encart affiché avec le mot exact",
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_toVerifyWithCashLead],
+            selectedPayoutId: _toVerifyWithCashLead.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('payout_probable_lead')),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Piste probable : le paiement en espèces de 182,00 € ne '
+            "transite pas par Stripe — il explique exactement l'écart. À "
+            'rapprocher de la caisse, pas du virement.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      "aucun paiement interne ne correspond à l'écart → encart absent",
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded([_toVerify], selectedPayoutId: _toVerify.id),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('payout_probable_lead')),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      "l'affichage de l'encart ne modifie aucun statut (indicatif seul)",
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_toVerifyWithCashLead],
+            selectedPayoutId: _toVerifyWithCashLead.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(find.byKey(const Key('payout_probable_lead')), findsOneWidget);
+        verifyNever(() => bloc.add(any()));
       },
     );
   });
