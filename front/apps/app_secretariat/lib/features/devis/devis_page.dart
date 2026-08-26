@@ -39,6 +39,12 @@ class _DevisPageState extends State<DevisPage> {
 
   void _closeQuoteSheet() => setState(() => _selectedQuoteId = null);
 
+  // Libellé verbatim maquette — énonce l'ordre COURANT (pas l'action
+  // suivante), cf. #5085 : le tooltip précédent décrivait l'inverse de
+  // l'icône affichée.
+  String get _sortLabel =>
+      _sortAsc ? 'Plus ancien d\'abord' : 'Plus récent d\'abord';
+
   @override
   void initState() {
     super.initState();
@@ -69,13 +75,10 @@ class _DevisPageState extends State<DevisPage> {
           ],
         ),
         actions: [
-          IconButton(
+          _SortChip(
             key: const Key('sort_button'),
-            tooltip: _sortAsc ? 'Plus récent d\'abord' : 'Plus ancien d\'abord',
-            icon: Icon(
-              _sortAsc ? Icons.arrow_upward : Icons.arrow_downward,
-            ),
-            onPressed: () => setState(() => _sortAsc = !_sortAsc),
+            label: _sortLabel,
+            onTap: () => setState(() => _sortAsc = !_sortAsc),
           ),
           IconButton(
             tooltip: NubiaL10n.refresh,
@@ -178,6 +181,48 @@ class _DevisPageState extends State<DevisPage> {
           }
           return const _DevisListSkeleton();
         },
+      ),
+    );
+  }
+}
+
+/// Puce de tri (`.sortc`, design-v2, #5085) : remplace l'`IconButton` dont
+/// l'icône affichait l'état courant tandis que le `tooltip` annonçait
+/// l'action suivante — deux sémantiques opposées sur le même contrôle, et
+/// une info-bulle inatteignable au clavier. La puce énonce l'ordre en
+/// cours, comme dans les autres écrans refondus (cf. `_SortChip` de
+/// `mes_rdv_page.dart`).
+class _SortChip extends StatelessWidget {
+  const _SortChip({super.key, required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: NubiaColors.n0,
+      shape: const StadiumBorder(side: BorderSide(color: NubiaColors.n200)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 5, 10, 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.swap_vert, size: 15, color: NubiaColors.n500),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: NubiaColors.n500,
+                    ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
