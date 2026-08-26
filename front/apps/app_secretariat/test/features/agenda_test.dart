@@ -589,6 +589,128 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // #5071 — jour courant teinté + ligne « maintenant ».
+  // -------------------------------------------------------------------------
+  group('jour courant teinté + ligne maintenant (#5071)', () {
+    // AgendaPage charge toujours `_currentWeekStart()` (semaine réelle du
+    // jour d'exécution du test) — même remarque que le groupe #5072
+    // ci-dessus.
+    Future<void> pumpAgenda(WidgetTester tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+    }
+
+    Finder scrollableFinder() => find.descendant(
+          of: find.byKey(const Key('agenda_refresh_indicator')),
+          matching: find.byType(Scrollable),
+        );
+
+    testWidgets(
+        'affiche une bande « aujourd\'hui » teintée et une ligne rouge '
+        '« maintenant » pour la semaine courante', (tester) async {
+      await pumpAgenda(tester);
+
+      // Le lundi de la semaine courante n'est pas forcément « aujourd'hui »
+      // (dépend du jour d'exécution du test) : on défile jusqu'à la bande
+      // plutôt que de supposer sa position.
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('agenda_today_header')),
+        300,
+        scrollable: scrollableFinder(),
+      );
+      expect(find.byKey(const Key('agenda_today_header')), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('agenda_now_line')),
+        300,
+        scrollable: scrollableFinder(),
+      );
+      expect(find.byKey(const Key('agenda_now_line')), findsOneWidget);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
+        'aucune bande ni ligne « maintenant » quand la semaine affichée ne '
+        'contient pas aujourd\'hui', (tester) async {
+      await pumpAgenda(tester);
+
+      // Navigue vers la semaine suivante : elle ne contient jamais
+      // aujourd'hui.
+      await tester.tap(find.byKey(const Key('agenda_next_week')));
+      await tester.pump();
+
+      expect(find.byKey(const Key('agenda_today_header')), findsNothing);
+      expect(find.byKey(const Key('agenda_now_line')), findsNothing);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
+        'la bande « aujourd\'hui » n\'est pas cliquable et n\'est pas '
+        'comptée dans les compteurs RDV', (tester) async {
+      await pumpAgenda(tester);
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('agenda_today_header')),
+        300,
+        scrollable: scrollableFinder(),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('agenda_today_header')),
+          matching: find.byType(InkWell),
+        ),
+        findsNothing,
+      );
+      expect(find.text('1 RDV'), findsOneWidget);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets('la date du bouton « Aujourd\'hui » réapparaît après une '
+        'navigation semaine (retour via T)', (tester) async {
+      await pumpAgenda(tester);
+
+      await tester.tap(find.byKey(const Key('agenda_next_week')));
+      await tester.pump();
+      expect(find.byKey(const Key('agenda_today_header')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('agenda_today_button')));
+      await tester.pump();
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('agenda_today_header')),
+        300,
+        scrollable: scrollableFinder(),
+      );
+      expect(find.byKey(const Key('agenda_today_header')), findsOneWidget);
+
+      await GetIt.instance.reset();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // #5079 — volet latéral détail du RDV sélectionné.
   // -------------------------------------------------------------------------
   group('volet latéral détail du RDV sélectionné (#5079)', () {
