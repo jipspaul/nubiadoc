@@ -149,9 +149,7 @@ pub async fn list_lab_work_orders(
                 .try_get("quote_item_id")
                 .map_err(|_| AppError::Internal)?,
             tooth_fdi: row.try_get("tooth_fdi").map_err(|_| AppError::Internal)?,
-            work_nature: row
-                .try_get("work_nature")
-                .map_err(|_| AppError::Internal)?,
+            work_nature: row.try_get("work_nature").map_err(|_| AppError::Internal)?,
             appointment_id: row
                 .try_get("appointment_id")
                 .map_err(|_| AppError::Internal)?,
