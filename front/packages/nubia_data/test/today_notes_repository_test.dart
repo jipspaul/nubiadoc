@@ -92,4 +92,31 @@ void main() {
       expect(result.isLeft(), isTrue);
     });
   });
+
+  group('getTodayNotes — patientName (#5047)', () {
+    test('patient_name absent → repli sur patientInitials', () async {
+      when(() => api.getTodayNotes())
+          .thenAnswer((_) async => [_rawNote('n1', 'in_progress')]);
+
+      final result = await repo.getTodayNotes();
+
+      result.fold(
+        (_) => fail('attendu Right'),
+        (notes) => expect(notes.single.patientName, 'MD'),
+      );
+    });
+
+    test('patient_name fourni par l\'API → utilisé tel quel', () async {
+      when(() => api.getTodayNotes()).thenAnswer((_) async => [
+            {..._rawNote('n1', 'in_progress'), 'patient_name': 'Marc Dubois'},
+          ]);
+
+      final result = await repo.getTodayNotes();
+
+      result.fold(
+        (_) => fail('attendu Right'),
+        (notes) => expect(notes.single.patientName, 'Marc Dubois'),
+      );
+    });
+  });
 }

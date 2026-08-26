@@ -208,12 +208,14 @@ void main() {
           timestamp: DateTime(2026, 6, 3, 9, 5),
           patientInitials: 'MD',
           status: ClinicalNoteStatus.signed,
+          patientName: 'MD',
         ),
         ClinicalNoteSummary(
           id: 'n2',
           timestamp: DateTime(2026, 6, 3, 10, 30),
           patientInitials: 'CR',
           status: ClinicalNoteStatus.draft,
+          patientName: 'CR',
         ),
       ];
       when(() => mockBloc.state).thenReturn(TodayNotesLoaded(entries));
