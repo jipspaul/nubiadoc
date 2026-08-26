@@ -596,6 +596,163 @@ void main() {
     });
   });
 
+  // --- Colonne Échéance (design-v2, #5084) --------------------------------------
+  group('DevisTableRow — colonne Échéance (#5084)', () {
+    Widget buildRow(CabinetQuote quote, {DateTime? now}) => MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(
+            body: DevisTableRow(quote: quote, now: now),
+          ),
+        );
+
+    CabinetQuote quoteWith({
+      required CabinetQuoteStatus status,
+      DateTime? expiresAt,
+      DateTime? signedAt,
+    }) =>
+        CabinetQuote(
+          id: 'q1',
+          cabinetId: 'c1',
+          patientId: 'p1',
+          patientName: 'Alice',
+          totalCents: 10000,
+          patientShareCents: 4000,
+          status: status,
+          createdAt: DateTime(2026, 1, 1),
+          expiresAt: expiresAt,
+          signedAt: signedAt,
+        );
+
+    testWidgets('brouillon sans expiresAt : « — » + « non envoyé »',
+        (tester) async {
+      await tester.pumpWidget(
+        buildRow(quoteWith(status: CabinetQuoteStatus.draft)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('—'), findsOneWidget);
+      expect(find.text('non envoyé'), findsOneWidget);
+    });
+
+    testWidgets(
+        'à signer, échéance ≤ 7 jours : « Dans N jours » + date en warning',
+        (tester) async {
+      final now = DateTime(2026, 8, 10);
+      await tester.pumpWidget(
+        buildRow(
+          quoteWith(
+            status: CabinetQuoteStatus.sent,
+            expiresAt: DateTime(2026, 8, 13),
+          ),
+          now: now,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dans 3 jours'), findsOneWidget);
+      expect(find.text('13/08'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.text('Dans 3 jours')).style?.color,
+        NubiaColors.warningFg,
+      );
+      expect(
+        tester.widget<Text>(find.text('13/08')).style?.color,
+        NubiaColors.warningFg,
+      );
+    });
+
+    testWidgets('à signer, échéance lointaine : couleur neutre',
+        (tester) async {
+      final now = DateTime(2026, 8, 10);
+      await tester.pumpWidget(
+        buildRow(
+          quoteWith(
+            status: CabinetQuoteStatus.sent,
+            expiresAt: DateTime(2026, 9, 3),
+          ),
+          now: now,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dans 24 jours'), findsOneWidget);
+      expect(find.text('03/09'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.text('Dans 24 jours')).style?.color,
+        isNot(NubiaColors.warningFg),
+      );
+    });
+
+    testWidgets('expiré : « Depuis N jours » + date en danger', (tester) async {
+      final now = DateTime(2026, 8, 10);
+      await tester.pumpWidget(
+        buildRow(
+          quoteWith(
+            status: CabinetQuoteStatus.expired,
+            expiresAt: DateTime(2026, 7, 29),
+          ),
+          now: now,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Depuis 12 jours'), findsOneWidget);
+      expect(find.text('29/07'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.text('Depuis 12 jours')).style?.color,
+        NubiaColors.dangerFg,
+      );
+      expect(
+        tester.widget<Text>(find.text('29/07')).style?.color,
+        NubiaColors.dangerFg,
+      );
+    });
+
+    testWidgets('signé : « Signé le JJ/MM », pas de sous-ligne inventée',
+        (tester) async {
+      await tester.pumpWidget(
+        buildRow(
+          quoteWith(
+            status: CabinetQuoteStatus.signed,
+            signedAt: DateTime(2026, 8, 4),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Signé le 04/08'), findsOneWidget);
+      expect(find.text('acompte réglé'), findsNothing);
+    });
+
+    testWidgets('payé : « Signé le JJ/MM » + sous-ligne « acompte réglé »',
+        (tester) async {
+      await tester.pumpWidget(
+        buildRow(
+          quoteWith(
+            status: CabinetQuoteStatus.paid,
+            signedAt: DateTime(2026, 8, 4),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Signé le 04/08'), findsOneWidget);
+      expect(find.text('acompte réglé'), findsOneWidget);
+    });
+
+    testWidgets(
+        'annulé : « — » + « annulé », aucune date inventée (pas de '
+        'cancelledAt dans le domaine)', (tester) async {
+      await tester.pumpWidget(
+        buildRow(quoteWith(status: CabinetQuoteStatus.cancelled)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('—'), findsOneWidget);
+      expect(find.text('annulé'), findsOneWidget);
+    });
+  });
+
   // --- DevisDetailPage widget test --------------------------------------------
   group('DevisDetailPage', () {
     late _MockDevisBloc bloc;

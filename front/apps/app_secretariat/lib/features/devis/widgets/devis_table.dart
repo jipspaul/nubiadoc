@@ -136,14 +136,128 @@ _RowAction _rowActionFor(CabinetQuoteStatus status) {
 String _formatRowDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/'
     '${d.month.toString().padLeft(2, '0')}/${d.year}';
 
+/// Date courte « JJ/MM » (colonne Échéance, verbatim maquette — pas d'année,
+/// contrairement à `_formatRowDate` utilisée par la colonne Devis).
+String _formatShortDate(DateTime d) {
+  final local = d.toLocal();
+  return '${local.day.toString().padLeft(2, '0')}/'
+      '${local.month.toString().padLeft(2, '0')}';
+}
+
+String _pluralJours(int n) => n == 1 ? 'jour' : 'jours';
+
+/// Différence en jours calendaires (fuseau local, minuit à minuit) entre
+/// `target` et `now` — même méthode que `QuoteTimeline._formatExpiry` pour
+/// rester cohérent avec le décompte déjà affiché dans le volet détail.
+int _daysUntil(DateTime target, DateTime now) {
+  final local = target.toLocal();
+  return DateTime(local.year, local.month, local.day)
+      .difference(DateTime(now.year, now.month, now.day))
+      .inDays;
+}
+
+/// Contenu de la colonne Échéance (design-v2, #5084) — deux lignes
+/// (principale + sous-ligne) et une couleur, dérivées du statut et des
+/// dates du devis :
+/// - brouillon (jamais envoyé) : « — » + « non envoyé ».
+/// - à signer / expiré : « Dans N jours » ou « Depuis N jours » calculé
+///   depuis `expiresAt`, warning si ≤ 7 jours, danger si dépassé (peu importe
+///   que le back ait déjà bascule le statut sur `expired` ou non — c'est la
+///   date qui fait foi, comme l'exige la maquette).
+/// - signé / payé : « Signé le JJ/MM » depuis `signedAt` ; sous-ligne
+///   « acompte réglé » seulement si l'acompte est réglé (statut `paid`) —
+///   pas de sous-ligne inventée pour un `signed` simple.
+/// - annulé : `CabinetQuote` n'expose pas de date/motif d'annulation (aucun
+///   champ `cancelledAt` côté domaine) → « — » + « annulé » plutôt
+///   qu'inventer une date, même choix que la sous-ligne praticien omise
+///   plus haut dans ce fichier.
+@immutable
+class _EcheanceCell {
+  const _EcheanceCell({
+    required this.main,
+    this.sub,
+    required this.mainColor,
+    required this.subColor,
+  });
+
+  final String main;
+  final String? sub;
+  final Color mainColor;
+  final Color subColor;
+
+  static _EcheanceCell of(
+    CabinetQuote quote,
+    NubiaTokens tokens,
+    ColorScheme cs,
+    DateTime now,
+  ) {
+    switch (quote.status) {
+      case CabinetQuoteStatus.draft:
+        return _EcheanceCell(
+          main: '—',
+          sub: 'non envoyé',
+          mainColor: cs.onSurfaceVariant,
+          subColor: tokens.textTertiary,
+        );
+      case CabinetQuoteStatus.cancelled:
+        return _EcheanceCell(
+          main: '—',
+          sub: 'annulé',
+          mainColor: cs.onSurfaceVariant,
+          subColor: tokens.textTertiary,
+        );
+      case CabinetQuoteStatus.signed:
+      case CabinetQuoteStatus.paid:
+        final signedAt = quote.signedAt;
+        return _EcheanceCell(
+          main: signedAt != null
+              ? 'Signé le ${_formatShortDate(signedAt)}'
+              : 'Signé',
+          sub: quote.status == CabinetQuoteStatus.paid
+              ? 'acompte réglé'
+              : null,
+          mainColor: cs.onSurface,
+          subColor: tokens.textTertiary,
+        );
+      case CabinetQuoteStatus.sent:
+      case CabinetQuoteStatus.expired:
+        final expiresAt = quote.expiresAt;
+        if (expiresAt == null) {
+          return _EcheanceCell(
+            main: '—',
+            mainColor: cs.onSurfaceVariant,
+            subColor: tokens.textTertiary,
+          );
+        }
+        final days = _daysUntil(expiresAt, now);
+        final dateLabel = _formatShortDate(expiresAt);
+        if (days > 0) {
+          final warn = days <= 7;
+          return _EcheanceCell(
+            main: 'Dans $days ${_pluralJours(days)}',
+            sub: dateLabel,
+            mainColor: warn ? tokens.warningFg : cs.onSurface,
+            subColor: warn ? tokens.warningFg : tokens.textTertiary,
+          );
+        }
+        final since = -days;
+        return _EcheanceCell(
+          main: 'Depuis $since ${_pluralJours(since)}',
+          sub: dateLabel,
+          mainColor: tokens.dangerFg,
+          subColor: tokens.dangerFg,
+        );
+    }
+  }
+}
+
 /// Ligne du tableau devis (design-v2, #5086) : colonnes alignées — Devis
 /// (numéro mono + date d'émission), Patient (avatar + nom ; le praticien de
 /// la maquette n'existe pas sur `CabinetQuote` → sous-ligne omise
 /// proprement, cf. `_DevisSheetBody` #5089 pour le même choix), Reste à
-/// charge (aligné droite, tabulaire), Statut (`StatusPill`). Les colonnes
-/// Échéance et Action ont leurs propres tickets : la première réserve la
-/// place et affiche la date brute, la seconde conserve l'action de ligne
-/// existante (#5087) sans en revoir le design.
+/// charge (aligné droite, tabulaire), Statut (`StatusPill`), Échéance
+/// (relatif coloré, `_EcheanceCell`, #5084). La colonne Action conserve
+/// l'action de ligne existante (#5087) sans en revoir le design.
 class DevisTableRow extends StatelessWidget {
   const DevisTableRow({
     super.key,
@@ -151,6 +265,7 @@ class DevisTableRow extends StatelessWidget {
     this.onTap,
     this.active = false,
     this.actionLoading = false,
+    this.now,
   });
 
   final CabinetQuote quote;
@@ -165,12 +280,18 @@ class DevisTableRow extends StatelessWidget {
   /// et affiche son spinner sans bloquer le reste de la liste.
   final bool actionLoading;
 
+  /// Référence pour le décompte de la colonne Échéance (#5084) — surchargée
+  /// par les tests pour un rendu déterministe, `DateTime.now()` sinon (même
+  /// pattern que `QuoteTimeline.now`).
+  final DateTime? now;
+
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     final action = _rowActionFor(quote.status);
+    final echeance = _EcheanceCell.of(quote, tokens, cs, now ?? DateTime.now());
 
     final content = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 56),
@@ -257,16 +378,32 @@ class DevisTableRow extends StatelessWidget {
             const SizedBox(width: _DevisColumns.gap),
             SizedBox(
               width: _DevisColumns.echeance,
-              child: Text(
-                quote.expiresAt != null
-                    ? _formatRowDate(quote.expiresAt!)
-                    : '—',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(
-                  color: cs.onSurfaceVariant,
-                  fontFeatures: tabularFigures,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    echeance.main,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: echeance.mainColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (echeance.sub != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      echeance.sub!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: echeance.subColor,
+                        fontFeatures: tabularFigures,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             const SizedBox(width: _DevisColumns.gap),
