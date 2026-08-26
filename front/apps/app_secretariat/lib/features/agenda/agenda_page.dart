@@ -44,6 +44,86 @@ List<Slot> bookableSlots(List<Slot> slots, List<AgendaEntry> entries) {
       .toList(growable: false);
 }
 
+// ---------------------------------------------------------------------------
+
+enum _AgendaRowKind { entry, pauseBand, closedBand }
+
+/// Ligne de la liste chronologique de l'agenda : soit un RDV/créneau réel
+/// ([AgendaEntry]), soit une bande de décor ([_AgendaDecorBand]) — jamais les
+/// deux (cf. [_buildAgendaRows]).
+class _AgendaRow {
+  const _AgendaRow.entry(this.entry)
+      : kind = _AgendaRowKind.entry,
+        day = null;
+  const _AgendaRow.pause(this.day)
+      : kind = _AgendaRowKind.pauseBand,
+        entry = null;
+  const _AgendaRow.closed(this.day)
+      : kind = _AgendaRowKind.closedBand,
+        entry = null;
+
+  final _AgendaRowKind kind;
+  final AgendaEntry? entry;
+  final DateTime? day;
+}
+
+/// Pause déjeuner 12:00–13:30 et jours fermés (maquette design-v2, hachures
+/// `.pause` `--n100`/`--n200`, #5072) — décor pur de la liste chronologique de
+/// l'agenda, jamais des [AgendaEntry] : aucune horaire d'ouverture cabinet
+/// n'existe côté back (ni `AgendaEntry` ni le contrat d'agenda n'exposent de
+/// champ pause/jour fermé), donc ces bornes restent des constantes UI tant
+/// que ce champ n'existe pas côté back. Jour fermé = weekend (samedi/
+/// dimanche), seul jour fermé visible dans la maquette (« Sam 15 »).
+const _pauseStartHour = 12;
+const _pauseStartMinute = 0;
+const _pauseEndHour = 13;
+const _pauseEndMinute = 30;
+const _closedWeekdays = {DateTime.saturday, DateTime.sunday};
+
+String _pad2(int n) => n.toString().padLeft(2, '0');
+
+String get _pauseBandLabel => 'Pause déjeuner · '
+    '${_pad2(_pauseStartHour)}:${_pad2(_pauseStartMinute)}–'
+    '${_pad2(_pauseEndHour)}:${_pad2(_pauseEndMinute)}';
+
+/// Intercale les bandes de décor pause/jour fermé entre les [entries] déjà
+/// filtrées, un jour à la fois sur les 7 jours de `weekStart` — insère la
+/// bande pause juste avant la première entrée de la journée qui démarre à ou
+/// après 12:00 (ou en fin de journée si aucune ne le fait).
+List<_AgendaRow> _buildAgendaRows(
+  DateTime weekStart,
+  List<AgendaEntry> entries,
+) {
+  final sorted = [...entries]..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+  final rows = <_AgendaRow>[];
+  var index = 0;
+  for (var i = 0; i < 7; i++) {
+    final day = DateTime(weekStart.year, weekStart.month, weekStart.day + i);
+    final dayEnd = day.add(const Duration(days: 1));
+    final pauseStart =
+        DateTime(day.year, day.month, day.day, _pauseStartHour, _pauseStartMinute);
+    final closed = _closedWeekdays.contains(day.weekday);
+
+    var pauseInserted = false;
+    while (index < sorted.length && sorted[index].startsAt.isBefore(dayEnd)) {
+      if (!closed &&
+          !pauseInserted &&
+          !sorted[index].startsAt.isBefore(pauseStart)) {
+        rows.add(_AgendaRow.pause(day));
+        pauseInserted = true;
+      }
+      rows.add(_AgendaRow.entry(sorted[index]));
+      index++;
+    }
+    if (closed) {
+      rows.add(_AgendaRow.closed(day));
+    } else if (!pauseInserted) {
+      rows.add(_AgendaRow.pause(day));
+    }
+  }
+  return rows;
+}
+
 /// Contenu de la destination « agenda » du shell (`router/app_router.dart`).
 ///
 /// #5083 — cadrage : la maquette `design/v2-screens/secretariat-agenda.png`
@@ -338,6 +418,8 @@ class _LoadedViewState extends State<_LoadedView> {
     Map<String, String> practitioners,
     List<AgendaEntry> filteredEntries,
   ) {
+    final agendaRows =
+        _buildAgendaRows(widget.state.weekStart, filteredEntries);
     return Column(
       children: [
         if (widget.state.actionInProgress)
@@ -445,23 +527,42 @@ class _LoadedViewState extends State<_LoadedView> {
                     // dernier item de la liste plutôt qu'un bandeau fixe
                     // sous l'Expanded — elle ne doit pas rogner la
                     // hauteur visible des cartes RDV.
-                    itemCount: filteredEntries.length + 1,
+                    itemCount: agendaRows.length + 1,
                     itemBuilder: (context, i) {
-                      if (i == filteredEntries.length) {
+                      if (i == agendaRows.length) {
                         return const _AgendaConfidentialityNotice();
                       }
-                      final entry = filteredEntries[i];
-                      return _EntryCard(
-                        entry: entry,
-                        practitionerNames: practitioners,
-                        selected: entry.id == _selectedEntryId,
-                        onSelect: widget.state.actionInProgress
-                            ? null
-                            : () => entry.isFree
-                                ? _openNewAppointmentForSlot(context, entry,
-                                    widget.state, practitioners)
-                                : setState(() => _selectedEntryId = entry.id),
-                      );
+                      final row = agendaRows[i];
+                      switch (row.kind) {
+                        case _AgendaRowKind.entry:
+                          final entry = row.entry!;
+                          return _EntryCard(
+                            entry: entry,
+                            practitionerNames: practitioners,
+                            selected: entry.id == _selectedEntryId,
+                            onSelect: widget.state.actionInProgress
+                                ? null
+                                : () => entry.isFree
+                                    ? _openNewAppointmentForSlot(context,
+                                        entry, widget.state, practitioners)
+                                    : setState(
+                                        () => _selectedEntryId = entry.id),
+                          );
+                        case _AgendaRowKind.pauseBand:
+                          return _AgendaDecorBand(
+                            key: Key('agenda_pause_band_${_dayKey(row.day!)}'),
+                            height: _pauseBandHeight,
+                            label: _pauseBandLabel,
+                          );
+                        case _AgendaRowKind.closedBand:
+                          return _AgendaDecorBand(
+                            key: Key('agenda_closed_band_${_dayKey(row.day!)}'),
+                            label: '${_AgendaDetailPanel._weekdays[row.day!.weekday - 1]} '
+                                '${row.day!.day} ${_WeekNavBar._months[row.day!.month - 1]} '
+                                '— Cabinet fermé',
+                            height: _closedBandHeight,
+                          );
+                      }
                     },
                   ),
                 ),
@@ -1524,6 +1625,112 @@ class _DashedRectPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DashedRectPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.radius != radius;
+}
+
+// ---------------------------------------------------------------------------
+
+String _dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
+
+/// Hauteur de la bande pause déjeuner, dérivée de la même échelle que
+/// [_EntryCard._blockHeight] (56 px/h, maquette design-v2, #5073) : 90 min →
+/// 84 px, valeur qui correspond exactement au `height:84px` de la maquette
+/// (`secretariat-agenda.png`, `.pause`).
+const _pauseBandHeight = 84.0;
+
+/// Hauteur de la bande « jour fermé » — contrairement à la maquette (grille à
+/// canevas absolu, `.pause` `height:448px` ≈ une journée entière de 8 h sur
+/// l'échelle ci-dessus), l'agenda ici est une liste défilante sans canevas de
+/// journée : reprendre 448 px rendrait une seule journée fermée aussi haute
+/// que tout le reste de la semaine cumulé. On garde une bande nettement plus
+/// haute qu'un bloc RDV (repère visuel fort de « colonne fermée ») sans viser
+/// une hauteur de journée absolue qui n'a pas de sens hors grille.
+const _closedBandHeight = 120.0;
+
+/// Bande de décor « pause déjeuner »/« jour fermé » (maquette design-v2,
+/// hachures 135° `--n100` sur bordures `--n200`, #5072) — pur habillage
+/// visuel de la liste chronologique de l'agenda : pas de `onTap`, jamais une
+/// [AgendaEntry], jamais comptée dans [_AgendaStats] ni sélectionnable via
+/// ↑/↓ (cf. [_LoadedViewState._selectDelta], qui n'itère que sur les
+/// `AgendaEntry` filtrées).
+class _AgendaDecorBand extends StatelessWidget {
+  const _AgendaDecorBand({
+    super.key,
+    required this.height,
+    required this.label,
+  });
+
+  final double height;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Container(
+        height: height,
+        decoration: const BoxDecoration(
+          border: Border.symmetric(
+            horizontal: BorderSide(color: NubiaColors.n200),
+          ),
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              const CustomPaint(painter: _HachurePainter()),
+              Center(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: NubiaColors.n500,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Trame de hachures 135° `--n100` (maquette design-v2, `.pause` :
+/// `repeating-linear-gradient(135deg,--n100 0 5px,transparent 5px 10px)`,
+/// #5072) — même approche `CustomPainter` que [_DashedRectPainter] : Flutter
+/// n'a pas de gradient répétitif utilisable directement pour un motif de
+/// hachures, d'où ce tracé de bandes diagonales.
+class _HachurePainter extends CustomPainter {
+  const _HachurePainter();
+
+  static const _stripeWidth = 5.0;
+  static const _period = 10.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = NubiaColors.n100
+      ..style = PaintingStyle.fill;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    final span = size.width + size.height;
+    for (var x = -size.height; x < span; x += _period) {
+      final stripe = Path()
+        ..moveTo(x, 0)
+        ..lineTo(x + size.height, size.height)
+        ..lineTo(x + size.height + _stripeWidth, size.height)
+        ..lineTo(x + _stripeWidth, 0)
+        ..close();
+      canvas.drawPath(stripe, paint);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _HachurePainter oldDelegate) => false;
 }
 
 // ---------------------------------------------------------------------------
