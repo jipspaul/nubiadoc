@@ -20,7 +20,26 @@ class CabinetPayoutsPage extends StatelessWidget {
     return Scaffold(
       key: const Key('cabinet_payouts_scaffold'),
       appBar: AppBar(
-        title: const Text('Rapprochement bancaire'),
+        title: Row(
+          children: [
+            const Flexible(
+              child: Text(
+                'Rapprochement bancaire',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 16),
+            BlocBuilder<CabinetPayoutsBloc, CabinetPayoutsState>(
+              builder: (context, state) {
+                final month = (state is CabinetPayoutsLoaded
+                        ? state.selectedMonth
+                        : null) ??
+                    _startOfCurrentMonth();
+                return _MonthSelector(month: month);
+              },
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'Actualiser',
@@ -134,6 +153,77 @@ String _providerCode(PayoutProvider provider) => switch (provider) {
       PayoutProvider.stripe => 'STR',
       PayoutProvider.gocardless => 'GCL',
     };
+
+DateTime _startOfCurrentMonth() {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month);
+}
+
+const _frenchMonths = [
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
+];
+
+String _monthLabel(DateTime month) =>
+    '${_frenchMonths[month.month - 1]} ${month.year}';
+
+/// Sélecteur de mois de l'en-tête (design-v2, point 4b) — le rapprochement
+/// est un travail mensuel, absent de l'écran jusqu'ici.
+class _MonthSelector extends StatelessWidget {
+  const _MonthSelector({required this.month});
+
+  final DateTime month;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    void change(int deltaMonths) => context.read<CabinetPayoutsBloc>().add(
+          CabinetPayoutsMonthChanged(
+            DateTime(month.year, month.month + deltaMonths),
+          ),
+        );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: tokens.borderSubtle),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            key: const Key('cabinet_payouts_month_prev'),
+            icon: const Icon(Icons.chevron_left, size: 18),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            onPressed: () => change(-1),
+          ),
+          Text(
+            _monthLabel(month),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+          IconButton(
+            key: const Key('cabinet_payouts_month_next'),
+            icon: const Icon(Icons.chevron_right, size: 18),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            onPressed: () => change(1),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 String _pad2(int n) => n.toString().padLeft(2, '0');
 
@@ -313,13 +403,14 @@ class _PayoutsTableHeader extends StatelessWidget {
           const SizedBox(width: _PayoutColumns.gap),
           SizedBox(
             width: _PayoutColumns.amountReceived,
-            child: Text('Montant reçu', style: style, textAlign: TextAlign.right),
+            child:
+                Text('Montant reçu', style: style, textAlign: TextAlign.right),
           ),
           const SizedBox(width: _PayoutColumns.gap),
           SizedBox(
             width: _PayoutColumns.internalPayments,
-            child:
-                Text('Paiements internes', style: style, textAlign: TextAlign.right),
+            child: Text('Paiements internes',
+                style: style, textAlign: TextAlign.right),
           ),
           const SizedBox(width: _PayoutColumns.gap),
           SizedBox(
@@ -327,7 +418,9 @@ class _PayoutsTableHeader extends StatelessWidget {
             child: Text('Écart', style: style, textAlign: TextAlign.right),
           ),
           const SizedBox(width: _PayoutColumns.gap),
-          SizedBox(width: _PayoutColumns.status, child: Text('Statut', style: style)),
+          SizedBox(
+              width: _PayoutColumns.status,
+              child: Text('Statut', style: style)),
           const SizedBox(width: _PayoutColumns.gap),
           SizedBox(
             width: _PayoutColumns.action,
@@ -408,7 +501,8 @@ class _PayoutTableRow extends StatelessWidget {
               child: Text(
                 NubiaMoney.formatCents(payout.amountCents),
                 textAlign: TextAlign.right,
-                style: textTheme.bodyMedium?.copyWith(fontFeatures: tabularFigures),
+                style: textTheme.bodyMedium
+                    ?.copyWith(fontFeatures: tabularFigures),
               ),
             ),
             const SizedBox(width: _PayoutColumns.gap),
@@ -417,7 +511,8 @@ class _PayoutTableRow extends StatelessWidget {
               child: Text(
                 NubiaMoney.formatCents(payout.internalPaymentsTotalCents),
                 textAlign: TextAlign.right,
-                style: textTheme.bodyMedium?.copyWith(fontFeatures: tabularFigures),
+                style: textTheme.bodyMedium
+                    ?.copyWith(fontFeatures: tabularFigures),
               ),
             ),
             const SizedBox(width: _PayoutColumns.gap),
@@ -874,8 +969,7 @@ class _PayoutGapCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   TextSpan(
-                    text:
-                        ' — ${_gapSensePhrase(payout.differenceCents)}',
+                    text: ' — ${_gapSensePhrase(payout.differenceCents)}',
                   ),
                 ],
               ),
@@ -1034,11 +1128,8 @@ class _InternalPaymentRow extends StatelessWidget {
 /// Initiales (ex. « Camille Moreau » → « CM ») — même règle que
 /// `patients_page.dart::_initials`.
 String _initials(String fullName) {
-  final parts = fullName
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((p) => p.isNotEmpty)
-      .toList();
+  final parts =
+      fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
   if (parts.isEmpty) return '?';
   if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
   return (parts.first.substring(0, 1) + parts.last.substring(0, 1))

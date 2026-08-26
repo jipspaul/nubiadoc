@@ -721,4 +721,44 @@ void main() {
       },
     );
   });
+
+  group('sélecteur de mois en en-tête (#5101)', () {
+    testWidgets(
+      'tap chevron gauche décrémente le mois affiché et recharge',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state)
+            .thenReturn(CabinetPayoutsLoaded([_reconciled, _toVerify]));
+        await tester.pumpWidget(_wrapPage(bloc));
+
+        await tester.tap(find.byKey(const Key('cabinet_payouts_month_prev')));
+        await tester.pump();
+
+        final now = DateTime.now();
+        final previousMonth = DateTime(now.year, now.month - 1);
+        verify(
+          () => bloc.add(CabinetPayoutsMonthChanged(previousMonth)),
+        ).called(1);
+      },
+    );
+
+    testWidgets(
+      'tap chevron droit incrémente le mois affiché et recharge',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state)
+            .thenReturn(CabinetPayoutsLoaded([_reconciled, _toVerify]));
+        await tester.pumpWidget(_wrapPage(bloc));
+
+        await tester.tap(find.byKey(const Key('cabinet_payouts_month_next')));
+        await tester.pump();
+
+        final now = DateTime.now();
+        final nextMonth = DateTime(now.year, now.month + 1);
+        verify(
+          () => bloc.add(CabinetPayoutsMonthChanged(nextMonth)),
+        ).called(1);
+      },
+    );
+  });
 }

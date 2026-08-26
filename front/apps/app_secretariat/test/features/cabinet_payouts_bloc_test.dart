@@ -15,14 +15,30 @@ import 'package:app_secretariat/features/cabinet_payouts/cabinet_payouts_state.d
 class _MockCabinetPayoutsRepository extends Mock
     implements CabinetPayoutsRepository {}
 
+/// Mois courant, calculé dynamiquement pour que les virements mock restent
+/// dans le mois affiché par défaut par le sélecteur d'en-tête (#5101),
+/// quelle que soit la date d'exécution des tests.
+final _currentMonth = DateTime(DateTime.now().year, DateTime.now().month);
+final _previousMonth = DateTime(_currentMonth.year, _currentMonth.month - 1);
+
 final _toVerify = CabinetPayout(
   id: 'po_mock_unmatched',
   provider: PayoutProvider.stripe,
   amountCents: 999999,
   currency: 'EUR',
-  arrivalDate: DateTime(2026, 7, 30),
+  arrivalDate: DateTime(_currentMonth.year, _currentMonth.month, 15),
   reconciliationStatus: PayoutReconciliationStatus.toVerify,
   internalPaymentsTotalCents: 0,
+);
+
+final _fromPreviousMonth = CabinetPayout(
+  id: 'po_mock_previous_month',
+  provider: PayoutProvider.gocardless,
+  amountCents: 42000,
+  currency: 'EUR',
+  arrivalDate: DateTime(_previousMonth.year, _previousMonth.month, 15),
+  reconciliationStatus: PayoutReconciliationStatus.toVerify,
+  internalPaymentsTotalCents: 42000,
 );
 
 void main() {
@@ -56,9 +72,13 @@ void main() {
       ..add(CabinetPayoutSelected(_toVerify.id)),
     expect: () => [
       const CabinetPayoutsLoading(),
-      CabinetPayoutsLoaded([_toVerify]),
-      CabinetPayoutsLoaded([_toVerify], selectedPayoutId: _toVerify.id),
-      CabinetPayoutsLoaded([_toVerify]),
+      CabinetPayoutsLoaded([_toVerify], selectedMonth: _currentMonth),
+      CabinetPayoutsLoaded(
+        [_toVerify],
+        selectedPayoutId: _toVerify.id,
+        selectedMonth: _currentMonth,
+      ),
+      CabinetPayoutsLoaded([_toVerify], selectedMonth: _currentMonth),
     ],
   );
 
@@ -122,10 +142,33 @@ void main() {
       ..add(CabinetPayoutFlaggedToAccountant(_toVerify.id)),
     expect: () => [
       const CabinetPayoutsLoading(),
-      CabinetPayoutsLoaded([_toVerify]),
+      CabinetPayoutsLoaded([_toVerify], selectedMonth: _currentMonth),
     ],
     verify: (_) {
       verify(() => repository.flagToAccountant(_toVerify.id)).called(1);
     },
+  );
+
+  blocTest<CabinetPayoutsBloc, CabinetPayoutsState>(
+    'le sélecteur de mois filtre la liste sur le mois choisi et recharge '
+    '(#5101)',
+    build: () {
+      when(() => repository.getPayouts()).thenAnswer(
+        (_) async => Right([_toVerify, _fromPreviousMonth]),
+      );
+      return build();
+    },
+    act: (b) => b
+      ..add(const CabinetPayoutsLoadRequested())
+      ..add(CabinetPayoutsMonthChanged(_previousMonth)),
+    expect: () => [
+      const CabinetPayoutsLoading(),
+      CabinetPayoutsLoaded([_toVerify], selectedMonth: _currentMonth),
+      const CabinetPayoutsLoading(),
+      CabinetPayoutsLoaded(
+        [_fromPreviousMonth],
+        selectedMonth: _previousMonth,
+      ),
+    ],
   );
 }
