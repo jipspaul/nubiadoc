@@ -12,6 +12,7 @@ import 'package:app_practicien/features/dashboard/dashboard_event.dart';
 import 'package:app_practicien/features/dashboard/dashboard_state.dart';
 import 'package:app_practicien/features/dashboard/today_notes_bloc.dart';
 import 'package:app_practicien/features/dashboard/today_notes_card.dart';
+import 'package:app_practicien/features/dashboard/week_summary_card.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -32,6 +33,9 @@ final _summary = ProDashboardSummary(
   waitingRoomCount: 2,
   unreadMessages: 3,
   pendingConfirmations: 1,
+  weeklyCompletedActs: 38,
+  weeklyFeesCents: 642000,
+  weeklyNoShowCount: 2,
 );
 
 DashboardBloc _makeBloc(MockGetProDashboardSummaryUseCase uc) =>
@@ -219,6 +223,55 @@ void main() {
       expect(find.byType(StatusPill), findsNWidgets(2));
       expect(find.byType(NubiaAvatar), findsNWidgets(2));
       expect(find.text('09:05'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // WeekSummaryCard widget (composants DS)
+  // ---------------------------------------------------------------------------
+
+  group('WeekSummaryCard widget', () {
+    Widget wrapCard(ProDashboardSummary summary) => MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(
+            body: WeekSummaryCard(summary: summary),
+          ),
+        );
+
+    testWidgets('affiche les 3 chiffres hebdomadaires via ListRow + StatusPill',
+        (tester) async {
+      await tester.pumpWidget(wrapCard(_summary));
+
+      expect(find.byKey(const Key('week_summary_card')), findsOneWidget);
+      expect(find.text('Cette semaine'), findsOneWidget);
+      expect(find.byKey(const Key('week_summary_acts_row')), findsOneWidget);
+      expect(find.byKey(const Key('week_summary_fees_row')), findsOneWidget);
+      expect(find.byKey(const Key('week_summary_no_show_row')), findsOneWidget);
+      expect(find.text('Actes réalisés'), findsOneWidget);
+      expect(find.text('38'), findsOneWidget);
+      expect(find.text('Rendez-vous non honorés'), findsOneWidget);
+      expect(find.text('2 patient(s) concerné(s)'), findsOneWidget);
+      expect(find.byType(ListRow), findsNWidgets(3));
+      expect(find.byType(StatusPill), findsNWidgets(3));
+    });
+
+    testWidgets('formate les honoraires (milliers + €)', (tester) async {
+      await tester.pumpWidget(wrapCard(_summary));
+
+      expect(find.text('6 420 €'), findsOneWidget);
+    });
+
+    testWidgets('la pastille RDV non honorés utilise la variante warning',
+        (tester) async {
+      await tester.pumpWidget(wrapCard(_summary));
+
+      final pill = tester.widget<StatusPill>(
+        find.descendant(
+          of: find.byKey(const Key('week_summary_no_show_row')),
+          matching: find.byType(StatusPill),
+        ),
+      );
+      expect(pill.variant, StatusPillVariant.warning);
     });
   });
 }

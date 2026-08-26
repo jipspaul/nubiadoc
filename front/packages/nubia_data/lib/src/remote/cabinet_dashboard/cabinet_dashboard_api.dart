@@ -46,6 +46,15 @@ class CabinetDashboardApi {
       waitingRoomCount: results[1].length,
       unreadMessages: unread,
       pendingConfirmations: results[3].length,
+      // #5051 : activité hebdomadaire (actes réalisés / honoraires / RDV non
+      // honorés) — champs réservés à un ticket domaine dédié (agrégation
+      // serveur sur la semaine, pas dérivable proprement des 4 appels
+      // ci-dessus qui ne portent que sur `todayIso`). Cette carte affichera
+      // les vraies valeurs dès que ce ticket branchera `GET
+      // /cabinet/dashboard` (cf. commentaire de classe ci-dessus).
+      weeklyCompletedActs: 0,
+      weeklyFeesCents: 0,
+      weeklyNoShowCount: 0,
     );
   }
 
