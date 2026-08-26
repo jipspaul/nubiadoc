@@ -67,11 +67,15 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
         ],
       ),
       body: BlocConsumer<LabWorkOrdersBloc, LabWorkOrdersState>(
-        listenWhen: (_, s) => s is LabWorkOrdersError,
+        // Seul le rechargement échoué avec des bons déjà affichés déclenche
+        // la snackbar : l'erreur du tout premier chargement est déjà portée
+        // par `NubiaErrorWidget` plein écran, une seule surface à la fois
+        // (#5067).
+        listenWhen: (_, s) => s is LabWorkOrdersLoaded && s.errorMessage != null,
         listener: (context, state) {
-          if (state is LabWorkOrdersError) {
+          if (state is LabWorkOrdersLoaded && state.errorMessage != null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
+              SnackBar(content: Text(state.errorMessage!)),
             );
           }
         },

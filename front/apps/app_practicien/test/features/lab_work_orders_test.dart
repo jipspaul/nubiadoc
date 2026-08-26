@@ -24,6 +24,10 @@ import 'package:app_practicien/features/lab_work/lab_work_orders_event.dart';
 import 'package:app_practicien/features/lab_work/lab_work_orders_page.dart';
 import 'package:app_practicien/features/lab_work/lab_work_orders_state.dart';
 
+class _FakeFailure extends Failure {
+  const _FakeFailure(super.message);
+}
+
 class MockListLabWorkOrdersUseCase extends Mock
     implements ListLabWorkOrdersUseCase {}
 
@@ -121,6 +125,39 @@ void main() {
         findsOneWidget,
       );
       verify(() => mockUpdateStatus('order-1', 'try_in')).called(1);
+    });
+
+    testWidgets(
+        'un rechargement échoué alors que des bons sont affichés conserve '
+        'la liste et affiche une seule surface d\'erreur (#5067)',
+        (tester) async {
+      final mockList = MockListLabWorkOrdersUseCase();
+      final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
+      var callCount = 0;
+      when(() => mockList()).thenAnswer((_) async {
+        callCount++;
+        return callCount == 1
+            ? const Right([_sentOrder])
+            : const Left(_FakeFailure('Erreur réseau'));
+      });
+
+      final bloc = LabWorkOrdersBloc(
+        list: mockList,
+        updateStatus: mockUpdateStatus,
+      );
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      bloc.add(const LabWorkOrdersLoadRequested());
+      await tester.pump();
+
+      // La liste reste affichée : pas de plein écran `NubiaErrorWidget`.
+      expect(find.byKey(const Key('lab_work_order_order-1')), findsOneWidget);
+      expect(find.byType(NubiaErrorWidget), findsNothing);
+
+      // Une seule surface d'erreur : la snackbar.
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('Erreur réseau'), findsOneWidget);
     });
   });
 }
