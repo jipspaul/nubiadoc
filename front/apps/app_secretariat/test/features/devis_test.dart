@@ -12,6 +12,7 @@ import 'package:app_secretariat/features/devis/devis_detail_page.dart';
 import 'package:app_secretariat/features/devis/devis_event.dart';
 import 'package:app_secretariat/features/devis/devis_page.dart';
 import 'package:app_secretariat/features/devis/devis_state.dart';
+import 'package:app_secretariat/features/devis/widgets/devis_kpis.dart';
 import 'package:app_secretariat/pro_config.dart';
 
 class _MockCabinetQuotesRepository extends Mock
@@ -342,8 +343,7 @@ void main() {
       expect(namesAfter.first, 'Alice');
     });
 
-    testWidgets(
-        'devis annulé affiche « Annulé » et jamais « Refusé » (#5093)',
+    testWidgets('devis annulé affiche « Annulé » et jamais « Refusé » (#5093)',
         (tester) async {
       when(() => bloc.state).thenReturn(
         DevisLoaded([
@@ -418,8 +418,7 @@ void main() {
       expect(find.textContaining('motif'), findsNothing);
     });
 
-    testWidgets(
-        'devis annulé affiche « Annulé » et jamais « Refusé » (#5093)',
+    testWidgets('devis annulé affiche « Annulé » et jamais « Refusé » (#5093)',
         (tester) async {
       final cancelledQuote = CabinetQuote(
         id: 'q1',
@@ -488,6 +487,162 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Devis introuvable'), findsOneWidget);
+    });
+  });
+
+  // --- DevisKpis (#5092) --------------------------------------------------------
+  group('DevisKpis.fromQuotes', () {
+    final now = DateTime(2026, 6, 15);
+
+    test('compte actifs (ni annulés ni expirés), en attente, montant engagé',
+        () {
+      final quotes = [
+        CabinetQuote(
+          id: 'q1',
+          cabinetId: 'c1',
+          patientId: 'p1',
+          patientName: 'Marie Curie',
+          totalCents: 20000,
+          patientShareCents: 10000,
+          status: CabinetQuoteStatus.sent,
+          createdAt: now,
+          expiresAt: now.add(const Duration(days: 3)),
+        ),
+        CabinetQuote(
+          id: 'q2',
+          cabinetId: 'c1',
+          patientId: 'p2',
+          patientName: 'Paul Cancelled',
+          totalCents: 15000,
+          patientShareCents: 5000,
+          status: CabinetQuoteStatus.cancelled,
+          createdAt: now,
+        ),
+        CabinetQuote(
+          id: 'q3',
+          cabinetId: 'c1',
+          patientId: 'p3',
+          patientName: 'Léa Expired',
+          totalCents: 8000,
+          patientShareCents: 3000,
+          status: CabinetQuoteStatus.expired,
+          createdAt: now,
+        ),
+        CabinetQuote(
+          id: 'q4',
+          cabinetId: 'c1',
+          patientId: 'p4',
+          patientName: 'Signed',
+          totalCents: 12000,
+          patientShareCents: 4000,
+          status: CabinetQuoteStatus.signed,
+          createdAt: now,
+        ),
+      ];
+
+      final kpis = DevisKpis.fromQuotes(quotes, now: now);
+
+      // actifs = sent + signed (ni annulé ni expiré)
+      expect(kpis.activeCount, 2);
+      expect(kpis.pendingSignatureCount, 1);
+      expect(kpis.expiringSoonCount, 1);
+      // montant engagé = somme des actifs : q1 (20000) + q4 (12000)
+      expect(kpis.engagedAmountCents, 32000);
+    });
+
+    test('« expire sous 7 jours » exclut un envoi expirant dans 10 jours', () {
+      final quotes = [
+        CabinetQuote(
+          id: 'q1',
+          cabinetId: 'c1',
+          patientId: 'p1',
+          patientName: 'Marie Curie',
+          totalCents: 20000,
+          patientShareCents: 10000,
+          status: CabinetQuoteStatus.sent,
+          createdAt: now,
+          expiresAt: now.add(const Duration(days: 10)),
+        ),
+      ];
+
+      final kpis = DevisKpis.fromQuotes(quotes, now: now);
+
+      expect(kpis.pendingSignatureCount, 1);
+      expect(kpis.expiringSoonCount, 0);
+    });
+
+    test('liste vide → tous les compteurs à zéro', () {
+      final kpis = DevisKpis.fromQuotes(const [], now: now);
+      expect(kpis.activeCount, 0);
+      expect(kpis.pendingSignatureCount, 0);
+      expect(kpis.expiringSoonCount, 0);
+      expect(kpis.engagedAmountCents, 0);
+    });
+  });
+
+  group('DevisPage — bandeau KPI', () {
+    late _MockDevisBloc bloc;
+
+    setUp(() {
+      bloc = _MockDevisBloc();
+    });
+
+    Widget buildPage() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<DevisBloc>.value(
+            value: bloc,
+            child: const DevisPage(),
+          ),
+        );
+
+    testWidgets('affiche les quatre compteurs dérivés de DevisLoaded.quotes',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        DevisLoaded([
+          CabinetQuote(
+            id: 'q1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            totalCents: 1842000,
+            patientShareCents: 100000,
+            status: CabinetQuoteStatus.sent,
+            createdAt: DateTime(2026, 1, 1),
+            expiresAt: DateTime.now().add(const Duration(days: 2)),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('devis_kpi_active')), findsOneWidget);
+      expect(
+        find.byKey(const Key('devis_kpi_pending_signature')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('devis_kpi_expiring_soon')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('devis_kpi_engaged_amount')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('devis_kpi_engaged_amount')),
+          matching: find.text('18 420,00 €'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('pas de bandeau KPI hors état DevisLoaded', (tester) async {
+      when(() => bloc.state).thenReturn(const DevisInitial());
+      await tester.pumpWidget(buildPage());
+      await tester.pump();
+
+      expect(find.byKey(const Key('devis_kpi_active')), findsNothing);
     });
   });
 }
