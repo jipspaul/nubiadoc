@@ -52,8 +52,36 @@ final _toVerifyWithCashLead = CabinetPayout(
   internalPaymentsTotalCents: 202400,
   internalPayments: const [
     InternalPayment(
+      patientName: 'Léa Bernard',
+      time: '10:02',
       amountCents: 18200,
       methodLabel: 'espèces',
+      reconcilableByProvider: false,
+    ),
+  ],
+);
+
+final _withDailyInternalPayments = CabinetPayout(
+  id: 'po_mock_daily',
+  provider: PayoutProvider.stripe,
+  amountCents: 202400,
+  currency: 'EUR',
+  arrivalDate: DateTime(2026, 8, 8),
+  reconciliationStatus: PayoutReconciliationStatus.reconciled,
+  internalPaymentsTotalCents: 202400,
+  internalPayments: const [
+    InternalPayment(
+      patientName: 'Camille Moreau',
+      time: '14:32',
+      amountCents: 72500,
+      methodLabel: 'Carte',
+      reconcilableByProvider: true,
+    ),
+    InternalPayment(
+      patientName: 'Léa Bernard',
+      time: '10:02',
+      amountCents: 18200,
+      methodLabel: 'Espèces',
       reconcilableByProvider: false,
     ),
   ],
@@ -318,6 +346,76 @@ void main() {
 
         expect(find.byKey(const Key('payout_probable_lead')), findsOneWidget);
         verifyNever(() => bloc.add(any()));
+      },
+    );
+  });
+
+  group('liste « Paiements internes du jour » (#5109)', () {
+    testWidgets(
+      'affiche le compteur, une ligne par paiement (moyen · heure, montant) '
+      'et la mention "non rapprochable" pour les canaux physiques',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_withDailyInternalPayments],
+            selectedPayoutId: _withDailyInternalPayments.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('payout_internal_payments_section')),
+          findsOneWidget,
+        );
+        expect(find.text('Paiements internes du jour'), findsOneWidget);
+        expect(find.text('2'), findsOneWidget);
+
+        expect(find.text('Camille Moreau'), findsOneWidget);
+        expect(find.text('Carte · 14:32'), findsOneWidget);
+        expect(find.text('725,00 €'), findsOneWidget);
+
+        expect(find.text('Léa Bernard'), findsOneWidget);
+        expect(find.text('Espèces · 10:02'), findsOneWidget);
+        expect(find.text('182,00 €'), findsOneWidget);
+
+        expect(find.text('non rapprochable'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'aucun paiement interne ce jour-là → section absente',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded([_toVerify], selectedPayoutId: _toVerify.id),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('payout_internal_payments_section')),
+          findsNothing,
+        );
       },
     );
   });
