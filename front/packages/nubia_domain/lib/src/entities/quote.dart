@@ -49,6 +49,16 @@ class QuoteLineItem extends Equatable {
   List<Object?> get props => [id];
 }
 
+/// Agrégation AMO/AMC d'une liste de lignes de devis — calcul partagé entre
+/// l'app Patient et l'app Secrétariat pour la ventilation du volet détail
+/// (#5091) : mêmes montants, pas de formule dupliquée par app.
+extension QuoteLineItemsVentilation on List<QuoteLineItem> {
+  int get amoShareTotalCents =>
+      fold(0, (sum, item) => sum + item.amoShareCents);
+  int get amcShareTotalCents =>
+      fold(0, (sum, item) => sum + item.amcShareCents);
+}
+
 class Quote extends Equatable {
   final String id;
   final String cabinetId;
