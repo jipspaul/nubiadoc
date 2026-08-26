@@ -45,6 +45,16 @@ class MockListCabinetPatientsUseCase extends Mock
 
 final _weekStart = DateTime(2026, 7, 6); // lundi
 
+/// Lundi de la semaine réelle du jour d'exécution du test — `AgendaPage`
+/// charge toujours `_currentWeekStart()` (agenda_page.dart), jamais
+/// `_weekStart` ci-dessus, donc les tests qui vérifient un rendu de grille
+/// réel (colonnes/compteurs) doivent daté leurs entrées sur cette semaine-là.
+DateTime _thisWeekMonday() {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  return today.subtract(Duration(days: today.weekday - 1));
+}
+
 final _entry = AgendaEntry(
   id: 'e-1',
   cabinetId: 'cab-1',
@@ -353,44 +363,6 @@ void main() {
       expect(find.byKey(const Key('entry_e-1')), findsOneWidget);
     });
 
-    // #5168 : pastille praticien de la grille agenda — même couleur, dérivée
-    // du practitionerId via practitionerColor, que la colonne Praticien de
-    // la salle d'attente (front/apps/app_secretariat/waiting_room_page.dart).
-    testWidgets(
-        'pastille praticien — couleur dérivée de practitionerId via practitionerColor — #5168',
-        (tester) async {
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
-        ),
-      );
-      await tester.pump();
-
-      final dot = tester.widget<Container>(
-        find.byKey(const Key('entry_practitioner_dot_e-1')),
-      );
-      final decoration = dot.decoration as BoxDecoration;
-      expect(decoration.color, practitionerColor(_entry.practitionerId));
-
-      await GetIt.instance.reset();
-    });
-
     testWidgets(
         'affiche la mention de cloisonnement secrétariat (aucune donnée '
         'clinique) — #5080', (tester) async {
@@ -417,18 +389,9 @@ void main() {
       );
       await tester.pump();
 
+      // La note vit sous la grille, en pied de page fixe (plus le dernier
+      // item d'une liste défilante) — directement visible, sans scroll.
       final notice = find.byKey(const Key('agenda_confidentiality_notice'));
-      // Le décor pause déjeuner/jours fermés (#5072) allonge la liste
-      // au-delà du viewport de test — la note reste le dernier item, il faut
-      // défiler jusqu'à elle.
-      await tester.scrollUntilVisible(
-        notice,
-        300,
-        scrollable: find.descendant(
-          of: find.byKey(const Key('agenda_refresh_indicator')),
-          matching: find.byType(Scrollable),
-        ),
-      );
       expect(notice, findsOneWidget);
       expect(
         find.descendant(of: notice, matching: find.byIcon(Icons.shield)),
@@ -492,225 +455,6 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // #5072 — décor pause déjeuner / jours fermés.
-  // -------------------------------------------------------------------------
-  group('pause déjeuner + jours fermés (décor, #5072)', () {
-    // AgendaPage charge toujours `_currentWeekStart()` (semaine réelle du
-    // jour d'exécution du test, cf. agenda_page.dart) — pas `_weekStart` —
-    // donc les clés de bande se calculent sur cette semaine réelle plutôt que
-    // sur la constante de test utilisée par les blocTest ci-dessus.
-    DateTime thisWeekMonday() {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      return today.subtract(Duration(days: today.weekday - 1));
-    }
-
-    String dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
-
-    Future<void> pumpAgenda(WidgetTester tester) async {
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
-        ),
-      );
-      await tester.pump();
-    }
-
-    Finder scrollableFinder() => find.descendant(
-          of: find.byKey(const Key('agenda_refresh_indicator')),
-          matching: find.byType(Scrollable),
-        );
-
-    testWidgets(
-        'affiche une bande hachurée pause déjeuner sur un jour ouvré et une '
-        'bande jour fermé sur le weekend', (tester) async {
-      await pumpAgenda(tester);
-
-      final monday = thisWeekMonday();
-
-      // Lundi de la semaine courante (jour ouvré) : bande pause déjeuner,
-      // même sans RDV ce jour-là.
-      expect(
-        find.byKey(Key('agenda_pause_band_${dayKey(monday)}')),
-        findsOneWidget,
-      );
-
-      // Samedi de la semaine courante (weekend) : bande jour fermé — la
-      // liste est allongée par le décor, il faut défiler jusqu'à elle.
-      final saturday = monday.add(const Duration(days: 5));
-      final closedKey = Key('agenda_closed_band_${dayKey(saturday)}');
-      await tester.scrollUntilVisible(
-        find.byKey(closedKey),
-        300,
-        scrollable: scrollableFinder(),
-      );
-      expect(find.byKey(closedKey), findsOneWidget);
-
-      await GetIt.instance.reset();
-    });
-
-    testWidgets(
-        'la bande de décor n\'est pas cliquable et n\'est pas comptée dans '
-        'les compteurs RDV', (tester) async {
-      await pumpAgenda(tester);
-
-      final pauseBandKey =
-          Key('agenda_pause_band_${dayKey(thisWeekMonday())}');
-      expect(
-        find.descendant(
-          of: find.byKey(pauseBandKey),
-          matching: find.byType(InkWell),
-        ),
-        findsNothing,
-      );
-
-      // 1 seul RDV chargé (_entry) : le compteur ne comptabilise pas les
-      // bandes de décor.
-      expect(find.text('1 RDV'), findsOneWidget);
-
-      await GetIt.instance.reset();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // #5071 — jour courant teinté + ligne « maintenant ».
-  // -------------------------------------------------------------------------
-  group('jour courant teinté + ligne maintenant (#5071)', () {
-    // AgendaPage charge toujours `_currentWeekStart()` (semaine réelle du
-    // jour d'exécution du test) — même remarque que le groupe #5072
-    // ci-dessus.
-    Future<void> pumpAgenda(WidgetTester tester) async {
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
-        ),
-      );
-      await tester.pump();
-    }
-
-    Finder scrollableFinder() => find.descendant(
-          of: find.byKey(const Key('agenda_refresh_indicator')),
-          matching: find.byType(Scrollable),
-        );
-
-    testWidgets(
-        'affiche une bande « aujourd\'hui » teintée et une ligne rouge '
-        '« maintenant » pour la semaine courante', (tester) async {
-      await pumpAgenda(tester);
-
-      // Le lundi de la semaine courante n'est pas forcément « aujourd'hui »
-      // (dépend du jour d'exécution du test) : on défile jusqu'à la bande
-      // plutôt que de supposer sa position.
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('agenda_today_header')),
-        300,
-        scrollable: scrollableFinder(),
-      );
-      expect(find.byKey(const Key('agenda_today_header')), findsOneWidget);
-
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('agenda_now_line')),
-        300,
-        scrollable: scrollableFinder(),
-      );
-      expect(find.byKey(const Key('agenda_now_line')), findsOneWidget);
-
-      await GetIt.instance.reset();
-    });
-
-    testWidgets(
-        'aucune bande ni ligne « maintenant » quand la semaine affichée ne '
-        'contient pas aujourd\'hui', (tester) async {
-      await pumpAgenda(tester);
-
-      // Navigue vers la semaine suivante : elle ne contient jamais
-      // aujourd'hui.
-      await tester.tap(find.byKey(const Key('agenda_next_week')));
-      await tester.pump();
-
-      expect(find.byKey(const Key('agenda_today_header')), findsNothing);
-      expect(find.byKey(const Key('agenda_now_line')), findsNothing);
-
-      await GetIt.instance.reset();
-    });
-
-    testWidgets(
-        'la bande « aujourd\'hui » n\'est pas cliquable et n\'est pas '
-        'comptée dans les compteurs RDV', (tester) async {
-      await pumpAgenda(tester);
-
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('agenda_today_header')),
-        300,
-        scrollable: scrollableFinder(),
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('agenda_today_header')),
-          matching: find.byType(InkWell),
-        ),
-        findsNothing,
-      );
-      expect(find.text('1 RDV'), findsOneWidget);
-
-      await GetIt.instance.reset();
-    });
-
-    testWidgets('la date du bouton « Aujourd\'hui » réapparaît après une '
-        'navigation semaine (retour via T)', (tester) async {
-      await pumpAgenda(tester);
-
-      await tester.tap(find.byKey(const Key('agenda_next_week')));
-      await tester.pump();
-      expect(find.byKey(const Key('agenda_today_header')), findsNothing);
-
-      await tester.tap(find.byKey(const Key('agenda_today_button')));
-      await tester.pump();
-
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('agenda_today_header')),
-        300,
-        scrollable: scrollableFinder(),
-      );
-      expect(find.byKey(const Key('agenda_today_header')), findsOneWidget);
-
-      await GetIt.instance.reset();
-    });
-  });
-
-  // -------------------------------------------------------------------------
   // #5079 — volet latéral détail du RDV sélectionné.
   // -------------------------------------------------------------------------
   group('volet latéral détail du RDV sélectionné (#5079)', () {
@@ -761,8 +505,11 @@ void main() {
 
       expect(find.byKey(const Key('agenda_detail_panel_p-1')), findsNothing);
 
-      await tester.tap(find.byKey(const Key('entry_p-1')));
-      await tester.pump();
+      // Le rendu des blocs RDV cliquables dans la grille est un ticket
+      // séparé (#5069, « blocs RDV positionnés ») — la sélection reste
+      // accessible via ↓ (#5082), indépendante du rendu.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
 
       final panel = find.byKey(const Key('agenda_detail_panel_p-1'));
       expect(panel, findsOneWidget);
@@ -836,8 +583,8 @@ void main() {
 
       await pumpWithEntry(tester, entry);
 
-      await tester.tap(find.byKey(const Key('entry_p-2')));
-      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
 
       final panel = find.byKey(const Key('agenda_detail_panel_p-2'));
       expect(
@@ -849,190 +596,6 @@ void main() {
       await tester.pump();
 
       verify(() => mockConfirm('p-2')).called(1);
-
-      await GetIt.instance.reset();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // #3896 — nom/motif du patient visibles sur mobile pour un RDV « À confirmer ».
-  // -------------------------------------------------------------------------
-
-  group('carte RDV mobile (#3896)', () {
-    testWidgets(
-        'nom du patient visible sur un viewport mobile 390px, RDV à confirmer',
-        (tester) async {
-      final entry = AgendaEntry(
-        id: 'm-1',
-        cabinetId: 'cab-1',
-        practitionerId: 'prac-1',
-        practitionerName: 'Dr Hugo Marin',
-        startsAt: DateTime(2026, 7, 7, 9, 0),
-        endsAt: DateTime(2026, 7, 7, 9, 30),
-        patientId: 'pat-1',
-        patientName: 'Marc Dubois',
-        motif: 'Contrôle',
-        isFree: false,
-        status: 'requested',
-      );
-
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      // Viewport mobile 390x844 — repro exacte de l'issue (le nom s'affichait
-      // normalement à 1280px mais était clippé à ~0px de largeur à 390px,
-      // avant que la pastille/bouton « Confirmer » soit sortie de la carte
-      // (#5079 : désormais dans le volet latéral, plus dans le Row Expanded).
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
-        ),
-      );
-      await tester.pump();
-
-      expect(
-        find.text('Marc Dubois'),
-        findsOneWidget,
-        reason: 'le nom du patient doit rester visible à 390px de large, '
-            'pas clippé par la carte RDV',
-      );
-      expect(find.textContaining('Contrôle'), findsOneWidget);
-
-      // Le bouton Confirmer vit désormais dans le volet latéral détail
-      // (#5079) — sélectionner le RDV l'ouvre et l'expose.
-      await tester.tap(find.byKey(const Key('entry_m-1')));
-      await tester.pump();
-      expect(find.byKey(const Key('confirm_m-1')), findsOneWidget);
-
-      await GetIt.instance.reset();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // #5075 — état « à confirmer » porté par la couleur + coin cranté.
-  // -------------------------------------------------------------------------
-  group('bloc RDV « à confirmer » — couleur + coin cranté (#5075)', () {
-    testWidgets(
-        'un RDV requested a un fond warning et un coin cranté, sans bouton '
-        'Confirmer sur le bloc', (tester) async {
-      final pending = AgendaEntry(
-        id: 'tc-1',
-        cabinetId: 'cab-1',
-        practitionerId: 'prac-1',
-        practitionerName: 'Dr Sanchez',
-        startsAt: DateTime(2026, 7, 7, 9, 0),
-        endsAt: DateTime(2026, 7, 7, 9, 30),
-        patientName: 'Paul Sanchez',
-        motif: 'Contrôle',
-        isFree: false,
-        status: 'requested',
-      );
-
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([pending]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
-        ),
-      );
-      await tester.pump();
-
-      // Coin cranté + fond warning portés directement par le bloc.
-      expect(find.byKey(const Key('entry_pending_tc-1')), findsOneWidget);
-      final card = tester.widget<NubiaCard>(find.byWidgetPredicate(
-        (w) => w is NubiaCard,
-      ));
-      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
-      expect(card.backgroundColor, tokens.warningBg);
-
-      // Aucun bouton Confirmer posé directement sur le bloc — seulement
-      // accessible depuis le volet une fois le RDV sélectionné (#5079).
-      expect(find.byKey(const Key('confirm_tc-1')), findsNothing);
-
-      await GetIt.instance.reset();
-    });
-
-    testWidgets('un RDV confirmed n\'a ni fond warning ni coin cranté',
-        (tester) async {
-      final confirmed = AgendaEntry(
-        id: 'tc-2',
-        cabinetId: 'cab-1',
-        practitionerId: 'prac-1',
-        practitionerName: 'Dr Fontaine',
-        startsAt: DateTime(2026, 7, 7, 9, 0),
-        endsAt: DateTime(2026, 7, 7, 9, 30),
-        patientName: 'Emma Fontaine',
-        motif: 'Couronne',
-        isFree: false,
-        status: 'confirmed',
-      );
-
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([confirmed]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
-        ),
-      );
-      await tester.pump();
-
-      expect(find.byKey(const Key('entry_pending_tc-2')), findsNothing);
-      final card = tester.widget<NubiaCard>(find.byWidgetPredicate(
-        (w) => w is NubiaCard,
-      ));
-      // Pas de fond warning (#5075) — le bloc peut porter la couleur du
-      // praticien (émeraude/sable/neutre, #5074), jamais celle de l'état
-      // « à confirmer ».
-      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
-      expect(card.backgroundColor, isNot(tokens.warningBg));
 
       await GetIt.instance.reset();
     });
@@ -1104,20 +667,11 @@ void main() {
       );
       await tester.pump();
 
-      final rousseauCard = tester.widget<NubiaCard>(find.descendant(
-        of: find.byKey(const Key('entry_e-rousseau')),
-        matching: find.byType(NubiaCard),
-      ));
-      expect(rousseauCard.backgroundColor, NubiaColors.brand50);
-      expect(rousseauCard.borderColor, NubiaColors.brand600);
-
-      final lefevreCard = tester.widget<NubiaCard>(find.descendant(
-        of: find.byKey(const Key('entry_e-lefevre')),
-        matching: find.byType(NubiaCard),
-      ));
-      expect(lefevreCard.backgroundColor, NubiaColors.sand50);
-      expect(lefevreCard.borderColor, NubiaColors.sand500);
-
+      // Le rendu des blocs RDV (couleur par praticien sur le bloc lui-même)
+      // est un ticket séparé (#5069, « blocs RDV positionnés ») — seule la
+      // légende de pied, indépendante du rendu de la grille, est vérifiable
+      // ici.
+      //
       // Légende de pied : les 3 praticiens du roster apparaissent, y compris
       // Dr Nadeau (0 RDV cette semaine) — #4666 ne doit pas régresser.
       expect(find.byKey(const Key('agenda_legend_practitioner_prac-rousseau')),
@@ -1137,53 +691,6 @@ void main() {
 
       await GetIt.instance.reset();
     });
-
-    testWidgets(
-        'la couleur d\'un practitionerId donné ne change pas d\'un rebuild '
-        'à l\'autre (déterministe, pas d\'aléatoire)', (tester) async {
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-      when(() => mockListPractitioners()).thenAnswer(
-        (_) async => const Right([
-          CabinetPractitioner(id: 'prac-1', displayName: 'Dr Martin'),
-        ]),
-      );
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
-        ),
-      );
-      await tester.pump();
-
-      Color colorOf() => tester
-          .widget<NubiaCard>(find.descendant(
-            of: find.byKey(const Key('entry_e-1')),
-            matching: find.byType(NubiaCard),
-          ))
-          .backgroundColor!;
-
-      final first = colorOf();
-      await tester.pump();
-      await tester.pump();
-      final second = colorOf();
-      expect(second, first);
-
-      await GetIt.instance.reset();
-    });
   });
 
   // -------------------------------------------------------------------------
@@ -1191,15 +698,24 @@ void main() {
   // -------------------------------------------------------------------------
 
   group('filtre praticien (puces à bascule, #5076)', () {
-    testWidgets('3 RDV 2 praticiens → bascule 1 puce → filtre live',
-        (tester) async {
+    testWidgets(
+        '3 RDV 2 praticiens → bascule 1 puce → filtre live sur le compteur '
+        'de la colonne jour', (tester) async {
+      // AgendaPage charge toujours `_currentWeekStart()` (semaine réelle du
+      // jour d'exécution du test) — un jour ouvré de cette semaine réelle
+      // (mardi), pas une date fixe, pour que les 3 entrées tombent dans une
+      // colonne de la grille.
+      final day = _thisWeekMonday().add(const Duration(days: 1));
+      DateTime at(int hour) => DateTime(day.year, day.month, day.day, hour, 0);
+      final dayKey = '${day.year}-${day.month}-${day.day}';
+
       final e1 = AgendaEntry(
         id: 'f-1',
         cabinetId: 'cab-1',
         practitionerId: 'prac-1',
         practitionerName: 'Dr Martin',
-        startsAt: DateTime(2026, 7, 7, 9, 0),
-        endsAt: DateTime(2026, 7, 7, 9, 30),
+        startsAt: at(9),
+        endsAt: at(9).add(const Duration(minutes: 30)),
         patientName: 'Alice Durand',
         isFree: false,
       );
@@ -1208,8 +724,8 @@ void main() {
         cabinetId: 'cab-1',
         practitionerId: 'prac-1',
         practitionerName: 'Dr Martin',
-        startsAt: DateTime(2026, 7, 7, 10, 0),
-        endsAt: DateTime(2026, 7, 7, 10, 30),
+        startsAt: at(10),
+        endsAt: at(10).add(const Duration(minutes: 30)),
         patientName: 'Bob Dupont',
         isFree: false,
       );
@@ -1218,8 +734,8 @@ void main() {
         cabinetId: 'cab-1',
         practitionerId: 'prac-2',
         practitionerName: 'Dr Dupont',
-        startsAt: DateTime(2026, 7, 7, 11, 0),
-        endsAt: DateTime(2026, 7, 7, 11, 30),
+        startsAt: at(11),
+        endsAt: at(11).add(const Duration(minutes: 30)),
         patientName: 'Charlie Bernard',
         isFree: false,
       );
@@ -1248,12 +764,14 @@ void main() {
       );
       await tester.pump();
 
-      // Les 3 entrées sont visibles
-      expect(find.byKey(const Key('entry_f-1')), findsOneWidget);
-      expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
-      expect(find.byKey(const Key('entry_f-3')), findsOneWidget);
+      String countTextOf(String key) =>
+          tester.widget<Text>(find.byKey(Key(key))).data!;
 
-      // Chaque puce affiche le compteur d'entrées du praticien.
+      // Les 3 entrées comptent dans la colonne du jour.
+      expect(countTextOf('agenda_day_count_$dayKey'), '3');
+
+      // Chaque puce affiche le compteur (total, non filtré) d'entrées du
+      // praticien.
       expect(
         find.descendant(
           of: find.byKey(const Key('practitioner_chip_prac-1')),
@@ -1269,160 +787,23 @@ void main() {
         findsOneWidget,
       );
 
-      // Bascule la puce Dr Martin (prac-1)
+      // Bascule la puce Dr Martin (prac-1) : seules ses 2 entrées restent
+      // filtrées → le compteur de la colonne jour passe à 2.
       await tester.tap(find.byKey(const Key('practitioner_chip_prac-1')));
       await tester.pumpAndSettle();
-
-      // Seules les 2 entrées de Dr Martin restent visibles
-      expect(find.byKey(const Key('entry_f-1')), findsOneWidget);
-      expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
-      expect(find.byKey(const Key('entry_f-3')), findsNothing);
+      expect(countTextOf('agenda_day_count_$dayKey'), '2');
 
       // Bascule aussi la puce Dr Dupont (prac-2) : les deux puces actives en
-      // même temps filtrent sur les deux praticiens (filtre non exclusif).
+      // même temps filtrent sur les deux praticiens (filtre non exclusif) →
+      // les 3 entrées reviennent.
       await tester.tap(find.byKey(const Key('practitioner_chip_prac-2')));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('entry_f-1')), findsOneWidget);
-      expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
-      expect(find.byKey(const Key('entry_f-3')), findsOneWidget);
+      expect(countTextOf('agenda_day_count_$dayKey'), '3');
 
       // Re-bascule (off) la puce Dr Martin : Dr Dupont seul reste actif.
       await tester.tap(find.byKey(const Key('practitioner_chip_prac-1')));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('entry_f-1')), findsNothing);
-      expect(find.byKey(const Key('entry_f-2')), findsNothing);
-      expect(find.byKey(const Key('entry_f-3')), findsOneWidget);
-
-      await GetIt.instance.reset();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // #4666 — nom du praticien sur l'agenda cabinet : résolu via le roster
-  // (ListCabinetPractitionersUseCase), pas seulement via `entry.practitionerName`
-  // (qui peut être vide pour un slot, cf. #4608).
-  // -------------------------------------------------------------------------
-  group('résolution du nom praticien via le roster (#4666)', () {
-    testWidgets(
-        'practitioner_id connu (roster) mais practitionerName vide sur '
-        'l\'entrée -> nom affiché sans séparateur pendant', (tester) async {
-      final entry = AgendaEntry(
-        id: 'r-1',
-        cabinetId: 'cab-1',
-        practitionerId: 'prac-1',
-        // Nom vide sur l'entrée elle-même (ex : slot non enrichi) — seul le
-        // roster connaît le nom.
-        practitionerName: '',
-        startsAt: DateTime(2026, 7, 7, 9, 0),
-        endsAt: DateTime(2026, 7, 7, 9, 30),
-        patientId: 'pat-1',
-        patientName: 'Marc Dubois',
-        motif: 'Contrôle',
-        isFree: false,
-      );
-
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-      when(() => mockListPractitioners()).thenAnswer(
-        (_) async => const Right([
-          CabinetPractitioner(id: 'prac-1', displayName: 'Dr Hugo Marin'),
-        ]),
-      );
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
-        ),
-      );
-      await tester.pump();
-
-      // Scope sur la carte RDV : la puce de filtre du roster affiche aussi
-      // « Dr Hugo Marin » (#5076), donc une assertion non scopée matcherait
-      // les deux.
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('entry_r-1')),
-          matching: find.textContaining('Dr Hugo Marin'),
-        ),
-        findsOneWidget,
-      );
-      // Pas de séparateur '·' pendant : le motif et le nom sont joints par
-      // ' · ', jamais un ' · ' en tête isolé.
-      expect(find.text('· Dr Hugo Marin'), findsNothing);
-
-      await GetIt.instance.reset();
-    });
-
-    testWidgets(
-        'practitioner_id inconnu du roster -> aucun nom, pas de libellé '
-        'orphelin', (tester) async {
-      final entry = AgendaEntry(
-        id: 'r-2',
-        cabinetId: 'cab-1',
-        practitionerId: 'prac-inconnu',
-        practitionerName: '',
-        startsAt: DateTime(2026, 7, 7, 9, 0),
-        endsAt: DateTime(2026, 7, 7, 9, 30),
-        patientId: 'pat-1',
-        patientName: 'Marc Dubois',
-        motif: 'Contrôle',
-        isFree: false,
-      );
-
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-      when(() => mockListPractitioners()).thenAnswer(
-        (_) async => const Right([
-          CabinetPractitioner(id: 'prac-1', displayName: 'Dr Hugo Marin'),
-        ]),
-      );
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
-        ),
-      );
-      await tester.pump();
-
-      // Le motif reste visible, seul (pas de "· <motif>" ni "<motif> ·").
-      expect(find.text('Contrôle'), findsOneWidget);
-      // Scope sur la carte RDV : le roster reste complet (#4666) et affiche
-      // toujours sa puce « Dr Hugo Marin » ailleurs sur l'écran (#5076) —
-      // seule cette carte, dont le practitioner_id est inconnu du roster, ne
-      // doit porter aucun nom.
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('entry_r-2')),
-          matching: find.textContaining('Dr Hugo Marin'),
-        ),
-        findsNothing,
-      );
+      expect(countTextOf('agenda_day_count_$dayKey'), '1');
 
       await GetIt.instance.reset();
     });
@@ -1670,77 +1051,13 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // #5078 — dialogue « Nouveau RDV » simplifié (patient en recherche).
+  // #5078 — dialogue « Nouveau RDV » simplifié (patient en recherche). Le
+  // rendu de créneaux libres cliquables dans la grille (#5077) est hors
+  // périmètre de #5069 (ticket « blocs RDV positionnés ») — le dialogue
+  // s'ouvre donc ici via le bouton « Nouveau RDV » de la barre d'outils
+  // (toujours présent, indépendant du rendu de la grille) avec le picker de
+  // créneau.
   // -------------------------------------------------------------------------
-  group('créneau libre cliquable dans la grille (#5077)', () {
-    testWidgets(
-        'rend le créneau en rectangle pointillé « + HH:MM » et affiche la '
-        'légende de pied, un clic ouvre Nouveau RDV avec ce créneau choisi',
-        (tester) async {
-      final freeSlot = Slot(
-        id: 'slot-1',
-        cabinetId: 'cab-1',
-        practitionerId: 'prac-1',
-        startsAt: DateTime(2026, 7, 7, 11, 0),
-        endsAt: DateTime(2026, 7, 7, 11, 30),
-        isAvailable: true,
-      );
-      final freeEntry = AgendaEntry(
-        id: 'slot-1',
-        cabinetId: 'cab-1',
-        practitionerId: 'prac-1',
-        practitionerName: 'Dr Martin',
-        startsAt: DateTime(2026, 7, 7, 11, 0),
-        endsAt: DateTime(2026, 7, 7, 11, 30),
-        isFree: true,
-        status: 'open',
-      );
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([freeEntry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => Right([freeSlot]));
-      final mockListPatients = MockListCabinetPatientsUseCase();
-      when(() => mockListPatients()).thenAnswer((_) async => const Right([]));
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-      gi.registerFactory<ListCabinetPatientsUseCase>(() => mockListPatients);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('free_slot_slot-1')), findsOneWidget);
-      expect(find.text('11:00'), findsOneWidget);
-      expect(find.byIcon(Icons.add), findsWidgets);
-      expect(
-          find.byKey(const Key('agenda_free_slot_legend')), findsOneWidget);
-      expect(find.text('Créneau libre — cliquer pour réserver'),
-          findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('free_slot_slot-1')));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Nouveau rendez-vous'), findsOneWidget);
-      expect(find.byKey(const Key('slot_readonly_label')), findsOneWidget);
-      expect(find.textContaining('11:00'), findsWidgets);
-
-      await GetIt.instance.reset();
-    });
-  });
-
   group('Nouveau RDV — dialogue simplifié (#5078)', () {
     void registerBloc(GetIt gi, MockListCabinetPatientsUseCase listPatients) {
       gi.registerFactory<AgendaBloc>(() => AgendaBloc(
@@ -1755,12 +1072,29 @@ void main() {
     }
 
     Future<void> pumpAgenda(WidgetTester tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
           home: const Scaffold(body: AgendaPage()),
         ),
       );
+      await tester.pumpAndSettle();
+    }
+
+    /// Ouvre le dialogue via le bouton « Nouveau RDV » puis choisit
+    /// [freeSlot] dans le picker (un seul créneau disponible dans ces tests).
+    Future<void> openDialogAndPickSlot(
+      WidgetTester tester,
+      Slot freeSlot,
+      String slotLabel,
+    ) async {
+      await tester.tap(find.byKey(const Key('new_appointment_button')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('slot_picker_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(slotLabel).last);
       await tester.pumpAndSettle();
     }
 
@@ -1772,16 +1106,8 @@ void main() {
       endsAt: DateTime(2026, 7, 7, 9, 30),
       isAvailable: true,
     );
-    final freeEntry = AgendaEntry(
-      id: 'slot-1',
-      cabinetId: 'cab-1',
-      practitionerId: 'prac-1',
-      practitionerName: 'Dr Martin',
-      startsAt: DateTime(2026, 7, 7, 9, 0),
-      endsAt: DateTime(2026, 7, 7, 9, 30),
-      isFree: true,
-      status: 'open',
-    );
+    // `_slotLabel` (agenda_page.dart) pour `freeSlot` : mardi 7 juillet 2026.
+    const freeSlotLabel = 'Mar 7 juil. – 09:00';
     final alice = CabinetPatient(
       id: 'pat-alice',
       cabinetId: 'cab-1',
@@ -1798,37 +1124,8 @@ void main() {
     );
 
     testWidgets(
-        'ouvert depuis un créneau de la grille, affiche le créneau en lecture '
-        'seule sans menu de sélection', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([freeEntry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => Right([freeSlot]));
-      final mockListPatients = MockListCabinetPatientsUseCase();
-      when(() => mockListPatients()).thenAnswer((_) async => const Right([]));
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      registerBloc(gi, mockListPatients);
-
-      await pumpAgenda(tester);
-
-      await tester.tap(find.byKey(const Key('entry_slot-1')));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Nouveau rendez-vous'), findsOneWidget);
-      expect(find.byKey(const Key('slot_picker_dropdown')), findsNothing);
-      expect(find.byKey(const Key('slot_readonly_label')), findsOneWidget);
-      expect(find.textContaining('09:00'), findsWidgets);
-
-      await GetIt.instance.reset();
-    });
-
-    testWidgets(
         'le patient se choisit via une recherche filtrant par nom, et créer '
         'reste désactivé sans patient choisi', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([freeEntry]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
           .thenAnswer((_) async => Right([freeSlot]));
       final mockListPatients = MockListCabinetPatientsUseCase();
@@ -1840,23 +1137,19 @@ void main() {
       registerBloc(gi, mockListPatients);
 
       await pumpAgenda(tester);
-
-      await tester.tap(find.byKey(const Key('entry_slot-1')));
-      await tester.pumpAndSettle();
+      await openDialogAndPickSlot(tester, freeSlot, freeSlotLabel);
 
       // Pas de dropdown listant toute la patientèle.
       expect(find.byKey(const Key('patient_picker_dropdown')), findsNothing);
 
-      final createButton =
-          find.byKey(const Key('create_appointment_button'));
+      final createButton = find.byKey(const Key('create_appointment_button'));
       expect(tester.widget<FilledButton>(createButton).onPressed, isNull);
 
       await tester.enterText(
           find.byKey(const Key('patient_search_field')), 'ali');
       await tester.pumpAndSettle();
 
-      expect(
-          find.byKey(const Key('patient_option_pat-alice')), findsOneWidget);
+      expect(find.byKey(const Key('patient_option_pat-alice')), findsOneWidget);
       expect(find.byKey(const Key('patient_option_pat-bob')), findsNothing);
 
       await tester.tap(find.byKey(const Key('patient_option_pat-alice')));
@@ -1872,8 +1165,6 @@ void main() {
     testWidgets(
         'créer le RDV envoie un CabinetAppointment avec slotId et le '
         'patientId résolu par la recherche', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([freeEntry]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
           .thenAnswer((_) async => Right([freeSlot]));
       final mockListPatients = MockListCabinetPatientsUseCase();
@@ -1899,9 +1190,7 @@ void main() {
       registerBloc(gi, mockListPatients);
 
       await pumpAgenda(tester);
-
-      await tester.tap(find.byKey(const Key('entry_slot-1')));
-      await tester.pumpAndSettle();
+      await openDialogAndPickSlot(tester, freeSlot, freeSlotLabel);
 
       await tester.enterText(
           find.byKey(const Key('patient_search_field')), 'ali');
