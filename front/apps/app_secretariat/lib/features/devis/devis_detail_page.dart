@@ -7,6 +7,7 @@ import 'devis_bloc.dart';
 import 'devis_event.dart';
 import 'devis_page.dart' show mapQuoteStatus;
 import 'devis_state.dart';
+import 'widgets/quote_timeline.dart';
 
 /// Détail d'un devis côté secrétariat.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
@@ -224,6 +225,10 @@ class _DevisDetailBody extends StatelessWidget {
                     context.read<DevisBloc>().add(DevisSendRequested(quote.id)),
           ),
         ],
+        // Bloc « Suivi » (#5090) : où en est ce devis ? Étapes dont la
+        // donnée existe uniquement (cf. commentaire de QuoteTimeline).
+        const SizedBox(height: 16),
+        QuoteTimeline(quote: quote),
         if (hasDates) ...[
           const SizedBox(height: 16),
           NubiaCard(
