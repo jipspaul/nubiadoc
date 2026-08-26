@@ -15,6 +15,8 @@ LabWorkOrder _order({
       id: id,
       patientId: 'patient-$id',
       patientDisplayName: 'Patient $id',
+      toothFdi: '11',
+      workNature: 'Couronne',
       labName: 'Labo $id',
       purchasePriceCents: purchasePriceCents,
       status: status,
