@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'lab_work_order_metrics.dart';
 import 'lab_work_orders_bloc.dart';
 import 'lab_work_orders_event.dart';
 import 'lab_work_orders_state.dart';
@@ -94,7 +95,8 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
         // la snackbar : l'erreur du tout premier chargement est déjà portée
         // par `NubiaErrorWidget` plein écran, une seule surface à la fois
         // (#5067).
-        listenWhen: (_, s) => s is LabWorkOrdersLoaded && s.errorMessage != null,
+        listenWhen: (_, s) =>
+            s is LabWorkOrdersLoaded && s.errorMessage != null,
         listener: (context, state) {
           if (state is LabWorkOrdersLoaded && state.errorMessage != null) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -121,7 +123,8 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                     for (var i = 0; i < 2; i++)
                       const Padding(
                         padding: EdgeInsets.only(bottom: 12),
-                        child: NubiaSkeletonLoader(height: 88, borderRadius: 12),
+                        child:
+                            NubiaSkeletonLoader(height: 88, borderRadius: 12),
                       ),
                   ],
                 ],
@@ -145,6 +148,8 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                 key: const Key('lab_work_orders_list'),
                 padding: const EdgeInsets.all(16),
                 children: [
+                  _LabWorkOrdersMetricsBand(orders: orders),
+                  const SizedBox(height: 16),
                   for (final status in _kStatusOrder)
                     if (orders.any((o) => o.status == status)) ...[
                       Padding(
@@ -216,8 +221,7 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                                                   color: Theme.of(context)
                                                       .colorScheme
                                                       .onSurfaceVariant,
-                                                  fontFeatures:
-                                                      tabularFigures,
+                                                  fontFeatures: tabularFigures,
                                                 ),
                                           ),
                                         ],
@@ -251,6 +255,63 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
           }
         },
       ),
+    );
+  }
+}
+
+/// Bande de 4 [MetricTile] dérivés des bons (#5063, point 7 de la maquette) :
+/// aucun total, aucun filtre — juste de quoi répondre aux questions du matin.
+class _LabWorkOrdersMetricsBand extends StatelessWidget {
+  const _LabWorkOrdersMetricsBand({required this.orders});
+
+  final List<LabWorkOrder> orders;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = computeLabWorkOrderMetrics(orders, now: DateTime.now());
+
+    return Row(
+      key: const Key('lab_work_metrics_band'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: MetricTile(
+            key: const Key('lab_work_metric_in_progress'),
+            icon: Icons.hourglass_top_outlined,
+            value: '${metrics.inProgressCount}',
+            label: 'bons en cours',
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: MetricTile(
+            key: const Key('lab_work_metric_overdue'),
+            icon: Icons.error_outline,
+            value: '${metrics.overdueCount}',
+            label: 'en retard',
+            variant: MetricTileVariant.danger,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: MetricTile(
+            key: const Key('lab_work_metric_due_this_week'),
+            icon: Icons.event_outlined,
+            value: '${metrics.dueThisWeekCount}',
+            label: 'attendus cette semaine',
+            variant: MetricTileVariant.warning,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: MetricTile(
+            key: const Key('lab_work_metric_committed'),
+            icon: Icons.payments_outlined,
+            value: NubiaMoney.formatCents(metrics.committedCents),
+            label: 'engagé chez les labos',
+          ),
+        ),
+      ],
     );
   }
 }
