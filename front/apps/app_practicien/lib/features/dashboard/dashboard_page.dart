@@ -192,24 +192,56 @@ class _DashboardLoadedView extends StatelessWidget {
 
   final ProDashboardSummary summary;
 
+  // Seuil au-delà duquel la colonne droite (430 px fixe) + la gouttière
+  // (16 px) laissent assez de place à gauche pour rester lisible.
+  static const _wideBreakpoint = 1100.0;
+  static const _rightColumnWidth = 430.0;
+  static const _gutter = 16.0;
+
   @override
   Widget build(BuildContext context) {
+    final notesCard = BlocProvider(
+      create: (_) => GetIt.instance<TodayNotesBloc>()
+        ..add(const TodayNotesLoadRequested()),
+      child: const TodayNotesCard(),
+    );
+
     return SingleChildScrollView(
       key: const Key('dashboard_loaded'),
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _DashboardHeader(),
-          const SizedBox(height: 16),
-          _SummaryGrid(summary: summary),
-          const SizedBox(height: 24),
-          BlocProvider(
-            create: (_) => GetIt.instance<TodayNotesBloc>()
-              ..add(const TodayNotesLoadRequested()),
-            child: const TodayNotesCard(),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= _wideBreakpoint) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _DashboardHeader(),
+                      const SizedBox(height: 16),
+                      _SummaryGrid(summary: summary),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: _gutter),
+                SizedBox(width: _rightColumnWidth, child: notesCard),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _DashboardHeader(),
+              const SizedBox(height: 16),
+              _SummaryGrid(summary: summary),
+              const SizedBox(height: 24),
+              notesCard,
+            ],
+          );
+        },
       ),
     );
   }
