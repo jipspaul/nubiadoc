@@ -136,7 +136,11 @@ class _LoadedView extends StatefulWidget {
 }
 
 class _LoadedViewState extends State<_LoadedView> {
-  String? _practitionerFilter;
+  /// Praticiens actuellement filtrés (puces à bascule, maquette design-v2,
+  /// #5076) — vide = tous les praticiens affichés ; plusieurs praticiens
+  /// peuvent être actifs simultanément (pas un filtre exclusif comme
+  /// l'ancien `DropdownButton`).
+  final Set<String> _practitionerFilter = <String>{};
   String _searchQuery = '';
   String? _selectedEntryId;
 
@@ -177,13 +181,21 @@ class _LoadedViewState extends State<_LoadedView> {
   List<AgendaEntry> get _filteredEntries {
     final query = _searchQuery.trim().toLowerCase();
     return widget.state.entries.where((e) {
-      if (_practitionerFilter != null &&
-          e.practitionerId != _practitionerFilter) {
+      if (_practitionerFilter.isNotEmpty &&
+          !_practitionerFilter.contains(e.practitionerId)) {
         return false;
       }
       if (query.isEmpty) return true;
       return (e.patientName ?? '').toLowerCase().contains(query);
     }).toList();
+  }
+
+  void _togglePractitionerFilter(String practitionerId) {
+    setState(() {
+      if (!_practitionerFilter.remove(practitionerId)) {
+        _practitionerFilter.add(practitionerId);
+      }
+    });
   }
 
   /// RDV pointé par [_selectedEntryId] (volet latéral, #5079) — cherche dans
@@ -393,33 +405,11 @@ class _LoadedViewState extends State<_LoadedView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    isDense: true,
-                    labelText: 'Praticien',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String?>(
-                      key: const Key('practitioner_filter_dropdown'),
-                      isExpanded: true,
-                      value: _practitionerFilter,
-                      onChanged: (v) => setState(() => _practitionerFilter = v),
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('Tous les praticiens'),
-                        ),
-                        for (final p in practitioners.entries)
-                          DropdownMenuItem<String?>(
-                            value: p.key,
-                            child: Text(p.value),
-                          ),
-                      ],
-                    ),
-                  ),
+                child: _PractitionerFilterChips(
+                  practitioners: practitioners,
+                  entries: widget.state.entries,
+                  selected: _practitionerFilter,
+                  onToggle: _togglePractitionerFilter,
                 ),
               ),
               const SizedBox(width: 12),
@@ -628,6 +618,58 @@ class _AgendaStats extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Rangée de puces à bascule du filtre praticien (maquette design-v2,
+/// `secretariat-agenda.png`, #5076) — remplace le `DropdownButton` (coûtait
+/// deux clics et cachait le roster). Roster complet via `practitioners`
+/// (#4666 : un praticien sans RDV cette semaine reste affiché, « · 0 »).
+/// Plusieurs puces peuvent être actives simultanément (filtre non exclusif,
+/// cf. maquette).
+class _PractitionerFilterChips extends StatelessWidget {
+  const _PractitionerFilterChips({
+    required this.practitioners,
+    required this.entries,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  final Map<String, String> practitioners;
+  final List<AgendaEntry> entries;
+  final Set<String> selected;
+  final void Function(String practitionerId) onToggle;
+
+  int _countFor(String practitionerId) => entries
+      .where((e) => !e.isFree && e.practitionerId == practitionerId)
+      .length;
+
+  @override
+  Widget build(BuildContext context) {
+    // Défilement horizontal (plutôt qu'un Wrap) : un roster nombreux sur un
+    // viewport étroit (mobile, cf. test #3896) ne doit pas comprimer une
+    // puce sous sa largeur de contenu — l'ancien Row de compteurs a déjà
+    // débordé pour cette raison.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final p in practitioners.entries) ...[
+            NubiaChip(
+              key: Key('practitioner_chip_${p.key}'),
+              label: p.value,
+              dotColor: practitionerColor(p.key),
+              count: _countFor(p.key),
+              selected: selected.contains(p.key),
+              onTap: () => onToggle(p.key),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ],
+      ),
     );
   }
 }
