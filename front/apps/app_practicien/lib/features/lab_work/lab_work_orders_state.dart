@@ -15,7 +15,7 @@ class LabWorkOrdersLoading extends LabWorkOrdersState {
 }
 
 class LabWorkOrdersLoaded extends LabWorkOrdersState {
-  const LabWorkOrdersLoaded(this.orders, {this.updatingId});
+  const LabWorkOrdersLoaded(this.orders, {this.updatingId, this.errorMessage});
 
   final List<LabWorkOrder> orders;
 
@@ -23,10 +23,15 @@ class LabWorkOrdersLoaded extends LabWorkOrdersState {
   /// loading), `null` si aucune mise à jour en cours.
   final String? updatingId;
 
+  /// Erreur transitoire d'un rechargement échoué alors que des bons sont
+  /// déjà affichés : signale la snackbar sans effacer la liste (#5067).
+  final String? errorMessage;
+
   @override
   bool operator ==(Object other) =>
       other is LabWorkOrdersLoaded &&
       other.updatingId == updatingId &&
+      other.errorMessage == errorMessage &&
       other.orders.length == orders.length &&
       List.generate(
         orders.length,
@@ -34,7 +39,8 @@ class LabWorkOrdersLoaded extends LabWorkOrdersState {
       ).every((b) => b);
 
   @override
-  int get hashCode => Object.hash(Object.hashAll(orders), updatingId);
+  int get hashCode =>
+      Object.hash(Object.hashAll(orders), updatingId, errorMessage);
 }
 
 class LabWorkOrdersError extends LabWorkOrdersState {

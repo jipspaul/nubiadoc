@@ -26,10 +26,20 @@ class LabWorkOrdersBloc extends Bloc<LabWorkOrdersEvent, LabWorkOrdersState>
     LabWorkOrdersLoadRequested event,
     Emitter<LabWorkOrdersState> emit,
   ) async {
-    emit(const LabWorkOrdersLoading());
+    final current = state;
+    final loaded = current is LabWorkOrdersLoaded && current.orders.isNotEmpty
+        ? current
+        : null;
+    if (loaded == null) emit(const LabWorkOrdersLoading());
     final result = await _list();
     result.fold(
-      (failure) => safeEmit(LabWorkOrdersError(failure.message)),
+      // Un rechargement échoué alors que des bons sont déjà affichés reste
+      // non bloquant : la liste est conservée, seule une snackbar signale
+      // l'erreur (#5067). Le plein écran `NubiaErrorWidget` ne sert qu'au
+      // tout premier chargement, en l'absence de données.
+      (failure) => safeEmit(loaded != null
+          ? LabWorkOrdersLoaded(loaded.orders, errorMessage: failure.message)
+          : LabWorkOrdersError(failure.message)),
       (orders) => safeEmit(LabWorkOrdersLoaded(orders)),
     );
   }
