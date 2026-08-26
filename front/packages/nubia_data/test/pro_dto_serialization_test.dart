@@ -424,17 +424,26 @@ void main() {
         'waiting_room_count': 1,
         'unread_messages': 2,
         'pending_confirmations': 0,
+        'weekly_completed_acts': 38,
+        'weekly_fees_cents': 642000,
+        'weekly_no_show_count': 2,
       };
       final dto = CabinetDashboardDto.fromJson(json);
       expect(dto.todayAppointments, 3);
       expect(dto.waitingRoomCount, 1);
       expect(dto.unreadMessages, 2);
       expect(dto.pendingConfirmations, 0);
+      expect(dto.weeklyCompletedActs, 38);
+      expect(dto.weeklyFeesCents, 642000);
+      expect(dto.weeklyNoShowCount, 2);
       final domain = dto.toDomain();
       expect(domain.todayAppointments, 3);
       expect(domain.waitingRoomCount, 1);
       expect(domain.unreadMessages, 2);
       expect(domain.pendingConfirmations, 0);
+      expect(domain.weeklyCompletedActs, 38);
+      expect(domain.weeklyFeesCents, 642000);
+      expect(domain.weeklyNoShowCount, 2);
     });
 
     test('fromJson retourne 0 pour les champs manquants ou nuls', () {
@@ -443,6 +452,9 @@ void main() {
       expect(dto.waitingRoomCount, 0);
       expect(dto.unreadMessages, 0);
       expect(dto.pendingConfirmations, 0);
+      expect(dto.weeklyCompletedActs, 0);
+      expect(dto.weeklyFeesCents, 0);
+      expect(dto.weeklyNoShowCount, 0);
     });
   });
 }

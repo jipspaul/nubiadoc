@@ -34,6 +34,7 @@ import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 import 'today_notes_bloc.dart';
 import 'today_notes_card.dart';
+import 'week_summary_card.dart';
 
 /// Entry point for the authenticated praticien home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile) with clinical
@@ -205,6 +206,7 @@ class _DashboardLoadedView extends StatelessWidget {
         ..add(const TodayNotesLoadRequested()),
       child: const TodayNotesCard(),
     );
+    final weekSummaryCard = WeekSummaryCard(summary: summary);
 
     return SingleChildScrollView(
       key: const Key('dashboard_loaded'),
@@ -226,7 +228,17 @@ class _DashboardLoadedView extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: _gutter),
-                SizedBox(width: _rightColumnWidth, child: notesCard),
+                SizedBox(
+                  width: _rightColumnWidth,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      notesCard,
+                      const SizedBox(height: 16),
+                      weekSummaryCard,
+                    ],
+                  ),
+                ),
               ],
             );
           }
@@ -239,6 +251,8 @@ class _DashboardLoadedView extends StatelessWidget {
               _SummaryGrid(summary: summary),
               const SizedBox(height: 24),
               notesCard,
+              const SizedBox(height: 16),
+              weekSummaryCard,
             ],
           );
         },

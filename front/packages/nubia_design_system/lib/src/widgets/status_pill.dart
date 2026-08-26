@@ -33,6 +33,7 @@ class StatusPill extends StatelessWidget {
     required this.variant,
     this.icon,
     this.flexibleLabel = false,
+    this.tabularNums = false,
   });
 
   final String label;
@@ -42,6 +43,11 @@ class StatusPill extends StatelessWidget {
   /// partagent le même [variant] (ex. `error`) et doivent rester
   /// distinguables visuellement.
   final IconData? icon;
+
+  /// Quand `true`, chiffre le [label] en chiffres tabulaires
+  /// (`FontFeature.tabularFigures`) — pour les pastilles portant un montant
+  /// (ex. carte « Cette semaine » du tableau de bord praticien, #5051).
+  final bool tabularNums;
 
   /// Quand `true`, le libellé peut se rétrécir (`Flexible` + ellipsis) au lieu
   /// de forcer sa largeur intrinsèque. À n'activer que dans un contexte
@@ -113,6 +119,8 @@ class StatusPill extends StatelessWidget {
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: fg,
               fontWeight: FontWeight.w500,
+              fontFeatures:
+                  tabularNums ? const [FontFeature.tabularFigures()] : null,
             ),
       );
 }
