@@ -798,7 +798,159 @@ void main() {
       final card = tester.widget<NubiaCard>(find.byWidgetPredicate(
         (w) => w is NubiaCard,
       ));
-      expect(card.backgroundColor, isNull);
+      // Pas de fond warning (#5075) — le bloc peut porter la couleur du
+      // praticien (émeraude/sable/neutre, #5074), jamais celle de l'état
+      // « à confirmer ».
+      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+      expect(card.backgroundColor, isNot(tokens.warningBg));
+
+      await gi.reset();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Couleur par praticien (blocs + légende, #5074)
+  // -------------------------------------------------------------------------
+
+  group('couleur par praticien — blocs + légende de pied (#5074)', () {
+    testWidgets(
+        '1er praticien du roster -> bloc émeraude, 2e -> sable, 3e -> neutre, '
+        'même si le 3e n\'a aucun RDV cette semaine (#4666)', (tester) async {
+      final rousseauEntry = AgendaEntry(
+        id: 'e-rousseau',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-rousseau',
+        practitionerName: 'Dr Rousseau',
+        startsAt: DateTime(2026, 7, 7, 9, 0),
+        endsAt: DateTime(2026, 7, 7, 9, 30),
+        patientName: 'Marie Dupont',
+        motif: 'Contrôle',
+        isFree: false,
+        status: 'confirmed',
+      );
+      final lefevreEntry = AgendaEntry(
+        id: 'e-lefevre',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-lefevre',
+        practitionerName: 'Dr Lefèvre',
+        startsAt: DateTime(2026, 7, 7, 10, 0),
+        endsAt: DateTime(2026, 7, 7, 10, 30),
+        patientName: 'Marc Dubois',
+        motif: 'Détartrage',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([rousseauEntry, lefevreEntry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+      // Roster complet : Dr Nadeau (3e) n'a aucun RDV cette semaine mais
+      // reste présent dans le roster (#4666), donc dans la palette/légende.
+      when(() => mockListPractitioners()).thenAnswer(
+        (_) async => const Right([
+          CabinetPractitioner(id: 'prac-rousseau', displayName: 'Dr Rousseau'),
+          CabinetPractitioner(id: 'prac-lefevre', displayName: 'Dr Lefèvre'),
+          CabinetPractitioner(id: 'prac-nadeau', displayName: 'Dr Nadeau'),
+        ]),
+      );
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      final rousseauCard = tester.widget<NubiaCard>(find.descendant(
+        of: find.byKey(const Key('entry_e-rousseau')),
+        matching: find.byType(NubiaCard),
+      ));
+      expect(rousseauCard.backgroundColor, NubiaColors.brand50);
+      expect(rousseauCard.borderColor, NubiaColors.brand600);
+
+      final lefevreCard = tester.widget<NubiaCard>(find.descendant(
+        of: find.byKey(const Key('entry_e-lefevre')),
+        matching: find.byType(NubiaCard),
+      ));
+      expect(lefevreCard.backgroundColor, NubiaColors.sand50);
+      expect(lefevreCard.borderColor, NubiaColors.sand500);
+
+      // Légende de pied : les 3 praticiens du roster apparaissent, y compris
+      // Dr Nadeau (0 RDV cette semaine) — #4666 ne doit pas régresser.
+      expect(find.byKey(const Key('agenda_legend_practitioner_prac-rousseau')),
+          findsOneWidget);
+      expect(find.byKey(const Key('agenda_legend_practitioner_prac-lefevre')),
+          findsOneWidget);
+      expect(find.byKey(const Key('agenda_legend_practitioner_prac-nadeau')),
+          findsOneWidget);
+      expect(find.byKey(const Key('agenda_legend_pending')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('agenda_legend_practitioner_prac-nadeau')),
+          matching: find.text('Dr Nadeau'),
+        ),
+        findsOneWidget,
+      );
+
+      await gi.reset();
+    });
+
+    testWidgets(
+        'la couleur d\'un practitionerId donné ne change pas d\'un rebuild '
+        'à l\'autre (déterministe, pas d\'aléatoire)', (tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockListPractitioners()).thenAnswer(
+        (_) async => const Right([
+          CabinetPractitioner(id: 'prac-1', displayName: 'Dr Martin'),
+        ]),
+      );
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      Color colorOf() => tester
+          .widget<NubiaCard>(find.descendant(
+            of: find.byKey(const Key('entry_e-1')),
+            matching: find.byType(NubiaCard),
+          ))
+          .backgroundColor!;
+
+      final first = colorOf();
+      await tester.pump();
+      await tester.pump();
+      final second = colorOf();
+      expect(second, first);
 
       await gi.reset();
     });
