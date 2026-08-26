@@ -24,6 +24,10 @@ class _MockDevisBloc extends MockBloc<DevisEvent, DevisState>
     implements DevisBloc {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(const DevisLoadRequested());
+  });
+
   // --- Cloisonnement invariant --------------------------------------------------
   group('ProConfig — cloisonnement', () {
     test('includeClinical est false', () {
@@ -227,6 +231,34 @@ void main() {
         DevisSendInProgress(quote),
         DevisSendFailure(quote: quote, message: 'Envoi impossible.'),
       ],
+    );
+
+    // #5087 : l'action passe désormais aussi sur chaque ligne de la liste —
+    // `DevisSendRequested` ne doit plus être ignoré quand l'état courant est
+    // `DevisLoaded` (le devis y est retrouvé par id, pas déjà chargé seul).
+    blocTest<DevisBloc, DevisState>(
+      'DevisSendRequested depuis DevisLoaded retrouve le devis par id et '
+      'émet InProgress puis Sent (#5087)',
+      build: () {
+        when(() => repo.sendQuote(quote.id)).thenAnswer(
+          (_) async => const Right(CabinetQuoteStatus.sent),
+        );
+        return buildBloc();
+      },
+      seed: () => DevisLoaded(quotes),
+      act: (bloc) => bloc.add(DevisSendRequested(quote.id)),
+      expect: () => [
+        DevisSendInProgress(quote),
+        isA<DevisSent>(),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisSendRequested avec un id absent de la liste n\'émet rien (#5087)',
+      build: buildBloc,
+      seed: () => DevisLoaded(quotes),
+      act: (bloc) => bloc.add(const DevisSendRequested('q-inconnu')),
+      expect: () => <DevisState>[],
     );
   });
 
@@ -829,6 +861,122 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('devis_kpi_active')), findsNothing);
+    });
+  });
+
+  // --- Action contextuelle par ligne (#5087) ------------------------------------
+  group('DevisPage — action contextuelle par ligne (#5087)', () {
+    late _MockDevisBloc bloc;
+
+    setUp(() {
+      bloc = _MockDevisBloc();
+    });
+
+    Widget buildPage() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<DevisBloc>.value(
+            value: bloc,
+            child: const DevisPage(),
+          ),
+        );
+
+    CabinetQuote quoteWith(String id, CabinetQuoteStatus status) =>
+        CabinetQuote(
+          id: id,
+          cabinetId: 'c1',
+          patientId: 'p_$id',
+          patientName: 'Patient $id',
+          totalCents: 10000,
+          patientShareCents: 5000,
+          status: status,
+          createdAt: DateTime(2026, 1, 1),
+        );
+
+    final expectedLabels = {
+      CabinetQuoteStatus.draft: 'Envoyer',
+      CabinetQuoteStatus.sent: 'Relancer',
+      CabinetQuoteStatus.expired: 'Réémettre',
+      CabinetQuoteStatus.signed: 'PDF',
+      CabinetQuoteStatus.cancelled: 'Voir',
+    };
+
+    for (final entry in expectedLabels.entries) {
+      testWidgets(
+          'devis ${entry.key.name} affiche l\'action « ${entry.value} »',
+          (tester) async {
+        when(() => bloc.state).thenReturn(
+          DevisLoaded([quoteWith('q1', entry.key)]),
+        );
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        expect(find.text(entry.value), findsOneWidget);
+      });
+    }
+
+    testWidgets(
+        'taper « Envoyer » sur un brouillon déclenche DevisSendRequested '
+        'depuis DevisLoaded', (tester) async {
+      when(() => bloc.state)
+          .thenReturn(DevisLoaded([quoteWith('q1', CabinetQuoteStatus.draft)]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Envoyer'));
+      await tester.pumpAndSettle();
+
+      // `initState` déclenche déjà un `DevisLoadRequested` au montage — on
+      // isole les seuls événements d'envoi déclenchés par l'action de ligne.
+      final sendEvents = verify(() => bloc.add(captureAny()))
+          .captured
+          .whereType<DevisSendRequested>();
+      expect(sendEvents, hasLength(1));
+      expect(sendEvents.single.id, 'q1');
+    });
+
+    testWidgets(
+        'taper « Relancer » sur un envoi en attente déclenche '
+        'DevisSendRequested', (tester) async {
+      when(() => bloc.state)
+          .thenReturn(DevisLoaded([quoteWith('q1', CabinetQuoteStatus.sent)]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Relancer'));
+      await tester.pumpAndSettle();
+
+      final sendEvents = verify(() => bloc.add(captureAny()))
+          .captured
+          .whereType<DevisSendRequested>();
+      expect(sendEvents, hasLength(1));
+      expect(sendEvents.single.id, 'q1');
+    });
+
+    testWidgets(
+        'un échec d\'envoi depuis une ligne signale l\'erreur et garde la '
+        'liste affichée, sans naviguer', (tester) async {
+      final draft = quoteWith('q1', CabinetQuoteStatus.draft);
+      final loaded = DevisLoaded([draft]);
+      final failure =
+          DevisSendFailure(quote: draft, message: 'Envoi impossible.');
+
+      whenListen(
+        bloc,
+        Stream<DevisState>.fromIterable([loaded, failure]),
+        initialState: loaded,
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Patient q1'), findsOneWidget);
+      expect(
+        find.byKey(const Key('devis_list_send_error_snackbar')),
+        findsOneWidget,
+      );
+      expect(find.text('Envoi impossible.'), findsOneWidget);
+      // La liste reste affichée derrière l'erreur — pas de navigation.
+      expect(find.text('Patient q1'), findsOneWidget);
     });
   });
 

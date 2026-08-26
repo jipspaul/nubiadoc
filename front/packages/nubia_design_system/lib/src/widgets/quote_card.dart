@@ -58,6 +58,9 @@ class QuoteLine {
 /// - [subtitle] : sous-titre optionnel (ex. praticien).
 /// - [totalLabel] / [total] : ligne total optionnelle (montant tabulaire, gras).
 /// - [ctaLabel] / [onCtaPressed] : CTA principal optionnel.
+/// - [ctaIcon] / [ctaVariant] / [ctaLoading] : personnalisation du CTA (icône,
+///   variante `NubiaButton`, état de chargement) — ex. action contextuelle au
+///   statut par ligne dans une liste (#5087).
 ///
 /// Réfs mockup : `design/mockups/lib/screens-wedge.jsx` (WedgeLines + Card).
 class QuoteCard extends StatelessWidget {
@@ -71,6 +74,9 @@ class QuoteCard extends StatelessWidget {
     this.total,
     this.ctaLabel,
     this.onCtaPressed,
+    this.ctaIcon,
+    this.ctaVariant = NubiaButtonVariant.primary,
+    this.ctaLoading = false,
   });
 
   final String title;
@@ -81,6 +87,9 @@ class QuoteCard extends StatelessWidget {
   final String? total;
   final String? ctaLabel;
   final VoidCallback? onCtaPressed;
+  final IconData? ctaIcon;
+  final NubiaButtonVariant ctaVariant;
+  final bool ctaLoading;
 
   static const List<FontFeature> _tabular = [FontFeature.tabularFigures()];
 
@@ -209,6 +218,9 @@ class QuoteCard extends StatelessWidget {
             NubiaButton(
               label: ctaLabel!,
               onPressed: onCtaPressed,
+              icon: ctaIcon,
+              variant: ctaVariant,
+              isLoading: ctaLoading,
               size: NubiaButtonSize.lg,
             ),
           ],

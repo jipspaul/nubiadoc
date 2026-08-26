@@ -28,6 +28,12 @@ class _DevisPageState extends State<DevisPage> {
   /// cf. note « keep » de la maquette).
   String? _selectedQuoteId;
 
+  /// Dernière liste chargée (#5087) — conservée pour garder la liste
+  /// affichée pendant un envoi déclenché depuis une ligne, le temps que le
+  /// bloc traverse `DevisSendInProgress`/`DevisSent`/`DevisSendFailure`
+  /// (états à un seul devis, pas `DevisLoaded`).
+  List<CabinetQuote>? _lastQuotes;
+
   void _selectQuote(String id) => setState(() => _selectedQuoteId = id);
 
   void _closeQuoteSheet() => setState(() => _selectedQuoteId = null);
@@ -78,32 +84,70 @@ class _DevisPageState extends State<DevisPage> {
           ),
         ],
       ),
-      body: BlocBuilder<DevisBloc, DevisState>(
-        builder: (context, state) {
+      body: BlocConsumer<DevisBloc, DevisState>(
+        listener: (context, state) {
           if (state is DevisLoaded) {
-            final quotes = [...state.quotes]..sort(
+            _lastQuotes = state.quotes;
+          } else if (state is DevisSent) {
+            // Action ligne (Envoyer/Relancer/Réémettre, #5087) : le devis
+            // envoyé a changé de statut côté serveur, on recharge la liste.
+            context.read<DevisBloc>().add(const DevisLoadRequested());
+          } else if (state is DevisSendFailure) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  key: const Key('devis_list_send_error_snackbar'),
+                  content: Text(
+                    state.message.isEmpty
+                        ? 'Envoi impossible.'
+                        : state.message,
+                  ),
+                ),
+              );
+          }
+        },
+        builder: (context, state) {
+          // #5087 : pendant l'envoi déclenché depuis une ligne, le bloc
+          // traverse des états à un seul devis (`DevisSendInProgress` etc.) —
+          // on continue d'afficher la dernière liste connue plutôt que de la
+          // faire disparaître le temps de la requête. Les autres états
+          // (chargement, erreur…) ne doivent pas réutiliser une liste
+          // potentiellement obsolète.
+          final bool isSendTransition = state is DevisSendInProgress ||
+              state is DevisSent ||
+              state is DevisSendFailure;
+          final quotes = state is DevisLoaded
+              ? state.quotes
+              : (isSendTransition ? _lastQuotes : null);
+          if (quotes != null) {
+            final sortedQuotes = [...quotes]..sort(
                 (a, b) => _sortAsc
                     ? a.createdAt.compareTo(b.createdAt)
                     : b.createdAt.compareTo(a.createdAt),
               );
-            if (quotes.isEmpty) {
+            if (sortedQuotes.isEmpty) {
               return const NubiaEmptyState(
                 icon: Icons.receipt_long_outlined,
                 title: 'Aucun devis',
                 subtitle: NubiaL10n.noQuotes,
               );
             }
+            final sendingId =
+                state is DevisSendInProgress ? state.quote.id : null;
             final listView = ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: quotes.length,
+              itemCount: sortedQuotes.length,
               itemBuilder: (ctx, i) => Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 8,
                 ),
                 child: _DevisCard(
-                  quote: quotes[i],
-                  onTap: () => _selectQuote(quotes[i].id),
+                  quote: sortedQuotes[i],
+                  onTap: () => _selectQuote(sortedQuotes[i].id),
+                  active: _selectedQuoteId == sortedQuotes[i].id,
+                  actionLoading: sendingId == sortedQuotes[i].id,
                 ),
               ),
             );
@@ -217,14 +261,62 @@ QuoteCardStatus mapQuoteStatus(CabinetQuoteStatus status) {
   }
 }
 
+/// Action contextuelle au statut, par ligne (#5087, note 4 de la maquette) :
+/// « relancer les devis en attente est précisément le travail de la liste » —
+/// l'action varie selon où en est le devis plutôt que d'être un CTA figé.
+@immutable
+class _RowAction {
+  const _RowAction(this.label, this.icon, {this.sendsQuote = false});
+
+  final String label;
+  final IconData icon;
+
+  /// `true` pour brouillon/envoyé/expiré : l'action déclenche
+  /// `DevisSendRequested` (Envoyer/Relancer/Réémettre partagent le même
+  /// événement, cf. corps du ticket). `false` pour signé/annulé, où l'action
+  /// ouvre le volet de détail (pas d'endpoint dédié PDF/consultation).
+  final bool sendsQuote;
+}
+
+_RowAction _rowActionFor(CabinetQuoteStatus status) {
+  switch (status) {
+    case CabinetQuoteStatus.draft:
+      return const _RowAction('Envoyer', Icons.send, sendsQuote: true);
+    case CabinetQuoteStatus.sent:
+      return const _RowAction('Relancer', Icons.send, sendsQuote: true);
+    case CabinetQuoteStatus.expired:
+      return const _RowAction('Réémettre', Icons.refresh, sendsQuote: true);
+    case CabinetQuoteStatus.signed:
+    case CabinetQuoteStatus.paid:
+      return const _RowAction('PDF', Icons.download);
+    case CabinetQuoteStatus.cancelled:
+      return const _RowAction('Voir', Icons.visibility);
+  }
+}
+
 class _DevisCard extends StatelessWidget {
-  const _DevisCard({required this.quote, this.onTap});
+  const _DevisCard({
+    required this.quote,
+    this.onTap,
+    this.active = false,
+    this.actionLoading = false,
+  });
 
   final CabinetQuote quote;
   final VoidCallback? onTap;
 
+  /// Ligne actuellement ouverte dans le volet latéral → bouton d'action en
+  /// variante primaire émeraude (`.ab.p`, verbatim maquette), au lieu de la
+  /// bordure grise par défaut (`.ab`).
+  final bool active;
+
+  /// Envoi en cours pour cette ligne précise (#5087) — désactive le bouton
+  /// et affiche son spinner sans bloquer le reste de la liste.
+  final bool actionLoading;
+
   @override
   Widget build(BuildContext context) {
+    final action = _rowActionFor(quote.status);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -241,6 +333,17 @@ class _DevisCard extends StatelessWidget {
             amount: NubiaMoney.formatCents(quote.patientShareCents),
           ),
         ],
+        ctaLabel: action.label,
+        ctaIcon: action.icon,
+        ctaVariant:
+            active ? NubiaButtonVariant.primary : NubiaButtonVariant.secondary,
+        ctaLoading: actionLoading,
+        onCtaPressed: actionLoading
+            ? null
+            : action.sendsQuote
+                ? () =>
+                    context.read<DevisBloc>().add(DevisSendRequested(quote.id))
+                : onTap,
       ),
     );
   }
