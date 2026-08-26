@@ -28,6 +28,7 @@ class NubiaColors {
   static const n900 = Color(0xFF1C1917);
 
   // Accent premium (sable) — rare
+  static const sand50 = Color(0xFFF9F4EA);
   static const sand100 = Color(0xFFF3EAD7);
   static const sand500 = Color(0xFFB0894F);
   static const sand700 = Color(0xFF876435);

@@ -466,8 +466,11 @@ class _LoadedViewState extends State<_LoadedView> {
                   ),
                 ),
         ),
-        if (filteredEntries.any((e) => e.isFree))
-          const _FreeSlotLegend(),
+        if (practitioners.isNotEmpty || filteredEntries.any((e) => e.isFree))
+          _AgendaFootLegend(
+            practitioners: practitioners,
+            showFreeSlotHint: filteredEntries.any((e) => e.isFree),
+          ),
       ],
     );
   }
@@ -1525,36 +1528,157 @@ class _DashedRectPainter extends CustomPainter {
 
 // ---------------------------------------------------------------------------
 
-/// Légende de pied de grille (maquette design-v2, #5077) : n'apparaît que
-/// si la semaine affichée contient au moins un créneau `.free`.
-class _FreeSlotLegend extends StatelessWidget {
-  const _FreeSlotLegend();
+/// Pastille + libellé d'une entrée de légende (couleur unie, ex. praticien ou
+/// « À confirmer » — le créneau libre garde son propre rendu pointillé via
+/// [_DashedRectBox], cf. [_AgendaFootLegend]).
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({super.key, required this.color, required this.label});
+
+  final Color color;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+}
+
+/// Légende de pied de grille (maquette design-v2, #5074/#5077) : associe
+/// chaque couleur de bloc RDV (émeraude/sable/neutre, [_practitionerBlockStyle])
+/// à un nom de praticien du roster complet (#4666 — un praticien sans RDV
+/// cette semaine, ex. Dr Nadeau, reste dans la légende), plus l'état
+/// « à confirmer » et le créneau libre pointillé (#5077, affiché seulement si
+/// la semaine en contient un).
+class _AgendaFootLegend extends StatelessWidget {
+  const _AgendaFootLegend({
+    required this.practitioners,
+    required this.showFreeSlotHint,
+  });
+
+  final Map<String, String> practitioners;
+  final bool showFreeSlotHint;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final entries = practitioners.entries.toList(growable: false);
+
     return Padding(
-      key: const Key('agenda_free_slot_legend'),
+      key: const Key('agenda_foot_legend'),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          _DashedRectBox(
-            borderRadius: 3,
-            child: const SizedBox(width: 14, height: 14),
+          for (final p in entries)
+            _LegendDot(
+              key: Key('agenda_legend_practitioner_${p.key}'),
+              color: _practitionerBlockStyle(p.key, practitioners).border,
+              label: p.value,
+            ),
+          _LegendDot(
+            key: const Key('agenda_legend_pending'),
+            color: tokens.warningFg,
+            label: 'À confirmer',
           ),
-          const SizedBox(width: 8),
-          Text(
-            'Créneau libre — cliquer pour réserver',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: cs.onSurfaceVariant),
-          ),
+          if (showFreeSlotHint)
+            Row(
+              key: const Key('agenda_free_slot_legend'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _DashedRectBox(
+                  borderRadius: 3,
+                  child: const SizedBox(width: 14, height: 14),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Créneau libre — cliquer pour réserver',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
         ],
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Couleur de bloc RDV par praticien (maquette design-v2, pied de grille,
+/// #5074) : fond/bord/texte pour le 1er praticien du roster (émeraude), le
+/// 2e (sable), au-delà (neutre) — indépendant de [practitionerColor] (pastille
+/// #5168, cyclique par hash) : la maquette fixe explicitement « Dr Rousseau =
+/// émeraude, Dr Lefèvre = sable », ce qui exige un rang plutôt qu'un hash.
+class _PractitionerBlockStyle {
+  const _PractitionerBlockStyle({
+    required this.background,
+    required this.border,
+    required this.text,
+  });
+
+  final Color background;
+  final Color border;
+  final Color text;
+}
+
+const _practitionerBlockStyles = [
+  _PractitionerBlockStyle(
+    background: NubiaColors.brand50,
+    border: NubiaColors.brand600,
+    text: NubiaColors.brand800,
+  ),
+  _PractitionerBlockStyle(
+    background: NubiaColors.sand50,
+    border: NubiaColors.sand500,
+    text: NubiaColors.sand700,
+  ),
+];
+
+const _practitionerNeutralBlockStyle = _PractitionerBlockStyle(
+  background: NubiaColors.n50,
+  border: NubiaColors.n300,
+  text: NubiaColors.n700,
+);
+
+/// Style de bloc pour `practitionerId`, dérivé de son rang dans
+/// `practitionerNames` (roster, #4666) — même roster/ordre que la légende de
+/// pied de grille, pour que couleur de bloc et couleur de légende
+/// correspondent toujours. Stable d'une semaine à l'autre tant que l'ordre du
+/// roster ne change pas côté back.
+_PractitionerBlockStyle _practitionerBlockStyle(
+  String practitionerId,
+  Map<String, String> practitionerNames,
+) {
+  final index =
+      practitionerNames.keys.toList(growable: false).indexOf(practitionerId);
+  if (index < 0 || index >= _practitionerBlockStyles.length) {
+    return _practitionerNeutralBlockStyle;
+  }
+  return _practitionerBlockStyles[index];
 }
 
 // ---------------------------------------------------------------------------
@@ -1654,9 +1778,20 @@ class _EntryCard extends StatelessWidget {
       if (practitionerName.isNotEmpty) practitionerName,
     ];
 
-    final primaryTextColor = isPending ? _pendingTextColor : cs.onSurface;
-    final secondaryTextColor =
-        isPending ? _pendingTextColor : cs.onSurfaceVariant;
+    // Couleur de bloc par praticien (maquette design-v2, #5074) : le fond
+    // `warnBg` de l'état « à confirmer » (#5075) reste prioritaire — les deux
+    // classes `.ev.tc` et `.ev.r`/`.ev.l` de la maquette sont mutuellement
+    // exclusives, l'état d'action prime sur l'identité du praticien.
+    final blockStyle = isPending || entry.practitionerId.isEmpty
+        ? null
+        : _practitionerBlockStyle(entry.practitionerId, practitionerNames);
+
+    final primaryTextColor = isPending
+        ? _pendingTextColor
+        : (blockStyle?.text ?? cs.onSurface);
+    final secondaryTextColor = isPending
+        ? _pendingTextColor
+        : (blockStyle?.text ?? cs.onSurfaceVariant);
 
     // Bloc `.ev.tc` (maquette design-v2, #5075) : l'état « à confirmer »
     // n'est plus signalé par une pastille + un bouton inline (déplacés dans
@@ -1666,7 +1801,8 @@ class _EntryCard extends StatelessWidget {
     Widget card = NubiaCard(
       padding: const EdgeInsets.all(16),
       state: selected ? NubiaCardState.selected : NubiaCardState.interactive,
-      backgroundColor: isPending ? tokens.warningBg : null,
+      backgroundColor: isPending ? tokens.warningBg : blockStyle?.background,
+      borderColor: isPending ? null : blockStyle?.border,
       onTap: onSelect,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
