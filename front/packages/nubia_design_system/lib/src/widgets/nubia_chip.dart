@@ -28,6 +28,7 @@ class NubiaChip extends StatelessWidget {
     this.variant = NubiaChipVariant.filter,
     this.selected = false,
     this.icon,
+    this.dotColor,
     this.count,
     this.onTap,
     this.onRemove,
@@ -40,6 +41,13 @@ class NubiaChip extends StatelessWidget {
   final NubiaChipVariant variant;
   final bool selected;
   final IconData? icon;
+
+  /// Pastille de couleur pleine affichée avant [label] (ex. couleur praticien,
+  /// maquette design-v2 « Agenda — filtre praticien », #5076). `null` = pas de
+  /// pastille. Contrairement à [icon], sa couleur est fixe (n'obéit pas à
+  /// [foreground]) : elle porte une information (identité praticien), pas un
+  /// état de la puce.
+  final Color? dotColor;
 
   /// Badge numérique optionnel affiché à droite du libellé. `null` = pas de badge.
   final int? count;
@@ -89,6 +97,14 @@ class NubiaChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (dotColor != null) ...[
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: dotColor),
+            ),
+            const SizedBox(width: 6),
+          ],
           if (icon != null) ...[
             Icon(icon, size: 16, color: foreground),
             const SizedBox(width: 6),

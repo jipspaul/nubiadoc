@@ -700,8 +700,8 @@ void main() {
   // Filtre praticien (dropdown)
   // -------------------------------------------------------------------------
 
-  group('filtre praticien (dropdown)', () {
-    testWidgets('3 RDV 2 praticiens → sélection 1 → filtre live',
+  group('filtre praticien (puces à bascule, #5076)', () {
+    testWidgets('3 RDV 2 praticiens → bascule 1 puce → filtre live',
         (tester) async {
       final e1 = AgendaEntry(
         id: 'f-1',
@@ -763,18 +763,45 @@ void main() {
       expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
       expect(find.byKey(const Key('entry_f-3')), findsOneWidget);
 
-      // Ouvre le dropdown
-      await tester.tap(find.byKey(const Key('practitioner_filter_dropdown')));
-      await tester.pumpAndSettle();
+      // Chaque puce affiche le compteur d'entrées du praticien.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('practitioner_chip_prac-1')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('practitioner_chip_prac-2')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
 
-      // Sélectionne Dr Martin
-      await tester.tap(find.text('Dr Martin').last);
+      // Bascule la puce Dr Martin (prac-1)
+      await tester.tap(find.byKey(const Key('practitioner_chip_prac-1')));
       await tester.pumpAndSettle();
 
       // Seules les 2 entrées de Dr Martin restent visibles
       expect(find.byKey(const Key('entry_f-1')), findsOneWidget);
       expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
       expect(find.byKey(const Key('entry_f-3')), findsNothing);
+
+      // Bascule aussi la puce Dr Dupont (prac-2) : les deux puces actives en
+      // même temps filtrent sur les deux praticiens (filtre non exclusif).
+      await tester.tap(find.byKey(const Key('practitioner_chip_prac-2')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('entry_f-1')), findsOneWidget);
+      expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
+      expect(find.byKey(const Key('entry_f-3')), findsOneWidget);
+
+      // Re-bascule (off) la puce Dr Martin : Dr Dupont seul reste actif.
+      await tester.tap(find.byKey(const Key('practitioner_chip_prac-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('entry_f-1')), findsNothing);
+      expect(find.byKey(const Key('entry_f-2')), findsNothing);
+      expect(find.byKey(const Key('entry_f-3')), findsOneWidget);
 
       await gi.reset();
     });
@@ -832,7 +859,16 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('Dr Hugo Marin'), findsOneWidget);
+      // Scope sur la carte RDV : la puce de filtre du roster affiche aussi
+      // « Dr Hugo Marin » (#5076), donc une assertion non scopée matcherait
+      // les deux.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_r-1')),
+          matching: find.textContaining('Dr Hugo Marin'),
+        ),
+        findsOneWidget,
+      );
       // Pas de séparateur '·' pendant : le motif et le nom sont joints par
       // ' · ', jamais un ' · ' en tête isolé.
       expect(find.text('· Dr Hugo Marin'), findsNothing);
@@ -886,7 +922,17 @@ void main() {
 
       // Le motif reste visible, seul (pas de "· <motif>" ni "<motif> ·").
       expect(find.text('Contrôle'), findsOneWidget);
-      expect(find.textContaining('Dr Hugo Marin'), findsNothing);
+      // Scope sur la carte RDV : le roster reste complet (#4666) et affiche
+      // toujours sa puce « Dr Hugo Marin » ailleurs sur l'écran (#5076) —
+      // seule cette carte, dont le practitioner_id est inconnu du roster, ne
+      // doit porter aucun nom.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_r-2')),
+          matching: find.textContaining('Dr Hugo Marin'),
+        ),
+        findsNothing,
+      );
 
       await gi.reset();
     });
