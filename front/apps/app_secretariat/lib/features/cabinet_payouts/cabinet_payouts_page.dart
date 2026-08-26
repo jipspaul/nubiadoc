@@ -73,10 +73,7 @@ class CabinetPayoutsBody extends StatelessWidget {
     return BlocBuilder<CabinetPayoutsBloc, CabinetPayoutsState>(
       builder: (context, state) {
         return switch (state) {
-          CabinetPayoutsLoading() => const Center(
-              key: Key('cabinet_payouts_loading'),
-              child: CircularProgressIndicator(),
-            ),
+          CabinetPayoutsLoading() => const _CabinetPayoutsSkeleton(),
           CabinetPayoutsError(:final message) => NubiaErrorWidget(
               key: const Key('cabinet_payouts_error'),
               message: message,
@@ -239,6 +236,58 @@ class _PayoutCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Squelette de chargement (design-v2, #5105) : calque la grille du tableau
+/// de virements (lignes fantômes) plutôt qu'un spinner centré.
+class _CabinetPayoutsSkeleton extends StatelessWidget {
+  const _CabinetPayoutsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('cabinet_payouts_loading'),
+      padding: const EdgeInsets.all(16),
+      children: [
+        for (var i = 0; i < 4; i++) ...[
+          const _CabinetPayoutRowSkeleton(),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+}
+
+class _CabinetPayoutRowSkeleton extends StatelessWidget {
+  const _CabinetPayoutRowSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Expanded(child: NubiaSkeletonLoader(height: 16, width: 160)),
+              SizedBox(width: 8),
+              NubiaSkeletonLoader(
+                height: 20,
+                width: 72,
+                borderRadius: 999,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const NubiaSkeletonLoader(height: 12, width: 120),
+          const SizedBox(height: 4),
+          const NubiaSkeletonLoader(height: 12, width: 180),
+          const SizedBox(height: 4),
+          const NubiaSkeletonLoader(height: 12, width: 150),
+        ],
       ),
     );
   }
