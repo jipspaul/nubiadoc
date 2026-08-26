@@ -5,7 +5,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'devis_bloc.dart';
 import 'devis_event.dart';
-import 'devis_page.dart' show formatEuros, mapQuoteStatus;
+import 'devis_page.dart' show mapQuoteStatus;
 import 'devis_state.dart';
 
 /// Détail d'un devis côté secrétariat.
@@ -123,10 +123,10 @@ class _DevisDetailBody extends StatelessWidget {
       children: [
         AmountHeader(
           label: 'Total du plan de soins',
-          amount: formatEuros(quote.totalCents),
+          amount: NubiaMoney.formatCents(quote.totalCents),
           caption: quote.patientName,
           remainingLabel: 'Part patient',
-          remainingAmount: formatEuros(quote.patientShareCents),
+          remainingAmount: NubiaMoney.formatCents(quote.patientShareCents),
           remainingCaption: 'Reste à charge',
         ),
         const SizedBox(height: 16),
@@ -183,7 +183,7 @@ class _DevisDetailBody extends StatelessWidget {
               for (final item in quote.items!)
                 QuoteLine(
                   label: item.label,
-                  amount: formatEuros(item.totalCents),
+                  amount: NubiaMoney.formatCents(item.totalCents),
                 ),
             ],
           ),

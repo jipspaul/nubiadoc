@@ -373,11 +373,33 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Albert Einstein'), findsOneWidget);
-      expect(find.text('350.00 €'), findsOneWidget);
+      expect(find.text(NubiaMoney.formatCents(35000)), findsOneWidget);
+      expect(find.text('350,00 €'), findsOneWidget);
+      expect(find.text('350.00 €'), findsNothing);
       // Cloisonnement : aucun libellé clinique
       expect(find.text('Motif'), findsNothing);
       expect(find.text('Notes médicales'), findsNothing);
       expect(find.textContaining('motif'), findsNothing);
+    });
+
+    testWidgets('formate les gros montants avec séparateur de milliers',
+        (tester) async {
+      final bigQuote = CabinetQuote(
+        id: 'q2',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Marie Curie',
+        totalCents: 1245067,
+        patientShareCents: 14850,
+        status: CabinetQuoteStatus.signed,
+        createdAt: DateTime(2026, 2, 1),
+      );
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(bigQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('12 450,67 €'), findsOneWidget);
+      expect(find.text('148,50 €'), findsOneWidget);
     });
 
     testWidgets('affiche l\'erreur de détail', (tester) async {

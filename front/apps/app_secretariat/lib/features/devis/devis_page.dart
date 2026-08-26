@@ -93,9 +93,6 @@ class _DevisPageState extends State<DevisPage> {
   }
 }
 
-/// Formate un montant en centimes vers une chaîne « 350.00 € ».
-String formatEuros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
-
 /// Mappe le statut métier ([CabinetQuoteStatus]) vers le statut du composant DS
 /// ([QuoteCardStatus]). Le WEDGE DS n'a pas d'état « annulé » : on le rapproche
 /// de « refusé » (variante danger, cycle clôturé négativement).
@@ -129,10 +126,13 @@ class _DevisCard extends StatelessWidget {
         title: quote.patientName,
         status: mapQuoteStatus(quote.status),
         lines: [
-          QuoteLine(label: 'Total', amount: formatEuros(quote.totalCents)),
+          QuoteLine(
+            label: 'Total',
+            amount: NubiaMoney.formatCents(quote.totalCents),
+          ),
           QuoteLine(
             label: 'Part patient',
-            amount: formatEuros(quote.patientShareCents),
+            amount: NubiaMoney.formatCents(quote.patientShareCents),
           ),
         ],
       ),
