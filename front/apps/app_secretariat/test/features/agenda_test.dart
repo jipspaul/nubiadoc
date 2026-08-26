@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -34,6 +35,9 @@ class MockListBookableSlotsUseCase extends Mock
 
 class MockListCabinetPractitionersUseCase extends Mock
     implements ListCabinetPractitionersUseCase {}
+
+class MockListCabinetPatientsUseCase extends Mock
+    implements ListCabinetPatientsUseCase {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -169,7 +173,7 @@ void main() {
       act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
       expect: () => [
         const AgendaLoading(),
-        AgendaLoaded(entries: [_entry]),
+        AgendaLoaded(entries: [_entry], weekStart: _weekStart),
       ],
     );
 
@@ -186,7 +190,7 @@ void main() {
       act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
       expect: () => [
         const AgendaLoading(),
-        const AgendaLoaded(entries: []),
+        AgendaLoaded(entries: const [], weekStart: _weekStart),
       ],
     );
 
@@ -213,13 +217,18 @@ void main() {
         );
         return makeBloc();
       },
-      seed: () => AgendaLoaded(entries: [_entry]),
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
       act: (bloc) => bloc
           .add(const AgendaAppointmentConfirmRequested(appointmentId: 'e-1')),
       expect: () => [
-        AgendaLoaded(entries: [_entry], actionInProgress: true),
         AgendaLoaded(
           entries: [_entry],
+          weekStart: _weekStart,
+          actionInProgress: true,
+        ),
+        AgendaLoaded(
+          entries: [_entry],
+          weekStart: _weekStart,
           actionInProgress: false,
           actionError: 'Erreur réseau',
         ),
@@ -234,15 +243,20 @@ void main() {
         );
         return makeBloc();
       },
-      seed: () => AgendaLoaded(entries: [_entry]),
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
       act: (bloc) => bloc.add(AgendaAppointmentRescheduleRequested(
         appointmentId: 'e-1',
         newStartsAt: DateTime(2026, 7, 8, 10, 0),
       )),
       expect: () => [
-        AgendaLoaded(entries: [_entry], actionInProgress: true),
         AgendaLoaded(
           entries: [_entry],
+          weekStart: _weekStart,
+          actionInProgress: true,
+        ),
+        AgendaLoaded(
+          entries: [_entry],
+          weekStart: _weekStart,
           actionInProgress: false,
           actionError: 'Erreur réseau',
         ),
@@ -735,6 +749,180 @@ void main() {
       final s =
           slot(id: 's1', start: DateTime(2026, 7, 8, 9, 0), available: false);
       expect(bookableSlots([s], const []), isEmpty);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // #5082 — raccourcis clavier de bout en bout.
+  // -------------------------------------------------------------------------
+  group('raccourcis clavier (#5082)', () {
+    void registerBloc(GetIt gi) {
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+    }
+
+    Future<void> pumpAgenda(WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('→/← changent de semaine (±7j), T revient à aujourd\'hui',
+        (tester) async {
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi);
+
+      await pumpAgenda(tester);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+      await tester.pumpAndSettle();
+
+      final captured =
+          verify(() => mockGetAgenda(captureAny())).captured.cast<DateTime>();
+      expect(captured.length, 4);
+      // → : +7 jours par rapport à la semaine initiale.
+      expect(captured[1].difference(captured[0]), const Duration(days: 7));
+      // ← : retour exact à la semaine initiale (pure arithmétique de dates,
+      // aucun nouvel appel à DateTime.now()).
+      expect(captured[2], captured[0]);
+      // T : revient au jour courant — comparaison sur la date seule (année/
+      // mois/jour), DateTime.now() pouvant différer de quelques
+      // microsecondes entre le 1er chargement et l'appui sur T.
+      expect(captured[3].year, captured[0].year);
+      expect(captured[3].month, captured[0].month);
+      expect(captured[3].day, captured[0].day);
+
+      await gi.reset();
+    });
+
+    testWidgets(
+        '↑/↓ déplacent la sélection, ⏎ confirme seulement un RDV en attente',
+        (tester) async {
+      final pending = AgendaEntry(
+        id: 'sel-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: DateTime(2026, 7, 7, 9, 0),
+        endsAt: DateTime(2026, 7, 7, 9, 30),
+        patientName: 'Alice Durand',
+        isFree: false,
+        status: 'requested',
+      );
+      final confirmed = AgendaEntry(
+        id: 'sel-2',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: DateTime(2026, 7, 7, 10, 0),
+        endsAt: DateTime(2026, 7, 7, 10, 30),
+        patientName: 'Bob Dupont',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([pending, confirmed]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockConfirm(any()))
+          .thenAnswer((_) async => Left(NetworkFailure('erreur')));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi);
+
+      await pumpAgenda(tester);
+
+      // ↓ sélectionne le 1er RDV (en attente) → ⏎ le confirme.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      verify(() => mockConfirm('sel-1')).called(1);
+
+      // ↓ sélectionne ensuite le 2e RDV (déjà confirmé) → ⏎ ne fait rien
+      // (même règle que le bouton Confirmer, masqué une fois confirmé — un
+      // re-clic donnerait 409).
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      verifyNever(() => mockConfirm('sel-2'));
+
+      await gi.reset();
+    });
+
+    testWidgets('⌘N ouvre le dialogue Nouveau RDV', (tester) async {
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi);
+      final mockListPatients = MockListCabinetPatientsUseCase();
+      when(() => mockListPatients())
+          .thenAnswer((_) async => const Right([]));
+      gi.registerFactory<ListCabinetPatientsUseCase>(() => mockListPatients);
+
+      await pumpAgenda(tester);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nouveau rendez-vous'), findsOneWidget);
+
+      await gi.reset();
+    });
+
+    testWidgets('/ met le focus sur la recherche patient', (tester) async {
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi);
+
+      await pumpAgenda(tester);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.slash);
+      await tester.pumpAndSettle();
+
+      final focusNode = tester
+          .widget<TextField>(find.descendant(
+            of: find.byKey(const Key('agenda_patient_search')),
+            matching: find.byType(TextField),
+          ))
+          .focusNode;
+      expect(focusNode?.hasFocus, isTrue);
+
+      await gi.reset();
     });
   });
 }
