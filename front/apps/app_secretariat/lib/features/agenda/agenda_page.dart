@@ -46,114 +46,7 @@ List<Slot> bookableSlots(List<Slot> slots, List<AgendaEntry> entries) {
 
 // ---------------------------------------------------------------------------
 
-enum _AgendaRowKind { entry, pauseBand, closedBand, todayHeader, nowLine }
-
-/// Ligne de la liste chronologique de l'agenda : soit un RDV/créneau réel
-/// ([AgendaEntry]), soit une bande de décor ([_AgendaDecorBand]) — jamais les
-/// deux (cf. [_buildAgendaRows]).
-class _AgendaRow {
-  const _AgendaRow.entry(this.entry)
-      : kind = _AgendaRowKind.entry,
-        day = null;
-  const _AgendaRow.pause(this.day)
-      : kind = _AgendaRowKind.pauseBand,
-        entry = null;
-  const _AgendaRow.closed(this.day)
-      : kind = _AgendaRowKind.closedBand,
-        entry = null;
-  const _AgendaRow.todayHeader(this.day)
-      : kind = _AgendaRowKind.todayHeader,
-        entry = null;
-  const _AgendaRow.nowLine(this.day)
-      : kind = _AgendaRowKind.nowLine,
-        entry = null;
-
-  final _AgendaRowKind kind;
-  final AgendaEntry? entry;
-  final DateTime? day;
-}
-
-/// Pause déjeuner 12:00–13:30 et jours fermés (maquette design-v2, hachures
-/// `.pause` `--n100`/`--n200`, #5072) — décor pur de la liste chronologique de
-/// l'agenda, jamais des [AgendaEntry] : aucune horaire d'ouverture cabinet
-/// n'existe côté back (ni `AgendaEntry` ni le contrat d'agenda n'exposent de
-/// champ pause/jour fermé), donc ces bornes restent des constantes UI tant
-/// que ce champ n'existe pas côté back. Jour fermé = weekend (samedi/
-/// dimanche), seul jour fermé visible dans la maquette (« Sam 15 »).
-const _pauseStartHour = 12;
-const _pauseStartMinute = 0;
-const _pauseEndHour = 13;
-const _pauseEndMinute = 30;
-const _closedWeekdays = {DateTime.saturday, DateTime.sunday};
-
-String _pad2(int n) => n.toString().padLeft(2, '0');
-
-String get _pauseBandLabel => 'Pause déjeuner · '
-    '${_pad2(_pauseStartHour)}:${_pad2(_pauseStartMinute)}–'
-    '${_pad2(_pauseEndHour)}:${_pad2(_pauseEndMinute)}';
-
-/// Intercale les bandes de décor pause/jour fermé entre les [entries] déjà
-/// filtrées, un jour à la fois sur les 7 jours de `weekStart` — insère la
-/// bande pause juste avant la première entrée de la journée qui démarre à ou
-/// après 12:00 (ou en fin de journée si aucune ne le fait).
-///
-/// Jour courant (#5071) : la maquette design-v2 place l'équivalent visuel
-/// (en-tête + fond teintés `.dh.now`/`.dcol.now`, ligne `.nowline`) dans une
-/// grille en colonnes ; cet écran rend l'agenda en liste chronologique
-/// (#5073+), donc l'adaptation est une bande d'en-tête « Aujourd'hui » suivie
-/// d'une ligne rouge insérée à sa place chronologique — uniquement pour le
-/// jour du calendrier qui correspond à `DateTime.now()`, absent sinon (ex.
-/// semaine passée/future via ‹/›).
-List<_AgendaRow> _buildAgendaRows(
-  DateTime weekStart,
-  List<AgendaEntry> entries,
-) {
-  final sorted = [...entries]..sort((a, b) => a.startsAt.compareTo(b.startsAt));
-  final rows = <_AgendaRow>[];
-  var index = 0;
-  final now = DateTime.now();
-  for (var i = 0; i < 7; i++) {
-    final day = DateTime(weekStart.year, weekStart.month, weekStart.day + i);
-    final dayEnd = day.add(const Duration(days: 1));
-    final pauseStart =
-        DateTime(day.year, day.month, day.day, _pauseStartHour, _pauseStartMinute);
-    final closed = _closedWeekdays.contains(day.weekday);
-    final isToday = day.year == now.year &&
-        day.month == now.month &&
-        day.day == now.day;
-
-    if (isToday) {
-      rows.add(_AgendaRow.todayHeader(day));
-    }
-
-    var pauseInserted = false;
-    var nowLineInserted = !isToday;
-    while (index < sorted.length && sorted[index].startsAt.isBefore(dayEnd)) {
-      if (!nowLineInserted && !sorted[index].startsAt.isBefore(now)) {
-        rows.add(_AgendaRow.nowLine(day));
-        nowLineInserted = true;
-      }
-      if (!closed &&
-          !pauseInserted &&
-          !sorted[index].startsAt.isBefore(pauseStart)) {
-        rows.add(_AgendaRow.pause(day));
-        pauseInserted = true;
-      }
-      rows.add(_AgendaRow.entry(sorted[index]));
-      index++;
-    }
-    if (!nowLineInserted) {
-      rows.add(_AgendaRow.nowLine(day));
-      nowLineInserted = true;
-    }
-    if (closed) {
-      rows.add(_AgendaRow.closed(day));
-    } else if (!pauseInserted) {
-      rows.add(_AgendaRow.pause(day));
-    }
-  }
-  return rows;
-}
+String _dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
 
 /// Contenu de la destination « agenda » du shell (`router/app_router.dart`).
 ///
@@ -449,8 +342,6 @@ class _LoadedViewState extends State<_LoadedView> {
     Map<String, String> practitioners,
     List<AgendaEntry> filteredEntries,
   ) {
-    final agendaRows =
-        _buildAgendaRows(widget.state.weekStart, filteredEntries);
     return Column(
       children: [
         if (widget.state.actionInProgress)
@@ -551,62 +442,18 @@ class _LoadedViewState extends State<_LoadedView> {
               : RefreshIndicator(
                   key: const Key('agenda_refresh_indicator'),
                   onRefresh: widget.onRefresh,
-                  child: ListView.builder(
+                  child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    // +1 : la note de cloisonnement (#5080) est le
-                    // dernier item de la liste plutôt qu'un bandeau fixe
-                    // sous l'Expanded — elle ne doit pas rogner la
-                    // hauteur visible des cartes RDV.
-                    itemCount: agendaRows.length + 1,
-                    itemBuilder: (context, i) {
-                      if (i == agendaRows.length) {
-                        return const _AgendaConfidentialityNotice();
-                      }
-                      final row = agendaRows[i];
-                      switch (row.kind) {
-                        case _AgendaRowKind.entry:
-                          final entry = row.entry!;
-                          return _EntryCard(
-                            entry: entry,
-                            practitionerNames: practitioners,
-                            selected: entry.id == _selectedEntryId,
-                            onSelect: widget.state.actionInProgress
-                                ? null
-                                : () => entry.isFree
-                                    ? _openNewAppointmentForSlot(context,
-                                        entry, widget.state, practitioners)
-                                    : setState(
-                                        () => _selectedEntryId = entry.id),
-                          );
-                        case _AgendaRowKind.pauseBand:
-                          return _AgendaDecorBand(
-                            key: Key('agenda_pause_band_${_dayKey(row.day!)}'),
-                            height: _pauseBandHeight,
-                            label: _pauseBandLabel,
-                          );
-                        case _AgendaRowKind.closedBand:
-                          return _AgendaDecorBand(
-                            key: Key('agenda_closed_band_${_dayKey(row.day!)}'),
-                            label: '${_AgendaDetailPanel._weekdays[row.day!.weekday - 1]} '
-                                '${row.day!.day} ${_WeekNavBar._months[row.day!.month - 1]} '
-                                '— Cabinet fermé',
-                            height: _closedBandHeight,
-                          );
-                        case _AgendaRowKind.todayHeader:
-                          return _TodayHeaderBand(
-                            key: const Key('agenda_today_header'),
-                            day: row.day!,
-                          );
-                        case _AgendaRowKind.nowLine:
-                          return const _NowLine(
-                            key: Key('agenda_now_line'),
-                          );
-                      }
-                    },
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                    child: _AgendaWeekGrid(
+                      weekStart: widget.state.weekStart,
+                      entries: filteredEntries,
+                    ),
                   ),
                 ),
         ),
+        const _AgendaConfidentialityNotice(),
         if (practitioners.isNotEmpty || filteredEntries.any((e) => e.isFree))
           _AgendaFootLegend(
             practitioners: practitioners,
@@ -626,36 +473,6 @@ class _LoadedViewState extends State<_LoadedView> {
       context: context,
       builder: (_) => _NewAppointmentDialog(
         availableSlots: availableSlots,
-        practitioners: practitioners,
-        onConfirm: (appointment) => context.read<AgendaBloc>().add(
-              AgendaAppointmentCreateRequested(appointment: appointment),
-            ),
-      ),
-    );
-  }
-
-  /// Ouvre le dialogue « Nouveau RDV » depuis un créneau libre de la grille
-  /// (#5078) — le créneau est déjà choisi, le dialogue ne demande donc plus
-  /// que le patient (recherche) + le motif.
-  void _openNewAppointmentForSlot(
-    BuildContext context,
-    AgendaEntry freeEntry,
-    AgendaLoaded state,
-    Map<String, String> practitioners,
-  ) {
-    final slots = bookableSlots(state.availableSlots, state.entries);
-    Slot? slot;
-    for (final s in slots) {
-      if (s.id == freeEntry.id) {
-        slot = s;
-        break;
-      }
-    }
-    showDialog<void>(
-      context: context,
-      builder: (_) => _NewAppointmentDialog(
-        availableSlots: slots,
-        initialSlot: slot,
         practitioners: practitioners,
         onConfirm: (appointment) => context.read<AgendaBloc>().add(
               AgendaAppointmentCreateRequested(appointment: appointment),
@@ -939,16 +756,11 @@ class _NewAppointmentDialog extends StatefulWidget {
     required this.availableSlots,
     required this.practitioners,
     required this.onConfirm,
-    this.initialSlot,
   });
 
   final List<Slot> availableSlots;
   final Map<String, String> practitioners;
   final void Function(CabinetAppointment) onConfirm;
-
-  /// Créneau déjà choisi dans la grille (#5078) — quand non nul, le
-  /// dialogue masque le picker de créneau et l'affiche en lecture seule.
-  final Slot? initialSlot;
 
   @override
   State<_NewAppointmentDialog> createState() => _NewAppointmentDialogState();
@@ -972,7 +784,6 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   @override
   void initState() {
     super.initState();
-    _selectedSlot = widget.initialSlot;
     _loadPatients();
   }
 
@@ -1113,8 +924,7 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final hasSlots =
-        widget.initialSlot != null || widget.availableSlots.isNotEmpty;
+    final hasSlots = widget.availableSlots.isNotEmpty;
     final canCreate =
         hasSlots && _selectedSlot != null && _selectedPatient != null;
 
@@ -1128,32 +938,23 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
             if (!hasSlots)
               const Text('Aucun créneau disponible cette semaine.')
             else ...[
-              if (widget.initialSlot != null)
-                InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Créneau'),
-                  child: Text(
-                    _slotLabel(widget.initialSlot!),
-                    key: const Key('slot_readonly_label'),
-                  ),
-                )
-              else
-                InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Créneau'),
-                  child: DropdownButton<Slot>(
-                    key: const Key('slot_picker_dropdown'),
-                    isExpanded: true,
-                    underline: const SizedBox.shrink(),
-                    value: _selectedSlot,
-                    hint: const Text('Sélectionner un créneau'),
-                    items: widget.availableSlots
-                        .map((s) => DropdownMenuItem(
-                              value: s,
-                              child: Text(_slotLabel(s)),
-                            ))
-                        .toList(),
-                    onChanged: (s) => setState(() => _selectedSlot = s),
-                  ),
+              InputDecorator(
+                decoration: const InputDecoration(labelText: 'Créneau'),
+                child: DropdownButton<Slot>(
+                  key: const Key('slot_picker_dropdown'),
+                  isExpanded: true,
+                  underline: const SizedBox.shrink(),
+                  value: _selectedSlot,
+                  hint: const Text('Sélectionner un créneau'),
+                  items: widget.availableSlots
+                      .map((s) => DropdownMenuItem(
+                            value: s,
+                            child: Text(_slotLabel(s)),
+                          ))
+                      .toList(),
+                  onChanged: (s) => setState(() => _selectedSlot = s),
                 ),
+              ),
               const SizedBox(height: 12),
               if (_loadingPatients)
                 const Padding(
@@ -1671,198 +1472,6 @@ class _DashedRectPainter extends CustomPainter {
 
 // ---------------------------------------------------------------------------
 
-String _dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
-
-/// Hauteur de la bande pause déjeuner, dérivée de la même échelle que
-/// [_EntryCard._blockHeight] (56 px/h, maquette design-v2, #5073) : 90 min →
-/// 84 px, valeur qui correspond exactement au `height:84px` de la maquette
-/// (`secretariat-agenda.png`, `.pause`).
-const _pauseBandHeight = 84.0;
-
-/// Hauteur de la bande « jour fermé » — contrairement à la maquette (grille à
-/// canevas absolu, `.pause` `height:448px` ≈ une journée entière de 8 h sur
-/// l'échelle ci-dessus), l'agenda ici est une liste défilante sans canevas de
-/// journée : reprendre 448 px rendrait une seule journée fermée aussi haute
-/// que tout le reste de la semaine cumulé. On garde une bande nettement plus
-/// haute qu'un bloc RDV (repère visuel fort de « colonne fermée ») sans viser
-/// une hauteur de journée absolue qui n'a pas de sens hors grille.
-const _closedBandHeight = 120.0;
-
-/// Bande de décor « pause déjeuner »/« jour fermé » (maquette design-v2,
-/// hachures 135° `--n100` sur bordures `--n200`, #5072) — pur habillage
-/// visuel de la liste chronologique de l'agenda : pas de `onTap`, jamais une
-/// [AgendaEntry], jamais comptée dans [_AgendaStats] ni sélectionnable via
-/// ↑/↓ (cf. [_LoadedViewState._selectDelta], qui n'itère que sur les
-/// `AgendaEntry` filtrées).
-class _AgendaDecorBand extends StatelessWidget {
-  const _AgendaDecorBand({
-    super.key,
-    required this.height,
-    required this.label,
-  });
-
-  final double height;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Container(
-        height: height,
-        decoration: const BoxDecoration(
-          border: Border.symmetric(
-            horizontal: BorderSide(color: NubiaColors.n200),
-          ),
-          borderRadius: BorderRadius.all(Radius.circular(8)),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              const CustomPaint(painter: _HachurePainter()),
-              Center(
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: NubiaColors.n500,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Bande « jour courant » (maquette design-v2, en-tête `.dh.now` fond
-/// `--brand50`/jour `--brand700`/numéro `--brand800`, #5071) — équivalent
-/// liste de l'en-tête + fond de colonne teintés de la maquette (grille en
-/// colonnes) : ici une unique bande, insérée en tête des lignes du jour dont
-/// la date == `DateTime.now()` (cf. [_buildAgendaRows]), jamais rendue pour
-/// les autres jours ni si la semaine affichée ne contient pas aujourd'hui.
-class _TodayHeaderBand extends StatelessWidget {
-  const _TodayHeaderBand({super.key, required this.day});
-
-  final DateTime day;
-
-  @override
-  Widget build(BuildContext context) {
-    final weekday = _AgendaDetailPanel._weekdays[day.weekday - 1];
-    final month = _WeekNavBar._months[day.month - 1];
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: NubiaColors.brand50,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(
-                text: "$weekday $month · Aujourd'hui ",
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: NubiaColors.brand700,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              TextSpan(
-                text: '${day.day}',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: NubiaColors.brand800,
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Ligne « maintenant » (maquette design-v2, `.nowline` trait 1,5 px
-/// `--dangFg` + pastille 8 px, #5071) — équivalent liste de la ligne
-/// positionnée en absolu sur la colonne du jour courant : insérée à sa place
-/// chronologique parmi les lignes du jour courant (cf. [_buildAgendaRows]),
-/// jamais rendue pour les autres jours ni si la semaine affichée ne contient
-/// pas aujourd'hui.
-class _NowLine extends StatelessWidget {
-  const _NowLine({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).extension<NubiaTokens>()!;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: tokens.dangerFg,
-              shape: BoxShape.circle,
-            ),
-          ),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(left: 6),
-              height: 1.5,
-              color: tokens.dangerFg,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Trame de hachures 135° `--n100` (maquette design-v2, `.pause` :
-/// `repeating-linear-gradient(135deg,--n100 0 5px,transparent 5px 10px)`,
-/// #5072) — même approche `CustomPainter` que [_DashedRectPainter] : Flutter
-/// n'a pas de gradient répétitif utilisable directement pour un motif de
-/// hachures, d'où ce tracé de bandes diagonales.
-class _HachurePainter extends CustomPainter {
-  const _HachurePainter();
-
-  static const _stripeWidth = 5.0;
-  static const _period = 10.0;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = NubiaColors.n100
-      ..style = PaintingStyle.fill;
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
-    final span = size.width + size.height;
-    for (var x = -size.height; x < span; x += _period) {
-      final stripe = Path()
-        ..moveTo(x, 0)
-        ..lineTo(x + size.height, size.height)
-        ..lineTo(x + size.height + _stripeWidth, size.height)
-        ..lineTo(x + _stripeWidth, 0)
-        ..close();
-      canvas.drawPath(stripe, paint);
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _HachurePainter oldDelegate) => false;
-}
-
-// ---------------------------------------------------------------------------
-
 /// Pastille + libellé d'une entrée de légende (couleur unie, ex. praticien ou
 /// « À confirmer » — le créneau libre garde son propre rendu pointillé via
 /// [_DashedRectBox], cf. [_AgendaFootLegend]).
@@ -2017,263 +1626,242 @@ _PractitionerBlockStyle _practitionerBlockStyle(
 }
 
 // ---------------------------------------------------------------------------
+// Grille semaine (#5069) — socle : gouttière d'heures + 6 colonnes de jours.
+// Le rendu des RDV en blocs positionnés sur cette échelle est hors périmètre
+// de ce ticket (issue #5069, « le rendu des entrées en blocs positionnés est
+// le ticket blocs RDV positionnés ») : cette grille n'affiche encore que la
+// structure (axe horaire + en-têtes datés + compteur), pas les [AgendaEntry]
+// elles-mêmes.
+// ---------------------------------------------------------------------------
 
-class _EntryCard extends StatelessWidget {
-  const _EntryCard({
-    required this.entry,
-    this.practitionerNames = const {},
-    this.selected = false,
-    this.onSelect,
-  });
-  final AgendaEntry entry;
+/// Échelle horaire de la grille (maquette design-v2, `secretariat-agenda.png`,
+/// `.gut`/`.dcol`) : 1 heure = 56 px, plage affichée 08:00 → 19:00, gouttière
+/// de 52 px, 6 colonnes de jours (Lun→Sam, dimanche non affiché).
+const _agendaGutterWidth = 52.0;
+const _agendaHourHeight = 56.0;
+const _agendaStartHour = 8;
+const _agendaEndHour = 19;
+const _agendaDayCount = 6;
 
-  /// Roster practitioner_id -> nom (#4666), utilisé en repli quand
-  /// `entry.practitionerName` est vide (ex : agenda enrichi par un slot
-  /// dont le nom n'aurait pas été résolu côté DTO).
-  final Map<String, String> practitionerNames;
+double get _agendaGridHeight =>
+    (_agendaEndHour - _agendaStartHour) * _agendaHourHeight;
 
-  /// RDV actuellement sélectionné via navigation clavier ↑/↓ (#5082) —
-  /// pilote le style `NubiaCard.selected` et affiche le badge ⏎ à côté du
-  /// bouton Confirmer.
-  final bool selected;
-  final VoidCallback? onSelect;
+/// Grille semaine : une colonne par jour (`weekStart` + 0..5), positionnée
+/// sur l'échelle horaire ci-dessus. [entries] sert uniquement au compteur par
+/// colonne (`.c` de la maquette) — pas encore au rendu de blocs.
+class _AgendaWeekGrid extends StatelessWidget {
+  const _AgendaWeekGrid({required this.weekStart, required this.entries});
 
-  /// Créneau libre `.free` de la maquette design-v2 (#5077) : rectangle au
-  /// bord pointillé `--n300`, fond blanc, contenu centré « + HH:MM » —
-  /// rendu distinct de la carte RDV (pas d'avatar/praticien/statut, un
-  /// créneau libre n'a pas d'identité patient).
-  Widget _buildFreeSlot(BuildContext context) {
+  final DateTime weekStart;
+  final List<AgendaEntry> entries;
+
+  List<DateTime> get _days => [
+        for (var i = 0; i < _agendaDayCount; i++)
+          DateTime(weekStart.year, weekStart.month, weekStart.day + i),
+      ];
+
+  int _countFor(DateTime day) => entries
+      .where((e) =>
+          e.startsAt.year == day.year &&
+          e.startsAt.month == day.month &&
+          e.startsAt.day == day.day)
+      .length;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = _days;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const SizedBox(width: _agendaGutterWidth),
+            for (final day in days)
+              Expanded(
+                child: _DayColumnHeader(
+                  key: Key('agenda_day_header_${_dayKey(day)}'),
+                  day: day,
+                  count: _countFor(day),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _HourGutter(key: Key('agenda_hour_gutter')),
+            for (var i = 0; i < days.length; i++)
+              Expanded(
+                child: _DayColumn(
+                  key: Key('agenda_day_column_${_dayKey(days[i])}'),
+                  showRightBorder: i < days.length - 1,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// En-tête de colonne jour (`.dhead`/`.dh` de la maquette) : jour abrégé en
+/// capitales + numéro du jour (calculés depuis `weekStart` — donc une date
+/// réelle, corrigeant le défaut « une semaine sans une seule date »), puis
+/// compteur d'entrées du jour aligné à droite (`.c`).
+class _DayColumnHeader extends StatelessWidget {
+  const _DayColumnHeader({super.key, required this.day, required this.count});
+
+  final DateTime day;
+  final int count;
+
+  static const _weekdayAbbrevs = [
+    'LUN',
+    'MAR',
+    'MER',
+    'JEU',
+    'VEN',
+    'SAM',
+    'DIM',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final time = '${entry.startsAt.hour.toString().padLeft(2, '0')}:'
-        '${entry.startsAt.minute.toString().padLeft(2, '0')}';
-
     return Padding(
-      key: Key('entry_${entry.id}'),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: _DashedRectBox(
-        borderRadius: 10,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            key: Key('free_slot_${entry.id}'),
-            borderRadius: BorderRadius.circular(10),
-            onTap: onSelect,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text.rich(
+              TextSpan(
                 children: [
-                  const Icon(Icons.add, size: 16, color: NubiaColors.n400),
-                  const SizedBox(width: 4),
-                  Text(
-                    time,
-                    style: textTheme.titleSmall?.copyWith(
-                      color: NubiaColors.n400,
-                      fontWeight: FontWeight.w600,
+                  TextSpan(
+                    text: '${_weekdayAbbrevs[day.weekday - 1]} ',
+                    style: textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: NubiaColors.n700,
+                    ),
+                  ),
+                  TextSpan(
+                    text: '${day.day}',
+                    style: textTheme.labelSmall?.copyWith(
+                      color: NubiaColors.n500,
                     ),
                   ),
                 ],
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-        ),
+          Text(
+            '$count',
+            key: Key('agenda_day_count_${_dayKey(day)}'),
+            style: textTheme.labelSmall?.copyWith(
+              color: NubiaColors.n400,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  /// Texte `#78350F` (amber-900) du bloc `.ev.tc` « à confirmer » (maquette
-  /// design-v2, #5075) — même valeur que les autres surfaces `warning` à
-  /// fond clair de l'app (ex. `treatment_plans/pending_quote_card.dart`).
-  static const _pendingTextColor = Color(0xFF78350F);
-
-  /// Hauteur du bloc dérivée de sa durée (maquette design-v2, bloc `.ev`,
-  /// #5073 : 30 min = 28 px, 1 h = 56 px). Plancher à 60 px : en dessous, la
-  /// pastille praticien + les deux lignes nom/motif ne tiennent plus sans
-  /// se chevaucher.
-  static double _blockHeight(Duration duration) {
-    const pxPerMinute = 56 / 60;
-    const minHeight = 60.0;
-    final scaled = duration.inMinutes * pxPerMinute;
-    return scaled < minHeight ? minHeight : scaled;
-  }
+/// Gouttière d'heures (`.gut` de la maquette) : graduations 08:00 → 19:00,
+/// une par heure, chiffres tabulaires (`tabular-nums`), fond `--n50`.
+class _HourGutter extends StatelessWidget {
+  const _HourGutter({super.key});
 
   @override
   Widget build(BuildContext context) {
-    if (entry.isFree) return _buildFreeSlot(context);
-
-    final textTheme = Theme.of(context).textTheme;
-    final cs = Theme.of(context).colorScheme;
-    final tokens = Theme.of(context).extension<NubiaTokens>()!;
-    final isPending = entry.isPending;
-
-    final time =
-        '${entry.startsAt.hour.toString().padLeft(2, '0')}:${entry.startsAt.minute.toString().padLeft(2, '0')}';
-
-    final practitionerName = entry.practitionerName.isNotEmpty
-        ? entry.practitionerName
-        : (practitionerNames[entry.practitionerId] ?? '');
-
-    // Sous-titre : motif administratif du RDV + praticien (aucune donnée
-    // clinique — cloisonnement secrétariat).
-    final subtitleParts = <String>[
-      if (entry.motif != null && entry.motif!.isNotEmpty) entry.motif!,
-      // #4608 : ne pas ajouter un nom de praticien vide (sinon un
-      // séparateur ' · ' pendant apparaissait sur cette ligne).
-      if (practitionerName.isNotEmpty) practitionerName,
-    ];
-
-    // Couleur de bloc par praticien (maquette design-v2, #5074) : le fond
-    // `warnBg` de l'état « à confirmer » (#5075) reste prioritaire — les deux
-    // classes `.ev.tc` et `.ev.r`/`.ev.l` de la maquette sont mutuellement
-    // exclusives, l'état d'action prime sur l'identité du praticien.
-    final blockStyle = isPending || entry.practitionerId.isEmpty
-        ? null
-        : _practitionerBlockStyle(entry.practitionerId, practitionerNames);
-
-    final primaryTextColor = isPending
-        ? _pendingTextColor
-        : (blockStyle?.text ?? cs.onSurface);
-    final secondaryTextColor = isPending
-        ? _pendingTextColor
-        : (blockStyle?.text ?? cs.onSurfaceVariant);
-
-    // Bord gauche 3 px coloré (maquette design-v2, bloc `.ev`, #5073) :
-    // couleur du praticien, ou `warnFg` pour l'état « à confirmer » (#5075,
-    // prioritaire — même règle que le fond ci-dessus).
-    final leftBorderColor = isPending
-        ? tokens.warningFg
-        : (blockStyle?.border ?? tokens.borderSubtle);
-
-    // Bloc `.ev.tc` (maquette design-v2, #5075) : l'état « à confirmer »
-    // n'est plus signalé par une pastille + un bouton inline (déplacés dans
-    // le volet de détail, #5079) mais directement par la couleur du bloc —
-    // fond `warnBg`, bord gauche `warnFg`, texte `#78350F` — et un coin
-    // cranté en haut à droite (triangle `warnFg` opacité .6).
-    Widget card = NubiaCard(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      state: selected ? NubiaCardState.selected : NubiaCardState.interactive,
-      backgroundColor: isPending ? tokens.warningBg : blockStyle?.background,
-      borderColor: isPending ? null : blockStyle?.border,
-      onTap: onSelect,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 40,
-            child: Text(
-              time,
-              style: textTheme.bodySmall?.copyWith(
-                color: secondaryTextColor,
-                fontWeight: FontWeight.w600,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-          ),
-          // Pastille praticien (#5168) : même couleur, dérivée de
-          // practitionerId via practitionerColor, que la colonne Praticien
-          // de la salle d'attente.
-          Container(
-            key: Key('entry_practitioner_dot_${entry.id}'),
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: practitionerColor(entry.practitionerId),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // `.nm` — nom du patient, en gras, ellipsis 1 ligne.
-                Text(
-                  entry.patientName ?? 'Patient',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: primaryTextColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (subtitleParts.isNotEmpty)
-                  // `.mo` — motif (+ praticien) en dessous, opacité .72,
-                  // ellipsis 1 ligne.
-                  Text(
-                    subtitleParts.join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: secondaryTextColor.withValues(alpha: 0.72),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
-    card = ClipRRect(
-      key: isPending ? Key('entry_pending_${entry.id}') : null,
-      borderRadius: BorderRadius.circular(12),
+    return Container(
+      width: _agendaGutterWidth,
+      height: _agendaGridHeight,
+      color: NubiaColors.n50,
       child: Stack(
+        // `Clip.none` : la dernière graduation (19:00) est ancrée au bord bas
+        // de la grille — son texte déborderait légèrement d'un Stack aux
+        // bords stricts (Clip.hardEdge, défaut), sans conséquence puisque
+        // rien d'interactif ne vit dans ce débord.
+        clipBehavior: Clip.none,
         children: [
-          card,
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: Container(width: 3, color: leftBorderColor),
-          ),
-          if (isPending)
+          for (var h = _agendaStartHour; h <= _agendaEndHour; h++)
             Positioned(
-              top: 0,
-              right: 0,
-              child: CustomPaint(
-                size: const Size(18, 18),
-                painter: _NotchPainter(
-                  color: tokens.warningFg.withValues(alpha: 0.6),
+              top: (h - _agendaStartHour) * _agendaHourHeight - 7,
+              right: 6,
+              child: Text(
+                '${h.toString().padLeft(2, '0')}:00',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: NubiaColors.n400,
+                  fontFeatures: [FontFeature.tabularFigures()],
                 ),
               ),
             ),
         ],
       ),
-    );
-
-    return Padding(
-      key: Key('entry_${entry.id}'),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: SizedBox(height: _blockHeight(entry.duration), child: card),
     );
   }
 }
 
-/// Coin cranté du bloc `.ev.tc` (maquette design-v2, #5075) : triangle plein
-/// posé dans le coin haut-droit, seul signal visuel (avec le fond `warnBg` et
-/// le bord gauche `warnFg`) de l'état « à confirmer » dans la grille — les
-/// actions (dont « Confirmer ») vivent désormais dans le volet de détail.
-class _NotchPainter extends CustomPainter {
-  _NotchPainter({required this.color});
+/// Fond d'une colonne jour (`.dcol` de la maquette) : graduations 30 min
+/// légères (`--n100`) et 1 h plus marquées (`--n200`), même échelle que
+/// [_agendaHourHeight] (maquette : `repeating-linear-gradient … 55px 56px`
+/// pour les heures, `27px 28px` pour les demi-heures). Bordure verticale
+/// `--n200` entre colonnes.
+class _DayColumn extends StatelessWidget {
+  const _DayColumn({super.key, required this.showRightBorder});
 
-  final Color color;
+  final bool showRightBorder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: _agendaGridHeight,
+      decoration: BoxDecoration(
+        border: showRightBorder
+            ? const Border(right: BorderSide(color: NubiaColors.n200))
+            : null,
+      ),
+      child: const CustomPaint(
+        size: Size.infinite,
+        painter: _DayColumnGridPainter(),
+      ),
+    );
+  }
+}
+
+class _DayColumnGridPainter extends CustomPainter {
+  const _DayColumnGridPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(size.width - size.height, 0)
-      ..lineTo(size.width, 0)
-      ..lineTo(size.width, size.height)
-      ..close();
-    canvas.drawPath(path, Paint()..color = color);
+    final halfHourPaint = Paint()
+      ..color = NubiaColors.n100
+      ..strokeWidth = 1;
+    final hourPaint = Paint()
+      ..color = NubiaColors.n200
+      ..strokeWidth = 1;
+    var y = 0.0;
+    var halfStep = 0;
+    while (y <= size.height + 0.5) {
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        halfStep.isEven ? hourPaint : halfHourPaint,
+      );
+      y += _agendaHourHeight / 2;
+      halfStep++;
+    }
   }
 
   @override
-  bool shouldRepaint(covariant _NotchPainter oldDelegate) =>
-      oldDelegate.color != color;
+  bool shouldRepaint(covariant _DayColumnGridPainter oldDelegate) => false;
 }
+
+// ---------------------------------------------------------------------------
 
 /// Skeleton de chargement de l'agenda (barre d'outils + liste de cartes).
 class _AgendaSkeleton extends StatelessWidget {
