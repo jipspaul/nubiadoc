@@ -22,11 +22,18 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
     on<CabinetPayoutSelected>(_onSelected);
     on<CabinetPayoutMarkedReconciled>(_onMarkedReconciled);
     on<CabinetPayoutFlaggedToAccountant>(_onFlaggedToAccountant);
+    on<CabinetPayoutsMonthChanged>(_onMonthChanged);
   }
 
   final GetCabinetPayoutsUseCase _getPayouts;
   final MarkPayoutReconciledUseCase _markReconciled;
   final FlagPayoutToAccountantUseCase _flagToAccountant;
+
+  /// Mois affiché par le sélecteur d'en-tête (design-v2, point 4b) — mois
+  /// courant par défaut, premier jour du mois (jour/heure ignorés).
+  DateTime _selectedMonth = _startOfMonth(DateTime.now());
+
+  static DateTime _startOfMonth(DateTime d) => DateTime(d.year, d.month);
 
   Future<void> _onLoad(
     CabinetPayoutsLoadRequested event,
@@ -36,9 +43,29 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
     final result = await _getPayouts();
     result.fold(
       (failure) => safeEmit(CabinetPayoutsError(failure.message)),
-      (payouts) => safeEmit(CabinetPayoutsLoaded(payouts)),
+      (payouts) => safeEmit(
+        CabinetPayoutsLoaded(
+          _filterByMonth(payouts),
+          selectedMonth: _selectedMonth,
+        ),
+      ),
     );
   }
+
+  Future<void> _onMonthChanged(
+    CabinetPayoutsMonthChanged event,
+    Emitter<CabinetPayoutsState> emit,
+  ) async {
+    _selectedMonth = _startOfMonth(event.month);
+    await _onLoad(const CabinetPayoutsLoadRequested(), emit);
+  }
+
+  List<CabinetPayout> _filterByMonth(List<CabinetPayout> payouts) => [
+        for (final payout in payouts)
+          if (payout.arrivalDate.year == _selectedMonth.year &&
+              payout.arrivalDate.month == _selectedMonth.month)
+            payout,
+      ];
 
   void _onSelected(
     CabinetPayoutSelected event,
@@ -51,6 +78,7 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
       CabinetPayoutsLoaded(
         current.payouts,
         selectedPayoutId: alreadySelected ? null : event.id,
+        selectedMonth: current.selectedMonth,
       ),
     );
   }
@@ -77,6 +105,7 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
               if (payout.id == event.id) _reconciled(payout) else payout,
           ],
           selectedPayoutId: latest.selectedPayoutId,
+          selectedMonth: latest.selectedMonth,
         ),
       );
     });

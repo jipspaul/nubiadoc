@@ -15,12 +15,22 @@ class CabinetPayoutsLoading extends CabinetPayoutsState {
 }
 
 class CabinetPayoutsLoaded extends CabinetPayoutsState {
-  const CabinetPayoutsLoaded(this.payouts, {this.selectedPayoutId});
+  const CabinetPayoutsLoaded(
+    this.payouts, {
+    this.selectedPayoutId,
+    this.selectedMonth,
+  });
 
   final List<CabinetPayout> payouts;
 
   /// Virement affiché dans le volet de détail — `null` si aucun sélectionné.
   final String? selectedPayoutId;
+
+  /// Mois affiché par le sélecteur d'en-tête (design-v2, point 4b) —
+  /// premier jour du mois sur lequel `payouts` est filtré. `null` seulement
+  /// dans les tests qui construisent l'état à la main sans l'exercer ; le
+  /// bloc fournit toujours une valeur réelle.
+  final DateTime? selectedMonth;
 
   // `CabinetPayout` (Equatable) ne compare que `id` : on vérifie aussi
   // `reconciliationStatus` ici pour que le bloc réémette bien après
@@ -29,6 +39,7 @@ class CabinetPayoutsLoaded extends CabinetPayoutsState {
   bool operator ==(Object other) =>
       other is CabinetPayoutsLoaded &&
       other.selectedPayoutId == selectedPayoutId &&
+      other.selectedMonth == selectedMonth &&
       other.payouts.length == payouts.length &&
       List.generate(
         payouts.length,
@@ -43,6 +54,7 @@ class CabinetPayoutsLoaded extends CabinetPayoutsState {
         Object.hashAll(payouts),
         Object.hashAll(payouts.map((p) => p.reconciliationStatus)),
         selectedPayoutId,
+        selectedMonth,
       );
 }
 
