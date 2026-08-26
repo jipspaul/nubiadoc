@@ -32,6 +32,7 @@ import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
+import 'pending_actions_card.dart';
 import 'today_notes_bloc.dart';
 import 'today_notes_card.dart';
 import 'week_summary_card.dart';
@@ -201,6 +202,7 @@ class _DashboardLoadedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pendingActionsCard = PendingActionsCard(summary: summary);
     final notesCard = BlocProvider(
       create: (_) => GetIt.instance<TodayNotesBloc>()
         ..add(const TodayNotesLoadRequested()),
@@ -233,6 +235,8 @@ class _DashboardLoadedView extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      pendingActionsCard,
+                      const SizedBox(height: 16),
                       notesCard,
                       const SizedBox(height: 16),
                       weekSummaryCard,
@@ -250,6 +254,8 @@ class _DashboardLoadedView extends StatelessWidget {
               const SizedBox(height: 16),
               _SummaryGrid(summary: summary),
               const SizedBox(height: 24),
+              pendingActionsCard,
+              const SizedBox(height: 16),
               notesCard,
               const SizedBox(height: 16),
               weekSummaryCard,
@@ -329,8 +335,8 @@ class _SummaryGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // #3374 : chaque carte est un raccourci vers l'écran correspondant.
-    // « Confirmations en attente » n'a pas d'écran dédié → l'agenda (où se
-    // font les confirmations).
+    // « Messages non lus » et « Confirmations en attente » sont devenues des
+    // lignes de la carte « À traiter » (#5049, [PendingActionsCard]).
     final metrics = <({
       Key key,
       String label,
@@ -354,26 +360,6 @@ class _SummaryGrid extends StatelessWidget {
         icon: Icons.event_seat_outlined,
         variant: MetricTileVariant.neutral,
         route: AppRouter.waitingRoom,
-      ),
-      (
-        key: const Key('metric_messages'),
-        label: 'Messages non lus',
-        value: '${summary.unreadMessages}',
-        icon: Icons.chat_bubble_outline,
-        variant: summary.unreadMessages > 0
-            ? MetricTileVariant.warning
-            : MetricTileVariant.neutral,
-        route: AppRouter.messages,
-      ),
-      (
-        key: const Key('metric_confirmations'),
-        label: 'Confirmations en attente',
-        value: '${summary.pendingConfirmations}',
-        icon: Icons.pending_actions_outlined,
-        variant: summary.pendingConfirmations > 0
-            ? MetricTileVariant.warning
-            : MetricTileVariant.neutral,
-        route: AppRouter.agenda,
       ),
     ];
 

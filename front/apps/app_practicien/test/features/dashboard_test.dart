@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -10,6 +11,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:app_practicien/features/dashboard/dashboard_bloc.dart';
 import 'package:app_practicien/features/dashboard/dashboard_event.dart';
 import 'package:app_practicien/features/dashboard/dashboard_state.dart';
+import 'package:app_practicien/features/dashboard/pending_actions_card.dart';
 import 'package:app_practicien/features/dashboard/today_notes_bloc.dart';
 import 'package:app_practicien/features/dashboard/today_notes_card.dart';
 import 'package:app_practicien/features/dashboard/week_summary_card.dart';
@@ -272,6 +274,71 @@ void main() {
         ),
       );
       expect(pill.variant, StatusPillVariant.warning);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // PendingActionsCard widget (#5049 — file unique « À traiter »)
+  // ---------------------------------------------------------------------------
+
+  group('PendingActionsCard widget', () {
+    Widget wrapCard(GoRouter router) =>
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router);
+
+    GoRouter makeRouter(ProDashboardSummary summary) => GoRouter(
+          initialLocation: '/',
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, __) =>
+                  Scaffold(body: PendingActionsCard(summary: summary)),
+            ),
+            GoRoute(
+              path: '/agenda',
+              builder: (_, __) => const Scaffold(body: Text('agenda page')),
+            ),
+            GoRoute(
+              path: '/messages',
+              builder: (_, __) => const Scaffold(body: Text('messages page')),
+            ),
+          ],
+        );
+
+    testWidgets(
+        'remplace les tuiles confirmations/messages par une file unique',
+        (tester) async {
+      final router = makeRouter(_summary);
+      await tester.pumpWidget(wrapCard(router));
+
+      expect(find.byKey(const Key('pending_actions_card')), findsOneWidget);
+      expect(find.text('À traiter'), findsOneWidget);
+      expect(find.byKey(const Key('metric_confirmations')), findsOneWidget);
+      expect(find.byKey(const Key('metric_messages')), findsOneWidget);
+      expect(find.text('Confirmations en attente'), findsOneWidget);
+      expect(find.text('Messages non lus'), findsOneWidget);
+      expect(find.byType(ListRow), findsNWidgets(2));
+    });
+
+    testWidgets('confirmations en attente navigue vers /agenda (#3374)',
+        (tester) async {
+      final router = makeRouter(_summary);
+      await tester.pumpWidget(wrapCard(router));
+
+      await tester.tap(find.byKey(const Key('metric_confirmations')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('agenda page'), findsOneWidget);
+    });
+
+    testWidgets('messages non lus navigue vers /messages (#3374)',
+        (tester) async {
+      final router = makeRouter(_summary);
+      await tester.pumpWidget(wrapCard(router));
+
+      await tester.tap(find.byKey(const Key('metric_messages')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('messages page'), findsOneWidget);
     });
   });
 }
