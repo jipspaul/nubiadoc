@@ -465,8 +465,12 @@ class _LoadedViewState extends State<_LoadedView> {
                         entry: entry,
                         practitionerNames: practitioners,
                         selected: entry.id == _selectedEntryId,
-                        onSelect: () =>
-                            setState(() => _selectedEntryId = entry.id),
+                        onSelect: widget.state.actionInProgress
+                            ? null
+                            : () => entry.isFree
+                                ? _openNewAppointmentForSlot(context, entry,
+                                    widget.state, practitioners)
+                                : setState(() => _selectedEntryId = entry.id),
                       );
                     },
                   ),
@@ -486,6 +490,36 @@ class _LoadedViewState extends State<_LoadedView> {
       context: context,
       builder: (_) => _NewAppointmentDialog(
         availableSlots: availableSlots,
+        practitioners: practitioners,
+        onConfirm: (appointment) => context.read<AgendaBloc>().add(
+              AgendaAppointmentCreateRequested(appointment: appointment),
+            ),
+      ),
+    );
+  }
+
+  /// Ouvre le dialogue « Nouveau RDV » depuis un créneau libre de la grille
+  /// (#5078) — le créneau est déjà choisi, le dialogue ne demande donc plus
+  /// que le patient (recherche) + le motif.
+  void _openNewAppointmentForSlot(
+    BuildContext context,
+    AgendaEntry freeEntry,
+    AgendaLoaded state,
+    Map<String, String> practitioners,
+  ) {
+    final slots = bookableSlots(state.availableSlots, state.entries);
+    Slot? slot;
+    for (final s in slots) {
+      if (s.id == freeEntry.id) {
+        slot = s;
+        break;
+      }
+    }
+    showDialog<void>(
+      context: context,
+      builder: (_) => _NewAppointmentDialog(
+        availableSlots: slots,
+        initialSlot: slot,
         practitioners: practitioners,
         onConfirm: (appointment) => context.read<AgendaBloc>().add(
               AgendaAppointmentCreateRequested(appointment: appointment),
@@ -715,11 +749,16 @@ class _NewAppointmentDialog extends StatefulWidget {
     required this.availableSlots,
     required this.practitioners,
     required this.onConfirm,
+    this.initialSlot,
   });
 
   final List<Slot> availableSlots;
   final Map<String, String> practitioners;
   final void Function(CabinetAppointment) onConfirm;
+
+  /// Créneau déjà choisi dans la grille (#5078) — quand non nul, le
+  /// dialogue masque le picker de créneau et l'affiche en lecture seule.
+  final Slot? initialSlot;
 
   @override
   State<_NewAppointmentDialog> createState() => _NewAppointmentDialogState();
@@ -729,9 +768,13 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   Slot? _selectedSlot;
   CabinetPatient? _selectedPatient;
   final _motifCtrl = TextEditingController();
+  final _patientSearchCtrl = TextEditingController();
+  String _patientQuery = '';
 
   // Le back attend un `patient_id` (UUID d'une fiche patient du cabinet), pas
-  // un nom libre. On charge la liste des patients du cabinet pour la sélection.
+  // un nom libre. On charge la liste des patients du cabinet pour la
+  // recherche (#5078 : champ de recherche, plus un dropdown de toute la
+  // patientèle).
   List<CabinetPatient> _patients = const [];
   bool _loadingPatients = true;
   String? _patientsError;
@@ -739,7 +782,16 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   @override
   void initState() {
     super.initState();
+    _selectedSlot = widget.initialSlot;
     _loadPatients();
+  }
+
+  List<CabinetPatient> get _filteredPatients {
+    final query = _patientQuery.trim().toLowerCase();
+    if (query.isEmpty) return const [];
+    return _patients
+        .where((p) => p.fullName.toLowerCase().contains(query))
+        .toList(growable: false);
   }
 
   Future<void> _loadPatients() async {
@@ -760,6 +812,7 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   @override
   void dispose() {
     _motifCtrl.dispose();
+    _patientSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -785,9 +838,93 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
     return '${weekdays[d.weekday - 1]} ${d.day} ${months[d.month - 1]} – $h';
   }
 
+  /// Champ patient (#5078) : recherche par nom filtrant `_patients`, plutôt
+  /// qu'un `DropdownButton` listant toute la patientèle. Le back attend un
+  /// `patient_id` — la recherche résout donc vers un [CabinetPatient], pas un
+  /// nom libre.
+  Widget _buildPatientField(BuildContext context) {
+    final selected = _selectedPatient;
+    if (selected != null) {
+      return InputDecorator(
+        decoration: const InputDecoration(labelText: 'Patient *'),
+        child: Row(
+          key: const Key('patient_selected_row'),
+          children: [
+            Expanded(child: Text(selected.fullName)),
+            IconButton(
+              key: const Key('patient_selected_clear'),
+              icon: const Icon(Icons.close),
+              tooltip: 'Changer de patient',
+              onPressed: () => setState(() {
+                _selectedPatient = null;
+                _patientQuery = '';
+                _patientSearchCtrl.clear();
+              }),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final results = _filteredPatients;
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Patient *',
+          style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+        ),
+        const SizedBox(height: 4),
+        NubiaSearchBar(
+          key: const Key('patient_search_field'),
+          controller: _patientSearchCtrl,
+          hint: 'Rechercher un patient par nom',
+          onChanged: (value) => setState(() => _patientQuery = value),
+        ),
+        if (_patientQuery.trim().isNotEmpty) ...[
+          const SizedBox(height: 4),
+          if (results.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Aucun patient trouvé',
+                key: Key('patient_search_empty'),
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 160),
+              child: SingleChildScrollView(
+                key: const Key('patient_search_results'),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final p in results)
+                      ListTile(
+                        key: Key('patient_option_${p.id}'),
+                        dense: true,
+                        title: Text(p.fullName),
+                        onTap: () => setState(() {
+                          _selectedPatient = p;
+                          _patientQuery = '';
+                          _patientSearchCtrl.clear();
+                        }),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hasSlots = widget.availableSlots.isNotEmpty;
+    final hasSlots =
+        widget.initialSlot != null || widget.availableSlots.isNotEmpty;
     final canCreate =
         hasSlots && _selectedSlot != null && _selectedPatient != null;
 
@@ -801,23 +938,32 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
             if (!hasSlots)
               const Text('Aucun créneau disponible cette semaine.')
             else ...[
-              InputDecorator(
-                decoration: const InputDecoration(labelText: 'Créneau'),
-                child: DropdownButton<Slot>(
-                  key: const Key('slot_picker_dropdown'),
-                  isExpanded: true,
-                  underline: const SizedBox.shrink(),
-                  value: _selectedSlot,
-                  hint: const Text('Sélectionner un créneau'),
-                  items: widget.availableSlots
-                      .map((s) => DropdownMenuItem(
-                            value: s,
-                            child: Text(_slotLabel(s)),
-                          ))
-                      .toList(),
-                  onChanged: (s) => setState(() => _selectedSlot = s),
+              if (widget.initialSlot != null)
+                InputDecorator(
+                  decoration: const InputDecoration(labelText: 'Créneau'),
+                  child: Text(
+                    _slotLabel(widget.initialSlot!),
+                    key: const Key('slot_readonly_label'),
+                  ),
+                )
+              else
+                InputDecorator(
+                  decoration: const InputDecoration(labelText: 'Créneau'),
+                  child: DropdownButton<Slot>(
+                    key: const Key('slot_picker_dropdown'),
+                    isExpanded: true,
+                    underline: const SizedBox.shrink(),
+                    value: _selectedSlot,
+                    hint: const Text('Sélectionner un créneau'),
+                    items: widget.availableSlots
+                        .map((s) => DropdownMenuItem(
+                              value: s,
+                              child: Text(_slotLabel(s)),
+                            ))
+                        .toList(),
+                    onChanged: (s) => setState(() => _selectedSlot = s),
+                  ),
                 ),
-              ),
               const SizedBox(height: 12),
               if (_loadingPatients)
                 const Padding(
@@ -833,23 +979,7 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 )
               else
-                InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Patient *'),
-                  child: DropdownButton<CabinetPatient>(
-                    key: const Key('patient_picker_dropdown'),
-                    isExpanded: true,
-                    underline: const SizedBox.shrink(),
-                    value: _selectedPatient,
-                    hint: const Text('Sélectionner un patient'),
-                    items: _patients
-                        .map((p) => DropdownMenuItem(
-                              value: p,
-                              child: Text(p.fullName),
-                            ))
-                        .toList(),
-                    onChanged: (p) => setState(() => _selectedPatient = p),
-                  ),
-                ),
+                _buildPatientField(context),
               const SizedBox(height: 12),
               TextField(
                 key: const Key('motif_field'),
