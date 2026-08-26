@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -205,7 +206,8 @@ class AppRouter {
             child: const LabWorkOrdersPage(),
           ),
         ),
-        GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
+        if (kDebugMode)
+          GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(
           path: teamMessages,
           builder: (_, __) => const CabinetTeamMessagesPage(),
