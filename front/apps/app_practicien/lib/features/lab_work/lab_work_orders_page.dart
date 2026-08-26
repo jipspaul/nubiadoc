@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'lab_work_order_due.dart';
 import 'lab_work_order_metrics.dart';
 import 'lab_work_orders_bloc.dart';
 import 'lab_work_orders_event.dart';
@@ -364,11 +365,17 @@ class _LabWorkStatusColumn extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: NubiaCard(
                     key: Key('lab_work_order_${order.id}'),
+                    backgroundColor: isOverdue(order, now)
+                        ? Theme.of(context).extension<NubiaTokens>()!.dangerBg
+                        : null,
+                    borderColor: isOverdue(order, now)
+                        ? NubiaColors.dangerBorder
+                        : null,
                     child: isOverdue(order, now)
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _LabWorkOrderInfo(order: order),
+                              _LabWorkOrderInfo(order: order, now: now),
                               const SizedBox(height: 12),
                               NubiaButton(
                                 key: Key(
@@ -385,7 +392,7 @@ class _LabWorkStatusColumn extends StatelessWidget {
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _LabWorkOrderInfo(order: order),
+                              _LabWorkOrderInfo(order: order, now: now),
                               if (order.status != _kStatusOrder.last) ...[
                                 const SizedBox(height: 12),
                                 FilledButton.tonal(
@@ -458,12 +465,31 @@ class _LabWorkArchiveNote extends StatelessWidget {
 /// Bloc labo + statut + pied de carte (date d'envoi, prix), commun aux deux
 /// rendus de carte (bon en retard ou non, #5062).
 class _LabWorkOrderInfo extends StatelessWidget {
-  const _LabWorkOrderInfo({required this.order});
+  const _LabWorkOrderInfo({required this.order, required this.now});
 
   final LabWorkOrder order;
 
+  /// Heure de référence pour le calcul du repère de délai (#5059) — passée
+  /// par la page plutôt que `DateTime.now()` ici, pour rester cohérente
+  /// avec `isOverdue` déjà calculé une seule fois par rendu.
+  final DateTime now;
+
   @override
   Widget build(BuildContext context) {
+    final due = labWorkOrderDueOf(
+      status: order.status,
+      expectedReturnAt: order.expectedReturnAt,
+      now: now,
+    );
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    final (dueIcon, dueColor) = switch (due?.tone) {
+      LabWorkOrderDueTone.overdue => (Icons.error, tokens.dangerFg),
+      LabWorkOrderDueTone.soon => (Icons.schedule, tokens.warningFg),
+      LabWorkOrderDueTone.onTime => (Icons.schedule, tokens.textTertiary),
+      null => (null, onSurfaceVariant),
+    };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -489,11 +515,22 @@ class _LabWorkOrderInfo extends StatelessWidget {
           key: Key('lab_work_order_footer_${order.id}'),
           children: [
             Expanded(
-              child: Text(
-                'Envoyé le ${_formatSentAt(order.sentAt)}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+              child: Row(
+                children: [
+                  if (dueIcon != null) ...[
+                    Icon(dueIcon, size: 14, color: dueColor),
+                    const SizedBox(width: 4),
+                  ],
+                  Expanded(
+                    child: Text(
+                      due?.label ?? 'Envoyé le ${_formatSentAt(order.sentAt)}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: dueColor,
+                          ),
+                      overflow: TextOverflow.ellipsis,
                     ),
+                  ),
+                ],
               ),
             ),
             Text(
