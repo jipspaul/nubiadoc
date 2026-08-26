@@ -123,8 +123,6 @@ String _csvField(String value) {
   return value;
 }
 
-String _euros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
-
 String _providerLabel(PayoutProvider provider) => switch (provider) {
       PayoutProvider.stripe => 'Stripe',
       PayoutProvider.gocardless => 'GoCardless',
@@ -226,6 +224,20 @@ class CabinetPayoutsBody extends StatelessWidget {
   }
 }
 
+/// Largeurs des colonnes du tableau des virements (design-v2, point 6) —
+/// partagées entre [_PayoutsTableHeader] et [_PayoutTableRow] pour rester
+/// alignées ; seule la colonne Virement est flexible.
+class _PayoutColumns {
+  const _PayoutColumns._();
+
+  static const double gap = 16;
+  static const double amountReceived = 112;
+  static const double internalPayments = 132;
+  static const double gapAmount = 92;
+  static const double status = 116;
+  static const double action = 100;
+}
+
 class _PayoutsList extends StatelessWidget {
   const _PayoutsList({required this.payouts, this.selectedPayoutId});
 
@@ -234,124 +246,296 @@ class _PayoutsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    final totalReceivedCents =
+        payouts.fold<int>(0, (sum, payout) => sum + payout.amountCents);
+    final cumulativeGapCents =
+        payouts.fold<int>(0, (sum, payout) => sum + payout.differenceCents);
+    return Column(
       key: const Key('cabinet_payouts_list'),
-      padding: const EdgeInsets.all(16),
       children: [
-        Text(
-          'Virements Stripe/GoCardless (données de démonstration — aucun '
-          'compte connecté) rapprochés aux paiements internes enregistrés '
-          'le même jour.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-        ),
-        const SizedBox(height: 16),
-        for (final payout in payouts) ...[
-          _PayoutCard(
-            payout: payout,
-            selected: payout.id == selectedPayoutId,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'Virements Stripe/GoCardless (données de démonstration — aucun '
+            'compte connecté) rapprochés aux paiements internes enregistrés '
+            'le même jour.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
-          const SizedBox(height: 12),
-        ],
+        ),
+        const _PayoutsTableHeader(),
+        Expanded(
+          child: ListView.builder(
+            itemCount: payouts.length,
+            itemBuilder: (context, index) {
+              final payout = payouts[index];
+              return _PayoutTableRow(
+                payout: payout,
+                selected: payout.id == selectedPayoutId,
+              );
+            },
+          ),
+        ),
+        _PayoutsTableFooter(
+          // Pas de filtrage dans cette liste : affiché == chargé, contrairement
+          // au tableau Patients qui distingue résultats filtrés / total.
+          displayedCount: payouts.length,
+          totalCount: payouts.length,
+          totalReceivedCents: totalReceivedCents,
+          cumulativeGapCents: cumulativeGapCents,
+        ),
       ],
     );
   }
 }
 
-class _PayoutCard extends StatelessWidget {
-  const _PayoutCard({required this.payout, required this.selected});
+/// En-tête de colonnes du tableau des virements (design-v2, point 6) : mots
+/// exacts « Virement / Montant reçu / Paiements internes / Écart / Statut /
+/// Action », alignées à droite pour les colonnes de chiffres et l'action.
+class _PayoutsTableHeader extends StatelessWidget {
+  const _PayoutsTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final style = TextStyle(
+      fontSize: 10.5,
+      fontWeight: FontWeight.w600,
+      color: tokens.textTertiary,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          Expanded(child: Text('Virement', style: style)),
+          const SizedBox(width: _PayoutColumns.gap),
+          SizedBox(
+            width: _PayoutColumns.amountReceived,
+            child: Text('Montant reçu', style: style, textAlign: TextAlign.right),
+          ),
+          const SizedBox(width: _PayoutColumns.gap),
+          SizedBox(
+            width: _PayoutColumns.internalPayments,
+            child:
+                Text('Paiements internes', style: style, textAlign: TextAlign.right),
+          ),
+          const SizedBox(width: _PayoutColumns.gap),
+          SizedBox(
+            width: _PayoutColumns.gapAmount,
+            child: Text('Écart', style: style, textAlign: TextAlign.right),
+          ),
+          const SizedBox(width: _PayoutColumns.gap),
+          SizedBox(width: _PayoutColumns.status, child: Text('Statut', style: style)),
+          const SizedBox(width: _PayoutColumns.gap),
+          SizedBox(
+            width: _PayoutColumns.action,
+            child: Text('Action', style: style, textAlign: TextAlign.right),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ligne du tableau des virements (design-v2, point 6) : colonnes alignées
+/// en chiffres tabulaires — seule disposition qui permette la lecture
+/// verticale pour repérer l'anomalie (remplace les `NubiaCard` empilées).
+class _PayoutTableRow extends StatelessWidget {
+  const _PayoutTableRow({required this.payout, required this.selected});
 
   final CabinetPayout payout;
   final bool selected;
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
     final reconciled =
         payout.reconciliationStatus == PayoutReconciliationStatus.reconciled;
+    final gapCents = payout.differenceCents;
+    final gapColor = gapCents == 0
+        ? NubiaColors.n400
+        : gapCents < 0
+            ? NubiaColors.dangerFg
+            : null;
     void onTap() => context
         .read<CabinetPayoutsBloc>()
         .add(CabinetPayoutSelected(payout.id));
-    return GestureDetector(
-      onTap: onTap,
-      child: NubiaCard(
-        key: Key('payout_${payout.id}'),
-        state: selected ? NubiaCardState.selected : NubiaCardState.interactive,
-        onTap: selected ? null : onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Row(
-              children: [
-                _PayoutProviderPill(provider: payout.provider),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _formatDate(payout.arrivalDate),
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontFeatures: tabularFigures,
-                            ),
-                      ),
-                      Text(
-                        payout.id,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: NubiaColors.n500,
-                              fontFamily: 'monospace',
-                            ),
-                      ),
-                    ],
+            Expanded(
+              child: Row(
+                children: [
+                  _PayoutProviderPill(provider: payout.provider),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _formatDate(payout.arrivalDate),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.titleSmall
+                              ?.copyWith(fontFeatures: tabularFigures),
+                        ),
+                        Text(
+                          payout.id,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: NubiaColors.n500,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(width: _PayoutColumns.gap),
+            SizedBox(
+              width: _PayoutColumns.amountReceived,
+              child: Text(
+                NubiaMoney.formatCents(payout.amountCents),
+                textAlign: TextAlign.right,
+                style: textTheme.bodyMedium?.copyWith(fontFeatures: tabularFigures),
+              ),
+            ),
+            const SizedBox(width: _PayoutColumns.gap),
+            SizedBox(
+              width: _PayoutColumns.internalPayments,
+              child: Text(
+                NubiaMoney.formatCents(payout.internalPaymentsTotalCents),
+                textAlign: TextAlign.right,
+                style: textTheme.bodyMedium?.copyWith(fontFeatures: tabularFigures),
+              ),
+            ),
+            const SizedBox(width: _PayoutColumns.gap),
+            SizedBox(
+              width: _PayoutColumns.gapAmount,
+              child: Text(
+                NubiaMoney.formatCents(gapCents),
+                textAlign: TextAlign.right,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontFeatures: tabularFigures,
+                  fontWeight: gapCents == 0 ? FontWeight.w400 : FontWeight.w600,
+                  color: gapColor,
                 ),
-                const SizedBox(width: 8),
-                NubiaBadge.label(
+              ),
+            ),
+            const SizedBox(width: _PayoutColumns.gap),
+            SizedBox(
+              width: _PayoutColumns.status,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: NubiaBadge.label(
                   key: const Key('payout_status_badge'),
                   label: reconciled ? 'Rapproché' : 'À vérifier',
                   variant: reconciled
                       ? NubiaBadgeVariant.success
                       : NubiaBadgeVariant.error,
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text('Virement le ${_formatDate(payout.arrivalDate)}'),
-            Text('Montant du virement : ${_euros(payout.amountCents)}'),
-            Text(
-              'Paiements internes trouvés : '
-              '${_euros(payout.internalPaymentsTotalCents)}',
-            ),
-            if (!reconciled) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Écart : ${_euros(payout.differenceCents)}',
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-            ],
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: reconciled
-                  ? NubiaButton(
-                      key: Key('payout_action_detail_${payout.id}'),
-                      label: 'Détail',
-                      variant: NubiaButtonVariant.secondary,
-                      size: NubiaButtonSize.sm,
-                      icon: Icons.visibility,
-                      onPressed: onTap,
-                    )
-                  : NubiaButton(
-                      key: Key('payout_action_analyze_${payout.id}'),
-                      label: 'Analyser',
-                      size: NubiaButtonSize.sm,
-                      icon: Icons.search,
-                      onPressed: onTap,
-                    ),
+            ),
+            const SizedBox(width: _PayoutColumns.gap),
+            SizedBox(
+              width: _PayoutColumns.action,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: reconciled
+                    ? NubiaButton(
+                        key: Key('payout_action_detail_${payout.id}'),
+                        label: 'Détail',
+                        variant: NubiaButtonVariant.secondary,
+                        size: NubiaButtonSize.sm,
+                        icon: Icons.visibility,
+                        onPressed: onTap,
+                      )
+                    : NubiaButton(
+                        key: Key('payout_action_analyze_${payout.id}'),
+                        label: 'Analyser',
+                        size: NubiaButtonSize.sm,
+                        icon: Icons.search,
+                        onPressed: onTap,
+                      ),
+              ),
             ),
           ],
+        ),
+      ),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          key: Key('payout_${payout.id}'),
+          color: selected ? NubiaColors.brand50 : Colors.transparent,
+          // `foregroundDecoration` (pas `decoration`) : peint la bordure
+          // par-dessus le contenu sans lui ajouter de padding implicite,
+          // pour ne pas décaler les colonnes fixes du tableau.
+          foregroundDecoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: selected ? NubiaColors.brand700 : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(onTap: onTap, child: content),
+          ),
+        ),
+        Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+      ],
+    );
+  }
+}
+
+/// Pied de tableau (design-v2, point 6) : compteur de virements affichés,
+/// total reçu et écart cumulé sur les lignes affichées.
+class _PayoutsTableFooter extends StatelessWidget {
+  const _PayoutsTableFooter({
+    required this.displayedCount,
+    required this.totalCount,
+    required this.totalReceivedCents,
+    required this.cumulativeGapCents,
+  });
+
+  final int displayedCount;
+  final int totalCount;
+  final int totalReceivedCents;
+  final int cumulativeGapCents;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: tokens.borderSubtle)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Text(
+          '$displayedCount virements affichés sur $totalCount · '
+          'Total reçu ${NubiaMoney.formatCents(totalReceivedCents)} · '
+          'Écart cumulé ${NubiaMoney.formatCents(cumulativeGapCents)}',
+          key: const Key('cabinet_payouts_footer'),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: tokens.textTertiary,
+                fontFeatures: tabularFigures,
+              ),
         ),
       ),
     );
