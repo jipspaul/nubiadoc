@@ -10,13 +10,27 @@ class ClinicalNoteSummary extends Equatable {
   final String patientInitials;
   final ClinicalNoteStatus status;
 
+  /// Nom complet du patient. `null` tant que l'API `GET
+  /// /v1/cabinet/today-notes` ne l'expose pas (choix délibéré « zéro PII »,
+  /// voir `api/src/clinical.rs::TodayNoteItem` et le test
+  /// `today_notes_returns_todays_sessions`) — les vues de survol retombent
+  /// alors sur [patientInitials] (#5048).
+  final String? patientName;
+
   const ClinicalNoteSummary({
     required this.id,
     required this.timestamp,
     required this.patientInitials,
     required this.status,
+    this.patientName,
   });
 
   @override
-  List<Object?> get props => [id, timestamp, patientInitials, status];
+  List<Object?> get props => [
+        id,
+        timestamp,
+        patientInitials,
+        status,
+        patientName,
+      ];
 }

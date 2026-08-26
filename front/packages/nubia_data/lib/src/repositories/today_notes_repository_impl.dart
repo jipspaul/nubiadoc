@@ -25,6 +25,7 @@ class TodayNotesRepositoryImpl implements TodayNotesRepository {
               DateTime.now(),
           patientInitials: (e['patient_initials'] as String?) ?? '',
           status: _parseStatus(e['status'] as String?),
+          patientName: e['patient_name'] as String?,
         );
       }).toList();
       return Right(notes);
