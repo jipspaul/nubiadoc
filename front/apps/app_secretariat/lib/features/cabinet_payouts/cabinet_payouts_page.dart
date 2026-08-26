@@ -91,25 +91,39 @@ class CabinetPayoutsBody extends StatelessWidget {
                     icon: Icons.account_balance_outlined,
                     title: 'Aucun virement',
                   )
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: _PayoutsList(
-                          payouts: payouts,
-                          selectedPayoutId: selectedPayoutId,
-                        ),
-                      ),
-                      if (selectedPayoutId != null)
-                        SizedBox(
-                          width: 320,
-                          child: _PayoutDetailPanel(
-                            payout: payouts.firstWhere(
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final selectedPayout = selectedPayoutId == null
+                          ? null
+                          : payouts.firstWhere(
                               (p) => p.id == selectedPayoutId,
+                            );
+                      // Écran étroit (#5107) : le volet (400px fixe) ne
+                      // laisserait presque plus de place au tableau — il
+                      // remplace la liste plutôt que de la comprimer.
+                      final narrow = constraints.maxWidth < 700;
+                      if (narrow && selectedPayout != null) {
+                        return _PayoutDetailPanel(payout: selectedPayout);
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: _PayoutsList(
+                              payouts: payouts,
+                              selectedPayoutId: selectedPayoutId,
                             ),
                           ),
-                        ),
-                    ],
+                          if (selectedPayout != null)
+                            SizedBox(
+                              width: 400,
+                              child: _PayoutDetailPanel(
+                                payout: selectedPayout,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
         };
       },
@@ -203,6 +217,26 @@ class _PayoutCard extends StatelessWidget {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: reconciled
+                  ? NubiaButton(
+                      key: Key('payout_action_detail_${payout.id}'),
+                      label: 'Détail',
+                      variant: NubiaButtonVariant.secondary,
+                      size: NubiaButtonSize.sm,
+                      icon: Icons.visibility,
+                      onPressed: onTap,
+                    )
+                  : NubiaButton(
+                      key: Key('payout_action_analyze_${payout.id}'),
+                      label: 'Analyser',
+                      size: NubiaButtonSize.sm,
+                      icon: Icons.search,
+                      onPressed: onTap,
+                    ),
+            ),
           ],
         ),
       ),
@@ -224,7 +258,9 @@ class _PayoutDetailPanel extends StatelessWidget {
         payout.reconciliationStatus == PayoutReconciliationStatus.reconciled;
     final probableLead = _probableLead(payout);
     return DecoratedBox(
+      key: const Key('payout_detail_panel'),
       decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
         border: Border(
           left: BorderSide(
             color: Theme.of(context).extension<NubiaTokens>()!.borderSubtle,
@@ -238,10 +274,18 @@ class _PayoutDetailPanel extends StatelessWidget {
           children: [
             Row(
               children: [
+                Icon(
+                  Icons.account_balance,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '${_providerLabel(payout.provider)} · ${payout.id}',
+                    'Virement du ${_shortDate(payout.arrivalDate)} · '
+                    '${_providerLabel(payout.provider)}',
                     style: Theme.of(context).textTheme.titleMedium,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
