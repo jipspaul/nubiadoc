@@ -51,6 +51,16 @@ pub struct PatientItem {
     /// Nombre de RDV en statut `no_show` (#4090), même agrégat que
     /// `PatientAdminSection.no_show_count`. Voir [`PatientItem::balance_due_cents`].
     pub no_show_count: i64,
+    /// Au moins une alerte accueil active (#5970) — même condition que
+    /// `GET /cabinet/patients/:id/alerts` (`patient_alerts.rs`) : facture
+    /// signée impayée échue depuis plus de 30 jours, ou carte mutuelle non
+    /// scannée. Alimente le filtre rapide "Alertes" et la pastille de liste
+    /// côté Flutter (`patients_page.dart`).
+    pub has_active_alerts: bool,
+    /// Au moins un RDV à venir (#5970), même condition que
+    /// `GET /cabinet/appointments?filter=upcoming` (`appointments_read.rs`).
+    /// Alimente le filtre rapide "Sans RDV à venir" côté Flutter.
+    pub has_upcoming_appointment: bool,
 }
 
 #[derive(Serialize)]
@@ -190,7 +200,39 @@ pub async fn list_cabinet_patients(
                  ) * 100)::bigint AS balance_due_cents, \
                 (SELECT count(*)::bigint FROM appointment \
                  WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
-                   AND status = 'no_show') AS no_show_count \
+                   AND status = 'no_show') AS no_show_count, \
+                ( \
+                  ( \
+                    COALESCE((SELECT SUM(qi.qty * qi.unit_amount \
+                                        - COALESCE(qi.amo_part, 0) - COALESCE(qi.amc_part, 0)) \
+                              FROM quote_item qi JOIN quote q ON q.id = qi.quote_id \
+                              WHERE q.patient_id = p.id AND q.cabinet_id = p.cabinet_id \
+                                AND q.status = 'signed' AND q.deleted_at IS NULL), 0) \
+                    - \
+                    COALESCE((SELECT SUM(amount) FROM payment \
+                              WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                                AND status IN ('pending', 'paid')), 0) \
+                  ) > 0 \
+                  AND EXISTS (SELECT 1 FROM quote \
+                              WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                                AND status = 'signed' AND deleted_at IS NULL \
+                                AND signed_at < now() - interval '30 days') \
+                ) OR NOT EXISTS ( \
+                  SELECT 1 FROM document \
+                  WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                    AND category = 'carte_mutuelle' AND deleted_at IS NULL \
+                ) AS has_active_alerts, \
+                EXISTS ( \
+                  SELECT 1 FROM appointment a \
+                  WHERE a.patient_id = p.id AND a.cabinet_id = p.cabinet_id \
+                    AND a.deleted_at IS NULL \
+                    AND ( \
+                      (a.status IN ('checked_in', 'in_progress') \
+                       AND a.starts_at >= now() - interval '1 day' \
+                       AND a.starts_at < now() + interval '1 day') \
+                      OR (a.starts_at > now() AND a.status IN ('requested', 'confirmed')) \
+                    ) \
+                ) AS has_upcoming_appointment \
          FROM patient p \
          WHERE p.deleted_at IS NULL\
          {filter_clause}{sec_clause} \
@@ -261,6 +303,12 @@ pub async fn list_cabinet_patients(
         let no_show_count: i64 = row
             .try_get("no_show_count")
             .map_err(|_| AppError::Internal)?;
+        let has_active_alerts: bool = row
+            .try_get("has_active_alerts")
+            .map_err(|_| AppError::Internal)?;
+        let has_upcoming_appointment: bool = row
+            .try_get("has_upcoming_appointment")
+            .map_err(|_| AppError::Internal)?;
 
         last_created_at = Some(created_at);
         last_id = Some(id);
@@ -273,6 +321,8 @@ pub async fn list_cabinet_patients(
             created_at: created_at.to_rfc3339(),
             balance_due_cents,
             no_show_count,
+            has_active_alerts,
+            has_upcoming_appointment,
         });
     }
 
