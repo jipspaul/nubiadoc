@@ -697,6 +697,114 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // #5075 — état « à confirmer » porté par la couleur + coin cranté.
+  // -------------------------------------------------------------------------
+  group('bloc RDV « à confirmer » — couleur + coin cranté (#5075)', () {
+    testWidgets(
+        'un RDV requested a un fond warning et un coin cranté, sans bouton '
+        'Confirmer sur le bloc', (tester) async {
+      final pending = AgendaEntry(
+        id: 'tc-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Sanchez',
+        startsAt: DateTime(2026, 7, 7, 9, 0),
+        endsAt: DateTime(2026, 7, 7, 9, 30),
+        patientName: 'Paul Sanchez',
+        motif: 'Contrôle',
+        isFree: false,
+        status: 'requested',
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([pending]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      // Coin cranté + fond warning portés directement par le bloc.
+      expect(find.byKey(const Key('entry_pending_tc-1')), findsOneWidget);
+      final card = tester.widget<NubiaCard>(find.byWidgetPredicate(
+        (w) => w is NubiaCard,
+      ));
+      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+      expect(card.backgroundColor, tokens.warningBg);
+
+      // Aucun bouton Confirmer posé directement sur le bloc — seulement
+      // accessible depuis le volet une fois le RDV sélectionné (#5079).
+      expect(find.byKey(const Key('confirm_tc-1')), findsNothing);
+
+      await gi.reset();
+    });
+
+    testWidgets('un RDV confirmed n\'a ni fond warning ni coin cranté',
+        (tester) async {
+      final confirmed = AgendaEntry(
+        id: 'tc-2',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Fontaine',
+        startsAt: DateTime(2026, 7, 7, 9, 0),
+        endsAt: DateTime(2026, 7, 7, 9, 30),
+        patientName: 'Emma Fontaine',
+        motif: 'Couronne',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([confirmed]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('entry_pending_tc-2')), findsNothing);
+      final card = tester.widget<NubiaCard>(find.byWidgetPredicate(
+        (w) => w is NubiaCard,
+      ));
+      expect(card.backgroundColor, isNull);
+
+      await gi.reset();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Filtre praticien (dropdown)
   // -------------------------------------------------------------------------
 

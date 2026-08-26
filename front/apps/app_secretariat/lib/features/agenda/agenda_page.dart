@@ -230,7 +230,7 @@ class _LoadedViewState extends State<_LoadedView> {
         : entries.indexWhere((e) => e.id == _selectedEntryId);
     if (index == -1) return;
     final selected = entries[index];
-    // Même règle que le bouton Confirmer de la carte (_EntryCard.statusRow) :
+    // Même règle que le bouton Confirmer du volet (_AgendaDetailPanel) :
     // un RDV libre ou déjà confirmé n'a pas d'action ici (409 sinon).
     if (selected.isFree || selected.isConfirmed) return;
     context.read<AgendaBloc>().add(
@@ -1622,12 +1622,19 @@ class _EntryCard extends StatelessWidget {
     );
   }
 
+  /// Texte `#78350F` (amber-900) du bloc `.ev.tc` « à confirmer » (maquette
+  /// design-v2, #5075) — même valeur que les autres surfaces `warning` à
+  /// fond clair de l'app (ex. `treatment_plans/pending_quote_card.dart`).
+  static const _pendingTextColor = Color(0xFF78350F);
+
   @override
   Widget build(BuildContext context) {
     if (entry.isFree) return _buildFreeSlot(context);
 
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final isPending = entry.isPending;
 
     final time =
         '${entry.startsAt.hour.toString().padLeft(2, '0')}:${entry.startsAt.minute.toString().padLeft(2, '0')}';
@@ -1647,97 +1654,161 @@ class _EntryCard extends StatelessWidget {
       if (practitionerName.isNotEmpty) practitionerName,
     ];
 
-    return Padding(
-      key: Key('entry_${entry.id}'),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: NubiaCard(
-        padding: const EdgeInsets.all(16),
-        state: selected ? NubiaCardState.selected : NubiaCardState.interactive,
-        onTap: onSelect,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 56,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        time,
-                        style: textTheme.titleMedium?.copyWith(
-                          color: cs.onSurface,
-                          fontWeight: FontWeight.w600,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
+    final primaryTextColor = isPending ? _pendingTextColor : cs.onSurface;
+    final secondaryTextColor =
+        isPending ? _pendingTextColor : cs.onSurfaceVariant;
+
+    // Bloc `.ev.tc` (maquette design-v2, #5075) : l'état « à confirmer »
+    // n'est plus signalé par une pastille + un bouton inline (déplacés dans
+    // le volet de détail, #5079) mais directement par la couleur du bloc —
+    // fond `warnBg`, bord gauche `warnFg`, texte `#78350F` — et un coin
+    // cranté en haut à droite (triangle `warnFg` opacité .6).
+    Widget card = NubiaCard(
+      padding: const EdgeInsets.all(16),
+      state: selected ? NubiaCardState.selected : NubiaCardState.interactive,
+      backgroundColor: isPending ? tokens.warningBg : null,
+      onTap: onSelect,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 56,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      time,
+                      style: textTheme.titleMedium?.copyWith(
+                        color: primaryTextColor,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
-                      Text(
-                        endTime,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
+                    ),
+                    Text(
+                      endTime,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: secondaryTextColor,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                // Pastille praticien (#5168) : même couleur, dérivée de
-                // practitionerId via practitionerColor, que la colonne
-                // Praticien de la salle d'attente.
-                Container(
-                  key: Key('entry_practitioner_dot_${entry.id}'),
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: practitionerColor(entry.practitionerId),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              // Pastille praticien (#5168) : même couleur, dérivée de
+              // practitionerId via practitionerColor, que la colonne
+              // Praticien de la salle d'attente.
+              Container(
+                key: Key('entry_practitioner_dot_${entry.id}'),
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: practitionerColor(entry.practitionerId),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(width: 8),
-                NubiaAvatar(
-                  initials: _initialsFrom(entry.patientName),
-                  radius: 18,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              ),
+              const SizedBox(width: 8),
+              NubiaAvatar(
+                initials: _initialsFrom(entry.patientName),
+                radius: 18,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.patientName ?? 'Patient',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.titleMedium?.copyWith(
+                        color: primaryTextColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (subtitleParts.isNotEmpty) ...[
+                      const SizedBox(height: 2),
                       Text(
-                        entry.patientName ?? 'Patient',
+                        subtitleParts.join(' · '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: textTheme.titleMedium?.copyWith(
-                          color: cs.onSurface,
-                          fontWeight: FontWeight.w500,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: secondaryTextColor,
                         ),
                       ),
-                      if (subtitleParts.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitleParts.join(' · '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
                     ],
-                  ),
+                  ],
                 ),
-              ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (isPending) {
+      card = ClipRRect(
+        key: Key('entry_pending_${entry.id}'),
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            card,
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: Container(width: 3, color: tokens.warningFg),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: CustomPaint(
+                size: const Size(18, 18),
+                painter: _NotchPainter(
+                  color: tokens.warningFg.withValues(alpha: 0.6),
+                ),
+              ),
             ),
           ],
         ),
-      ),
+      );
+    }
+
+    return Padding(
+      key: Key('entry_${entry.id}'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: card,
     );
   }
+}
+
+/// Coin cranté du bloc `.ev.tc` (maquette design-v2, #5075) : triangle plein
+/// posé dans le coin haut-droit, seul signal visuel (avec le fond `warnBg` et
+/// le bord gauche `warnFg`) de l'état « à confirmer » dans la grille — les
+/// actions (dont « Confirmer ») vivent désormais dans le volet de détail.
+class _NotchPainter extends CustomPainter {
+  _NotchPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(size.width - size.height, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _NotchPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 /// Skeleton de chargement de l'agenda (barre d'outils + liste de cartes).
