@@ -35,6 +35,7 @@ import 'dashboard_state.dart';
 import 'pending_actions_card.dart';
 import 'today_notes_bloc.dart';
 import 'today_notes_card.dart';
+import 'today_schedule_card.dart';
 import 'week_summary_card.dart';
 
 /// Entry point for the authenticated praticien home. Delegates layout to
@@ -202,6 +203,19 @@ class _DashboardLoadedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final todayScheduleCard = BlocProvider(
+      create: (_) {
+        final now = DateTime.now();
+        final weekStart = DateTime(
+          now.year,
+          now.month,
+          now.day - (now.weekday - 1),
+        );
+        return GetIt.instance<AgendaBloc>()
+          ..add(AgendaLoadRequested(weekStart: weekStart));
+      },
+      child: TodayScheduleCard(summary: summary),
+    );
     final pendingActionsCard = PendingActionsCard(summary: summary);
     final notesCard = BlocProvider(
       create: (_) => GetIt.instance<TodayNotesBloc>()
@@ -226,6 +240,8 @@ class _DashboardLoadedView extends StatelessWidget {
                       const _DashboardHeader(),
                       const SizedBox(height: 16),
                       _SummaryGrid(summary: summary),
+                      const SizedBox(height: 16),
+                      todayScheduleCard,
                     ],
                   ),
                 ),
@@ -253,6 +269,8 @@ class _DashboardLoadedView extends StatelessWidget {
               const _DashboardHeader(),
               const SizedBox(height: 16),
               _SummaryGrid(summary: summary),
+              const SizedBox(height: 16),
+              todayScheduleCard,
               const SizedBox(height: 24),
               pendingActionsCard,
               const SizedBox(height: 16),
