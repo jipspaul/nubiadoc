@@ -18,6 +18,14 @@ import 'package:app_secretariat/features/cabinet_payouts/cabinet_payouts_event.d
 import 'package:app_secretariat/features/cabinet_payouts/cabinet_payouts_page.dart';
 import 'package:app_secretariat/features/cabinet_payouts/cabinet_payouts_state.dart';
 
+Widget _wrapPage(CabinetPayoutsBloc bloc) => MaterialApp(
+      theme: NubiaTheme.light,
+      home: BlocProvider<CabinetPayoutsBloc>.value(
+        value: bloc,
+        child: const CabinetPayoutsPage(),
+      ),
+    );
+
 class MockCabinetPayoutsBloc
     extends MockBloc<CabinetPayoutsEvent, CabinetPayoutsState>
     implements CabinetPayoutsBloc {}
@@ -495,6 +503,59 @@ void main() {
         verifyNever(() => bloc.add(any()));
       },
     );
+  });
+
+  group('bouton « Exporter (CSV) » en barre d\'outils (#5104)', () {
+    testWidgets(
+      'présent avec le libellé exact et l\'icône download',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state)
+            .thenReturn(CabinetPayoutsLoaded([_reconciled, _toVerify]));
+        await tester.pumpWidget(_wrapPage(bloc));
+
+        expect(
+          find.byKey(const Key('cabinet_payouts_export_csv')),
+          findsOneWidget,
+        );
+        expect(find.text('Exporter (CSV)'), findsOneWidget);
+        expect(find.byIcon(Icons.download), findsOneWidget);
+      },
+    );
+
+    testWidgets('liste vide → bouton désactivé', (tester) async {
+      final bloc = MockCabinetPayoutsBloc();
+      when(() => bloc.state).thenReturn(const CabinetPayoutsLoaded([]));
+      await tester.pumpWidget(_wrapPage(bloc));
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('cabinet_payouts_export_csv')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('en chargement → bouton désactivé', (tester) async {
+      final bloc = MockCabinetPayoutsBloc();
+      when(() => bloc.state).thenReturn(const CabinetPayoutsLoading());
+      await tester.pumpWidget(_wrapPage(bloc));
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('cabinet_payouts_export_csv')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('virements présents → bouton activé', (tester) async {
+      final bloc = MockCabinetPayoutsBloc();
+      when(() => bloc.state)
+          .thenReturn(CabinetPayoutsLoaded([_reconciled, _toVerify]));
+      await tester.pumpWidget(_wrapPage(bloc));
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('cabinet_payouts_export_csv')),
+      );
+      expect(button.onPressed, isNotNull);
+    });
   });
 
   group('liste « Paiements internes du jour » (#5109)', () {
