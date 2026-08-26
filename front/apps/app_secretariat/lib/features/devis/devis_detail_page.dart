@@ -147,6 +147,8 @@ class _DevisDetailBody extends StatelessWidget {
         return 'Envoyé';
       case CabinetQuoteStatus.signed:
         return 'Signé';
+      case CabinetQuoteStatus.paid:
+        return 'Payé';
       case CabinetQuoteStatus.expired:
         return 'Expiré';
       case CabinetQuoteStatus.cancelled:
@@ -161,6 +163,7 @@ class _DevisDetailBody extends StatelessWidget {
       case CabinetQuoteStatus.sent:
         return StatusPillVariant.warning;
       case CabinetQuoteStatus.signed:
+      case CabinetQuoteStatus.paid:
         return StatusPillVariant.success;
       case CabinetQuoteStatus.expired:
       case CabinetQuoteStatus.cancelled:

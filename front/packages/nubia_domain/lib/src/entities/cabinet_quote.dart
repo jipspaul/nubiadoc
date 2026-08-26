@@ -1,7 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:nubia_domain/src/entities/quote.dart';
 
-enum CabinetQuoteStatus { draft, sent, signed, expired, cancelled }
+/// `paid` (#5094) : dérivé de `signed` + `quote.deposit_paid` (acompte réglé),
+/// pas un statut back distinct — voir `CabinetQuoteDto.parseStatus`.
+enum CabinetQuoteStatus { draft, sent, signed, paid, expired, cancelled }
 
 /// Devis côté cabinet (vue pro).
 /// Source : GET /v1/cabinet/quotes

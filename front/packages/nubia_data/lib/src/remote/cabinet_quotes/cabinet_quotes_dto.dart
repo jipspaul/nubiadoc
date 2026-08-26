@@ -13,6 +13,12 @@ class CabinetQuoteDto {
   final String? signedAt;
   final String? expiresAt;
 
+  /// `quote.deposit_paid` (migration 0093, #5094) : acompte réglé, sans que
+  /// `status` (brut back) ne passe par un statut `paid` — celui-ci n'existe
+  /// pas côté back (`VALID_QUOTE_STATUSES`). Absent des réponses avant #5094
+  /// → `false` par défaut (rétrocompat).
+  final bool depositPaid;
+
   /// Lignes du devis — présentes uniquement sur le détail
   /// (`GET /v1/cabinet/quotes/:id`), absentes de la liste.
   final List<QuoteLineItem>? items;
@@ -28,6 +34,7 @@ class CabinetQuoteDto {
     required this.createdAt,
     this.signedAt,
     this.expiresAt,
+    this.depositPaid = false,
     this.items,
   });
 
@@ -46,6 +53,7 @@ class CabinetQuoteDto {
       createdAt: json['created_at'] as String,
       signedAt: json['signed_at'] as String?,
       expiresAt: json['expires_at'] as String?,
+      depositPaid: json['deposit_paid'] as bool? ?? false,
       items: rawItems
           ?.map((e) => _lineFromJson(e as Map<String, dynamic>))
           .toList(),
@@ -77,21 +85,31 @@ class CabinetQuoteDto {
         patientName: patientName,
         totalCents: totalCents,
         patientShareCents: patientShareCents,
-        status: parseStatus(status),
+        status: parseStatus(status, depositPaid: depositPaid),
         createdAt: DateTime.parse(createdAt),
         signedAt: signedAt != null ? DateTime.parse(signedAt!) : null,
         expiresAt: expiresAt != null ? DateTime.parse(expiresAt!) : null,
         items: items,
       );
 
-  static CabinetQuoteStatus parseStatus(String value) {
+  /// `depositPaid` (#5094) : le back n'a pas de statut `paid` distinct
+  /// (`VALID_QUOTE_STATUSES` côté API n'inclut que
+  /// draft/sent/signed/refused/expired) — un devis `signed` dont l'acompte
+  /// est réglé (`quote.deposit_paid`) est remonté côté domaine comme
+  /// [CabinetQuoteStatus.paid] plutôt que [CabinetQuoteStatus.signed].
+  static CabinetQuoteStatus parseStatus(
+    String value, {
+    bool depositPaid = false,
+  }) {
     switch (value) {
       case 'draft':
         return CabinetQuoteStatus.draft;
       case 'sent':
         return CabinetQuoteStatus.sent;
       case 'signed':
-        return CabinetQuoteStatus.signed;
+        return depositPaid
+            ? CabinetQuoteStatus.paid
+            : CabinetQuoteStatus.signed;
       case 'expired':
         return CabinetQuoteStatus.expired;
       case 'cancelled':
