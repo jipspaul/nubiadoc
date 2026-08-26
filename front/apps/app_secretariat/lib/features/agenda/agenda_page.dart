@@ -295,14 +295,17 @@ class _LoadedViewState extends State<_LoadedView> {
                               ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          '${widget.state.entries.length} créneau(x) cette semaine',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
+                        _AgendaStats(
+                          rdvCount: widget.state.entries
+                              .where((e) => !e.isFree)
+                              .length,
+                          pendingCount: widget.state.entries
+                              .where((e) => e.isPending)
+                              .length,
+                          freeSlotsCount: bookableSlots(
+                                  widget.state.availableSlots,
+                                  widget.state.entries)
+                              .length,
                         ),
                       ],
                     ),
@@ -388,14 +391,6 @@ class _LoadedViewState extends State<_LoadedView> {
               ),
             ),
             const Divider(height: 1),
-            if (widget.state.availableSlots.any((s) => s.isAvailable))
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Text(
-                  '${widget.state.availableSlots.where((s) => s.isAvailable).length} créneau(x) disponible(s)',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
             Expanded(
               child: filteredEntries.isEmpty
                   ? const NubiaEmptyState(
@@ -444,6 +439,71 @@ class _LoadedViewState extends State<_LoadedView> {
               AgendaAppointmentCreateRequested(appointment: appointment),
             ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Trois compteurs nommés de la barre d'outils (maquette design-v2, #5081) :
+/// RDV, à confirmer (teinté `warning` — c'est la file de travail du
+/// secrétariat) et créneaux libres. Remplace l'ancien libellé ambigu
+/// « N créneau(x) cette semaine » (mélangeait RDV et créneaux libres) et le
+/// second compteur de disponibilités affiché plus bas dans la page.
+class _AgendaStats extends StatelessWidget {
+  const _AgendaStats({
+    required this.rdvCount,
+    required this.pendingCount,
+    required this.freeSlotsCount,
+  });
+
+  final int rdvCount;
+  final int pendingCount;
+  final int freeSlotsCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final neutralStyle =
+        textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant);
+
+    return Row(
+      children: [
+        Flexible(
+          child: Text(
+            '$rdvCount RDV',
+            key: const Key('agenda_stats_rdv'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: neutralStyle,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            '$pendingCount à confirmer',
+            key: const Key('agenda_stats_pending'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: neutralStyle?.copyWith(
+              color: tokens.warningFg,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            '$freeSlotsCount créneaux libres',
+            key: const Key('agenda_stats_free'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: neutralStyle,
+          ),
+        ),
+      ],
     );
   }
 }
