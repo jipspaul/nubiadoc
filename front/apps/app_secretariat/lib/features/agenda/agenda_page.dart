@@ -46,7 +46,7 @@ List<Slot> bookableSlots(List<Slot> slots, List<AgendaEntry> entries) {
 
 // ---------------------------------------------------------------------------
 
-enum _AgendaRowKind { entry, pauseBand, closedBand }
+enum _AgendaRowKind { entry, pauseBand, closedBand, todayHeader, nowLine }
 
 /// Ligne de la liste chronologique de l'agenda : soit un RDV/créneau réel
 /// ([AgendaEntry]), soit une bande de décor ([_AgendaDecorBand]) — jamais les
@@ -60,6 +60,12 @@ class _AgendaRow {
         entry = null;
   const _AgendaRow.closed(this.day)
       : kind = _AgendaRowKind.closedBand,
+        entry = null;
+  const _AgendaRow.todayHeader(this.day)
+      : kind = _AgendaRowKind.todayHeader,
+        entry = null;
+  const _AgendaRow.nowLine(this.day)
+      : kind = _AgendaRowKind.nowLine,
         entry = null;
 
   final _AgendaRowKind kind;
@@ -90,6 +96,14 @@ String get _pauseBandLabel => 'Pause déjeuner · '
 /// filtrées, un jour à la fois sur les 7 jours de `weekStart` — insère la
 /// bande pause juste avant la première entrée de la journée qui démarre à ou
 /// après 12:00 (ou en fin de journée si aucune ne le fait).
+///
+/// Jour courant (#5071) : la maquette design-v2 place l'équivalent visuel
+/// (en-tête + fond teintés `.dh.now`/`.dcol.now`, ligne `.nowline`) dans une
+/// grille en colonnes ; cet écran rend l'agenda en liste chronologique
+/// (#5073+), donc l'adaptation est une bande d'en-tête « Aujourd'hui » suivie
+/// d'une ligne rouge insérée à sa place chronologique — uniquement pour le
+/// jour du calendrier qui correspond à `DateTime.now()`, absent sinon (ex.
+/// semaine passée/future via ‹/›).
 List<_AgendaRow> _buildAgendaRows(
   DateTime weekStart,
   List<AgendaEntry> entries,
@@ -97,15 +111,28 @@ List<_AgendaRow> _buildAgendaRows(
   final sorted = [...entries]..sort((a, b) => a.startsAt.compareTo(b.startsAt));
   final rows = <_AgendaRow>[];
   var index = 0;
+  final now = DateTime.now();
   for (var i = 0; i < 7; i++) {
     final day = DateTime(weekStart.year, weekStart.month, weekStart.day + i);
     final dayEnd = day.add(const Duration(days: 1));
     final pauseStart =
         DateTime(day.year, day.month, day.day, _pauseStartHour, _pauseStartMinute);
     final closed = _closedWeekdays.contains(day.weekday);
+    final isToday = day.year == now.year &&
+        day.month == now.month &&
+        day.day == now.day;
+
+    if (isToday) {
+      rows.add(_AgendaRow.todayHeader(day));
+    }
 
     var pauseInserted = false;
+    var nowLineInserted = !isToday;
     while (index < sorted.length && sorted[index].startsAt.isBefore(dayEnd)) {
+      if (!nowLineInserted && !sorted[index].startsAt.isBefore(now)) {
+        rows.add(_AgendaRow.nowLine(day));
+        nowLineInserted = true;
+      }
       if (!closed &&
           !pauseInserted &&
           !sorted[index].startsAt.isBefore(pauseStart)) {
@@ -114,6 +141,10 @@ List<_AgendaRow> _buildAgendaRows(
       }
       rows.add(_AgendaRow.entry(sorted[index]));
       index++;
+    }
+    if (!nowLineInserted) {
+      rows.add(_AgendaRow.nowLine(day));
+      nowLineInserted = true;
     }
     if (closed) {
       rows.add(_AgendaRow.closed(day));
@@ -561,6 +592,15 @@ class _LoadedViewState extends State<_LoadedView> {
                                 '${row.day!.day} ${_WeekNavBar._months[row.day!.month - 1]} '
                                 '— Cabinet fermé',
                             height: _closedBandHeight,
+                          );
+                        case _AgendaRowKind.todayHeader:
+                          return _TodayHeaderBand(
+                            key: const Key('agenda_today_header'),
+                            day: row.day!,
+                          );
+                        case _AgendaRowKind.nowLine:
+                          return const _NowLine(
+                            key: Key('agenda_now_line'),
                           );
                       }
                     },
@@ -1693,6 +1733,92 @@ class _AgendaDecorBand extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Bande « jour courant » (maquette design-v2, en-tête `.dh.now` fond
+/// `--brand50`/jour `--brand700`/numéro `--brand800`, #5071) — équivalent
+/// liste de l'en-tête + fond de colonne teintés de la maquette (grille en
+/// colonnes) : ici une unique bande, insérée en tête des lignes du jour dont
+/// la date == `DateTime.now()` (cf. [_buildAgendaRows]), jamais rendue pour
+/// les autres jours ni si la semaine affichée ne contient pas aujourd'hui.
+class _TodayHeaderBand extends StatelessWidget {
+  const _TodayHeaderBand({super.key, required this.day});
+
+  final DateTime day;
+
+  @override
+  Widget build(BuildContext context) {
+    final weekday = _AgendaDetailPanel._weekdays[day.weekday - 1];
+    final month = _WeekNavBar._months[day.month - 1];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: NubiaColors.brand50,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: "$weekday $month · Aujourd'hui ",
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: NubiaColors.brand700,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              TextSpan(
+                text: '${day.day}',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: NubiaColors.brand800,
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Ligne « maintenant » (maquette design-v2, `.nowline` trait 1,5 px
+/// `--dangFg` + pastille 8 px, #5071) — équivalent liste de la ligne
+/// positionnée en absolu sur la colonne du jour courant : insérée à sa place
+/// chronologique parmi les lignes du jour courant (cf. [_buildAgendaRows]),
+/// jamais rendue pour les autres jours ni si la semaine affichée ne contient
+/// pas aujourd'hui.
+class _NowLine extends StatelessWidget {
+  const _NowLine({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: tokens.dangerFg,
+              shape: BoxShape.circle,
+            ),
+          ),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.only(left: 6),
+              height: 1.5,
+              color: tokens.dangerFg,
+            ),
+          ),
+        ],
       ),
     );
   }
