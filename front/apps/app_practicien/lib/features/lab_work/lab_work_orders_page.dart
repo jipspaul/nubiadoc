@@ -64,6 +64,17 @@ String _formatSentAt(String iso) {
       '${d.year}';
 }
 
+/// Initiales pour `NubiaAvatar` dérivées de `patientDisplayName` (#5058) :
+/// première lettre des deux premiers mots (« Julie Martin » → « JM »).
+String _initialsOf(String displayName) {
+  final words = displayName.trim().split(RegExp(r'\s+'));
+  final letters = words
+      .where((w) => w.isNotEmpty)
+      .take(2)
+      .map((w) => w[0].toUpperCase());
+  return letters.join();
+}
+
 /// Écran « Travaux de laboratoire » côté cabinet (#4149) : bons de travaux
 /// prothétiques groupés par statut, avec action d'avancement de statut.
 class LabWorkOrdersPage extends StatefulWidget {
@@ -495,10 +506,33 @@ class _LabWorkOrderInfo extends StatelessWidget {
       children: [
         Row(
           children: [
+            NubiaAvatar(
+              initials: _initialsOf(order.patientDisplayName),
+              radius: 16,
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                order.labName,
-                style: Theme.of(context).textTheme.titleMedium,
+                order.patientDisplayName,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (order.toothFdi != null) ...[
+              const SizedBox(width: 8),
+              _ToothFdiBadge(toothFdi: order.toothFdi!),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                order.workNature ?? order.labName,
+                style: Theme.of(context).textTheme.titleSmall,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -507,6 +541,23 @@ class _LabWorkOrderInfo extends StatelessWidget {
               key: Key('lab_work_order_status_${order.id}'),
               label: _kStatusLabels[order.status] ?? order.status,
               variant: _kStatusVariants[order.status] ?? StatusPillVariant.info,
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Icon(Icons.precision_manufacturing, size: 14, color: onSurfaceVariant),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                order.labName,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: onSurfaceVariant),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -543,6 +594,32 @@ class _LabWorkOrderInfo extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Pastille sombre carrée = n° dent FDI (maquette design-v2, point 1,
+/// #5058) — distincte du [StatusPill] (couleur/forme), pas un statut.
+class _ToothFdiBadge extends StatelessWidget {
+  const _ToothFdiBadge({required this.toothFdi});
+
+  final String toothFdi;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: NubiaColors.n800,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        toothFdi,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: NubiaColors.n0,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
     );
   }
 }

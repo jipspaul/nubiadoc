@@ -14,6 +14,7 @@ LabWorkOrder _order({
     LabWorkOrder(
       id: id,
       patientId: 'patient-$id',
+      patientDisplayName: 'Patient $id',
       labName: 'Labo $id',
       purchasePriceCents: purchasePriceCents,
       status: status,
