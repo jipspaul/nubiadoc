@@ -28,8 +28,14 @@ class AgendaLoaded extends AgendaState {
   /// semaine affichée ne contient aucun créneau/RDV pour un praticien donné.
   final Map<String, String> practitionerNames;
 
+  /// Lundi de la semaine actuellement affichée (#5082 — nécessaire pour que
+  /// la navigation clavier ←/→/T calcule la semaine suivante/précédente à
+  /// partir de la semaine réellement affichée, pas de « aujourd'hui »).
+  final DateTime weekStart;
+
   const AgendaLoaded({
     required this.entries,
+    required this.weekStart,
     this.availableSlots = const [],
     this.actionInProgress = false,
     this.actionError,
@@ -42,6 +48,7 @@ class AgendaLoaded extends AgendaState {
     bool? actionInProgress,
     String? actionError,
     Map<String, String>? practitionerNames,
+    DateTime? weekStart,
     bool clearActionError = false,
   }) =>
       AgendaLoaded(
@@ -51,6 +58,7 @@ class AgendaLoaded extends AgendaState {
         actionError:
             clearActionError ? null : (actionError ?? this.actionError),
         practitionerNames: practitionerNames ?? this.practitionerNames,
+        weekStart: weekStart ?? this.weekStart,
       );
 
   @override
@@ -60,6 +68,7 @@ class AgendaLoaded extends AgendaState {
         actionInProgress,
         actionError,
         practitionerNames,
+        weekStart,
       ];
 }
 

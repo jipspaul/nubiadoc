@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -111,7 +112,7 @@ class _AgendaBodyState extends State<_AgendaBody> {
             onRefresh: () {
               _refreshCompleter = Completer<void>();
               context.read<AgendaBloc>().add(
-                    AgendaLoadRequested(weekStart: _currentWeekStart()),
+                    AgendaLoadRequested(weekStart: state.weekStart),
                   );
               return _refreshCompleter!.future;
             },
@@ -136,9 +137,30 @@ class _LoadedView extends StatefulWidget {
 
 class _LoadedViewState extends State<_LoadedView> {
   String? _practitionerFilter;
+  String _searchQuery = '';
+  String? _selectedEntryId;
+
+  final FocusNode _listFocusNode = FocusNode(debugLabel: 'agenda_list');
+  final FocusNode _searchFocusNode = FocusNode(debugLabel: 'agenda_search');
 
   @override
-  Widget build(BuildContext context) {
+  void initState() {
+    super.initState();
+    // `autofocus` seul ne suffit pas ici : la route hôte (ModalRoute) prend
+    // le focus initial en premier — demande explicite pour que
+    // ←/→/↑/↓/⏎/T fonctionnent dès l'affichage de la grille, sans clic
+    // préalable (même pattern que stock_page.dart, #5188).
+    _listFocusNode.requestFocus();
+  }
+
+  @override
+  void dispose() {
+    _listFocusNode.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  Map<String, String> get _practitioners {
     // #4666 : roster complet (via state.practitionerNames, résolu depuis
     // ListCabinetPractitionersUseCase) — ne pas reconstruire depuis
     // `entries` seules : un praticien sans créneau/RDV cette semaine
@@ -149,122 +171,261 @@ class _LoadedViewState extends State<_LoadedView> {
         practitioners.putIfAbsent(e.practitionerId, () => e.practitionerName);
       }
     }
+    return practitioners;
+  }
 
-    final filteredEntries = _practitionerFilter == null
-        ? widget.state.entries
-        : widget.state.entries
-            .where((e) => e.practitionerId == _practitionerFilter)
-            .toList();
+  List<AgendaEntry> get _filteredEntries {
+    final query = _searchQuery.trim().toLowerCase();
+    return widget.state.entries.where((e) {
+      if (_practitionerFilter != null &&
+          e.practitionerId != _practitionerFilter) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      return (e.patientName ?? '').toLowerCase().contains(query);
+    }).toList();
+  }
 
-    return Column(
-      children: [
-        if (widget.state.actionInProgress)
-          const LinearProgressIndicator(key: Key('agenda_action_progress')),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Agenda du cabinet',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+  void _loadWeek(DateTime weekStart) {
+    context.read<AgendaBloc>().add(AgendaLoadRequested(weekStart: weekStart));
+  }
+
+  void _selectDelta(int delta, List<AgendaEntry> entries) {
+    if (entries.isEmpty) return;
+    final currentIndex = _selectedEntryId == null
+        ? -1
+        : entries.indexWhere((e) => e.id == _selectedEntryId);
+    final next = (currentIndex + delta).clamp(0, entries.length - 1);
+    setState(() => _selectedEntryId = entries[next].id);
+  }
+
+  void _confirmSelected(List<AgendaEntry> entries) {
+    final index = _selectedEntryId == null
+        ? -1
+        : entries.indexWhere((e) => e.id == _selectedEntryId);
+    if (index == -1) return;
+    final selected = entries[index];
+    // Même règle que le bouton Confirmer de la carte (_EntryCard.statusRow) :
+    // un RDV libre ou déjà confirmé n'a pas d'action ici (409 sinon).
+    if (selected.isFree || selected.isConfirmed) return;
+    context.read<AgendaBloc>().add(
+          AgendaAppointmentConfirmRequested(appointmentId: selected.id),
+        );
+  }
+
+  /// Raccourcis clavier agenda (maquette design-v2, pied de grille, #5082) :
+  /// ←/→ semaine préc./suiv., ↑/↓ sélection RDV, ⏎ confirme la sélection, T
+  /// revient à aujourd'hui, / focus la recherche patient. ⌘N est câblé via
+  /// [CallbackShortcuts] dans [build] ; ⌘K (palette de commandes) n'est PAS
+  /// câblé ici : `ProShell`/`SecretariatShell` l'ouvre déjà globalement
+  /// (recherche globale, #5389) et enveloppe cette page, donc le raccourci
+  /// fonctionne déjà sur cet écran sans code dédié.
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final entries = _filteredEntries;
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowLeft:
+        _loadWeek(widget.state.weekStart.subtract(const Duration(days: 7)));
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
+        _loadWeek(widget.state.weekStart.add(const Duration(days: 7)));
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.keyT:
+        _loadWeek(_currentWeekStart());
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowDown:
+        _selectDelta(1, entries);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowUp:
+        _selectDelta(-1, entries);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.enter:
+      case LogicalKeyboardKey.numpadEnter:
+        _confirmSelected(entries);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.slash:
+        if (!_searchFocusNode.hasFocus) {
+          _searchFocusNode.requestFocus();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      default:
+        return KeyEventResult.ignored;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final practitioners = _practitioners;
+    final filteredEntries = _filteredEntries;
+
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () {
+          if (!widget.state.actionInProgress) {
+            _showNewAppointmentDialog(context, widget.state, practitioners);
+          }
+        },
+      },
+      child: Focus(
+        focusNode: _listFocusNode,
+        onKeyEvent: _handleKey,
+        child: Column(
+          children: [
+            if (widget.state.actionInProgress)
+              const LinearProgressIndicator(
+                  key: Key('agenda_action_progress')),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Agenda du cabinet',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(
                                 color: Theme.of(context).colorScheme.onSurface,
                               ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${widget.state.entries.length} créneau(x) cette semaine',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              NubiaButton(
-                key: const Key('new_appointment_button'),
-                label: 'Nouveau RDV',
-                icon: Icons.add,
-                onPressed: widget.state.actionInProgress
-                    ? null
-                    : () => _showNewAppointmentDialog(
-                          context,
-                          widget.state,
-                          practitioners,
                         ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: InputDecorator(
-            decoration: InputDecoration(
-              isDense: true,
-              labelText: 'Praticien',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String?>(
-                key: const Key('practitioner_filter_dropdown'),
-                isExpanded: true,
-                value: _practitionerFilter,
-                onChanged: (v) => setState(() => _practitionerFilter = v),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('Tous les praticiens'),
-                  ),
-                  for (final p in practitioners.entries)
-                    DropdownMenuItem<String?>(
-                      value: p.key,
-                      child: Text(p.value),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${widget.state.entries.length} créneau(x) cette semaine',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                        ),
+                      ],
                     ),
+                  ),
+                  NubiaButton(
+                    key: const Key('new_appointment_button'),
+                    label: 'Nouveau RDV',
+                    icon: Icons.add,
+                    onPressed: widget.state.actionInProgress
+                        ? null
+                        : () => _showNewAppointmentDialog(
+                              context,
+                              widget.state,
+                              practitioners,
+                            ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: NubiaBadge.label(label: '⌘N'),
+                  ),
                 ],
               ),
             ),
-          ),
-        ),
-        const Divider(height: 1),
-        if (widget.state.availableSlots.any((s) => s.isAvailable))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Text(
-              '${widget.state.availableSlots.where((s) => s.isAvailable).length} créneau(x) disponible(s)',
-              style: Theme.of(context).textTheme.bodySmall,
+            _WeekNavBar(
+              weekStart: widget.state.weekStart,
+              onPrevWeek: () => _loadWeek(
+                  widget.state.weekStart.subtract(const Duration(days: 7))),
+              onNextWeek: () => _loadWeek(
+                  widget.state.weekStart.add(const Duration(days: 7))),
+              onToday: () => _loadWeek(_currentWeekStart()),
             ),
-          ),
-        Expanded(
-          child: filteredEntries.isEmpty
-              ? const NubiaEmptyState(
-                  key: Key('agenda_empty'),
-                  icon: Icons.calendar_month_outlined,
-                  title: 'Aucun rendez-vous cette semaine',
-                )
-              : RefreshIndicator(
-                  key: const Key('agenda_refresh_indicator'),
-                  onRefresh: widget.onRefresh,
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: filteredEntries.length,
-                    itemBuilder: (context, i) => _EntryCard(
-                      entry: filteredEntries[i],
-                      practitionerNames: practitioners,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        isDense: true,
+                        labelText: 'Praticien',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String?>(
+                          key: const Key('practitioner_filter_dropdown'),
+                          isExpanded: true,
+                          value: _practitionerFilter,
+                          onChanged: (v) =>
+                              setState(() => _practitionerFilter = v),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('Tous les praticiens'),
+                            ),
+                            for (final p in practitioners.entries)
+                              DropdownMenuItem<String?>(
+                                value: p.key,
+                                child: Text(p.value),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 240,
+                    child: NubiaSearchBar(
+                      key: const Key('agenda_patient_search'),
+                      focusNode: _searchFocusNode,
+                      hint: 'Rechercher un patient',
+                      onChanged: (value) =>
+                          setState(() => _searchQuery = value),
+                      locationChip: _searchQuery.isEmpty
+                          ? const _SearchShortcutHint()
+                          : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            if (widget.state.availableSlots.any((s) => s.isAvailable))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Text(
+                  '${widget.state.availableSlots.where((s) => s.isAvailable).length} créneau(x) disponible(s)',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
+              ),
+            Expanded(
+              child: filteredEntries.isEmpty
+                  ? const NubiaEmptyState(
+                      key: Key('agenda_empty'),
+                      icon: Icons.calendar_month_outlined,
+                      title: 'Aucun rendez-vous cette semaine',
+                    )
+                  : RefreshIndicator(
+                      key: const Key('agenda_refresh_indicator'),
+                      onRefresh: widget.onRefresh,
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: filteredEntries.length,
+                        itemBuilder: (context, i) {
+                          final entry = filteredEntries[i];
+                          return _EntryCard(
+                            entry: entry,
+                            practitionerNames: practitioners,
+                            selected: entry.id == _selectedEntryId,
+                            onSelect: () =>
+                                setState(() => _selectedEntryId = entry.id),
+                          );
+                        },
+                      ),
+                    ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -281,6 +442,118 @@ class _LoadedViewState extends State<_LoadedView> {
         practitioners: practitioners,
         onConfirm: (appointment) => context.read<AgendaBloc>().add(
               AgendaAppointmentCreateRequested(appointment: appointment),
+            ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Barre de navigation semaine (maquette design-v2, pied de grille, #5082) :
+/// ←/→ (boutons ou raccourcis clavier) changent de semaine, bouton
+/// « Aujourd'hui »/raccourci T revient à la semaine courante.
+class _WeekNavBar extends StatelessWidget {
+  const _WeekNavBar({
+    required this.weekStart,
+    required this.onPrevWeek,
+    required this.onNextWeek,
+    required this.onToday,
+  });
+
+  final DateTime weekStart;
+  final VoidCallback onPrevWeek;
+  final VoidCallback onNextWeek;
+  final VoidCallback onToday;
+
+  static const _months = [
+    'jan.',
+    'fév.',
+    'mar.',
+    'avr.',
+    'mai',
+    'juin',
+    'juil.',
+    'août',
+    'sep.',
+    'oct.',
+    'nov.',
+    'déc.',
+  ];
+
+  String get _label {
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    final startMonth = _months[weekStart.month - 1];
+    final endMonth = _months[weekEnd.month - 1];
+    if (weekStart.month == weekEnd.month) {
+      return '${weekStart.day}–${weekEnd.day} $startMonth ${weekStart.year}';
+    }
+    return '${weekStart.day} $startMonth – ${weekEnd.day} $endMonth ${weekEnd.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          IconButton(
+            key: const Key('agenda_prev_week'),
+            icon: const Icon(Icons.chevron_left),
+            tooltip: 'Semaine précédente',
+            onPressed: onPrevWeek,
+          ),
+          Expanded(
+            child: Text(
+              _label,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+          IconButton(
+            key: const Key('agenda_next_week'),
+            icon: const Icon(Icons.chevron_right),
+            tooltip: 'Semaine suivante',
+            onPressed: onNextWeek,
+          ),
+          const SizedBox(width: 8),
+          NubiaButton(
+            key: const Key('agenda_today_button'),
+            label: "Aujourd'hui",
+            size: NubiaButtonSize.sm,
+            variant: NubiaButtonVariant.tertiary,
+            onPressed: onToday,
+          ),
+          const SizedBox(width: 6),
+          const NubiaBadge.label(label: 'T'),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Indice du raccourci clavier « / » — affiché à droite de la recherche
+/// patient tant qu'elle est vide (maquette design-v2, pied de grille).
+class _SearchShortcutHint extends StatelessWidget {
+  const _SearchShortcutHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: tokens.borderDefault),
+      ),
+      child: Text(
+        '/',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
             ),
       ),
     );
@@ -495,13 +768,24 @@ String _initialsFrom(String? name) {
 }
 
 class _EntryCard extends StatelessWidget {
-  const _EntryCard({required this.entry, this.practitionerNames = const {}});
+  const _EntryCard({
+    required this.entry,
+    this.practitionerNames = const {},
+    this.selected = false,
+    this.onSelect,
+  });
   final AgendaEntry entry;
 
   /// Roster practitioner_id -> nom (#4666), utilisé en repli quand
   /// `entry.practitionerName` est vide (ex : agenda enrichi par un slot
   /// dont le nom n'aurait pas été résolu côté DTO).
   final Map<String, String> practitionerNames;
+
+  /// RDV actuellement sélectionné via navigation clavier ↑/↓ (#5082) —
+  /// pilote le style `NubiaCard.selected` et affiche le badge ⏎ à côté du
+  /// bouton Confirmer.
+  final bool selected;
+  final VoidCallback? onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -558,6 +842,10 @@ class _EntryCard extends StatelessWidget {
                               appointmentId: entry.id),
                         ),
                   ),
+                  if (selected) ...[
+                    const SizedBox(width: 8),
+                    const NubiaBadge.label(label: '⏎'),
+                  ],
                 ],
               );
 
@@ -566,6 +854,9 @@ class _EntryCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: NubiaCard(
         padding: const EdgeInsets.all(16),
+        state:
+            selected ? NubiaCardState.selected : NubiaCardState.interactive,
+        onTap: onSelect,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
