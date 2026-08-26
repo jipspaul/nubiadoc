@@ -86,9 +86,69 @@ class _DevisPageState extends State<DevisPage> {
                   context.read<DevisBloc>().add(const DevisLoadRequested()),
             );
           }
-          return const Center(child: CircularProgressIndicator());
+          return const _DevisListSkeleton();
         },
       ),
+    );
+  }
+}
+
+/// Squelette de chargement de la liste des devis, calqué sur le rythme des
+/// lignes du tableau (en-tête + lignes d'actes de [_DevisCard]/[QuoteCard]).
+class _DevisListSkeleton extends StatelessWidget {
+  const _DevisListSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      key: const Key('devis_list_skeleton'),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: 4,
+      itemBuilder: (_, __) => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: _DevisCardSkeleton(),
+      ),
+    );
+  }
+}
+
+class _DevisCardSkeleton extends StatelessWidget {
+  const _DevisCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: NubiaSkeletonLoader(height: 18, width: 140)),
+              SizedBox(width: 12),
+              NubiaSkeletonLoader(height: 22, width: 76, borderRadius: 999),
+            ],
+          ),
+          SizedBox(height: 16),
+          _DevisSkeletonLine(),
+          SizedBox(height: 12),
+          _DevisSkeletonLine(),
+        ],
+      ),
+    );
+  }
+}
+
+class _DevisSkeletonLine extends StatelessWidget {
+  const _DevisSkeletonLine();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Expanded(child: NubiaSkeletonLoader(height: 12, width: 90)),
+        SizedBox(width: 12),
+        NubiaSkeletonLoader(height: 14, width: 64),
+      ],
     );
   }
 }

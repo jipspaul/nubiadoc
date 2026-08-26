@@ -236,7 +236,8 @@ void main() {
     testWidgets('affiche le chargement en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const DevisInitial());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byKey(const Key('devis_list_skeleton')), findsOneWidget);
     });
 
     testWidgets('affiche les devis — aucun champ clinique visible',
@@ -363,7 +364,8 @@ void main() {
     testWidgets('affiche le chargement', (tester) async {
       when(() => bloc.state).thenReturn(const DevisLoading());
       await tester.pumpWidget(buildDetailPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byKey(const Key('devis_detail_skeleton')), findsOneWidget);
     });
 
     testWidgets('affiche le détail — aucun champ clinique visible',
