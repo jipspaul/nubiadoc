@@ -127,6 +127,23 @@ void main() {
     },
   );
 
+  testWidgets(
+    'cellule Virement (design-v2, #5103) : date en titre, id en sous-ligne '
+    'monospace, pastille provider',
+    (tester) async {
+      final bloc = MockCabinetPayoutsBloc();
+      when(() => bloc.state).thenReturn(CabinetPayoutsLoaded([_reconciled]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.text('28/07/2026'), findsOneWidget);
+      expect(find.text(_reconciled.id), findsOneWidget);
+      expect(find.text('STR'), findsOneWidget);
+
+      final idText = tester.widget<Text>(find.text(_reconciled.id));
+      expect(idText.style?.fontFamily, 'monospace');
+    },
+  );
+
   testWidgets('aucun virement → état vide', (tester) async {
     final bloc = MockCabinetPayoutsBloc();
     when(() => bloc.state).thenReturn(const CabinetPayoutsLoaded([]));

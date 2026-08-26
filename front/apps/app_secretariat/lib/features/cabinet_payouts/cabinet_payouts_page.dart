@@ -130,6 +130,13 @@ String _providerLabel(PayoutProvider provider) => switch (provider) {
       PayoutProvider.gocardless => 'GoCardless',
     };
 
+/// Code court de la pastille provider (maquette design-v2, point 5) — `STR`
+/// pour Stripe, `GCL` pour GoCardless.
+String _providerCode(PayoutProvider provider) => switch (provider) {
+      PayoutProvider.stripe => 'STR',
+      PayoutProvider.gocardless => 'GCL',
+    };
+
 String _pad2(int n) => n.toString().padLeft(2, '0');
 
 String _formatDate(DateTime d) => '${_pad2(d.day)}/${_pad2(d.month)}/${d.year}';
@@ -276,12 +283,31 @@ class _PayoutCard extends StatelessWidget {
           children: [
             Row(
               children: [
+                _PayoutProviderPill(provider: payout.provider),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    '${_providerLabel(payout.provider)} · ${payout.id}',
-                    style: Theme.of(context).textTheme.titleSmall,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _formatDate(payout.arrivalDate),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontFeatures: tabularFigures,
+                            ),
+                      ),
+                      Text(
+                        payout.id,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: NubiaColors.n500,
+                              fontFamily: 'monospace',
+                            ),
+                      ),
+                    ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 NubiaBadge.label(
                   key: const Key('payout_status_badge'),
                   label: reconciled ? 'Rapproché' : 'À vérifier',
@@ -327,6 +353,34 @@ class _PayoutCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Pastille provider (design-v2, point 5) : `STR`/`GCL` — identifie le
+/// prestataire d'un coup d'œil, la date reste l'information principale de
+/// la cellule (#5103).
+class _PayoutProviderPill extends StatelessWidget {
+  const _PayoutProviderPill({required this.provider});
+
+  final PayoutProvider provider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: NubiaColors.n100,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: NubiaColors.n200),
+      ),
+      child: Text(
+        _providerCode(provider),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: NubiaColors.n600,
+              fontWeight: FontWeight.w600,
+            ),
       ),
     );
   }
