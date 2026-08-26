@@ -388,7 +388,7 @@ void main() {
       final decoration = dot.decoration as BoxDecoration;
       expect(decoration.color, practitionerColor(_entry.practitionerId));
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets(
@@ -418,6 +418,17 @@ void main() {
       await tester.pump();
 
       final notice = find.byKey(const Key('agenda_confidentiality_notice'));
+      // Le décor pause déjeuner/jours fermés (#5072) allonge la liste
+      // au-delà du viewport de test — la note reste le dernier item, il faut
+      // défiler jusqu'à elle.
+      await tester.scrollUntilVisible(
+        notice,
+        300,
+        scrollable: find.descendant(
+          of: find.byKey(const Key('agenda_refresh_indicator')),
+          matching: find.byType(Scrollable),
+        ),
+      );
       expect(notice, findsOneWidget);
       expect(
         find.descendant(of: notice, matching: find.byIcon(Icons.shield)),
@@ -434,7 +445,7 @@ void main() {
         findsOneWidget,
       );
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets('affiche l\'état vide quand aucun créneau', (tester) async {
@@ -477,6 +488,103 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
 
       verify(() => mockGetAgenda(any())).called(2);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // #5072 — décor pause déjeuner / jours fermés.
+  // -------------------------------------------------------------------------
+  group('pause déjeuner + jours fermés (décor, #5072)', () {
+    // AgendaPage charge toujours `_currentWeekStart()` (semaine réelle du
+    // jour d'exécution du test, cf. agenda_page.dart) — pas `_weekStart` —
+    // donc les clés de bande se calculent sur cette semaine réelle plutôt que
+    // sur la constante de test utilisée par les blocTest ci-dessus.
+    DateTime thisWeekMonday() {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      return today.subtract(Duration(days: today.weekday - 1));
+    }
+
+    String dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
+
+    Future<void> pumpAgenda(WidgetTester tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+    }
+
+    Finder scrollableFinder() => find.descendant(
+          of: find.byKey(const Key('agenda_refresh_indicator')),
+          matching: find.byType(Scrollable),
+        );
+
+    testWidgets(
+        'affiche une bande hachurée pause déjeuner sur un jour ouvré et une '
+        'bande jour fermé sur le weekend', (tester) async {
+      await pumpAgenda(tester);
+
+      final monday = thisWeekMonday();
+
+      // Lundi de la semaine courante (jour ouvré) : bande pause déjeuner,
+      // même sans RDV ce jour-là.
+      expect(
+        find.byKey(Key('agenda_pause_band_${dayKey(monday)}')),
+        findsOneWidget,
+      );
+
+      // Samedi de la semaine courante (weekend) : bande jour fermé — la
+      // liste est allongée par le décor, il faut défiler jusqu'à elle.
+      final saturday = monday.add(const Duration(days: 5));
+      final closedKey = Key('agenda_closed_band_${dayKey(saturday)}');
+      await tester.scrollUntilVisible(
+        find.byKey(closedKey),
+        300,
+        scrollable: scrollableFinder(),
+      );
+      expect(find.byKey(closedKey), findsOneWidget);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
+        'la bande de décor n\'est pas cliquable et n\'est pas comptée dans '
+        'les compteurs RDV', (tester) async {
+      await pumpAgenda(tester);
+
+      final pauseBandKey =
+          Key('agenda_pause_band_${dayKey(thisWeekMonday())}');
+      expect(
+        find.descendant(
+          of: find.byKey(pauseBandKey),
+          matching: find.byType(InkWell),
+        ),
+        findsNothing,
+      );
+
+      // 1 seul RDV chargé (_entry) : le compteur ne comptabilise pas les
+      // bandes de décor.
+      expect(find.text('1 RDV'), findsOneWidget);
+
+      await GetIt.instance.reset();
     });
   });
 
@@ -692,7 +800,7 @@ void main() {
       await tester.pump();
       expect(find.byKey(const Key('confirm_m-1')), findsOneWidget);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
   });
 
@@ -752,7 +860,7 @@ void main() {
       // accessible depuis le volet une fois le RDV sélectionné (#5079).
       expect(find.byKey(const Key('confirm_tc-1')), findsNothing);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets('un RDV confirmed n\'a ni fond warning ni coin cranté',
@@ -804,7 +912,7 @@ void main() {
       final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
       expect(card.backgroundColor, isNot(tokens.warningBg));
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
   });
 
@@ -905,7 +1013,7 @@ void main() {
         findsOneWidget,
       );
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets(
@@ -952,7 +1060,7 @@ void main() {
       final second = colorOf();
       expect(second, first);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
   });
 
@@ -1063,7 +1171,7 @@ void main() {
       expect(find.byKey(const Key('entry_f-2')), findsNothing);
       expect(find.byKey(const Key('entry_f-3')), findsOneWidget);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
   });
 
@@ -1133,7 +1241,7 @@ void main() {
       // ' · ', jamais un ' · ' en tête isolé.
       expect(find.text('· Dr Hugo Marin'), findsNothing);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets(
@@ -1194,7 +1302,7 @@ void main() {
         findsNothing,
       );
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
   });
 
@@ -1328,7 +1436,7 @@ void main() {
       expect(captured[3].month, captured[0].month);
       expect(captured[3].day, captured[0].day);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets(
@@ -1386,7 +1494,7 @@ void main() {
       await tester.pumpAndSettle();
       verifyNever(() => mockConfirm('sel-2'));
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets('⌘N ouvre le dialogue Nouveau RDV', (tester) async {
@@ -1410,7 +1518,7 @@ void main() {
 
       expect(find.text('Nouveau rendez-vous'), findsOneWidget);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets('/ met le focus sur la recherche patient', (tester) async {
@@ -1435,7 +1543,7 @@ void main() {
           .focusNode;
       expect(focusNode?.hasFocus, isTrue);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
   });
 
@@ -1507,7 +1615,7 @@ void main() {
       expect(find.byKey(const Key('slot_readonly_label')), findsOneWidget);
       expect(find.textContaining('11:00'), findsWidgets);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
   });
 
@@ -1591,7 +1699,7 @@ void main() {
       expect(find.byKey(const Key('slot_readonly_label')), findsOneWidget);
       expect(find.textContaining('09:00'), findsWidgets);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets(
@@ -1636,7 +1744,7 @@ void main() {
       expect(find.text('Alice Durand'), findsOneWidget);
       expect(tester.widget<FilledButton>(createButton).onPressed, isNotNull);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets(
@@ -1688,7 +1796,7 @@ void main() {
       expect(appointment.slotId, freeSlot.id);
       expect(appointment.patientId, alice.id);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
   });
 }
