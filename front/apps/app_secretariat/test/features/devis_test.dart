@@ -13,6 +13,7 @@ import 'package:app_secretariat/features/devis/devis_event.dart';
 import 'package:app_secretariat/features/devis/devis_page.dart';
 import 'package:app_secretariat/features/devis/devis_state.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_kpis.dart';
+import 'package:app_secretariat/features/devis/widgets/quote_timeline.dart';
 import 'package:app_secretariat/pro_config.dart';
 
 class _MockCabinetQuotesRepository extends Mock
@@ -563,6 +564,114 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('ventilation_bar')), findsNothing);
+    });
+
+    testWidgets(
+        'affiche le bloc Suivi avec « Devis créé » et « Signature attendue » '
+        'pour un devis envoyé en attente de signature', (tester) async {
+      final pendingQuote = CabinetQuote(
+        id: 'q5',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Jean Rousseau',
+        totalCents: 20000,
+        patientShareCents: 8000,
+        status: CabinetQuoteStatus.sent,
+        createdAt: DateTime(2026, 8, 4, 9, 12),
+        expiresAt: DateTime(2026, 8, 13),
+      );
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(pendingQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('quote_timeline')), findsOneWidget);
+      expect(find.text('Suivi'), findsOneWidget);
+      expect(find.text('Devis créé'), findsOneWidget);
+      expect(find.text('04/08 · 09:12'), findsOneWidget);
+      expect(find.text('Signature attendue'), findsOneWidget);
+    });
+
+    testWidgets(
+        'bloc Suivi — devis signé : pas d\'étape « Signature attendue » '
+        'inventée', (tester) async {
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(detailQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('quote_timeline')), findsOneWidget);
+      expect(find.text('Devis créé'), findsOneWidget);
+      expect(find.text('Signature attendue'), findsNothing);
+    });
+  });
+
+  // --- QuoteTimeline (#5090) ----------------------------------------------------
+  group('QuoteTimeline', () {
+    Widget buildTimeline(CabinetQuote quote, {DateTime? now}) => MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(
+            body: QuoteTimeline(quote: quote, now: now),
+          ),
+        );
+
+    testWidgets('devis brouillon sans expiresAt : seule « Devis créé » '
+        'est affichée', (tester) async {
+      final quote = CabinetQuote(
+        id: 'q1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Alice',
+        totalCents: 10000,
+        patientShareCents: 4000,
+        status: CabinetQuoteStatus.draft,
+        createdAt: DateTime(2026, 8, 4, 9, 12),
+      );
+      await tester.pumpWidget(buildTimeline(quote));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Devis créé'), findsOneWidget);
+      expect(find.text('Signature attendue'), findsNothing);
+    });
+
+    testWidgets(
+        '« Signature attendue » affiche « expire le JJ/MM · dans N jours »',
+        (tester) async {
+      final now = DateTime(2026, 8, 10);
+      final quote = CabinetQuote(
+        id: 'q1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Alice',
+        totalCents: 10000,
+        patientShareCents: 4000,
+        status: CabinetQuoteStatus.sent,
+        createdAt: DateTime(2026, 8, 4, 9, 12),
+        expiresAt: DateTime(2026, 8, 13),
+      );
+      await tester.pumpWidget(buildTimeline(quote, now: now));
+      await tester.pumpAndSettle();
+
+      expect(find.text('expire le 13/08 · dans 3 jours'), findsOneWidget);
+    });
+
+    testWidgets('« Signature attendue » omet le décompte si déjà expiré',
+        (tester) async {
+      final now = DateTime(2026, 8, 20);
+      final quote = CabinetQuote(
+        id: 'q1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Alice',
+        totalCents: 10000,
+        patientShareCents: 4000,
+        status: CabinetQuoteStatus.sent,
+        createdAt: DateTime(2026, 8, 4, 9, 12),
+        expiresAt: DateTime(2026, 8, 13),
+      );
+      await tester.pumpWidget(buildTimeline(quote, now: now));
+      await tester.pumpAndSettle();
+
+      expect(find.text('expire le 13/08'), findsOneWidget);
+      expect(find.textContaining('dans'), findsNothing);
     });
   });
 
