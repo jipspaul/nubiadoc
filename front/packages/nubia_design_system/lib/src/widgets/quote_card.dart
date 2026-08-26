@@ -24,6 +24,10 @@ enum QuoteCardStatus {
 
   /// Refusé par le patient.
   refused,
+
+  /// Annulé (par le cabinet ou à la demande du patient) — distinct de
+  /// [refused] : clôture neutre, pas un refus (#5093).
+  cancelled,
 }
 
 /// Une ligne d'acte d'un devis : libellé + montant formaté.
@@ -109,6 +113,7 @@ class QuoteCard extends StatelessWidget {
               StatusPill(
                 label: statusStyle.label,
                 variant: statusStyle.variant,
+                icon: statusStyle.icon,
               ),
             ],
           ),
@@ -216,10 +221,11 @@ class QuoteCard extends StatelessWidget {
 /// Mapping statut → libellé FR + variant [StatusPill].
 @immutable
 class _StatusStyle {
-  const _StatusStyle(this.label, this.variant);
+  const _StatusStyle(this.label, this.variant, {this.icon});
 
   final String label;
   final StatusPillVariant variant;
+  final IconData? icon;
 
   static _StatusStyle of(QuoteCardStatus status) {
     switch (status) {
@@ -235,6 +241,12 @@ class _StatusStyle {
         return const _StatusStyle('Expiré', StatusPillVariant.error);
       case QuoteCardStatus.refused:
         return const _StatusStyle('Refusé', StatusPillVariant.error);
+      case QuoteCardStatus.cancelled:
+        return const _StatusStyle(
+          'Annulé',
+          StatusPillVariant.neutral,
+          icon: Icons.cancel,
+        );
     }
   }
 }
