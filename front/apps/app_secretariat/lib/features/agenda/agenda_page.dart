@@ -43,6 +43,16 @@ List<Slot> bookableSlots(List<Slot> slots, List<AgendaEntry> entries) {
       .toList(growable: false);
 }
 
+/// Contenu de la destination « agenda » du shell (`router/app_router.dart`).
+///
+/// #5083 — cadrage : la maquette `design/v2-screens/secretariat-agenda.png`
+/// affiche un rail de navigation gauche (`space_dashboard`, `calendar_month`,
+/// `groups`, `meeting_room`, `description`, `payments`, `inventory_2`,
+/// `settings`) à titre de décor de mise en situation (point 9, verbatim :
+/// « la refonte du shell n'est pas dans cette itération »). Ce rail est déjà
+/// fourni par `SecretariatShell`/`ProShell` (voir README.md « Navigation —
+/// surface unique (#5154) ») ; [AgendaPage] ne doit PAS le redessiner ni le
+/// dupliquer — elle reste uniquement le contenu de la branche « agenda ».
 class AgendaPage extends StatelessWidget {
   const AgendaPage({super.key});
 
