@@ -476,6 +476,8 @@ class _LoadedViewState extends State<_LoadedView> {
                   ),
                 ),
         ),
+        if (filteredEntries.any((e) => e.isFree))
+          const _FreeSlotLegend(),
       ],
     );
   }
@@ -1415,6 +1417,106 @@ class _RescheduleDialogState extends State<_RescheduleDialog> {
 
 // ---------------------------------------------------------------------------
 
+/// Rectangle au bord pointillé (maquette design-v2, créneau libre `.free`,
+/// #5077) — Flutter n'a pas de `BorderStyle.dashed` natif, d'où ce
+/// `CustomPainter` minimal plutôt qu'une dépendance externe pour un seul
+/// usage.
+class _DashedRectBox extends StatelessWidget {
+  const _DashedRectBox({required this.child, this.borderRadius = 8});
+
+  final Widget child;
+  final double borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _DashedRectPainter(
+        color: NubiaColors.n300,
+        radius: borderRadius,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Container(color: Colors.white, child: child),
+      ),
+    );
+  }
+}
+
+class _DashedRectPainter extends CustomPainter {
+  _DashedRectPainter({required this.color, this.radius = 8});
+
+  final Color color;
+  final double radius;
+
+  static const _dashWidth = 4.0;
+  static const _dashSpace = 3.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(radius),
+    );
+    final outline = Path()..addRRect(rrect);
+    final dashPath = Path();
+    for (final metric in outline.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        dashPath.addPath(
+          metric.extractPath(distance, distance + _dashWidth),
+          Offset.zero,
+        );
+        distance += _dashWidth + _dashSpace;
+      }
+    }
+    canvas.drawPath(dashPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRectPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
+}
+
+// ---------------------------------------------------------------------------
+
+/// Légende de pied de grille (maquette design-v2, #5077) : n'apparaît que
+/// si la semaine affichée contient au moins un créneau `.free`.
+class _FreeSlotLegend extends StatelessWidget {
+  const _FreeSlotLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      key: const Key('agenda_free_slot_legend'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _DashedRectBox(
+            borderRadius: 3,
+            child: const SizedBox(width: 14, height: 14),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Créneau libre — cliquer pour réserver',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 class _EntryCard extends StatelessWidget {
   const _EntryCard({
     required this.entry,
@@ -1435,8 +1537,53 @@ class _EntryCard extends StatelessWidget {
   final bool selected;
   final VoidCallback? onSelect;
 
+  /// Créneau libre `.free` de la maquette design-v2 (#5077) : rectangle au
+  /// bord pointillé `--n300`, fond blanc, contenu centré « + HH:MM » —
+  /// rendu distinct de la carte RDV (pas d'avatar/praticien/statut, un
+  /// créneau libre n'a pas d'identité patient).
+  Widget _buildFreeSlot(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final time = '${entry.startsAt.hour.toString().padLeft(2, '0')}:'
+        '${entry.startsAt.minute.toString().padLeft(2, '0')}';
+
+    return Padding(
+      key: Key('entry_${entry.id}'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: _DashedRectBox(
+        borderRadius: 10,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            key: Key('free_slot_${entry.id}'),
+            borderRadius: BorderRadius.circular(10),
+            onTap: onSelect,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.add, size: 16, color: NubiaColors.n400),
+                  const SizedBox(width: 4),
+                  Text(
+                    time,
+                    style: textTheme.titleSmall?.copyWith(
+                      color: NubiaColors.n400,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (entry.isFree) return _buildFreeSlot(context);
+
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
 
@@ -1510,8 +1657,7 @@ class _EntryCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 NubiaAvatar(
-                  initials:
-                      entry.isFree ? '+' : _initialsFrom(entry.patientName),
+                  initials: _initialsFrom(entry.patientName),
                   radius: 18,
                 ),
                 const SizedBox(width: 12),
@@ -1521,9 +1667,7 @@ class _EntryCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        entry.isFree
-                            ? 'Créneau libre'
-                            : (entry.patientName ?? 'Patient'),
+                        entry.patientName ?? 'Patient',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.titleMedium?.copyWith(

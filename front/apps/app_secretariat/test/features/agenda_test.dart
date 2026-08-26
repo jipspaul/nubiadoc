@@ -1136,6 +1136,75 @@ void main() {
   // -------------------------------------------------------------------------
   // #5078 — dialogue « Nouveau RDV » simplifié (patient en recherche).
   // -------------------------------------------------------------------------
+  group('créneau libre cliquable dans la grille (#5077)', () {
+    testWidgets(
+        'rend le créneau en rectangle pointillé « + HH:MM » et affiche la '
+        'légende de pied, un clic ouvre Nouveau RDV avec ce créneau choisi',
+        (tester) async {
+      final freeSlot = Slot(
+        id: 'slot-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        startsAt: DateTime(2026, 7, 7, 11, 0),
+        endsAt: DateTime(2026, 7, 7, 11, 30),
+        isAvailable: true,
+      );
+      final freeEntry = AgendaEntry(
+        id: 'slot-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: DateTime(2026, 7, 7, 11, 0),
+        endsAt: DateTime(2026, 7, 7, 11, 30),
+        isFree: true,
+        status: 'open',
+      );
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([freeEntry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => Right([freeSlot]));
+      final mockListPatients = MockListCabinetPatientsUseCase();
+      when(() => mockListPatients()).thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+      gi.registerFactory<ListCabinetPatientsUseCase>(() => mockListPatients);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('free_slot_slot-1')), findsOneWidget);
+      expect(find.text('11:00'), findsOneWidget);
+      expect(find.byIcon(Icons.add), findsWidgets);
+      expect(
+          find.byKey(const Key('agenda_free_slot_legend')), findsOneWidget);
+      expect(find.text('Créneau libre — cliquer pour réserver'),
+          findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('free_slot_slot-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nouveau rendez-vous'), findsOneWidget);
+      expect(find.byKey(const Key('slot_readonly_label')), findsOneWidget);
+      expect(find.textContaining('11:00'), findsWidgets);
+
+      await gi.reset();
+    });
+  });
+
   group('Nouveau RDV — dialogue simplifié (#5078)', () {
     void registerBloc(GetIt gi, MockListCabinetPatientsUseCase listPatients) {
       gi.registerFactory<AgendaBloc>(() => AgendaBloc(
