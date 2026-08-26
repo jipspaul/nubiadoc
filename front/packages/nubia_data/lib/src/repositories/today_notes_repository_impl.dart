@@ -17,15 +17,21 @@ class TodayNotesRepositoryImpl implements TodayNotesRepository {
     try {
       final raw = await _api.getTodayNotes();
       final notes = raw.map((e) {
+        final initials = (e['patient_initials'] as String?) ?? '';
+        final name = e['patient_name'] as String?;
         return ClinicalNoteSummary(
           id: (e['id'] as String?) ?? '',
           timestamp: DateTime.tryParse(
                 (e['timestamp'] ?? e['started_at'] ?? '') as String,
               ) ??
               DateTime.now(),
-          patientInitials: (e['patient_initials'] as String?) ?? '',
+          patientInitials: initials,
           status: _parseStatus(e['status'] as String?),
-          patientName: e['patient_name'] as String?,
+          // #5047 : nom réel quand l'API l'expose, sinon repli sur les
+          // initiales (l'API zéro-PII actuelle ne l'envoie pas encore).
+          patientName: (name != null && name.trim().isNotEmpty)
+              ? name
+              : initials,
         );
       }).toList();
       return Right(notes);

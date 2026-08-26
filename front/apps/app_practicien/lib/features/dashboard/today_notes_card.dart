@@ -85,15 +85,13 @@ class _NoteRow extends StatelessWidget {
     final style = NoteStatusStyle.of(entry.status);
 
     // Le nom passe en titre, heure (+ motif quand exposé) en sous-ligne
-    // (#5048). `patientName` est `null` tant que l'API ne l'expose pas
-    // (zéro PII, cf. ClinicalNoteSummary.patientName) : repli sur les
-    // initiales plutôt que de régresser sur l'heure seule en titre.
-    final title = entry.patientName ?? entry.patientInitials;
+    // (#5048). `patientName` est toujours renseigné (#5047) : nom réel côté
+    // API, ou repli sur les initiales déjà appliqué par le repository.
 
     return ListRow(
       key: Key('today_note_${entry.id}'),
       leading: NubiaAvatar(initials: entry.patientInitials, radius: 16),
-      title: title,
+      title: entry.patientName,
       subtitle: '$hour:$min',
       trailing: StatusPill(
         label: style.label,

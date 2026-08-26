@@ -84,13 +84,14 @@ void main() {
     });
 
     testWidgets(
-        'patientName absent (API zéro PII) : titre replie sur les initiales',
+        'patientName replié sur les initiales (API zéro PII) : titre = initiales',
         (tester) async {
       final entry = ClinicalNoteSummary(
         id: 'note-4',
         timestamp: DateTime(2026, 6, 22, 14, 30),
         patientInitials: 'LM',
         status: ClinicalNoteStatus.unsigned,
+        patientName: 'LM',
       );
       await tester.pumpWidget(_wrap(TodayNotesLoaded([entry])));
       await tester.pumpAndSettle();

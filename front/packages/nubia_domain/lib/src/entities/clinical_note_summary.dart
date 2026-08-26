@@ -10,19 +10,20 @@ class ClinicalNoteSummary extends Equatable {
   final String patientInitials;
   final ClinicalNoteStatus status;
 
-  /// Nom complet du patient. `null` tant que l'API `GET
-  /// /v1/cabinet/today-notes` ne l'expose pas (choix délibéré « zéro PII »,
-  /// voir `api/src/clinical.rs::TodayNoteItem` et le test
-  /// `today_notes_returns_todays_sessions`) — les vues de survol retombent
-  /// alors sur [patientInitials] (#5048).
-  final String? patientName;
+  /// Nom à afficher en titre de la ligne (#5047). Le nom complet du patient
+  /// tant que l'API `GET /v1/cabinet/today-notes` l'expose ; sinon repli sur
+  /// [patientInitials], appliqué par le repository (choix délibéré
+  /// « zéro PII » côté API, voir `api/src/clinical.rs::TodayNoteItem` et le
+  /// test `today_notes_returns_todays_sessions`) — jamais nul pour que la
+  /// ligne ait toujours un titre.
+  final String patientName;
 
   const ClinicalNoteSummary({
     required this.id,
     required this.timestamp,
     required this.patientInitials,
     required this.status,
-    this.patientName,
+    required this.patientName,
   });
 
   @override
