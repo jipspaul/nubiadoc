@@ -124,6 +124,63 @@ void main() {
     });
 
     testWidgets(
+        'la bande d\'en-tête affiche les 4 compteurs KPI avec les libellés '
+        'et variantes attendus (#5063)', (tester) async {
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(const LabWorkOrdersLoaded([_sentOrder, _fittedOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('lab_work_metrics_band')), findsOneWidget);
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_in_progress')),
+          matching: find.text('bons en cours'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_overdue')),
+          matching: find.text('en retard'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_due_this_week')),
+          matching: find.text('attendus cette semaine'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_committed')),
+          matching: find.text('engagé chez les labos'),
+        ),
+        findsOneWidget,
+      );
+
+      // Un seul bon "sent" (non fitted) : engagé = son purchasePriceCents.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_in_progress')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_committed')),
+          matching:
+              find.text(NubiaMoney.formatCents(_sentOrder.purchasePriceCents)),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
         'le bouton "Nouveau bon" affiche un feedback "à venir" plutôt que '
         'de créer silencieusement un bon (#5065)', (tester) async {
       final bloc = MockLabWorkOrdersBloc();
