@@ -64,6 +64,20 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                 .read<LabWorkOrdersBloc>()
                 .add(const LabWorkOrdersLoadRequested()),
           ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: NubiaButton(
+              key: const Key('lab_work_orders_new_button'),
+              label: 'Nouveau bon',
+              icon: Icons.add,
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Création de bon de travail à venir — bientôt disponible.'),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
       body: BlocConsumer<LabWorkOrdersBloc, LabWorkOrdersState>(
