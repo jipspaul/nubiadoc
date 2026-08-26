@@ -61,6 +61,25 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
         ));
   }
 
+  /// Action de relance labo (#5062, point 5 de la maquette) : sur un bon en
+  /// retard, relancer le labo est la bonne réponse — pas avancer le statut.
+  /// Aucun endpoint de relance n'existe côté API : feedback local en
+  /// attendant l'intégration, on ne touche pas au statut du bon.
+  void _relaunchLab(LabWorkOrder order) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Labo relancé')),
+    );
+  }
+
+  /// Bon actif (non `fitted`) dont la date de retour attendue est dépassée —
+  /// même prédicat que [computeLabWorkOrderMetrics] (#5063).
+  bool _isOverdue(LabWorkOrder order, DateTime now) {
+    if (order.status == _kStatusOrder.last) return false;
+    final expectedReturnAt = order.expectedReturnAt;
+    if (expectedReturnAt == null) return false;
+    return DateTime.parse(expectedReturnAt).isBefore(now);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -144,6 +163,7 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                   title: 'Aucun bon de travail',
                 );
               }
+              final now = DateTime.now();
               return ListView(
                 key: const Key('lab_work_orders_list'),
                 padding: const EdgeInsets.all(16),
@@ -166,87 +186,49 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: NubiaCard(
                             key: Key('lab_work_order_${order.id}'),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
+                            child: _isOverdue(order, now)
+                                ? Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                        CrossAxisAlignment.stretch,
                                     children: [
-                                      Row(
-                                        children: [
-                                          Text(order.labName,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium),
-                                          const SizedBox(width: 8),
-                                          StatusPill(
-                                            key: Key(
-                                                'lab_work_order_status_${order.id}'),
-                                            label:
-                                                _kStatusLabels[order.status] ??
-                                                    order.status,
-                                            variant: _kStatusVariants[
-                                                    order.status] ??
-                                                StatusPillVariant.info,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
+                                      _LabWorkOrderInfo(order: order),
+                                      const SizedBox(height: 12),
+                                      NubiaButton(
                                         key: Key(
-                                            'lab_work_order_footer_${order.id}'),
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              'Envoyé le '
-                                              '${_formatSentAt(order.sentAt)}',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall
-                                                  ?.copyWith(
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                                  ),
-                                            ),
-                                          ),
-                                          Text(
-                                            NubiaMoney.formatCents(
-                                                order.purchasePriceCents),
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurfaceVariant,
-                                                  fontFeatures: tabularFigures,
-                                                ),
-                                          ),
-                                        ],
+                                            'lab_work_order_relaunch_${order.id}'),
+                                        label: 'Relancer le labo',
+                                        icon: Icons.call,
+                                        isLoading: updatingId == order.id,
+                                        onPressed: updatingId == order.id
+                                            ? null
+                                            : () => _relaunchLab(order),
                                       ),
                                     ],
+                                  )
+                                : Row(
+                                    children: [
+                                      Expanded(
+                                          child: _LabWorkOrderInfo(
+                                              order: order)),
+                                      if (order.status != _kStatusOrder.last)
+                                        FilledButton.tonal(
+                                          key: Key(
+                                              'lab_work_order_advance_${order.id}'),
+                                          onPressed: updatingId == order.id
+                                              ? null
+                                              : () => _advance(order),
+                                          child: updatingId == order.id
+                                              ? const SizedBox(
+                                                  width: 16,
+                                                  height: 16,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                          strokeWidth: 2),
+                                                )
+                                              : const Text('Avancer'),
+                                        ),
+                                    ],
                                   ),
-                                ),
-                                if (order.status != _kStatusOrder.last)
-                                  FilledButton.tonal(
-                                    key: Key(
-                                        'lab_work_order_advance_${order.id}'),
-                                    onPressed: updatingId == order.id
-                                        ? null
-                                        : () => _advance(order),
-                                    child: updatingId == order.id
-                                        ? const SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                                strokeWidth: 2),
-                                          )
-                                        : const Text('Avancer'),
-                                  ),
-                              ],
-                            ),
                           ),
                         ),
                     ],
@@ -310,6 +292,55 @@ class _LabWorkOrdersMetricsBand extends StatelessWidget {
             value: NubiaMoney.formatCents(metrics.committedCents),
             label: 'engagé chez les labos',
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Bloc labo + statut + pied de carte (date d'envoi, prix), commun aux deux
+/// rendus de carte (bon en retard ou non, #5062).
+class _LabWorkOrderInfo extends StatelessWidget {
+  const _LabWorkOrderInfo({required this.order});
+
+  final LabWorkOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(order.labName, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(width: 8),
+            StatusPill(
+              key: Key('lab_work_order_status_${order.id}'),
+              label: _kStatusLabels[order.status] ?? order.status,
+              variant: _kStatusVariants[order.status] ?? StatusPillVariant.info,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          key: Key('lab_work_order_footer_${order.id}'),
+          children: [
+            Expanded(
+              child: Text(
+                'Envoyé le ${_formatSentAt(order.sentAt)}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
+            Text(
+              NubiaMoney.formatCents(order.purchasePriceCents),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontFeatures: tabularFigures,
+                  ),
+            ),
+          ],
         ),
       ],
     );

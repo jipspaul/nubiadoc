@@ -38,6 +38,8 @@ class MockLabWorkOrdersBloc
     extends MockBloc<LabWorkOrdersEvent, LabWorkOrdersState>
     implements LabWorkOrdersBloc {}
 
+class _FakeLabWorkOrdersEvent extends Fake implements LabWorkOrdersEvent {}
+
 const _sentOrder = LabWorkOrder(
   id: 'order-1',
   patientId: 'patient-1',
@@ -56,6 +58,17 @@ const _fittedOrder = LabWorkOrder(
   sentAt: '2026-01-02T09:00:00Z',
 );
 
+final _lateOrder = LabWorkOrder(
+  id: 'order-3',
+  patientId: 'patient-3',
+  labName: 'Labo Dentaire Gamma',
+  purchasePriceCents: 30000,
+  status: 'try_in',
+  sentAt: '2026-01-03T09:00:00Z',
+  expectedReturnAt:
+      DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+);
+
 Widget _wrap(LabWorkOrdersBloc bloc) => MaterialApp(
       theme: NubiaTheme.light,
       home: BlocProvider<LabWorkOrdersBloc>.value(
@@ -65,6 +78,10 @@ Widget _wrap(LabWorkOrdersBloc bloc) => MaterialApp(
     );
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(_FakeLabWorkOrdersEvent());
+  });
+
   group('LabWorkOrdersPage (widget)', () {
     testWidgets(
         'le chargement affiche un squelette par colonne, pas un spinner '
@@ -197,6 +214,39 @@ void main() {
       await tester.pump();
 
       expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets(
+        'un bon en retard affiche "Relancer le labo" au lieu du bouton '
+        'd\'avancement (#5062)', (tester) async {
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state).thenReturn(LabWorkOrdersLoaded([_lateOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_order_order-3')),
+          matching: find.text('Relancer le labo'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_relaunch_order-3')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_advance_order-3')),
+        findsNothing,
+      );
+
+      await tester
+          .tap(find.byKey(const Key('lab_work_order_relaunch_order-3')));
+      await tester.pump();
+
+      expect(find.text('Labo relancé'), findsOneWidget);
+      verifyNever(
+        () => bloc.add(any(that: isA<LabWorkOrdersStatusChangeRequested>())),
+      );
     });
   });
 
