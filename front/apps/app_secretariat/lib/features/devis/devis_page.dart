@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
+import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -21,6 +21,16 @@ class DevisPage extends StatefulWidget {
 
 class _DevisPageState extends State<DevisPage> {
   bool _sortAsc = false;
+
+  /// Id du devis affiché dans le volet latéral (design-v2, #5089) — le
+  /// détail s'ouvre désormais en volet juxtaposé à la liste plutôt qu'en
+  /// naviguant vers `/devis/:id` (qui reste fonctionnelle par accès direct,
+  /// cf. note « keep » de la maquette).
+  String? _selectedQuoteId;
+
+  void _selectQuote(String id) => setState(() => _selectedQuoteId = id);
+
+  void _closeQuoteSheet() => setState(() => _selectedQuoteId = null);
 
   @override
   void initState() {
@@ -83,7 +93,7 @@ class _DevisPageState extends State<DevisPage> {
                 subtitle: NubiaL10n.noQuotes,
               );
             }
-            return ListView.builder(
+            final listView = ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: quotes.length,
               itemBuilder: (ctx, i) => Padding(
@@ -93,9 +103,25 @@ class _DevisPageState extends State<DevisPage> {
                 ),
                 child: _DevisCard(
                   quote: quotes[i],
-                  onTap: () => ctx.go('/devis/${quotes[i].id}'),
+                  onTap: () => _selectQuote(quotes[i].id),
                 ),
               ),
+            );
+            final selectedQuoteId = _selectedQuoteId;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: listView),
+                if (selectedQuoteId != null)
+                  SizedBox(
+                    width: 392,
+                    child: _DevisSheet(
+                      key: Key('devis_sheet_$selectedQuoteId'),
+                      quoteId: selectedQuoteId,
+                      onClose: _closeQuoteSheet,
+                    ),
+                  ),
+              ],
             );
           }
           if (state is DevisError) {
@@ -213,6 +239,319 @@ class _DevisCard extends StatelessWidget {
           QuoteLine(
             label: 'Part patient',
             amount: NubiaMoney.formatCents(quote.patientShareCents),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Volet latéral droit du détail d'un devis (design-v2, #5089) — scaffold
+/// uniquement : en-tête (n° + statut + fermeture), identité patient et CTA.
+/// Les blocs internes (ventilation, suivi) restent dans `DevisDetailPage`
+/// (#5090/#5091), qui reste la page pleine accessible par navigation directe
+/// vers `/devis/:id` (note « keep » de la maquette — le volet la double sans
+/// la remplacer).
+///
+/// Possède son propre `DevisBloc` (factory GetIt, cf. `pro_di.dart`) pour ne
+/// pas interférer avec l'état `DevisLoaded` de la liste portée par le bloc
+/// parent.
+class _DevisSheet extends StatelessWidget {
+  const _DevisSheet({super.key, required this.quoteId, required this.onClose});
+
+  final String quoteId;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return BlocProvider(
+      create: (_) => GetIt.instance<DevisBloc>()
+        ..add(DevisDetailLoadRequested(quoteId)),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: tokens.borderSubtle)),
+        ),
+        child: BlocConsumer<DevisBloc, DevisState>(
+          listenWhen: (previous, current) => current is DevisSendFailure,
+          listener: (context, state) {
+            if (state is DevisSendFailure) {
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    key: const Key('devis_sheet_send_error_snackbar'),
+                    content: Text(
+                      state.message.isEmpty
+                          ? 'Envoi impossible.'
+                          : state.message,
+                    ),
+                  ),
+                );
+            }
+          },
+          builder: (context, state) {
+            if (state is DevisDetailLoaded) {
+              return _DevisSheetBody(quote: state.quote, onClose: onClose);
+            }
+            if (state is DevisSendInProgress) {
+              return _DevisSheetBody(
+                quote: state.quote,
+                onClose: onClose,
+                sending: true,
+              );
+            }
+            if (state is DevisSendFailure) {
+              return _DevisSheetBody(quote: state.quote, onClose: onClose);
+            }
+            if (state is DevisSent) {
+              return _DevisSheetBody(quote: state.quote, onClose: onClose);
+            }
+            if (state is DevisDetailError) {
+              return NubiaErrorWidget(
+                message: state.message,
+                onRetry: () => context
+                    .read<DevisBloc>()
+                    .add(DevisDetailLoadRequested(quoteId)),
+              );
+            }
+            return const _DevisSheetSkeleton();
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// Squelette de chargement du volet, calqué sur le rythme de
+/// [_DevisSheetBody] (en-tête + identité + note de cloisonnement).
+class _DevisSheetSkeleton extends StatelessWidget {
+  const _DevisSheetSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      key: Key('devis_sheet_skeleton'),
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          NubiaSkeletonLoader(height: 22, width: 140),
+          SizedBox(height: 24),
+          Row(
+            children: [
+              NubiaSkeletonLoader(
+                height: 40,
+                width: 40,
+                borderRadius: 20,
+              ),
+              SizedBox(width: 12),
+              Expanded(child: NubiaSkeletonLoader(height: 16, width: 120)),
+            ],
+          ),
+          SizedBox(height: 24),
+          NubiaSkeletonLoader(height: 64, borderRadius: 10),
+        ],
+      ),
+    );
+  }
+}
+
+/// Statut affiché dans l'en-tête du volet (`.dh`, design-v2, #5089) — même
+/// sémantique/couleurs que `DevisDetailPage._statusVariant`, mais avec un
+/// libellé orienté action pour `sent` (« À signer », verbatim maquette) au
+/// lieu du libellé neutre « Envoyé » de la page pleine.
+String _sheetStatusLabel(CabinetQuoteStatus status) {
+  switch (status) {
+    case CabinetQuoteStatus.draft:
+      return 'Brouillon';
+    case CabinetQuoteStatus.sent:
+      return 'À signer';
+    case CabinetQuoteStatus.signed:
+      return 'Signé';
+    case CabinetQuoteStatus.paid:
+      return 'Payé';
+    case CabinetQuoteStatus.expired:
+      return 'Expiré';
+    case CabinetQuoteStatus.cancelled:
+      return 'Annulé';
+  }
+}
+
+StatusPillVariant _sheetStatusVariant(CabinetQuoteStatus status) {
+  switch (status) {
+    case CabinetQuoteStatus.draft:
+      return StatusPillVariant.info;
+    case CabinetQuoteStatus.sent:
+      return StatusPillVariant.warning;
+    case CabinetQuoteStatus.signed:
+    case CabinetQuoteStatus.paid:
+      return StatusPillVariant.success;
+    case CabinetQuoteStatus.expired:
+      return StatusPillVariant.error;
+    case CabinetQuoteStatus.cancelled:
+      return StatusPillVariant.neutral;
+  }
+}
+
+String _formatSheetDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/'
+    '${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+class _DevisSheetBody extends StatelessWidget {
+  const _DevisSheetBody({
+    required this.quote,
+    required this.onClose,
+    this.sending = false,
+  });
+
+  final CabinetQuote quote;
+  final VoidCallback onClose;
+  final bool sending;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  quote.id,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontFamily: 'monospace',
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              StatusPill(
+                label: _sheetStatusLabel(quote.status),
+                variant: _sheetStatusVariant(quote.status),
+              ),
+              const Spacer(),
+              IconButton(
+                key: const Key('devis_sheet_close'),
+                tooltip: 'Fermer',
+                icon: const Icon(Icons.close),
+                onPressed: onClose,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    NubiaAvatar(
+                      initials: NubiaInitials.of(quote.patientName),
+                      radius: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            quote.patientName,
+                            style: textTheme.titleMedium?.copyWith(
+                              color: cs.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          // #5089 : l'âge et le praticien de la maquette
+                          // n'existent pas sur `CabinetQuote` — omis
+                          // proprement plutôt qu'affichés en `null`.
+                          Text(
+                            'émis le ${_formatSheetDate(quote.createdAt)}',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const _DevisSheetConfidentialityNotice(),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            children: [
+              NubiaButton(
+                key: const Key('btn_relance_devis_secretariat'),
+                label: 'Relancer le patient',
+                icon: Icons.send_outlined,
+                size: NubiaButtonSize.lg,
+                isLoading: sending,
+                onPressed: sending
+                    ? null
+                    : () => context
+                        .read<DevisBloc>()
+                        .add(DevisSendRequested(quote.id)),
+              ),
+              const SizedBox(height: 8),
+              const NubiaButton(
+                key: Key('btn_call_devis_secretariat'),
+                label: 'Appeler',
+                icon: Icons.call_outlined,
+                variant: NubiaButtonVariant.secondary,
+                size: NubiaButtonSize.lg,
+                // #5089 : `CabinetQuote` n'expose pas de téléphone patient —
+                // CTA visible mais désactivé plutôt qu'un numéro inventé.
+                onPressed: null,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Bloc de cloisonnement du volet (`.prv`, verbatim maquette #5089).
+class _DevisSheetConfidentialityNotice extends StatelessWidget {
+  const _DevisSheetConfidentialityNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('devis_sheet_confidentiality_notice'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield, size: 18, color: NubiaColors.n500),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Cloisonnement secrétariat : les montants et le statut sont '
+              "visibles, le détail clinique des actes ne l'est pas.",
+              style: TextStyle(fontSize: 11.5, color: NubiaColors.n600),
+            ),
           ),
         ],
       ),
