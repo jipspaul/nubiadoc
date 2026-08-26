@@ -10,8 +10,13 @@ import 'cabinet_payouts_state.dart';
 /// `cabinet_payouts.rs`) rapproché aux paiements internes du cabinet.
 class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
     with SafeEmitMixin<CabinetPayoutsState> {
-  CabinetPayoutsBloc({required GetCabinetPayoutsUseCase getPayouts})
-      : _getPayouts = getPayouts,
+  CabinetPayoutsBloc({
+    required GetCabinetPayoutsUseCase getPayouts,
+    required MarkPayoutReconciledUseCase markReconciled,
+    required FlagPayoutToAccountantUseCase flagToAccountant,
+  })  : _getPayouts = getPayouts,
+        _markReconciled = markReconciled,
+        _flagToAccountant = flagToAccountant,
         super(const CabinetPayoutsLoading()) {
     on<CabinetPayoutsLoadRequested>(_onLoad);
     on<CabinetPayoutSelected>(_onSelected);
@@ -20,6 +25,8 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
   }
 
   final GetCabinetPayoutsUseCase _getPayouts;
+  final MarkPayoutReconciledUseCase _markReconciled;
+  final FlagPayoutToAccountantUseCase _flagToAccountant;
 
   Future<void> _onLoad(
     CabinetPayoutsLoadRequested event,
@@ -49,31 +56,41 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
   }
 
   /// Marque le virement comme rapproché — décision humaine déclenchée par
-  /// l'action, jamais automatique. `reconciliationStatus` reste le seul
-  /// pilote du badge.
-  void _onMarkedReconciled(
+  /// l'action, jamais automatique. Persisté côté back (#5969) : l'état
+  /// local n'est mis à jour qu'une fois le serveur confirmé, pour ne
+  /// jamais afficher un badge "rapproché" que le prochain refresh
+  /// annulerait. `reconciliationStatus` reste le seul pilote du badge.
+  Future<void> _onMarkedReconciled(
     CabinetPayoutMarkedReconciled event,
     Emitter<CabinetPayoutsState> emit,
-  ) {
+  ) async {
     final current = state;
     if (current is! CabinetPayoutsLoaded) return;
-    safeEmit(
-      CabinetPayoutsLoaded(
-        [
-          for (final payout in current.payouts)
-            if (payout.id == event.id) _reconciled(payout) else payout,
-        ],
-        selectedPayoutId: current.selectedPayoutId,
-      ),
-    );
+    final result = await _markReconciled(event.id);
+    result.fold((failure) {}, (_) {
+      final latest = state;
+      if (latest is! CabinetPayoutsLoaded) return;
+      safeEmit(
+        CabinetPayoutsLoaded(
+          [
+            for (final payout in latest.payouts)
+              if (payout.id == event.id) _reconciled(payout) else payout,
+          ],
+          selectedPayoutId: latest.selectedPayoutId,
+        ),
+      );
+    });
   }
 
-  /// Signale l'écart au comptable : aucun état métier dédié côté virement,
-  /// le feedback est porté par l'UI (snackbar).
-  void _onFlaggedToAccountant(
+  /// Signale l'écart au comptable (#5969) : appel réseau réel, désormais
+  /// tracé côté back — remplace l'ancien handler no-op. Aucun état métier
+  /// dédié côté virement, le feedback reste porté par l'UI (snackbar).
+  Future<void> _onFlaggedToAccountant(
     CabinetPayoutFlaggedToAccountant event,
     Emitter<CabinetPayoutsState> emit,
-  ) {}
+  ) async {
+    await _flagToAccountant(event.id);
+  }
 
   /// Copie le payout avec le statut rapproché (le domaine n'expose pas de
   /// `copyWith`).

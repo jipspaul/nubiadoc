@@ -162,7 +162,11 @@ void registerPro(GetIt gi) {
       ),
     )
     ..registerFactory<CabinetPayoutsBloc>(
-      () => CabinetPayoutsBloc(getPayouts: gi<GetCabinetPayoutsUseCase>()),
+      () => CabinetPayoutsBloc(
+        getPayouts: gi<GetCabinetPayoutsUseCase>(),
+        markReconciled: gi<MarkPayoutReconciledUseCase>(),
+        flagToAccountant: gi<FlagPayoutToAccountantUseCase>(),
+      ),
     )
     ..registerFactory<AuditLogBloc>(
       () => AuditLogBloc(getAuditLog: gi<GetAuditLogUseCase>()),

@@ -40,7 +40,8 @@
 //! `main` (le fichier n'est pas dans `paths-ignore` de `deploy.yml`) pour
 //! que le prochain run `deploy` publie enfin cette route.
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -164,6 +165,23 @@ pub async fn list_payouts(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Rapprochements manuels persistés (#5969) : une fois marqué "rapproché"
+    // par le secrétariat, le statut ne doit plus jamais régresser au simple
+    // recalcul mock, y compris après un refresh/redéploiement.
+    let reconciled_rows = sqlx::query(
+        "SELECT payout_id FROM cabinet_payout_action \
+         WHERE cabinet_id = $1 AND action = 'reconciled'",
+    )
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let manually_reconciled: std::collections::HashSet<String> = reconciled_rows
+        .iter()
+        .map(|r| r.try_get::<String, _>("payout_id"))
+        .collect::<Result<_, _>>()
+        .map_err(|_| AppError::Internal)?;
+
     let mut data = Vec::new();
     for payout in MOCK_PAYOUTS {
         if let Some(filter) = query.provider.as_deref() {
@@ -186,7 +204,9 @@ pub async fn list_payouts(
         .map_err(|_| AppError::Internal)?;
         let internal_total: i64 = row.try_get("total_cents").map_err(|_| AppError::Internal)?;
 
-        let reconciliation_status = if internal_total == payout.amount_cents {
+        let reconciliation_status = if internal_total == payout.amount_cents
+            || manually_reconciled.contains(payout.id)
+        {
             "reconciled"
         } else {
             "to_verify"
@@ -250,4 +270,66 @@ pub async fn list_payouts(
     }
 
     Ok(Json(PayoutsResponse { data }))
+}
+
+/// Enregistre une action humaine (`reconciled` ou `flagged_to_accountant`)
+/// sur un payout mock — idempotent (`ON CONFLICT DO NOTHING`, cf. migration
+/// 0237). `404` si `payout_id` ne correspond à aucun mock connu.
+async fn record_payout_action(
+    state: &AppState,
+    claims: &ProSecretaryPlusClaims,
+    payout_id: &str,
+    action: &str,
+) -> Result<(), AppError> {
+    if !MOCK_PAYOUTS.iter().any(|p| p.id == payout_id) {
+        return Err(AppError::NotFound);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO cabinet_payout_action (cabinet_id, payout_id, action, created_by) \
+         VALUES ($1, $2, $3, $4) \
+         ON CONFLICT (cabinet_id, payout_id, action) DO NOTHING",
+    )
+    .bind(claims.cabinet_id)
+    .bind(payout_id)
+    .bind(action)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+    Ok(())
+}
+
+/// `POST /v1/cabinet/payouts/:id/reconcile` — marque le virement comme
+/// rapproché (décision humaine, #5969). Persisté : survit à un refresh,
+/// contrairement à l'ancienne mutation purement locale côté Flutter.
+pub async fn reconcile_payout(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(payout_id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    record_payout_action(&state, &claims, &payout_id, "reconciled").await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /v1/cabinet/payouts/:id/flag-accountant` — signale l'écart au
+/// comptable (#5969). Aucun système de notification/email disponible pour
+/// ce mock (cf. docstring module) : la trace DB fait office d'alerte —
+/// remplace l'ancien handler vide qui ne faisait strictement rien.
+pub async fn flag_payout_to_accountant(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(payout_id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    record_payout_action(&state, &claims, &payout_id, "flagged_to_accountant").await?;
+    Ok(StatusCode::NO_CONTENT)
 }

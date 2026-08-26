@@ -123,4 +123,12 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             get(bank_deposit_slip::get_bank_deposit_slip),
         )
         .route("/v1/cabinet/payouts", get(cabinet_payouts::list_payouts))
+        .route(
+            "/v1/cabinet/payouts/:id/reconcile",
+            axum::routing::post(cabinet_payouts::reconcile_payout),
+        )
+        .route(
+            "/v1/cabinet/payouts/:id/flag-accountant",
+            axum::routing::post(cabinet_payouts::flag_payout_to_accountant),
+        )
 }
