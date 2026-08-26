@@ -123,7 +123,7 @@ void main() {
       expect(find.byKey(const Key('payout_status_badge')), findsNWidgets(2));
       expect(find.text('À vérifier'), findsOneWidget);
       expect(find.text('Rapproché'), findsOneWidget);
-      expect(find.textContaining('Écart'), findsOneWidget);
+      expect(find.text('Écart'), findsOneWidget);
     },
   );
 
@@ -176,6 +176,14 @@ void main() {
       'virement sélectionné → CTA "Marquer comme rapproché" (icône check) '
       'et bouton secondaire "Signaler au comptable"',
       (tester) async {
+        // Tableau à colonnes alignées (design-v2, point 6) + volet 400px :
+        // ne tiennent que sur un écran large, la surface de test par défaut
+        // (800px) est trop étroite une fois le volet ouvert.
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded(
@@ -206,6 +214,11 @@ void main() {
     testWidgets(
       'tap sur "Marquer comme rapproché" émet CabinetPayoutMarkedReconciled',
       (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded(
@@ -245,6 +258,11 @@ void main() {
       'tap sur "Signaler au comptable" émet CabinetPayoutFlaggedToAccountant '
       'et affiche un feedback',
       (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded(
@@ -286,6 +304,11 @@ void main() {
     testWidgets(
       'deux blocs côte à côte avec les libellés exacts et les montants',
       (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded(
@@ -315,8 +338,22 @@ void main() {
         );
         expect(find.text('Reçu en banque'), findsOneWidget);
         expect(find.text('Encaissé au cabinet'), findsOneWidget);
-        expect(find.text('1 842,00 €'), findsOneWidget);
-        expect(find.text('2 024,00 €'), findsOneWidget);
+        // Le montant apparaît aussi dans la colonne « Montant reçu » du
+        // tableau (design-v2, point 6) : on scope à la tuile de comparaison.
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('payout_comparison_bank')),
+            matching: find.text('1 842,00 €'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('payout_comparison_cabinet')),
+            matching: find.text('2 024,00 €'),
+          ),
+          findsOneWidget,
+        );
       },
     );
 
@@ -324,6 +361,11 @@ void main() {
       'écart négatif → encart danger avec le montant absolu et le sens '
       '"la banque a reçu moins que ce qui a été encaissé"',
       (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded(
@@ -370,6 +412,11 @@ void main() {
           reconciliationStatus: PayoutReconciliationStatus.toVerify,
           internalPaymentsTotalCents: 184200,
         );
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded(
@@ -402,6 +449,11 @@ void main() {
     testWidgets(
       'virement rapproché → pas d\'encart d\'écart',
       (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded(
@@ -434,6 +486,11 @@ void main() {
       'un paiement espèces non rapprochable par le prestataire égal à '
       "l'écart → encart affiché avec le mot exact",
       (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded(
@@ -471,6 +528,11 @@ void main() {
     testWidgets(
       "aucun paiement interne ne correspond à l'écart → encart absent",
       (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded([_toVerify], selectedPayoutId: _toVerify.id),
@@ -497,6 +559,11 @@ void main() {
     testWidgets(
       "l'affichage de l'encart ne modifie aucun statut (indicatif seul)",
       (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded(
@@ -580,6 +647,11 @@ void main() {
       'affiche le compteur, une ligne par paiement (moyen · heure, montant) '
       'et la mention "non rapprochable" pour les canaux physiques',
       (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded(
@@ -621,6 +693,11 @@ void main() {
     testWidgets(
       'aucun paiement interne ce jour-là → section absente',
       (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded([_toVerify], selectedPayoutId: _toVerify.id),
