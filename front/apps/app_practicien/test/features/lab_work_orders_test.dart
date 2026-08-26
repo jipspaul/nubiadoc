@@ -43,6 +43,9 @@ class _FakeLabWorkOrdersEvent extends Fake implements LabWorkOrdersEvent {}
 const _sentOrder = LabWorkOrder(
   id: 'order-1',
   patientId: 'patient-1',
+  patientDisplayName: 'Julie Martin',
+  toothFdi: '26',
+  workNature: 'Couronne céramo-métallique',
   labName: 'Labo Dentaire Alpha',
   purchasePriceCents: 15000,
   status: 'sent',
@@ -52,6 +55,9 @@ const _sentOrder = LabWorkOrder(
 const _fittedOrder = LabWorkOrder(
   id: 'order-2',
   patientId: 'patient-2',
+  patientDisplayName: 'Ahmed Belkacem',
+  toothFdi: '36',
+  workNature: 'Bridge 3 éléments',
   labName: 'Labo Dentaire Beta',
   purchasePriceCents: 20000,
   status: 'fitted',
@@ -61,6 +67,9 @@ const _fittedOrder = LabWorkOrder(
 final _lateOrder = LabWorkOrder(
   id: 'order-3',
   patientId: 'patient-3',
+  patientDisplayName: 'Sophie Roux',
+  toothFdi: '45',
+  workNature: 'Inlay céramique',
   labName: 'Labo Dentaire Gamma',
   purchasePriceCents: 30000,
   status: 'try_in',
@@ -72,6 +81,9 @@ final _lateOrder = LabWorkOrder(
 final _dueSoonOrder = LabWorkOrder(
   id: 'order-4',
   patientId: 'patient-4',
+  patientDisplayName: 'Théo Girard',
+  toothFdi: '11',
+  workNature: 'Facette céramique',
   labName: 'Labo Dentaire Delta',
   purchasePriceCents: 25000,
   status: 'sent',

@@ -76,8 +76,19 @@ fn is_forward_transition(current: &str, target: &str) -> bool {
 pub struct LabWorkOrderDto {
     pub id: Uuid,
     pub patient_id: Uuid,
+    /// `patient.first_name || ' ' || patient.last_name` (#5058, point 1 de la
+    /// maquette design-v2 : titre de carte, remplace `lab_name`).
+    pub patient_display_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quote_item_id: Option<Uuid>,
+    /// `quote_item.tooth` (#5058) — absent si le bon n'est pas rattaché à une
+    /// ligne de devis.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tooth_fdi: Option<String>,
+    /// `quote_item.label` (#5058) — absent si le bon n'est pas rattaché à une
+    /// ligne de devis.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub work_nature: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub appointment_id: Option<Uuid>,
     pub lab_name: String,
@@ -103,11 +114,16 @@ pub async fn list_lab_work_orders(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(
-        "SELECT id, patient_id, quote_item_id, appointment_id, lab_name, \
-         purchase_price_cents, status, sent_at, expected_return_at \
-         FROM lab_work_order \
-         WHERE cabinet_id = $1 \
-         ORDER BY sent_at DESC",
+        "SELECT lwo.id, lwo.patient_id, \
+         p.first_name || ' ' || p.last_name AS patient_display_name, \
+         lwo.quote_item_id, qi.tooth AS tooth_fdi, qi.label AS work_nature, \
+         lwo.appointment_id, lwo.lab_name, \
+         lwo.purchase_price_cents, lwo.status, lwo.sent_at, lwo.expected_return_at \
+         FROM lab_work_order lwo \
+         JOIN patient p ON p.id = lwo.patient_id \
+         LEFT JOIN quote_item qi ON qi.id = lwo.quote_item_id \
+         WHERE lwo.cabinet_id = $1 \
+         ORDER BY lwo.sent_at DESC",
     )
     .bind(claims.cabinet_id)
     .fetch_all(&mut *tx)
@@ -126,9 +142,14 @@ pub async fn list_lab_work_orders(
         orders.push(LabWorkOrderDto {
             id: row.try_get("id").map_err(|_| AppError::Internal)?,
             patient_id: row.try_get("patient_id").map_err(|_| AppError::Internal)?,
+            patient_display_name: row
+                .try_get("patient_display_name")
+                .map_err(|_| AppError::Internal)?,
             quote_item_id: row
                 .try_get("quote_item_id")
                 .map_err(|_| AppError::Internal)?,
+            tooth_fdi: row.try_get("tooth_fdi").map_err(|_| AppError::Internal)?,
+            work_nature: row.try_get("work_nature").map_err(|_| AppError::Internal)?,
             appointment_id: row
                 .try_get("appointment_id")
                 .map_err(|_| AppError::Internal)?,
