@@ -132,6 +132,21 @@ class _AgendaBodyDirect extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(CabinetAppointment(
+      id: '',
+      cabinetId: '',
+      patientId: '',
+      patientName: '',
+      practitionerId: '',
+      practitionerName: '',
+      startsAt: DateTime(2026, 1, 1),
+      duration: const Duration(minutes: 30),
+      motif: '',
+      status: CabinetAppointmentStatus.requested,
+    ));
+  });
+
   late MockGetCabinetAgendaUseCase mockGetAgenda;
   late MockCreateCabinetAppointmentUseCase mockCreate;
   late MockConfirmAppointmentUseCase mockConfirm;
@@ -1113,6 +1128,190 @@ void main() {
           ))
           .focusNode;
       expect(focusNode?.hasFocus, isTrue);
+
+      await gi.reset();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // #5078 — dialogue « Nouveau RDV » simplifié (patient en recherche).
+  // -------------------------------------------------------------------------
+  group('Nouveau RDV — dialogue simplifié (#5078)', () {
+    void registerBloc(GetIt gi, MockListCabinetPatientsUseCase listPatients) {
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+      gi.registerFactory<ListCabinetPatientsUseCase>(() => listPatients);
+    }
+
+    Future<void> pumpAgenda(WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    final freeSlot = Slot(
+      id: 'slot-1',
+      cabinetId: 'cab-1',
+      practitionerId: 'prac-1',
+      startsAt: DateTime(2026, 7, 7, 9, 0),
+      endsAt: DateTime(2026, 7, 7, 9, 30),
+      isAvailable: true,
+    );
+    final freeEntry = AgendaEntry(
+      id: 'slot-1',
+      cabinetId: 'cab-1',
+      practitionerId: 'prac-1',
+      practitionerName: 'Dr Martin',
+      startsAt: DateTime(2026, 7, 7, 9, 0),
+      endsAt: DateTime(2026, 7, 7, 9, 30),
+      isFree: true,
+      status: 'open',
+    );
+    final alice = CabinetPatient(
+      id: 'pat-alice',
+      cabinetId: 'cab-1',
+      firstName: 'Alice',
+      lastName: 'Durand',
+      createdAt: DateTime(2020, 1, 1),
+    );
+    final bob = CabinetPatient(
+      id: 'pat-bob',
+      cabinetId: 'cab-1',
+      firstName: 'Bob',
+      lastName: 'Martin',
+      createdAt: DateTime(2020, 1, 1),
+    );
+
+    testWidgets(
+        'ouvert depuis un créneau de la grille, affiche le créneau en lecture '
+        'seule sans menu de sélection', (tester) async {
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([freeEntry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => Right([freeSlot]));
+      final mockListPatients = MockListCabinetPatientsUseCase();
+      when(() => mockListPatients()).thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi, mockListPatients);
+
+      await pumpAgenda(tester);
+
+      await tester.tap(find.byKey(const Key('entry_slot-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nouveau rendez-vous'), findsOneWidget);
+      expect(find.byKey(const Key('slot_picker_dropdown')), findsNothing);
+      expect(find.byKey(const Key('slot_readonly_label')), findsOneWidget);
+      expect(find.textContaining('09:00'), findsWidgets);
+
+      await gi.reset();
+    });
+
+    testWidgets(
+        'le patient se choisit via une recherche filtrant par nom, et créer '
+        'reste désactivé sans patient choisi', (tester) async {
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([freeEntry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => Right([freeSlot]));
+      final mockListPatients = MockListCabinetPatientsUseCase();
+      when(() => mockListPatients())
+          .thenAnswer((_) async => Right([alice, bob]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi, mockListPatients);
+
+      await pumpAgenda(tester);
+
+      await tester.tap(find.byKey(const Key('entry_slot-1')));
+      await tester.pumpAndSettle();
+
+      // Pas de dropdown listant toute la patientèle.
+      expect(find.byKey(const Key('patient_picker_dropdown')), findsNothing);
+
+      final createButton =
+          find.byKey(const Key('create_appointment_button'));
+      expect(tester.widget<FilledButton>(createButton).onPressed, isNull);
+
+      await tester.enterText(
+          find.byKey(const Key('patient_search_field')), 'ali');
+      await tester.pumpAndSettle();
+
+      expect(
+          find.byKey(const Key('patient_option_pat-alice')), findsOneWidget);
+      expect(find.byKey(const Key('patient_option_pat-bob')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('patient_option_pat-alice')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('patient_search_field')), findsNothing);
+      expect(find.text('Alice Durand'), findsOneWidget);
+      expect(tester.widget<FilledButton>(createButton).onPressed, isNotNull);
+
+      await gi.reset();
+    });
+
+    testWidgets(
+        'créer le RDV envoie un CabinetAppointment avec slotId et le '
+        'patientId résolu par la recherche', (tester) async {
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([freeEntry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => Right([freeSlot]));
+      final mockListPatients = MockListCabinetPatientsUseCase();
+      when(() => mockListPatients()).thenAnswer((_) async => Right([alice]));
+      when(() => mockCreate(any())).thenAnswer(
+        (_) async => Right(CabinetAppointment(
+          id: 'appt-1',
+          cabinetId: 'cab-1',
+          patientId: alice.id,
+          patientName: alice.fullName,
+          practitionerId: freeSlot.practitionerId,
+          practitionerName: 'Dr Martin',
+          startsAt: freeSlot.startsAt,
+          duration: freeSlot.duration,
+          motif: 'Consultation',
+          status: CabinetAppointmentStatus.requested,
+          slotId: freeSlot.id,
+        )),
+      );
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi, mockListPatients);
+
+      await pumpAgenda(tester);
+
+      await tester.tap(find.byKey(const Key('entry_slot-1')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const Key('patient_search_field')), 'ali');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('patient_option_pat-alice')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('create_appointment_button')));
+      await tester.pumpAndSettle();
+
+      final captured = verify(() => mockCreate(captureAny())).captured;
+      expect(captured, hasLength(1));
+      final appointment = captured.first as CabinetAppointment;
+      expect(appointment.slotId, freeSlot.id);
+      expect(appointment.patientId, alice.id);
 
       await gi.reset();
     });
