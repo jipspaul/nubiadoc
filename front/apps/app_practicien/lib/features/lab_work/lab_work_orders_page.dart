@@ -141,7 +141,8 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                                         ],
                                       ),
                                       Text(
-                                        '${(order.purchasePriceCents / 100).toStringAsFixed(2)} €',
+                                        NubiaMoney.formatCents(
+                                            order.purchasePriceCents),
                                       ),
                                     ],
                                   ),
