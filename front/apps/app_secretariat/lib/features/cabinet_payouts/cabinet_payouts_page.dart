@@ -252,7 +252,14 @@ InternalPayment? _probableLead(CabinetPayout payout) {
 
 /// Corps de l'écran — consommable dans `ProShell.bodyBuilder`.
 class CabinetPayoutsBody extends StatelessWidget {
-  const CabinetPayoutsBody({super.key});
+  const CabinetPayoutsBody({super.key, this.demoMode = true});
+
+  /// Tant qu'aucun compte Stripe/GoCardless n'est réellement connecté, les
+  /// virements affichés restent des données mock (#5099, cf.
+  /// `cabinet_payout.dart`) — pas de champ dédié côté domaine pour le
+  /// signaler, donc ce booléen local. À câbler sur le vrai signal de
+  /// connexion quand il existera.
+  final bool demoMode;
 
   @override
   Widget build(BuildContext context) {
@@ -270,6 +277,7 @@ class CabinetPayoutsBody extends StatelessWidget {
           CabinetPayoutsLoaded(:final payouts, :final selectedPayoutId) =>
             Column(
               children: [
+                if (demoMode) const _NoPaymentAccountBanner(),
                 _PayoutsKpiRow(payouts: payouts),
                 Expanded(
                   child: payouts.isEmpty
@@ -318,6 +326,66 @@ class CabinetPayoutsBody extends StatelessWidget {
             ),
         };
       },
+    );
+  }
+}
+
+/// Bandeau « aucun compte connecté » (design-v2, point 1) : remplace
+/// l'ancienne note grise inline — porte l'avertissement et l'action
+/// manquante (Connecter Stripe) là où il ne peut pas être confondu avec une
+/// légende, et disparaît de lui-même une fois un compte relié.
+class _NoPaymentAccountBanner extends StatelessWidget {
+  const _NoPaymentAccountBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      key: const Key('cabinet_payouts_no_account_banner'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.warningBg,
+        border: Border(bottom: BorderSide(color: NubiaColors.warningBorder)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 20, color: tokens.warningFg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: textTheme.bodySmall?.copyWith(color: tokens.warningFg),
+                children: const [
+                  TextSpan(
+                    text: 'Aucun compte de paiement connecté.',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  TextSpan(
+                    text: ' Les virements affichés sont des données de '
+                        "démonstration : rien n'est rapproché de vos "
+                        'comptes réels.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          NubiaButton(
+            key: const Key('cabinet_payouts_connect_stripe'),
+            label: 'Connecter Stripe',
+            variant: NubiaButtonVariant.secondary,
+            size: NubiaButtonSize.sm,
+            onPressed: () => NubiaSnackbar.show(
+              context: context,
+              message: 'Connexion Stripe à venir.',
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -468,17 +536,6 @@ class _PayoutsList extends StatelessWidget {
     return Column(
       key: const Key('cabinet_payouts_list'),
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            'Virements Stripe/GoCardless (données de démonstration — aucun '
-            'compte connecté) rapprochés aux paiements internes enregistrés '
-            'le même jour.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-        ),
         const _PayoutsTableHeader(),
         Expanded(
           child: ListView.builder(
