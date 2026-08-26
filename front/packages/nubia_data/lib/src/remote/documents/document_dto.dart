@@ -34,8 +34,9 @@ class DocumentDto {
             0,
         createdAt: json['created_at'] as String,
         sha256: json['sha256'] as String?,
-        // Contrat liste (GET /v1/documents) : champ pas encore renvoyé par
-        // le back — tolérant à l'absence, câblé pour quand il le sera (#5219).
+        // Contrat liste (GET /v1/documents) : renseigné par le back quand la
+        // provenance est connue (#5219, #6005) — reste tolérant à l'absence
+        // (ex. réponse d'upload, ou provenance non résolue).
         issuer: json['issuer'] as String?,
       );
 

@@ -94,6 +94,57 @@ pub struct DocumentItem {
     pub mime_type: String,
     pub size_bytes: i64,
     pub created_at: String,
+    pub issuer: Option<String>,
+}
+
+/// Résout la provenance affichée en sous-ligne de carte document (maquette
+/// design-v2, #5219) pour un document cabinet (`cabinet_id` connu).
+///
+/// `app_user`/`practitioner`/`cabinet` sont RLS-scopés par
+/// `app.current_cabinet_id` (resp. `app.current_user_id` pour `app_user`,
+/// jamais accessible depuis une session patient) : un simple JOIN dans la
+/// requête de liste (scopée `app.patient_account_id`, pas de cabinet_id — un
+/// patient a des documents de plusieurs cabinets) ne verrait donc jamais ces
+/// lignes. On positionne le GUC cabinet le temps de cette requête ciblée,
+/// même pattern que l'audit juste après (et que `reminders.rs`) ; `provider`
+/// (annuaire public, `is_listed = true`) fournit le nom déjà formaté du
+/// praticien sans dépendre de ce GUC.
+async fn resolve_cabinet_issuer(
+    tx: &mut sqlx::PgConnection,
+    cabinet_id: Uuid,
+    uploaded_by: Option<Uuid>,
+) -> Result<Option<String>, AppError> {
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT c.raison_sociale AS cabinet_name, pv.display_name AS practitioner_display_name \
+         FROM cabinet c \
+         LEFT JOIN practitioner pr ON pr.cabinet_id = c.id AND pr.user_id = $2 \
+         LEFT JOIN provider pv ON pv.practitioner_id = pr.id \
+         WHERE c.id = $1",
+    )
+    .bind(cabinet_id)
+    .bind(uploaded_by)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        return Ok(None);
+    };
+
+    let practitioner_display_name: Option<String> = row
+        .try_get("practitioner_display_name")
+        .map_err(|_| AppError::Internal)?;
+    if practitioner_display_name.is_some() {
+        return Ok(practitioner_display_name);
+    }
+
+    row.try_get("cabinet_name").map_err(|_| AppError::Internal)
 }
 
 #[derive(Serialize)]
@@ -187,7 +238,8 @@ pub async fn list_documents(
     };
 
     let sql = format!(
-        "SELECT d.id, d.category, d.filename, d.mime_type, d.size_bytes, d.created_at, d.cabinet_id \
+        "SELECT d.id, d.category, d.filename, d.mime_type, d.size_bytes, d.created_at, \
+         d.cabinet_id, d.uploaded_by \
          FROM document d \
          WHERE d.deleted_at IS NULL\
          {category_clause}{cursor_clause} \
@@ -234,8 +286,11 @@ pub async fn list_documents(
     let mut data: Vec<DocumentItem> = Vec::with_capacity(visible.len());
     let mut last_created_at: Option<chrono::DateTime<chrono::Utc>> = None;
     let mut last_id: Option<Uuid> = None;
-    // (cabinet_id, doc_id) pour l'audit — nil UUID pour les docs plateforme (cabinet_id IS NULL)
-    let mut audit_entries: Vec<(Uuid, Uuid)> = Vec::with_capacity(visible.len());
+    // (cabinet_id pour l'audit — nil UUID pour les docs plateforme —, doc_id,
+    // cabinet_id réel, uploaded_by) : réutilisé ensuite pour l'audit ET la
+    // résolution de la provenance (même GUC cabinet requis pour les deux).
+    let mut audit_entries: Vec<(Uuid, Uuid, Option<Uuid>, Option<Uuid>)> =
+        Vec::with_capacity(visible.len());
 
     for row in visible {
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
@@ -246,10 +301,22 @@ pub async fn list_documents(
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
         let cabinet_id: Option<Uuid> = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+        let uploaded_by: Option<Uuid> =
+            row.try_get("uploaded_by").map_err(|_| AppError::Internal)?;
 
         last_created_at = Some(created_at);
         last_id = Some(id);
-        audit_entries.push((cabinet_id.unwrap_or(Uuid::nil()), id));
+        audit_entries.push((
+            cabinet_id.unwrap_or(Uuid::nil()),
+            id,
+            cabinet_id,
+            uploaded_by,
+        ));
+
+        // Document plateforme (`cabinet_id` absent — seul `upload_document`,
+        // patient, écrit sans cabinet_id) : toujours un dépôt du patient
+        // lui-même. Provenance cabinet résolue plus bas (GUC requis).
+        let issuer = cabinet_id.is_none().then(|| "Ajoutée par vous".to_string());
 
         data.push(DocumentItem {
             id,
@@ -258,14 +325,19 @@ pub async fn list_documents(
             mime_type,
             size_bytes,
             created_at: created_at.to_rfc3339(),
+            issuer,
         });
     }
 
-    // Audit — un log par document lu (action read_document, zéro PII).
-    // Le GUC app.current_cabinet_id est repositionné pour chaque cabinet via SET LOCAL.
-    for (cabinet_id, doc_id) in &audit_entries {
+    // Audit (un log par document lu, action read_document, zéro PII) et
+    // résolution de la provenance cabinet (maquette design-v2, #5219) — même
+    // boucle : le GUC app.current_cabinet_id nécessaire aux deux est
+    // repositionné une fois par document via SET LOCAL.
+    for (idx, (audit_cabinet_id, doc_id, cabinet_id, uploaded_by)) in
+        audit_entries.iter().enumerate()
+    {
         sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-            .bind(cabinet_id.to_string())
+            .bind(audit_cabinet_id.to_string())
             .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
@@ -275,12 +347,16 @@ pub async fn list_documents(
              (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
              VALUES ($1, $2, 'patient', 'read_document', 'document', $3)",
         )
-        .bind(cabinet_id)
+        .bind(audit_cabinet_id)
         .bind(claims.sub)
         .bind(doc_id)
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+        if let Some(cabinet_id) = cabinet_id {
+            data[idx].issuer = resolve_cabinet_issuer(&mut tx, *cabinet_id, *uploaded_by).await?;
+        }
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
