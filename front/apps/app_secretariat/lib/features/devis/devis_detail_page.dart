@@ -68,9 +68,67 @@ class _DevisDetailPageState extends State<DevisDetailPage> {
                   .add(DevisDetailLoadRequested(widget.id)),
             );
           }
-          return const Center(child: CircularProgressIndicator());
+          return const _DevisDetailSkeleton();
         },
       ),
+    );
+  }
+}
+
+/// Squelette de chargement du détail d'un devis, calqué sur le rythme des
+/// sections de [_DevisDetailBody] (en-tête montant + carte de lignes).
+class _DevisDetailSkeleton extends StatelessWidget {
+  const _DevisDetailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('devis_detail_skeleton'),
+      padding: const EdgeInsets.all(16),
+      children: const [
+        NubiaSkeletonLoader(height: 96, borderRadius: 16),
+        SizedBox(height: 16),
+        Center(
+          child: NubiaSkeletonLoader(height: 22, width: 90, borderRadius: 999),
+        ),
+        SizedBox(height: 16),
+        NubiaCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: NubiaSkeletonLoader(height: 18, width: 140),
+                  ),
+                  SizedBox(width: 12),
+                  NubiaSkeletonLoader(
+                    height: 22,
+                    width: 76,
+                    borderRadius: 999,
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: NubiaSkeletonLoader(height: 12, width: 90)),
+                  SizedBox(width: 12),
+                  NubiaSkeletonLoader(height: 14, width: 64),
+                ],
+              ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: NubiaSkeletonLoader(height: 12, width: 90)),
+                  SizedBox(width: 12),
+                  NubiaSkeletonLoader(height: 14, width: 64),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
