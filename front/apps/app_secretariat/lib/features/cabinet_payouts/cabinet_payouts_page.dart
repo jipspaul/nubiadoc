@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'cabinet_payouts_bloc.dart';
 import 'cabinet_payouts_event.dart';
@@ -25,11 +29,98 @@ class CabinetPayoutsPage extends StatelessWidget {
                 .read<CabinetPayoutsBloc>()
                 .add(const CabinetPayoutsLoadRequested()),
           ),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: BlocBuilder<CabinetPayoutsBloc, CabinetPayoutsState>(
+              builder: (context, state) {
+                final payouts = state is CabinetPayoutsLoaded
+                    ? state.payouts
+                    : const <CabinetPayout>[];
+                return NubiaButton(
+                  key: const Key('cabinet_payouts_export_csv'),
+                  label: 'Exporter (CSV)',
+                  icon: Icons.download,
+                  variant: NubiaButtonVariant.secondary,
+                  size: NubiaButtonSize.sm,
+                  onPressed: payouts.isEmpty
+                      ? null
+                      : () => _exportPayoutsCsv(context, payouts),
+                );
+              },
+            ),
+          ),
         ],
       ),
       body: const CabinetPayoutsBody(),
     );
   }
+}
+
+/// Export CSV des virements affichés (#5104) — destiné à l'expert-comptable
+/// pour le rapprochement bancaire. Aucune donnée clinique : moyens de
+/// paiement et montants uniquement.
+Future<void> _exportPayoutsCsv(
+  BuildContext context,
+  List<CabinetPayout> payouts,
+) async {
+  final bytes = Uint8List.fromList(utf8.encode(_payoutsToCsv(payouts)));
+  try {
+    await Share.shareXFiles(
+      [
+        XFile.fromData(
+          bytes,
+          name: 'rapprochement_virements.csv',
+          mimeType: 'text/csv',
+        ),
+      ],
+      subject: 'Rapprochement bancaire — export CSV',
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    NubiaSnackbar.show(context: context, message: "Échec de l'export CSV.");
+  }
+}
+
+String _payoutsToCsv(List<CabinetPayout> payouts) {
+  final buffer = StringBuffer()
+    ..writeln(
+      [
+        'Date',
+        'Prestataire',
+        'Identifiant',
+        'Montant reçu (EUR)',
+        'Paiements internes (EUR)',
+        'Écart (EUR)',
+        'Statut',
+      ].map(_csvField).join(','),
+    );
+  for (final payout in payouts) {
+    final reconciled =
+        payout.reconciliationStatus == PayoutReconciliationStatus.reconciled;
+    buffer.writeln(
+      [
+        _formatDate(payout.arrivalDate),
+        _providerLabel(payout.provider),
+        payout.id,
+        _csvAmount(payout.amountCents),
+        _csvAmount(payout.internalPaymentsTotalCents),
+        _csvAmount(payout.differenceCents),
+        reconciled ? 'Rapproché' : 'À vérifier',
+      ].map(_csvField).join(','),
+    );
+  }
+  return buffer.toString();
+}
+
+/// Centimes → décimal point (ex. `12.34`), exploitable tel quel par un
+/// tableur — pas de symbole monétaire ni de virgule française.
+String _csvAmount(int cents) => (cents / 100).toStringAsFixed(2);
+
+String _csvField(String value) {
+  if (value.contains(',') || value.contains('"') || value.contains('\n')) {
+    return '"${value.replaceAll('"', '""')}"';
+  }
+  return value;
 }
 
 String _euros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
