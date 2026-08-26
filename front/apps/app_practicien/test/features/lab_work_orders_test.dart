@@ -69,6 +69,17 @@ final _lateOrder = LabWorkOrder(
       DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
 );
 
+/// Layout 4 colonnes (#5060) : chaque colonne n'a qu'un quart de la largeur
+/// de la page, la surface de test par défaut (800px) ne suffit pas à
+/// afficher une carte (info + bouton) sans déborder — même convention que
+/// `consultation_clinique_layout_test.dart`, sur la largeur 1440 px de la
+/// maquette design-v2.
+Future<void> _setSurface(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(1440, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+}
+
 Widget _wrap(LabWorkOrdersBloc bloc) => MaterialApp(
       theme: NubiaTheme.light,
       home: BlocProvider<LabWorkOrdersBloc>.value(
@@ -118,6 +129,7 @@ void main() {
     });
 
     testWidgets('les bons s\'affichent groupés par statut', (tester) async {
+      await _setSurface(tester);
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state)
           .thenReturn(const LabWorkOrdersLoaded([_sentOrder, _fittedOrder]));
@@ -127,8 +139,8 @@ void main() {
       expect(find.byKey(const Key('lab_work_group_fitted')), findsOneWidget);
       expect(
         find.byKey(const Key('lab_work_group_try_in')),
-        findsNothing,
-        reason: 'aucun groupe pour un statut sans bon',
+        findsOneWidget,
+        reason: 'colonne visible même sans bon (layout 4 colonnes, #5060)',
       );
       expect(find.byKey(const Key('lab_work_order_order-1')), findsOneWidget);
       expect(find.byKey(const Key('lab_work_order_order-2')), findsOneWidget);
@@ -143,6 +155,7 @@ void main() {
     testWidgets(
         'la bande d\'en-tête affiche les 4 compteurs KPI avec les libellés '
         'et variantes attendus (#5063)', (tester) async {
+      await _setSurface(tester);
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state)
           .thenReturn(const LabWorkOrdersLoaded([_sentOrder, _fittedOrder]));
@@ -200,6 +213,7 @@ void main() {
     testWidgets(
         'le bouton "Nouveau bon" affiche un feedback "à venir" plutôt que '
         'de créer silencieusement un bon (#5065)', (tester) async {
+      await _setSurface(tester);
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state)
           .thenReturn(const LabWorkOrdersLoaded([_sentOrder]));
@@ -219,6 +233,7 @@ void main() {
     testWidgets(
         'un bon en retard affiche "Relancer le labo" au lieu du bouton '
         'd\'avancement (#5062)', (tester) async {
+      await _setSurface(tester);
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state).thenReturn(LabWorkOrdersLoaded([_lateOrder]));
       await tester.pumpWidget(_wrap(bloc));
@@ -253,6 +268,7 @@ void main() {
   group('LabWorkOrdersBloc (via LabWorkOrdersPage, vrai Bloc)', () {
     testWidgets('changer le statut d\'un bon met à jour le badge affiché',
         (tester) async {
+      await _setSurface(tester);
       final mockList = MockListLabWorkOrdersUseCase();
       final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
       when(() => mockList()).thenAnswer((_) async => const Right([_sentOrder]));
@@ -291,6 +307,7 @@ void main() {
         'un rechargement échoué alors que des bons sont affichés conserve '
         'la liste et affiche une seule surface d\'erreur (#5067)',
         (tester) async {
+      await _setSurface(tester);
       final mockList = MockListLabWorkOrdersUseCase();
       final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
       var callCount = 0;

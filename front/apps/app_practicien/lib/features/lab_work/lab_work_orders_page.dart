@@ -27,6 +27,24 @@ const _kStatusVariants = <String, StatusPillVariant>{
   'fitted': StatusPillVariant.success,
 };
 
+/// Couleur de la pastille d'en-tête de colonne (maquette design-v2, point 3) :
+/// `--infoFg`, `--warnFg`, `--brand600`, `--n400` dans l'ordre de
+/// `_kStatusOrder`. Distinct de [_kStatusVariants] (couleur du `StatusPill`
+/// affiché sur chaque carte), qui suit une autre convention.
+Color _statusDotColor(BuildContext context, String status) {
+  final tokens = Theme.of(context).extension<NubiaTokens>()!;
+  switch (status) {
+    case 'sent':
+      return tokens.infoFg;
+    case 'try_in':
+      return tokens.warningFg;
+    case 'returned':
+      return NubiaColors.brand600;
+    default:
+      return NubiaColors.n400;
+  }
+}
+
 /// Libellé du bouton d'avancement selon le statut courant (#5061, point 4 de
 /// la maquette) : annonce l'effet de la transition plutôt qu'un « Avancer »
 /// générique, sans changer l'événement émis par [_advance].
@@ -173,76 +191,40 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                 );
               }
               final now = DateTime.now();
-              return ListView(
-                key: const Key('lab_work_orders_list'),
+              return Padding(
                 padding: const EdgeInsets.all(16),
-                children: [
-                  _LabWorkOrdersMetricsBand(orders: orders),
-                  const SizedBox(height: 16),
-                  for (final status in _kStatusOrder)
-                    if (orders.any((o) => o.status == status)) ...[
-                      Padding(
-                        key: Key('lab_work_group_$status'),
-                        padding: const EdgeInsets.only(top: 8, bottom: 8),
-                        child: Text(
-                          _kStatusLabels[status] ?? status,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _LabWorkOrdersMetricsBand(orders: orders),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: Row(
+                        key: const Key('lab_work_orders_list'),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final status in _kStatusOrder) ...[
+                            if (status != _kStatusOrder.first)
+                              const SizedBox(width: 16),
+                            Expanded(
+                              child: _LabWorkStatusColumn(
+                                status: status,
+                                orders: orders
+                                    .where((o) => o.status == status)
+                                    .toList(growable: false),
+                                updatingId: updatingId,
+                                now: now,
+                                isOverdue: _isOverdue,
+                                onAdvance: _advance,
+                                onRelaunchLab: _relaunchLab,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                      for (final order
-                          in orders.where((o) => o.status == status))
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: NubiaCard(
-                            key: Key('lab_work_order_${order.id}'),
-                            child: _isOverdue(order, now)
-                                ? Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      _LabWorkOrderInfo(order: order),
-                                      const SizedBox(height: 12),
-                                      NubiaButton(
-                                        key: Key(
-                                            'lab_work_order_relaunch_${order.id}'),
-                                        label: 'Relancer le labo',
-                                        icon: Icons.call,
-                                        isLoading: updatingId == order.id,
-                                        onPressed: updatingId == order.id
-                                            ? null
-                                            : () => _relaunchLab(order),
-                                      ),
-                                    ],
-                                  )
-                                : Row(
-                                    children: [
-                                      Expanded(
-                                          child: _LabWorkOrderInfo(
-                                              order: order)),
-                                      if (order.status != _kStatusOrder.last)
-                                        FilledButton.tonal(
-                                          key: Key(
-                                              'lab_work_order_advance_${order.id}'),
-                                          onPressed: updatingId == order.id
-                                              ? null
-                                              : () => _advance(order),
-                                          child: updatingId == order.id
-                                              ? const SizedBox(
-                                                  width: 16,
-                                                  height: 16,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                          strokeWidth: 2),
-                                                )
-                                              : Text(_kStatusTransitionLabels[order.status] ??
-                                  'Avancer'),
-                                        ),
-                                    ],
-                                  ),
-                          ),
-                        ),
-                    ],
-                ],
+                    ),
+                  ],
+                ),
               );
           }
         },
@@ -301,6 +283,171 @@ class _LabWorkOrdersMetricsBand extends StatelessWidget {
             icon: Icons.payments_outlined,
             value: NubiaMoney.formatCents(metrics.committedCents),
             label: 'engagé chez les labos',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Colonne d'une des 4 étapes du pipeline (maquette design-v2, point 3) :
+/// en-tête (pastille + libellé + compteur) puis les bons de ce statut,
+/// scrollables indépendamment des 3 autres colonnes. Reste visible même sans
+/// bon — seule la liste de cartes est vide, pas la colonne.
+class _LabWorkStatusColumn extends StatelessWidget {
+  const _LabWorkStatusColumn({
+    required this.status,
+    required this.orders,
+    required this.updatingId,
+    required this.now,
+    required this.isOverdue,
+    required this.onAdvance,
+    required this.onRelaunchLab,
+  });
+
+  final String status;
+  final List<LabWorkOrder> orders;
+  final String? updatingId;
+  final DateTime now;
+  final bool Function(LabWorkOrder order, DateTime now) isOverdue;
+  final void Function(LabWorkOrder order) onAdvance;
+  final void Function(LabWorkOrder order) onRelaunchLab;
+
+  @override
+  Widget build(BuildContext context) {
+    // Maquette (point 3) : le compteur "Posé" est borné au mois en cours,
+    // les bons posés plus anciens étant archivés (cf. note en bas de
+    // colonne) — les 3 autres colonnes affichent le total brut.
+    final counterLabel = status == _kStatusOrder.last
+        ? '${orders.length} ce mois'
+        : '${orders.length}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          key: Key('lab_work_group_$status'),
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: _statusDotColor(context, status),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _kStatusLabels[status] ?? status,
+                  style: Theme.of(context).textTheme.titleSmall,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                counterLabel,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            children: [
+              for (final order in orders)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: NubiaCard(
+                    key: Key('lab_work_order_${order.id}'),
+                    child: isOverdue(order, now)
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _LabWorkOrderInfo(order: order),
+                              const SizedBox(height: 12),
+                              NubiaButton(
+                                key: Key(
+                                    'lab_work_order_relaunch_${order.id}'),
+                                label: 'Relancer le labo',
+                                icon: Icons.call,
+                                isLoading: updatingId == order.id,
+                                onPressed: updatingId == order.id
+                                    ? null
+                                    : () => onRelaunchLab(order),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _LabWorkOrderInfo(order: order),
+                              if (order.status != _kStatusOrder.last) ...[
+                                const SizedBox(height: 12),
+                                FilledButton.tonal(
+                                  key: Key(
+                                      'lab_work_order_advance_${order.id}'),
+                                  onPressed: updatingId == order.id
+                                      ? null
+                                      : () => onAdvance(order),
+                                  child: updatingId == order.id
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        )
+                                      : Text(
+                                          _kStatusTransitionLabels[
+                                                  order.status] ??
+                                              'Avancer',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                ),
+                              ],
+                            ],
+                          ),
+                  ),
+                ),
+              if (status == _kStatusOrder.last)
+                const Padding(
+                  key: Key('lab_work_column_fitted_archive_note'),
+                  padding: EdgeInsets.only(top: 4, bottom: 12),
+                  child: _LabWorkArchiveNote(),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// État vide doux en bas de la colonne « Posé » (maquette design-v2, point
+/// 3) : explique pourquoi les bons posés plus anciens n'apparaissent pas,
+/// affiché en permanence (pas seulement quand la colonne est vide).
+class _LabWorkArchiveNote extends StatelessWidget {
+  const _LabWorkArchiveNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.history, size: 16, color: onSurfaceVariant),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Les bons posés sont archivés après 30 jours',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: onSurfaceVariant),
           ),
         ),
       ],
