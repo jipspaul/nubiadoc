@@ -204,13 +204,12 @@ pub async fn list_payouts(
         .map_err(|_| AppError::Internal)?;
         let internal_total: i64 = row.try_get("total_cents").map_err(|_| AppError::Internal)?;
 
-        let reconciliation_status = if internal_total == payout.amount_cents
-            || manually_reconciled.contains(payout.id)
-        {
-            "reconciled"
-        } else {
-            "to_verify"
-        };
+        let reconciliation_status =
+            if internal_total == payout.amount_cents || manually_reconciled.contains(payout.id) {
+                "reconciled"
+            } else {
+                "to_verify"
+            };
 
         // Liste « Paiements internes du jour » (#5109) : tous les canaux
         // (pas seulement `payout.provider`, contrairement au total ci-dessus)
