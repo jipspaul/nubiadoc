@@ -216,13 +216,16 @@ pub async fn list_payouts(
 
         let mut internal_payments = Vec::with_capacity(payment_rows.len());
         for prow in &payment_rows {
-            let patient_name: String =
-                prow.try_get("patient_name").map_err(|_| AppError::Internal)?;
+            let patient_name: String = prow
+                .try_get("patient_name")
+                .map_err(|_| AppError::Internal)?;
             let method: String = prow.try_get("method").map_err(|_| AppError::Internal)?;
-            let amount_cents: i64 =
-                prow.try_get("amount_cents").map_err(|_| AppError::Internal)?;
-            let time: String =
-                prow.try_get("paid_at_time").map_err(|_| AppError::Internal)?;
+            let amount_cents: i64 = prow
+                .try_get("amount_cents")
+                .map_err(|_| AppError::Internal)?;
+            let time: String = prow
+                .try_get("paid_at_time")
+                .map_err(|_| AppError::Internal)?;
             let (method_label, reconcilable_by_provider) = describe_method(&method);
             internal_payments.push(InternalPaymentView {
                 patient_name,
