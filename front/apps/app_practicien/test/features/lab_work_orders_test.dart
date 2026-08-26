@@ -69,6 +69,17 @@ final _lateOrder = LabWorkOrder(
       DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
 );
 
+final _dueSoonOrder = LabWorkOrder(
+  id: 'order-4',
+  patientId: 'patient-4',
+  labName: 'Labo Dentaire Delta',
+  purchasePriceCents: 25000,
+  status: 'sent',
+  sentAt: '2026-01-04T09:00:00Z',
+  expectedReturnAt:
+      DateTime.now().add(const Duration(days: 20)).toIso8601String(),
+);
+
 /// Layout 4 colonnes (#5060) : chaque colonne n'a qu'un quart de la largeur
 /// de la page, la surface de test par défaut (800px) ne suffit pas à
 /// afficher une carte (info + bouton) sans déborder — même convention que
@@ -261,6 +272,47 @@ void main() {
       expect(find.text('Labo relancé'), findsOneWidget);
       verifyNever(
         () => bloc.add(any(that: isA<LabWorkOrdersStatusChangeRequested>())),
+      );
+    });
+
+    testWidgets(
+        'un bon en retard affiche "Retard de N j" en pied de carte (#5059)',
+        (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state).thenReturn(LabWorkOrdersLoaded([_lateOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_order_footer_order-3')),
+          matching: find.text('Retard de 5 j'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'un bon attendu (pas en retard) affiche "Attendu le JJ/MM" en pied '
+        'de carte (#5059)', (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state).thenReturn(LabWorkOrdersLoaded([_dueSoonOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      final expected =
+          DateTime.now().add(const Duration(days: 20)).toIso8601String();
+      final expectedDate = DateTime.parse(expected);
+      final label = 'Attendu le '
+          '${expectedDate.day.toString().padLeft(2, '0')}/'
+          '${expectedDate.month.toString().padLeft(2, '0')}';
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_order_footer_order-4')),
+          matching: find.text(label),
+        ),
+        findsOneWidget,
       );
     });
   });
