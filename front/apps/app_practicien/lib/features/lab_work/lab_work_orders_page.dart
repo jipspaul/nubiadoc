@@ -26,6 +26,15 @@ const _kStatusVariants = <String, StatusPillVariant>{
   'fitted': StatusPillVariant.success,
 };
 
+/// `sentAt` (ISO 8601) → `dd/MM/yyyy`, même convention que
+/// `patient_fiche.dart` (pas de dépendance `intl` dans ce package).
+String _formatSentAt(String iso) {
+  final d = DateTime.parse(iso);
+  return '${d.day.toString().padLeft(2, '0')}/'
+      '${d.month.toString().padLeft(2, '0')}/'
+      '${d.year}';
+}
+
 /// Écran « Travaux de laboratoire » côté cabinet (#4149) : bons de travaux
 /// prothétiques groupés par statut, avec action d'avancement de statut.
 class LabWorkOrdersPage extends StatefulWidget {
@@ -178,9 +187,40 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                                           ),
                                         ],
                                       ),
-                                      Text(
-                                        NubiaMoney.formatCents(
-                                            order.purchasePriceCents),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        key: Key(
+                                            'lab_work_order_footer_${order.id}'),
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              'Envoyé le '
+                                              '${_formatSentAt(order.sentAt)}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                            ),
+                                          ),
+                                          Text(
+                                            NubiaMoney.formatCents(
+                                                order.purchasePriceCents),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                  fontFeatures:
+                                                      tabularFigures,
+                                                ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
