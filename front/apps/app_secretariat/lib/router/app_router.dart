@@ -153,6 +153,10 @@ class AppRouter {
             StatefulShellBranch(routes: [
               GoRoute(path: home, builder: (_, __) => const DashboardBody()),
             ]),
+            // #5083 — le rail de la maquette design-v2 (secretariat-agenda.png)
+            // est un décor de mise en situation, déjà couvert par
+            // `SecretariatShell`/`ProShell` ci-dessus : `AgendaPage` reste le
+            // contenu de cette branche, rien à reproduire ici.
             StatefulShellBranch(routes: [
               GoRoute(path: agenda, builder: (_, __) => const AgendaPage()),
             ]),
