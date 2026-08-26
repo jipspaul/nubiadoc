@@ -27,4 +27,40 @@ class CabinetPayoutsRepositoryImpl implements CabinetPayoutsRepository {
       return const Left(ParseFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, Unit>> markReconciled(String id) async {
+    try {
+      await _api.reconcilePayout(id);
+      return const Right(unit);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de marquer ce virement comme rapproché.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> flagToAccountant(String id) async {
+    try {
+      await _api.flagPayoutToAccountant(id);
+      return const Right(unit);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de signaler ce virement au comptable.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
 }

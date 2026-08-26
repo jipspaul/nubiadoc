@@ -28,10 +28,19 @@ final _toVerify = CabinetPayout(
 void main() {
   late _MockCabinetPayoutsRepository repository;
 
-  setUp(() => repository = _MockCabinetPayoutsRepository());
+  setUp(() {
+    repository = _MockCabinetPayoutsRepository();
+    when(() => repository.markReconciled(any()))
+        .thenAnswer((_) async => const Right(unit));
+    when(() => repository.flagToAccountant(any()))
+        .thenAnswer((_) async => const Right(unit));
+  });
 
-  CabinetPayoutsBloc build() =>
-      CabinetPayoutsBloc(getPayouts: GetCabinetPayoutsUseCase(repository));
+  CabinetPayoutsBloc build() => CabinetPayoutsBloc(
+        getPayouts: GetCabinetPayoutsUseCase(repository),
+        markReconciled: MarkPayoutReconciledUseCase(repository),
+        flagToAccountant: FlagPayoutToAccountantUseCase(repository),
+      );
 
   blocTest<CabinetPayoutsBloc, CabinetPayoutsState>(
     'sélectionner un virement l\'affiche dans le volet ; le resélectionner '
@@ -72,12 +81,37 @@ void main() {
         state.payouts.single.reconciliationStatus,
         PayoutReconciliationStatus.reconciled,
       );
+      verify(() => repository.markReconciled(_toVerify.id)).called(1);
     },
   );
 
   blocTest<CabinetPayoutsBloc, CabinetPayoutsState>(
-    'signaler au comptable n\'émet aucun nouvel état (feedback porté par '
-    "l'UI)",
+    "marquer comme rapproché n'affecte pas l'état si la persistance "
+    'serveur échoue (#5969 : jamais de badge que le prochain refresh '
+    'annulerait)',
+    build: () {
+      when(() => repository.getPayouts())
+          .thenAnswer((_) async => Right([_toVerify]));
+      when(() => repository.markReconciled(any())).thenAnswer(
+        (_) async => const Left(ServerFailure(message: 'boom')),
+      );
+      return build();
+    },
+    act: (b) => b
+      ..add(const CabinetPayoutsLoadRequested())
+      ..add(CabinetPayoutMarkedReconciled(_toVerify.id)),
+    verify: (b) {
+      final state = b.state as CabinetPayoutsLoaded;
+      expect(
+        state.payouts.single.reconciliationStatus,
+        PayoutReconciliationStatus.toVerify,
+      );
+    },
+  );
+
+  blocTest<CabinetPayoutsBloc, CabinetPayoutsState>(
+    'signaler au comptable appelle la persistance serveur (#5969) sans '
+    "émettre de nouvel état (feedback porté par l'UI)",
     build: () {
       when(() => repository.getPayouts())
           .thenAnswer((_) async => Right([_toVerify]));
@@ -90,5 +124,8 @@ void main() {
       const CabinetPayoutsLoading(),
       CabinetPayoutsLoaded([_toVerify]),
     ],
+    verify: (_) {
+      verify(() => repository.flagToAccountant(_toVerify.id)).called(1);
+    },
   );
 }
