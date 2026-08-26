@@ -166,8 +166,9 @@ class _DevisDetailBody extends StatelessWidget {
       case CabinetQuoteStatus.paid:
         return StatusPillVariant.success;
       case CabinetQuoteStatus.expired:
-      case CabinetQuoteStatus.cancelled:
         return StatusPillVariant.error;
+      case CabinetQuoteStatus.cancelled:
+        return StatusPillVariant.neutral;
     }
   }
 

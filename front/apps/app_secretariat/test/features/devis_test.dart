@@ -60,6 +60,16 @@ void main() {
     });
   });
 
+  // --- mapQuoteStatus (#5093) ---------------------------------------------------
+  group('mapQuoteStatus', () {
+    test('cancelled ne renvoie plus refused mais cancelled', () {
+      expect(
+        mapQuoteStatus(CabinetQuoteStatus.cancelled),
+        QuoteCardStatus.cancelled,
+      );
+    });
+  });
+
   // --- DevisBloc ---------------------------------------------------------------
   group('DevisBloc', () {
     late _MockCabinetQuotesRepository repo;
@@ -331,6 +341,30 @@ void main() {
           .toList();
       expect(namesAfter.first, 'Alice');
     });
+
+    testWidgets(
+        'devis annulé affiche « Annulé » et jamais « Refusé » (#5093)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        DevisLoaded([
+          CabinetQuote(
+            id: 'q1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Paul Cancelled',
+            totalCents: 15000,
+            patientShareCents: 5000,
+            status: CabinetQuoteStatus.cancelled,
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Annulé'), findsOneWidget);
+      expect(find.text('Refusé'), findsNothing);
+    });
   });
 
   // --- DevisDetailPage widget test --------------------------------------------
@@ -382,6 +416,27 @@ void main() {
       expect(find.text('Motif'), findsNothing);
       expect(find.text('Notes médicales'), findsNothing);
       expect(find.textContaining('motif'), findsNothing);
+    });
+
+    testWidgets(
+        'devis annulé affiche « Annulé » et jamais « Refusé » (#5093)',
+        (tester) async {
+      final cancelledQuote = CabinetQuote(
+        id: 'q1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Paul Cancelled',
+        totalCents: 15000,
+        patientShareCents: 5000,
+        status: CabinetQuoteStatus.cancelled,
+        createdAt: DateTime(2026, 1, 1),
+      );
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(cancelledQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Annulé'), findsOneWidget);
+      expect(find.text('Refusé'), findsNothing);
     });
 
     testWidgets('formate les gros montants avec séparateur de milliers',

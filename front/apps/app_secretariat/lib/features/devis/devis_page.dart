@@ -154,8 +154,7 @@ class _DevisSkeletonLine extends StatelessWidget {
 }
 
 /// Mappe le statut métier ([CabinetQuoteStatus]) vers le statut du composant DS
-/// ([QuoteCardStatus]). Le WEDGE DS n'a pas d'état « annulé » : on le rapproche
-/// de « refusé » (variante danger, cycle clôturé négativement).
+/// ([QuoteCardStatus]).
 QuoteCardStatus mapQuoteStatus(CabinetQuoteStatus status) {
   switch (status) {
     case CabinetQuoteStatus.draft:
@@ -169,7 +168,7 @@ QuoteCardStatus mapQuoteStatus(CabinetQuoteStatus status) {
     case CabinetQuoteStatus.expired:
       return QuoteCardStatus.expired;
     case CabinetQuoteStatus.cancelled:
-      return QuoteCardStatus.refused;
+      return QuoteCardStatus.cancelled;
   }
 }
 
