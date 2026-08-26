@@ -237,7 +237,7 @@ class _DevisCard extends StatelessWidget {
             amount: NubiaMoney.formatCents(quote.totalCents),
           ),
           QuoteLine(
-            label: 'Part patient',
+            label: 'Reste à charge',
             amount: NubiaMoney.formatCents(quote.patientShareCents),
           ),
         ],
