@@ -5,8 +5,8 @@ class LabWorkOrderDto {
   final String patientId;
   final String patientDisplayName;
   final String? quoteItemId;
-  final String? toothFdi;
-  final String? workNature;
+  final String toothFdi;
+  final String workNature;
   final String? appointmentId;
   final String labName;
   final int purchasePriceCents;
@@ -19,8 +19,8 @@ class LabWorkOrderDto {
     required this.patientId,
     required this.patientDisplayName,
     this.quoteItemId,
-    this.toothFdi,
-    this.workNature,
+    required this.toothFdi,
+    required this.workNature,
     this.appointmentId,
     required this.labName,
     required this.purchasePriceCents,
@@ -35,8 +35,8 @@ class LabWorkOrderDto {
         patientId: json['patient_id'] as String,
         patientDisplayName: json['patient_display_name'] as String,
         quoteItemId: json['quote_item_id'] as String?,
-        toothFdi: json['tooth_fdi'] as String?,
-        workNature: json['work_nature'] as String?,
+        toothFdi: json['tooth_fdi'] as String,
+        workNature: json['work_nature'] as String,
         appointmentId: json['appointment_id'] as String?,
         labName: json['lab_name'] as String,
         purchasePriceCents: json['purchase_price_cents'] as int,

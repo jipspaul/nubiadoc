@@ -520,10 +520,8 @@ class _LabWorkOrderInfo extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (order.toothFdi != null) ...[
-              const SizedBox(width: 8),
-              _ToothFdiBadge(toothFdi: order.toothFdi!),
-            ],
+            const SizedBox(width: 8),
+            _ToothFdiBadge(toothFdi: order.toothFdi),
           ],
         ),
         const SizedBox(height: 8),
@@ -531,7 +529,7 @@ class _LabWorkOrderInfo extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                order.workNature ?? order.labName,
+                order.workNature,
                 style: Theme.of(context).textTheme.titleSmall,
                 overflow: TextOverflow.ellipsis,
               ),
