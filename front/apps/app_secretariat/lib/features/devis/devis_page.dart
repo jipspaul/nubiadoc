@@ -9,6 +9,7 @@ import 'devis_bloc.dart';
 import 'devis_event.dart';
 import 'devis_state.dart';
 import 'widgets/devis_kpis.dart';
+import 'widgets/devis_table.dart';
 
 /// Écran "Devis" côté secrétariat — liste des devis du cabinet.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
@@ -135,21 +136,21 @@ class _DevisPageState extends State<DevisPage> {
             }
             final sendingId =
                 state is DevisSendInProgress ? state.quote.id : null;
-            final listView = ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: sortedQuotes.length,
-              itemBuilder: (ctx, i) => Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+            final listView = Column(
+              children: [
+                const DevisTableHeader(),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: sortedQuotes.length,
+                    itemBuilder: (ctx, i) => DevisTableRow(
+                      quote: sortedQuotes[i],
+                      onTap: () => _selectQuote(sortedQuotes[i].id),
+                      active: _selectedQuoteId == sortedQuotes[i].id,
+                      actionLoading: sendingId == sortedQuotes[i].id,
+                    ),
+                  ),
                 ),
-                child: _DevisCard(
-                  quote: sortedQuotes[i],
-                  onTap: () => _selectQuote(sortedQuotes[i].id),
-                  active: _selectedQuoteId == sortedQuotes[i].id,
-                  actionLoading: sendingId == sortedQuotes[i].id,
-                ),
-              ),
+              ],
             );
             final selectedQuoteId = _selectedQuoteId;
             return Row(
@@ -183,7 +184,7 @@ class _DevisPageState extends State<DevisPage> {
 }
 
 /// Squelette de chargement de la liste des devis, calqué sur le rythme des
-/// lignes du tableau (en-tête + lignes d'actes de [_DevisCard]/[QuoteCard]).
+/// lignes du tableau (en-tête + lignes d'actes de [DevisTableRow]).
 class _DevisListSkeleton extends StatelessWidget {
   const _DevisListSkeleton();
 
@@ -258,94 +259,6 @@ QuoteCardStatus mapQuoteStatus(CabinetQuoteStatus status) {
       return QuoteCardStatus.expired;
     case CabinetQuoteStatus.cancelled:
       return QuoteCardStatus.cancelled;
-  }
-}
-
-/// Action contextuelle au statut, par ligne (#5087, note 4 de la maquette) :
-/// « relancer les devis en attente est précisément le travail de la liste » —
-/// l'action varie selon où en est le devis plutôt que d'être un CTA figé.
-@immutable
-class _RowAction {
-  const _RowAction(this.label, this.icon, {this.sendsQuote = false});
-
-  final String label;
-  final IconData icon;
-
-  /// `true` pour brouillon/envoyé/expiré : l'action déclenche
-  /// `DevisSendRequested` (Envoyer/Relancer/Réémettre partagent le même
-  /// événement, cf. corps du ticket). `false` pour signé/annulé, où l'action
-  /// ouvre le volet de détail (pas d'endpoint dédié PDF/consultation).
-  final bool sendsQuote;
-}
-
-_RowAction _rowActionFor(CabinetQuoteStatus status) {
-  switch (status) {
-    case CabinetQuoteStatus.draft:
-      return const _RowAction('Envoyer', Icons.send, sendsQuote: true);
-    case CabinetQuoteStatus.sent:
-      return const _RowAction('Relancer', Icons.send, sendsQuote: true);
-    case CabinetQuoteStatus.expired:
-      return const _RowAction('Réémettre', Icons.refresh, sendsQuote: true);
-    case CabinetQuoteStatus.signed:
-    case CabinetQuoteStatus.paid:
-      return const _RowAction('PDF', Icons.download);
-    case CabinetQuoteStatus.cancelled:
-      return const _RowAction('Voir', Icons.visibility);
-  }
-}
-
-class _DevisCard extends StatelessWidget {
-  const _DevisCard({
-    required this.quote,
-    this.onTap,
-    this.active = false,
-    this.actionLoading = false,
-  });
-
-  final CabinetQuote quote;
-  final VoidCallback? onTap;
-
-  /// Ligne actuellement ouverte dans le volet latéral → bouton d'action en
-  /// variante primaire émeraude (`.ab.p`, verbatim maquette), au lieu de la
-  /// bordure grise par défaut (`.ab`).
-  final bool active;
-
-  /// Envoi en cours pour cette ligne précise (#5087) — désactive le bouton
-  /// et affiche son spinner sans bloquer le reste de la liste.
-  final bool actionLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    final action = _rowActionFor(quote.status);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: QuoteCard(
-        title: quote.patientName,
-        status: mapQuoteStatus(quote.status),
-        lines: [
-          QuoteLine(
-            label: 'Total',
-            amount: NubiaMoney.formatCents(quote.totalCents),
-          ),
-          QuoteLine(
-            label: 'Reste à charge',
-            amount: NubiaMoney.formatCents(quote.patientShareCents),
-          ),
-        ],
-        ctaLabel: action.label,
-        ctaIcon: action.icon,
-        ctaVariant:
-            active ? NubiaButtonVariant.primary : NubiaButtonVariant.secondary,
-        ctaLoading: actionLoading,
-        onCtaPressed: actionLoading
-            ? null
-            : action.sendsQuote
-                ? () =>
-                    context.read<DevisBloc>().add(DevisSendRequested(quote.id))
-                : onTap,
-      ),
-    );
   }
 }
 

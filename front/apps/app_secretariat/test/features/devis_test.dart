@@ -14,6 +14,7 @@ import 'package:app_secretariat/features/devis/devis_event.dart';
 import 'package:app_secretariat/features/devis/devis_page.dart';
 import 'package:app_secretariat/features/devis/devis_state.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_kpis.dart';
+import 'package:app_secretariat/features/devis/widgets/devis_table.dart';
 import 'package:app_secretariat/features/devis/widgets/quote_timeline.dart';
 import 'package:app_secretariat/pro_config.dart';
 
@@ -398,6 +399,200 @@ void main() {
 
       expect(find.text('Annulé'), findsOneWidget);
       expect(find.text('Refusé'), findsNothing);
+    });
+  });
+
+  // --- Tableau à colonnes (design-v2, #5086) -----------------------------------
+  group('DevisPage — tableau à colonnes (#5086)', () {
+    late _MockDevisBloc bloc;
+
+    setUp(() {
+      bloc = _MockDevisBloc();
+    });
+
+    Widget buildPage() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<DevisBloc>.value(
+            value: bloc,
+            child: const DevisPage(),
+          ),
+        );
+
+    testWidgets(
+        'affiche l\'en-tête « Devis / Patient / Reste à charge / Statut / '
+        'Échéance / Action » et une ligne par devis (plus de QuoteCard)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        DevisLoaded([
+          CabinetQuote(
+            id: 'DEV-2041',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Julie Martin',
+            totalCents: 43592,
+            patientShareCents: 14850,
+            status: CabinetQuoteStatus.sent,
+            createdAt: DateTime(2026, 8, 4),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final header = find.byType(DevisTableHeader);
+      expect(header, findsOneWidget);
+      expect(
+        find.descendant(of: header, matching: find.text('Devis')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: header, matching: find.text('Patient')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: header, matching: find.text('Reste à charge')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: header, matching: find.text('Statut')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: header, matching: find.text('Échéance')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: header, matching: find.text('Action')),
+        findsOneWidget,
+      );
+
+      expect(find.byType(DevisTableRow), findsOneWidget);
+      expect(find.byType(QuoteCard), findsNothing);
+    });
+
+    testWidgets(
+        'ligne : numéro + date d\'émission, avatar initiales + nom patient, '
+        'reste à charge aligné droite tabulaire, pastille de statut',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        DevisLoaded([
+          CabinetQuote(
+            id: 'DEV-2041',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Julie Martin',
+            totalCents: 43592,
+            patientShareCents: 14850,
+            status: CabinetQuoteStatus.sent,
+            createdAt: DateTime(2026, 8, 4),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('DEV-2041'), findsOneWidget);
+      expect(find.text('04/08/2026'), findsOneWidget);
+      expect(find.text('JM'), findsOneWidget);
+      expect(find.text('Julie Martin'), findsOneWidget);
+
+      final amount = tester.widget<Text>(find.text('148,50 €'));
+      expect(amount.textAlign, TextAlign.right);
+      expect(amount.style?.fontWeight, FontWeight.w600);
+
+      expect(find.text('À signer'), findsOneWidget);
+    });
+
+    testWidgets(
+        'praticien absent du domaine (CabinetQuote) → sous-ligne omise '
+        'proprement, jamais de « null » affiché', (tester) async {
+      when(() => bloc.state).thenReturn(
+        DevisLoaded([
+          CabinetQuote(
+            id: 'DEV-2041',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Julie Martin',
+            totalCents: 43592,
+            patientShareCents: 14850,
+            status: CabinetQuoteStatus.sent,
+            createdAt: DateTime(2026, 8, 4),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('null'), findsNothing);
+      expect(find.textContaining('Dr'), findsNothing);
+    });
+
+    testWidgets(
+        'ligne sélectionnée : fond brand50 + bordure gauche brand700 '
+        '(.row.on, verbatim maquette)', (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final quote = CabinetQuote(
+        id: 'DEV-2041',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Julie Martin',
+        totalCents: 43592,
+        patientShareCents: 14850,
+        status: CabinetQuoteStatus.sent,
+        createdAt: DateTime(2026, 8, 4),
+      );
+
+      // Sélectionner une ligne ouvre le volet latéral (#5089), qui possède
+      // son propre `DevisBloc` (factory GetIt) — sans l'enregistrer ici,
+      // l'ouverture lève un GetIt StateError.
+      final repo = _MockCabinetQuotesRepository();
+      when(() => repo.getById(any())).thenAnswer((_) async => Right(quote));
+      GetIt.instance.registerFactory<DevisBloc>(
+        () => DevisBloc(
+          listQuotes: ListCabinetQuotesUseCase(repo),
+          getQuote: GetCabinetQuoteUseCase(repo),
+          sendQuote: SendCabinetQuoteUseCase(repo),
+        ),
+      );
+      addTearDown(GetIt.instance.reset);
+
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      Container containerOf(Finder rowFinder) => tester.widget<Container>(
+            find
+                .descendant(
+                  of: rowFinder,
+                  matching: find.byType(Container),
+                )
+                .first,
+          );
+
+      final rowBefore = find.byType(DevisTableRow);
+      final decorationBefore =
+          containerOf(rowBefore).foregroundDecoration! as BoxDecoration;
+      expect(containerOf(rowBefore).color, isNot(NubiaColors.brand50));
+      expect(
+        (decorationBefore.border as Border).left.color,
+        isNot(NubiaColors.brand700),
+      );
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      final rowAfter = find.byType(DevisTableRow);
+      expect(containerOf(rowAfter).color, NubiaColors.brand50);
+      final decorationAfter =
+          containerOf(rowAfter).foregroundDecoration! as BoxDecoration;
+      expect(
+        (decorationAfter.border as Border).left.color,
+        NubiaColors.brand700,
+      );
     });
   });
 
