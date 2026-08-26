@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -828,6 +829,144 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('devis_kpi_active')), findsNothing);
+    });
+  });
+
+  // --- Volet latéral détail devis (#5089) --------------------------------------
+  group('DevisPage — volet latéral', () {
+    late _MockDevisBloc bloc;
+    late _MockCabinetQuotesRepository repo;
+
+    final quote = CabinetQuote(
+      id: 'q1',
+      cabinetId: 'c1',
+      patientId: 'p1',
+      patientName: 'Julie Martin',
+      totalCents: 43592,
+      patientShareCents: 14850,
+      status: CabinetQuoteStatus.sent,
+      createdAt: DateTime(2026, 8, 4),
+    );
+
+    setUp(() {
+      bloc = _MockDevisBloc();
+      repo = _MockCabinetQuotesRepository();
+      when(() => repo.getById(any())).thenAnswer((_) async => Right(quote));
+      // Le volet (#5089) possède son propre DevisBloc (factory GetIt,
+      // cf. pro_di.dart) pour ne pas interférer avec le bloc de la liste —
+      // sans ça, l'ouvrir lève un GetIt StateError.
+      GetIt.instance.registerFactory<DevisBloc>(
+        () => DevisBloc(
+          listQuotes: ListCabinetQuotesUseCase(repo),
+          getQuote: GetCabinetQuoteUseCase(repo),
+          sendQuote: SendCabinetQuoteUseCase(repo),
+        ),
+      );
+      addTearDown(GetIt.instance.reset);
+    });
+
+    Widget buildPage() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<DevisBloc>.value(
+            value: bloc,
+            child: const DevisPage(),
+          ),
+        );
+
+    testWidgets(
+        'sélectionner un devis ouvre le volet avec en-tête, identité et CTA',
+        (tester) async {
+      // Liste + volet 392px ne tiennent que sur un écran large — la surface
+      // de test par défaut (800px) est trop étroite une fois le volet ouvert.
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      final sheet = find.byKey(const Key('devis_sheet_q1'));
+      expect(sheet, findsOneWidget);
+      expect(
+        find.descendant(of: sheet, matching: find.text('q1')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.text('À signer')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.text('Julie Martin')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.text('émis le 04/08/2026')),
+        findsOneWidget,
+      );
+      expect(find.text('Relancer le patient'), findsOneWidget);
+      expect(find.text('Appeler'), findsOneWidget);
+      expect(
+        find.byKey(const Key('devis_sheet_confidentiality_notice')),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Cloisonnement secrétariat : les montants et le statut sont '
+          "visibles, le détail clinique des actes ne l'est pas.",
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('la croix ferme le volet ; la liste reste affichée',
+        (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('devis_sheet_q1')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('devis_sheet_close')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('devis_sheet_q1')), findsNothing);
+      expect(find.text('Julie Martin'), findsOneWidget);
+    });
+
+    testWidgets(
+        'le CTA Appeler est désactivé — CabinetQuote n\'expose pas de '
+        'téléphone patient', (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      final callButton = tester.widget<OutlinedButton>(
+        find.descendant(
+          of: find.byKey(const Key('btn_call_devis_secretariat')),
+          matching: find.byType(OutlinedButton),
+        ),
+      );
+      expect(callButton.onPressed, isNull);
     });
   });
 }
