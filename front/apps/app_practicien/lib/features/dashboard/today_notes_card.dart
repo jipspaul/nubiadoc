@@ -98,27 +98,25 @@ class _NoteRow extends StatelessWidget {
   }
 }
 
-/// Mapping statut de note → libellé FR + variant [StatusPill], à l'image de
-/// `QuoteStatusStyle` (#5054). Table de correspondance explicite — remplace
-/// l'ancien `_variantFor` (mapping par sous-chaîne `String.contains`, qui
-/// classait « Non signée » en succès car `contains('signé')` matchait aussi
-/// la négation).
-///
-/// Clé sur `String` (pas encore l'énum domaine `ClinicalNoteStatus`, qui
-/// dépend d'un ticket domaine séparé non disponible à date).
+/// Mapping [ClinicalNoteStatus] → libellé FR + variant [StatusPill], à
+/// l'image de `QuoteStatusStyle` (#5054). Table de correspondance explicite
+/// sur l'énum domaine (#5053) — remplace l'ancien `_variantFor` (mapping par
+/// sous-chaîne `String.contains`, qui classait « Non signée » en succès car
+/// `contains('signé')` matchait aussi la négation).
 class NoteStatusStyle {
   const NoteStatusStyle(this.label, this.variant);
 
   final String label;
   final StatusPillVariant variant;
 
-  static NoteStatusStyle of(String status) => switch (status) {
-        'Signée' || 'Signé' || 'Terminée' =>
-          NoteStatusStyle(status, StatusPillVariant.success),
-        'Brouillon' || 'En cours' || 'En attente' =>
-          NoteStatusStyle(status, StatusPillVariant.warning),
-        'Non signée' || 'Non signé' || 'Annulée' || 'Annulé' =>
-          NoteStatusStyle(status, StatusPillVariant.error),
-        _ => NoteStatusStyle(status, StatusPillVariant.info),
+  static NoteStatusStyle of(ClinicalNoteStatus status) => switch (status) {
+        ClinicalNoteStatus.signed =>
+          const NoteStatusStyle('Signée', StatusPillVariant.success),
+        ClinicalNoteStatus.draft =>
+          const NoteStatusStyle('Brouillon', StatusPillVariant.warning),
+        ClinicalNoteStatus.unsigned =>
+          const NoteStatusStyle('Non signée', StatusPillVariant.error),
+        ClinicalNoteStatus.unknown =>
+          const NoteStatusStyle('Statut inconnu', StatusPillVariant.neutral),
       };
 }

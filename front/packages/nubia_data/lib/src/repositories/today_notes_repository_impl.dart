@@ -24,7 +24,7 @@ class TodayNotesRepositoryImpl implements TodayNotesRepository {
               ) ??
               DateTime.now(),
           patientInitials: (e['patient_initials'] as String?) ?? '',
-          status: (e['status'] as String?) ?? '',
+          status: _parseStatus(e['status'] as String?),
         );
       }).toList();
       return Right(notes);
@@ -35,6 +35,25 @@ class TodayNotesRepositoryImpl implements TodayNotesRepository {
       return const Right([]);
     } catch (_) {
       return const Right([]);
+    }
+  }
+
+  /// Table de correspondance explicite statut API → [ClinicalNoteStatus]
+  /// (#5053) — jamais de `String.contains` : « cancelled » (note non signée)
+  /// ne doit jamais être confondu avec « completed » (note signée) par un
+  /// matching approximatif. `cs.status` (`consultation_session`) ne connaît
+  /// que `in_progress` / `completed` / `cancelled` (api/src/clinical.rs) ;
+  /// toute autre valeur retombe sur [ClinicalNoteStatus.unknown].
+  static ClinicalNoteStatus _parseStatus(String? value) {
+    switch (value) {
+      case 'completed':
+        return ClinicalNoteStatus.signed;
+      case 'in_progress':
+        return ClinicalNoteStatus.draft;
+      case 'cancelled':
+        return ClinicalNoteStatus.unsigned;
+      default:
+        return ClinicalNoteStatus.unknown;
     }
   }
 }
