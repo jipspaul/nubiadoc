@@ -8,6 +8,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'devis_bloc.dart';
 import 'devis_event.dart';
 import 'devis_state.dart';
+import 'widgets/devis_kpis.dart';
 
 /// Écran "Devis" côté secrétariat — liste des devis du cabinet.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
@@ -31,7 +32,25 @@ class _DevisPageState extends State<DevisPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(NubiaL10n.quotes),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                NubiaL10n.quotes,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              child: BlocBuilder<DevisBloc, DevisState>(
+                builder: (context, state) => state is DevisLoaded
+                    ? DevisKpiBar(quotes: state.quotes)
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             key: const Key('sort_button'),
