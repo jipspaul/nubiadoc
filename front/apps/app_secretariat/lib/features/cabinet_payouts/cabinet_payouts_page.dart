@@ -268,48 +268,173 @@ class CabinetPayoutsBody extends StatelessWidget {
                   .add(const CabinetPayoutsLoadRequested()),
             ),
           CabinetPayoutsLoaded(:final payouts, :final selectedPayoutId) =>
-            payouts.isEmpty
-                ? const NubiaEmptyState(
-                    key: Key('cabinet_payouts_empty'),
-                    icon: Icons.account_balance_outlined,
-                    title: 'Aucun virement',
-                  )
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      final selectedPayout = selectedPayoutId == null
-                          ? null
-                          : payouts.firstWhere(
-                              (p) => p.id == selectedPayoutId,
+            Column(
+              children: [
+                _PayoutsKpiRow(payouts: payouts),
+                Expanded(
+                  child: payouts.isEmpty
+                      ? const NubiaEmptyState(
+                          key: Key('cabinet_payouts_empty'),
+                          icon: Icons.account_balance_outlined,
+                          title: 'Aucun virement',
+                        )
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            final selectedPayout = selectedPayoutId == null
+                                ? null
+                                : payouts.firstWhere(
+                                    (p) => p.id == selectedPayoutId,
+                                  );
+                            // Écran étroit (#5107) : le volet (400px fixe) ne
+                            // laisserait presque plus de place au tableau —
+                            // il remplace la liste plutôt que de la
+                            // comprimer.
+                            final narrow = constraints.maxWidth < 700;
+                            if (narrow && selectedPayout != null) {
+                              return _PayoutDetailPanel(payout: selectedPayout);
+                            }
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: _PayoutsList(
+                                    payouts: payouts,
+                                    selectedPayoutId: selectedPayoutId,
+                                  ),
+                                ),
+                                if (selectedPayout != null)
+                                  SizedBox(
+                                    width: 400,
+                                    child: _PayoutDetailPanel(
+                                      payout: selectedPayout,
+                                    ),
+                                  ),
+                              ],
                             );
-                      // Écran étroit (#5107) : le volet (400px fixe) ne
-                      // laisserait presque plus de place au tableau — il
-                      // remplace la liste plutôt que de la comprimer.
-                      final narrow = constraints.maxWidth < 700;
-                      if (narrow && selectedPayout != null) {
-                        return _PayoutDetailPanel(payout: selectedPayout);
-                      }
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: _PayoutsList(
-                              payouts: payouts,
-                              selectedPayoutId: selectedPayoutId,
-                            ),
-                          ),
-                          if (selectedPayout != null)
-                            SizedBox(
-                              width: 400,
-                              child: _PayoutDetailPanel(
-                                payout: selectedPayout,
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
+                          },
+                        ),
+                ),
+              ],
+            ),
         };
       },
+    );
+  }
+}
+
+/// Rangée de 4 compteurs KPI en tête d'écran (design-v2, point 4a) : reçu,
+/// rapprochés, à vérifier, écart cumulé — calculés depuis `payouts`, jamais
+/// en dur.
+class _PayoutsKpiRow extends StatelessWidget {
+  const _PayoutsKpiRow({required this.payouts});
+
+  final List<CabinetPayout> payouts;
+
+  @override
+  Widget build(BuildContext context) {
+    final receivedCents =
+        payouts.fold<int>(0, (sum, payout) => sum + payout.amountCents);
+    final reconciledCount = payouts
+        .where((payout) =>
+            payout.reconciliationStatus ==
+            PayoutReconciliationStatus.reconciled)
+        .length;
+    final toVerifyPayouts = payouts.where(
+      (payout) =>
+          payout.reconciliationStatus == PayoutReconciliationStatus.toVerify,
+    );
+    final toVerifyCount = toVerifyPayouts.length;
+    final cumulativeGapCents = toVerifyPayouts.fold<int>(
+      0,
+      (sum, payout) => sum + payout.differenceCents,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Row(
+        key: const Key('cabinet_payouts_kpi_row'),
+        children: [
+          Expanded(
+            child: _KpiTile(
+              key: const Key('cabinet_payouts_kpi_received'),
+              value: NubiaMoney.formatCents(receivedCents),
+              label: 'virements reçus',
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _KpiTile(
+              key: const Key('cabinet_payouts_kpi_reconciled'),
+              value: '$reconciledCount',
+              label: 'virements rapprochés',
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _KpiTile(
+              key: const Key('cabinet_payouts_kpi_to_verify'),
+              value: '$toVerifyCount',
+              label: 'à vérifier',
+              danger: true,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _KpiTile(
+              key: const Key('cabinet_payouts_kpi_cumulative_gap'),
+              value: NubiaMoney.formatCents(cumulativeGapCents),
+              label: 'écart cumulé',
+              danger: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compteur KPI compact (design-v2, point 4a) : valeur (18px, bold,
+/// tabulaire) + libellé (10.5px, gris). Variante danger (classe `.kpi.d` de
+/// la maquette) pour « à vérifier »/« écart cumulé ».
+class _KpiTile extends StatelessWidget {
+  const _KpiTile({
+    super.key,
+    required this.value,
+    required this.label,
+    this.danger = false,
+  });
+
+  final String value;
+  final String label;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            fontFeatures: tabularFigures,
+            color: danger ? tokens.dangerFg : cs.onSurface,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 10.5, color: NubiaColors.n500),
+        ),
+      ],
     );
   }
 }

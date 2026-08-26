@@ -722,6 +722,131 @@ void main() {
     );
   });
 
+  group('rangée de compteurs KPI en tête d\'écran (design-v2, point 4a)', () {
+    testWidgets(
+      'valeurs calculées depuis la liste : reçu, rapprochés, à vérifier, '
+      'écart cumulé',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_reconciled, _toVerify, _toVerifyWithCashLead],
+          ),
+        );
+        await tester.pumpWidget(_wrap(bloc));
+
+        final totalReceivedCents = _reconciled.amountCents +
+            _toVerify.amountCents +
+            _toVerifyWithCashLead.amountCents;
+        final cumulativeGapCents =
+            _toVerify.differenceCents + _toVerifyWithCashLead.differenceCents;
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_received')),
+            matching: find.text(NubiaMoney.formatCents(totalReceivedCents)),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_received')),
+            matching: find.text('virements reçus'),
+          ),
+          findsOneWidget,
+        );
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_reconciled')),
+            matching: find.text('1'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_reconciled')),
+            matching: find.text('virements rapprochés'),
+          ),
+          findsOneWidget,
+        );
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_to_verify')),
+            matching: find.text('2'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_to_verify')),
+            matching: find.text('à vérifier'),
+          ),
+          findsOneWidget,
+        );
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_cumulative_gap')),
+            matching: find.text(NubiaMoney.formatCents(cumulativeGapCents)),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_cumulative_gap')),
+            matching: find.text('écart cumulé'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      '« à vérifier » et « écart cumulé » en couleur danger',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded([_reconciled, _toVerifyWithCashLead]),
+        );
+        await tester.pumpWidget(_wrap(bloc));
+
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+
+        final toVerifyValue = tester.widget<Text>(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_to_verify')),
+            matching: find.text('1'),
+          ),
+        );
+        expect(toVerifyValue.style?.color, tokens.dangerFg);
+
+        final gapValue = tester.widget<Text>(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_cumulative_gap')),
+            matching: find.text(
+              NubiaMoney.formatCents(_toVerifyWithCashLead.differenceCents),
+            ),
+          ),
+        );
+        expect(gapValue.style?.color, tokens.dangerFg);
+
+        final receivedValue = tester.widget<Text>(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_received')),
+            matching: find.text(
+              NubiaMoney.formatCents(
+                _reconciled.amountCents + _toVerifyWithCashLead.amountCents,
+              ),
+            ),
+          ),
+        );
+        expect(receivedValue.style?.color, isNot(tokens.dangerFg));
+      },
+    );
+  });
+
   group('sélecteur de mois en en-tête (#5101)', () {
     testWidgets(
       'tap chevron gauche décrémente le mois affiché et recharge',
