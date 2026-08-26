@@ -847,6 +847,55 @@ void main() {
     );
   });
 
+  group('bandeau « aucun compte connecté » (#5099)', () {
+    testWidgets(
+      'demoMode (défaut) → bandeau warning avec libellés exacts et bouton '
+      '"Connecter Stripe"',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state)
+            .thenReturn(CabinetPayoutsLoaded([_reconciled, _toVerify]));
+        await tester.pumpWidget(_wrap(bloc));
+
+        expect(
+          find.byKey(const Key('cabinet_payouts_no_account_banner')),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Aucun compte de paiement connecté.'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Les virements affichés sont des données de démonstration',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Connecter Stripe'), findsOneWidget);
+      },
+    );
+
+    testWidgets('demoMode == false → bandeau masqué', (tester) async {
+      final bloc = MockCabinetPayoutsBloc();
+      when(() => bloc.state)
+          .thenReturn(CabinetPayoutsLoaded([_reconciled, _toVerify]));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<CabinetPayoutsBloc>.value(
+            value: bloc,
+            child: const CabinetPayoutsBody(demoMode: false),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('cabinet_payouts_no_account_banner')),
+        findsNothing,
+      );
+    });
+  });
+
   group('sélecteur de mois en en-tête (#5101)', () {
     testWidgets(
       'tap chevron gauche décrémente le mois affiché et recharge',
