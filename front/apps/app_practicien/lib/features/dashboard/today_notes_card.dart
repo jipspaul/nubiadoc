@@ -82,6 +82,7 @@ class _NoteRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final hour = entry.timestamp.hour.toString().padLeft(2, '0');
     final min = entry.timestamp.minute.toString().padLeft(2, '0');
+    final style = NoteStatusStyle.of(entry.status);
 
     return ListRow(
       key: Key('today_note_${entry.id}'),
@@ -89,30 +90,35 @@ class _NoteRow extends StatelessWidget {
       title: '$hour:$min',
       subtitle: 'Consultation',
       trailing: StatusPill(
-        label: entry.status,
-        variant: _variantFor(entry.status),
+        label: style.label,
+        variant: style.variant,
       ),
       showDivider: showDivider,
     );
   }
+}
 
-  /// Traduit le statut textuel d'une note en variante sémantique de pill.
-  StatusPillVariant _variantFor(String status) {
-    final normalized = status.toLowerCase();
-    if (normalized.contains('signé') ||
-        normalized.contains('validé') ||
-        normalized.contains('terminé') ||
-        normalized.contains('clôturé')) {
-      return StatusPillVariant.success;
-    }
-    if (normalized.contains('attente') ||
-        normalized.contains('brouillon') ||
-        normalized.contains('cours')) {
-      return StatusPillVariant.warning;
-    }
-    if (normalized.contains('annulé') || normalized.contains('erreur')) {
-      return StatusPillVariant.error;
-    }
-    return StatusPillVariant.info;
-  }
+/// Mapping statut de note → libellé FR + variant [StatusPill], à l'image de
+/// `QuoteStatusStyle` (#5054). Table de correspondance explicite — remplace
+/// l'ancien `_variantFor` (mapping par sous-chaîne `String.contains`, qui
+/// classait « Non signée » en succès car `contains('signé')` matchait aussi
+/// la négation).
+///
+/// Clé sur `String` (pas encore l'énum domaine `ClinicalNoteStatus`, qui
+/// dépend d'un ticket domaine séparé non disponible à date).
+class NoteStatusStyle {
+  const NoteStatusStyle(this.label, this.variant);
+
+  final String label;
+  final StatusPillVariant variant;
+
+  static NoteStatusStyle of(String status) => switch (status) {
+        'Signée' || 'Signé' || 'Terminée' =>
+          NoteStatusStyle(status, StatusPillVariant.success),
+        'Brouillon' || 'En cours' || 'En attente' =>
+          NoteStatusStyle(status, StatusPillVariant.warning),
+        'Non signée' || 'Non signé' || 'Annulée' || 'Annulé' =>
+          NoteStatusStyle(status, StatusPillVariant.error),
+        _ => NoteStatusStyle(status, StatusPillVariant.info),
+      };
 }
