@@ -466,6 +466,150 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // #5079 — volet latéral détail du RDV sélectionné.
+  // -------------------------------------------------------------------------
+  group('volet latéral détail du RDV sélectionné (#5079)', () {
+    Future<void> pumpWithEntry(WidgetTester tester, AgendaEntry entry) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets(
+        'sélectionner un RDV confirmé ouvre le volet avec en-tête daté, '
+        'identité, motif · durée et pastille Confirmé (sans action Confirmer)',
+        (tester) async {
+      final entry = AgendaEntry(
+        id: 'p-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Amélie Rousseau',
+        startsAt: DateTime(2026, 8, 11, 14, 30),
+        endsAt: DateTime(2026, 8, 11, 15, 0),
+        patientId: 'pat-1',
+        patientName: 'Camille Moreau',
+        motif: 'Détartrage',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      await pumpWithEntry(tester, entry);
+
+      expect(find.byKey(const Key('agenda_detail_panel_p-1')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('entry_p-1')));
+      await tester.pump();
+
+      final panel = find.byKey(const Key('agenda_detail_panel_p-1'));
+      expect(panel, findsOneWidget);
+      expect(
+        find.descendant(of: panel, matching: find.text('Camille Moreau')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: panel,
+          matching: find.textContaining('Détartrage · 30 min'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: panel,
+          matching: find.textContaining('Mardi 11 août'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: panel, matching: find.text('Confirmé')),
+        findsOneWidget,
+      );
+      // RDV déjà confirmé : pas d'action Confirmer (un re-clic donnerait 409).
+      expect(find.byKey(const Key('confirm_p-1')), findsNothing);
+
+      // Bouton fermer referme le volet.
+      await tester.tap(find.byKey(const Key('agenda_detail_close')));
+      await tester.pump();
+      expect(panel, findsNothing);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
+        'un RDV à confirmer propose l\'action Confirmer dans le volet et '
+        'dispatch AgendaAppointmentConfirmRequested', (tester) async {
+      final entry = AgendaEntry(
+        id: 'p-2',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Amélie Rousseau',
+        startsAt: DateTime(2026, 8, 11, 14, 30),
+        endsAt: DateTime(2026, 8, 11, 15, 0),
+        patientId: 'pat-1',
+        patientName: 'Camille Moreau',
+        motif: 'Détartrage',
+        isFree: false,
+        status: 'requested',
+      );
+
+      when(() => mockConfirm('p-2')).thenAnswer(
+        (_) async => Right(
+          CabinetAppointment(
+            id: 'p-2',
+            cabinetId: 'cab-1',
+            patientId: 'pat-1',
+            patientName: 'Camille Moreau',
+            practitionerId: 'prac-1',
+            practitionerName: 'Dr Amélie Rousseau',
+            startsAt: entry.startsAt,
+            duration: entry.duration,
+            motif: 'Détartrage',
+            status: CabinetAppointmentStatus.confirmed,
+            slotId: 'slot-1',
+          ),
+        ),
+      );
+
+      await pumpWithEntry(tester, entry);
+
+      await tester.tap(find.byKey(const Key('entry_p-2')));
+      await tester.pump();
+
+      final panel = find.byKey(const Key('agenda_detail_panel_p-2'));
+      expect(
+        find.descendant(of: panel, matching: find.text('À confirmer')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('confirm_p-2')));
+      await tester.pump();
+
+      verify(() => mockConfirm('p-2')).called(1);
+
+      await GetIt.instance.reset();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // #3896 — nom/motif du patient visibles sur mobile pour un RDV « À confirmer ».
   // -------------------------------------------------------------------------
 
@@ -504,7 +648,8 @@ void main() {
 
       // Viewport mobile 390x844 — repro exacte de l'issue (le nom s'affichait
       // normalement à 1280px mais était clippé à ~0px de largeur à 390px,
-      // avant que la pastille+bouton « Confirmer » soit sortie du Row Expanded).
+      // avant que la pastille/bouton « Confirmer » soit sortie de la carte
+      // (#5079 : désormais dans le volet latéral, plus dans le Row Expanded).
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -522,9 +667,14 @@ void main() {
         find.text('Marc Dubois'),
         findsOneWidget,
         reason: 'le nom du patient doit rester visible à 390px de large, '
-            'pas clippé par la pastille/bouton Confirmer',
+            'pas clippé par la carte RDV',
       );
       expect(find.textContaining('Contrôle'), findsOneWidget);
+
+      // Le bouton Confirmer vit désormais dans le volet latéral détail
+      // (#5079) — sélectionner le RDV l'ouvre et l'expose.
+      await tester.tap(find.byKey(const Key('entry_m-1')));
+      await tester.pump();
       expect(find.byKey(const Key('confirm_m-1')), findsOneWidget);
 
       await gi.reset();
@@ -825,8 +975,7 @@ void main() {
 
     testWidgets('→/← changent de semaine (±7j), T revient à aujourd\'hui',
         (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => const Right([]));
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
           .thenAnswer((_) async => const Right([]));
 
@@ -920,8 +1069,7 @@ void main() {
     });
 
     testWidgets('⌘N ouvre le dialogue Nouveau RDV', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => const Right([]));
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
           .thenAnswer((_) async => const Right([]));
 
@@ -929,8 +1077,7 @@ void main() {
       await gi.reset();
       registerBloc(gi);
       final mockListPatients = MockListCabinetPatientsUseCase();
-      when(() => mockListPatients())
-          .thenAnswer((_) async => const Right([]));
+      when(() => mockListPatients()).thenAnswer((_) async => const Right([]));
       gi.registerFactory<ListCabinetPatientsUseCase>(() => mockListPatients);
 
       await pumpAgenda(tester);
@@ -946,8 +1093,7 @@ void main() {
     });
 
     testWidgets('/ met le focus sur la recherche patient', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => const Right([]));
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
           .thenAnswer((_) async => const Right([]));
 
