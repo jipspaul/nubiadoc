@@ -451,8 +451,9 @@ pub async fn list_cabinet_quotes(
                 row.try_get("created_at").map_err(|_| AppError::Internal)?;
             let expires_at: Option<chrono::DateTime<chrono::Utc>> =
                 row.try_get("expires_at").map_err(|_| AppError::Internal)?;
-            let deposit_paid: bool =
-                row.try_get("deposit_paid").map_err(|_| AppError::Internal)?;
+            let deposit_paid: bool = row
+                .try_get("deposit_paid")
+                .map_err(|_| AppError::Internal)?;
             Ok(CabinetQuoteItem {
                 id,
                 patient_id,
