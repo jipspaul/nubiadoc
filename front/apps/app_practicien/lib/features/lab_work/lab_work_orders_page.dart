@@ -82,7 +82,27 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
         builder: (context, state) {
           switch (state) {
             case LabWorkOrdersLoading():
-              return const Center(child: CircularProgressIndicator());
+              return ListView(
+                key: const Key('lab_work_orders_loading'),
+                padding: const EdgeInsets.all(16),
+                children: [
+                  for (final status in _kStatusOrder) ...[
+                    Padding(
+                      key: Key('lab_work_group_skeleton_$status'),
+                      padding: const EdgeInsets.only(top: 8, bottom: 8),
+                      child: Text(
+                        _kStatusLabels[status] ?? status,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    for (var i = 0; i < 2; i++)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: NubiaSkeletonLoader(height: 88, borderRadius: 12),
+                      ),
+                  ],
+                ],
+              );
             case LabWorkOrdersError(:final message):
               return NubiaErrorWidget(
                 message: message,
