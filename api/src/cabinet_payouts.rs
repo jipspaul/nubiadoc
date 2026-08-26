@@ -18,7 +18,8 @@
 //! Stripe : `id`/`amount`/`currency`/`arrival_date`/`status` ; GoCardless :
 //! `id`/`amount`/`currency`/`reference`/`status`) pour que l'écran soit
 //! compréhensible et directement remplaçable par un vrai client HTTP plus
-//! tard (même contrat de sortie, `PayoutView`, inchangé).
+//! tard (même contrat de sortie, `PayoutView`, à l'exception de
+//! `internal_payments`, propre à cet écran).
 //!
 //! Rapprochement : pour chaque payout mock, on calcule la somme des
 //! `payment.amount` internes (`status='paid'`, `provider` correspondant,
@@ -74,6 +75,41 @@ pub struct PayoutView {
     /// Somme des paiements internes trouvés pour ce jour/provider — permet
     /// à l'UI d'expliquer l'écart plutôt que de juste afficher "à vérifier".
     pub internal_payments_total_cents: i64,
+    /// Chaque paiement interne (`payment`, tous canaux) enregistré ce
+    /// jour-là pour le cabinet — liste « Paiements internes du jour »
+    /// (#5109). Contrairement à `internal_payments_total_cents`, non filtré
+    /// par provider : inclut aussi les règlements espèces/chèque/virement
+    /// (`provider='manual'`), qui ne transitent jamais par Stripe/GoCardless.
+    pub internal_payments: Vec<InternalPaymentView>,
+}
+
+#[derive(Serialize)]
+pub struct InternalPaymentView {
+    pub patient_name: String,
+    /// Heure `HH:mm` de l'encaissement (`payment.paid_at`).
+    pub time: String,
+    pub amount_cents: i64,
+    /// Libellé FR du canal (ex. « Carte », « Espèces ») — dérivé de
+    /// `payment.method`.
+    pub method_label: &'static str,
+    /// `false` pour les canaux physiques (espèces, chèque, virement) qui ne
+    /// transitent jamais par le prestataire Stripe/GoCardless — affiché
+    /// comme « non rapprochable » côté UI.
+    pub reconcilable_by_provider: bool,
+}
+
+/// Libellé FR + rapprochabilité par le prestataire pour un `payment.method`.
+fn describe_method(method: &str) -> (&'static str, bool) {
+    match method {
+        "card" => ("Carte", true),
+        "apple_pay" => ("Apple Pay", true),
+        "google_pay" => ("Google Pay", true),
+        "sepa" => ("SEPA", true),
+        "cash" => ("Espèces", false),
+        "check" => ("Chèque", false),
+        "bank_transfer" => ("Virement", false),
+        _ => ("Autre", false),
+    }
 }
 
 #[derive(Serialize)]
@@ -156,6 +192,50 @@ pub async fn list_payouts(
             "to_verify"
         };
 
+        // Liste « Paiements internes du jour » (#5109) : tous les canaux
+        // (pas seulement `payout.provider`, contrairement au total ci-dessus)
+        // pour que l'écart affiché à l'écran s'explique par des règlements
+        // physiques (espèces/chèque) qui ne transitent jamais par le
+        // prestataire.
+        let payment_rows = sqlx::query(
+            "SELECT p.first_name || ' ' || p.last_name AS patient_name, \
+                    pay.method, \
+                    (pay.amount * 100)::bigint AS amount_cents, \
+                    to_char(pay.paid_at, 'HH24:MI') AS paid_at_time \
+             FROM payment pay \
+             JOIN patient p ON p.id = pay.patient_id \
+             WHERE pay.cabinet_id = $1 AND pay.status = 'paid' \
+               AND pay.method IS NOT NULL AND pay.paid_at::date = $2::date \
+             ORDER BY pay.paid_at ASC",
+        )
+        .bind(claims.cabinet_id)
+        .bind(payout.arrival_date)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        let mut internal_payments = Vec::with_capacity(payment_rows.len());
+        for prow in &payment_rows {
+            let patient_name: String = prow
+                .try_get("patient_name")
+                .map_err(|_| AppError::Internal)?;
+            let method: String = prow.try_get("method").map_err(|_| AppError::Internal)?;
+            let amount_cents: i64 = prow
+                .try_get("amount_cents")
+                .map_err(|_| AppError::Internal)?;
+            let time: String = prow
+                .try_get("paid_at_time")
+                .map_err(|_| AppError::Internal)?;
+            let (method_label, reconcilable_by_provider) = describe_method(&method);
+            internal_payments.push(InternalPaymentView {
+                patient_name,
+                time,
+                amount_cents,
+                method_label,
+                reconcilable_by_provider,
+            });
+        }
+
         data.push(PayoutView {
             id: payout.id.to_string(),
             provider: payout.provider,
@@ -165,6 +245,7 @@ pub async fn list_payouts(
             provider_status: "paid",
             reconciliation_status,
             internal_payments_total_cents: internal_total,
+            internal_payments,
         });
     }
 

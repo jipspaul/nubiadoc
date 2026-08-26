@@ -7,13 +7,18 @@ enum PayoutReconciliationStatus { reconciled, toVerify }
 /// Une ligne de paiement interne enregistrée le jour du virement (#5110) —
 /// permet au volet d'expliquer un écart (« piste probable ») plutôt que de
 /// juste le signaler, sans jamais rapprocher automatiquement quoi que ce
-/// soit.
+/// soit. Aussi affichée telle quelle dans la liste « Paiements internes du
+/// jour » (#5109).
 class InternalPayment extends Equatable {
+  final String patientName;
+  final String time;
   final int amountCents;
   final String methodLabel;
   final bool reconcilableByProvider;
 
   const InternalPayment({
+    required this.patientName,
+    required this.time,
     required this.amountCents,
     required this.methodLabel,
     required this.reconcilableByProvider,
@@ -21,7 +26,7 @@ class InternalPayment extends Equatable {
 
   @override
   List<Object?> get props =>
-      [amountCents, methodLabel, reconcilableByProvider];
+      [patientName, time, amountCents, methodLabel, reconcilableByProvider];
 }
 
 /// Un virement Stripe/GoCardless rapproché des paiements internes du

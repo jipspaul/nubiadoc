@@ -247,24 +247,43 @@ class _PayoutDetailPanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text('Virement le ${_formatDate(payout.arrivalDate)}'),
-            Text('Montant du virement : ${_euros(payout.amountCents)}'),
-            Text(
-              'Paiements internes trouvés : '
-              '${_euros(payout.internalPaymentsTotalCents)}',
-            ),
-            if (!reconciled) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Écart : ${_euros(payout.differenceCents)}',
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Virement le ${_formatDate(payout.arrivalDate)}'),
+                    Text(
+                      'Montant du virement : ${_euros(payout.amountCents)}',
+                    ),
+                    Text(
+                      'Paiements internes trouvés : '
+                      '${_euros(payout.internalPaymentsTotalCents)}',
+                    ),
+                    if (!reconciled) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Écart : ${_euros(payout.differenceCents)}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                    if (probableLead != null) ...[
+                      const SizedBox(height: 12),
+                      _ProbableLeadCard(payout: payout, lead: probableLead),
+                    ],
+                    if (payout.internalPayments.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _InternalPaymentsSection(
+                        payments: payout.internalPayments,
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ],
-            if (probableLead != null) ...[
-              const SizedBox(height: 12),
-              _ProbableLeadCard(payout: payout, lead: probableLead),
-            ],
-            const Spacer(),
+            ),
+            const SizedBox(height: 12),
             NubiaButton(
               key: const Key('payout_action_flag_accountant'),
               label: 'Signaler au comptable',
@@ -350,4 +369,108 @@ class _ProbableLeadCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Liste « Paiements internes du jour » (#5109) : chaque encaissement
+/// interne du jour, en signalant ceux qui ne transitent pas par le
+/// prestataire (espèces/chèque). Purement informatif — aucun rapprochement
+/// automatique, données et ordre proviennent tels quels du domaine.
+class _InternalPaymentsSection extends StatelessWidget {
+  const _InternalPaymentsSection({required this.payments});
+
+  final List<InternalPayment> payments;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      key: const Key('payout_internal_payments_section'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Paiements internes du jour',
+                style: textTheme.titleSmall,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            NubiaBadge.count(
+              key: const Key('payout_internal_payments_count'),
+              count: payments.length,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final payment in payments) ...[
+          _InternalPaymentRow(payment: payment),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _InternalPaymentRow extends StatelessWidget {
+  const _InternalPaymentRow({required this.payment});
+
+  final InternalPayment payment;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final mutedColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        NubiaAvatar(initials: _initials(payment.patientName), radius: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                payment.patientName,
+                style: textTheme.bodyMedium,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                '${payment.methodLabel} · ${payment.time}',
+                style: textTheme.bodySmall?.copyWith(color: mutedColor),
+              ),
+              if (!payment.reconcilableByProvider)
+                Text(
+                  'non rapprochable',
+                  style: textTheme.bodySmall?.copyWith(color: mutedColor),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          NubiaMoney.formatCents(payment.amountCents),
+          style: textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            fontFeatures: tabularFigures,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Initiales (ex. « Camille Moreau » → « CM ») — même règle que
+/// `patients_page.dart::_initials`.
+String _initials(String fullName) {
+  final parts = fullName
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+      .toUpperCase();
 }

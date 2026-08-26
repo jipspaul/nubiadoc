@@ -85,5 +85,6 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
         arrivalDate: payout.arrivalDate,
         reconciliationStatus: PayoutReconciliationStatus.reconciled,
         internalPaymentsTotalCents: payout.internalPaymentsTotalCents,
+        internalPayments: payout.internalPayments,
       );
 }
