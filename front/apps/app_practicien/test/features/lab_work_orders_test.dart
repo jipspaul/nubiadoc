@@ -122,6 +122,25 @@ void main() {
         findsNothing,
       );
     });
+
+    testWidgets(
+        'le bouton "Nouveau bon" affiche un feedback "à venir" plutôt que '
+        'de créer silencieusement un bon (#5065)', (tester) async {
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(const LabWorkOrdersLoaded([_sentOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.byKey(const Key('lab_work_orders_new_button')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('lab_work_orders_new_button')));
+      await tester.pump();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
   });
 
   group('LabWorkOrdersBloc (via LabWorkOrdersPage, vrai Bloc)', () {
