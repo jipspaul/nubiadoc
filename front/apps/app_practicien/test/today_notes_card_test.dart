@@ -17,19 +17,19 @@ final _entries = [
     id: 'note-1',
     timestamp: DateTime(2026, 6, 22, 9, 0),
     patientInitials: 'MD',
-    status: 'Terminée',
+    status: ClinicalNoteStatus.signed,
   ),
   ClinicalNoteSummary(
     id: 'note-2',
     timestamp: DateTime(2026, 6, 22, 10, 30),
     patientInitials: 'JD',
-    status: 'En cours',
+    status: ClinicalNoteStatus.draft,
   ),
   ClinicalNoteSummary(
     id: 'note-3',
     timestamp: DateTime(2026, 6, 22, 11, 0),
     patientInitials: 'CB',
-    status: 'Terminée',
+    status: ClinicalNoteStatus.signed,
   ),
 ];
 
