@@ -65,6 +65,8 @@ export 'src/remote/cabinet_appointments/cabinet_appointments_api.dart';
 export 'src/remote/cabinet_appointments/cabinet_appointments_dto.dart';
 export 'src/remote/cabinet_patients/cabinet_patients_api.dart';
 export 'src/remote/cabinet_patients/cabinet_patients_dto.dart';
+export 'src/remote/cabinet_payouts/cabinet_payouts_api.dart';
+export 'src/remote/cabinet_payouts/cabinet_payout_dto.dart';
 export 'src/remote/cabinet_quotes/cabinet_quotes_api.dart';
 export 'src/remote/cabinet_quotes/cabinet_quotes_dto.dart';
 export 'src/remote/consultation/consultation_api.dart';
