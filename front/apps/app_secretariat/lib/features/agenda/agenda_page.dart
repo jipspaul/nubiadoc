@@ -186,6 +186,19 @@ class _LoadedViewState extends State<_LoadedView> {
     }).toList();
   }
 
+  /// RDV pointé par [_selectedEntryId] (volet latéral, #5079) — cherche dans
+  /// `widget.state.entries` plutôt que `_filteredEntries` : un changement de
+  /// filtre praticien/recherche ne doit pas fermer le volet d'un RDV déjà
+  /// sélectionné qui sort du filtre.
+  AgendaEntry? get _selectedEntry {
+    final id = _selectedEntryId;
+    if (id == null) return null;
+    for (final e in widget.state.entries) {
+      if (e.id == id) return e;
+    }
+    return null;
+  }
+
   void _loadWeek(DateTime weekStart) {
     context.read<AgendaBloc>().add(AgendaLoadRequested(weekStart: weekStart));
   }
@@ -270,164 +283,196 @@ class _LoadedViewState extends State<_LoadedView> {
       child: Focus(
         focusNode: _listFocusNode,
         onKeyEvent: _handleKey,
-        child: Column(
+        // Stack (plutôt qu'un Row poussant le contenu principal) : le volet
+        // (296px fixe) se superpose au lieu de rétrécir la grille — évite un
+        // overflow des Row existants (barre d'outils, nav semaine…) non
+        // conçus pour un viewport déjà étroit (mobile, cf. test #3896).
+        child: Stack(
           children: [
-            if (widget.state.actionInProgress)
-              const LinearProgressIndicator(
-                  key: Key('agenda_action_progress')),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Agenda du cabinet',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
+            _buildBody(context, practitioners, filteredEntries),
+            // Volet latéral détail du RDV sélectionné (maquette design-v2,
+            // #5079) : seulement pour un RDV réel (pas un créneau libre, qui
+            // n'a ni identité ni statut à détailler).
+            if (_selectedEntry != null && !_selectedEntry!.isFree)
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                child: _AgendaDetailPanel(
+                  entry: _selectedEntry!,
+                  practitionerNames: practitioners,
+                  actionInProgress: widget.state.actionInProgress,
+                  onClose: () => setState(() => _selectedEntryId = null),
+                  onConfirm: () => context.read<AgendaBloc>().add(
+                        AgendaAppointmentConfirmRequested(
+                            appointmentId: _selectedEntry!.id),
+                      ),
+                  onReschedule: (newStartsAt) => context.read<AgendaBloc>().add(
+                        AgendaAppointmentRescheduleRequested(
+                          appointmentId: _selectedEntry!.id,
+                          newStartsAt: newStartsAt,
                         ),
-                        const SizedBox(height: 2),
-                        _AgendaStats(
-                          rdvCount: widget.state.entries
-                              .where((e) => !e.isFree)
-                              .length,
-                          pendingCount: widget.state.entries
-                              .where((e) => e.isPending)
-                              .length,
-                          freeSlotsCount: bookableSlots(
-                                  widget.state.availableSlots,
-                                  widget.state.entries)
-                              .length,
-                        ),
-                      ],
-                    ),
-                  ),
-                  NubiaButton(
-                    key: const Key('new_appointment_button'),
-                    label: 'Nouveau RDV',
-                    icon: Icons.add,
-                    onPressed: widget.state.actionInProgress
-                        ? null
-                        : () => _showNewAppointmentDialog(
-                              context,
-                              widget.state,
-                              practitioners,
-                            ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: NubiaBadge.label(label: '⌘N'),
-                  ),
-                ],
+                      ),
+                ),
               ),
-            ),
-            _WeekNavBar(
-              weekStart: widget.state.weekStart,
-              onPrevWeek: () => _loadWeek(
-                  widget.state.weekStart.subtract(const Duration(days: 7))),
-              onNextWeek: () => _loadWeek(
-                  widget.state.weekStart.add(const Duration(days: 7))),
-              onToday: () => _loadWeek(_currentWeekStart()),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: InputDecorator(
-                      decoration: InputDecoration(
-                        isDense: true,
-                        labelText: 'Praticien',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String?>(
-                          key: const Key('practitioner_filter_dropdown'),
-                          isExpanded: true,
-                          value: _practitionerFilter,
-                          onChanged: (v) =>
-                              setState(() => _practitionerFilter = v),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('Tous les praticiens'),
-                            ),
-                            for (final p in practitioners.entries)
-                              DropdownMenuItem<String?>(
-                                value: p.key,
-                                child: Text(p.value),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 240,
-                    child: NubiaSearchBar(
-                      key: const Key('agenda_patient_search'),
-                      focusNode: _searchFocusNode,
-                      hint: 'Rechercher un patient',
-                      onChanged: (value) =>
-                          setState(() => _searchQuery = value),
-                      locationChip: _searchQuery.isEmpty
-                          ? const _SearchShortcutHint()
-                          : null,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: filteredEntries.isEmpty
-                  ? const NubiaEmptyState(
-                      key: Key('agenda_empty'),
-                      icon: Icons.calendar_month_outlined,
-                      title: 'Aucun rendez-vous cette semaine',
-                    )
-                  : RefreshIndicator(
-                      key: const Key('agenda_refresh_indicator'),
-                      onRefresh: widget.onRefresh,
-                      child: ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        // +1 : la note de cloisonnement (#5080) est le
-                        // dernier item de la liste plutôt qu'un bandeau fixe
-                        // sous l'Expanded — elle ne doit pas rogner la
-                        // hauteur visible des cartes RDV.
-                        itemCount: filteredEntries.length + 1,
-                        itemBuilder: (context, i) {
-                          if (i == filteredEntries.length) {
-                            return const _AgendaConfidentialityNotice();
-                          }
-                          final entry = filteredEntries[i];
-                          return _EntryCard(
-                            entry: entry,
-                            practitionerNames: practitioners,
-                            selected: entry.id == _selectedEntryId,
-                            onSelect: () =>
-                                setState(() => _selectedEntryId = entry.id),
-                          );
-                        },
-                      ),
-                    ),
-            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    Map<String, String> practitioners,
+    List<AgendaEntry> filteredEntries,
+  ) {
+    return Column(
+      children: [
+        if (widget.state.actionInProgress)
+          const LinearProgressIndicator(key: Key('agenda_action_progress')),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Agenda du cabinet',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                    ),
+                    const SizedBox(height: 2),
+                    _AgendaStats(
+                      rdvCount:
+                          widget.state.entries.where((e) => !e.isFree).length,
+                      pendingCount:
+                          widget.state.entries.where((e) => e.isPending).length,
+                      freeSlotsCount: bookableSlots(
+                              widget.state.availableSlots, widget.state.entries)
+                          .length,
+                    ),
+                  ],
+                ),
+              ),
+              NubiaButton(
+                key: const Key('new_appointment_button'),
+                label: 'Nouveau RDV',
+                icon: Icons.add,
+                onPressed: widget.state.actionInProgress
+                    ? null
+                    : () => _showNewAppointmentDialog(
+                          context,
+                          widget.state,
+                          practitioners,
+                        ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: NubiaBadge.label(label: '⌘N'),
+              ),
+            ],
+          ),
+        ),
+        _WeekNavBar(
+          weekStart: widget.state.weekStart,
+          onPrevWeek: () => _loadWeek(
+              widget.state.weekStart.subtract(const Duration(days: 7))),
+          onNextWeek: () =>
+              _loadWeek(widget.state.weekStart.add(const Duration(days: 7))),
+          onToday: () => _loadWeek(_currentWeekStart()),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    isDense: true,
+                    labelText: 'Praticien',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String?>(
+                      key: const Key('practitioner_filter_dropdown'),
+                      isExpanded: true,
+                      value: _practitionerFilter,
+                      onChanged: (v) => setState(() => _practitionerFilter = v),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Tous les praticiens'),
+                        ),
+                        for (final p in practitioners.entries)
+                          DropdownMenuItem<String?>(
+                            value: p.key,
+                            child: Text(p.value),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 240,
+                child: NubiaSearchBar(
+                  key: const Key('agenda_patient_search'),
+                  focusNode: _searchFocusNode,
+                  hint: 'Rechercher un patient',
+                  onChanged: (value) => setState(() => _searchQuery = value),
+                  locationChip:
+                      _searchQuery.isEmpty ? const _SearchShortcutHint() : null,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: filteredEntries.isEmpty
+              ? const NubiaEmptyState(
+                  key: Key('agenda_empty'),
+                  icon: Icons.calendar_month_outlined,
+                  title: 'Aucun rendez-vous cette semaine',
+                )
+              : RefreshIndicator(
+                  key: const Key('agenda_refresh_indicator'),
+                  onRefresh: widget.onRefresh,
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    // +1 : la note de cloisonnement (#5080) est le
+                    // dernier item de la liste plutôt qu'un bandeau fixe
+                    // sous l'Expanded — elle ne doit pas rogner la
+                    // hauteur visible des cartes RDV.
+                    itemCount: filteredEntries.length + 1,
+                    itemBuilder: (context, i) {
+                      if (i == filteredEntries.length) {
+                        return const _AgendaConfidentialityNotice();
+                      }
+                      final entry = filteredEntries[i];
+                      return _EntryCard(
+                        entry: entry,
+                        practitionerNames: practitioners,
+                        selected: entry.id == _selectedEntryId,
+                        onSelect: () =>
+                            setState(() => _selectedEntryId = entry.id),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
     );
   }
 
@@ -870,6 +915,376 @@ String _initialsFrom(String? name) {
       .toUpperCase();
 }
 
+/// Libellé de statut d'un RDV — mêmes règles que `app_practicien/.../
+/// agenda_page.dart` (`_statusLabel`) pour rester cohérent entre apps, sans
+/// dépendance croisée entre packages d'app.
+String _statusLabel(AgendaEntry entry) {
+  if (entry.isCancelled) return 'Annulé';
+  if (entry.isDone) return 'Terminé';
+  if (entry.isInProgress) return 'En cours';
+  if (entry.isNoShow) return 'Absent';
+  if (entry.isCheckedIn) return 'Arrivé';
+  if (entry.isConfirmed) return 'Confirmé';
+  if (entry.isPending) return 'À confirmer';
+  return 'Réservé';
+}
+
+/// Variante de couleur associée à [_statusLabel].
+StatusPillVariant _statusVariant(AgendaEntry entry) {
+  if (entry.isCancelled || entry.isNoShow) return StatusPillVariant.error;
+  if (entry.isDone) return StatusPillVariant.info;
+  if (entry.isInProgress || entry.isCheckedIn) return StatusPillVariant.warning;
+  if (entry.isConfirmed) return StatusPillVariant.success;
+  if (entry.isPending) return StatusPillVariant.warning;
+  return StatusPillVariant.info;
+}
+
+// ---------------------------------------------------------------------------
+
+/// Volet latéral détail du RDV sélectionné (maquette design-v2,
+/// `secretariat-agenda.png`, #5079) — remplace la carte qui grossissait :
+/// porte l'identité, le statut et les actions (Confirmer / Marquer arrivé /
+/// Déplacer / Appeler) du RDV pointé dans la grille.
+///
+/// « Marquer arrivé » et « Appeler » sont désactivés avec un TODO explicite :
+/// `AgendaEntry` n'expose ni téléphone patient, ni date de création, ni
+/// couverture, et `AgendaBloc` n'a pas d'event de check-in (seul
+/// `isCheckedIn` existe côté lecture) — cf. issue #5079, aucune valeur n'est
+/// inventée pour ces champs back manquants.
+class _AgendaDetailPanel extends StatelessWidget {
+  const _AgendaDetailPanel({
+    required this.entry,
+    required this.practitionerNames,
+    required this.actionInProgress,
+    required this.onClose,
+    required this.onConfirm,
+    required this.onReschedule,
+  });
+
+  final AgendaEntry entry;
+  final Map<String, String> practitionerNames;
+  final bool actionInProgress;
+  final VoidCallback onClose;
+  final VoidCallback onConfirm;
+  final void Function(DateTime newStartsAt) onReschedule;
+
+  static const _weekdays = [
+    'Lundi',
+    'Mardi',
+    'Mercredi',
+    'Jeudi',
+    'Vendredi',
+    'Samedi',
+    'Dimanche',
+  ];
+
+  static const _months = [
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre',
+  ];
+
+  String get _dateRangeLabel {
+    final start = entry.startsAt;
+    final end = entry.endsAt;
+    final weekday = _weekdays[start.weekday - 1];
+    final month = _months[start.month - 1];
+    final startTime =
+        '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
+    final endTime =
+        '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
+    return '$weekday ${start.day} $month · $startTime – $endTime';
+  }
+
+  Future<void> _pickReschedule(BuildContext context) async {
+    final newStartsAt = await showDialog<DateTime>(
+      context: context,
+      builder: (_) => _RescheduleDialog(initialStart: entry.startsAt),
+    );
+    if (newStartsAt != null) onReschedule(newStartsAt);
+  }
+
+  Widget _kv(BuildContext context, String label, String value) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          Text(value, style: textTheme.bodyMedium),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+
+    final practitionerName = entry.practitionerName.isNotEmpty
+        ? entry.practitionerName
+        : (practitionerNames[entry.practitionerId] ?? '—');
+
+    final subtitleParts = <String>[
+      if (entry.motif != null && entry.motif!.isNotEmpty) entry.motif!,
+      '${entry.duration.inMinutes} min',
+    ];
+
+    const missingBackData = 'À créer — donnée back manquante';
+
+    return Container(
+      key: Key('agenda_detail_panel_${entry.id}'),
+      width: 296,
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(left: BorderSide(color: tokens.borderDefault)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(-2, 0),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.event, size: 18, color: cs.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(_dateRangeLabel, style: textTheme.titleSmall),
+                ),
+                IconButton(
+                  key: const Key('agenda_detail_close'),
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Fermer',
+                  onPressed: onClose,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                NubiaAvatar(
+                  initials: _initialsFrom(entry.patientName),
+                  radius: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        entry.patientName ?? 'Patient',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleMedium?.copyWith(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        subtitleParts.join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall
+                            ?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            StatusPill(
+              label: _statusLabel(entry),
+              variant: _statusVariant(entry),
+            ),
+            const SizedBox(height: 16),
+            _kv(context, 'Praticien', practitionerName),
+            _kv(context, 'Téléphone', missingBackData),
+            _kv(context, 'Créé le', missingBackData),
+            _kv(context, 'Couverture', missingBackData),
+            const SizedBox(height: 8),
+            if (entry.isPending)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: NubiaButton(
+                    key: Key('confirm_${entry.id}'),
+                    label: 'Confirmer',
+                    icon: Icons.check,
+                    onPressed: actionInProgress ? null : onConfirm,
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Tooltip(
+                message: 'Check-in non branché : aucun event/use case '
+                    'AgendaBloc pour marquer un RDV arrivé (TODO back, '
+                    'issue #5079).',
+                child: SizedBox(
+                  width: double.infinity,
+                  child: NubiaButton(
+                    key: Key('checkin_${entry.id}'),
+                    label: 'Marquer arrivé',
+                    icon: Icons.how_to_reg,
+                    // Désactivé : donnée back manquante, cf. commentaire de
+                    // classe — ne pas simuler le check-in côté front.
+                    onPressed: null,
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: NubiaButton(
+                  key: Key('reschedule_${entry.id}'),
+                  label: 'Déplacer',
+                  icon: Icons.edit_calendar,
+                  variant: NubiaButtonVariant.secondary,
+                  onPressed:
+                      actionInProgress ? null : () => _pickReschedule(context),
+                ),
+              ),
+            ),
+            Tooltip(
+              message: 'Téléphone patient non disponible (donnée back à '
+                  'créer, cf. commentaire de classe).',
+              child: SizedBox(
+                width: double.infinity,
+                child: NubiaButton(
+                  key: Key('call_${entry.id}'),
+                  label: 'Appeler',
+                  icon: Icons.call,
+                  variant: NubiaButtonVariant.tertiary,
+                  onPressed: null,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Dialogue « Déplacer » (maquette design-v2, #5079) : choix d'une nouvelle
+/// date/heure puis dispatch de [AgendaAppointmentRescheduleRequested] (event
+/// existant, agenda_event.dart) — même pattern date/heure que
+/// `bookable_slots/create_slot_dialog.dart`.
+class _RescheduleDialog extends StatefulWidget {
+  const _RescheduleDialog({required this.initialStart});
+
+  final DateTime initialStart;
+
+  @override
+  State<_RescheduleDialog> createState() => _RescheduleDialogState();
+}
+
+class _RescheduleDialogState extends State<_RescheduleDialog> {
+  late DateTime _date = DateTime(
+    widget.initialStart.year,
+    widget.initialStart.month,
+    widget.initialStart.day,
+  );
+  late TimeOfDay _time = TimeOfDay(
+    hour: widget.initialStart.hour,
+    minute: widget.initialStart.minute,
+  );
+
+  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/'
+      '${d.month.toString().padLeft(2, '0')}/'
+      '${d.year}';
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Déplacer le rendez-vous'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            key: const Key('reschedule_date_tile'),
+            leading: const Icon(Icons.calendar_today),
+            title: Text(_formatDate(_date)),
+            subtitle: const Text('Date'),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _date,
+                firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (picked != null) setState(() => _date = picked);
+            },
+          ),
+          ListTile(
+            key: const Key('reschedule_time_tile'),
+            leading: const Icon(Icons.access_time),
+            title: Text(_time.format(context)),
+            subtitle: const Text('Heure'),
+            onTap: () async {
+              final picked =
+                  await showTimePicker(context: context, initialTime: _time);
+              if (picked != null) setState(() => _time = picked);
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          key: const Key('confirm_reschedule_button'),
+          onPressed: () => Navigator.of(context).pop(
+            DateTime(
+              _date.year,
+              _date.month,
+              _date.day,
+              _time.hour,
+              _time.minute,
+            ),
+          ),
+          child: const Text('Déplacer'),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 class _EntryCard extends StatelessWidget {
   const _EntryCard({
     required this.entry,
@@ -913,52 +1328,12 @@ class _EntryCard extends StatelessWidget {
       if (practitionerName.isNotEmpty) practitionerName,
     ];
 
-    // Bloc statut (+ action Confirmer) séparé de la ligne nom/motif (#3896) :
-    // avant ce fix, pastille + bouton partageaient le même Row que la colonne
-    // nom (Expanded) — sur un viewport étroit (mobile 390px), leur largeur
-    // intrinsèque non-flex ne laissait plus de place à l'Expanded, qui
-    // retombait à ~0px et clippait le nom/motif à vide malgré une donnée
-    // bien présente (confirmation « à l'aveugle » au comptoir).
-    final Widget statusRow = entry.isFree
-        ? const StatusPill(label: 'Libre', variant: StatusPillVariant.info)
-        : entry.isConfirmed
-            // RDV confirmé : plus d'action (un re-clic donnerait 409).
-            ? const StatusPill(
-                label: 'Confirmé',
-                variant: StatusPillVariant.success,
-              )
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const StatusPill(
-                    label: 'À confirmer',
-                    variant: StatusPillVariant.warning,
-                  ),
-                  const SizedBox(width: 12),
-                  NubiaButton(
-                    key: Key('confirm_${entry.id}'),
-                    label: 'Confirmer',
-                    size: NubiaButtonSize.sm,
-                    variant: NubiaButtonVariant.secondary,
-                    onPressed: () => context.read<AgendaBloc>().add(
-                          AgendaAppointmentConfirmRequested(
-                              appointmentId: entry.id),
-                        ),
-                  ),
-                  if (selected) ...[
-                    const SizedBox(width: 8),
-                    const NubiaBadge.label(label: '⏎'),
-                  ],
-                ],
-              );
-
     return Padding(
       key: Key('entry_${entry.id}'),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: NubiaCard(
         padding: const EdgeInsets.all(16),
-        state:
-            selected ? NubiaCardState.selected : NubiaCardState.interactive,
+        state: selected ? NubiaCardState.selected : NubiaCardState.interactive,
         onTap: onSelect,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1042,8 +1417,6 @@ class _EntryCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Align(alignment: Alignment.centerRight, child: statusRow),
           ],
         ),
       ),
