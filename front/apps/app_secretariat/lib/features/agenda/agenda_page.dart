@@ -404,8 +404,15 @@ class _LoadedViewState extends State<_LoadedView> {
                       child: ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.symmetric(vertical: 8),
-                        itemCount: filteredEntries.length,
+                        // +1 : la note de cloisonnement (#5080) est le
+                        // dernier item de la liste plutôt qu'un bandeau fixe
+                        // sous l'Expanded — elle ne doit pas rogner la
+                        // hauteur visible des cartes RDV.
+                        itemCount: filteredEntries.length + 1,
                         itemBuilder: (context, i) {
+                          if (i == filteredEntries.length) {
+                            return const _AgendaConfidentialityNotice();
+                          }
                           final entry = filteredEntries[i];
                           return _EntryCard(
                             entry: entry,
@@ -444,6 +451,42 @@ class _LoadedViewState extends State<_LoadedView> {
 }
 
 // ---------------------------------------------------------------------------
+
+/// Mention de cloisonnement secrétariat (maquette design-v2, note #8, #5080) :
+/// passait jusqu'ici par le seul commentaire de code sur `_EntryCard`
+/// (aucune donnée clinique — motif administratif, praticien, uniquement).
+/// La mention passe désormais à l'écran plutôt que dans le source.
+class _AgendaConfidentialityNotice extends StatelessWidget {
+  const _AgendaConfidentialityNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('agenda_confidentiality_notice'),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield, size: 18, color: NubiaColors.n400),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Aucune donnée clinique côté secrétariat — motif administratif '
+              'uniquement, cloisonnement conservé.',
+              style: TextStyle(fontSize: 11.5, color: NubiaColors.n600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Trois compteurs nommés de la barre d'outils (maquette design-v2, #5081) :
 /// RDV, à confirmer (teinté `warning` — c'est la file de travail du

@@ -376,6 +376,52 @@ void main() {
       await gi.reset();
     });
 
+    testWidgets(
+        'affiche la mention de cloisonnement secrétariat (aucune donnée '
+        'clinique) — #5080', (tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      final notice = find.byKey(const Key('agenda_confidentiality_notice'));
+      expect(notice, findsOneWidget);
+      expect(
+        find.descendant(of: notice, matching: find.byIcon(Icons.shield)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: notice,
+          matching: find.text(
+            'Aucune donnée clinique côté secrétariat — motif administratif '
+            'uniquement, cloisonnement conservé.',
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await gi.reset();
+    });
+
     testWidgets('affiche l\'état vide quand aucun créneau', (tester) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
