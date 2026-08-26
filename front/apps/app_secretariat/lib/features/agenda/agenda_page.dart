@@ -856,9 +856,11 @@ class _WeekNavBar extends StatelessWidget {
     final startMonth = _months[weekStart.month - 1];
     final endMonth = _months[weekEnd.month - 1];
     if (weekStart.month == weekEnd.month) {
-      return '${weekStart.day}–${weekEnd.day} $startMonth ${weekStart.year}';
+      return 'Semaine du ${weekStart.day} au ${weekEnd.day} $startMonth '
+          '${weekStart.year}';
     }
-    return '${weekStart.day} $startMonth – ${weekEnd.day} $endMonth ${weekEnd.year}';
+    return 'Semaine du ${weekStart.day} $startMonth au ${weekEnd.day} '
+        '$endMonth ${weekEnd.year}';
   }
 
   @override
