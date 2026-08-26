@@ -409,8 +409,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Albert Einstein'), findsOneWidget);
-      expect(find.text(NubiaMoney.formatCents(35000)), findsOneWidget);
-      expect(find.text('350,00 €'), findsOneWidget);
+      expect(
+        find.text(
+          'Reste à charge patient · sur ${NubiaMoney.formatCents(35000)}',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text(NubiaMoney.formatCents(12000)), findsOneWidget);
       expect(find.text('350.00 €'), findsNothing);
       // Cloisonnement : aucun libellé clinique
       expect(find.text('Motif'), findsNothing);
@@ -454,7 +459,10 @@ void main() {
       await tester.pumpWidget(buildDetailPage());
       await tester.pumpAndSettle();
 
-      expect(find.text('12 450,67 €'), findsOneWidget);
+      expect(
+        find.text('Reste à charge patient · sur 12 450,67 €'),
+        findsOneWidget,
+      );
       expect(find.text('148,50 €'), findsOneWidget);
     });
 
@@ -487,6 +495,74 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Devis introuvable'), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche la ventilation AMO/AMC/reste à charge — même calcul et '
+        'même vocabulaire que l\'app Patient (#5091)', (tester) async {
+      final quoteWithItems = CabinetQuote(
+        id: 'q4',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Julie Martin',
+        totalCents: 43592,
+        patientShareCents: 14850,
+        status: CabinetQuoteStatus.signed,
+        createdAt: DateTime(2026, 2, 1),
+        items: const [
+          QuoteLineItem(
+            id: 'l1',
+            label: 'Acte 1',
+            totalCents: 43592,
+            amoShareCents: 16566,
+            amcShareCents: 12176,
+            patientShareCents: 14850,
+          ),
+        ],
+      );
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(quoteWithItems));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ventilation_bar')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('ventilation_legend_amo')),
+          matching: find.text('Assurance Maladie (AMO)'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('ventilation_legend_amo')),
+          matching: find.text(NubiaMoney.formatCents(-16566)),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('ventilation_legend_amc')),
+          matching: find.text(NubiaMoney.formatCents(-12176)),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Reste à charge'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('ventilation_rac_value')))
+            .data,
+        NubiaMoney.formatCents(14850),
+      );
+    });
+
+    testWidgets(
+        'omet la ventilation proprement quand CabinetQuote.items est null',
+        (tester) async {
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(detailQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ventilation_bar')), findsNothing);
     });
   });
 

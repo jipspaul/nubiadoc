@@ -184,13 +184,23 @@ class _DevisDetailBody extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         AmountHeader(
-          label: 'Total du plan de soins',
-          amount: NubiaMoney.formatCents(quote.totalCents),
+          label: 'Reste à charge patient · sur '
+              '${NubiaMoney.formatCents(quote.totalCents)}',
+          amount: NubiaMoney.formatCents(quote.patientShareCents),
           caption: quote.patientName,
-          remainingLabel: 'Part patient',
-          remainingAmount: NubiaMoney.formatCents(quote.patientShareCents),
-          remainingCaption: 'Reste à charge',
         ),
+        // Ventilation AMO/AMC (#5091) : même calcul et même vocabulaire que
+        // l'app Patient (VentilationBar, packages/nubia_design_system).
+        // Omise si le back n'a pas renvoyé les lignes du devis.
+        if (hasItems) ...[
+          const SizedBox(height: 16),
+          VentilationBar(
+            amoCents: quote.items!.amoShareTotalCents,
+            amcCents: quote.items!.amcShareTotalCents,
+            racCents: quote.patientShareCents,
+            racLabel: 'Reste à charge',
+          ),
+        ],
         const SizedBox(height: 16),
         Center(
           child: StatusPill(

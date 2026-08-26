@@ -39,6 +39,7 @@ export 'src/widgets/metric_tile.dart';
 export 'src/widgets/segmented_control.dart';
 export 'src/widgets/nubia_toggle.dart';
 export 'src/widgets/status_pill.dart';
+export 'src/widgets/ventilation_bar.dart';
 
 // A2UI catalog ↔ widget prop mappers
 export 'src/a2ui/ds_props.dart';
