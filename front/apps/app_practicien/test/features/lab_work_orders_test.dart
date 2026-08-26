@@ -66,6 +66,40 @@ Widget _wrap(LabWorkOrdersBloc bloc) => MaterialApp(
 
 void main() {
   group('LabWorkOrdersPage (widget)', () {
+    testWidgets(
+        'le chargement affiche un squelette par colonne, pas un spinner '
+        'centré (#5066)', (tester) async {
+      // Surface agrandie : les 4 groupes + leurs cartes squelette dépassent
+      // la hauteur de test par défaut (600px), ListView ne construit que ce
+      // qui est visible.
+      tester.view.physicalSize = const Size(800, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state).thenReturn(const LabWorkOrdersLoading());
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(NubiaSkeletonLoader), findsNWidgets(8));
+      expect(
+        find.byKey(const Key('lab_work_group_skeleton_sent')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_group_skeleton_try_in')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_group_skeleton_returned')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_group_skeleton_fitted')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('les bons s\'affichent groupés par statut', (tester) async {
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state)
