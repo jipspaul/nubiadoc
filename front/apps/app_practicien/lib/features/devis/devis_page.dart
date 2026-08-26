@@ -518,6 +518,7 @@ QuoteCardStatus _cardStatus(CabinetQuoteStatus status) => switch (status) {
       CabinetQuoteStatus.draft => QuoteCardStatus.draft,
       CabinetQuoteStatus.sent => QuoteCardStatus.sent,
       CabinetQuoteStatus.signed => QuoteCardStatus.signed,
+      CabinetQuoteStatus.paid => QuoteCardStatus.paid,
       CabinetQuoteStatus.expired => QuoteCardStatus.expired,
       CabinetQuoteStatus.cancelled => QuoteCardStatus.refused,
     };
@@ -536,6 +537,8 @@ class _StatusStyle {
           const _StatusStyle('Envoyé', StatusPillVariant.warning),
         CabinetQuoteStatus.signed =>
           const _StatusStyle('Signé', StatusPillVariant.success),
+        CabinetQuoteStatus.paid =>
+          const _StatusStyle('Payé', StatusPillVariant.success),
         CabinetQuoteStatus.expired =>
           const _StatusStyle('Expiré', StatusPillVariant.error),
         CabinetQuoteStatus.cancelled =>

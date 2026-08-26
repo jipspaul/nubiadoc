@@ -318,6 +318,24 @@ void main() {
       expect(domain.signedAt, isNull);
     });
 
+    test(
+        'fromJson dérive CabinetQuoteStatus.paid quand deposit_paid=true sur un devis signed (#5094)',
+        () {
+      final json = {
+        'id': 'a1000000-0000-0000-0000-000000000004',
+        'patient_id': 'd0000000-0000-0000-0000-0000000000d6',
+        'patient_name': 'Fatou Ndiaye',
+        'status': 'signed',
+        'total_amount': 42000,
+        'created_at': '2026-06-21T10:24:38.232439+00:00',
+        'deposit_paid': true,
+      };
+      final dto = CabinetQuoteDto.fromJson(json);
+      expect(dto.depositPaid, isTrue);
+      final domain = dto.toDomain();
+      expect(domain.status, CabinetQuoteStatus.paid);
+    });
+
     test('fromJson tolère total_cents (rétrocompat) et cabinet_id présent', () {
       final json = {
         'id': 'q-1',

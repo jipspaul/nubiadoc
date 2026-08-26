@@ -404,6 +404,28 @@ void main() {
       expect(find.text('148,50 €'), findsOneWidget);
     });
 
+    testWidgets(
+        'affiche « Payé » (et non « Signé ») quand l\'acompte est réglé (#5094)',
+        (tester) async {
+      final paidQuote = CabinetQuote(
+        id: 'q3',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Ada Lovelace',
+        totalCents: 50000,
+        patientShareCents: 20000,
+        status: CabinetQuoteStatus.paid,
+        createdAt: DateTime(2026, 2, 1),
+        signedAt: DateTime(2026, 2, 10),
+      );
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(paidQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Payé'), findsOneWidget);
+      expect(find.text('Signé'), findsNothing);
+    });
+
     testWidgets('affiche l\'erreur de détail', (tester) async {
       when(() => bloc.state)
           .thenReturn(const DevisDetailError('Devis introuvable'));

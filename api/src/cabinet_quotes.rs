@@ -275,6 +275,11 @@ pub struct CabinetQuoteItem {
     /// `sent_at + QUOTE_VALIDITY_DAYS`, `null` si le devis n'est pas `sent`
     /// ou n'a jamais été envoyé (#5597).
     pub expires_at: Option<String>,
+    /// `quote.deposit_paid` (migration 0093, #5094) : acompte confirmé, sans
+    /// changer `status` (qui reste `signed` — pas de statut back `paid`,
+    /// cf. `VALID_QUOTE_STATUSES`). Le front dérive un statut `paid` distinct
+    /// de `signed` à partir de ce booléen (doc12 §10, issue #5094).
+    pub deposit_paid: bool,
 }
 
 /// Valeurs valides de `quote.status` (CHECK, migration 0006). `cancelled`
@@ -345,7 +350,8 @@ pub async fn list_cabinet_quotes(
                     q.created_at, \
                     CASE WHEN q.status = 'sent' AND q.sent_at IS NOT NULL \
                          THEN q.sent_at + interval '{QUOTE_VALIDITY_DAYS} days' \
-                         ELSE NULL END AS expires_at \
+                         ELSE NULL END AS expires_at, \
+                    q.deposit_paid \
              FROM quote q \
              LEFT JOIN patient p ON p.id = q.patient_id \
              WHERE q.cabinet_id = $1"
@@ -445,6 +451,8 @@ pub async fn list_cabinet_quotes(
                 row.try_get("created_at").map_err(|_| AppError::Internal)?;
             let expires_at: Option<chrono::DateTime<chrono::Utc>> =
                 row.try_get("expires_at").map_err(|_| AppError::Internal)?;
+            let deposit_paid: bool =
+                row.try_get("deposit_paid").map_err(|_| AppError::Internal)?;
             Ok(CabinetQuoteItem {
                 id,
                 patient_id,
@@ -454,6 +462,7 @@ pub async fn list_cabinet_quotes(
                 patient_share_cents,
                 created_at: created_at.to_rfc3339(),
                 expires_at: expires_at.map(|d| d.to_rfc3339()),
+                deposit_paid,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
@@ -517,6 +526,8 @@ pub struct CabinetQuoteDetail {
     pub deposit_pct: Option<f64>,
     /// Montant d'acompte minimum en centimes, dérivé de `deposit_pct`.
     pub deposit_amount_cents: Option<i64>,
+    /// `quote.deposit_paid` (migration 0093, #5094) : voir `CabinetQuoteItem.deposit_paid`.
+    pub deposit_paid: bool,
 }
 
 /// `GET /v1/cabinet/quotes/:id` — détail d'un devis du cabinet courant.
@@ -554,6 +565,7 @@ pub async fn get_cabinet_quote(
                 trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
                 q.status, (q.total_amount * 100)::bigint AS amount_cents, \
                 q.signed_at, q.created_at, q.deposit_pct::double precision AS deposit_pct, \
+                q.deposit_paid, \
                 CASE WHEN q.status = 'sent' AND q.sent_at IS NOT NULL \
                      THEN q.sent_at + interval '{QUOTE_VALIDITY_DAYS} days' \
                      ELSE NULL END AS expires_at \
@@ -613,6 +625,9 @@ pub async fn get_cabinet_quote(
     let deposit_pct: Option<f64> = quote_row
         .try_get("deposit_pct")
         .map_err(|_| AppError::Internal)?;
+    let deposit_paid: bool = quote_row
+        .try_get("deposit_paid")
+        .map_err(|_| AppError::Internal)?;
 
     let mut items = Vec::with_capacity(item_rows.len());
     let mut patient_share_total: i64 = 0;
@@ -670,6 +685,7 @@ pub async fn get_cabinet_quote(
         items,
         deposit_pct,
         deposit_amount_cents,
+        deposit_paid,
     }))
 }
 

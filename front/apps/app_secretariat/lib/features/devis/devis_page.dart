@@ -164,6 +164,8 @@ QuoteCardStatus mapQuoteStatus(CabinetQuoteStatus status) {
       return QuoteCardStatus.sent;
     case CabinetQuoteStatus.signed:
       return QuoteCardStatus.signed;
+    case CabinetQuoteStatus.paid:
+      return QuoteCardStatus.paid;
     case CabinetQuoteStatus.expired:
       return QuoteCardStatus.expired;
     case CabinetQuoteStatus.cancelled:
