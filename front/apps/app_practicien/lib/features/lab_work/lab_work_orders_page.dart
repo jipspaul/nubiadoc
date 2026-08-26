@@ -27,6 +27,15 @@ const _kStatusVariants = <String, StatusPillVariant>{
   'fitted': StatusPillVariant.success,
 };
 
+/// Libellé du bouton d'avancement selon le statut courant (#5061, point 4 de
+/// la maquette) : annonce l'effet de la transition plutôt qu'un « Avancer »
+/// générique, sans changer l'événement émis par [_advance].
+const _kStatusTransitionLabels = <String, String>{
+  'sent': "Passer à l'essayage",
+  'try_in': 'Marquer retourné',
+  'returned': 'Programmer la pose',
+};
+
 /// `sentAt` (ISO 8601) → `dd/MM/yyyy`, même convention que
 /// `patient_fiche.dart` (pas de dépendance `intl` dans ce package).
 String _formatSentAt(String iso) {
@@ -225,7 +234,8 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                                                       CircularProgressIndicator(
                                                           strokeWidth: 2),
                                                 )
-                                              : const Text('Avancer'),
+                                              : Text(_kStatusTransitionLabels[order.status] ??
+                                  'Avancer'),
                                         ),
                                     ],
                                   ),
@@ -312,7 +322,13 @@ class _LabWorkOrderInfo extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(order.labName, style: Theme.of(context).textTheme.titleMedium),
+            Expanded(
+              child: Text(
+                order.labName,
+                style: Theme.of(context).textTheme.titleMedium,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             const SizedBox(width: 8),
             StatusPill(
               key: Key('lab_work_order_status_${order.id}'),
