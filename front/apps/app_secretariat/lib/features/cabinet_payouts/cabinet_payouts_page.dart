@@ -43,6 +43,14 @@ String _pad2(int n) => n.toString().padLeft(2, '0');
 
 String _formatDate(DateTime d) => '${_pad2(d.day)}/${_pad2(d.month)}/${d.year}';
 
+String _shortDate(DateTime d) => '${_pad2(d.day)}/${_pad2(d.month)}';
+
+/// Sens de l'écart (#5108) selon le signe de `differenceCents` —
+/// information absente de l'ancien encart, désormais explicite.
+String _gapSensePhrase(int differenceCents) => differenceCents < 0
+    ? 'la banque a reçu moins que ce qui a été encaissé'
+    : 'la banque a reçu plus que ce qui a été encaissé';
+
 /// Paiement interne non rapprochable par le prestataire dont le montant
 /// égale exactement l'écart (#5110) — signale une « piste probable » sans
 /// jamais rapprocher automatiquement quoi que ce soit.
@@ -252,22 +260,10 @@ class _PayoutDetailPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Virement le ${_formatDate(payout.arrivalDate)}'),
-                    Text(
-                      'Montant du virement : ${_euros(payout.amountCents)}',
-                    ),
-                    Text(
-                      'Paiements internes trouvés : '
-                      '${_euros(payout.internalPaymentsTotalCents)}',
-                    ),
+                    _PayoutComparisonRow(payout: payout),
                     if (!reconciled) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Écart : ${_euros(payout.differenceCents)}',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
+                      const SizedBox(height: 12),
+                      _PayoutGapCard(payout: payout),
                     ],
                     if (probableLead != null) ...[
                       const SizedBox(height: 12),
@@ -312,6 +308,158 @@ class _PayoutDetailPanel extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Comparaison « Reçu en banque » vs « Encaissé au cabinet » (#5108) : deux
+/// blocs côte à côte, pour matérialiser le rapprochement comme une
+/// comparaison de deux nombres plutôt que des phrases.
+class _PayoutComparisonRow extends StatelessWidget {
+  const _PayoutComparisonRow({required this.payout});
+
+  final CabinetPayout payout;
+
+  @override
+  Widget build(BuildContext context) {
+    final internalPaymentsCount = payout.internalPayments.length;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _ComparisonTile(
+              key: const Key('payout_comparison_bank'),
+              icon: Icons.account_balance,
+              title: 'Reçu en banque',
+              value: NubiaMoney.formatCents(payout.amountCents),
+              subtitle: 'arrivé le ${_shortDate(payout.arrivalDate)}',
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _ComparisonTile(
+              key: const Key('payout_comparison_cabinet'),
+              icon: Icons.receipt_long,
+              title: 'Encaissé au cabinet',
+              value: NubiaMoney.formatCents(payout.internalPaymentsTotalCents),
+              subtitle: '$internalPaymentsCount '
+                  '${internalPaymentsCount > 1 ? 'paiements' : 'paiement'} '
+                  'du ${_shortDate(payout.arrivalDate)}',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tuile compacte icône + valeur + sous-ligne, pour les deux blocs du
+/// rapprochement (variante de `MetricTile` avec sous-ligne).
+class _ComparisonTile extends StatelessWidget {
+  const _ComparisonTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String value;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: cs.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  style:
+                      textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.titleMedium?.copyWith(
+              color: cs.onSurface,
+              fontFeatures: tabularFigures,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Encart d'écart (#5108) : montant en valeur absolue + sens (quel côté a
+/// reçu le plus), remplace l'ancienne ligne « Écart : X € » sans indication
+/// de sens.
+class _PayoutGapCard extends StatelessWidget {
+  const _PayoutGapCard({required this.payout});
+
+  final CabinetPayout payout;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      key: const Key('payout_reconciliation_gap'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.dangerBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: NubiaColors.dangerBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error, size: 18, color: tokens.dangerFg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: textTheme.bodySmall?.copyWith(color: tokens.dangerFg),
+                children: [
+                  const TextSpan(text: 'Écart de '),
+                  TextSpan(
+                    text: NubiaMoney.formatCents(payout.differenceCents.abs()),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextSpan(
+                    text:
+                        ' — ${_gapSensePhrase(payout.differenceCents)}',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

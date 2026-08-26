@@ -257,6 +257,153 @@ void main() {
     );
   });
 
+  group('comparaison Reçu en banque / Encaissé au cabinet (#5108)', () {
+    testWidgets(
+      'deux blocs côte à côte avec les libellés exacts et les montants',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_toVerifyWithCashLead],
+            selectedPayoutId: _toVerifyWithCashLead.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('payout_comparison_bank')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('payout_comparison_cabinet')),
+          findsOneWidget,
+        );
+        expect(find.text('Reçu en banque'), findsOneWidget);
+        expect(find.text('Encaissé au cabinet'), findsOneWidget);
+        expect(find.text('1 842,00 €'), findsOneWidget);
+        expect(find.text('2 024,00 €'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'écart négatif → encart danger avec le montant absolu et le sens '
+      '"la banque a reçu moins que ce qui a été encaissé"',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_toVerifyWithCashLead],
+            selectedPayoutId: _toVerifyWithCashLead.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('payout_reconciliation_gap')),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Écart de 182,00 € — la banque a reçu moins que ce qui a été '
+            'encaissé',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'écart positif → sens "la banque a reçu plus que ce qui a été '
+      'encaissé"',
+      (tester) async {
+        final payoutBankReceivedMore = CabinetPayout(
+          id: 'po_mock_bank_more',
+          provider: PayoutProvider.stripe,
+          amountCents: 202400,
+          currency: 'EUR',
+          arrivalDate: DateTime(2026, 8, 8),
+          reconciliationStatus: PayoutReconciliationStatus.toVerify,
+          internalPaymentsTotalCents: 184200,
+        );
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [payoutBankReceivedMore],
+            selectedPayoutId: payoutBankReceivedMore.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.textContaining(
+            'Écart de 182,00 € — la banque a reçu plus que ce qui a été '
+            'encaissé',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'virement rapproché → pas d\'encart d\'écart',
+      (tester) async {
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_reconciled],
+            selectedPayoutId: _reconciled.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('payout_reconciliation_gap')),
+          findsNothing,
+        );
+      },
+    );
+  });
+
   group('encart « piste probable » (#5110)', () {
     testWidgets(
       'un paiement espèces non rapprochable par le prestataire égal à '
