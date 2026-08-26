@@ -327,9 +327,8 @@ class _PatientsPageState extends State<PatientsPage> {
 /// Filtres rapides de la barre d'outils Fiches patients (design-v2, note
 /// #5) : Impayés / Alertes / Sans RDV à venir. `matches`/`countIn` lisent
 /// exclusivement les champs déjà présents sur [CabinetPatient] (aucun fetch
-/// dédié) — `hasActiveAlerts`/`hasUpcomingAppointment` restent `null` tant
-/// que la liste paginée n'est pas enrichie par le ticket dépendant, auquel
-/// cas le filtre correspondant ne retient aucun patient.
+/// dédié) — `hasActiveAlerts`/`hasUpcomingAppointment` sont désormais
+/// renvoyés par `GET /cabinet/patients` (#5970).
 enum _QuickFilter {
   unpaid('Impayés'),
   alerts('Alertes'),
@@ -707,10 +706,10 @@ class _AlertPastilleData {
 /// qu'au survol (jamais au clavier). Lues directement depuis les champs déjà
 /// chargés par la liste (`CabinetPatient`) — plus de fetch par ligne.
 /// `balanceDueCents`/`noShowCount` sont enrichis par la liste paginée
-/// depuis #5112 ; `hasActiveAlerts`/`guardians` restent `null` tant que
-/// l'endpoint liste n'est pas enrichi pour ces champs (tickets dépendants
-/// distincts, #5118 notamment) — la ligne s'affiche alors simplement sans
-/// pastille correspondante (best-effort).
+/// depuis #5112, `hasActiveAlerts` depuis #5970 ; `guardians` reste `null`
+/// tant que l'endpoint liste n'est pas enrichi pour ce champ (ticket
+/// dépendant distinct) — la ligne s'affiche alors simplement sans pastille
+/// correspondante (best-effort).
 class PatientAlertBadge extends StatelessWidget {
   const PatientAlertBadge({super.key, required this.patient});
 
