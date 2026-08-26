@@ -1751,6 +1751,17 @@ class _EntryCard extends StatelessWidget {
   /// fond clair de l'app (ex. `treatment_plans/pending_quote_card.dart`).
   static const _pendingTextColor = Color(0xFF78350F);
 
+  /// Hauteur du bloc dérivée de sa durée (maquette design-v2, bloc `.ev`,
+  /// #5073 : 30 min = 28 px, 1 h = 56 px). Plancher à 60 px : en dessous, la
+  /// pastille praticien + les deux lignes nom/motif ne tiennent plus sans
+  /// se chevaucher.
+  static double _blockHeight(Duration duration) {
+    const pxPerMinute = 56 / 60;
+    const minHeight = 60.0;
+    final scaled = duration.inMinutes * pxPerMinute;
+    return scaled < minHeight ? minHeight : scaled;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (entry.isFree) return _buildFreeSlot(context);
@@ -1762,8 +1773,6 @@ class _EntryCard extends StatelessWidget {
 
     final time =
         '${entry.startsAt.hour.toString().padLeft(2, '0')}:${entry.startsAt.minute.toString().padLeft(2, '0')}';
-    final endTime =
-        '${entry.endsAt.hour.toString().padLeft(2, '0')}:${entry.endsAt.minute.toString().padLeft(2, '0')}';
 
     final practitionerName = entry.practitionerName.isNotEmpty
         ? entry.practitionerName
@@ -1793,113 +1802,98 @@ class _EntryCard extends StatelessWidget {
         ? _pendingTextColor
         : (blockStyle?.text ?? cs.onSurfaceVariant);
 
+    // Bord gauche 3 px coloré (maquette design-v2, bloc `.ev`, #5073) :
+    // couleur du praticien, ou `warnFg` pour l'état « à confirmer » (#5075,
+    // prioritaire — même règle que le fond ci-dessus).
+    final leftBorderColor = isPending
+        ? tokens.warningFg
+        : (blockStyle?.border ?? tokens.borderSubtle);
+
     // Bloc `.ev.tc` (maquette design-v2, #5075) : l'état « à confirmer »
     // n'est plus signalé par une pastille + un bouton inline (déplacés dans
     // le volet de détail, #5079) mais directement par la couleur du bloc —
     // fond `warnBg`, bord gauche `warnFg`, texte `#78350F` — et un coin
     // cranté en haut à droite (triangle `warnFg` opacité .6).
     Widget card = NubiaCard(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       state: selected ? NubiaCardState.selected : NubiaCardState.interactive,
       backgroundColor: isPending ? tokens.warningBg : blockStyle?.background,
       borderColor: isPending ? null : blockStyle?.border,
       onTap: onSelect,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 56,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      time,
-                      style: textTheme.titleMedium?.copyWith(
-                        color: primaryTextColor,
-                        fontWeight: FontWeight.w600,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    Text(
-                      endTime,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: secondaryTextColor,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ],
+          SizedBox(
+            width: 40,
+            child: Text(
+              time,
+              style: textTheme.bodySmall?.copyWith(
+                color: secondaryTextColor,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          // Pastille praticien (#5168) : même couleur, dérivée de
+          // practitionerId via practitionerColor, que la colonne Praticien
+          // de la salle d'attente.
+          Container(
+            key: Key('entry_practitioner_dot_${entry.id}'),
+            width: 8,
+            height: 8,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: practitionerColor(entry.practitionerId),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // `.nm` — nom du patient, en gras, ellipsis 1 ligne.
+                Text(
+                  entry.patientName ?? 'Patient',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: primaryTextColor,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              // Pastille praticien (#5168) : même couleur, dérivée de
-              // practitionerId via practitionerColor, que la colonne
-              // Praticien de la salle d'attente.
-              Container(
-                key: Key('entry_practitioner_dot_${entry.id}'),
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: practitionerColor(entry.practitionerId),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 8),
-              NubiaAvatar(
-                initials: _initialsFrom(entry.patientName),
-                radius: 18,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      entry.patientName ?? 'Patient',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.titleMedium?.copyWith(
-                        color: primaryTextColor,
-                        fontWeight: FontWeight.w500,
-                      ),
+                if (subtitleParts.isNotEmpty)
+                  // `.mo` — motif (+ praticien) en dessous, opacité .72,
+                  // ellipsis 1 ligne.
+                  Text(
+                    subtitleParts.join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: secondaryTextColor.withValues(alpha: 0.72),
                     ),
-                    if (subtitleParts.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitleParts.join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: secondaryTextColor,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+                  ),
+              ],
+            ),
           ),
         ],
       ),
     );
 
-    if (isPending) {
-      card = ClipRRect(
-        key: Key('entry_pending_${entry.id}'),
-        borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          children: [
-            card,
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              child: Container(width: 3, color: tokens.warningFg),
-            ),
+    card = ClipRRect(
+      key: isPending ? Key('entry_pending_${entry.id}') : null,
+      borderRadius: BorderRadius.circular(12),
+      child: Stack(
+        children: [
+          card,
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(width: 3, color: leftBorderColor),
+          ),
+          if (isPending)
             Positioned(
               top: 0,
               right: 0,
@@ -1910,15 +1904,14 @@ class _EntryCard extends StatelessWidget {
                 ),
               ),
             ),
-          ],
-        ),
-      );
-    }
+        ],
+      ),
+    );
 
     return Padding(
       key: Key('entry_${entry.id}'),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: card,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SizedBox(height: _blockHeight(entry.duration), child: card),
     );
   }
 }
