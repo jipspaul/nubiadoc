@@ -12,6 +12,9 @@ class WaitingRoomEntry extends Equatable {
   final int? estimatedWaitMinutes;
   /// Motif admin du RDV (ex. "Détartrage") — pas de motif clinique (#5172).
   final String? reason;
+  /// Motif du RDV pour anticiper l'acte en un coup d'œil (ex. "Pose de
+  /// couronne", "Contrôle annuel") — distinct de [reason] (#5029).
+  final String? appointmentReason;
   final DateTime? appointmentTime;
   /// Praticien attendu (#5168) — `null` quand l'urgence n'est pas encore
   /// attribuée (cf. [appointmentId]).
@@ -29,6 +32,7 @@ class WaitingRoomEntry extends Equatable {
     required this.arrivedAt,
     this.estimatedWaitMinutes,
     this.reason,
+    this.appointmentReason,
     this.appointmentTime,
     this.practitionerId,
     this.practitionerName,

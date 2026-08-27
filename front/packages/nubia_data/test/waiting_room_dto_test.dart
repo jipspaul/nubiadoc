@@ -65,6 +65,47 @@ void main() {
       expect(domain.appointmentTime, isNull);
     });
 
+    // #5029 : motif du RDV pour anticiper l'acte (ex. "Pose de couronne").
+    test('fromJson mappe appointmentReason depuis motif', () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+        'motif': 'Pose de couronne',
+      });
+      expect(dto.appointmentReason, 'Pose de couronne');
+      final domain = dto.toDomain();
+      expect(domain.appointmentReason, 'Pose de couronne');
+    });
+
+    test('fromJson retombe sur appointment_reason si motif absent', () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+        'appointment_reason': 'Contrôle annuel',
+      });
+      expect(dto.appointmentReason, 'Contrôle annuel');
+      final domain = dto.toDomain();
+      expect(domain.appointmentReason, 'Contrôle annuel');
+    });
+
+    test('fromJson tolère appointmentReason absent (pas de crash)', () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+      });
+      expect(dto.appointmentReason, isNull);
+      expect(dto.toDomain().appointmentReason, isNull);
+    });
+
     // #5031 : heure prévue du RDV (pour calculer le retard sur le planning).
     test('fromJson mappe scheduled_at quand présent', () {
       final dto = WaitingRoomEntryDto.fromJson({
