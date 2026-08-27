@@ -17,6 +17,8 @@ class WaitingRoomEntry extends Equatable {
   /// attribuée (cf. [appointmentId]).
   final String? practitionerId;
   final String? practitionerName;
+  /// Heure prévue du RDV (pour calculer le retard sur le planning, #5031).
+  final DateTime? scheduledAt;
 
   const WaitingRoomEntry({
     required this.id,
@@ -30,6 +32,7 @@ class WaitingRoomEntry extends Equatable {
     this.appointmentTime,
     this.practitionerId,
     this.practitionerName,
+    this.scheduledAt,
   });
 
   Duration get waitSoFar => DateTime.now().difference(arrivedAt);

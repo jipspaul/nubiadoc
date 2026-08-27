@@ -13,6 +13,7 @@ class WaitingRoomEntryDto {
   final String? appointmentTime;
   final String? practitionerId;
   final String? practitionerName;
+  final String? scheduledAt;
 
   const WaitingRoomEntryDto({
     required this.id,
@@ -26,6 +27,7 @@ class WaitingRoomEntryDto {
     this.appointmentTime,
     this.practitionerId,
     this.practitionerName,
+    this.scheduledAt,
   });
 
   factory WaitingRoomEntryDto.fromJson(Map<String, dynamic> json) =>
@@ -52,6 +54,7 @@ class WaitingRoomEntryDto {
         appointmentTime: json['starts_at'] as String?,
         practitionerId: json['practitioner_id'] as String?,
         practitionerName: json['practitioner_name'] as String?,
+        scheduledAt: json['scheduled_at'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -74,6 +77,7 @@ class WaitingRoomEntryDto {
             appointmentTime != null ? DateTime.tryParse(appointmentTime!) : null,
         practitionerId: practitionerId,
         practitionerName: practitionerName,
+        scheduledAt: scheduledAt != null ? DateTime.tryParse(scheduledAt!) : null,
       );
 }
 
