@@ -6,6 +6,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../session/pro_auth_cubit.dart';
 import 'waiting_room_bloc.dart';
 import 'waiting_room_event.dart';
 import 'waiting_room_state.dart';
@@ -213,11 +214,20 @@ class _LoadedViewState extends State<_LoadedView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(child: body),
-            const SizedBox(
+            SizedBox(
               width: kPresencePanelWidth,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(0, 16, 16, 16),
-                child: _PresencePanel(key: Key('presence_panel')),
+                padding: const EdgeInsets.fromLTRB(0, 16, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _MyPatientsPanel(entries: widget.state.entries),
+                    const SizedBox(height: 12),
+                    const _PresencePanel(key: Key('presence_panel')),
+                    const SizedBox(height: 12),
+                    const _ConfidentialityNote(),
+                  ],
+                ),
               ),
             ),
           ],
@@ -239,49 +249,206 @@ class _PresencePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return Column(
+    return NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.groups, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Praticiens présents',
+                  style: textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const _PractitionerPresenceRow(
+            initials: 'AR',
+            name: 'Dr Amélie Rousseau',
+            subtitle: 'Vous · en consultation',
+            statusLabel: 'Présente',
+            statusVariant: StatusPillVariant.success,
+          ),
+          const SizedBox(height: 12),
+          const _PractitionerPresenceRow(
+            initials: 'ML',
+            name: 'Dr Marc Lefèvre',
+            subtitle: 'Fauteuil 2 · termine à 18h',
+            statusLabel: 'Départ 18h',
+            statusVariant: StatusPillVariant.warning,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Panneau latéral « Mes patients dans la file » (maquette design-v2, #5039,
+/// `.bx` header `person`) — répartition de la file par praticien, dérivée de
+/// [WaitingRoomEntry.practitionerId]/[WaitingRoomEntry.practitionerName] et
+/// de l'identité praticien courante ([ProAuthCubit]). Motif administratif
+/// uniquement, aucune donnée clinique (cf. [_ConfidentialityNote]).
+class _MyPatientsPanel extends StatelessWidget {
+  const _MyPatientsPanel({required this.entries});
+
+  final List<WaitingRoomEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+
+    final session = switch (context.watch<ProAuthCubit>().state) {
+      AuthAuthenticated(:final session) => session,
+      _ => const AuthSession(kind: UserKind.pro, userId: 'me'),
+    };
+    final currentPractitionerId = session.userId;
+
+    final mine = <WaitingRoomEntry>[];
+    final unassigned = <WaitingRoomEntry>[];
+    final byColleagueId = <String, List<WaitingRoomEntry>>{};
+    final colleagueNames = <String, String>{};
+    for (final entry in entries) {
+      final practitionerId = entry.practitionerId;
+      if (practitionerId == null) {
+        unassigned.add(entry);
+      } else if (practitionerId == currentPractitionerId) {
+        mine.add(entry);
+      } else {
+        byColleagueId.putIfAbsent(practitionerId, () => []).add(entry);
+        colleagueNames.putIfAbsent(
+            practitionerId, () => entry.practitionerName ?? 'confrère');
+      }
+    }
+
+    return NubiaCard(
+      key: const Key('my_patients_panel'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.person, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Mes patients dans la file',
+                  style: textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              NubiaBadge.count(
+                key: const Key('my_patients_badge'),
+                count: mine.length,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _QueueBreakdownRow(
+            key: const Key('queue_breakdown_mine'),
+            label: 'Pour vous',
+            subtitle: mine.map((e) => _firstName(e.patientName)).join(', '),
+            value: mine.length,
+            valueColor: NubiaColors.brand700,
+          ),
+          for (final colleagueId in byColleagueId.keys) ...[
+            const SizedBox(height: 12),
+            _QueueBreakdownRow(
+              key: Key('queue_breakdown_$colleagueId'),
+              label: 'Pour ${colleagueNames[colleagueId]}',
+              subtitle:
+                  byColleagueId[colleagueId]!.map((e) => e.patientName).join(', '),
+              value: byColleagueId[colleagueId]!.length,
+            ),
+          ],
+          if (unassigned.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _QueueBreakdownRow(
+              key: const Key('queue_breakdown_unassigned'),
+              label: 'Non attribué',
+              subtitle: unassigned
+                  .map((e) => e.reason != null
+                      ? '${e.patientName} · ${e.reason}'
+                      : e.patientName)
+                  .join(', '),
+              value: unassigned.length,
+              valueColor: tokens.warningFg,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Extrait le prénom d'un nom complet (« Camille Moreau » → « Camille »).
+String _firstName(String fullName) =>
+    fullName.trim().split(RegExp(r'\s+')).first;
+
+/// Une ligne du panneau « Mes patients dans la file » : libellé + sous-texte,
+/// compteur à droite (couleur sémantique selon le groupe).
+class _QueueBreakdownRow extends StatelessWidget {
+  const _QueueBreakdownRow({
+    super.key,
+    required this.label,
+    required this.subtitle,
+    required this.value,
+    this.valueColor,
+  });
+
+  final String label;
+  final String subtitle;
+  final int value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NubiaCard(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.groups, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Praticiens présents',
-                      style: textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+              Text(
+                label,
+                style:
+                    textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 12),
-              const _PractitionerPresenceRow(
-                initials: 'AR',
-                name: 'Dr Amélie Rousseau',
-                subtitle: 'Vous · en consultation',
-                statusLabel: 'Présente',
-                statusVariant: StatusPillVariant.success,
-              ),
-              const SizedBox(height: 12),
-              const _PractitionerPresenceRow(
-                initials: 'ML',
-                name: 'Dr Marc Lefèvre',
-                subtitle: 'Fauteuil 2 · termine à 18h',
-                statusLabel: 'Départ 18h',
-                statusVariant: StatusPillVariant.warning,
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style:
+                    textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        const _ConfidentialityNote(),
+        const SizedBox(width: 8),
+        Text(
+          '$value',
+          style: textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: valueColor ?? tokens.neutralFg,
+          ),
+        ),
       ],
     );
   }
