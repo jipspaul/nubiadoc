@@ -28,12 +28,32 @@ class TreatmentPhaseQuoteRefDto {
       );
 }
 
+/// Parsing tolérant : `amount_cents`/`amountCents` absent → acte ignoré côté
+/// agrégats (traité comme 0) plutôt que de faire planter le mapping.
+class TreatmentPhaseActDto {
+  final String id;
+  final int amountCents;
+
+  const TreatmentPhaseActDto({required this.id, required this.amountCents});
+
+  factory TreatmentPhaseActDto.fromJson(Map<String, dynamic> json) =>
+      TreatmentPhaseActDto(
+        id: json['id'] as String? ?? '',
+        amountCents:
+            json['amount_cents'] as int? ?? json['amountCents'] as int? ?? 0,
+      );
+
+  TreatmentPhaseAct toDomain() =>
+      TreatmentPhaseAct(id: id, amountCents: amountCents);
+}
+
 class TreatmentPhaseDto {
   final String id;
   final int position;
   final String title;
   final String status;
   final TreatmentPhaseQuoteRefDto? quoteRef;
+  final List<TreatmentPhaseActDto> acts;
 
   const TreatmentPhaseDto({
     required this.id,
@@ -41,6 +61,7 @@ class TreatmentPhaseDto {
     required this.title,
     required this.status,
     this.quoteRef,
+    this.acts = const [],
   });
 
   factory TreatmentPhaseDto.fromJson(Map<String, dynamic> json) {
@@ -53,6 +74,9 @@ class TreatmentPhaseDto {
       quoteRef: rawQuoteRef is Map<String, dynamic>
           ? TreatmentPhaseQuoteRefDto.fromJson(rawQuoteRef)
           : null,
+      acts: (json['acts'] as List<dynamic>? ?? const [])
+          .map((a) => TreatmentPhaseActDto.fromJson(a as Map<String, dynamic>))
+          .toList(),
     );
   }
 
@@ -62,6 +86,7 @@ class TreatmentPhaseDto {
         title: title,
         status: status,
         quoteRef: quoteRef?.toDomain(),
+        acts: acts.map((a) => a.toDomain()).toList(),
       );
 }
 
