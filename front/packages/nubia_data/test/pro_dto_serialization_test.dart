@@ -455,6 +455,31 @@ void main() {
       expect(dto.weeklyCompletedActs, 0);
       expect(dto.weeklyFeesCents, 0);
       expect(dto.weeklyNoShowCount, 0);
+      expect(dto.nextPatientName, isNull);
+    });
+
+    test('fromJson désérialise le patient suivant (#5045)', () {
+      final json = {
+        'next_patient_name': 'Camille Moreau',
+        'next_patient_reason': 'Pose de couronne',
+        'next_patient_appointment_time': '2026-08-26T14:30:00.000Z',
+        'next_patient_duration_minutes': 30,
+        'next_patient_waiting_minutes': 12,
+      };
+      final dto = CabinetDashboardDto.fromJson(json);
+      expect(dto.nextPatientName, 'Camille Moreau');
+      expect(dto.nextPatientReason, 'Pose de couronne');
+      expect(
+          dto.nextPatientAppointmentTime,
+          DateTime.parse(
+            '2026-08-26T14:30:00.000Z',
+          ));
+      expect(dto.nextPatientDurationMinutes, 30);
+      expect(dto.nextPatientWaitingMinutes, 12);
+
+      final domain = dto.toDomain();
+      expect(domain.nextPatientName, 'Camille Moreau');
+      expect(domain.nextPatientDurationMinutes, 30);
     });
   });
 }
