@@ -462,7 +462,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Appeler Camille Moreau'), findsOneWidget);
-      expect(find.byIcon(Icons.campaign), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('next_patient_hero_call_button')),
+          matching: find.byIcon(Icons.campaign),
+        ),
+        findsOneWidget,
+      );
       expect(
           find.byKey(const Key('next_patient_hero_open_file')), findsOneWidget);
       expect(find.text('Ouvrir le dossier'), findsOneWidget);
@@ -513,18 +519,15 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // Ligne sans RDV — action « Attribuer » (#5033)
+  // Ligne de la file d'attente — action « Appeler » (#6058)
   // ---------------------------------------------------------------------------
+  //
+  // #6058 : `practitioner_id` est toujours renseigné côté API (jamais null en
+  // pratique — cf. WaitingRoomEntry.practitioner_id: Uuid côté Rust et la
+  // contrainte NOT NULL en DB), donc la branche « Sans RDV » / « Attribuer »
+  // (#5033) a été retirée. Seul le cas assigné est couvert ici.
 
-  group('Ligne sans RDV — action « Attribuer » (#5033)', () {
-    final unassignedEntry = WaitingRoomEntry(
-      id: 'wr-1',
-      cabinetId: 'cab-1',
-      patientId: 'pat-1',
-      patientName: 'Yanis Diallo',
-      arrivedAt: DateTime.now().subtract(const Duration(minutes: 6)),
-      reason: 'Urgence · douleur',
-    );
+  group('Ligne de la file d\'attente — action « Appeler » (#6058)', () {
     final assignedEntry = WaitingRoomEntry(
       id: 'wr-2',
       cabinetId: 'cab-1',
@@ -534,73 +537,6 @@ void main() {
       practitionerId: 'prac-me',
       practitionerName: 'Vous',
     );
-
-    testWidgets(
-        'entrée non attribuée : pastille « Sans RDV » et icône person_add',
-        (tester) async {
-      when(() => mockList()).thenAnswer((_) async => Right([unassignedEntry]));
-      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
-        ..add(const WaitingRoomLoadRequested());
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
-            child: const Scaffold(body: WaitingRoomBody()),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('entry_wr-1')),
-          matching: find.text('Sans RDV'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('entry_wr-1')),
-          matching: find.byIcon(Icons.person_add),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('entry_wr-1')),
-          matching: find.byIcon(Icons.campaign),
-        ),
-        findsNothing,
-      );
-    });
-
-    testWidgets(
-        'entrée non attribuée : le bouton déclenche « Attribuer », pas un '
-        'appel', (tester) async {
-      when(() => mockList()).thenAnswer((_) async => Right([unassignedEntry]));
-      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
-        ..add(const WaitingRoomLoadRequested());
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
-            child: const Scaffold(body: WaitingRoomBody()),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      await tester.tap(find.byKey(const Key('entry_action_wr-1')));
-      await tester.pump();
-
-      expect(
-        find.text("Attribution d'un praticien à venir"),
-        findsOneWidget,
-      );
-      verifyNever(() => mockCallNext());
-    });
 
     testWidgets(
         'entrée attribuée : conserve la pastille de durée et l\'icône '
@@ -632,13 +568,6 @@ void main() {
           matching: find.byIcon(Icons.campaign),
         ),
         findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('entry_wr-2')),
-          matching: find.byIcon(Icons.person_add),
-        ),
-        findsNothing,
       );
     });
 

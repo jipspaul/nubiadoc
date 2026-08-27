@@ -999,18 +999,17 @@ class _EntryCard extends StatelessWidget {
         ? '${entry.reason} · $waitSubtitle'
         : waitSubtitle;
 
-    // Urgence sans praticien attribué (#5168) : la ligne le dit (pastille
-    // neutre « Sans RDV ») et son action est « Attribuer », pas « Appeler »
-    // (#5033) — jamais la couleur seule (label + pill).
-    final unassigned = entry.practitionerId == null;
-
-    final (String statusLabel, StatusPillVariant statusVariant) = unassigned
-        ? ('Sans RDV', StatusPillVariant.neutral)
-        : switch (waitMinutes) {
-            < 15 => ('Moins de 15 min', StatusPillVariant.info),
-            < 30 => ('Plus de 15 min', StatusPillVariant.warning),
-            _ => ('Plus de 30 min', StatusPillVariant.error),
-          };
+    // #6058 : `practitioner_id` est toujours renseigné côté API
+    // (`WaitingRoomEntry.practitioner_id: Uuid`, `appointment.practitioner_id
+    // NOT NULL` — 0005_scheduling.sql). La branche « Sans RDV » / « Attribuer »
+    // était donc inatteignable et son action un no-op ; retirée tant qu'aucun
+    // flux backend (walk-in) ne peut produire cet état.
+    final (String statusLabel, StatusPillVariant statusVariant) =
+        switch (waitMinutes) {
+      < 15 => ('Moins de 15 min', StatusPillVariant.info),
+      < 30 => ('Plus de 15 min', StatusPillVariant.warning),
+      _ => ('Plus de 30 min', StatusPillVariant.error),
+    };
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -1050,17 +1049,11 @@ class _EntryCard extends StatelessWidget {
             const SizedBox(width: 4),
             IconButton(
               key: Key('entry_action_${entry.id}'),
-              tooltip: unassigned ? 'Attribuer' : NubiaL10n.call,
-              icon: Icon(unassigned ? Icons.person_add : Icons.campaign),
-              onPressed: () => unassigned
-                  ? ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Attribution d'un praticien à venir"),
-                      ),
-                    )
-                  : context
-                      .read<WaitingRoomBloc>()
-                      .add(WaitingRoomCallRequested(entry.id)),
+              tooltip: NubiaL10n.call,
+              icon: const Icon(Icons.campaign),
+              onPressed: () => context
+                  .read<WaitingRoomBloc>()
+                  .add(WaitingRoomCallRequested(entry.id)),
             ),
           ],
         ),
