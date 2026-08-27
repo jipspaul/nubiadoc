@@ -11,6 +11,15 @@ class PrescriptionItem extends Equatable {
   /// Mention qui engage le pharmacien : substituable ou non (MTE).
   final bool substitutable;
 
+  /// Motif de la non-substitution, choisi par le praticien (ex. "MTE" —
+  /// marge thérapeutique étroite). Pertinent uniquement quand
+  /// [substitutable] est `false` ; `null` sinon.
+  final String? nonSubstitutionReason;
+
+  /// Mention légale « non renouvelable », choisie par le praticien (pas
+  /// déduite d'une règle).
+  final bool nonRenouvelable;
+
   /// Générique effectivement délivré, si substitué (ex. "Amoxicilline
   /// Biogaran").
   final String? dispensedGeneric;
@@ -27,6 +36,8 @@ class PrescriptionItem extends Equatable {
     required this.duration,
     required this.quantity,
     this.substitutable = true,
+    this.nonSubstitutionReason,
+    this.nonRenouvelable = false,
     this.dispensedGeneric,
     this.interactionWarning,
   });
@@ -39,6 +50,8 @@ class PrescriptionItem extends Equatable {
         duration,
         quantity,
         substitutable,
+        nonSubstitutionReason,
+        nonRenouvelable,
         dispensedGeneric,
         interactionWarning,
       ];

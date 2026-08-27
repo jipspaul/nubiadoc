@@ -7,6 +7,8 @@ class PrescriptionItemDto {
   final String posology;
   final String duration;
   final String quantity;
+  final String? nonSubstitutionReason;
+  final bool nonRenouvelable;
 
   const PrescriptionItemDto({
     required this.label,
@@ -14,6 +16,8 @@ class PrescriptionItemDto {
     required this.posology,
     required this.duration,
     required this.quantity,
+    this.nonSubstitutionReason,
+    this.nonRenouvelable = false,
   });
 
   factory PrescriptionItemDto.fromJson(Map<String, dynamic> json) =>
@@ -23,6 +27,8 @@ class PrescriptionItemDto {
         posology: json['posology'] as String,
         duration: json['duration'] as String,
         quantity: json['quantity'] as String? ?? '',
+        nonSubstitutionReason: json['non_substitution_reason'] as String?,
+        nonRenouvelable: json['non_renouvelable'] as bool? ?? false,
       );
 
   Map<String, dynamic> toJson() => {
@@ -31,6 +37,9 @@ class PrescriptionItemDto {
         'posology': posology,
         'duration': duration,
         'quantity': quantity,
+        if (nonSubstitutionReason != null)
+          'non_substitution_reason': nonSubstitutionReason,
+        'non_renouvelable': nonRenouvelable,
       };
 
   PrescriptionItem toDomain() => PrescriptionItem(
@@ -39,6 +48,8 @@ class PrescriptionItemDto {
         posology: posology,
         duration: duration,
         quantity: quantity,
+        nonSubstitutionReason: nonSubstitutionReason,
+        nonRenouvelable: nonRenouvelable,
       );
 
   static PrescriptionItemDto fromDomain(PrescriptionItem item) =>
@@ -48,6 +59,8 @@ class PrescriptionItemDto {
         posology: item.posology,
         duration: item.duration,
         quantity: item.quantity,
+        nonSubstitutionReason: item.nonSubstitutionReason,
+        nonRenouvelable: item.nonRenouvelable,
       );
 }
 
