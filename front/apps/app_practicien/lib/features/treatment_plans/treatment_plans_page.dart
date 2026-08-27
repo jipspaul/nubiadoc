@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../consultation_clinique/ccam_picker.dart';
 import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
 import 'widgets/patient_header_bar.dart';
@@ -162,6 +163,35 @@ class _PlanCard extends StatelessWidget {
     }
   }
 
+  /// Ouvre la sélection d'acte CCAM (réutilise [CcamPicker], #5023). Aucun
+  /// cas d'usage back « ajouter un acte à une phase » n'existe encore
+  /// (dépend des tickets domaine « actes » / « rendu des actes ») : la
+  /// sélection ferme simplement le dialogue pour l'instant, sans persister
+  /// l'acte sur la phase.
+  Future<void> _openAddAct(BuildContext context, TreatmentPhase phase) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        key: Key('treatment_phase_add_act_dialog_${phase.id}'),
+        child: SizedBox(
+          width: 420,
+          child: CcamPicker(
+            key: Key('treatment_phase_ccam_picker_${phase.id}'),
+            useCase: GetIt.instance<GetActsUseCase>(),
+            favoritesUseCase: GetIt.instance<FavoriteActsUseCase>(),
+            onActSubmitted: ({
+              required String code,
+              required String label,
+              String? tooth,
+              required int amountCents,
+            }) =>
+                Navigator.of(dialogContext).pop(),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -194,7 +224,7 @@ class _PlanCard extends StatelessWidget {
                 key: Key('treatment_plan_no_phases_${plan.id}'),
               )
             else
-              for (final phase in plan.phases)
+              for (final phase in plan.phases) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
@@ -213,6 +243,17 @@ class _PlanCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                // Phase active (#5023) : affordance d'ajout d'acte sous la
+                // liste des actes de la phase. Le rendu des actes eux-mêmes
+                // (ticket dédié « rendu des actes ») n'existe pas encore, donc
+                // l'affordance suit directement la ligne de la phase.
+                if (phase.status == 'in_progress')
+                  _AddActAffordance(
+                    key: Key('treatment_phase_add_act_${phase.id}'),
+                    buttonKey: Key('treatment_phase_add_act_button_${phase.id}'),
+                    onTap: busy ? null : () => _openAddAct(context, phase),
+                  ),
+              ],
             const SizedBox(height: 8),
             NubiaButton(
               key: Key('treatment_plan_add_phase_${plan.id}'),
@@ -285,4 +326,87 @@ class _TitlePromptDialogState extends State<_TitlePromptDialog> {
       ],
     );
   }
+}
+
+/// Affordance « Ajouter un acte à cette phase » (#5023, maquette design-v2
+/// `.addact`) : séparateur pointillé, icône `add`, libellé gris `n500`.
+/// Affichée sous la liste des actes de la phase active (`in_progress`).
+class _AddActAffordance extends StatelessWidget {
+  const _AddActAffordance({
+    super.key,
+    required this.buttonKey,
+    required this.onTap,
+  });
+
+  final Key buttonKey;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: 1,
+            child: CustomPaint(
+              painter: _DashedLinePainter(color: tokens.borderDefault),
+            ),
+          ),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: buttonKey,
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.add, size: 18, color: NubiaColors.n500),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Ajouter un acte à cette phase',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: NubiaColors.n500),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ligne horizontale pointillée — Flutter n'a pas de `BorderStyle.dashed`
+/// natif (maquette design-v2, séparateur `.addact`, #5023).
+class _DashedLinePainter extends CustomPainter {
+  _DashedLinePainter({required this.color});
+
+  final Color color;
+
+  static const _dashWidth = 4.0;
+  static const _dashSpace = 3.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    var x = 0.0;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, 0), Offset(x + _dashWidth, 0), paint);
+      x += _dashWidth + _dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedLinePainter oldDelegate) =>
+      oldDelegate.color != color;
 }

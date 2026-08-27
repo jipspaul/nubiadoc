@@ -9,6 +9,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'package:app_practicien/features/consultation_clinique/ccam_picker.dart';
 import 'package:app_practicien/features/treatment_plans/treatment_plans_page.dart';
 
 class _MockListPlans extends Mock implements ListTreatmentPlansUseCase {}
@@ -18,6 +19,10 @@ class _MockCreatePlan extends Mock implements CreateTreatmentPlanUseCase {}
 class _MockCreatePhase extends Mock implements CreateTreatmentPhaseUseCase {}
 
 class _MockGetPatient extends Mock implements GetCabinetPatientUseCase {}
+
+class _MockGetActs extends Mock implements GetActsUseCase {}
+
+class _MockFavoriteActs extends Mock implements FavoriteActsUseCase {}
 
 const _emptyPlans = <TreatmentPlan>[];
 
@@ -53,24 +58,46 @@ final _planNoPhases = TreatmentPlan(
   phases: const [],
 );
 
+final _planWithActivePhase = TreatmentPlan(
+  id: 'plan-3',
+  title: 'Plan endodontie',
+  status: 'in_progress',
+  createdAt: DateTime(2026, 1, 3),
+  phases: const [
+    TreatmentPhase(
+      id: 'phase-active',
+      position: 1,
+      title: 'Endodontie et reconstitution',
+      status: 'in_progress',
+    ),
+  ],
+);
+
 void main() {
   late _MockListPlans listPlans;
   late _MockCreatePlan createPlan;
   late _MockCreatePhase createPhase;
   late _MockGetPatient getPatient;
+  late _MockGetActs getActs;
+  late _MockFavoriteActs favoriteActs;
 
   setUp(() {
     listPlans = _MockListPlans();
     createPlan = _MockCreatePlan();
     createPhase = _MockCreatePhase();
     getPatient = _MockGetPatient();
+    getActs = _MockGetActs();
+    favoriteActs = _MockFavoriteActs();
     GetIt.instance.registerFactory<ListTreatmentPlansUseCase>(() => listPlans);
     GetIt.instance
         .registerFactory<CreateTreatmentPlanUseCase>(() => createPlan);
     GetIt.instance
         .registerFactory<CreateTreatmentPhaseUseCase>(() => createPhase);
     GetIt.instance.registerFactory<GetCabinetPatientUseCase>(() => getPatient);
+    GetIt.instance.registerFactory<GetActsUseCase>(() => getActs);
+    GetIt.instance.registerFactory<FavoriteActsUseCase>(() => favoriteActs);
     when(() => getPatient('pat-1')).thenAnswer((_) async => Right(_patient));
+    when(() => favoriteActs.list()).thenAnswer((_) async => const []);
     addTearDown(GetIt.instance.reset);
   });
 
@@ -105,6 +132,43 @@ void main() {
       find.byKey(const Key('treatment_plan_no_phases_plan-2')),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+      'phase active → affordance « Ajouter un acte à cette phase » ouvre le CCAM picker',
+      (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithActivePhase]),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('treatment_phase_add_act_phase-active')),
+      findsOneWidget,
+    );
+    expect(find.text('Ajouter un acte à cette phase'), findsOneWidget);
+    expect(find.byIcon(Icons.add), findsWidgets);
+
+    await tester.tap(
+      find.byKey(const Key('treatment_phase_add_act_button_phase-active')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('ccam_search_field')), findsOneWidget);
+  });
+
+  testWidgets('phase non active → pas d\'affordance « Ajouter un acte »',
+      (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases]),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ajouter un acte à cette phase'), findsNothing);
   });
 
   testWidgets('création de plan → saisie titre puis CreateTreatmentPlanUseCase',
