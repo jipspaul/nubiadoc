@@ -16,6 +16,7 @@ import 'widgets/patient_header_bar.dart';
 import 'widgets/phase_quote_banner.dart';
 import 'widgets/phase_timeline.dart';
 import 'widgets/plan_footer.dart';
+import 'widgets/plan_kpi_row.dart';
 
 class TreatmentPlansPage extends StatelessWidget {
   const TreatmentPlansPage({super.key, required this.patientId});
@@ -242,17 +243,29 @@ class _PlanCardState extends State<_PlanCard> {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    plan.title,
-                    style: textTheme.titleMedium,
-                    overflow: TextOverflow.ellipsis,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        plan.title,
+                        style: textTheme.titleMedium,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      StatusPill(
+                        label: treatmentPlanStatusLabels[plan.status] ??
+                            plan.status,
+                        variant: treatmentPlanStatusVariants[plan.status] ??
+                            StatusPillVariant.info,
+                      ),
+                      StatusPill(
+                        key: Key('treatment_plan_created_at_${plan.id}'),
+                        label: 'Créé le ${_formatPlanDate(plan.createdAt)}',
+                        variant: StatusPillVariant.neutral,
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                StatusPill(
-                  label: treatmentPlanStatusLabels[plan.status] ?? plan.status,
-                  variant: treatmentPlanStatusVariants[plan.status] ??
-                      StatusPillVariant.info,
                 ),
                 const SizedBox(width: 12),
                 NubiaButton(
@@ -274,6 +287,16 @@ class _PlanCardState extends State<_PlanCard> {
               ],
             ),
             const SizedBox(height: 12),
+            // Agrégats à 0 tant que le ticket domaine « agrégats de
+            // montants » (#5013) n'a pas doté TreatmentPlan de montants
+            // réels (même limitation que PlanFooter ci-dessous).
+            PlanKpiRow(
+              key: Key('treatment_plan_kpis_${plan.id}'),
+              totalCents: 0,
+              signedCents: 0,
+              remainingToQuoteCents: 0,
+            ),
+            const SizedBox(height: 16),
             if (plan.phases.isEmpty)
               Text(
                 'Aucune phase.',
@@ -656,3 +679,8 @@ class _DashedLinePainter extends CustomPainter {
   bool shouldRepaint(covariant _DashedLinePainter oldDelegate) =>
       oldDelegate.color != color;
 }
+
+/// Formate une date « DD/MM/YYYY » (pill « Créé le », maquette design-v2
+/// `.mut`, #5017).
+String _formatPlanDate(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
