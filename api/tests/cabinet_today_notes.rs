@@ -205,7 +205,7 @@ async fn get(token: &str) -> (StatusCode, serde_json::Value) {
     (status, json)
 }
 
-/// La séance démarrée aujourd'hui apparaît avec initiales + statut, zéro PII.
+/// La séance démarrée aujourd'hui apparaît avec nom, initiales et statut.
 #[tokio::test]
 async fn today_notes_returns_todays_sessions() {
     if !db_available() {
@@ -224,9 +224,10 @@ async fn today_notes_returns_todays_sessions() {
     assert_eq!(data[0]["id"], session_id.to_string());
     assert_eq!(data[0]["status"], "in_progress");
     assert_eq!(
-        data[0]["patient_initials"], "M.D.",
-        "initiales uniquement, pas de nom complet (zéro PII sur le dashboard)"
+        data[0]["patient_name"], "Marc Dubois",
+        "nom réel du patient exposé (#5047/#6038)"
     );
+    assert_eq!(data[0]["patient_initials"], "M.D.");
     assert!(data[0]["started_at"].is_string());
 
     cleanup(

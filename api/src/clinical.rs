@@ -1589,12 +1589,16 @@ pub async fn upload_patient_document(
 // ── GET /v1/cabinet/today-notes ──────────────────────────────────────────────
 
 /// Résumé d'une séance du jour pour la carte « Notes du jour » du dashboard
-/// praticien. Zéro PII au-delà des initiales (l'écran est un survol).
+/// praticien.
 #[derive(Serialize)]
 pub struct TodayNoteItem {
     pub id: Uuid,
     /// Début de séance, RFC 3339 (clé lue `timestamp`/`started_at` côté front).
     pub started_at: String,
+    /// Nom complet du patient (#5047 — le praticien voit son propre patient,
+    /// pas de restriction PII ici, contrairement à d'autres cartes du
+    /// dashboard partagées avec le secrétariat).
+    pub patient_name: String,
     pub patient_initials: String,
     /// `in_progress` | `completed` | `cancelled`.
     pub status: String,
@@ -1657,6 +1661,9 @@ pub async fn list_today_notes(
                     .try_get::<chrono::DateTime<chrono::Utc>, _>("started_at")
                     .map_err(|_| AppError::Internal)?
                     .to_rfc3339(),
+                patient_name: format!("{} {}", first.trim(), last.trim())
+                    .trim()
+                    .to_string(),
                 patient_initials: initials,
                 status: row.try_get("status").map_err(|_| AppError::Internal)?,
             })
