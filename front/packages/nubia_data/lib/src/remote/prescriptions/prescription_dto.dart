@@ -46,6 +46,44 @@ class MedicationReferenceDto {
       );
 }
 
+class StructuredPosologyDto {
+  final double dose;
+  final double frequencyPerDay;
+  final int durationInDays;
+
+  const StructuredPosologyDto({
+    required this.dose,
+    required this.frequencyPerDay,
+    required this.durationInDays,
+  });
+
+  factory StructuredPosologyDto.fromJson(Map<String, dynamic> json) =>
+      StructuredPosologyDto(
+        dose: (json['dose'] as num).toDouble(),
+        frequencyPerDay: (json['frequency_per_day'] as num).toDouble(),
+        durationInDays: json['duration_in_days'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'dose': dose,
+        'frequency_per_day': frequencyPerDay,
+        'duration_in_days': durationInDays,
+      };
+
+  StructuredPosology toDomain() => StructuredPosology(
+        dose: dose,
+        frequencyPerDay: frequencyPerDay,
+        durationInDays: durationInDays,
+      );
+
+  static StructuredPosologyDto fromDomain(StructuredPosology posology) =>
+      StructuredPosologyDto(
+        dose: posology.dose,
+        frequencyPerDay: posology.frequencyPerDay,
+        durationInDays: posology.durationInDays,
+      );
+}
+
 class PrescriptionItemDto {
   final String label;
   final String? form;
@@ -53,6 +91,7 @@ class PrescriptionItemDto {
   final String posology;
   final String duration;
   final String quantity;
+  final StructuredPosologyDto? structuredPosology;
   final String? nonSubstitutionReason;
   final bool nonRenouvelable;
 
@@ -63,6 +102,7 @@ class PrescriptionItemDto {
     required this.posology,
     required this.duration,
     required this.quantity,
+    this.structuredPosology,
     this.nonSubstitutionReason,
     this.nonRenouvelable = false,
   });
@@ -80,6 +120,10 @@ class PrescriptionItemDto {
         posology: json['posology'] as String,
         duration: json['duration'] as String,
         quantity: json['quantity'] as String? ?? '',
+        structuredPosology: json['structured_posology'] != null
+            ? StructuredPosologyDto.fromJson(
+                json['structured_posology'] as Map<String, dynamic>)
+            : null,
         nonSubstitutionReason: json['non_substitution_reason'] as String?,
         nonRenouvelable: json['non_renouvelable'] as bool? ?? false,
       );
@@ -92,6 +136,8 @@ class PrescriptionItemDto {
         'posology': posology,
         'duration': duration,
         'quantity': quantity,
+        if (structuredPosology != null)
+          'structured_posology': structuredPosology!.toJson(),
         if (nonSubstitutionReason != null)
           'non_substitution_reason': nonSubstitutionReason,
         'non_renouvelable': nonRenouvelable,
@@ -104,6 +150,7 @@ class PrescriptionItemDto {
         posology: posology,
         duration: duration,
         quantity: quantity,
+        structuredPosology: structuredPosology?.toDomain(),
         nonSubstitutionReason: nonSubstitutionReason,
         nonRenouvelable: nonRenouvelable,
       );
@@ -118,6 +165,9 @@ class PrescriptionItemDto {
         posology: item.posology,
         duration: item.duration,
         quantity: item.quantity,
+        structuredPosology: item.structuredPosology != null
+            ? StructuredPosologyDto.fromDomain(item.structuredPosology!)
+            : null,
         nonSubstitutionReason: item.nonSubstitutionReason,
         nonRenouvelable: item.nonRenouvelable,
       );

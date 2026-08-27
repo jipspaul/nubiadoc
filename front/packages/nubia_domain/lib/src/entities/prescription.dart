@@ -2,6 +2,32 @@ import 'package:equatable/equatable.dart';
 
 import 'medication_reference.dart';
 
+/// Posologie décomposée : dose unitaire, fréquence quotidienne et durée en
+/// jours. Permet de calculer la quantité totale plutôt que de la saisir en
+/// texte libre (design-v2, écran « Composition d'ordonnance »).
+class StructuredPosology extends Equatable {
+  /// Dose prise à chaque fréquence (ex. 1 comprimé).
+  final double dose;
+
+  /// Nombre de prises par jour (ex. 3 pour "3 fois par jour").
+  final double frequencyPerDay;
+
+  /// Durée du traitement en jours.
+  final int durationInDays;
+
+  const StructuredPosology({
+    required this.dose,
+    required this.frequencyPerDay,
+    required this.durationInDays,
+  });
+
+  /// Quantité totale nécessaire = dose × fréquence × durée.
+  double get computedQuantity => dose * frequencyPerDay * durationInDays;
+
+  @override
+  List<Object?> get props => [dose, frequencyPerDay, durationInDays];
+}
+
 /// A single medication line on a prescription.
 class PrescriptionItem extends Equatable {
   final String label;
@@ -17,6 +43,12 @@ class PrescriptionItem extends Equatable {
   final String posology;
   final String duration;
   final String quantity;
+
+  /// Posologie décomposée (dose, fréquence, durée), quand le praticien l'a
+  /// saisie sous cette forme plutôt qu'en texte libre. `null` pour les
+  /// lignes historiques (rétro-compatibilité DTO) : dans ce cas [posology],
+  /// [duration] et [quantity] restent les seules sources de vérité.
+  final StructuredPosology? structuredPosology;
 
   /// Mention qui engage le pharmacien : substituable ou non (MTE).
   final bool substitutable;
@@ -46,6 +78,7 @@ class PrescriptionItem extends Equatable {
     required this.posology,
     required this.duration,
     required this.quantity,
+    this.structuredPosology,
     this.substitutable = true,
     this.nonSubstitutionReason,
     this.nonRenouvelable = false,
@@ -61,6 +94,7 @@ class PrescriptionItem extends Equatable {
         posology,
         duration,
         quantity,
+        structuredPosology,
         substitutable,
         nonSubstitutionReason,
         nonRenouvelable,
