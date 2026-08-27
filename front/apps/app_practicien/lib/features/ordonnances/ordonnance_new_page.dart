@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../session/pro_auth_cubit.dart';
 import 'send_to_pharmacy_cubit.dart';
 import 'widgets/prescription_template_picker.dart';
 import 'widgets/send_to_pharmacy_card.dart';
@@ -180,6 +181,7 @@ class _PrescriptionForm extends StatefulWidget {
 class _PrescriptionFormState extends State<_PrescriptionForm> {
   final List<_ItemDraft> _items = [_ItemDraft()];
   List<String> _allergies = const [];
+  CabinetPatient? _patient;
 
   bool get _formValid => _items.isNotEmpty && _items.every((i) => i.isValid);
 
@@ -187,6 +189,7 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
   void initState() {
     super.initState();
     _loadAllergies();
+    _loadPatient();
   }
 
   /// Affichage passif uniquement (#4076, ADR-009 §8.6) : jamais de blocage
@@ -199,6 +202,20 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
     result.fold(
       (_) {},
       (record) => setState(() => _allergies = record.allergies),
+    );
+  }
+
+  /// Identité patient (nom, âge, date de naissance) de l'en-tête (#4999,
+  /// maquette design-v2 §.hd) — même use case que `PatientHeaderBar`
+  /// (`treatment_plans`, #5024). Échec silencieux : l'en-tête retombe sur un
+  /// nom générique plutôt que de bloquer la saisie de l'ordonnance.
+  Future<void> _loadPatient() async {
+    final result =
+        await GetIt.instance<GetCabinetPatientUseCase>()(widget.patientId);
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (patient) => setState(() => _patient = patient),
     );
   }
 
@@ -237,9 +254,8 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Médicaments à prescrire',
-                        style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 16),
+                    _PatientIdentityHeader(patient: _patient),
+                    const SizedBox(height: 20),
                     for (var i = 0; i < _items.length; i++) ...[
                       _ItemCard(
                         index: i,
@@ -278,6 +294,107 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
       ],
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+
+/// En-tête d'identité patient (#4999, maquette design-v2 §.hd) : remplace le
+/// titre anonyme « Médicaments à prescrire » — avatar aux initiales, nom du
+/// patient, pastille « Brouillon » et sous-titre âge/date de naissance/
+/// prescripteur. [patient] est `null` tant que `GetCabinetPatientUseCase`
+/// n'a pas répondu (ou en cas d'échec, #4076 affichage passif) : l'en-tête
+/// retombe alors sur un nom générique plutôt que de bloquer la saisie.
+class _PatientIdentityHeader extends StatelessWidget {
+  const _PatientIdentityHeader({required this.patient});
+
+  final CabinetPatient? patient;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final name =
+        patient != null && patient!.fullName.isNotEmpty ? patient!.fullName : 'Patient';
+    final prescriberName = switch (context.watch<ProAuthCubit>().state) {
+      AuthAuthenticated(:final session) => session.displayName,
+      _ => null,
+    };
+    final subtitle = _subtitle(prescriberName);
+
+    return Row(
+      key: const Key('ordonnance_patient_header'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        NubiaAvatar(initials: initialsFrom(name), radius: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text(
+                      name,
+                      style: textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const StatusPill(
+                    label: 'Brouillon',
+                    variant: StatusPillVariant.info,
+                  ),
+                ],
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String? _subtitle(String? prescriberName) {
+    final birthDate = patient?.birthDate;
+    final prescriber = prescriberName?.trim();
+    final parts = <String>[
+      if (birthDate != null) '${_age(birthDate)} ans',
+      if (birthDate != null) 'né(e) le ${_formatBirthDate(birthDate)}',
+      if (prescriber != null && prescriber.isNotEmpty) 'suivi(e) par Dr $prescriber',
+    ];
+    if (parts.isEmpty) return null;
+    return parts.join(' · ');
+  }
+}
+
+/// Âge en années révolues à partir d'une date de naissance (heure locale) —
+/// même calcul que `PatientIdentityBar._age` (consultation_clinique).
+int _age(DateTime birthDate) {
+  final now = DateTime.now();
+  final d = birthDate.toLocal();
+  var age = now.year - d.year;
+  if (now.month < d.month || (now.month == d.month && now.day < d.day)) {
+    age--;
+  }
+  return age;
+}
+
+/// Date de naissance JJ/MM/AAAA (heure locale) — format imposé par la
+/// maquette design-v2 (même convention que `PatientIdentityBar`).
+String _formatBirthDate(DateTime dt) {
+  final d = dt.toLocal();
+  final dd = d.day.toString().padLeft(2, '0');
+  final mm = d.month.toString().padLeft(2, '0');
+  return '$dd/$mm/${d.year}';
 }
 
 // ---------------------------------------------------------------------------

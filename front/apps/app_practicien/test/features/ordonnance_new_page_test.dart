@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -15,6 +16,7 @@ import 'package:app_practicien/features/ordonnances/ordonnances_bloc.dart';
 import 'package:app_practicien/features/ordonnances/ordonnances_event.dart';
 import 'package:app_practicien/features/ordonnances/ordonnances_state.dart';
 import 'package:app_practicien/features/ordonnances/send_to_pharmacy_cubit.dart';
+import 'package:app_practicien/session/pro_auth_cubit.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks & fixtures
@@ -46,6 +48,51 @@ void registerMedicalRecordStub() {
   GetIt.instance.registerFactory<GetMedicalRecordUseCase>(
     () => GetMedicalRecordUseCase(_medicalRecordRepo),
   );
+}
+
+class _MockCabinetPatientsRepository extends Mock
+    implements CabinetPatientsRepository {}
+
+final _cabinetPatientsRepo = _MockCabinetPatientsRepository();
+
+final _patient = CabinetPatient(
+  id: 'patient-1',
+  cabinetId: 'cab-1',
+  firstName: 'Julie',
+  lastName: 'Martin',
+  birthDate: DateTime(1985, 6, 7),
+  createdAt: DateTime(2024, 1, 1),
+);
+
+/// En-tête d'identité patient (#4999) : `_PrescriptionFormState` résout
+/// `GetCabinetPatientUseCase` via GetIt, même pattern que
+/// `registerMedicalRecordStub` ci-dessus.
+void registerCabinetPatientStub() {
+  when(() => _cabinetPatientsRepo.getById(any()))
+      .thenAnswer((_) async => Right(_patient));
+  if (GetIt.instance.isRegistered<GetCabinetPatientUseCase>()) return;
+  GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
+    () => GetCabinetPatientUseCase(_cabinetPatientsRepo),
+  );
+}
+
+class MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
+
+/// Praticien connecté (#4999, en-tête d'identité patient) — `displayName`
+/// fixe pour le segment « suivi(e) par Dr … » du sous-titre.
+MockProAuthCubit _makeAuthCubit() {
+  final cubit = MockProAuthCubit();
+  when(() => cubit.state).thenReturn(
+    const AuthAuthenticated(
+      AuthSession(
+        kind: UserKind.pro,
+        userId: 'me',
+        role: ProRole.practitioner,
+        displayName: 'A. Rousseau',
+      ),
+    ),
+  );
+  return cubit;
 }
 
 final _pharmacyDirectoryRepo = _StubDirectoryRepository();
@@ -121,8 +168,11 @@ Widget _wrap(OrdonnancesBloc bloc, {String? patientId = 'patient-1'}) =>
     MaterialApp(
       theme: NubiaTheme.light,
       home: Scaffold(
-        body: BlocProvider<OrdonnancesBloc>.value(
-          value: bloc,
+        body: MultiBlocProvider(
+          providers: [
+            BlocProvider<OrdonnancesBloc>.value(value: bloc),
+            BlocProvider<ProAuthCubit>.value(value: _makeAuthCubit()),
+          ],
           child: OrdonnanceNewBody(patientId: patientId),
         ),
       ),
@@ -152,6 +202,7 @@ void main() {
     bloc = MockOrdonnancesBloc();
     when(() => bloc.state).thenReturn(const OrdonnancesInitial());
     registerMedicalRecordStub();
+    registerCabinetPatientStub();
     registerSendToPharmacyStub();
   });
 
@@ -175,6 +226,22 @@ void main() {
         ),
       );
       expect(button.onPressed, isNull);
+    });
+
+    testWidgets(
+        'avec patientId → en-tête d\'identité patient (nom, âge, DDN, '
+        'prescripteur, Brouillon) (#4999)', (tester) async {
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ordonnance_patient_header')), findsOneWidget);
+      expect(find.text('Julie Martin'), findsOneWidget);
+      expect(find.text('Brouillon'), findsOneWidget);
+      expect(
+        find.text('41 ans · né(e) le 07/06/1985 · suivi(e) par Dr A. Rousseau'),
+        findsOneWidget,
+      );
+      expect(find.text('Médicaments à prescrire'), findsNothing);
     });
 
     testWidgets('patient avec allergie renseignée → bandeau affiché (#4076)',
