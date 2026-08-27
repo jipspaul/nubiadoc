@@ -519,8 +519,8 @@ class _NextPatientHeroCard extends StatelessWidget {
 
 /// Panneau latéral « Rythme de la salle » (maquette design-v2, #5038, `.bx`
 /// header `timer`) — attente moyenne et attente la plus longue parmi les
-/// présents, dérivées de [WaitingRoomEntry.waitSoFar]. (La ligne « Retard sur
-/// le planning » de la maquette est un ticket séparé.)
+/// présents, dérivées de [WaitingRoomEntry.waitSoFar], et retard sur le
+/// planning du prochain patient à appeler (#5032).
 class _RoomPacePanel extends StatelessWidget {
   const _RoomPacePanel({required this.entries});
 
@@ -543,6 +543,14 @@ class _RoomPacePanel extends StatelessWidget {
     final longestMinutes = waitMinutes.isEmpty ? 0 : waitMinutes[longestIndex];
     final longestPatientName =
         entries.isEmpty ? '' : entries[longestIndex].patientName;
+
+    // Retard sur le planning du prochain patient à appeler : écart entre
+    // l'heure prévue du RDV et l'heure réelle d'appel (maintenant, tant que
+    // l'appel n'a pas encore eu lieu). Pas de ligne sans RDV planifié.
+    final scheduledAt = entries.isEmpty ? null : entries.first.appointmentTime;
+    final calledAt = DateTime.now();
+    final delayMinutes =
+        scheduledAt == null ? null : calledAt.difference(scheduledAt).inMinutes;
 
     return NubiaCard(
       key: const Key('room_pace_panel'),
@@ -579,6 +587,17 @@ class _RoomPacePanel extends StatelessWidget {
             value: '$longestMinutes min',
             valueColor: tokens.warningFg,
           ),
+          if (scheduledAt != null && delayMinutes != null) ...[
+            const SizedBox(height: 12),
+            _PaceRow(
+              key: const Key('room_pace_delay'),
+              label: 'Retard sur le planning',
+              subtitle: 'RDV de ${_NextPatientHeroCard._formatTime(scheduledAt)}'
+                  ' appelé à ${_NextPatientHeroCard._formatTime(calledAt)}',
+              value: '${delayMinutes >= 0 ? '+' : ''}$delayMinutes min',
+              valueColor: tokens.warningFg,
+            ),
+          ],
         ],
       ),
     );
