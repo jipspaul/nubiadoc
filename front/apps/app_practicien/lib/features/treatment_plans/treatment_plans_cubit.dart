@@ -80,8 +80,8 @@ class TreatmentPlansCubit extends Cubit<TreatmentPlansState> {
   final CreateTreatmentPlanUseCase _create;
   final CreateTreatmentPhaseUseCase _createPhase;
 
-  Future<void> load() async {
-    emit(const TreatmentPlansLoading());
+  Future<void> load({bool showSpinner = true}) async {
+    if (showSpinner) emit(const TreatmentPlansLoading());
     final result = await _list(patientId);
     result.fold(
       (failure) => emit(TreatmentPlansError(failure.message)),
@@ -97,7 +97,7 @@ class TreatmentPlansCubit extends Cubit<TreatmentPlansState> {
     await result.fold(
       (failure) async =>
           emit(current.copyWith(busy: false, actionError: failure.message)),
-      (_) => load(),
+      (_) => load(showSpinner: false),
     );
   }
 
@@ -109,7 +109,7 @@ class TreatmentPlansCubit extends Cubit<TreatmentPlansState> {
     await result.fold(
       (failure) async =>
           emit(current.copyWith(busy: false, actionError: failure.message)),
-      (_) => load(),
+      (_) => load(showSpinner: false),
     );
   }
 }
