@@ -24,16 +24,28 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
     WaitingRoomLoadRequested event,
     Emitter<WaitingRoomState> emit,
   ) async {
+    final previous = state;
     emit(const WaitingRoomLoading());
     try {
       final result = await _listWaitingRoom();
       result.fold(
-        (failure) => safeEmit(WaitingRoomError(failure.message)),
+        (failure) => safeEmit(_onLoadFailure(previous, failure.message)),
         (entries) => safeEmit(WaitingRoomLoaded(entries: entries)),
       );
     } catch (_) {
-      safeEmit(const WaitingRoomError('Erreur de chargement.'));
+      safeEmit(_onLoadFailure(previous, 'Erreur de chargement.'));
     }
+  }
+
+  /// Un échec de CHARGEMENT INITIAL (aucune liste encore affichée) est
+  /// bloquant : `WaitingRoomError` plein écran. Un échec de RECHARGEMENT
+  /// (une liste était déjà affichée) ne l'est jamais : la liste est
+  /// conservée et l'erreur posée en `reloadError` (bandeau non bloquant).
+  WaitingRoomState _onLoadFailure(WaitingRoomState previous, String message) {
+    if (previous is WaitingRoomLoaded) {
+      return previous.copyWith(actionInProgress: false, reloadError: message);
+    }
+    return WaitingRoomError(message);
   }
 
   Future<void> _onCallNext(
