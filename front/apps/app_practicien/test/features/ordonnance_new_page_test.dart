@@ -274,6 +274,24 @@ void main() {
     });
 
     testWidgets(
+        'OrdonnancesCreated → mention eIDAS d\'immutabilité visible sous les CTA (#5001)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(OrdonnancesCreated(_prescription));
+
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.textContaining('Signature électronique'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('document horodaté et non modifiable'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('sign_ordonnance_button')), findsOneWidget);
+    });
+
+    testWidgets(
         'OrdonnancesCreated → sélectionner un modèle préremplit les lignes affichées (#4075)',
         (tester) async {
       // État initial : un brouillon existant (une ligne).

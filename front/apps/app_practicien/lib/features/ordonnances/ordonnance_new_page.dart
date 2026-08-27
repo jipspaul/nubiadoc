@@ -446,6 +446,7 @@ class _DraftReview extends StatelessWidget {
                           .read<OrdonnancesBloc>()
                           .add(OrdonnancesSignRequested(prescription.id)),
                 ),
+                const _EidasImmutabilityNotice(),
               ],
             ),
           ),
@@ -471,6 +472,52 @@ class _DraftReview extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Mention affichée avant le geste de signature : la signature électronique
+/// eIDAS rend l'ordonnance horodatée et non modifiable (le brouillon, lui,
+/// reste réversible tant qu'il n'est pas signé).
+class _EidasImmutabilityNotice extends StatelessWidget {
+  const _EidasImmutabilityNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_outline, size: 16, color: cs.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              const TextSpan(
+                text: 'Signature électronique ',
+                children: [
+                  TextSpan(
+                    text: 'eIDAS',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextSpan(
+                    text: ' · l\'ordonnance devient un document horodaté '
+                        'et non modifiable.',
+                  ),
+                ],
+              ),
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: tokens.textTertiary),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
