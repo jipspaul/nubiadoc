@@ -1,9 +1,19 @@
 import 'package:equatable/equatable.dart';
 
+import 'medication_reference.dart';
+
 /// A single medication line on a prescription.
 class PrescriptionItem extends Equatable {
   final String label;
   final String? form; // e.g. "comprimés", "sirop"
+
+  /// Référence produit issue du référentiel médicament (DCI, forme
+  /// galénique, classe thérapeutique), quand le praticien a sélectionné un
+  /// résultat de recherche référentiel plutôt que du texte libre. `null`
+  /// pour les lignes historiques (rétro-compatibilité DTO) ou les produits
+  /// hors référentiel.
+  final MedicationReference? productReference;
+
   final String posology;
   final String duration;
   final String quantity;
@@ -32,6 +42,7 @@ class PrescriptionItem extends Equatable {
   const PrescriptionItem({
     required this.label,
     this.form,
+    this.productReference,
     required this.posology,
     required this.duration,
     required this.quantity,
@@ -46,6 +57,7 @@ class PrescriptionItem extends Equatable {
   List<Object?> get props => [
         label,
         form,
+        productReference,
         posology,
         duration,
         quantity,
