@@ -468,11 +468,10 @@ class _PlanCardState extends State<_PlanCard> {
     final plan = widget.plan;
     final busy = widget.busy;
     final textTheme = Theme.of(context).textTheme;
-    return Card(
-      key: Key('treatment_plan_${plan.id}'),
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: NubiaCard(
+        key: Key('treatment_plan_${plan.id}'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
