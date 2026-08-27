@@ -178,18 +178,28 @@ Widget _wrap(OrdonnancesBloc bloc, {String? patientId = 'patient-1'}) =>
       ),
     );
 
-/// Remplit une ligne médicament avec une posologie/durée dont la quantité se
-/// calcule automatiquement (#4992) : 1 comprimé × 2 (matin et soir) × 7
-/// jours = 14 comprimés — aucune saisie de quantité n'est plus nécessaire.
+/// Sélectionne [label] dans la feuille ouverte par le `NubiaSelect` de clé
+/// [key] (#4991 : dose/fréquence/durée en listes déroulantes, plus en
+/// texte libre).
+Future<void> _select(WidgetTester tester, Key key, String label) async {
+  await tester.ensureVisible(find.byKey(key));
+  await tester.tap(find.byKey(key));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label));
+  await tester.pumpAndSettle();
+}
+
+/// Remplit une ligne médicament avec une dose/fréquence/durée dont la
+/// quantité se calcule automatiquement (#4992) : 1 comprimé × 2 fois / jour
+/// × 7 jours = 14 comprimés — aucune saisie de quantité n'est plus
+/// nécessaire.
 Future<void> _fillItem(WidgetTester tester, int index) async {
   await tester.enterText(
       find.byKey(Key('item_${index}_label')), 'Amoxicilline 500mg');
   await tester.pump();
-  await tester.enterText(
-      find.byKey(Key('item_${index}_posology')), '1 comprimé matin et soir');
-  await tester.pump();
-  await tester.enterText(find.byKey(Key('item_${index}_duration')), '7 jours');
-  await tester.pump();
+  await _select(tester, Key('item_${index}_posology'), '1 comprimé');
+  await _select(tester, Key('item_${index}_frequency'), '2 fois / jour');
+  await _select(tester, Key('item_${index}_duration'), '7 jours');
 }
 
 // ---------------------------------------------------------------------------
@@ -320,7 +330,7 @@ void main() {
           .ensureVisible(find.byKey(const Key('submit_ordonnance_button')));
       await tester.tap(find.byKey(const Key('submit_ordonnance_button')));
 
-      // _fillItem : 1 comprimé × 2 (matin et soir) × 7 jours = 14 comprimés.
+      // _fillItem : 1 comprimé × 2 fois / jour × 7 jours = 14 comprimés.
       verify(
         () => bloc.add(
           const OrdonnancesCreateRequested(
@@ -328,7 +338,7 @@ void main() {
             items: [
               PrescriptionItem(
                 label: 'Amoxicilline 500mg',
-                posology: '1 comprimé matin et soir',
+                posology: '1 comprimé, 2 fois / jour',
                 duration: '7 jours',
                 quantity: '14 comprimés',
               ),
@@ -357,20 +367,15 @@ void main() {
         expect(find.textContaining('Quantité calculée :'), findsOneWidget);
         expect(find.textContaining('renseignez la posologie'), findsOneWidget);
 
-        await tester.enterText(
-            find.byKey(const Key('item_0_posology')), '1 comprimé, 3 fois par jour');
-        await tester.pump();
-        await tester.enterText(
-            find.byKey(const Key('item_0_duration')), '5 jours');
-        await tester.pump();
+        await _select(tester, const Key('item_0_posology'), '1 comprimé');
+        await _select(tester, const Key('item_0_frequency'), '3 fois / jour');
+        await _select(tester, const Key('item_0_duration'), '5 jours');
 
         // 1 × 3 × 5 = 15 comprimés.
         expect(find.textContaining('Quantité calculée : 15 comprimés'),
             findsOneWidget);
 
-        await tester.enterText(
-            find.byKey(const Key('item_0_duration')), '10 jours');
-        await tester.pump();
+        await _select(tester, const Key('item_0_duration'), '10 jours');
 
         expect(find.textContaining('Quantité calculée : 30 comprimés'),
             findsOneWidget);
@@ -382,12 +387,9 @@ void main() {
         await tester.enterText(
             find.byKey(const Key('item_0_label')), 'Amoxicilline 500mg');
         await tester.pump();
-        await tester.enterText(
-            find.byKey(const Key('item_0_posology')), '1 comprimé, 3 fois par jour');
-        await tester.pump();
-        await tester.enterText(
-            find.byKey(const Key('item_0_duration')), '5 jours');
-        await tester.pump();
+        await _select(tester, const Key('item_0_posology'), '1 comprimé');
+        await _select(tester, const Key('item_0_frequency'), '3 fois / jour');
+        await _select(tester, const Key('item_0_duration'), '5 jours');
 
         await tester.tap(find.byKey(const Key('item_0_quantity_modify')));
         await tester.pump();
@@ -418,7 +420,7 @@ void main() {
               items: [
                 PrescriptionItem(
                   label: 'Amoxicilline 500mg',
-                  posology: '1 comprimé, 3 fois par jour',
+                  posology: '1 comprimé, 3 fois / jour',
                   duration: '5 jours',
                   quantity: '1 boîte de 16',
                 ),
@@ -429,18 +431,15 @@ void main() {
       });
 
       testWidgets(
-          'sans dose/fréquence/durée exploitables → ligne invalide (submit désactivé)',
+          'sans dose/fréquence/durée sélectionnées → ligne invalide (submit désactivé)',
           (tester) async {
         await tester.pumpWidget(_wrap(bloc));
         await tester.enterText(
             find.byKey(const Key('item_0_label')), 'Vaccin');
         await tester.pump();
-        await tester.enterText(
-            find.byKey(const Key('item_0_posology')), 'selon protocole');
-        await tester.pump();
-        await tester.enterText(
-            find.byKey(const Key('item_0_duration')), 'unique');
-        await tester.pump();
+        await _select(tester, const Key('item_0_posology'), '1 comprimé');
+        await _select(tester, const Key('item_0_frequency'), '2 fois / jour');
+        // Durée non sélectionnée : ligne incomplète.
 
         final submitButton = tester.widget<FilledButton>(
           find.descendant(
