@@ -28,6 +28,16 @@ const _chlorhexidine = PrescriptionItem(
   duration: '10 jours',
   quantity: '1 flacon 300 ml',
   substitutable: false,
+  nonSubstitutionReason: 'MTE',
+);
+
+const _paracetamolNonRenouvelable = PrescriptionItem(
+  label: 'Paracétamol 1 g',
+  form: 'comprimé',
+  posology: '1 comprimé, 3 fois par jour',
+  duration: '5 jours',
+  quantity: '15 comprimés',
+  nonRenouvelable: true,
 );
 
 Widget _wrap(Widget child) =>
@@ -76,6 +86,17 @@ void main() {
       )));
 
       expect(find.text('Non substituable — MTE'), findsNothing);
+    });
+
+    testWidgets('ligne non renouvelable → mention "Non renouvelable" (#4995)',
+        (tester) async {
+      await tester.pumpWidget(_wrap(const OrdonnancePreviewSheet(
+        patient: null,
+        prescriberName: null,
+        items: [_paracetamolNonRenouvelable],
+      )));
+
+      expect(find.text('Non renouvelable'), findsOneWidget);
     });
 
     testWidgets(

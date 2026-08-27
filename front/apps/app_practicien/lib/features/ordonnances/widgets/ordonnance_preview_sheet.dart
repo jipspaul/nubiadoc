@@ -17,10 +17,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 /// [patient] et [prescriberName] sont `null` tant que leurs sources
 /// respectives (`GetCabinetPatientUseCase`, `ProAuthCubit`) n'ont pas
 /// répondu — l'aperçu retombe alors sur des libellés génériques plutôt que
-/// de bloquer l'affichage. Les mentions légales de renouvellement dépendent
-/// d'un champ non encore modélisé (ticket « PrescriptionItem : mentions
-/// légales ») : seule la mention de substitution (`item.substitutable`) est
-/// affichée pour l'instant.
+/// de bloquer l'affichage.
 class OrdonnancePreviewSheet extends StatelessWidget {
   const OrdonnancePreviewSheet({
     super.key,
@@ -244,7 +241,9 @@ class _RxLine extends StatelessWidget {
             style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
           ),
         ],
-        if (quantity.isNotEmpty || !item.substitutable) ...[
+        if (quantity.isNotEmpty ||
+            !item.substitutable ||
+            item.nonRenouvelable) ...[
           const SizedBox(height: 4),
           Wrap(
             spacing: 10,
@@ -258,9 +257,20 @@ class _RxLine extends StatelessWidget {
                 ),
               if (!item.substitutable)
                 Text(
-                  'Non substituable — MTE',
+                  item.nonSubstitutionReason != null &&
+                          item.nonSubstitutionReason!.trim().isNotEmpty
+                      ? 'Non substituable — ${item.nonSubstitutionReason}'
+                      : 'Non substituable',
                   style: textTheme.bodySmall?.copyWith(
                     color: NubiaColors.dangerFg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              if (item.nonRenouvelable)
+                Text(
+                  'Non renouvelable',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
