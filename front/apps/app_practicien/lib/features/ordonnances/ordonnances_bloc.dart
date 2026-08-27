@@ -87,13 +87,45 @@ class OrdonnancesBloc extends Bloc<OrdonnancesEvent, OrdonnancesState> {
     Emitter<OrdonnancesState> emit,
   ) async {
     final current = state;
-    if (current is! OrdonnancesCreated) return;
-    emit(OrdonnancesApplyingTemplate(current.prescription));
+    if (current is OrdonnancesCreated) {
+      emit(OrdonnancesApplyingTemplate(current.prescription));
+      try {
+        final result = await _applyTemplate(
+          prescriptionId: event.prescriptionId ?? current.prescription.id,
+          templateId: event.templateId,
+        );
+        result.fold(
+          (failure) => emit(OrdonnancesError(failure.message)),
+          (prescription) => emit(OrdonnancesCreated(prescription)),
+        );
+      } catch (_) {
+        emit(const OrdonnancesError("Erreur d'application du modèle."));
+      }
+      return;
+    }
+
+    // #4988 : modèle choisi depuis l'écran de composition, avant toute
+    // création de brouillon. `apply-template` exige côté serveur un
+    // `prescription.id` déjà existant — le brouillon est donc créé
+    // implicitement avec les lignes du modèle, sans imposer d'étape
+    // manuelle de création préalable au praticien.
+    final patientId = event.patientId;
+    if (patientId == null) return;
+    emit(const OrdonnancesApplyingTemplate());
     try {
-      final result = await _applyTemplate(
-        prescriptionId: event.prescriptionId,
-        templateId: event.templateId,
-      );
+      final templates = await loadTemplates();
+      PrescriptionTemplate? template;
+      for (final t in templates) {
+        if (t.id == event.templateId) {
+          template = t;
+          break;
+        }
+      }
+      if (template == null) {
+        emit(const OrdonnancesError("Erreur d'application du modèle."));
+        return;
+      }
+      final result = await _create(patientId: patientId, items: template.items);
       result.fold(
         (failure) => emit(OrdonnancesError(failure.message)),
         (prescription) => emit(OrdonnancesCreated(prescription)),

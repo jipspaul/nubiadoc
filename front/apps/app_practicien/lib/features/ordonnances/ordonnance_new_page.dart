@@ -111,11 +111,12 @@ class _OrdonnanceNewBodyState extends State<OrdonnanceNewBody> {
           }
           if (state is OrdonnancesCreated ||
               state is OrdonnancesSigningInProgress ||
-              state is OrdonnancesApplyingTemplate) {
+              (state is OrdonnancesApplyingTemplate &&
+                  state.prescription != null)) {
             final prescription = switch (state) {
               OrdonnancesCreated(:final prescription) => prescription,
               OrdonnancesSigningInProgress(:final prescription) => prescription,
-              OrdonnancesApplyingTemplate(:final prescription) => prescription,
+              OrdonnancesApplyingTemplate(:final prescription) => prescription!,
               _ => throw StateError('unreachable'),
             };
             return _DraftReview(
@@ -127,11 +128,13 @@ class _OrdonnanceNewBodyState extends State<OrdonnanceNewBody> {
                   _onSignAndSendToPharmacy(prescription),
             );
           }
-          // Initial, Loading, Error : le formulaire reste monté pour ne pas
-          // perdre la saisie (l'erreur est surfacée en snackbar).
+          // Initial, Loading, Error, ApplyingTemplate sans brouillon (#4988,
+          // modèle choisi avant création) : le formulaire reste monté pour
+          // ne pas perdre la saisie (l'erreur est surfacée en snackbar).
           return _PrescriptionForm(
             patientId: pid,
             loading: state is OrdonnancesLoading,
+            applyingTemplate: state is OrdonnancesApplyingTemplate,
           );
         },
       ),
@@ -234,15 +237,17 @@ CalculatedQuantity? computeQuantity(String posology, String duration) {
   final days = int.parse(durationMatch.group(1)!);
 
   final count = dose * frequency * days;
-  return CalculatedQuantity(count: count, unit: _unitFrom(trimmedPosology, count));
+  return CalculatedQuantity(
+      count: count, unit: _unitFrom(trimmedPosology, count));
 }
 
 int? _frequencyFrom(String posology) {
   final explicit = _explicitFrequency.firstMatch(posology);
   if (explicit != null) return int.parse(explicit.group(1)!);
   final lower = posology.toLowerCase();
-  final moments =
-      ['matin', 'midi', 'soir'].where((moment) => lower.contains(moment)).length;
+  final moments = ['matin', 'midi', 'soir']
+      .where((moment) => lower.contains(moment))
+      .length;
   return moments > 0 ? moments : null;
 }
 
@@ -254,9 +259,18 @@ String _unitFrom(String posology, int count) {
 }
 
 class _PrescriptionForm extends StatefulWidget {
-  const _PrescriptionForm({required this.patientId, required this.loading});
+  const _PrescriptionForm({
+    required this.patientId,
+    required this.loading,
+    required this.applyingTemplate,
+  });
   final String patientId;
   final bool loading;
+
+  /// Modèle en cours d'application (#4988) : création implicite du
+  /// brouillon + préremplissage des lignes, déclenchée par
+  /// [use_template_button] avant toute création manuelle.
+  final bool applyingTemplate;
 
   @override
   State<_PrescriptionForm> createState() => _PrescriptionFormState();
@@ -339,6 +353,28 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _PatientIdentityHeader(patient: _patient),
+          const SizedBox(height: 16),
+          NubiaButton(
+            key: const Key('use_template_button'),
+            label: 'Utiliser un modèle',
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.description_outlined,
+            isLoading: widget.applyingTemplate,
+            onPressed: (widget.loading || widget.applyingTemplate)
+                ? null
+                : () async {
+                    final bloc = context.read<OrdonnancesBloc>();
+                    final template = await PrescriptionTemplatePicker.show(
+                        context,
+                        loadTemplates: bloc.loadTemplates);
+                    if (template != null) {
+                      bloc.add(OrdonnancesApplyTemplateRequested(
+                        patientId: widget.patientId,
+                        templateId: template.id,
+                      ));
+                    }
+                  },
+          ),
           const SizedBox(height: 20),
           for (var i = 0; i < _items.length; i++) ...[
             _ItemCard(
@@ -356,7 +392,7 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
             label: 'Ajouter un médicament',
             variant: NubiaButtonVariant.secondary,
             icon: Icons.add,
-            onPressed: widget.loading
+            onPressed: (widget.loading || widget.applyingTemplate)
                 ? null
                 : () => setState(() => _items.add(_ItemDraft())),
           ),
@@ -365,7 +401,10 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
             key: const Key('submit_ordonnance_button'),
             label: 'Créer l\'ordonnance',
             isLoading: widget.loading,
-            onPressed: (!_formValid || widget.loading) ? null : _submit,
+            onPressed:
+                (!_formValid || widget.loading || widget.applyingTemplate)
+                    ? null
+                    : _submit,
           ),
         ],
       ),

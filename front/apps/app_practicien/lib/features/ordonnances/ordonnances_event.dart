@@ -32,17 +32,25 @@ class OrdonnancesSignRequested extends OrdonnancesEvent {
 
 /// Applique un modèle (#4074) : préremplit un brouillon avec les lignes du
 /// modèle `templateId` via `POST /v1/cabinet/prescriptions/{id}/apply-template`.
+///
+/// Émis soit depuis `_DraftReview` avec [prescriptionId] (brouillon déjà
+/// créé), soit depuis l'écran de composition avec [patientId] (#4988,
+/// modèle choisi avant toute création) : aucun brouillon n'existe encore, le
+/// bloc l'orchestre implicitement (apply-template exige un `prescription.id`
+/// côté serveur). Un seul des deux est fourni.
 class OrdonnancesApplyTemplateRequested extends OrdonnancesEvent {
-  final String prescriptionId;
+  final String? prescriptionId;
+  final String? patientId;
   final String templateId;
 
   const OrdonnancesApplyTemplateRequested({
-    required this.prescriptionId,
+    this.prescriptionId,
+    this.patientId,
     required this.templateId,
-  });
+  }) : assert(prescriptionId != null || patientId != null);
 
   @override
-  List<Object?> get props => [prescriptionId, templateId];
+  List<Object?> get props => [prescriptionId, patientId, templateId];
 }
 
 /// Charge l'historique des ordonnances du patient (#4132) — déclenché à

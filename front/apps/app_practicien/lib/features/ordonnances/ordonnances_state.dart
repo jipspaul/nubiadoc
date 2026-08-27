@@ -37,10 +37,15 @@ class OrdonnancesSigningInProgress extends OrdonnancesState {
 /// Application d'un modèle en cours (#4074) : garde l'écran de relecture du
 /// brouillon monté (contrairement à [OrdonnancesLoading], qui remplacerait
 /// tout l'écran) le temps de l'appel `apply-template` + re-fetch.
+///
+/// [prescription] est `null` quand le modèle est choisi depuis l'écran de
+/// composition, avant toute création de brouillon (#4988) : l'écran de
+/// composition reste alors monté (pas de relecture à afficher, il n'existe
+/// pas encore) le temps de la création implicite + application du modèle.
 class OrdonnancesApplyingTemplate extends OrdonnancesState {
-  final Prescription prescription;
+  final Prescription? prescription;
 
-  const OrdonnancesApplyingTemplate(this.prescription);
+  const OrdonnancesApplyingTemplate([this.prescription]);
 
   @override
   List<Object?> get props => [prescription];

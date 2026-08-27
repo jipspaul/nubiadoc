@@ -245,7 +245,8 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('ordonnance_patient_header')), findsOneWidget);
+      expect(
+          find.byKey(const Key('ordonnance_patient_header')), findsOneWidget);
       expect(find.text('Julie Martin'), findsOneWidget);
       expect(find.text('Brouillon'), findsOneWidget);
       expect(
@@ -353,14 +354,11 @@ void main() {
         await tester.pumpWidget(_wrap(bloc));
 
         expect(find.byKey(const Key('item_0_quantity')), findsNothing);
-        expect(
-            find.byKey(const Key('item_0_quantity_calc')), findsOneWidget);
-        expect(find.byKey(const Key('item_0_quantity_modify')),
-            findsOneWidget);
+        expect(find.byKey(const Key('item_0_quantity_calc')), findsOneWidget);
+        expect(find.byKey(const Key('item_0_quantity_modify')), findsOneWidget);
       });
 
-      testWidgets(
-          'dose × fréquence × durée → recalculée à chaque changement',
+      testWidgets('dose × fréquence × durée → recalculée à chaque changement',
           (tester) async {
         await tester.pumpWidget(_wrap(bloc));
 
@@ -399,10 +397,7 @@ void main() {
         expect(field, findsOneWidget);
         // Le champ de surcharge démarre pré-rempli avec la valeur calculée.
         expect(
-          tester
-              .widget<NubiaTextField>(field)
-              .controller
-              ?.text,
+          tester.widget<NubiaTextField>(field).controller?.text,
           '15 comprimés',
         );
 
@@ -434,8 +429,7 @@ void main() {
           'sans dose/fréquence/durée sélectionnées → ligne invalide (submit désactivé)',
           (tester) async {
         await tester.pumpWidget(_wrap(bloc));
-        await tester.enterText(
-            find.byKey(const Key('item_0_label')), 'Vaccin');
+        await tester.enterText(find.byKey(const Key('item_0_label')), 'Vaccin');
         await tester.pump();
         await _select(tester, const Key('item_0_posology'), '1 comprimé');
         await _select(tester, const Key('item_0_frequency'), '2 fois / jour');
@@ -505,6 +499,51 @@ void main() {
       expect(find.byKey(const Key('item_card_1')), findsOneWidget);
     });
 
+    testWidgets(
+        'écran de composition → sélectionner un modèle dispatch '
+        'OrdonnancesApplyTemplateRequested avec le patientId, avant toute '
+        'création de brouillon (#4988)', (tester) async {
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_template]);
+
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('use_template_button')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('use_template_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('prescription_template_picker')),
+          findsOneWidget);
+      await tester.tap(find.byKey(const Key('prescription_template_tmpl-1')));
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const OrdonnancesApplyTemplateRequested(
+            patientId: 'patient-1',
+            templateId: 'tmpl-1',
+          ))).called(1);
+    });
+
+    testWidgets(
+        'OrdonnancesApplyingTemplate sans brouillon → formulaire de '
+        'composition reste monté, bouton modèle en chargement (#4988)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const OrdonnancesApplyingTemplate());
+
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('ordonnance_form')), findsOneWidget);
+      expect(find.byKey(const Key('ordonnance_draft_review')), findsNothing);
+      final addButton = tester.widget<OutlinedButton>(
+        find.descendant(
+          of: find.byKey(const Key('add_item_button')),
+          matching: find.byType(OutlinedButton),
+        ),
+      );
+      expect(addButton.onPressed, isNull,
+          reason: 'Ajouter un médicament doit être désactivé pendant '
+              'l\'application du modèle');
+    });
+
     testWidgets('OrdonnancesCreated → relecture brouillon + bouton Signer',
         (tester) async {
       when(() => bloc.state).thenReturn(OrdonnancesCreated(_prescription));
@@ -568,8 +607,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('send_to_pharmacy_done')), findsOneWidget);
-      expect(find.textContaining('transmise à Pharmacie du Port'),
-          findsOneWidget);
+      expect(
+          find.textContaining('transmise à Pharmacie du Port'), findsOneWidget);
       verify(() => _prescriptionRepo.sendToPharmacy(
             prescriptionId: 'presc-1',
             pharmacyId: 'pharma-1',
