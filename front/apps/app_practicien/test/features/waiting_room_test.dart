@@ -220,7 +220,8 @@ void main() {
 
     blocTest<WaitingRoomBloc, WaitingRoomState>(
       'un rechargement en échec alors qu\'une liste est déjà affichée '
-      'conserve la liste avec une reloadError (non bloquant)',
+      'conserve la liste avec une reloadError (non bloquant), sans repasser '
+      'par le squelette (#5034)',
       build: () {
         when(() => mockList()).thenAnswer(
           (_) async => Left(NetworkFailure('Réseau indisponible')),
@@ -230,7 +231,6 @@ void main() {
       seed: () => WaitingRoomLoaded(entries: [_entry]),
       act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
       expect: () => [
-        const WaitingRoomLoading(),
         WaitingRoomLoaded(
           entries: [_entry],
           reloadError: 'Réseau indisponible',
@@ -239,7 +239,8 @@ void main() {
     );
 
     blocTest<WaitingRoomBloc, WaitingRoomState>(
-      'un rechargement réussi efface une reloadError précédente',
+      'un rechargement réussi efface une reloadError précédente, sans '
+      'repasser par le squelette (#5034)',
       build: () {
         when(() => mockList()).thenAnswer((_) async => Right([_entry]));
         return _makeBloc(list: mockList, callNext: mockCallNext);
@@ -250,7 +251,6 @@ void main() {
       ),
       act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
       expect: () => [
-        const WaitingRoomLoading(),
         WaitingRoomLoaded(entries: [_entry]),
       ],
     );
@@ -266,7 +266,6 @@ void main() {
       act: (bloc) => bloc.add(const WaitingRoomCallNextRequested()),
       expect: () => [
         WaitingRoomLoaded(entries: [_entry], actionInProgress: true),
-        const WaitingRoomLoading(),
         WaitingRoomLoaded(entries: [_entry]),
       ],
     );
@@ -907,6 +906,108 @@ void main() {
           .called(1);
 
       await tester.pumpAndSettle();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Rafraîchissement périodique automatique (#5034)
+  // ---------------------------------------------------------------------------
+
+  group('rafraîchissement périodique automatique (#5034)', () {
+    testWidgets(
+        'redéclenche WaitingRoomLoadRequested à intervalle régulier sans '
+        'interaction', (tester) async {
+      final mockBloc = MockWaitingRoomBloc();
+      final loaded = WaitingRoomLoaded(entries: [_entry]);
+      whenListen<WaitingRoomState>(
+        mockBloc,
+        const Stream<WaitingRoomState>.empty(),
+        initialState: loaded,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: mockBloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Un chargement au montage (initState), pas encore de tick périodique.
+      verify(() => mockBloc.add(any(that: isA<WaitingRoomLoadRequested>())))
+          .called(1);
+
+      await tester.pump(kWaitingRoomAutoRefreshInterval);
+      verify(() => mockBloc.add(any(that: isA<WaitingRoomLoadRequested>())))
+          .called(1);
+
+      await tester.pump(kWaitingRoomAutoRefreshInterval);
+      verify(() => mockBloc.add(any(that: isA<WaitingRoomLoadRequested>())))
+          .called(1);
+
+      // Laisse le widget de test se démonter proprement (annule le timer).
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('annule le timer au dispose (pas de setState après unmount)',
+        (tester) async {
+      final mockBloc = MockWaitingRoomBloc();
+      final loaded = WaitingRoomLoaded(entries: [_entry]);
+      whenListen<WaitingRoomState>(
+        mockBloc,
+        const Stream<WaitingRoomState>.empty(),
+        initialState: loaded,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: mockBloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+      clearInteractions(mockBloc);
+
+      // Démonte le widget puis avance le temps : aucun timer résiduel ne
+      // doit déclencher d'ajout d'événement ni d'exception (setState après
+      // unmount).
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(kWaitingRoomAutoRefreshInterval * 3);
+
+      verifyNever(
+          () => mockBloc.add(any(that: isA<WaitingRoomLoadRequested>())));
+    });
+
+    testWidgets(
+        'le rechargement périodique ne fait pas réapparaître le squelette '
+        'quand une liste est déjà affichée', (tester) async {
+      when(() => mockList()).thenAnswer((_) async => Right([_entry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('entry_wr-1')), findsOneWidget);
+      expect(find.byKey(const Key('waiting_room_loading')), findsNothing);
+
+      await tester.pump(kWaitingRoomAutoRefreshInterval);
+      await tester.pump();
+
+      expect(find.byKey(const Key('waiting_room_loading')), findsNothing);
+      expect(find.byKey(const Key('entry_wr-1')), findsOneWidget);
     });
   });
 
