@@ -195,6 +195,86 @@ void main() {
     verify(() => createPlan('pat-1', 'Plan blanchiment')).called(1);
   });
 
+  group('en-tête de plan → actions Renommer / Générer le devis', () {
+    testWidgets('deux boutons visibles avec les libellés attendus',
+        (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('treatment_plan_rename_plan-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('treatment_plan_generate_quote_plan-1')),
+        findsOneWidget,
+      );
+      expect(find.text('Renommer'), findsOneWidget);
+      expect(find.text('Générer le devis'), findsOneWidget);
+    });
+
+    testWidgets('Renommer ouvre le dialogue titre pré-rempli',
+        (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester
+          .tap(find.byKey(const Key('treatment_plan_rename_plan-1')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('treatment_plan_rename_dialog_plan-1')),
+        findsOneWidget,
+      );
+      final field = tester.widget<TextField>(find.descendant(
+        of: find.byKey(const Key('treatment_plan_rename_field_plan-1')),
+        matching: find.byType(TextField),
+      ));
+      expect(field.controller?.text, 'Plan implant');
+    });
+
+    testWidgets('Générer le devis navigue vers /devis', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      final router = GoRouter(
+        initialLocation: '/patients/pat-1/treatment-plans',
+        routes: [
+          GoRoute(
+            path: '/patients/pat-1/treatment-plans',
+            builder: (_, __) => const TreatmentPlansPage(patientId: 'pat-1'),
+          ),
+          GoRoute(
+            path: '/devis',
+            builder: (_, __) => const Scaffold(body: Text('devis page')),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: router,
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const Key('treatment_plan_generate_quote_plan-1')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('devis page'), findsOneWidget);
+    });
+  });
+
   testWidgets(
       'ajout de phase → position suivante calculée puis CreateTreatmentPhaseUseCase',
       (tester) async {

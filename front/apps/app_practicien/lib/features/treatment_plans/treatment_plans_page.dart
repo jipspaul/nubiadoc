@@ -176,6 +176,27 @@ class _PlanCardState extends State<_PlanCard> {
         );
   }
 
+  /// Ouvre le dialogue de renommage (réutilise [_TitlePromptDialog],
+  /// pré-rempli avec le titre courant). Aucun cas d'usage back « renommer un
+  /// plan de traitement » n'existe encore (seule la création, `POST
+  /// /v1/cabinet/treatment-plans`, est exposée côté API) : le dialogue ferme
+  /// simplement sans persister pour l'instant.
+  Future<void> _promptRename(BuildContext context) async {
+    final plan = widget.plan;
+    await showDialog<String>(
+      context: context,
+      builder: (_) => _TitlePromptDialog(
+        dialogKey: Key('treatment_plan_rename_dialog_${plan.id}'),
+        fieldKey: Key('treatment_plan_rename_field_${plan.id}'),
+        submitKey: Key('treatment_plan_rename_submit_${plan.id}'),
+        dialogTitle: 'Renommer le plan',
+        fieldLabel: 'Titre du plan',
+        initialValue: plan.title,
+        submitLabel: 'Renommer',
+      ),
+    );
+  }
+
   /// Ouvre la sélection d'acte CCAM (réutilise [CcamPicker], #5023). Aucun
   /// cas d'usage back « ajouter un acte à une phase » n'existe encore
   /// (dépend des tickets domaine « actes » / « rendu des actes ») : la
@@ -221,12 +242,34 @@ class _PlanCardState extends State<_PlanCard> {
             Row(
               children: [
                 Expanded(
-                  child: Text(plan.title, style: textTheme.titleMedium),
+                  child: Text(
+                    plan.title,
+                    style: textTheme.titleMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+                const SizedBox(width: 8),
                 StatusPill(
                   label: treatmentPlanStatusLabels[plan.status] ?? plan.status,
                   variant: treatmentPlanStatusVariants[plan.status] ??
                       StatusPillVariant.info,
+                ),
+                const SizedBox(width: 12),
+                NubiaButton(
+                  key: Key('treatment_plan_rename_${plan.id}'),
+                  variant: NubiaButtonVariant.secondary,
+                  size: NubiaButtonSize.sm,
+                  icon: Icons.edit,
+                  label: 'Renommer',
+                  onPressed: busy ? null : () => _promptRename(context),
+                ),
+                const SizedBox(width: 8),
+                NubiaButton(
+                  key: Key('treatment_plan_generate_quote_${plan.id}'),
+                  size: NubiaButtonSize.sm,
+                  icon: Icons.description,
+                  label: 'Générer le devis',
+                  onPressed: busy ? null : () => context.push(AppRouter.devis),
                 ),
               ],
             ),
@@ -376,6 +419,8 @@ class _TitlePromptDialog extends StatefulWidget {
     required this.submitKey,
     required this.dialogTitle,
     required this.fieldLabel,
+    this.initialValue,
+    this.submitLabel = 'Créer',
   });
 
   final Key dialogKey;
@@ -383,13 +428,15 @@ class _TitlePromptDialog extends StatefulWidget {
   final Key submitKey;
   final String dialogTitle;
   final String fieldLabel;
+  final String? initialValue;
+  final String submitLabel;
 
   @override
   State<_TitlePromptDialog> createState() => _TitlePromptDialogState();
 }
 
 class _TitlePromptDialogState extends State<_TitlePromptDialog> {
-  final _controller = TextEditingController();
+  late final _controller = TextEditingController(text: widget.initialValue);
 
   @override
   void dispose() {
@@ -417,7 +464,7 @@ class _TitlePromptDialogState extends State<_TitlePromptDialog> {
           key: widget.submitKey,
           size: NubiaButtonSize.sm,
           icon: Icons.check,
-          label: 'Créer',
+          label: widget.submitLabel,
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
         ),
       ],
