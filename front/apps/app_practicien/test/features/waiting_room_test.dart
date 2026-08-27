@@ -576,7 +576,7 @@ void main() {
             providers: [
               BlocProvider<WaitingRoomBloc>.value(value: bloc),
               BlocProvider<ProAuthCubit>.value(
-                value: _makeAuthCubit(userId: 'me'),
+                value: _makeAuthCubit(userId: 'prac-me'),
               ),
             ],
             child: const Scaffold(body: WaitingRoomBody()),
@@ -615,7 +615,7 @@ void main() {
             providers: [
               BlocProvider<WaitingRoomBloc>.value(value: bloc),
               BlocProvider<ProAuthCubit>.value(
-                value: _makeAuthCubit(userId: 'me'),
+                value: _makeAuthCubit(userId: 'prac-me'),
               ),
             ],
             child: const Scaffold(body: WaitingRoomBody()),
@@ -628,6 +628,87 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(() => mockCallNext()).called(1);
+    });
+
+    testWidgets(
+        'entrée d\'un confrère : le bouton d\'appel est atténué et désactivé',
+        (tester) async {
+      final colleagueEntry = WaitingRoomEntry(
+        id: 'wr-3',
+        cabinetId: 'cab-1',
+        patientId: 'pat-3',
+        patientName: 'Sophie Roux',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+        practitionerId: 'prac-other',
+        practitionerName: 'Dr Marc Lefèvre',
+      );
+      when(() => mockList()).thenAnswer((_) async => Right([colleagueEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'prac-me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final opacityFinder = find.ancestor(
+        of: find.byKey(const Key('entry_action_wr-3')),
+        matching: find.byType(Opacity),
+      );
+      expect(opacityFinder, findsOneWidget);
+      expect(tester.widget<Opacity>(opacityFinder).opacity, 0.35);
+
+      final buttonFinder = find.byKey(const Key('entry_action_wr-3'));
+      expect(tester.widget<IconButton>(buttonFinder).onPressed, isNull);
+
+      await tester.tap(buttonFinder, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      verifyNever(() => mockCallNext());
+    });
+
+    testWidgets(
+        'action en cours : le bouton d\'appel de chaque ligne est désactivé',
+        (tester) async {
+      when(() => mockList()).thenAnswer((_) async => Right([assignedEntry]));
+      final callNextCompleter = Completer<Either<Failure, WaitingRoomEntry>>();
+      when(() => mockCallNext()).thenAnswer((_) => callNextCompleter.future);
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'prac-me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('entry_action_wr-2')));
+      await tester.pump();
+
+      final buttonFinder = find.byKey(const Key('entry_action_wr-2'));
+      expect(tester.widget<IconButton>(buttonFinder).onPressed, isNull);
+
+      callNextCompleter.complete(Right(assignedEntry));
+      await tester.pumpAndSettle();
     });
   });
 
