@@ -993,11 +993,24 @@ class _EntryCard extends StatelessWidget {
     final waitSubtitle = entry.estimatedWaitMinutes != null
         ? '$waitLabel · ~${entry.estimatedWaitMinutes} min estimé'
         : waitLabel;
+
+    // À qui le patient est attribué (#5028) : « vous », le nom du confrère,
+    // ou « non attribué » quand aucun praticien n'est encore assigné.
+    final session = switch (context.watch<ProAuthCubit>().state) {
+      AuthAuthenticated(:final session) => session,
+      _ => const AuthSession(kind: UserKind.pro, userId: 'me'),
+    };
+    final practitionerLabel = switch (entry.practitionerId) {
+      null => 'non attribué',
+      final id when id == session.userId => 'vous',
+      _ => entry.practitionerName ?? 'confrère',
+    };
+
     // Motif admin en tête du sous-titre (#5030) — pas de « · » orphelin
     // quand le motif est absent.
     final subtitle = entry.reason != null && entry.reason!.isNotEmpty
-        ? '${entry.reason} · $waitSubtitle'
-        : waitSubtitle;
+        ? '${entry.reason} · $waitSubtitle · $practitionerLabel'
+        : '$waitSubtitle · $practitionerLabel';
 
     // #6058 : `practitioner_id` est toujours renseigné côté API
     // (`WaitingRoomEntry.practitioner_id: Uuid`, `appointment.practitioner_id
