@@ -18,6 +18,7 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
         super(const WaitingRoomInitial()) {
     on<WaitingRoomLoadRequested>(_onLoad);
     on<WaitingRoomCallNextRequested>(_onCallNext);
+    on<WaitingRoomCallRequested>(_onCallRequested);
   }
 
   Future<void> _onLoad(
@@ -73,5 +74,15 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
       safeEmit(current.copyWith(
           actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
+  }
+
+  Future<void> _onCallRequested(
+    WaitingRoomCallRequested event,
+    Emitter<WaitingRoomState> emit,
+  ) async {
+    final current = state;
+    if (current is! WaitingRoomLoaded || current.entries.isEmpty) return;
+    if (current.entries.first.id != event.entryId) return;
+    await _onCallNext(const WaitingRoomCallNextRequested(), emit);
   }
 }

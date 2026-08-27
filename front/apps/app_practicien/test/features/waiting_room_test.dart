@@ -514,6 +514,164 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Ligne sans RDV — action « Attribuer » (#5033)
+  // ---------------------------------------------------------------------------
+
+  group('Ligne sans RDV — action « Attribuer » (#5033)', () {
+    final unassignedEntry = WaitingRoomEntry(
+      id: 'wr-1',
+      cabinetId: 'cab-1',
+      patientId: 'pat-1',
+      patientName: 'Yanis Diallo',
+      arrivedAt: DateTime.now().subtract(const Duration(minutes: 6)),
+      reason: 'Urgence · douleur',
+    );
+    final assignedEntry = WaitingRoomEntry(
+      id: 'wr-2',
+      cabinetId: 'cab-1',
+      patientId: 'pat-2',
+      patientName: 'Camille Moreau',
+      arrivedAt: DateTime.now().subtract(const Duration(minutes: 32)),
+      practitionerId: 'prac-me',
+      practitionerName: 'Vous',
+    );
+
+    testWidgets(
+        'entrée non attribuée : pastille « Sans RDV » et icône person_add',
+        (tester) async {
+      when(() => mockList())
+          .thenAnswer((_) async => Right([unassignedEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-1')),
+          matching: find.text('Sans RDV'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-1')),
+          matching: find.byIcon(Icons.person_add),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-1')),
+          matching: find.byIcon(Icons.campaign),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'entrée non attribuée : le bouton déclenche « Attribuer », pas un '
+        'appel', (tester) async {
+      when(() => mockList())
+          .thenAnswer((_) async => Right([unassignedEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('entry_action_wr-1')));
+      await tester.pump();
+
+      expect(
+        find.text("Attribution d'un praticien à venir"),
+        findsOneWidget,
+      );
+      verifyNever(() => mockCallNext());
+    });
+
+    testWidgets(
+        'entrée attribuée : conserve la pastille de durée et l\'icône '
+        'campaign', (tester) async {
+      when(() => mockList()).thenAnswer((_) async => Right([assignedEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-2')),
+          matching: find.text('Plus de 30 min'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-2')),
+          matching: find.byIcon(Icons.campaign),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-2')),
+          matching: find.byIcon(Icons.person_add),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'entrée attribuée en tête de file : le bouton déclenche l\'appel',
+        (tester) async {
+      when(() => mockList()).thenAnswer((_) async => Right([assignedEntry]));
+      when(() => mockCallNext())
+          .thenAnswer((_) async => Right(assignedEntry));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('entry_action_wr-2')));
+      await tester.pumpAndSettle();
+
+      verify(() => mockCallNext()).called(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Panneau « Mes patients dans la file » (#5039)
   // ---------------------------------------------------------------------------
 
