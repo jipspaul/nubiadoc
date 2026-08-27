@@ -49,9 +49,14 @@ WaitingRoomBloc _makeBloc({
 }) =>
     WaitingRoomBloc(listWaitingRoom: list, callNext: callNext);
 
-Widget _wrap(WaitingRoomBloc bloc) => MaterialApp(
-      home: BlocProvider.value(
-        value: bloc,
+Widget _wrap(WaitingRoomBloc bloc, {ProAuthCubit? authCubit}) => MaterialApp(
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider<WaitingRoomBloc>.value(value: bloc),
+          BlocProvider<ProAuthCubit>.value(
+            value: authCubit ?? _makeAuthCubit(userId: 'me'),
+          ),
+        ],
         child: const Scaffold(body: _WaitingRoomBodyDirect()),
       ),
     );
@@ -388,8 +393,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -432,8 +442,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -485,8 +500,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -506,8 +526,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -547,8 +572,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -581,8 +611,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -617,8 +652,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -648,8 +688,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -659,7 +704,100 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const Key('entry_wr-1')),
-          matching: find.text('6 min d\'attente'),
+          matching: find.text('6 min d\'attente · non attribué'),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Praticien attribué sur chaque ligne (#5028)
+  // ---------------------------------------------------------------------------
+
+  group('Praticien attribué sur chaque ligne (#5028)', () {
+    Future<void> pumpEntry(
+      WidgetTester tester,
+      WaitingRoomEntry entry, {
+      required String currentUserId,
+    }) async {
+      when(() => mockList()).thenAnswer((_) async => Right([entry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: currentUserId),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('praticien courant : affiche « vous »', (tester) async {
+      final entry = WaitingRoomEntry(
+        id: 'wr-1',
+        cabinetId: 'cab-1',
+        patientId: 'pat-1',
+        patientName: 'Camille Moreau',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 6)),
+        practitionerId: 'prac-me',
+        practitionerName: 'Vous',
+      );
+      await pumpEntry(tester, entry, currentUserId: 'prac-me');
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-1')),
+          matching: find.textContaining('vous'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('praticien confrère : affiche son nom', (tester) async {
+      final entry = WaitingRoomEntry(
+        id: 'wr-1',
+        cabinetId: 'cab-1',
+        patientId: 'pat-1',
+        patientName: 'Sophie Roux',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 6)),
+        practitionerId: 'prac-lefevre',
+        practitionerName: 'Dr Lefèvre',
+      );
+      await pumpEntry(tester, entry, currentUserId: 'prac-me');
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-1')),
+          matching: find.textContaining('Dr Lefèvre'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('aucun praticien attribué : affiche « non attribué »',
+        (tester) async {
+      final entry = WaitingRoomEntry(
+        id: 'wr-1',
+        cabinetId: 'cab-1',
+        patientId: 'pat-1',
+        patientName: 'Yanis Diallo',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 6)),
+      );
+      await pumpEntry(tester, entry, currentUserId: 'prac-me');
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-1')),
+          matching: find.textContaining('non attribué'),
         ),
         findsOneWidget,
       );
@@ -1066,8 +1204,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: mockBloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: mockBloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -1147,8 +1290,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: mockBloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: mockBloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -1184,8 +1332,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: mockBloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: mockBloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -1211,8 +1364,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -1250,8 +1408,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: mockBloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: mockBloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const Scaffold(body: WaitingRoomBody()),
           ),
         ),
@@ -1298,8 +1461,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const WaitingRoomPage(),
           ),
         ),
@@ -1320,8 +1488,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: mockBloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: mockBloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
             child: const WaitingRoomPage(),
           ),
         ),
