@@ -25,7 +25,12 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
     Emitter<WaitingRoomState> emit,
   ) async {
     final previous = state;
-    emit(const WaitingRoomLoading());
+    // Une liste déjà affichée ne repasse pas par le squelette : le
+    // rechargement (périodique ou manuel) reste silencieux, la liste
+    // affichée est conservée jusqu'à l'arrivée du résultat.
+    if (previous is! WaitingRoomLoaded) {
+      emit(const WaitingRoomLoading());
+    }
     try {
       final result = await _listWaitingRoom();
       result.fold(

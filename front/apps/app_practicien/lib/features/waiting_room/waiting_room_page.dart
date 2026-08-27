@@ -22,11 +22,30 @@ class WaitingRoomBody extends StatefulWidget {
   State<WaitingRoomBody> createState() => _WaitingRoomBodyState();
 }
 
+/// Intervalle du rafraîchissement automatique (tablette murale, #5034) : la
+/// file change sans qu'on la touche, le geste tactile n'est plus le seul
+/// mécanisme de mise à jour.
+const kWaitingRoomAutoRefreshInterval = Duration(seconds: 30);
+
 class _WaitingRoomBodyState extends State<WaitingRoomBody> {
+  Timer? _autoRefreshTimer;
+
   @override
   void initState() {
     super.initState();
     context.read<WaitingRoomBloc>().add(const WaitingRoomLoadRequested());
+    _autoRefreshTimer = Timer.periodic(
+      kWaitingRoomAutoRefreshInterval,
+      (_) => context.read<WaitingRoomBloc>().add(
+            const WaitingRoomLoadRequested(),
+          ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
   }
 
   @override
