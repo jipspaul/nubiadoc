@@ -118,11 +118,12 @@ class _LoadedView extends StatefulWidget {
   State<_LoadedView> createState() => _LoadedViewState();
 }
 
-/// Largeur de la colonne latérale « Praticiens présents » (maquette
-/// design-v2, #5040) — sous ce seuil de largeur disponible, la colonne
-/// disparaît plutôt que d'écraser la file (comportement tablette/portrait).
+/// Largeur de la colonne latérale droite (`.c2`, maquette design-v2, #5036 —
+/// disposition deux colonnes, 378 px fixes) — sous ce seuil de largeur
+/// disponible, la colonne disparaît plutôt que d'écraser la file
+/// (comportement tablette/portrait).
 const kPresencePanelBreakpoint = 900.0;
-const kPresencePanelWidth = 280.0;
+const kPresencePanelWidth = 378.0;
 
 class _LoadedViewState extends State<_LoadedView> {
   Completer<void>? _refreshCompleter;
