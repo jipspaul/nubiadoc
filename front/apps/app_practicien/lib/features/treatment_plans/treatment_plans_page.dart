@@ -12,6 +12,7 @@ import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
 import 'widgets/patient_header_bar.dart';
 import 'widgets/phase_timeline.dart';
+import 'widgets/plan_footer.dart';
 
 class TreatmentPlansPage extends StatelessWidget {
   const TreatmentPlansPage({super.key, required this.patientId});
@@ -266,6 +267,23 @@ class _PlanCardState extends State<_PlanCard> {
                 onTap:
                     busy ? null : () => setState(() => _composingPhase = true),
               ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.only(top: 12),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: NubiaColors.n200)),
+              ),
+              // Agrégats à 0 tant que le ticket domaine « agrégats de
+              // montants » (#5013) n'a pas doté TreatmentPlan/TreatmentPhase
+              // de montants réels.
+              child: PlanFooter(
+                key: Key('plan_footer_${plan.id}'),
+                warningKey: Key('plan_footer_warning_${plan.id}'),
+                realizedCents: 0,
+                engagedCents: 0,
+                remainingToQuoteCents: 0,
+              ),
+            ),
           ],
         ),
       ),
