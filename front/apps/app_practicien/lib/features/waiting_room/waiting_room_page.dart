@@ -224,7 +224,8 @@ class _EntryCard extends StatelessWidget {
           children: [
             _PositionBadge(position: position),
             const SizedBox(width: 12),
-            NubiaAvatar(initials: _initials(entry.patientName), radius: 20),
+            NubiaAvatar(
+                initials: NubiaInitials.of(entry.patientName), radius: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -285,14 +286,4 @@ class _PositionBadge extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Initiales (max 2 lettres) à partir d'un nom complet.
-String _initials(String fullName) {
-  final parts =
-      fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
-      .toUpperCase();
 }
