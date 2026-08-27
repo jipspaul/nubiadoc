@@ -520,6 +520,54 @@ void main() {
       expect(pillOf('requested').variant, StatusPillVariant.warning);
     });
 
+    testWidgets(
+        'exclut un RDV annulé (ou absent) du compteur restants et de la liste (#6040)',
+        (tester) async {
+      final now = DateTime.now();
+      final entries = [
+        entry(
+          id: 'confirmed',
+          startsAt: now.add(const Duration(minutes: 30)),
+          endsAt: now.add(const Duration(minutes: 60)),
+          status: 'confirmed',
+        ),
+        entry(
+          id: 'cancelled',
+          startsAt: now.add(const Duration(minutes: 90)),
+          endsAt: now.add(const Duration(minutes: 120)),
+          status: 'cancelled',
+        ),
+        entry(
+          id: 'no-show',
+          startsAt: now.add(const Duration(minutes: 150)),
+          endsAt: now.add(const Duration(minutes: 180)),
+          status: 'no_show',
+        ),
+      ];
+      when(() => mockBloc.state)
+          .thenReturn(AgendaLoaded(entries: entries, weekStart: now));
+
+      const summary = ProDashboardSummary(
+        todayAppointments: 3,
+        waitingRoomCount: 0,
+        unreadMessages: 0,
+        pendingConfirmations: 0,
+        weeklyCompletedActs: 0,
+        weeklyFeesCents: 0,
+        weeklyNoShowCount: 0,
+      );
+      await tester.pumpWidget(wrapCard(summary));
+
+      expect(find.text('3 RDV · 1 restants'), findsOneWidget);
+      expect(
+          find.byKey(const Key('today_schedule_row_confirmed')),
+          findsOneWidget);
+      expect(
+          find.byKey(const Key('today_schedule_row_cancelled')), findsNothing);
+      expect(
+          find.byKey(const Key('today_schedule_row_no-show')), findsNothing);
+    });
+
     testWidgets('affiche un état vide DS quand aucun RDV aujourd\'hui',
         (tester) async {
       when(() => mockBloc.state).thenReturn(
