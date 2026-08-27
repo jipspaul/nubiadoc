@@ -313,7 +313,10 @@ class _LoadedViewState extends State<_LoadedView> {
                       padding: const EdgeInsets.only(bottom: 8),
                       itemCount: widget.state.entries.length,
                       itemBuilder: (context, i) => _EntryCard(
-                          entry: widget.state.entries[i], position: i + 1),
+                        entry: widget.state.entries[i],
+                        position: i + 1,
+                        actionInProgress: widget.state.actionInProgress,
+                      ),
                     ),
                   ),
           ),
@@ -977,9 +980,14 @@ class _ConfidentialityNote extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _EntryCard extends StatelessWidget {
-  const _EntryCard({required this.entry, required this.position});
+  const _EntryCard({
+    required this.entry,
+    required this.position,
+    required this.actionInProgress,
+  });
   final WaitingRoomEntry entry;
   final int position;
+  final bool actionInProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -1005,6 +1013,12 @@ class _EntryCard extends StatelessWidget {
       final id when id == session.userId => 'vous',
       _ => entry.practitionerName ?? 'confrère',
     };
+
+    // Patient d'un confrère : non appelable depuis cette file (#5026) — le
+    // bouton d'appel de la ligne reste visible mais atténué, cf. maquette
+    // design-v2 (`.cb`, opacity .35).
+    final isOtherPractitioner =
+        entry.practitionerId != null && entry.practitionerId != session.userId;
 
     // Motif admin en tête du sous-titre (#5030) — pas de « · » orphelin
     // quand le motif est absent.
@@ -1059,19 +1073,58 @@ class _EntryCard extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             StatusPill(label: statusLabel, variant: statusVariant),
-            const SizedBox(width: 4),
-            IconButton(
-              key: Key('entry_action_${entry.id}'),
-              tooltip: NubiaL10n.call,
-              icon: const Icon(Icons.campaign),
-              onPressed: () => context
-                  .read<WaitingRoomBloc>()
-                  .add(WaitingRoomCallRequested(entry.id)),
+            const SizedBox(width: 8),
+            _RowCallButton(
+              entryKey: Key('entry_action_${entry.id}'),
+              dimmed: isOtherPractitioner,
+              onPressed: actionInProgress || isOtherPractitioner
+                  ? null
+                  : () => context
+                      .read<WaitingRoomBloc>()
+                      .add(WaitingRoomCallRequested(entry.id)),
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+/// Bouton d'appel par ligne (maquette design-v2, `.cb` — #5026) : carré
+/// 32×32, coins arrondis 9px, bordure `--n200`, icône `campaign`. Permet
+/// d'appeler un patient hors de son rang, en plus du bouton principal
+/// (au-dessus de la liste) qui appelle toujours la tête de file.
+class _RowCallButton extends StatelessWidget {
+  const _RowCallButton({
+    required this.entryKey,
+    required this.dimmed,
+    required this.onPressed,
+  });
+
+  final Key entryKey;
+  final bool dimmed;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: NubiaColors.n200),
+      ),
+      child: IconButton(
+        key: entryKey,
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        splashRadius: 18,
+        tooltip: NubiaL10n.call,
+        icon: const Icon(Icons.campaign),
+        onPressed: onPressed,
+      ),
+    );
+    return dimmed ? Opacity(opacity: 0.35, child: button) : button;
   }
 }
 
