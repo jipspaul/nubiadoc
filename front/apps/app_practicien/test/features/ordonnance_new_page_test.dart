@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -46,18 +48,31 @@ void registerMedicalRecordStub() {
   );
 }
 
-/// La confirmation de signature monte SendToPharmacyCubit via GetIt (F9) :
-/// on enregistre un cubit réel branché sur des stubs sans pharmacie déclarée.
+final _pharmacyDirectoryRepo = _StubDirectoryRepository();
+final _prescriptionRepo = _StubPrescriptionRepository();
+
+const _pharmacy = Pharmacy(
+  id: 'pharma-1',
+  name: 'Pharmacie du Port',
+  address: '3 rue Haute, Paris',
+);
+
+/// La confirmation de signature (et l'action combinée #5000) montent
+/// SendToPharmacyCubit via GetIt (F9) : on enregistre un cubit réel branché
+/// sur des stubs re-stubbables par test (par défaut, sans pharmacie
+/// déclarée).
 void registerSendToPharmacyStub() {
-  final directory = _StubDirectoryRepository();
-  when(() => directory.getPatientPharmacy(any()))
+  when(() => _pharmacyDirectoryRepo.getPatientPharmacy(any()))
       .thenAnswer((_) async => const Right(null));
+  when(() => _prescriptionRepo.sendToPharmacy(
+        prescriptionId: any(named: 'prescriptionId'),
+        pharmacyId: any(named: 'pharmacyId'),
+      )).thenAnswer((_) async => Right(_prescription));
   if (GetIt.instance.isRegistered<SendToPharmacyCubit>()) return;
   GetIt.instance.registerFactory<SendToPharmacyCubit>(
     () => SendToPharmacyCubit(
-      getPatientPharmacy: GetPatientPharmacyUseCase(directory),
-      sendToPharmacy:
-          SendPrescriptionToPharmacyUseCase(_StubPrescriptionRepository()),
+      getPatientPharmacy: GetPatientPharmacyUseCase(_pharmacyDirectoryRepo),
+      sendToPharmacy: SendPrescriptionToPharmacyUseCase(_prescriptionRepo),
     ),
   );
 }
@@ -131,14 +146,13 @@ Future<void> _fillItem(WidgetTester tester, int index) async {
 // ---------------------------------------------------------------------------
 
 void main() {
-  setUpAll(registerSendToPharmacyStub);
-
   late MockOrdonnancesBloc bloc;
 
   setUp(() {
     bloc = MockOrdonnancesBloc();
     when(() => bloc.state).thenReturn(const OrdonnancesInitial());
     registerMedicalRecordStub();
+    registerSendToPharmacyStub();
   });
 
   group('OrdonnanceNewBody', () {
@@ -271,6 +285,100 @@ void main() {
       await tester.tap(find.byKey(const Key('sign_ordonnance_button')));
       verify(() => bloc.add(const OrdonnancesSignRequested('presc-1')))
           .called(1);
+    });
+
+    testWidgets(
+        'OrdonnancesCreated → bouton combiné "Signer et envoyer à la pharmacie" présent, dispatch la signature au tap (#5000)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(OrdonnancesCreated(_prescription));
+
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('sign_ordonnance_button')), findsOneWidget);
+      expect(find.byKey(const Key('sign_and_send_to_pharmacy_button')),
+          findsOneWidget);
+
+      await tester
+          .tap(find.byKey(const Key('sign_and_send_to_pharmacy_button')));
+      verify(() => bloc.add(const OrdonnancesSignRequested('presc-1')))
+          .called(1);
+    });
+
+    testWidgets(
+        'bouton combiné → signature puis envoi automatique sur la pharmacie déclarée, sans étape manuelle (#5000)',
+        (tester) async {
+      when(() => _pharmacyDirectoryRepo.getPatientPharmacy('patient-1'))
+          .thenAnswer((_) async => const Right(_pharmacy));
+
+      final signed = Prescription(
+        id: 'presc-1',
+        patientId: 'patient-1',
+        items: const [_item],
+        status: PrescriptionStatus.signed,
+        createdAt: DateTime(2026, 7, 2),
+      );
+
+      final controller = StreamController<OrdonnancesState>();
+      addTearDown(controller.close);
+      whenListen(
+        bloc,
+        controller.stream,
+        initialState: OrdonnancesCreated(_prescription),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester
+          .tap(find.byKey(const Key('sign_and_send_to_pharmacy_button')));
+      verify(() => bloc.add(const OrdonnancesSignRequested('presc-1')))
+          .called(1);
+
+      controller.add(OrdonnancesSigned(signed));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('send_to_pharmacy_done')), findsOneWidget);
+      expect(find.textContaining('transmise à Pharmacie du Port'),
+          findsOneWidget);
+      verify(() => _prescriptionRepo.sendToPharmacy(
+            prescriptionId: 'presc-1',
+            pharmacyId: 'pharma-1',
+          )).called(1);
+    });
+
+    testWidgets(
+        'bouton combiné → sans pharmacie déclarée, retombe sur le choix de pharmacie sans crash (#5000)',
+        (tester) async {
+      // Stub par défaut (registerSendToPharmacyStub) : pas de pharmacie
+      // déclarée pour le patient.
+      final signed = Prescription(
+        id: 'presc-1',
+        patientId: 'patient-1',
+        items: const [_item],
+        status: PrescriptionStatus.signed,
+        createdAt: DateTime(2026, 7, 2),
+      );
+
+      final controller = StreamController<OrdonnancesState>();
+      addTearDown(controller.close);
+      whenListen(
+        bloc,
+        controller.stream,
+        initialState: OrdonnancesCreated(_prescription),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester
+          .tap(find.byKey(const Key('sign_and_send_to_pharmacy_button')));
+
+      controller.add(OrdonnancesSigned(signed));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('send_to_pharmacy_card')), findsOneWidget);
+      expect(find.byKey(const Key('choose_pharmacy_button')), findsOneWidget);
+      expect(find.byKey(const Key('send_to_pharmacy_done')), findsNothing);
+      verifyNever(() => _prescriptionRepo.sendToPharmacy(
+            prescriptionId: any(named: 'prescriptionId'),
+            pharmacyId: any(named: 'pharmacyId'),
+          ));
     });
 
     testWidgets(
