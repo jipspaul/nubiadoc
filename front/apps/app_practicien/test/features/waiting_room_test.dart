@@ -980,6 +980,71 @@ void main() {
       );
       expect(longestValue.style?.color, tokens.warningFg);
     });
+
+    testWidgets(
+        'affiche le retard du prochain patient à appeler en couleur '
+        'warning quand un RDV est planifié', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final scheduledAt = DateTime.now().subtract(const Duration(minutes: 32));
+      final delayedEntries = [
+        WaitingRoomEntry(
+          id: 'wr-1',
+          cabinetId: 'cab-1',
+          patientId: 'pat-1',
+          patientName: 'Camille Moreau',
+          arrivedAt: scheduledAt,
+          appointmentTime: scheduledAt,
+        ),
+      ];
+
+      when(() => mockList()).thenAnswer((_) async => Right(delayedEntries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_delay')),
+          matching: find.text('Retard sur le planning'),
+        ),
+        findsOneWidget,
+      );
+      final delayValueFinder = find.descendant(
+        of: find.byKey(const Key('room_pace_delay')),
+        matching: find.textContaining('+32 min'),
+      );
+      expect(delayValueFinder, findsOneWidget);
+
+      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+      final delayValue = tester.widget<Text>(delayValueFinder);
+      expect(delayValue.style?.color, tokens.warningFg);
+    });
+
+    testWidgets(
+        'n\'affiche aucune ligne de retard quand le prochain patient n\'a '
+        'pas de RDV planifié', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('room_pace_delay')), findsNothing);
+    });
   });
 
   // ---------------------------------------------------------------------------
