@@ -222,9 +222,9 @@ class _EntryCard extends StatelessWidget {
     // Statut dérivé du temps d'attente : jamais la couleur seule (label + pill).
     final (String statusLabel, StatusPillVariant statusVariant) =
         switch (waitMinutes) {
-      < 15 => ('En attente', StatusPillVariant.info),
-      < 30 => ('Patiente', StatusPillVariant.warning),
-      _ => ('Attente longue', StatusPillVariant.error),
+      < 15 => ('Moins de 15 min', StatusPillVariant.info),
+      < 30 => ('Plus de 15 min', StatusPillVariant.warning),
+      _ => ('Plus de 30 min', StatusPillVariant.error),
     };
 
     return Padding(
