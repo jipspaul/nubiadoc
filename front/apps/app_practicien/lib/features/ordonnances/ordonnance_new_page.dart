@@ -7,6 +7,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../session/pro_auth_cubit.dart';
 import 'send_to_pharmacy_cubit.dart';
+import 'widgets/ordonnance_preview_sheet.dart';
 import 'widgets/prescription_template_picker.dart';
 import 'widgets/send_to_pharmacy_card.dart';
 import 'ordonnances_bloc.dart';
@@ -113,8 +114,7 @@ class _OrdonnanceNewBodyState extends State<OrdonnanceNewBody> {
               state is OrdonnancesApplyingTemplate) {
             final prescription = switch (state) {
               OrdonnancesCreated(:final prescription) => prescription,
-              OrdonnancesSigningInProgress(:final prescription) =>
-                prescription,
+              OrdonnancesSigningInProgress(:final prescription) => prescription,
               OrdonnancesApplyingTemplate(:final prescription) => prescription,
               _ => throw StateError('unreachable'),
             };
@@ -301,9 +301,13 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(child: composition),
-                  const SizedBox(
+                  SizedBox(
                     width: _kOrdonnancePreviewWidth,
-                    child: _DocumentPreviewPane(),
+                    child: OrdonnancePreviewSheet(
+                      patient: _patient,
+                      prescriberName: _prescriberName(context),
+                      items: _items.map((i) => i.toItem()).toList(),
+                    ),
                   ),
                 ],
               );
@@ -317,29 +321,13 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
 
 // ---------------------------------------------------------------------------
 
-/// Volet `.rgt` de la maquette design-v2 (§ note 7) : aperçu du document,
-/// largeur fixe, fond `n50` et bordure gauche séparant la composition
-/// (gauche) de l'aperçu (droite). Le contenu de l'aperçu lui-même est hors
-/// périmètre de ce ticket (#4998) et sera fourni par #4997.
-class _DocumentPreviewPane extends StatelessWidget {
-  const _DocumentPreviewPane();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: NubiaColors.n50,
-        border: Border(left: BorderSide(color: NubiaColors.n200)),
-      ),
-      child: const NubiaEmptyState(
-        key: Key('ordonnance_document_preview'),
-        icon: Icons.description_outlined,
-        title: 'Aperçu du document',
-        subtitle: 'L\'aperçu de l\'ordonnance apparaîtra ici.',
-      ),
-    );
-  }
-}
+/// Nom du prescripteur connecté (`ProAuthCubit`), utilisé à la fois par
+/// l'en-tête d'identité patient (#4999) et par l'aperçu du document (#4997).
+String? _prescriberName(BuildContext context) =>
+    switch (context.watch<ProAuthCubit>().state) {
+      AuthAuthenticated(:final session) => session.displayName,
+      _ => null,
+    };
 
 // ---------------------------------------------------------------------------
 
@@ -358,12 +346,10 @@ class _PatientIdentityHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
-    final name =
-        patient != null && patient!.fullName.isNotEmpty ? patient!.fullName : 'Patient';
-    final prescriberName = switch (context.watch<ProAuthCubit>().state) {
-      AuthAuthenticated(:final session) => session.displayName,
-      _ => null,
-    };
+    final name = patient != null && patient!.fullName.isNotEmpty
+        ? patient!.fullName
+        : 'Patient';
+    final prescriberName = _prescriberName(context);
     final subtitle = _subtitle(prescriberName);
 
     return Row(
@@ -398,7 +384,8 @@ class _PatientIdentityHeader extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                  style:
+                      textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ],
             ],
@@ -414,7 +401,8 @@ class _PatientIdentityHeader extends StatelessWidget {
     final parts = <String>[
       if (birthDate != null) '${_age(birthDate)} ans',
       if (birthDate != null) 'né(e) le ${_formatBirthDate(birthDate)}',
-      if (prescriber != null && prescriber.isNotEmpty) 'suivi(e) par Dr $prescriber',
+      if (prescriber != null && prescriber.isNotEmpty)
+        'suivi(e) par Dr $prescriber',
     ];
     if (parts.isEmpty) return null;
     return parts.join(' · ');
