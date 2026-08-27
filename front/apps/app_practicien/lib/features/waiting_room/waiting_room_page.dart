@@ -592,7 +592,8 @@ class _RoomPacePanel extends StatelessWidget {
             _PaceRow(
               key: const Key('room_pace_delay'),
               label: 'Retard sur le planning',
-              subtitle: 'RDV de ${_NextPatientHeroCard._formatTime(scheduledAt)}'
+              subtitle:
+                  'RDV de ${_NextPatientHeroCard._formatTime(scheduledAt)}'
                   ' appelé à ${_NextPatientHeroCard._formatTime(calledAt)}',
               value: '${delayMinutes >= 0 ? '+' : ''}$delayMinutes min',
               valueColor: tokens.warningFg,
@@ -792,8 +793,9 @@ class _MyPatientsPanel extends StatelessWidget {
             _QueueBreakdownRow(
               key: Key('queue_breakdown_$colleagueId'),
               label: 'Pour ${colleagueNames[colleagueId]}',
-              subtitle:
-                  byColleagueId[colleagueId]!.map((e) => e.patientName).join(', '),
+              subtitle: byColleagueId[colleagueId]!
+                  .map((e) => e.patientName)
+                  .join(', '),
               value: byColleagueId[colleagueId]!.length,
             ),
           ],
@@ -911,8 +913,8 @@ class _PractitionerPresenceRow extends StatelessWidget {
             children: [
               Text(
                 name,
-                style: textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                style:
+                    textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -988,6 +990,14 @@ class _EntryCard extends StatelessWidget {
     final waitMinutes = wait.inMinutes;
     final waitLabel =
         waitMinutes < 1 ? 'À l\'instant' : '$waitMinutes min d\'attente';
+    final waitSubtitle = entry.estimatedWaitMinutes != null
+        ? '$waitLabel · ~${entry.estimatedWaitMinutes} min estimé'
+        : waitLabel;
+    // Motif admin en tête du sous-titre (#5030) — pas de « · » orphelin
+    // quand le motif est absent.
+    final subtitle = entry.reason != null && entry.reason!.isNotEmpty
+        ? '${entry.reason} · $waitSubtitle'
+        : waitSubtitle;
 
     // Urgence sans praticien attribué (#5168) : la ligne le dit (pastille
     // neutre « Sans RDV ») et son action est « Attribuer », pas « Appeler »
@@ -1026,9 +1036,7 @@ class _EntryCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    entry.estimatedWaitMinutes != null
-                        ? '$waitLabel · ~${entry.estimatedWaitMinutes} min estimé'
-                        : waitLabel,
+                    subtitle,
                     style: textTheme.bodySmall
                         ?.copyWith(color: tokens.textTertiary),
                     maxLines: 1,
