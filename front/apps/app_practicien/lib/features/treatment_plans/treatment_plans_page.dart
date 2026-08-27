@@ -315,6 +315,11 @@ class _PlanCardState extends State<_PlanCard> {
                         key: Key('treatment_phase_${phase.id}'),
                         phase: phase,
                         busy: busy,
+                        // Agrégat à 0 tant que le ticket domaine « agrégats
+                        // de montants » (#5013) n'a pas doté TreatmentPhase
+                        // d'un montant réel (même limitation que PlanKpiRow
+                        // et PlanFooter ci-dessus).
+                        amountCents: 0,
                         onAddAct: () => _openAddAct(context, phase),
                         onOpenQuote: () => context.push(AppRouter.devis),
                         onGenerateQuote: () => context.push(AppRouter.devis),
@@ -370,6 +375,7 @@ class _PhaseCard extends StatelessWidget {
     super.key,
     required this.phase,
     required this.busy,
+    required this.amountCents,
     required this.onAddAct,
     required this.onOpenQuote,
     required this.onGenerateQuote,
@@ -377,6 +383,7 @@ class _PhaseCard extends StatelessWidget {
 
   final TreatmentPhase phase;
   final bool busy;
+  final int amountCents;
   final VoidCallback onAddAct;
   final VoidCallback onOpenQuote;
   final VoidCallback onGenerateQuote;
@@ -397,6 +404,15 @@ class _PhaseCard extends StatelessWidget {
                 label: treatmentPlanStatusLabels[phase.status] ?? phase.status,
                 variant: treatmentPlanStatusVariants[phase.status] ??
                     StatusPillVariant.info,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                NubiaMoney.formatCents(amountCents),
+                key: Key('treatment_phase_amount_${phase.id}'),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: tabularFigures,
+                ),
               ),
             ],
           ),

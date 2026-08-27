@@ -136,6 +136,28 @@ void main() {
   });
 
   testWidgets(
+      'en-tête de phase → montant total affiché à droite du pill de statut '
+      '(agrégats de montants #5013 pas encore livrés)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases]),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    final amountFinder =
+        find.byKey(const Key('treatment_phase_amount_phase-1'));
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('treatment_phase_phase-1')),
+        matching: amountFinder,
+      ),
+      findsOneWidget,
+    );
+    expect(tester.widget<Text>(amountFinder).data, '0,00 €');
+  });
+
+  testWidgets(
       'phase active → affordance « Ajouter un acte à cette phase » ouvre le CCAM picker',
       (tester) async {
     when(() => listPlans('pat-1')).thenAnswer(
