@@ -88,6 +88,8 @@ class TodayScheduleCard extends StatelessWidget {
     final result = entries
         .where((e) =>
             !e.isFree &&
+            !e.isCancelled &&
+            !e.isNoShow &&
             e.startsAt.year == now.year &&
             e.startsAt.month == now.month &&
             e.startsAt.day == now.day)
