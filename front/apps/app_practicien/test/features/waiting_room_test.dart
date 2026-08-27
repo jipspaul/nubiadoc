@@ -476,7 +476,13 @@ void main() {
         find.byKey(const Key('next_patient_hero_call_button')),
         findsOneWidget,
       );
-      expect(find.text('Appeler Camille Moreau'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('next_patient_hero_call_button')),
+          matching: find.text('Appeler Camille Moreau'),
+        ),
+        findsOneWidget,
+      );
       expect(
         find.descendant(
           of: find.byKey(const Key('next_patient_hero_call_button')),
@@ -540,6 +546,78 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('next_patient_hero')), findsNothing);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Bouton principal « Appeler <patient> » (#5025)
+  // ---------------------------------------------------------------------------
+
+  group('Bouton principal « Appeler <patient> » (#5025)', () {
+    testWidgets('nomme le premier patient de la file avec l\'icône campaign',
+        (tester) async {
+      when(() => mockList()).thenAnswer((_) async => Right([_entry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('call_next_button')),
+          matching: find.text('Appeler Marie Dupont'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('call_next_button')),
+          matching: find.byIcon(Icons.campaign),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('file vide : reste désactivé, aucun nom à afficher',
+        (tester) async {
+      when(() => mockList()).thenAnswer((_) async => const Right([]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('call_next_button')), findsOneWidget);
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('call_next_button')),
+      );
+      expect(button.onPressed, isNull);
+      expect(button.label, NubiaL10n.callNext);
     });
   });
 
