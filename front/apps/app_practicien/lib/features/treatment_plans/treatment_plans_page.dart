@@ -12,6 +12,7 @@ import '../../router/app_router.dart';
 import '../consultation_clinique/ccam_picker.dart';
 import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
+import 'treatment_status_style.dart';
 import 'widgets/patient_header_bar.dart';
 import 'widgets/phase_acts_list.dart';
 import 'widgets/phase_quote_banner.dart';
@@ -334,6 +335,8 @@ class _PlanListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final (planStatusLabel, planStatusVariant) =
+        treatmentPlanStatusStyle(plan.status);
     return Container(
       key: Key('treatment_plan_list_item_${plan.id}'),
       margin: const EdgeInsets.only(bottom: 4),
@@ -365,9 +368,8 @@ class _PlanListItem extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 StatusPill(
-                  label: treatmentPlanStatusLabels[plan.status] ?? plan.status,
-                  variant: treatmentPlanStatusVariants[plan.status] ??
-                      StatusPillVariant.info,
+                  label: planStatusLabel,
+                  variant: planStatusVariant,
                 ),
               ],
             ),
@@ -468,6 +470,8 @@ class _PlanCardState extends State<_PlanCard> {
     final plan = widget.plan;
     final busy = widget.busy;
     final textTheme = Theme.of(context).textTheme;
+    final (planStatusLabel, planStatusVariant) =
+        treatmentPlanStatusStyle(plan.status);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: NubiaCard(
@@ -489,10 +493,8 @@ class _PlanCardState extends State<_PlanCard> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       StatusPill(
-                        label: treatmentPlanStatusLabels[plan.status] ??
-                            plan.status,
-                        variant: treatmentPlanStatusVariants[plan.status] ??
-                            StatusPillVariant.info,
+                        label: planStatusLabel,
+                        variant: planStatusVariant,
                       ),
                       Text(
                         '${plan.phases.length} phase'
@@ -680,24 +682,6 @@ class _PlanProgressSummary extends StatelessWidget {
   }
 }
 
-/// Libellés/couleurs du statut de phase (#5006, maquette design-v2 point 1)
-/// — vocabulaire `PHASE_STATUS_ORDER` côté API (`requested`/`confirmed`/
-/// `in_progress`/`done`), formulé côté praticien (distinct du libellé
-/// patient de `treatment_plan_detail_page.dart`).
-const _phaseStatusLabels = {
-  'requested': 'Planifiée',
-  'confirmed': 'Confirmée',
-  'in_progress': 'En cours',
-  'done': 'Terminée',
-};
-
-const _phaseStatusVariants = {
-  'requested': StatusPillVariant.neutral,
-  'confirmed': StatusPillVariant.info,
-  'in_progress': StatusPillVariant.warning,
-  'done': StatusPillVariant.success,
-};
-
 /// Carte `.bd` d'une phase (#5021, maquette design-v2 `.ph`) — en-tête
 /// (statut + titre) et, pour la phase active, l'affordance d'ajout d'acte
 /// sous la carte. Affichée à droite du rail vertical par [PhaseTimeline].
@@ -724,6 +708,8 @@ class _PhaseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final (phaseStatusLabel, phaseStatusVariant) =
+        treatmentPhaseStatusStyle(phase.status);
     return NubiaCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -732,9 +718,8 @@ class _PhaseCard extends StatelessWidget {
             children: [
               StatusPill(
                 key: Key('treatment_phase_status_${phase.id}'),
-                label: _phaseStatusLabels[phase.status] ?? phase.status,
-                variant: _phaseStatusVariants[phase.status] ??
-                    StatusPillVariant.neutral,
+                label: phaseStatusLabel,
+                variant: phaseStatusVariant,
               ),
               const SizedBox(width: 8),
               Expanded(
