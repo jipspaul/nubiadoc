@@ -80,9 +80,10 @@ class PharmacyOrder extends Equatable {
 
   /// Détail des lignes de l'ordonnance (molécule, forme, posologie,
   /// quantité, #5349) — même entité [PrescriptionItem] que côté pharmacien
-  /// (`GetPharmacyOrderPrescriptionUseCase`). Vide tant que le back ne
-  /// l'expose pas sur cet endpoint ; la carte « Votre ordonnance » ne
-  /// s'affiche alors pas.
+  /// (`GetPharmacyOrderPrescriptionUseCase`), seule source de vérité
+  /// posologie (#4996). Exposé par le back depuis #5644 ; reste vide sur les
+  /// endpoints qui ne le renseignent pas encore. `posology` demeure du texte
+  /// libre tant que #4993 (décomposition structurée) n'est pas livré.
   final List<PrescriptionItem> lines;
 
   /// Ventilation facturation (fournie par le back, cf. #4063 côté patient) —
