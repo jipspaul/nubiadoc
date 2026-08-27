@@ -168,53 +168,59 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      key: const Key('ordonnance_form'),
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_allergies.isNotEmpty) ...[
-                _AllergiesBanner(allergies: _allergies),
-                const SizedBox(height: 16),
-              ],
-              Text('Médicaments à prescrire',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 16),
-              for (var i = 0; i < _items.length; i++) ...[
-                _ItemCard(
-                  index: i,
-                  draft: _items[i],
-                  onChanged: _refresh,
-                  onRemove: _items.length == 1
-                      ? null
-                      : () => setState(() => _items.removeAt(i).dispose()),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_allergies.isNotEmpty) _AllergiesBanner(allergies: _allergies),
+        Expanded(
+          child: SingleChildScrollView(
+            key: const Key('ordonnance_form'),
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Médicaments à prescrire',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 16),
+                    for (var i = 0; i < _items.length; i++) ...[
+                      _ItemCard(
+                        index: i,
+                        draft: _items[i],
+                        onChanged: _refresh,
+                        onRemove: _items.length == 1
+                            ? null
+                            : () => setState(
+                                () => _items.removeAt(i).dispose()),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    NubiaButton(
+                      key: const Key('add_item_button'),
+                      label: 'Ajouter un médicament',
+                      variant: NubiaButtonVariant.secondary,
+                      icon: Icons.add,
+                      onPressed: widget.loading
+                          ? null
+                          : () => setState(() => _items.add(_ItemDraft())),
+                    ),
+                    const SizedBox(height: 24),
+                    NubiaButton(
+                      key: const Key('submit_ordonnance_button'),
+                      label: 'Créer l\'ordonnance',
+                      isLoading: widget.loading,
+                      onPressed:
+                          (!_formValid || widget.loading) ? null : _submit,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-              ],
-              NubiaButton(
-                key: const Key('add_item_button'),
-                label: 'Ajouter un médicament',
-                variant: NubiaButtonVariant.secondary,
-                icon: Icons.add,
-                onPressed: widget.loading
-                    ? null
-                    : () => setState(() => _items.add(_ItemDraft())),
               ),
-              const SizedBox(height: 24),
-              NubiaButton(
-                key: const Key('submit_ordonnance_button'),
-                label: 'Créer l\'ordonnance',
-                isLoading: widget.loading,
-                onPressed: (!_formValid || widget.loading) ? null : _submit,
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -223,7 +229,9 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
 
 /// Bandeau passif (#4076, ADR-009 §8.6) : affiche les allergies connues du
 /// dossier médical. Jamais bloquant, ne désactive aucun champ, ne suggère
-/// aucune alternative — hors périmètre MDR (dispositif médical exclu).
+/// aucune alternative — hors périmètre MDR (dispositif médical exclu). La
+/// mention à droite l'énonce à l'écran pour qu'aucune itération future ne le
+/// « corrige » par erreur.
 class _AllergiesBanner extends StatelessWidget {
   const _AllergiesBanner({required this.allergies});
   final List<String> allergies;
@@ -236,22 +244,19 @@ class _AllergiesBanner extends StatelessWidget {
     return Container(
       key: const Key('allergies_banner'),
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: tokens.warningBg,
-        borderRadius: BorderRadius.circular(8),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      color: tokens.warningBg,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.warning_amber_rounded, size: 20, color: tokens.warningFg),
+          Icon(Icons.warning, size: 20, color: tokens.warningFg),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Allergies connues',
+                  'Allergies connues au dossier',
                   style: textTheme.labelLarge?.copyWith(
                     color: tokens.warningFg,
                     fontWeight: FontWeight.w600,
@@ -259,10 +264,19 @@ class _AllergiesBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  allergies.join(', '),
+                  allergies.join(' · '),
                   style: textTheme.bodySmall?.copyWith(color: tokens.warningFg),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              'Affichage informatif. Aucune vérification automatique, '
+              'aucune alternative suggérée — hors périmètre dispositif '
+              'médical (ADR-009 §8.6).',
+              style: textTheme.bodySmall?.copyWith(color: tokens.warningFg),
             ),
           ),
         ],
