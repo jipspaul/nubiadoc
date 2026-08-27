@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -14,6 +15,7 @@ import 'package:app_practicien/features/waiting_room/waiting_room_event.dart';
 import 'package:app_practicien/features/waiting_room/waiting_room_page.dart';
 import 'package:app_practicien/features/waiting_room/waiting_room_state.dart';
 import 'package:app_practicien/pro_config.dart';
+import 'package:app_practicien/session/pro_auth_cubit.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -26,6 +28,8 @@ class MockCallNextUseCase extends Mock implements CallNextUseCase {}
 
 class MockWaitingRoomBloc extends MockBloc<WaitingRoomEvent, WaitingRoomState>
     implements WaitingRoomBloc {}
+
+class MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -49,6 +53,33 @@ Widget _wrap(WaitingRoomBloc bloc) => MaterialApp(
       home: BlocProvider.value(
         value: bloc,
         child: const Scaffold(body: _WaitingRoomBodyDirect()),
+      ),
+    );
+
+MockProAuthCubit _makeAuthCubit({required String userId}) {
+  final cubit = MockProAuthCubit();
+  when(() => cubit.state).thenReturn(
+    AuthAuthenticated(
+      AuthSession(
+        kind: UserKind.pro,
+        userId: userId,
+        role: ProRole.practitioner,
+      ),
+    ),
+  );
+  return cubit;
+}
+
+/// Sur écran large (≥ [kPresencePanelBreakpoint]), la colonne latérale
+/// dépend aussi de [ProAuthCubit] (#5039) — fournir les deux blocs.
+Widget _wrapWide(WaitingRoomBloc bloc, ProAuthCubit authCubit) => MaterialApp(
+      theme: NubiaTheme.light,
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider<WaitingRoomBloc>.value(value: bloc),
+          BlocProvider<ProAuthCubit>.value(value: authCubit),
+        ],
+        child: const Scaffold(body: WaitingRoomBody()),
       ),
     );
 
@@ -315,13 +346,7 @@ void main() {
       final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
         ..add(const WaitingRoomLoadRequested());
       await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: BlocProvider<WaitingRoomBloc>.value(
-            value: bloc,
-            child: const Scaffold(body: WaitingRoomBody()),
-          ),
-        ),
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
       );
       await tester.pump();
 
@@ -373,6 +398,186 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('presence_panel')), findsNothing);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Panneau « Mes patients dans la file » (#5039)
+  // ---------------------------------------------------------------------------
+
+  group('Mes patients dans la file (widget, #5039)', () {
+    final entries = [
+      WaitingRoomEntry(
+        id: 'wr-1',
+        cabinetId: 'cab-1',
+        patientId: 'pat-1',
+        patientName: 'Camille Moreau',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 32)),
+        practitionerId: 'prac-me',
+        practitionerName: 'Vous',
+      ),
+      WaitingRoomEntry(
+        id: 'wr-2',
+        cabinetId: 'cab-1',
+        patientId: 'pat-2',
+        patientName: 'Théo Girard',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 18)),
+        practitionerId: 'prac-me',
+        practitionerName: 'Vous',
+      ),
+      WaitingRoomEntry(
+        id: 'wr-3',
+        cabinetId: 'cab-1',
+        patientId: 'pat-3',
+        patientName: 'Léa Bernard',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 3)),
+        practitionerId: 'prac-me',
+        practitionerName: 'Vous',
+      ),
+      WaitingRoomEntry(
+        id: 'wr-4',
+        cabinetId: 'cab-1',
+        patientId: 'pat-4',
+        patientName: 'Sophie Roux',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 11)),
+        practitionerId: 'prac-lefevre',
+        practitionerName: 'Dr Lefèvre',
+      ),
+      WaitingRoomEntry(
+        id: 'wr-5',
+        cabinetId: 'cab-1',
+        patientId: 'pat-5',
+        patientName: 'Yanis Diallo',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 6)),
+        reason: 'urgence',
+      ),
+    ];
+
+    testWidgets('groupe la file par praticien avec les bons compteurs',
+        (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('my_patients_panel')), findsOneWidget);
+      expect(find.text('Mes patients dans la file'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('my_patients_badge')),
+          matching: find.text('3'),
+        ),
+        findsOneWidget,
+      );
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_mine')),
+          matching: find.text('Pour vous'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_mine')),
+          matching: find.text('Camille, Théo, Léa'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_mine')),
+          matching: find.text('3'),
+        ),
+        findsOneWidget,
+      );
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_prac-lefevre')),
+          matching: find.text('Pour Dr Lefèvre'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_prac-lefevre')),
+          matching: find.text('Sophie Roux'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_prac-lefevre')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_unassigned')),
+          matching: find.text('Non attribué'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_unassigned')),
+          matching: find.text('Yanis Diallo · urgence'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_unassigned')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'la valeur « Pour vous » est en couleur brand, « Non attribué » en '
+        'warning', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+
+      final mineValue = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_mine')),
+          matching: find.text('3'),
+        ),
+      );
+      expect(mineValue.style?.color, NubiaColors.brand700);
+
+      final unassignedValue = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('queue_breakdown_unassigned')),
+          matching: find.text('1'),
+        ),
+      );
+      expect(unassignedValue.style?.color, tokens.warningFg);
     });
   });
 
