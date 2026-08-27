@@ -7,7 +7,9 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
+import 'widgets/patient_header_bar.dart';
 
 class TreatmentPlansPage extends StatelessWidget {
   const TreatmentPlansPage({super.key, required this.patientId});
@@ -16,13 +18,23 @@ class TreatmentPlansPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => TreatmentPlansCubit(
-        patientId: patientId,
-        listPlans: GetIt.instance<ListTreatmentPlansUseCase>(),
-        createPlan: GetIt.instance<CreateTreatmentPlanUseCase>(),
-        createPhase: GetIt.instance<CreateTreatmentPhaseUseCase>(),
-      ),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => TreatmentPlansCubit(
+            patientId: patientId,
+            listPlans: GetIt.instance<ListTreatmentPlansUseCase>(),
+            createPlan: GetIt.instance<CreateTreatmentPlanUseCase>(),
+            createPhase: GetIt.instance<CreateTreatmentPhaseUseCase>(),
+          ),
+        ),
+        BlocProvider(
+          create: (_) => PatientHeaderCubit(
+            patientId: patientId,
+            getPatient: GetIt.instance<GetCabinetPatientUseCase>(),
+          ),
+        ),
+      ],
       child: const _TreatmentPlansBody(),
     );
   }
@@ -47,7 +59,6 @@ class _TreatmentPlansBody extends StatelessWidget {
       },
       builder: (context, state) {
         return Scaffold(
-          appBar: AppBar(title: const Text('Plans de traitement')),
           floatingActionButton: state is TreatmentPlansLoaded
               ? FloatingActionButton(
                   key: const Key('treatment_plans_new_plan_fab'),
@@ -56,19 +67,26 @@ class _TreatmentPlansBody extends StatelessWidget {
                   child: const Icon(Icons.add),
                 )
               : null,
-          body: switch (state) {
-            TreatmentPlansLoading() => const Center(
-                key: Key('treatment_plans_loading'),
-                child: CircularProgressIndicator(),
+          body: Column(
+            children: [
+              const PatientHeaderBar(trailingLabel: 'Plans de traitement'),
+              Expanded(
+                child: switch (state) {
+                  TreatmentPlansLoading() => const Center(
+                      key: Key('treatment_plans_loading'),
+                      child: CircularProgressIndicator(),
+                    ),
+                  TreatmentPlansError(:final message) => NubiaErrorWidget(
+                      key: const Key('treatment_plans_error'),
+                      message: message,
+                      onRetry: () => context.read<TreatmentPlansCubit>().load(),
+                    ),
+                  TreatmentPlansLoaded(:final plans, :final busy) =>
+                    _PlansList(plans: plans, busy: busy),
+                },
               ),
-            TreatmentPlansError(:final message) => NubiaErrorWidget(
-                key: const Key('treatment_plans_error'),
-                message: message,
-                onRetry: () => context.read<TreatmentPlansCubit>().load(),
-              ),
-            TreatmentPlansLoaded(:final plans, :final busy) =>
-              _PlansList(plans: plans, busy: busy),
-          },
+            ],
+          ),
         );
       },
     );
