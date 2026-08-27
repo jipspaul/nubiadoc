@@ -402,6 +402,119 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Carte hero « Prochain patient à appeler » (#5037)
+  // ---------------------------------------------------------------------------
+
+  group('Carte hero « Prochain patient à appeler » (#5037)', () {
+    final heroEntry = WaitingRoomEntry(
+      id: 'wr-1',
+      cabinetId: 'cab-1',
+      patientId: 'pat-1',
+      patientName: 'Camille Moreau',
+      arrivedAt: DateTime(2026, 1, 1, 14, 12),
+      reason: 'Pose de couronne',
+      appointmentTime: DateTime(2026, 1, 1, 14, 30),
+    );
+    final otherEntry = WaitingRoomEntry(
+      id: 'wr-2',
+      cabinetId: 'cab-1',
+      patientId: 'pat-2',
+      patientName: 'Théo Girard',
+      arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+    );
+
+    testWidgets(
+        'affiche le 1er patient de la file : nom, motif, RDV et tag '
+        'd\'arrivée', (tester) async {
+      when(() => mockList())
+          .thenAnswer((_) async => Right([heroEntry, otherEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('next_patient_hero')), findsOneWidget);
+      expect(find.text('PROCHAIN PATIENT À APPELER'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('next_patient_hero')),
+          matching: find.text('Camille Moreau'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Pose de couronne · RDV de 14:30'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('next_patient_hero_arrival_tag')),
+          matching: find.text('Arrivée à 14:12'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('next_patient_hero_call_button')),
+        findsOneWidget,
+      );
+      expect(find.text('Appeler Camille Moreau'), findsOneWidget);
+      expect(find.byIcon(Icons.campaign), findsOneWidget);
+      expect(find.byKey(const Key('next_patient_hero_open_file')),
+          findsOneWidget);
+      expect(find.text('Ouvrir le dossier'), findsOneWidget);
+      expect(find.byIcon(Icons.folder_open), findsOneWidget);
+    });
+
+    testWidgets('le bouton « Appeler » déclenche WaitingRoomCallNextRequested',
+        (tester) async {
+      when(() => mockList())
+          .thenAnswer((_) async => Right([heroEntry, otherEntry]));
+      when(() => mockCallNext())
+          .thenAnswer((_) async => Right(heroEntry));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('next_patient_hero_call_button')));
+      await tester.pumpAndSettle();
+
+      verify(() => mockCallNext()).called(1);
+    });
+
+    testWidgets('aucune carte hero quand la salle est vide', (tester) async {
+      when(() => mockList()).thenAnswer((_) async => const Right([]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('next_patient_hero')), findsNothing);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Panneau « Mes patients dans la file » (#5039)
   // ---------------------------------------------------------------------------
 
