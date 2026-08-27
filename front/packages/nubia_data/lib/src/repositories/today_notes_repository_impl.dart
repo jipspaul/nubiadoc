@@ -27,8 +27,8 @@ class TodayNotesRepositoryImpl implements TodayNotesRepository {
               DateTime.now(),
           patientInitials: initials,
           status: _parseStatus(e['status'] as String?),
-          // #5047 : nom réel quand l'API l'expose, sinon repli sur les
-          // initiales (l'API zéro-PII actuelle ne l'envoie pas encore).
+          // #5047 : nom réel renvoyé par l'API (#6038), repli sur les
+          // initiales si absent/vide par prudence.
           patientName: (name != null && name.trim().isNotEmpty)
               ? name
               : initials,

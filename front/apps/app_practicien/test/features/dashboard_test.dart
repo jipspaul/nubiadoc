@@ -14,6 +14,7 @@ import 'package:app_practicien/features/agenda/agenda_state.dart';
 import 'package:app_practicien/features/dashboard/dashboard_bloc.dart';
 import 'package:app_practicien/features/dashboard/dashboard_event.dart';
 import 'package:app_practicien/features/dashboard/dashboard_state.dart';
+import 'package:app_practicien/features/dashboard/next_patient_hero.dart';
 import 'package:app_practicien/features/dashboard/pending_actions_card.dart';
 import 'package:app_practicien/features/dashboard/today_notes_bloc.dart';
 import 'package:app_practicien/features/dashboard/today_notes_card.dart';
@@ -45,6 +46,24 @@ final _summary = ProDashboardSummary(
   weeklyCompletedActs: 38,
   weeklyFeesCents: 642000,
   weeklyNoShowCount: 2,
+);
+
+final _nextPatientSummary = ProDashboardSummary(
+  todayAppointments: 9,
+  waitingRoomCount: 1,
+  unreadMessages: 0,
+  pendingConfirmations: 0,
+  weeklyCompletedActs: 0,
+  weeklyFeesCents: 0,
+  weeklyNoShowCount: 0,
+  nextPatientName: 'Camille Moreau',
+  nextPatientReason: 'Pose de couronne',
+  nextPatientAppointmentTime: DateTime(2026, 8, 26, 14, 30),
+  nextPatientDurationMinutes: 30,
+  nextPatientWaitingMinutes: 12,
+  nextPatientAllergyLabel: 'Allergie pénicilline',
+  nextPatientTreatmentPlanCents: 163592,
+  nextPatientLastVisitAt: DateTime(2026, 7, 22),
 );
 
 DashboardBloc _makeBloc(MockGetProDashboardSummaryUseCase uc) =>
@@ -376,10 +395,8 @@ void main() {
       expect(find.text('4 RDV · 3 restants'), findsOneWidget);
       expect(find.byKey(const Key('today_schedule_row_past')), findsOneWidget);
       expect(find.byKey(const Key('today_schedule_row_now')), findsOneWidget);
-      expect(
-          find.byKey(const Key('today_schedule_row_soon')), findsOneWidget);
-      expect(
-          find.byKey(const Key('today_schedule_row_later')), findsOneWidget);
+      expect(find.byKey(const Key('today_schedule_row_soon')), findsOneWidget);
+      expect(find.byKey(const Key('today_schedule_row_later')), findsOneWidget);
       expect(find.byType(ListRow), findsNWidgets(4));
 
       // Ordre : passé, courant, à venir, à venir plus tard.
@@ -460,7 +477,8 @@ void main() {
       expect(pastContainer.color, isNull);
     });
 
-    testWidgets('dérive le pill de statut depuis AgendaEntry, pas une chaîne libre',
+    testWidgets(
+        'dérive le pill de statut depuis AgendaEntry, pas une chaîne libre',
         (tester) async {
       final now = DateTime.now();
       final entries = [
@@ -518,6 +536,54 @@ void main() {
       expect(pillOf('confirmed').variant, StatusPillVariant.neutral);
       expect(pillOf('requested').label, 'À confirmer');
       expect(pillOf('requested').variant, StatusPillVariant.warning);
+    });
+
+    testWidgets(
+        'exclut un RDV annulé (ou absent) du compteur restants et de la liste (#6040)',
+        (tester) async {
+      final now = DateTime.now();
+      final entries = [
+        entry(
+          id: 'confirmed',
+          startsAt: now.add(const Duration(minutes: 30)),
+          endsAt: now.add(const Duration(minutes: 60)),
+          status: 'confirmed',
+        ),
+        entry(
+          id: 'cancelled',
+          startsAt: now.add(const Duration(minutes: 90)),
+          endsAt: now.add(const Duration(minutes: 120)),
+          status: 'cancelled',
+        ),
+        entry(
+          id: 'no-show',
+          startsAt: now.add(const Duration(minutes: 150)),
+          endsAt: now.add(const Duration(minutes: 180)),
+          status: 'no_show',
+        ),
+      ];
+      when(() => mockBloc.state)
+          .thenReturn(AgendaLoaded(entries: entries, weekStart: now));
+
+      const summary = ProDashboardSummary(
+        todayAppointments: 3,
+        waitingRoomCount: 0,
+        unreadMessages: 0,
+        pendingConfirmations: 0,
+        weeklyCompletedActs: 0,
+        weeklyFeesCents: 0,
+        weeklyNoShowCount: 0,
+      );
+      await tester.pumpWidget(wrapCard(summary));
+
+      expect(find.text('3 RDV · 1 restants'), findsOneWidget);
+      expect(
+          find.byKey(const Key('today_schedule_row_confirmed')),
+          findsOneWidget);
+      expect(
+          find.byKey(const Key('today_schedule_row_cancelled')), findsNothing);
+      expect(
+          find.byKey(const Key('today_schedule_row_no-show')), findsNothing);
     });
 
     testWidgets('affiche un état vide DS quand aucun RDV aujourd\'hui',
@@ -604,6 +670,119 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('messages page'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // NextPatientHero widget (#5045 — le patient suivant devient le héros)
+  // ---------------------------------------------------------------------------
+
+  group('NextPatientHero widget', () {
+    Widget wrapCard(ProDashboardSummary summary) => MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(body: NextPatientHero(summary: summary)),
+        );
+
+    GoRouter makeRouter(ProDashboardSummary summary) => GoRouter(
+          initialLocation: '/',
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, __) =>
+                  Scaffold(body: NextPatientHero(summary: summary)),
+            ),
+            GoRoute(
+              path: '/consultation',
+              builder: (_, __) =>
+                  const Scaffold(body: Text('consultation page')),
+            ),
+            GoRoute(
+              path: '/patients',
+              builder: (_, __) => const Scaffold(body: Text('patients page')),
+            ),
+          ],
+        );
+
+    testWidgets('masque le hero quand personne n\'attend', (tester) async {
+      await tester.pumpWidget(wrapCard(_summary));
+
+      expect(find.byKey(const Key('next_patient_hero')), findsNothing);
+      expect(find.byKey(const Key('next_patient_hero_empty')), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche nom, motif, heure, durée et temps d\'attente du prochain '
+        'patient', (tester) async {
+      await tester.pumpWidget(wrapCard(_nextPatientSummary));
+
+      expect(find.byKey(const Key('next_patient_hero')), findsOneWidget);
+      expect(find.text('Camille Moreau'), findsOneWidget);
+      expect(find.text('Pose de couronne'), findsOneWidget);
+      expect(find.text('14:30'), findsOneWidget);
+      expect(find.text('30 min prévues'), findsOneWidget);
+      expect(
+        find.text('Patient suivant · en salle d\'attente depuis 12 min'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'le tag allergie utilise la variante danger et le plan un montant '
+        'formaté', (tester) async {
+      await tester.pumpWidget(wrapCard(_nextPatientSummary));
+
+      final allergyPill = tester.widget<StatusPill>(
+        find.byKey(const Key('next_patient_hero_allergy_tag')),
+      );
+      expect(allergyPill.variant, StatusPillVariant.error);
+      expect(allergyPill.label, 'Allergie pénicilline');
+
+      expect(find.text('Plan en cours · 1 635,92 €'), findsOneWidget);
+      expect(find.text('Dernière visite 22/07'), findsOneWidget);
+    });
+
+    testWidgets('masque les tags absents sans planter sur des champs nuls',
+        (tester) async {
+      const partial = ProDashboardSummary(
+        todayAppointments: 0,
+        waitingRoomCount: 1,
+        unreadMessages: 0,
+        pendingConfirmations: 0,
+        weeklyCompletedActs: 0,
+        weeklyFeesCents: 0,
+        weeklyNoShowCount: 0,
+        nextPatientName: 'Camille Moreau',
+      );
+      await tester.pumpWidget(wrapCard(partial));
+
+      expect(find.byKey(const Key('next_patient_hero')), findsOneWidget);
+      expect(find.byType(StatusPill), findsNothing);
+    });
+
+    testWidgets('démarrer la consultation navigue vers /consultation',
+        (tester) async {
+      final router = makeRouter(_nextPatientSummary);
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+
+      await tester
+          .tap(find.byKey(const Key('next_patient_hero_start_consultation')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('consultation page'), findsOneWidget);
+    });
+
+    testWidgets('ouvrir le dossier navigue vers /patients', (tester) async {
+      final router = makeRouter(_nextPatientSummary);
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+
+      await tester.tap(find.byKey(const Key('next_patient_hero_open_file')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('patients page'), findsOneWidget);
     });
   });
 }

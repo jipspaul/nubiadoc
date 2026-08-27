@@ -24,6 +24,7 @@ export 'src/widgets/nubia_checkbox.dart';
 export 'src/widgets/nubia_chip.dart';
 export 'src/widgets/nubia_empty_state.dart';
 export 'src/widgets/nubia_error_widget.dart';
+export 'src/widgets/nubia_inline_error.dart';
 export 'src/widgets/nubia_primitives.dart';
 export 'src/widgets/nubia_radio.dart';
 export 'src/widgets/nubia_search_bar.dart';

@@ -32,6 +32,7 @@ import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
+import 'next_patient_hero.dart';
 import 'pending_actions_card.dart';
 import 'today_notes_bloc.dart';
 import 'today_notes_card.dart';
@@ -239,7 +240,7 @@ class _DashboardLoadedView extends StatelessWidget {
                     children: [
                       const _DashboardHeader(),
                       const SizedBox(height: 16),
-                      _SummaryGrid(summary: summary),
+                      NextPatientHero(summary: summary),
                       const SizedBox(height: 16),
                       todayScheduleCard,
                     ],
@@ -268,7 +269,7 @@ class _DashboardLoadedView extends StatelessWidget {
             children: [
               const _DashboardHeader(),
               const SizedBox(height: 16),
-              _SummaryGrid(summary: summary),
+              NextPatientHero(summary: summary),
               const SizedBox(height: 16),
               todayScheduleCard,
               const SizedBox(height: 24),
@@ -340,75 +341,6 @@ class _DashboardLoadingView extends StatelessWidget {
           const NubiaSkeletonLoader(height: 180, borderRadius: 12),
         ],
       ),
-    );
-  }
-}
-
-/// Grille responsive de [MetricTile] alimentée par [ProDashboardSummary].
-class _SummaryGrid extends StatelessWidget {
-  const _SummaryGrid({required this.summary});
-
-  final ProDashboardSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    // #3374 : chaque carte est un raccourci vers l'écran correspondant.
-    // « Messages non lus » et « Confirmations en attente » sont devenues des
-    // lignes de la carte « À traiter » (#5049, [PendingActionsCard]).
-    final metrics = <({
-      Key key,
-      String label,
-      String value,
-      IconData icon,
-      MetricTileVariant variant,
-      String route,
-    })>[
-      (
-        key: const Key('metric_appointments'),
-        label: 'RDV aujourd\'hui',
-        value: '${summary.todayAppointments}',
-        icon: Icons.calendar_today_outlined,
-        variant: MetricTileVariant.neutral,
-        route: AppRouter.agenda,
-      ),
-      (
-        key: const Key('metric_waiting_room'),
-        label: 'Salle d\'attente',
-        value: '${summary.waitingRoomCount}',
-        icon: Icons.event_seat_outlined,
-        variant: MetricTileVariant.neutral,
-        route: AppRouter.waitingRoom,
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const gap = 16.0;
-        // Vise ~200 px par tuile, borné entre 1 et 4 colonnes.
-        final columns =
-            (constraints.maxWidth / 200).floor().clamp(1, metrics.length);
-        final tileWidth =
-            (constraints.maxWidth - gap * (columns - 1)) / columns;
-
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (final m in metrics)
-              SizedBox(
-                width: tileWidth,
-                child: MetricTile(
-                  key: m.key,
-                  icon: m.icon,
-                  value: m.value,
-                  label: m.label,
-                  variant: m.variant,
-                  onTap: () => context.go(m.route),
-                ),
-              ),
-          ],
-        );
-      },
     );
   }
 }

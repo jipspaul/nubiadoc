@@ -18,22 +18,40 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
         super(const WaitingRoomInitial()) {
     on<WaitingRoomLoadRequested>(_onLoad);
     on<WaitingRoomCallNextRequested>(_onCallNext);
+    on<WaitingRoomCallRequested>(_onCallRequested);
   }
 
   Future<void> _onLoad(
     WaitingRoomLoadRequested event,
     Emitter<WaitingRoomState> emit,
   ) async {
-    emit(const WaitingRoomLoading());
+    final previous = state;
+    // Une liste déjà affichée ne repasse pas par le squelette : le
+    // rechargement (périodique ou manuel) reste silencieux, la liste
+    // affichée est conservée jusqu'à l'arrivée du résultat.
+    if (previous is! WaitingRoomLoaded) {
+      emit(const WaitingRoomLoading());
+    }
     try {
       final result = await _listWaitingRoom();
       result.fold(
-        (failure) => safeEmit(WaitingRoomError(failure.message)),
+        (failure) => safeEmit(_onLoadFailure(previous, failure.message)),
         (entries) => safeEmit(WaitingRoomLoaded(entries: entries)),
       );
     } catch (_) {
-      safeEmit(const WaitingRoomError('Erreur de chargement.'));
+      safeEmit(_onLoadFailure(previous, 'Erreur de chargement.'));
     }
+  }
+
+  /// Un échec de CHARGEMENT INITIAL (aucune liste encore affichée) est
+  /// bloquant : `WaitingRoomError` plein écran. Un échec de RECHARGEMENT
+  /// (une liste était déjà affichée) ne l'est jamais : la liste est
+  /// conservée et l'erreur posée en `reloadError` (bandeau non bloquant).
+  WaitingRoomState _onLoadFailure(WaitingRoomState previous, String message) {
+    if (previous is WaitingRoomLoaded) {
+      return previous.copyWith(actionInProgress: false, reloadError: message);
+    }
+    return WaitingRoomError(message);
   }
 
   Future<void> _onCallNext(
@@ -56,5 +74,15 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
       safeEmit(current.copyWith(
           actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
+  }
+
+  Future<void> _onCallRequested(
+    WaitingRoomCallRequested event,
+    Emitter<WaitingRoomState> emit,
+  ) async {
+    final current = state;
+    if (current is! WaitingRoomLoaded || current.entries.isEmpty) return;
+    if (current.entries.first.id != event.entryId) return;
+    await _onCallNext(const WaitingRoomCallNextRequested(), emit);
   }
 }

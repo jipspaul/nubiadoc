@@ -24,6 +24,11 @@
   "@noNotifications": { "description": "Aucune notification" },
   "callNext": "Appeler suivant",
   "@callNext": { "description": "Bouton appeler patient suivant" },
+  "callNextNamed": "Appeler {patientName}",
+  "@callNextNamed": {
+    "description": "Bouton appeler patient suivant, nommant la tête de file",
+    "placeholders": { "patientName": { "type": "String" } }
+  },
   "call": "Appeler",
   "@call": { "description": "Bouton appeler ce patient (action par ligne)" },
   "patients": "Patients",

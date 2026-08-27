@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
+import 'package:nubia_data/src/remote/cabinet_appointments/cabinet_appointments_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_dashboard/cabinet_dashboard_dto.dart';
+import 'package:nubia_data/src/remote/waiting_room/waiting_room_dto.dart';
 
 class CabinetDashboardApi {
   final Dio _dio;
@@ -88,6 +90,31 @@ class CabinetDashboardApi {
         .skip(5)
         .fold<int>(0, (s, dayResults) => s + dayResults.length);
 
+    // #5045 : hero « Patient suivant » — celui qui attend depuis le plus
+    // longtemps dans la salle d'attente déjà chargée ci-dessus (results[1]).
+    // Réutilise WaitingRoomEntryDto (nom/motif/heure/attente, fallbacks déjà
+    // durcis par #3782/#3861) plutôt que reparser le JSON brut ici.
+    final waitingRoom = results[1]
+        .map((e) =>
+            WaitingRoomEntryDto.fromJson(e as Map<String, dynamic>).toDomain())
+        .toList()
+      ..sort((a, b) => a.arrivedAt.compareTo(b.arrivedAt));
+    final nextPatient = waitingRoom.isEmpty ? null : waitingRoom.first;
+
+    // Durée prévue : jointure sur le RDV du jour correspondant (results[0]),
+    // seul endroit où `duration_minutes` est exposé.
+    int? nextPatientDurationMinutes;
+    if (nextPatient?.appointmentId != null) {
+      for (final raw in results[0]) {
+        final appointment =
+            CabinetAppointmentDto.fromJson(raw as Map<String, dynamic>);
+        if (appointment.id == nextPatient!.appointmentId) {
+          nextPatientDurationMinutes = appointment.durationMinutes;
+          break;
+        }
+      }
+    }
+
     return CabinetDashboardDto(
       todayAppointments: results[0].length,
       waitingRoomCount: results[1].length,
@@ -96,6 +123,16 @@ class CabinetDashboardApi {
       weeklyCompletedActs: weeklyCompletedActs,
       weeklyFeesCents: weeklyFeesCents,
       weeklyNoShowCount: weeklyNoShowCount,
+      nextPatientName: nextPatient?.patientName,
+      nextPatientReason: nextPatient?.reason,
+      nextPatientAppointmentTime: nextPatient?.appointmentTime,
+      nextPatientDurationMinutes: nextPatientDurationMinutes,
+      nextPatientWaitingMinutes: nextPatient?.waitSoFar.inMinutes,
+      // Allergie / plan de traitement / dernière visite : pas encore exposés
+      // par ces endpoints — cf. commentaire de classe de [ProDashboardSummary].
+      nextPatientAllergyLabel: null,
+      nextPatientTreatmentPlanCents: null,
+      nextPatientLastVisitAt: null,
     );
   }
 
