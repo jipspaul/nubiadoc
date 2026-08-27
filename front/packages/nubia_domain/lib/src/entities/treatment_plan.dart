@@ -17,18 +17,37 @@ class TreatmentPhaseQuoteRef extends Equatable {
   List<Object?> get props => [quoteNumber, signedAt, depositPaid];
 }
 
-/// Acte minimal nécessaire au calcul des agrégats de montants d'une phase
-/// (#5013). Détail complet (libellé, code CCAM, dent, sous-titre...) hors
-/// périmètre — voir le ticket domaine « actes rattachés à une phase », pas
-/// encore livré (`TreatmentPhase.acts` reste vide en attendant son API).
+/// Acte rattaché à une phase (#5012, maquette design-v2 point 2, `.act`) :
+/// libellé, code CCAM, dent et montant, source de [TreatmentPhase.totalCents]
+/// (#5013). `label`/`ccamCode`/`subtitle` par défaut vides et `tooth` nul
+/// pour rester compatible avec les actes déjà construits côté #5013 (montant
+/// seul) tant que le back n'expose pas encore le détail complet.
 class TreatmentPhaseAct extends Equatable {
   final String id;
+  final String label;
+  final String? ccamCode;
+
+  /// Numéro de dent (ex. « 26 »). `null` si l'acte n'est pas rattaché à une
+  /// dent précise.
+  final String? tooth;
   final int amountCents;
 
-  const TreatmentPhaseAct({required this.id, required this.amountCents});
+  /// Sous-titre libre (ex. « Réalisé le 22/07 », « À programmer »). `null`
+  /// si absent.
+  final String? subtitle;
+
+  const TreatmentPhaseAct({
+    required this.id,
+    this.label = '',
+    this.ccamCode,
+    this.tooth,
+    required this.amountCents,
+    this.subtitle,
+  });
 
   @override
-  List<Object?> get props => [id, amountCents];
+  List<Object?> get props =>
+      [id, label, ccamCode, tooth, amountCents, subtitle];
 }
 
 class TreatmentPhase extends Equatable {
