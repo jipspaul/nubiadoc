@@ -4,13 +4,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import '../consultation_clinique/ccam_picker.dart';
 import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
 import 'widgets/patient_header_bar.dart';
+import 'widgets/phase_quote_banner.dart';
 import 'widgets/phase_timeline.dart';
 import 'widgets/plan_footer.dart';
 
@@ -247,6 +250,8 @@ class _PlanCardState extends State<_PlanCard> {
                         phase: phase,
                         busy: busy,
                         onAddAct: () => _openAddAct(context, phase),
+                        onOpenQuote: () => context.push(AppRouter.devis),
+                        onGenerateQuote: () => context.push(AppRouter.devis),
                       ),
                     ),
                 ],
@@ -300,11 +305,15 @@ class _PhaseCard extends StatelessWidget {
     required this.phase,
     required this.busy,
     required this.onAddAct,
+    required this.onOpenQuote,
+    required this.onGenerateQuote,
   });
 
   final TreatmentPhase phase;
   final bool busy;
   final VoidCallback onAddAct;
+  final VoidCallback onOpenQuote;
+  final VoidCallback onGenerateQuote;
 
   @override
   Widget build(BuildContext context) {
@@ -335,6 +344,23 @@ class _PhaseCard extends StatelessWidget {
               buttonKey: Key('treatment_phase_add_act_button_${phase.id}'),
               onTap: busy ? null : onAddAct,
             ),
+          // Bandeau devis (#5019, maquette design-v2 point 3). Aucune
+          // référence de devis par phase n'existe encore côté domaine/API
+          // (ticket domaine « référence de devis par phase », pas livré :
+          // `TreatmentPhase` ne porte aucun champ devis pour l'instant) —
+          // état absence pour toutes les phases en attendant. « Ouvrir »/
+          // « Générer » redirigent vers la liste des devis (`/devis`), en
+          // l'absence de route dédiée par devis/phase.
+          PhaseQuoteBanner(
+            key: Key('treatment_phase_quote_${phase.id}'),
+            openKey: Key('treatment_phase_quote_open_${phase.id}'),
+            generateKey: Key('treatment_phase_quote_generate_${phase.id}'),
+            quoteNumber: null,
+            signedAtLabel: null,
+            depositPaid: false,
+            onOpen: onOpenQuote,
+            onGenerate: onGenerateQuote,
+          ),
         ],
       ),
     );

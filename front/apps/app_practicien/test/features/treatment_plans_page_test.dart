@@ -5,6 +5,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -292,6 +293,62 @@ void main() {
     );
     expect(find.text('Plans de traitement'), findsOneWidget);
     expect(find.byType(AppBar), findsNothing);
+  });
+
+  testWidgets(
+      'phase → bandeau devis en état absence (référence de devis par phase '
+      'pas encore livrée côté domaine)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases]),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('treatment_phase_quote_phase-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.text("Aucun devis — le patient n'a pas encore accepté cette phase"),
+      findsOneWidget,
+    );
+    expect(find.text('Générer'), findsOneWidget);
+  });
+
+  group('bandeau devis → navigation', () {
+    GoRouter makeRouter() => GoRouter(
+          initialLocation: '/patients/pat-1/treatment-plans',
+          routes: [
+            GoRoute(
+              path: '/patients/pat-1/treatment-plans',
+              builder: (_, __) => const TreatmentPlansPage(patientId: 'pat-1'),
+            ),
+            GoRoute(
+              path: '/devis',
+              builder: (_, __) => const Scaffold(body: Text('devis page')),
+            ),
+          ],
+        );
+
+    testWidgets('tap sur Générer navigue vers /devis', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: makeRouter(),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const Key('treatment_phase_quote_generate_phase-1')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('devis page'), findsOneWidget);
+    });
   });
 
   testWidgets('bandeau patient → bouton retour fait un pop de navigation',
