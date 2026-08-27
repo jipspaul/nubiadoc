@@ -67,14 +67,6 @@ class _TreatmentPlansBody extends StatelessWidget {
       },
       builder: (context, state) {
         return Scaffold(
-          floatingActionButton: state is TreatmentPlansLoaded
-              ? FloatingActionButton(
-                  key: const Key('treatment_plans_new_plan_fab'),
-                  tooltip: 'Nouveau plan de traitement',
-                  onPressed: () => _promptNewPlan(context),
-                  child: const Icon(Icons.add),
-                )
-              : null,
           body: Column(
             children: [
               const PatientHeaderBar(trailingLabel: 'Plans de traitement'),
@@ -90,7 +82,11 @@ class _TreatmentPlansBody extends StatelessWidget {
                       onRetry: () => context.read<TreatmentPlansCubit>().load(),
                     ),
                   TreatmentPlansLoaded(:final plans, :final busy) =>
-                    _PlansSplitView(plans: plans, busy: busy),
+                    _PlansSplitView(
+                      plans: plans,
+                      busy: busy,
+                      onNewPlan: () => _promptNewPlan(context),
+                    ),
                 },
               ),
             ],
@@ -124,10 +120,15 @@ class _TreatmentPlansBody extends StatelessWidget {
 /// Sélection portée localement (pas de changement de contrat cubit #4051) :
 /// le premier plan est sélectionné par défaut.
 class _PlansSplitView extends StatefulWidget {
-  const _PlansSplitView({required this.plans, required this.busy});
+  const _PlansSplitView({
+    required this.plans,
+    required this.busy,
+    required this.onNewPlan,
+  });
 
   final List<TreatmentPlan> plans;
   final bool busy;
+  final VoidCallback onNewPlan;
 
   @override
   State<_PlansSplitView> createState() => _PlansSplitViewState();
@@ -154,11 +155,17 @@ class _PlansSplitViewState extends State<_PlansSplitView> {
   Widget build(BuildContext context) {
     final plans = widget.plans;
     if (plans.isEmpty) {
-      return const NubiaEmptyState(
-        key: Key('treatment_plans_empty'),
+      return NubiaEmptyState(
+        key: const Key('treatment_plans_empty'),
         icon: Icons.assignment_outlined,
         title: 'Aucun plan de traitement',
-        subtitle: 'Créez le premier plan avec le bouton +.',
+        subtitle: 'Créez le premier plan.',
+        action: NubiaButton(
+          key: const Key('treatment_plans_new_plan_fab'),
+          label: 'Nouveau plan',
+          icon: Icons.add,
+          onPressed: widget.busy ? null : widget.onNewPlan,
+        ),
       );
     }
     final selected = plans.firstWhere(
@@ -171,11 +178,13 @@ class _PlansSplitViewState extends State<_PlansSplitView> {
         _PlansListColumn(
           plans: plans,
           selectedPlanId: selected.id,
+          busy: widget.busy,
           onSelect: (id) => setState(() => _selectedPlanId = id),
+          onNewPlan: widget.onNewPlan,
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            padding: const EdgeInsets.all(16),
             child: _PlanCard(plan: selected, busy: widget.busy),
           ),
         ),
@@ -190,12 +199,16 @@ class _PlansListColumn extends StatelessWidget {
   const _PlansListColumn({
     required this.plans,
     required this.selectedPlanId,
+    required this.busy,
     required this.onSelect,
+    required this.onNewPlan,
   });
 
   final List<TreatmentPlan> plans;
   final String selectedPlanId;
+  final bool busy;
   final ValueChanged<String> onSelect;
+  final VoidCallback onNewPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -242,8 +255,63 @@ class _PlansListColumn extends StatelessWidget {
               },
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: _NewPlanEntry(
+              key: const Key('treatment_plans_new_plan_fab'),
+              onTap: busy ? null : onNewPlan,
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Entrée « Nouveau plan » (maquette design-v2 point 9, `.newp`) : remplace
+/// le `FloatingActionButton` retiré — séparateur pointillé, icône `add`,
+/// libellé gris `n500`, au bas de la colonne des plans. Porte la clé
+/// `treatment_plans_new_plan_fab` reportée depuis le FAB (#5009).
+class _NewPlanEntry extends StatelessWidget {
+  const _NewPlanEntry({super.key, required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 1,
+          child: CustomPaint(
+            painter: _DashedLinePainter(color: tokens.borderDefault),
+          ),
+        ),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  const Icon(Icons.add, size: 18, color: NubiaColors.n500),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Nouveau plan',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: NubiaColors.n500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
