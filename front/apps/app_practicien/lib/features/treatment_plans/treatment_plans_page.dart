@@ -260,6 +260,13 @@ class _PlanCardState extends State<_PlanCard> {
                         variant: treatmentPlanStatusVariants[plan.status] ??
                             StatusPillVariant.info,
                       ),
+                      Text(
+                        '${plan.phases.length} phase'
+                        '${plan.phases.length > 1 ? 's' : ''}',
+                        key: Key('treatment_plan_phase_count_${plan.id}'),
+                        style:
+                            textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
+                      ),
                       StatusPill(
                         key: Key('treatment_plan_created_at_${plan.id}'),
                         label: 'Créé le ${_formatPlanDate(plan.createdAt)}',
@@ -287,6 +294,10 @@ class _PlanCardState extends State<_PlanCard> {
                 ),
               ],
             ),
+            if (plan.phases.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _PlanProgressSummary(plan: plan),
+            ],
             const SizedBox(height: 12),
             PlanKpiRow(
               key: Key('treatment_plan_kpis_${plan.id}'),
@@ -359,6 +370,78 @@ class _PlanCardState extends State<_PlanCard> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Résumé d'avancement d'un plan (#5011, maquette design-v2 `.pl`) — barre
+/// segmentée (1 segment par phase, plein `brand600` pour les phases
+/// terminées, `n200` pour les autres) puis, en dessous, « X phase(s) sur Y
+/// terminée(s) » à gauche et le total du plan à droite. Le praticien qui
+/// possède le plan n'avait jusqu'ici aucun agrégat d'avancement (seule l'app
+/// Patient affiche « X / Y étapes »).
+class _PlanProgressSummary extends StatelessWidget {
+  const _PlanProgressSummary({required this.plan});
+
+  final TreatmentPlan plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final phases = plan.phases;
+    final doneCount = phases.where((phase) => phase.status == 'done').length;
+    final donePlural = doneCount > 1 ? 's' : '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          key: Key('treatment_plan_progress_bar_${plan.id}'),
+          height: 6,
+          child: Row(
+            children: [
+              for (final (index, phase) in phases.indexed) ...[
+                if (index > 0) const SizedBox(width: 3),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: phase.status == 'done'
+                          ? NubiaColors.brand600
+                          : NubiaColors.n200,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                '$doneCount phase$donePlural sur ${phases.length} '
+                'terminée$donePlural',
+                key: Key('treatment_plan_progress_label_${plan.id}'),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: NubiaColors.n600),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              NubiaMoney.formatCents(plan.totalCents),
+              key: Key('treatment_plan_total_${plan.id}'),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: tabularFigures,
+                  ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
