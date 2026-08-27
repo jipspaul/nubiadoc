@@ -28,23 +28,45 @@ class TreatmentPhaseQuoteRefDto {
       );
 }
 
-/// Parsing tolérant : `amount_cents`/`amountCents` absent → acte ignoré côté
-/// agrégats (traité comme 0) plutôt que de faire planter le mapping.
+/// Parsing tolérant : chaque champ absent retombe sur une valeur neutre
+/// (`amount_cents`/`amountCents` → 0, `label`/`ccam_code`/`tooth`/`subtitle`
+/// → vide/nul) plutôt que de faire planter le mapping (#5012).
 class TreatmentPhaseActDto {
   final String id;
+  final String label;
+  final String? ccamCode;
+  final String? tooth;
   final int amountCents;
+  final String? subtitle;
 
-  const TreatmentPhaseActDto({required this.id, required this.amountCents});
+  const TreatmentPhaseActDto({
+    required this.id,
+    this.label = '',
+    this.ccamCode,
+    this.tooth,
+    required this.amountCents,
+    this.subtitle,
+  });
 
   factory TreatmentPhaseActDto.fromJson(Map<String, dynamic> json) =>
       TreatmentPhaseActDto(
         id: json['id'] as String? ?? '',
+        label: json['label'] as String? ?? '',
+        ccamCode: json['ccam_code'] as String? ?? json['ccamCode'] as String?,
+        tooth: json['tooth'] as String?,
         amountCents:
             json['amount_cents'] as int? ?? json['amountCents'] as int? ?? 0,
+        subtitle: json['subtitle'] as String?,
       );
 
-  TreatmentPhaseAct toDomain() =>
-      TreatmentPhaseAct(id: id, amountCents: amountCents);
+  TreatmentPhaseAct toDomain() => TreatmentPhaseAct(
+        id: id,
+        label: label,
+        ccamCode: ccamCode,
+        tooth: tooth,
+        amountCents: amountCents,
+        subtitle: subtitle,
+      );
 }
 
 class TreatmentPhaseDto {
