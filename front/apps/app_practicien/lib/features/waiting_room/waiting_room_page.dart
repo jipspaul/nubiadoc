@@ -277,8 +277,11 @@ class _LoadedViewState extends State<_LoadedView> {
                 ),
                 NubiaButton(
                   key: const Key('call_next_button'),
-                  label: NubiaL10n.callNext,
-                  icon: Icons.arrow_forward,
+                  label: widget.state.entries.isEmpty
+                      ? NubiaL10n.callNext
+                      : NubiaL10n.callNextNamed(
+                          widget.state.entries.first.patientName),
+                  icon: Icons.campaign,
                   size: NubiaButtonSize.sm,
                   isLoading: widget.state.actionInProgress,
                   onPressed: widget.state.actionInProgress ||
