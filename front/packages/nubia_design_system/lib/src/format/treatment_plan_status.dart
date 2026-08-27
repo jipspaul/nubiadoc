@@ -16,6 +16,6 @@ const treatmentPlanStatusVariants = {
   'draft': StatusPillVariant.info,
   'proposed': StatusPillVariant.warning,
   'accepted': StatusPillVariant.success,
-  'in_progress': StatusPillVariant.warning,
+  'in_progress': StatusPillVariant.info,
   'done': StatusPillVariant.success,
 };
