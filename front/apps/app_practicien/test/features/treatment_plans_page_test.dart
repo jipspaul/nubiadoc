@@ -17,7 +17,18 @@ class _MockCreatePlan extends Mock implements CreateTreatmentPlanUseCase {}
 
 class _MockCreatePhase extends Mock implements CreateTreatmentPhaseUseCase {}
 
+class _MockGetPatient extends Mock implements GetCabinetPatientUseCase {}
+
 const _emptyPlans = <TreatmentPlan>[];
+
+final _patient = CabinetPatient(
+  id: 'pat-1',
+  cabinetId: 'cab-1',
+  firstName: 'Julie',
+  lastName: 'Martin',
+  birthDate: DateTime(1985, 3, 10),
+  createdAt: DateTime(2020, 1, 1),
+);
 
 final _planWithPhases = TreatmentPlan(
   id: 'plan-1',
@@ -46,16 +57,20 @@ void main() {
   late _MockListPlans listPlans;
   late _MockCreatePlan createPlan;
   late _MockCreatePhase createPhase;
+  late _MockGetPatient getPatient;
 
   setUp(() {
     listPlans = _MockListPlans();
     createPlan = _MockCreatePlan();
     createPhase = _MockCreatePhase();
+    getPatient = _MockGetPatient();
     GetIt.instance.registerFactory<ListTreatmentPlansUseCase>(() => listPlans);
     GetIt.instance
         .registerFactory<CreateTreatmentPlanUseCase>(() => createPlan);
     GetIt.instance
         .registerFactory<CreateTreatmentPhaseUseCase>(() => createPhase);
+    GetIt.instance.registerFactory<GetCabinetPatientUseCase>(() => getPatient);
+    when(() => getPatient('pat-1')).thenAnswer((_) async => Right(_patient));
     addTearDown(GetIt.instance.reset);
   });
 
@@ -152,5 +167,60 @@ void main() {
 
     expect(find.byKey(const Key('treatment_plans_error')), findsOneWidget);
     expect(find.text('Erreur serveur.'), findsOneWidget);
+  });
+
+  testWidgets('bandeau patient → nom, âge et libellé « Plans de traitement »',
+      (tester) async {
+    when(() => listPlans('pat-1'))
+        .thenAnswer((_) async => const Right(_emptyPlans));
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_plans_header')), findsOneWidget);
+    expect(find.text('Julie Martin'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Text && RegExp(r'^\d+ ans$').hasMatch(w.data ?? ''),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Plans de traitement'), findsOneWidget);
+    expect(find.byType(AppBar), findsNothing);
+  });
+
+  testWidgets('bandeau patient → bouton retour fait un pop de navigation',
+      (tester) async {
+    when(() => listPlans('pat-1'))
+        .thenAnswer((_) async => const Right(_emptyPlans));
+
+    await tester.pumpWidget(MaterialApp(
+      theme: NubiaTheme.light,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: ElevatedButton(
+              key: const Key('open_treatment_plans'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const TreatmentPlansPage(patientId: 'pat-1'),
+                ),
+              ),
+              child: const Text('Ouvrir'),
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.byKey(const Key('open_treatment_plans')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('treatment_plans_header')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('treatment_plans_back_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('open_treatment_plans')), findsOneWidget);
+    expect(find.byKey(const Key('treatment_plans_header')), findsNothing);
   });
 }
