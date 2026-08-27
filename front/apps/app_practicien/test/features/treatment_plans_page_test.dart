@@ -209,6 +209,9 @@ void main() {
     await tester.tap(find.byKey(const Key('treatment_plan_add_phase_plan-1')));
     await tester.pumpAndSettle();
 
+    // #5022 : composition en place, plus d'AlertDialog pour la phase.
+    expect(find.byType(AlertDialog), findsNothing);
+
     await tester.enterText(
       find.byKey(const Key('treatment_phase_title_field_plan-1')),
       'Phase 2 · Prothèse',
