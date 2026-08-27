@@ -52,5 +52,15 @@ void main() {
     test('affiche « 0,00 € » pour un montant nul', () {
       expect(NubiaMoney.formatCents(0), '0,00 €');
     });
+
+    test('maquette praticien · plan de traitement (#5003)', () {
+      expect(NubiaMoney.formatCents(163592), '1 635,92 €');
+      expect(NubiaMoney.formatCents(16800), '168,00 €');
+      expect(NubiaMoney.formatCents(120000), '1 200,00 €');
+    });
+
+    test('préfixe un montant négatif par un − typographique', () {
+      expect(NubiaMoney.formatCents(-1636), '−16,36 €');
+    });
   });
 }
