@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import '../../session/pro_auth_cubit.dart';
 import 'waiting_room_bloc.dart';
 import 'waiting_room_event.dart';
@@ -150,6 +152,17 @@ class _LoadedViewState extends State<_LoadedView> {
                     .add(const WaitingRoomLoadRequested()),
               ),
             ),
+          if (widget.state.entries.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: _NextPatientHeroCard(
+                entry: widget.state.entries.first,
+                disabled: widget.state.actionInProgress,
+                onCallNext: () => context
+                    .read<WaitingRoomBloc>()
+                    .add(const WaitingRoomCallNextRequested()),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: Row(
@@ -237,6 +250,168 @@ class _LoadedViewState extends State<_LoadedView> {
       },
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Carte hero « Prochain patient à appeler » (maquette design-v2, #5037) —
+/// premier de [WaitingRoomLoaded.entries], seul endroit où figure une alerte
+/// clinique (ex. allergie) : n'affiche que ce que fournit [WaitingRoomEntry]
+/// aujourd'hui (pas d'alerte tant qu'aucun champ domaine dédié n'existe, cf.
+/// [WaitingRoomEntry.reason]), plutôt que d'inventer une donnée hors maquette.
+class _NextPatientHeroCard extends StatelessWidget {
+  const _NextPatientHeroCard({
+    required this.entry,
+    required this.disabled,
+    required this.onCallNext,
+  });
+
+  final WaitingRoomEntry entry;
+  final bool disabled;
+  final VoidCallback onCallNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final appointmentTime = entry.appointmentTime;
+    final waitMinutes = entry.waitSoFar.inMinutes;
+
+    final metaParts = [
+      if (entry.reason != null && entry.reason!.isNotEmpty) entry.reason!,
+      if (appointmentTime != null) 'RDV de ${_formatTime(appointmentTime)}',
+    ];
+
+    return Container(
+      key: const Key('next_patient_hero'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: NubiaColors.brand700,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'PROCHAIN PATIENT À APPELER',
+            style: textTheme.labelSmall?.copyWith(
+              color: Colors.white.withValues(alpha: 0.75),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              NubiaAvatar(
+                  initials: NubiaInitials.of(entry.patientName), radius: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      entry.patientName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (metaParts.isNotEmpty)
+                      Text(
+                        metaParts.join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$waitMinutes min',
+                    style: textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  Text(
+                    'd\'attente',
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: Colors.white.withValues(alpha: 0.75)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              StatusPill(
+                key: const Key('next_patient_hero_arrival_tag'),
+                label: 'Arrivée à ${_formatTime(entry.arrivedAt)}',
+                variant: StatusPillVariant.neutral,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  key: const Key('next_patient_hero_call_button'),
+                  onPressed: disabled ? null : onCallNext,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: NubiaColors.brand700,
+                  ),
+                  icon: const Icon(Icons.campaign),
+                  label: Text(
+                    'Appeler ${entry.patientName}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: const Key('next_patient_hero_open_file'),
+                  onPressed: () => context.go(AppRouter.patients),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white),
+                  ),
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text(
+                    'Ouvrir le dossier',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatTime(DateTime time) =>
+      '${time.hour.toString().padLeft(2, '0')}:'
+      '${time.minute.toString().padLeft(2, '0')}';
 }
 
 // ---------------------------------------------------------------------------
