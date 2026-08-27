@@ -5,10 +5,12 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'package:app_practicien/features/consultation_clinique/ccam_picker.dart';
 import 'package:app_practicien/features/treatment_plans/treatment_plans_page.dart';
 
 class _MockListPlans extends Mock implements ListTreatmentPlansUseCase {}
@@ -17,7 +19,22 @@ class _MockCreatePlan extends Mock implements CreateTreatmentPlanUseCase {}
 
 class _MockCreatePhase extends Mock implements CreateTreatmentPhaseUseCase {}
 
+class _MockGetPatient extends Mock implements GetCabinetPatientUseCase {}
+
+class _MockGetActs extends Mock implements GetActsUseCase {}
+
+class _MockFavoriteActs extends Mock implements FavoriteActsUseCase {}
+
 const _emptyPlans = <TreatmentPlan>[];
+
+final _patient = CabinetPatient(
+  id: 'pat-1',
+  cabinetId: 'cab-1',
+  firstName: 'Julie',
+  lastName: 'Martin',
+  birthDate: DateTime(1985, 3, 10),
+  createdAt: DateTime(2020, 1, 1),
+);
 
 final _planWithPhases = TreatmentPlan(
   id: 'plan-1',
@@ -34,6 +51,33 @@ final _planWithPhases = TreatmentPlan(
   ],
 );
 
+final _planWithProgress = TreatmentPlan(
+  id: 'plan-progress',
+  title: 'Réhabilitation secteur 2',
+  status: 'in_progress',
+  createdAt: DateTime(2026, 1, 1),
+  phases: const [
+    TreatmentPhase(
+      id: 'phase-progress-1',
+      position: 1,
+      title: 'Phase 1',
+      status: 'done',
+    ),
+    TreatmentPhase(
+      id: 'phase-progress-2',
+      position: 2,
+      title: 'Phase 2',
+      status: 'in_progress',
+    ),
+    TreatmentPhase(
+      id: 'phase-progress-3',
+      position: 3,
+      title: 'Phase 3',
+      status: 'requested',
+    ),
+  ],
+);
+
 final _planNoPhases = TreatmentPlan(
   id: 'plan-2',
   title: 'Plan couronne',
@@ -42,20 +86,46 @@ final _planNoPhases = TreatmentPlan(
   phases: const [],
 );
 
+final _planWithActivePhase = TreatmentPlan(
+  id: 'plan-3',
+  title: 'Plan endodontie',
+  status: 'in_progress',
+  createdAt: DateTime(2026, 1, 3),
+  phases: const [
+    TreatmentPhase(
+      id: 'phase-active',
+      position: 1,
+      title: 'Endodontie et reconstitution',
+      status: 'in_progress',
+    ),
+  ],
+);
+
 void main() {
   late _MockListPlans listPlans;
   late _MockCreatePlan createPlan;
   late _MockCreatePhase createPhase;
+  late _MockGetPatient getPatient;
+  late _MockGetActs getActs;
+  late _MockFavoriteActs favoriteActs;
 
   setUp(() {
     listPlans = _MockListPlans();
     createPlan = _MockCreatePlan();
     createPhase = _MockCreatePhase();
+    getPatient = _MockGetPatient();
+    getActs = _MockGetActs();
+    favoriteActs = _MockFavoriteActs();
     GetIt.instance.registerFactory<ListTreatmentPlansUseCase>(() => listPlans);
     GetIt.instance
         .registerFactory<CreateTreatmentPlanUseCase>(() => createPlan);
     GetIt.instance
         .registerFactory<CreateTreatmentPhaseUseCase>(() => createPhase);
+    GetIt.instance.registerFactory<GetCabinetPatientUseCase>(() => getPatient);
+    GetIt.instance.registerFactory<GetActsUseCase>(() => getActs);
+    GetIt.instance.registerFactory<FavoriteActsUseCase>(() => favoriteActs);
+    when(() => getPatient('pat-1')).thenAnswer((_) async => Right(_patient));
+    when(() => favoriteActs.list()).thenAnswer((_) async => const []);
     addTearDown(GetIt.instance.reset);
   });
 
@@ -64,7 +134,18 @@ void main() {
         home: const TreatmentPlansPage(patientId: 'pat-1'),
       );
 
+  // Layout maître-détail (#5010) pensé pour la tablette 1258×834 de la
+  // maquette : élargit la surface de test, comme consultation_clinique
+  // (layout 3 colonnes) le fait déjà pour son propre seuil large.
+  Future<void> _setSurface(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
+
   testWidgets('aucun plan → empty state affiché', (tester) async {
+    await _setSurface(tester);
     when(() => listPlans('pat-1'))
         .thenAnswer((_) async => const Right(_emptyPlans));
 
@@ -74,12 +155,14 @@ void main() {
     expect(find.byKey(const Key('treatment_plans_empty')), findsOneWidget);
   });
 
-  testWidgets('plans avec phases → liste affichée, triée par position',
-      (tester) async {
+  testWidgets(
+      'plans avec phases → premier plan sélectionné par défaut dans le '
+      'panneau détail (#5010)', (tester) async {
     when(() => listPlans('pat-1')).thenAnswer(
       (_) async => Right([_planWithPhases, _planNoPhases]),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -87,9 +170,179 @@ void main() {
     expect(find.byKey(const Key('treatment_phase_phase-1')), findsOneWidget);
     expect(find.text('Phase 1 · Chirurgie'), findsOneWidget);
     expect(
+      find.byKey(const Key('treatment_plan_list_item_plan-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('treatment_plan_no_phases_plan-2')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+      'colonne des plans → tap sur une entrée change le plan affiché dans '
+      'le panneau détail (#5010)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases, _planNoPhases]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_plan_plan-1')), findsOneWidget);
+    expect(find.byKey(const Key('treatment_plan_plan-2')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('treatment_plan_list_item_plan-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_plan_plan-1')), findsNothing);
+    expect(find.byKey(const Key('treatment_plan_plan-2')), findsOneWidget);
+    expect(
       find.byKey(const Key('treatment_plan_no_phases_plan-2')),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+      'colonne des plans → en-tête « Plans du patient » avec badge count '
+      '(#5010)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases, _planNoPhases]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_plans_list')), findsOneWidget);
+    expect(find.text('Plans du patient'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+  });
+
+  testWidgets(
+      'entrée de plan → pill statut, nombre de phases, barre segmentée et '
+      'total affichés (#5011)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithProgress]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('treatment_plan_plan-progress')),
+        matching:
+            find.byKey(const Key('treatment_plan_phase_count_plan-progress')),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('3 phases'), findsOneWidget);
+    expect(find.text('1 phase sur 3 terminée'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const Key('treatment_plan_total_plan-progress')),
+          )
+          .data,
+      '0,00 €',
+    );
+
+    final barFinder =
+        find.byKey(const Key('treatment_plan_progress_bar_plan-progress'));
+    expect(barFinder, findsOneWidget);
+    final segments = tester
+        .widget<Row>(find.descendant(of: barFinder, matching: find.byType(Row)))
+        .children
+        .whereType<Expanded>()
+        .toList();
+    expect(segments, hasLength(3));
+    Color colorOf(Expanded segment) =>
+        ((segment.child as Container).decoration! as BoxDecoration).color
+            as Color;
+    expect(colorOf(segments[0]), NubiaColors.brand600);
+    expect(colorOf(segments[1]), NubiaColors.n200);
+    expect(colorOf(segments[2]), NubiaColors.n200);
+  });
+
+  testWidgets('plan sans phase → pas de résumé d\'avancement (#5011)',
+      (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planNoPhases]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('treatment_plan_progress_bar_plan-2')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+      'en-tête de phase → montant total affiché à droite du pill de statut '
+      '(agrégats de montants #5013 pas encore livrés)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    final amountFinder =
+        find.byKey(const Key('treatment_phase_amount_phase-1'));
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('treatment_phase_phase-1')),
+        matching: amountFinder,
+      ),
+      findsOneWidget,
+    );
+    expect(tester.widget<Text>(amountFinder).data, '0,00 €');
+  });
+
+  testWidgets(
+      'phase active → affordance « Ajouter un acte à cette phase » ouvre le CCAM picker',
+      (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithActivePhase]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('treatment_phase_add_act_phase-active')),
+      findsOneWidget,
+    );
+    expect(find.text('Ajouter un acte à cette phase'), findsOneWidget);
+    expect(find.byIcon(Icons.add), findsWidgets);
+
+    await tester.tap(
+      find.byKey(const Key('treatment_phase_add_act_button_phase-active')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('ccam_search_field')), findsOneWidget);
+  });
+
+  testWidgets('phase non active → pas d\'affordance « Ajouter un acte »',
+      (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ajouter un acte à cette phase'), findsNothing);
   });
 
   testWidgets('création de plan → saisie titre puis CreateTreatmentPlanUseCase',
@@ -99,6 +352,7 @@ void main() {
     when(() => createPlan('pat-1', 'Plan blanchiment'))
         .thenAnswer((_) async => const Right('plan-new'));
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -115,6 +369,87 @@ void main() {
     verify(() => createPlan('pat-1', 'Plan blanchiment')).called(1);
   });
 
+  group('en-tête de plan → actions Renommer / Générer le devis', () {
+    testWidgets('deux boutons visibles avec les libellés attendus',
+        (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await _setSurface(tester);
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('treatment_plan_rename_plan-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('treatment_plan_generate_quote_plan-1')),
+        findsOneWidget,
+      );
+      expect(find.text('Renommer'), findsOneWidget);
+      expect(find.text('Générer le devis'), findsOneWidget);
+    });
+
+    testWidgets('Renommer ouvre le dialogue titre pré-rempli', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await _setSurface(tester);
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('treatment_plan_rename_plan-1')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('treatment_plan_rename_dialog_plan-1')),
+        findsOneWidget,
+      );
+      final field = tester.widget<TextField>(find.descendant(
+        of: find.byKey(const Key('treatment_plan_rename_field_plan-1')),
+        matching: find.byType(TextField),
+      ));
+      expect(field.controller?.text, 'Plan implant');
+    });
+
+    testWidgets('Générer le devis navigue vers /devis', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      final router = GoRouter(
+        initialLocation: '/patients/pat-1/treatment-plans',
+        routes: [
+          GoRoute(
+            path: '/patients/pat-1/treatment-plans',
+            builder: (_, __) => const TreatmentPlansPage(patientId: 'pat-1'),
+          ),
+          GoRoute(
+            path: '/devis',
+            builder: (_, __) => const Scaffold(body: Text('devis page')),
+          ),
+        ],
+      );
+
+      await _setSurface(tester);
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: router,
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const Key('treatment_plan_generate_quote_plan-1')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('devis page'), findsOneWidget);
+    });
+  });
+
   testWidgets(
       'ajout de phase → position suivante calculée puis CreateTreatmentPhaseUseCase',
       (tester) async {
@@ -124,11 +459,15 @@ void main() {
     when(() => createPhase('plan-1', 'Phase 2 · Prothèse', 2))
         .thenAnswer((_) async => const Right('phase-new'));
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('treatment_plan_add_phase_plan-1')));
     await tester.pumpAndSettle();
+
+    // #5022 : composition en place, plus d'AlertDialog pour la phase.
+    expect(find.byType(AlertDialog), findsNothing);
 
     await tester.enterText(
       find.byKey(const Key('treatment_phase_title_field_plan-1')),
@@ -147,10 +486,231 @@ void main() {
       (_) async => const Left(ServerFailure(message: 'Erreur serveur.')),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('treatment_plans_error')), findsOneWidget);
     expect(find.text('Erreur serveur.'), findsOneWidget);
+  });
+
+  testWidgets(
+      'pied de panneau → réalisé/engagé à 0,00 € et pas d\'avertissement '
+      '(agrégats de montants #5013 pas encore livrés)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('plan_footer_plan-1')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('plan_footer_plan-1')),
+        matching: find.textContaining('Réalisé : '),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('plan_footer_plan-1')),
+        matching: find.textContaining('Engagé (devis signé) : '),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('plan_footer_plan-1')),
+        matching: find.textContaining('0,00 €'),
+      ),
+      findsWidgets,
+    );
+    expect(
+      find.byKey(const Key('plan_footer_warning_plan-1')),
+      findsNothing,
+    );
+  });
+
+  group('en-tête de panneau détail → nom, statut, date, KPIs (#5017)', () {
+    testWidgets('pill « Créé le » formatée en DD/MM/YYYY', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await _setSurface(tester);
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('treatment_plan_created_at_plan-1')),
+        findsOneWidget,
+      );
+      expect(find.text('Créé le 01/01/2026'), findsOneWidget);
+    });
+
+    testWidgets(
+        'trois KPIs libellés avec montants à 0,00 € '
+        '(agrégats de montants #5013 pas encore livrés)', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await _setSurface(tester);
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final kpis = find.byKey(const Key('treatment_plan_kpis_plan-1'));
+      expect(kpis, findsOneWidget);
+      expect(
+        find.descendant(of: kpis, matching: find.text('TOTAL DU PLAN')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: kpis, matching: find.text('DEVIS SIGNÉ')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: kpis, matching: find.text('RESTE À DEVISER')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('plan_kpi_total')),
+          matching: find.text('0,00 €'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('plan_kpi_signed')),
+          matching: find.text('0,00 €'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('plan_kpi_remaining')),
+          matching: find.text('0,00 €'),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  testWidgets('bandeau patient → nom, âge et libellé « Plans de traitement »',
+      (tester) async {
+    when(() => listPlans('pat-1'))
+        .thenAnswer((_) async => const Right(_emptyPlans));
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_plans_header')), findsOneWidget);
+    expect(find.text('Julie Martin'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Text && RegExp(r'^\d+ ans$').hasMatch(w.data ?? ''),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Plans de traitement'), findsOneWidget);
+    expect(find.byType(AppBar), findsNothing);
+  });
+
+  testWidgets(
+      'phase → bandeau devis en état absence (référence de devis par phase '
+      'pas encore livrée côté domaine)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('treatment_phase_quote_phase-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.text("Aucun devis — le patient n'a pas encore accepté cette phase"),
+      findsOneWidget,
+    );
+    expect(find.text('Générer'), findsOneWidget);
+  });
+
+  group('bandeau devis → navigation', () {
+    GoRouter makeRouter() => GoRouter(
+          initialLocation: '/patients/pat-1/treatment-plans',
+          routes: [
+            GoRoute(
+              path: '/patients/pat-1/treatment-plans',
+              builder: (_, __) => const TreatmentPlansPage(patientId: 'pat-1'),
+            ),
+            GoRoute(
+              path: '/devis',
+              builder: (_, __) => const Scaffold(body: Text('devis page')),
+            ),
+          ],
+        );
+
+    testWidgets('tap sur Générer navigue vers /devis', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await _setSurface(tester);
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: makeRouter(),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const Key('treatment_phase_quote_generate_phase-1')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('devis page'), findsOneWidget);
+    });
+  });
+
+  testWidgets('bandeau patient → bouton retour fait un pop de navigation',
+      (tester) async {
+    when(() => listPlans('pat-1'))
+        .thenAnswer((_) async => const Right(_emptyPlans));
+
+    await _setSurface(tester);
+    await tester.pumpWidget(MaterialApp(
+      theme: NubiaTheme.light,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: ElevatedButton(
+              key: const Key('open_treatment_plans'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const TreatmentPlansPage(patientId: 'pat-1'),
+                ),
+              ),
+              child: const Text('Ouvrir'),
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.byKey(const Key('open_treatment_plans')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('treatment_plans_header')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('treatment_plans_back_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('open_treatment_plans')), findsOneWidget);
+    expect(find.byKey(const Key('treatment_plans_header')), findsNothing);
   });
 }

@@ -82,37 +82,45 @@ class _NoteRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final hour = entry.timestamp.hour.toString().padLeft(2, '0');
     final min = entry.timestamp.minute.toString().padLeft(2, '0');
+    final style = NoteStatusStyle.of(entry.status);
+
+    // Le nom passe en titre, heure (+ motif quand exposé) en sous-ligne
+    // (#5048). `patientName` est toujours renseigné (#5047) : nom réel côté
+    // API, ou repli sur les initiales déjà appliqué par le repository.
 
     return ListRow(
       key: Key('today_note_${entry.id}'),
       leading: NubiaAvatar(initials: entry.patientInitials, radius: 16),
-      title: '$hour:$min',
-      subtitle: 'Consultation',
+      title: entry.patientName,
+      subtitle: '$hour:$min',
       trailing: StatusPill(
-        label: entry.status,
-        variant: _variantFor(entry.status),
+        label: style.label,
+        variant: style.variant,
       ),
       showDivider: showDivider,
     );
   }
+}
 
-  /// Traduit le statut textuel d'une note en variante sémantique de pill.
-  StatusPillVariant _variantFor(String status) {
-    final normalized = status.toLowerCase();
-    if (normalized.contains('signé') ||
-        normalized.contains('validé') ||
-        normalized.contains('terminé') ||
-        normalized.contains('clôturé')) {
-      return StatusPillVariant.success;
-    }
-    if (normalized.contains('attente') ||
-        normalized.contains('brouillon') ||
-        normalized.contains('cours')) {
-      return StatusPillVariant.warning;
-    }
-    if (normalized.contains('annulé') || normalized.contains('erreur')) {
-      return StatusPillVariant.error;
-    }
-    return StatusPillVariant.info;
-  }
+/// Mapping [ClinicalNoteStatus] → libellé FR + variant [StatusPill], à
+/// l'image de `QuoteStatusStyle` (#5054). Table de correspondance explicite
+/// sur l'énum domaine (#5053) — remplace l'ancien `_variantFor` (mapping par
+/// sous-chaîne `String.contains`, qui classait « Non signée » en succès car
+/// `contains('signé')` matchait aussi la négation).
+class NoteStatusStyle {
+  const NoteStatusStyle(this.label, this.variant);
+
+  final String label;
+  final StatusPillVariant variant;
+
+  static NoteStatusStyle of(ClinicalNoteStatus status) => switch (status) {
+        ClinicalNoteStatus.signed =>
+          const NoteStatusStyle('Signée', StatusPillVariant.success),
+        ClinicalNoteStatus.draft =>
+          const NoteStatusStyle('Brouillon', StatusPillVariant.warning),
+        ClinicalNoteStatus.unsigned =>
+          const NoteStatusStyle('Non signée', StatusPillVariant.error),
+        ClinicalNoteStatus.unknown =>
+          const NoteStatusStyle('Statut inconnu', StatusPillVariant.neutral),
+      };
 }

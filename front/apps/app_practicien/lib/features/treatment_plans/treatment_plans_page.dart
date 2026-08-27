@@ -4,10 +4,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
+import '../consultation_clinique/ccam_picker.dart';
+import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
+import 'treatment_status_style.dart';
+import 'widgets/patient_header_bar.dart';
+import 'widgets/phase_acts_list.dart';
+import 'widgets/phase_quote_banner.dart';
+import 'widgets/phase_timeline.dart';
+import 'widgets/plan_footer.dart';
+import 'widgets/plan_kpi_row.dart';
 
 class TreatmentPlansPage extends StatelessWidget {
   const TreatmentPlansPage({super.key, required this.patientId});
@@ -16,13 +27,23 @@ class TreatmentPlansPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => TreatmentPlansCubit(
-        patientId: patientId,
-        listPlans: GetIt.instance<ListTreatmentPlansUseCase>(),
-        createPlan: GetIt.instance<CreateTreatmentPlanUseCase>(),
-        createPhase: GetIt.instance<CreateTreatmentPhaseUseCase>(),
-      ),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => TreatmentPlansCubit(
+            patientId: patientId,
+            listPlans: GetIt.instance<ListTreatmentPlansUseCase>(),
+            createPlan: GetIt.instance<CreateTreatmentPlanUseCase>(),
+            createPhase: GetIt.instance<CreateTreatmentPhaseUseCase>(),
+          ),
+        ),
+        BlocProvider(
+          create: (_) => PatientHeaderCubit(
+            patientId: patientId,
+            getPatient: GetIt.instance<GetCabinetPatientUseCase>(),
+          ),
+        ),
+      ],
       child: const _TreatmentPlansBody(),
     );
   }
@@ -47,28 +68,30 @@ class _TreatmentPlansBody extends StatelessWidget {
       },
       builder: (context, state) {
         return Scaffold(
-          appBar: AppBar(title: const Text('Plans de traitement')),
-          floatingActionButton: state is TreatmentPlansLoaded
-              ? FloatingActionButton(
-                  key: const Key('treatment_plans_new_plan_fab'),
-                  tooltip: 'Nouveau plan de traitement',
-                  onPressed: () => _promptNewPlan(context),
-                  child: const Icon(Icons.add),
-                )
-              : null,
-          body: switch (state) {
-            TreatmentPlansLoading() => const Center(
-                key: Key('treatment_plans_loading'),
-                child: CircularProgressIndicator(),
+          body: Column(
+            children: [
+              const PatientHeaderBar(trailingLabel: 'Plans de traitement'),
+              Expanded(
+                child: switch (state) {
+                  TreatmentPlansLoading() => const Center(
+                      key: Key('treatment_plans_loading'),
+                      child: CircularProgressIndicator(),
+                    ),
+                  TreatmentPlansError(:final message) => NubiaErrorWidget(
+                      key: const Key('treatment_plans_error'),
+                      message: message,
+                      onRetry: () => context.read<TreatmentPlansCubit>().load(),
+                    ),
+                  TreatmentPlansLoaded(:final plans, :final busy) =>
+                    _PlansSplitView(
+                      plans: plans,
+                      busy: busy,
+                      onNewPlan: () => _promptNewPlan(context),
+                    ),
+                },
               ),
-            TreatmentPlansError(:final message) => NubiaErrorWidget(
-                key: const Key('treatment_plans_error'),
-                message: message,
-                onRetry: () => context.read<TreatmentPlansCubit>().load(),
-              ),
-            TreatmentPlansLoaded(:final plans, :final busy) =>
-              _PlansList(plans: plans, busy: busy),
-          },
+            ],
+          ),
         );
       },
     );
@@ -92,83 +115,433 @@ class _TreatmentPlansBody extends StatelessWidget {
   }
 }
 
-class _PlansList extends StatelessWidget {
-  const _PlansList({required this.plans, required this.busy});
+/// Layout maître-détail (#5010, maquette design-v2 point 5/6) : colonne
+/// gauche `.lst` (liste compacte, sélection) + panneau détail `.det` à
+/// droite affichant le plan sélectionné (contenu inchangé, ex-`_PlansList`).
+/// Sélection portée localement (pas de changement de contrat cubit #4051) :
+/// le premier plan est sélectionné par défaut.
+class _PlansSplitView extends StatefulWidget {
+  const _PlansSplitView({
+    required this.plans,
+    required this.busy,
+    required this.onNewPlan,
+  });
 
   final List<TreatmentPlan> plans;
   final bool busy;
+  final VoidCallback onNewPlan;
+
+  @override
+  State<_PlansSplitView> createState() => _PlansSplitViewState();
+}
+
+class _PlansSplitViewState extends State<_PlansSplitView> {
+  String? _selectedPlanId;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPlanId = widget.plans.isEmpty ? null : widget.plans.first.id;
+  }
+
+  @override
+  void didUpdateWidget(covariant _PlansSplitView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.plans.any((plan) => plan.id == _selectedPlanId)) {
+      _selectedPlanId = widget.plans.isEmpty ? null : widget.plans.first.id;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final plans = widget.plans;
     if (plans.isEmpty) {
-      return const NubiaEmptyState(
-        key: Key('treatment_plans_empty'),
+      return NubiaEmptyState(
+        key: const Key('treatment_plans_empty'),
         icon: Icons.assignment_outlined,
         title: 'Aucun plan de traitement',
-        subtitle: 'Créez le premier plan avec le bouton +.',
+        subtitle: 'Créez le premier plan.',
+        action: NubiaButton(
+          key: const Key('treatment_plans_new_plan_fab'),
+          label: 'Nouveau plan',
+          icon: Icons.add,
+          onPressed: widget.busy ? null : widget.onNewPlan,
+        ),
       );
     }
-    return ListView.builder(
-      key: const Key('treatment_plans_list'),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-      itemCount: plans.length,
-      itemBuilder: (context, i) => _PlanCard(plan: plans[i], busy: busy),
+    final selected = plans.firstWhere(
+      (plan) => plan.id == _selectedPlanId,
+      orElse: () => plans.first,
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _PlansListColumn(
+          plans: plans,
+          selectedPlanId: selected.id,
+          busy: widget.busy,
+          onSelect: (id) => setState(() => _selectedPlanId = id),
+          onNewPlan: widget.onNewPlan,
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: _PlanCard(plan: selected, busy: widget.busy),
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _PlanCard extends StatelessWidget {
+/// Colonne maître `.lst` (maquette design-v2 point 5/6) : en-tête « Plans du
+/// patient » + badge count, puis une entrée compacte par plan.
+class _PlansListColumn extends StatelessWidget {
+  const _PlansListColumn({
+    required this.plans,
+    required this.selectedPlanId,
+    required this.busy,
+    required this.onSelect,
+    required this.onNewPlan,
+  });
+
+  final List<TreatmentPlan> plans;
+  final String selectedPlanId;
+  final bool busy;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onNewPlan;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      key: const Key('treatment_plans_list'),
+      width: 314,
+      decoration: const BoxDecoration(
+        color: NubiaColors.n0,
+        border: Border(right: BorderSide(color: NubiaColors.n200)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.assignment,
+                  size: 18,
+                  color: NubiaColors.n600,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Plans du patient', style: textTheme.titleSmall),
+                ),
+                const SizedBox(width: 8),
+                NubiaBadge.count(count: plans.length),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              itemCount: plans.length,
+              itemBuilder: (context, i) {
+                final plan = plans[i];
+                return _PlanListItem(
+                  plan: plan,
+                  selected: plan.id == selectedPlanId,
+                  onTap: () => onSelect(plan.id),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: _NewPlanEntry(
+              key: const Key('treatment_plans_new_plan_fab'),
+              onTap: busy ? null : onNewPlan,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Entrée « Nouveau plan » (maquette design-v2 point 9, `.newp`) : remplace
+/// le `FloatingActionButton` retiré — séparateur pointillé, icône `add`,
+/// libellé gris `n500`, au bas de la colonne des plans. Porte la clé
+/// `treatment_plans_new_plan_fab` reportée depuis le FAB (#5009).
+class _NewPlanEntry extends StatelessWidget {
+  const _NewPlanEntry({super.key, required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 1,
+          child: CustomPaint(
+            painter: _DashedLinePainter(color: tokens.borderDefault),
+          ),
+        ),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  const Icon(Icons.add, size: 18, color: NubiaColors.n500),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Nouveau plan',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: NubiaColors.n500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Entrée compacte `.pl` d'un plan dans la colonne maître : titre + statut.
+/// Sélectionnée (`.pl.on`) : fond `brand50`, bordure gauche `brand700` 3px.
+/// Le détail (KPIs, phases, footer) reste dans le panneau `.det`
+/// (ex-`_PlanCard`) — hors scope de ce ticket squelette (#5010).
+class _PlanListItem extends StatelessWidget {
+  const _PlanListItem({
+    required this.plan,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final TreatmentPlan plan;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final (planStatusLabel, planStatusVariant) =
+        treatmentPlanStatusStyle(plan.status);
+    return Container(
+      key: Key('treatment_plan_list_item_${plan.id}'),
+      margin: const EdgeInsets.only(bottom: 4),
+      decoration: BoxDecoration(
+        color: selected ? NubiaColors.brand50 : Colors.transparent,
+        border: Border(
+          left: BorderSide(
+            color: selected ? NubiaColors.brand700 : Colors.transparent,
+            width: 3,
+          ),
+        ),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    plan.title,
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                StatusPill(
+                  label: planStatusLabel,
+                  variant: planStatusVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlanCard extends StatefulWidget {
   const _PlanCard({required this.plan, required this.busy});
 
   final TreatmentPlan plan;
   final bool busy;
 
-  Future<void> _promptNewPhase(BuildContext context) async {
-    final cubit = context.read<TreatmentPlansCubit>();
-    final title = await showDialog<String>(
+  @override
+  State<_PlanCard> createState() => _PlanCardState();
+}
+
+class _PlanCardState extends State<_PlanCard> {
+  final _newPhaseTitleController = TextEditingController();
+  bool _composingPhase = false;
+
+  @override
+  void dispose() {
+    _newPhaseTitleController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitNewPhase(BuildContext context) async {
+    final title = _newPhaseTitleController.text.trim();
+    if (title.isEmpty) return;
+    final plan = widget.plan;
+    final nextPosition = plan.phases.isEmpty
+        ? 1
+        : plan.phases.map((p) => p.position).reduce((a, b) => a > b ? a : b) +
+            1;
+    await context.read<TreatmentPlansCubit>().createPhase(
+          plan.id,
+          title,
+          nextPosition,
+        );
+  }
+
+  /// Ouvre le dialogue de renommage (réutilise [_TitlePromptDialog],
+  /// pré-rempli avec le titre courant). Aucun cas d'usage back « renommer un
+  /// plan de traitement » n'existe encore (seule la création, `POST
+  /// /v1/cabinet/treatment-plans`, est exposée côté API) : le dialogue ferme
+  /// simplement sans persister pour l'instant.
+  Future<void> _promptRename(BuildContext context) async {
+    final plan = widget.plan;
+    await showDialog<String>(
       context: context,
       builder: (_) => _TitlePromptDialog(
-        dialogKey: Key('treatment_phase_create_dialog_${plan.id}'),
-        fieldKey: Key('treatment_phase_title_field_${plan.id}'),
-        submitKey: Key('treatment_phase_create_submit_${plan.id}'),
-        dialogTitle: 'Nouvelle phase',
-        fieldLabel: 'Titre de la phase',
+        dialogKey: Key('treatment_plan_rename_dialog_${plan.id}'),
+        fieldKey: Key('treatment_plan_rename_field_${plan.id}'),
+        submitKey: Key('treatment_plan_rename_submit_${plan.id}'),
+        dialogTitle: 'Renommer le plan',
+        fieldLabel: 'Titre du plan',
+        initialValue: plan.title,
+        submitLabel: 'Renommer',
       ),
     );
-    if (title != null && title.isNotEmpty) {
-      final nextPosition = plan.phases.isEmpty
-          ? 1
-          : plan.phases.map((p) => p.position).reduce((a, b) => a > b ? a : b) +
-              1;
-      await cubit.createPhase(plan.id, title, nextPosition);
-    }
+  }
+
+  /// Ouvre la sélection d'acte CCAM (réutilise [CcamPicker], #5023). Aucun
+  /// cas d'usage back « ajouter un acte à une phase » n'existe encore
+  /// (dépend des tickets domaine « actes » / « rendu des actes ») : la
+  /// sélection ferme simplement le dialogue pour l'instant, sans persister
+  /// l'acte sur la phase.
+  Future<void> _openAddAct(BuildContext context, TreatmentPhase phase) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        key: Key('treatment_phase_add_act_dialog_${phase.id}'),
+        child: SizedBox(
+          width: 420,
+          child: CcamPicker(
+            key: Key('treatment_phase_ccam_picker_${phase.id}'),
+            useCase: GetIt.instance<GetActsUseCase>(),
+            favoritesUseCase: GetIt.instance<FavoriteActsUseCase>(),
+            onActSubmitted: ({
+              required String code,
+              required String label,
+              String? tooth,
+              required int amountCents,
+            }) =>
+                Navigator.of(dialogContext).pop(),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final plan = widget.plan;
+    final busy = widget.busy;
     final textTheme = Theme.of(context).textTheme;
-    return Card(
-      key: Key('treatment_plan_${plan.id}'),
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    final (planStatusLabel, planStatusVariant) =
+        treatmentPlanStatusStyle(plan.status);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: NubiaCard(
+        key: Key('treatment_plan_${plan.id}'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Expanded(
-                  child: Text(plan.title, style: textTheme.titleMedium),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        plan.title,
+                        style: textTheme.titleMedium,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      StatusPill(
+                        label: planStatusLabel,
+                        variant: planStatusVariant,
+                      ),
+                      Text(
+                        '${plan.phases.length} phase'
+                        '${plan.phases.length > 1 ? 's' : ''}',
+                        key: Key('treatment_plan_phase_count_${plan.id}'),
+                        style: textTheme.bodySmall
+                            ?.copyWith(color: NubiaColors.n500),
+                      ),
+                      StatusPill(
+                        key: Key('treatment_plan_created_at_${plan.id}'),
+                        label: 'Créé le ${_formatPlanDate(plan.createdAt)}',
+                        variant: StatusPillVariant.neutral,
+                      ),
+                    ],
+                  ),
                 ),
-                StatusPill(
-                  label: treatmentPlanStatusLabels[plan.status] ??
-                      plan.status,
-                  variant: treatmentPlanStatusVariants[plan.status] ??
-                      StatusPillVariant.info,
+                const SizedBox(width: 12),
+                NubiaButton(
+                  key: Key('treatment_plan_rename_${plan.id}'),
+                  variant: NubiaButtonVariant.secondary,
+                  size: NubiaButtonSize.sm,
+                  icon: Icons.edit,
+                  label: 'Renommer',
+                  onPressed: busy ? null : () => _promptRename(context),
+                ),
+                const SizedBox(width: 8),
+                NubiaButton(
+                  key: Key('treatment_plan_generate_quote_${plan.id}'),
+                  size: NubiaButtonSize.sm,
+                  icon: Icons.description,
+                  label: 'Générer le devis',
+                  onPressed: busy ? null : () => context.push(AppRouter.devis),
                 ),
               ],
             ),
+            if (plan.phases.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _PlanProgressSummary(plan: plan),
+            ],
             const SizedBox(height: 12),
+            PlanKpiRow(
+              key: Key('treatment_plan_kpis_${plan.id}'),
+              totalCents: plan.totalCents,
+              signedCents: plan.engagedCents,
+              remainingToQuoteCents: plan.remainingToQuoteCents,
+            ),
+            const SizedBox(height: 16),
             if (plan.phases.isEmpty)
               Text(
                 'Aucune phase.',
@@ -176,36 +549,223 @@ class _PlanCard extends StatelessWidget {
                 key: Key('treatment_plan_no_phases_${plan.id}'),
               )
             else
-              for (final phase in plan.phases)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    key: Key('treatment_phase_${phase.id}'),
-                    children: [
-                      Text('${phase.position}. ', style: textTheme.bodyMedium),
-                      Expanded(
-                        child: Text(phase.title, style: textTheme.bodyMedium),
+              PhaseTimeline(
+                children: [
+                  for (final (index, phase) in plan.phases.indexed)
+                    PhaseStep(
+                      status: phase.status,
+                      number: phase.position,
+                      isLast: index == plan.phases.length - 1,
+                      card: _PhaseCard(
+                        key: Key('treatment_phase_${phase.id}'),
+                        phase: phase,
+                        busy: busy,
+                        amountCents: phase.totalCents,
+                        // Liste vide tant que le ticket domaine « actes
+                        // rattachés à une phase » n'a pas doté TreatmentPhase
+                        // d'une liste d'actes (#5015 : la carte doit rester
+                        // valide sans lignes d'actes en attendant).
+                        acts: const [],
+                        onAddAct: () => _openAddAct(context, phase),
+                        onOpenQuote: () => context.push(AppRouter.devis),
+                        onGenerateQuote: () => context.push(AppRouter.devis),
                       ),
-                      StatusPill(
-                        label: treatmentPlanStatusLabels[phase.status] ??
-                            phase.status,
-                        variant: treatmentPlanStatusVariants[phase.status] ??
-                            StatusPillVariant.info,
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
+                ],
+              ),
             const SizedBox(height: 8),
-            NubiaButton(
-              key: Key('treatment_plan_add_phase_${plan.id}'),
-              variant: NubiaButtonVariant.secondary,
-              size: NubiaButtonSize.sm,
-              icon: Icons.add,
-              label: 'Ajouter une phase',
-              onPressed: busy ? null : () => _promptNewPhase(context),
+            if (_composingPhase)
+              _NewPhaseComposer(
+                fieldKey: Key('treatment_phase_title_field_${plan.id}'),
+                submitKey: Key('treatment_phase_create_submit_${plan.id}'),
+                controller: _newPhaseTitleController,
+                busy: busy,
+                onSubmit: () => _submitNewPhase(context),
+                onCancel: () => setState(() => _composingPhase = false),
+              )
+            else
+              _NewPhaseEntry(
+                key: Key('treatment_plan_add_phase_${plan.id}'),
+                onTap:
+                    busy ? null : () => setState(() => _composingPhase = true),
+              ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.only(top: 12),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: NubiaColors.n200)),
+              ),
+              child: PlanFooter(
+                key: Key('plan_footer_${plan.id}'),
+                warningKey: Key('plan_footer_warning_${plan.id}'),
+                realizedCents: plan.realizedCents,
+                engagedCents: plan.engagedCents,
+                remainingToQuoteCents: plan.remainingToQuoteCents,
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Résumé d'avancement d'un plan (#5011, maquette design-v2 `.pl`) — barre
+/// segmentée (1 segment par phase, plein `brand600` pour les phases
+/// terminées, `n200` pour les autres) puis, en dessous, « X phase(s) sur Y
+/// terminée(s) » à gauche et le total du plan à droite. Le praticien qui
+/// possède le plan n'avait jusqu'ici aucun agrégat d'avancement (seule l'app
+/// Patient affiche « X / Y étapes »).
+class _PlanProgressSummary extends StatelessWidget {
+  const _PlanProgressSummary({required this.plan});
+
+  final TreatmentPlan plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final phases = plan.phases;
+    final doneCount = phases.where((phase) => phase.status == 'done').length;
+    final donePlural = doneCount > 1 ? 's' : '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          key: Key('treatment_plan_progress_bar_${plan.id}'),
+          height: 6,
+          child: Row(
+            children: [
+              for (final (index, phase) in phases.indexed) ...[
+                if (index > 0) const SizedBox(width: 3),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: phase.status == 'done'
+                          ? NubiaColors.brand600
+                          : NubiaColors.n200,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                '$doneCount phase$donePlural sur ${phases.length} '
+                'terminée$donePlural',
+                key: Key('treatment_plan_progress_label_${plan.id}'),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: NubiaColors.n600),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              NubiaMoney.formatCents(plan.totalCents),
+              key: Key('treatment_plan_total_${plan.id}'),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: tabularFigures,
+                  ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Carte `.bd` d'une phase (#5021, maquette design-v2 `.ph`) — en-tête
+/// (statut + titre) et, pour la phase active, l'affordance d'ajout d'acte
+/// sous la carte. Affichée à droite du rail vertical par [PhaseTimeline].
+class _PhaseCard extends StatelessWidget {
+  const _PhaseCard({
+    super.key,
+    required this.phase,
+    required this.busy,
+    required this.amountCents,
+    required this.acts,
+    required this.onAddAct,
+    required this.onOpenQuote,
+    required this.onGenerateQuote,
+  });
+
+  final TreatmentPhase phase;
+  final bool busy;
+  final int amountCents;
+  final List<PhaseActRow> acts;
+  final VoidCallback onAddAct;
+  final VoidCallback onOpenQuote;
+  final VoidCallback onGenerateQuote;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final (phaseStatusLabel, phaseStatusVariant) =
+        treatmentPhaseStatusStyle(phase.status);
+    return NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              StatusPill(
+                key: Key('treatment_phase_status_${phase.id}'),
+                label: phaseStatusLabel,
+                variant: phaseStatusVariant,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(phase.title, style: textTheme.bodyMedium),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                NubiaMoney.formatCents(amountCents),
+                key: Key('treatment_phase_amount_${phase.id}'),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: tabularFigures,
+                ),
+              ),
+            ],
+          ),
+          // Liste des actes de la phase (#5015, maquette design-v2 point 2,
+          // `.act`) : une ligne par acte sous l'en-tête de la carte. Rien
+          // n'est rendu si `acts` est vide.
+          PhaseActsList(acts: acts),
+          // Phase active (#5023) : affordance d'ajout d'acte sous la
+          // liste des actes de la phase.
+          if (phase.status == 'in_progress')
+            _AddActAffordance(
+              key: Key('treatment_phase_add_act_${phase.id}'),
+              buttonKey: Key('treatment_phase_add_act_button_${phase.id}'),
+              onTap: busy ? null : onAddAct,
+            ),
+          // Bandeau devis (#5019, maquette design-v2 point 3). Aucune
+          // référence de devis par phase n'existe encore côté domaine/API
+          // (ticket domaine « référence de devis par phase », pas livré :
+          // `TreatmentPhase` ne porte aucun champ devis pour l'instant) —
+          // état absence pour toutes les phases en attendant. « Ouvrir »/
+          // « Générer » redirigent vers la liste des devis (`/devis`), en
+          // l'absence de route dédiée par devis/phase.
+          PhaseQuoteBanner(
+            key: Key('treatment_phase_quote_${phase.id}'),
+            openKey: Key('treatment_phase_quote_open_${phase.id}'),
+            generateKey: Key('treatment_phase_quote_generate_${phase.id}'),
+            quoteNumber: null,
+            signedAtLabel: null,
+            depositPaid: false,
+            onOpen: onOpenQuote,
+            onGenerate: onGenerateQuote,
+          ),
+        ],
       ),
     );
   }
@@ -220,6 +780,8 @@ class _TitlePromptDialog extends StatefulWidget {
     required this.submitKey,
     required this.dialogTitle,
     required this.fieldLabel,
+    this.initialValue,
+    this.submitLabel = 'Créer',
   });
 
   final Key dialogKey;
@@ -227,13 +789,15 @@ class _TitlePromptDialog extends StatefulWidget {
   final Key submitKey;
   final String dialogTitle;
   final String fieldLabel;
+  final String? initialValue;
+  final String submitLabel;
 
   @override
   State<_TitlePromptDialog> createState() => _TitlePromptDialogState();
 }
 
 class _TitlePromptDialogState extends State<_TitlePromptDialog> {
-  final _controller = TextEditingController();
+  late final _controller = TextEditingController(text: widget.initialValue);
 
   @override
   void dispose() {
@@ -261,10 +825,200 @@ class _TitlePromptDialogState extends State<_TitlePromptDialog> {
           key: widget.submitKey,
           size: NubiaButtonSize.sm,
           icon: Icons.check,
-          label: 'Créer',
+          label: widget.submitLabel,
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
         ),
       ],
     );
   }
 }
+
+/// Entrée « Ajouter une phase » (maquette design-v2 `.newph`) : séparateur
+/// pointillé, icône `add`, libellé gris `n500`, au bas de la chronologie des
+/// phases. Composition en place au tap (#5022) — plus d'`AlertDialog`.
+class _NewPhaseEntry extends StatelessWidget {
+  const _NewPhaseEntry({super.key, required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 1,
+          child: CustomPaint(
+            painter: _DashedLinePainter(color: tokens.borderDefault),
+          ),
+        ),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.add, size: 18, color: NubiaColors.n500),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Ajouter une phase',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: NubiaColors.n500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Composition en place d'une nouvelle phase (#5022, maquette design-v2
+/// `.newph`) : remplace [_NewPhaseEntry] au tap — champ de titre + validation,
+/// sans quitter le contexte du plan (pas d'`AlertDialog`).
+class _NewPhaseComposer extends StatelessWidget {
+  const _NewPhaseComposer({
+    required this.fieldKey,
+    required this.submitKey,
+    required this.controller,
+    required this.busy,
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  final Key fieldKey;
+  final Key submitKey;
+  final TextEditingController controller;
+  final bool busy;
+  final VoidCallback onSubmit;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: NubiaTextField(
+            key: fieldKey,
+            variant: NubiaTextFieldVariant.outlined,
+            controller: controller,
+            label: 'Titre de la phase',
+            enabled: !busy,
+            onSubmitted: busy ? null : (_) => onSubmit(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        NubiaButton(
+          key: submitKey,
+          size: NubiaButtonSize.sm,
+          icon: Icons.check,
+          label: 'Créer',
+          onPressed: busy ? null : onSubmit,
+        ),
+        const SizedBox(width: 4),
+        NubiaButton(
+          variant: NubiaButtonVariant.tertiary,
+          size: NubiaButtonSize.sm,
+          label: 'Annuler',
+          onPressed: busy ? null : onCancel,
+        ),
+      ],
+    );
+  }
+}
+
+/// Affordance « Ajouter un acte à cette phase » (#5023, maquette design-v2
+/// `.addact`) : séparateur pointillé, icône `add`, libellé gris `n500`.
+/// Affichée sous la liste des actes de la phase active (`in_progress`).
+class _AddActAffordance extends StatelessWidget {
+  const _AddActAffordance({
+    super.key,
+    required this.buttonKey,
+    required this.onTap,
+  });
+
+  final Key buttonKey;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: 1,
+            child: CustomPaint(
+              painter: _DashedLinePainter(color: tokens.borderDefault),
+            ),
+          ),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: buttonKey,
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.add, size: 18, color: NubiaColors.n500),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Ajouter un acte à cette phase',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: NubiaColors.n500),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ligne horizontale pointillée — Flutter n'a pas de `BorderStyle.dashed`
+/// natif (maquette design-v2, séparateur `.addact`, #5023).
+class _DashedLinePainter extends CustomPainter {
+  _DashedLinePainter({required this.color});
+
+  final Color color;
+
+  static const _dashWidth = 4.0;
+  static const _dashSpace = 3.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    var x = 0.0;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, 0), Offset(x + _dashWidth, 0), paint);
+      x += _dashWidth + _dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedLinePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+/// Formate une date « DD/MM/YYYY » (pill « Créé le », maquette design-v2
+/// `.mut`, #5017).
+String _formatPlanDate(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';

@@ -70,6 +70,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
         entries: entries,
         availableSlots: slots,
         practitionerNames: practitionerNames,
+        weekStart: event.weekStart,
       ));
     } catch (_) {
       safeEmit(const AgendaError('Erreur de chargement de l\'agenda.'));

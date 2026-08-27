@@ -24,6 +24,10 @@ import 'package:app_practicien/features/lab_work/lab_work_orders_event.dart';
 import 'package:app_practicien/features/lab_work/lab_work_orders_page.dart';
 import 'package:app_practicien/features/lab_work/lab_work_orders_state.dart';
 
+class _FakeFailure extends Failure {
+  const _FakeFailure(super.message);
+}
+
 class MockListLabWorkOrdersUseCase extends Mock
     implements ListLabWorkOrdersUseCase {}
 
@@ -34,9 +38,14 @@ class MockLabWorkOrdersBloc
     extends MockBloc<LabWorkOrdersEvent, LabWorkOrdersState>
     implements LabWorkOrdersBloc {}
 
+class _FakeLabWorkOrdersEvent extends Fake implements LabWorkOrdersEvent {}
+
 const _sentOrder = LabWorkOrder(
   id: 'order-1',
   patientId: 'patient-1',
+  patientDisplayName: 'Julie Martin',
+  toothFdi: '26',
+  workNature: 'Couronne céramo-métallique',
   labName: 'Labo Dentaire Alpha',
   purchasePriceCents: 15000,
   status: 'sent',
@@ -46,11 +55,53 @@ const _sentOrder = LabWorkOrder(
 const _fittedOrder = LabWorkOrder(
   id: 'order-2',
   patientId: 'patient-2',
+  patientDisplayName: 'Ahmed Belkacem',
+  toothFdi: '36',
+  workNature: 'Bridge 3 éléments',
   labName: 'Labo Dentaire Beta',
   purchasePriceCents: 20000,
   status: 'fitted',
   sentAt: '2026-01-02T09:00:00Z',
 );
+
+final _lateOrder = LabWorkOrder(
+  id: 'order-3',
+  patientId: 'patient-3',
+  patientDisplayName: 'Sophie Roux',
+  toothFdi: '45',
+  workNature: 'Inlay céramique',
+  labName: 'Labo Dentaire Gamma',
+  purchasePriceCents: 30000,
+  status: 'try_in',
+  sentAt: '2026-01-03T09:00:00Z',
+  expectedReturnAt:
+      DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+);
+
+final _dueSoonOrder = LabWorkOrder(
+  id: 'order-4',
+  patientId: 'patient-4',
+  patientDisplayName: 'Théo Girard',
+  toothFdi: '11',
+  workNature: 'Facette céramique',
+  labName: 'Labo Dentaire Delta',
+  purchasePriceCents: 25000,
+  status: 'sent',
+  sentAt: '2026-01-04T09:00:00Z',
+  expectedReturnAt:
+      DateTime.now().add(const Duration(days: 20)).toIso8601String(),
+);
+
+/// Layout 4 colonnes (#5060) : chaque colonne n'a qu'un quart de la largeur
+/// de la page, la surface de test par défaut (800px) ne suffit pas à
+/// afficher une carte (info + bouton) sans déborder — même convention que
+/// `consultation_clinique_layout_test.dart`, sur la largeur 1440 px de la
+/// maquette design-v2.
+Future<void> _setSurface(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(1440, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+}
 
 Widget _wrap(LabWorkOrdersBloc bloc) => MaterialApp(
       theme: NubiaTheme.light,
@@ -61,8 +112,47 @@ Widget _wrap(LabWorkOrdersBloc bloc) => MaterialApp(
     );
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(_FakeLabWorkOrdersEvent());
+  });
+
   group('LabWorkOrdersPage (widget)', () {
+    testWidgets(
+        'le chargement affiche un squelette par colonne, pas un spinner '
+        'centré (#5066)', (tester) async {
+      // Surface agrandie : les 4 groupes + leurs cartes squelette dépassent
+      // la hauteur de test par défaut (600px), ListView ne construit que ce
+      // qui est visible.
+      tester.view.physicalSize = const Size(800, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state).thenReturn(const LabWorkOrdersLoading());
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(NubiaSkeletonLoader), findsNWidgets(8));
+      expect(
+        find.byKey(const Key('lab_work_group_skeleton_sent')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_group_skeleton_try_in')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_group_skeleton_returned')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_group_skeleton_fitted')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('les bons s\'affichent groupés par statut', (tester) async {
+      await _setSurface(tester);
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state)
           .thenReturn(const LabWorkOrdersLoaded([_sentOrder, _fittedOrder]));
@@ -72,8 +162,8 @@ void main() {
       expect(find.byKey(const Key('lab_work_group_fitted')), findsOneWidget);
       expect(
         find.byKey(const Key('lab_work_group_try_in')),
-        findsNothing,
-        reason: 'aucun groupe pour un statut sans bon',
+        findsOneWidget,
+        reason: 'colonne visible même sans bon (layout 4 colonnes, #5060)',
       );
       expect(find.byKey(const Key('lab_work_order_order-1')), findsOneWidget);
       expect(find.byKey(const Key('lab_work_order_order-2')), findsOneWidget);
@@ -84,11 +174,165 @@ void main() {
         findsNothing,
       );
     });
+
+    testWidgets(
+        'la bande d\'en-tête affiche les 4 compteurs KPI avec les libellés '
+        'et variantes attendus (#5063)', (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(const LabWorkOrdersLoaded([_sentOrder, _fittedOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('lab_work_metrics_band')), findsOneWidget);
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_in_progress')),
+          matching: find.text('bons en cours'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_overdue')),
+          matching: find.text('en retard'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_due_this_week')),
+          matching: find.text('attendus cette semaine'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_committed')),
+          matching: find.text('engagé chez les labos'),
+        ),
+        findsOneWidget,
+      );
+
+      // Un seul bon "sent" (non fitted) : engagé = son purchasePriceCents.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_in_progress')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_metric_committed')),
+          matching:
+              find.text(NubiaMoney.formatCents(_sentOrder.purchasePriceCents)),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'le bouton "Nouveau bon" affiche un feedback "à venir" plutôt que '
+        'de créer silencieusement un bon (#5065)', (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(const LabWorkOrdersLoaded([_sentOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.byKey(const Key('lab_work_orders_new_button')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('lab_work_orders_new_button')));
+      await tester.pump();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets(
+        'un bon en retard affiche "Relancer le labo" au lieu du bouton '
+        'd\'avancement (#5062)', (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state).thenReturn(LabWorkOrdersLoaded([_lateOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_order_order-3')),
+          matching: find.text('Relancer le labo'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_relaunch_order-3')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_advance_order-3')),
+        findsNothing,
+      );
+
+      await tester
+          .tap(find.byKey(const Key('lab_work_order_relaunch_order-3')));
+      await tester.pump();
+
+      expect(find.text('Labo relancé'), findsOneWidget);
+      verifyNever(
+        () => bloc.add(any(that: isA<LabWorkOrdersStatusChangeRequested>())),
+      );
+    });
+
+    testWidgets(
+        'un bon en retard affiche "Retard de N j" en pied de carte (#5059)',
+        (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state).thenReturn(LabWorkOrdersLoaded([_lateOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_order_footer_order-3')),
+          matching: find.text('Retard de 5 j'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'un bon attendu (pas en retard) affiche "Attendu le JJ/MM" en pied '
+        'de carte (#5059)', (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state).thenReturn(LabWorkOrdersLoaded([_dueSoonOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      final expected =
+          DateTime.now().add(const Duration(days: 20)).toIso8601String();
+      final expectedDate = DateTime.parse(expected);
+      final label = 'Attendu le '
+          '${expectedDate.day.toString().padLeft(2, '0')}/'
+          '${expectedDate.month.toString().padLeft(2, '0')}';
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_order_footer_order-4')),
+          matching: find.text(label),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 
   group('LabWorkOrdersBloc (via LabWorkOrdersPage, vrai Bloc)', () {
     testWidgets('changer le statut d\'un bon met à jour le badge affiché',
         (tester) async {
+      await _setSurface(tester);
       final mockList = MockListLabWorkOrdersUseCase();
       final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
       when(() => mockList()).thenAnswer((_) async => const Right([_sentOrder]));
@@ -121,6 +365,40 @@ void main() {
         findsOneWidget,
       );
       verify(() => mockUpdateStatus('order-1', 'try_in')).called(1);
+    });
+
+    testWidgets(
+        'un rechargement échoué alors que des bons sont affichés conserve '
+        'la liste et affiche une seule surface d\'erreur (#5067)',
+        (tester) async {
+      await _setSurface(tester);
+      final mockList = MockListLabWorkOrdersUseCase();
+      final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
+      var callCount = 0;
+      when(() => mockList()).thenAnswer((_) async {
+        callCount++;
+        return callCount == 1
+            ? const Right([_sentOrder])
+            : const Left(_FakeFailure('Erreur réseau'));
+      });
+
+      final bloc = LabWorkOrdersBloc(
+        list: mockList,
+        updateStatus: mockUpdateStatus,
+      );
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      bloc.add(const LabWorkOrdersLoadRequested());
+      await tester.pump();
+
+      // La liste reste affichée : pas de plein écran `NubiaErrorWidget`.
+      expect(find.byKey(const Key('lab_work_order_order-1')), findsOneWidget);
+      expect(find.byType(NubiaErrorWidget), findsNothing);
+
+      // Une seule surface d'erreur : la snackbar.
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('Erreur réseau'), findsOneWidget);
     });
   });
 }

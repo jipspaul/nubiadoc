@@ -318,6 +318,24 @@ void main() {
       expect(domain.signedAt, isNull);
     });
 
+    test(
+        'fromJson dérive CabinetQuoteStatus.paid quand deposit_paid=true sur un devis signed (#5094)',
+        () {
+      final json = {
+        'id': 'a1000000-0000-0000-0000-000000000004',
+        'patient_id': 'd0000000-0000-0000-0000-0000000000d6',
+        'patient_name': 'Fatou Ndiaye',
+        'status': 'signed',
+        'total_amount': 42000,
+        'created_at': '2026-06-21T10:24:38.232439+00:00',
+        'deposit_paid': true,
+      };
+      final dto = CabinetQuoteDto.fromJson(json);
+      expect(dto.depositPaid, isTrue);
+      final domain = dto.toDomain();
+      expect(domain.status, CabinetQuoteStatus.paid);
+    });
+
     test('fromJson tolère total_cents (rétrocompat) et cabinet_id présent', () {
       final json = {
         'id': 'q-1',
@@ -406,17 +424,26 @@ void main() {
         'waiting_room_count': 1,
         'unread_messages': 2,
         'pending_confirmations': 0,
+        'weekly_completed_acts': 38,
+        'weekly_fees_cents': 642000,
+        'weekly_no_show_count': 2,
       };
       final dto = CabinetDashboardDto.fromJson(json);
       expect(dto.todayAppointments, 3);
       expect(dto.waitingRoomCount, 1);
       expect(dto.unreadMessages, 2);
       expect(dto.pendingConfirmations, 0);
+      expect(dto.weeklyCompletedActs, 38);
+      expect(dto.weeklyFeesCents, 642000);
+      expect(dto.weeklyNoShowCount, 2);
       final domain = dto.toDomain();
       expect(domain.todayAppointments, 3);
       expect(domain.waitingRoomCount, 1);
       expect(domain.unreadMessages, 2);
       expect(domain.pendingConfirmations, 0);
+      expect(domain.weeklyCompletedActs, 38);
+      expect(domain.weeklyFeesCents, 642000);
+      expect(domain.weeklyNoShowCount, 2);
     });
 
     test('fromJson retourne 0 pour les champs manquants ou nuls', () {
@@ -425,6 +452,34 @@ void main() {
       expect(dto.waitingRoomCount, 0);
       expect(dto.unreadMessages, 0);
       expect(dto.pendingConfirmations, 0);
+      expect(dto.weeklyCompletedActs, 0);
+      expect(dto.weeklyFeesCents, 0);
+      expect(dto.weeklyNoShowCount, 0);
+      expect(dto.nextPatientName, isNull);
+    });
+
+    test('fromJson désérialise le patient suivant (#5045)', () {
+      final json = {
+        'next_patient_name': 'Camille Moreau',
+        'next_patient_reason': 'Pose de couronne',
+        'next_patient_appointment_time': '2026-08-26T14:30:00.000Z',
+        'next_patient_duration_minutes': 30,
+        'next_patient_waiting_minutes': 12,
+      };
+      final dto = CabinetDashboardDto.fromJson(json);
+      expect(dto.nextPatientName, 'Camille Moreau');
+      expect(dto.nextPatientReason, 'Pose de couronne');
+      expect(
+          dto.nextPatientAppointmentTime,
+          DateTime.parse(
+            '2026-08-26T14:30:00.000Z',
+          ));
+      expect(dto.nextPatientDurationMinutes, 30);
+      expect(dto.nextPatientWaitingMinutes, 12);
+
+      final domain = dto.toDomain();
+      expect(domain.nextPatientName, 'Camille Moreau');
+      expect(domain.nextPatientDurationMinutes, 30);
     });
   });
 }

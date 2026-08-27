@@ -42,6 +42,25 @@ pub struct PatientItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub birth_date: Option<String>,
     pub created_at: String,
+    /// Solde restant dû, en centimes (#4044/#4045) — même formule que
+    /// `PatientAdminSection.balance_due_cents` (`patient_detail.rs`), agrégée
+    /// ici par sous-requête corrélée pour tenir sur la même requête SQL que
+    /// la page de résultats (#5112 : supprime le N+1 réseau — un fetch par
+    /// ligne côté client — sans réintroduire un N+1 côté base).
+    pub balance_due_cents: i64,
+    /// Nombre de RDV en statut `no_show` (#4090), même agrégat que
+    /// `PatientAdminSection.no_show_count`. Voir [`PatientItem::balance_due_cents`].
+    pub no_show_count: i64,
+    /// Au moins une alerte accueil active (#5970) — même condition que
+    /// `GET /cabinet/patients/:id/alerts` (`patient_alerts.rs`) : facture
+    /// signée impayée échue depuis plus de 30 jours, ou carte mutuelle non
+    /// scannée. Alimente le filtre rapide "Alertes" et la pastille de liste
+    /// côté Flutter (`patients_page.dart`).
+    pub has_active_alerts: bool,
+    /// Au moins un RDV à venir (#5970), même condition que
+    /// `GET /cabinet/appointments?filter=upcoming` (`appointments_read.rs`).
+    /// Alimente le filtre rapide "Sans RDV à venir" côté Flutter.
+    pub has_upcoming_appointment: bool,
 }
 
 #[derive(Serialize)]
@@ -163,8 +182,57 @@ pub async fn list_cabinet_patients(
         ""
     };
 
+    // Solde (#4044/#4045) et compteur de lapins (#4090) agrégés en sous-
+    // requêtes corrélées, même formule que `patient_detail.rs::get_cabinet_patient`
+    // — calculés pour toute la page en un seul aller-retour DB, pour que la
+    // liste expose ces colonnes sans le N+1 réseau que corrige #5112 (un
+    // fetch détail par ligne côté client).
     let sql = format!(
-        "SELECT p.id, p.first_name, p.last_name, p.birth_date, p.created_at \
+        "SELECT p.id, p.first_name, p.last_name, p.birth_date, p.created_at, \
+                (( \
+                   COALESCE((SELECT SUM(total_amount) FROM quote \
+                             WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                               AND status = 'signed' AND deleted_at IS NULL), 0) \
+                   - \
+                   COALESCE((SELECT SUM(amount) FROM payment \
+                             WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                               AND status IN ('pending', 'paid')), 0) \
+                 ) * 100)::bigint AS balance_due_cents, \
+                (SELECT count(*)::bigint FROM appointment \
+                 WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                   AND status = 'no_show') AS no_show_count, \
+                ( \
+                  ( \
+                    COALESCE((SELECT SUM(qi.qty * qi.unit_amount \
+                                        - COALESCE(qi.amo_part, 0) - COALESCE(qi.amc_part, 0)) \
+                              FROM quote_item qi JOIN quote q ON q.id = qi.quote_id \
+                              WHERE q.patient_id = p.id AND q.cabinet_id = p.cabinet_id \
+                                AND q.status = 'signed' AND q.deleted_at IS NULL), 0) \
+                    - \
+                    COALESCE((SELECT SUM(amount) FROM payment \
+                              WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                                AND status IN ('pending', 'paid')), 0) \
+                  ) > 0 \
+                  AND EXISTS (SELECT 1 FROM quote \
+                              WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                                AND status = 'signed' AND deleted_at IS NULL \
+                                AND signed_at < now() - interval '30 days') \
+                ) OR NOT EXISTS ( \
+                  SELECT 1 FROM document \
+                  WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                    AND category = 'carte_mutuelle' AND deleted_at IS NULL \
+                ) AS has_active_alerts, \
+                EXISTS ( \
+                  SELECT 1 FROM appointment a \
+                  WHERE a.patient_id = p.id AND a.cabinet_id = p.cabinet_id \
+                    AND a.deleted_at IS NULL \
+                    AND ( \
+                      (a.status IN ('checked_in', 'in_progress') \
+                       AND a.starts_at >= now() - interval '1 day' \
+                       AND a.starts_at < now() + interval '1 day') \
+                      OR (a.starts_at > now() AND a.status IN ('requested', 'confirmed')) \
+                    ) \
+                ) AS has_upcoming_appointment \
          FROM patient p \
          WHERE p.deleted_at IS NULL\
          {filter_clause}{sec_clause} \
@@ -229,6 +297,18 @@ pub async fn list_cabinet_patients(
             row.try_get("birth_date").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let balance_due_cents: i64 = row
+            .try_get("balance_due_cents")
+            .map_err(|_| AppError::Internal)?;
+        let no_show_count: i64 = row
+            .try_get("no_show_count")
+            .map_err(|_| AppError::Internal)?;
+        let has_active_alerts: bool = row
+            .try_get("has_active_alerts")
+            .map_err(|_| AppError::Internal)?;
+        let has_upcoming_appointment: bool = row
+            .try_get("has_upcoming_appointment")
+            .map_err(|_| AppError::Internal)?;
 
         last_created_at = Some(created_at);
         last_id = Some(id);
@@ -239,6 +319,10 @@ pub async fn list_cabinet_patients(
             last_name,
             birth_date: birth_date.map(|d| d.to_string()),
             created_at: created_at.to_rfc3339(),
+            balance_due_cents,
+            no_show_count,
+            has_active_alerts,
+            has_upcoming_appointment,
         });
     }
 
@@ -1505,12 +1589,16 @@ pub async fn upload_patient_document(
 // ── GET /v1/cabinet/today-notes ──────────────────────────────────────────────
 
 /// Résumé d'une séance du jour pour la carte « Notes du jour » du dashboard
-/// praticien. Zéro PII au-delà des initiales (l'écran est un survol).
+/// praticien.
 #[derive(Serialize)]
 pub struct TodayNoteItem {
     pub id: Uuid,
     /// Début de séance, RFC 3339 (clé lue `timestamp`/`started_at` côté front).
     pub started_at: String,
+    /// Nom complet du patient (#5047 — le praticien voit son propre patient,
+    /// pas de restriction PII ici, contrairement à d'autres cartes du
+    /// dashboard partagées avec le secrétariat).
+    pub patient_name: String,
     pub patient_initials: String,
     /// `in_progress` | `completed` | `cancelled`.
     pub status: String,
@@ -1573,6 +1661,9 @@ pub async fn list_today_notes(
                     .try_get::<chrono::DateTime<chrono::Utc>, _>("started_at")
                     .map_err(|_| AppError::Internal)?
                     .to_rfc3339(),
+                patient_name: format!("{} {}", first.trim(), last.trim())
+                    .trim()
+                    .to_string(),
                 patient_initials: initials,
                 status: row.try_get("status").map_err(|_| AppError::Internal)?,
             })

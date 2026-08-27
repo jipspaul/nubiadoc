@@ -1,5 +1,6 @@
 // lib/presentation/widgets/status_pill.dart
 import 'package:flutter/material.dart';
+import 'package:nubia_design_system/src/theme/nubia_colors.dart';
 import 'package:nubia_design_system/src/theme/nubia_tokens.dart';
 
 /// Variants sémantiques du [StatusPill].
@@ -14,6 +15,11 @@ enum StatusPillVariant {
   /// distincte de [success] (vert) et [warning] (orange) — ex. demande de
   /// stock « Acceptée » en attente de réception (#5179).
   progress,
+
+  /// Rôle praticien (violet, #5125) — distingue l'auteur d'un message dans
+  /// un fil où praticiens et staff se mêlent, ex. badge rôle de la
+  /// messagerie interne d'équipe.
+  practitioner,
 }
 
 /// Pill d'état : étiquette colorée avec fond sémantique.
@@ -27,6 +33,7 @@ class StatusPill extends StatelessWidget {
     required this.variant,
     this.icon,
     this.flexibleLabel = false,
+    this.tabularNums = false,
   });
 
   final String label;
@@ -36,6 +43,11 @@ class StatusPill extends StatelessWidget {
   /// partagent le même [variant] (ex. `error`) et doivent rester
   /// distinguables visuellement.
   final IconData? icon;
+
+  /// Quand `true`, chiffre le [label] en chiffres tabulaires
+  /// (`FontFeature.tabularFigures`) — pour les pastilles portant un montant
+  /// (ex. carte « Cette semaine » du tableau de bord praticien, #5051).
+  final bool tabularNums;
 
   /// Quand `true`, le libellé peut se rétrécir (`Flexible` + ellipsis) au lieu
   /// de forcer sa largeur intrinsèque. À n'activer que dans un contexte
@@ -72,6 +84,9 @@ class StatusPill extends StatelessWidget {
       case StatusPillVariant.progress:
         bg = tokens.primarySubtleBg;
         fg = tokens.primarySubtleFg;
+      case StatusPillVariant.practitioner:
+        bg = NubiaColors.roleViolet100;
+        fg = NubiaColors.roleViolet700;
     }
 
     return Container(
@@ -104,6 +119,8 @@ class StatusPill extends StatelessWidget {
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: fg,
               fontWeight: FontWeight.w500,
+              fontFeatures:
+                  tabularNums ? const [FontFeature.tabularFigures()] : null,
             ),
       );
 }

@@ -59,14 +59,26 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
   /// #4537 : envoie un devis brouillon au patient. Le back autorise déjà
   /// `secretary+` (`ProSecretaryPlusClaims`) — mêmes états que la version
   /// praticien (`DevisSendInProgress`/`DevisSent`/`DevisSendFailure`).
+  ///
+  /// #5087 : l'action est aussi déclenchable ligne par ligne depuis la liste
+  /// (`state is DevisLoaded`) — le devis ciblé est alors retrouvé dans
+  /// `quotes` par id plutôt que lu depuis un détail déjà chargé.
   Future<void> _onSendRequested(
     DevisSendRequested event,
     Emitter<DevisState> emit,
   ) async {
     final current = state;
-    if (current is! DevisDetailLoaded) return;
+    final CabinetQuote? maybeQuote;
+    if (current is DevisDetailLoaded) {
+      maybeQuote = current.quote;
+    } else if (current is DevisLoaded) {
+      maybeQuote = _findQuote(current.quotes, event.id);
+    } else {
+      maybeQuote = null;
+    }
+    if (maybeQuote == null) return;
+    final quote = maybeQuote;
 
-    final quote = current.quote;
     emit(DevisSendInProgress(quote));
     try {
       final result = await _send(quote.id);
@@ -79,6 +91,13 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
     } catch (_) {
       safeEmit(DevisSendFailure(quote: quote, message: 'Envoi impossible.'));
     }
+  }
+
+  CabinetQuote? _findQuote(List<CabinetQuote> quotes, String id) {
+    for (final quote in quotes) {
+      if (quote.id == id) return quote;
+    }
+    return null;
   }
 
   /// Copie le devis avec le statut confirmé par le serveur (le domaine

@@ -22,6 +22,13 @@ class _MockPatientsBloc extends MockBloc<PatientsEvent, PatientsState>
 
 class _MockListPatientAlerts extends Mock implements ListPatientAlertsUseCase {}
 
+class _MockGetCabinetPatient extends Mock implements GetCabinetPatientUseCase {}
+
+class _MockListPatientTags extends Mock implements ListPatientTagsUseCase {}
+
+class _MockListPatientDocuments extends Mock
+    implements ListPatientDocumentsUseCase {}
+
 void main() {
   // --- Cloisonnement invariant --------------------------------------------------
   group('ProConfig — cloisonnement', () {
@@ -245,9 +252,9 @@ void main() {
 
     setUp(() {
       bloc = _MockPatientsBloc();
-      // PatientAlertBadge (#4093/#4094) fetch son propre use case via GetIt,
-      // indépendamment du PatientsBloc mocké ci-dessus — sans ça, chaque
-      // ligne lève un GetIt StateError au premier build.
+      // _PatientSheet (#4093/#4094) fetch son propre use case via GetIt à
+      // l'ouverture de la fiche, indépendamment du PatientsBloc mocké
+      // ci-dessus — sans ça, ouvrir une fiche lève un GetIt StateError.
       final listAlerts = _MockListPatientAlerts();
       when(() => listAlerts(any())).thenAnswer((_) async => const Right([]));
       GetIt.instance.registerFactory<ListPatientAlertsUseCase>(
@@ -363,9 +370,531 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      expect(find.byType(ListRow), findsNWidgets(2));
+      expect(find.byType(PatientTableRow), findsNWidgets(2));
       expect(find.text('Alice Martin'), findsOneWidget);
       expect(find.text('Bob Dupont'), findsOneWidget);
+    });
+
+    // ── Tableau cinq colonnes (#5117) ───────────────────────────────────
+
+    testWidgets('affiche les cinq en-têtes de colonnes (design-v2, note #5)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PatientsTableHeader), findsOneWidget);
+      expect(find.text('Patient'), findsOneWidget);
+      expect(find.text('Contact'), findsOneWidget);
+      expect(find.text('Dernière visite'), findsOneWidget);
+      expect(find.text('Solde'), findsOneWidget);
+      expect(find.text('Alertes & étiquettes'), findsOneWidget);
+    });
+
+    testWidgets('colonne Patient : date de naissance · âge sous le nom',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Julie',
+            lastName: 'Martin',
+            birthDate: DateTime(1985, 6, 7),
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('07/06/1985'), findsOneWidget);
+    });
+
+    testWidgets('« Dernière visite » affiche — quand lastVisitAt est absent',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+          CabinetPatient(
+            id: 'p2',
+            cabinetId: 'c1',
+            firstName: 'Bob',
+            lastName: 'Dupont',
+            createdAt: DateTime(2026, 1, 1),
+            lastVisitAt: DateTime(2026, 7, 22),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('—'), findsOneWidget);
+      expect(find.text('22/07/2026'), findsOneWidget);
+    });
+
+    testWidgets('solde : rouge « 148,50 € » si dû, gris « 0,00 € » si à jour',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+            balanceDueCents: 14850,
+          ),
+          CabinetPatient(
+            id: 'p2',
+            cabinetId: 'c1',
+            firstName: 'Bob',
+            lastName: 'Dupont',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final due = tester.widget<Text>(find.text('148,50 €'));
+      expect(due.style?.color, NubiaColors.dangerFg);
+
+      final upToDate = tester.widget<Text>(find.text('0,00 €'));
+      expect(upToDate.style?.color, NubiaColors.n500);
+    });
+
+    testWidgets(
+        'affiche le compteur « N résultats sur M » (design-v2, note #7)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded(
+          List.generate(
+            4,
+            (i) => CabinetPatient(
+              id: 'p$i',
+              cabinetId: 'c1',
+              firstName: 'Patient',
+              lastName: '$i',
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final counter = tester.widget<Text>(
+        find.byKey(const Key('patients_search_results_count')),
+      );
+      expect(counter.textSpan!.toPlainText(), '4 résultats sur 4');
+    });
+
+    testWidgets(
+        'fiche patient — bandeau de cloisonnement précisant le cas « AVK »',
+        (tester) async {
+      // Volet latéral (#5116) : la table 5 colonnes + le volet 396px ne
+      // tiennent que sur un écran large (maquette design-v2, note #4 —
+      // « écran de 1360 px ») — la surface de test par défaut (800px) est
+      // trop étroite une fois le volet ouvert.
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final patient = CabinetPatient(
+        id: 'p1',
+        cabinetId: 'c1',
+        firstName: 'Alice',
+        lastName: 'Martin',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      when(() => bloc.state).thenReturn(PatientsLoaded([patient]));
+
+      final getPatient = _MockGetCabinetPatient();
+      when(() => getPatient(any())).thenAnswer((_) async => Right(patient));
+      GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
+        () => getPatient,
+      );
+
+      final listTags = _MockListPatientTags();
+      when(() => listTags(any())).thenAnswer((_) async => const Right([]));
+      GetIt.instance.registerFactory<ListPatientTagsUseCase>(() => listTags);
+
+      final listDocuments = _MockListPatientDocuments();
+      when(() => listDocuments(any())).thenAnswer((_) async => const Right([]));
+      GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
+        () => listDocuments,
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(PatientTableRow));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('patient_sheet_confidentiality_notice')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Cloisonnement secrétariat'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('AVK'), findsOneWidget);
+      expect(
+        find.textContaining("consigne d'accueil"),
+        findsOneWidget,
+      );
+    });
+
+    // ── Volet latéral (#5116) ────────────────────────────────────────────
+
+    group('volet latéral fiche patient', () {
+      late CabinetPatient alice;
+      late CabinetPatient bob;
+
+      setUp(() {
+        alice = CabinetPatient(
+          id: 'p1',
+          cabinetId: 'c1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          createdAt: DateTime(2026, 1, 1),
+        );
+        bob = CabinetPatient(
+          id: 'p2',
+          cabinetId: 'c1',
+          firstName: 'Bob',
+          lastName: 'Dupont',
+          createdAt: DateTime(2026, 1, 1),
+        );
+
+        final getPatient = _MockGetCabinetPatient();
+        when(() => getPatient(any())).thenAnswer(
+          (invocation) async => Right(
+            invocation.positionalArguments.first == alice.id ? alice : bob,
+          ),
+        );
+        GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
+          () => getPatient,
+        );
+
+        final listTags = _MockListPatientTags();
+        when(() => listTags(any())).thenAnswer((_) async => const Right([]));
+        GetIt.instance.registerFactory<ListPatientTagsUseCase>(() => listTags);
+
+        final listDocuments = _MockListPatientDocuments();
+        when(() => listDocuments(any()))
+            .thenAnswer((_) async => const Right([]));
+        GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
+          () => listDocuments,
+        );
+      });
+
+      testWidgets(
+          'la liste reste visible et navigable quand le volet est ouvert',
+          (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        // Le volet est ouvert…
+        expect(find.byKey(const Key('patient_sheet_p1')), findsOneWidget);
+        // …et la table (liste) reste affichée, avec les deux lignes.
+        expect(find.byType(PatientsTableHeader), findsOneWidget);
+        expect(find.byType(PatientTableRow), findsNWidgets(2));
+      });
+
+      testWidgets(
+          'sélectionner un autre patient met à jour le volet sans le fermer',
+          (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('patient_sheet_p1')), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('patient_row_p2')));
+        await tester.pumpAndSettle();
+
+        // Le volet précédent a disparu, le nouveau est affiché — sans
+        // repasser par un état "fermé" intermédiaire côté widget tree.
+        expect(find.byKey(const Key('patient_sheet_p1')), findsNothing);
+        expect(find.byKey(const Key('patient_sheet_p2')), findsOneWidget);
+      });
+
+      testWidgets(
+          'la ligne sélectionnée est surlignée (fond brand50 + accent gauche)',
+          (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        final selectedRow = tester.widget<Container>(
+          find.byKey(const Key('patient_row_p1')),
+        );
+        expect(selectedRow.color, NubiaColors.brand50);
+        final decoration = selectedRow.foregroundDecoration as BoxDecoration;
+        final border = decoration.border! as Border;
+        expect(border.left.color, NubiaColors.brand700);
+
+        final unselectedRow = tester.widget<Container>(
+          find.byKey(const Key('patient_row_p2')),
+        );
+        expect(unselectedRow.color, Colors.transparent);
+      });
+
+      testWidgets('le volet a un bouton de fermeture explicite',
+          (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('patient_sheet_p1')), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('patient_sheet_close')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('patient_sheet_p1')), findsNothing);
+      });
+
+      // ── Détail des alertes en clair dans la fiche (#5114) ──────────────
+      testWidgets(
+          'affiche le détail des alertes en clair, sans survol, avec le '
+          'décompte en titre', (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        GetIt.instance.unregister<ListPatientAlertsUseCase>();
+        final listAlerts = _MockListPatientAlerts();
+        when(() => listAlerts(any())).thenAnswer(
+          (_) async => const Right([
+            PatientAlert(
+              kind: 'unpaid_invoice',
+              message:
+                  'Solde impayé de 148,50 € depuis la facture du 22/07.',
+            ),
+            PatientAlert(
+              kind: 'missed_appointment',
+              message: 'Deux rendez-vous non honorés en 2026 — prévenir la '
+                  'veille.',
+            ),
+          ]),
+        );
+        GetIt.instance.registerFactory<ListPatientAlertsUseCase>(
+          () => listAlerts,
+        );
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('patient_sheet_alerts_banner')),
+          findsOneWidget,
+        );
+        expect(find.text('2 alertes accueil'), findsOneWidget);
+        expect(
+          find.text('Solde impayé de 148,50 € depuis la facture du 22/07.'),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            'Deux rendez-vous non honorés en 2026 — prévenir la veille.',
+          ),
+          findsOneWidget,
+        );
+        // « en clair », donc sans survol : pas de Tooltip dans le bloc lui-
+        // même (la table conserve son propre badge à tooltip, hors scope).
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('patient_sheet_alerts_banner')),
+            matching: find.byType(Tooltip),
+          ),
+          findsNothing,
+        );
+      });
+
+      testWidgets('aucune alerte — le bloc n\'apparaît pas', (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('patient_sheet_alerts_banner')),
+          findsNothing,
+        );
+      });
+    });
+
+    // ── Filtres rapides (#5118) ─────────────────────────────────────────
+
+    testWidgets(
+        'affiche les trois filtres rapides avec leur compteur dérivé de '
+        'la liste', (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+            balanceDueCents: 1500,
+          ),
+          CabinetPatient(
+            id: 'p2',
+            cabinetId: 'c1',
+            firstName: 'Bob',
+            lastName: 'Dupont',
+            createdAt: DateTime(2026, 1, 1),
+            hasActiveAlerts: true,
+          ),
+          CabinetPatient(
+            id: 'p3',
+            cabinetId: 'c1',
+            firstName: 'Chloé',
+            lastName: 'Petit',
+            createdAt: DateTime(2026, 1, 1),
+            hasUpcomingAppointment: false,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Impayés'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('patients_quick_filters')),
+          matching: find.textContaining('Alertes'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Sans RDV à venir'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('patients_quick_filter_unpaid')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('patients_quick_filter_alerts')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key('patients_quick_filter_noUpcomingAppointment'),
+          ),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'activer le filtre « Impayés » restreint la liste au sous-ensemble '
+        'correspondant', (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+            balanceDueCents: 1500,
+          ),
+          CabinetPatient(
+            id: 'p2',
+            cabinetId: 'c1',
+            firstName: 'Bob',
+            lastName: 'Dupont',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PatientTableRow), findsNWidgets(2));
+
+      await tester.tap(find.byKey(const Key('patients_quick_filter_unpaid')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PatientTableRow), findsNWidgets(1));
+      expect(find.text('Alice Martin'), findsOneWidget);
+      expect(find.text('Bob Dupont'), findsNothing);
+
+      // Réactiver le filtre restaure la liste complète.
+      await tester.tap(find.byKey(const Key('patients_quick_filter_unpaid')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PatientTableRow), findsNWidgets(2));
     });
   });
 }

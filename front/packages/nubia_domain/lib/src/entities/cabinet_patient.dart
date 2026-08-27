@@ -35,13 +35,15 @@ class CabinetPatient extends Equatable {
   final DateTime? lastVisitAt;
   final DateTime createdAt;
 
-  /// Solde restant dû, en centimes (#4044/#4045). Uniquement présent quand
-  /// le patient a été chargé via `GET /cabinet/patients/:id` — la liste
-  /// paginée (`GET /cabinet/patients`) ne l'expose pas.
+  /// Solde restant dû, en centimes (#4044/#4045). Exposé à la fois par
+  /// `GET /cabinet/patients/:id` et, depuis #5112, par la liste paginée
+  /// `GET /cabinet/patients` (agrégé côté API, sans fetch par ligne).
+  /// Reste nullable : champ best-effort, son absence n'empêche pas
+  /// d'afficher la ligne.
   final int? balanceDueCents;
 
   /// Nombre de RDV honorés en `no_show` (#4090). Même disponibilité que
-  /// [balanceDueCents] — uniquement sur `GET /cabinet/patients/:id`.
+  /// [balanceDueCents] — voir #5112 pour la liste paginée.
   final int? noShowCount;
 
   /// Tuteurs légaux de ce patient (#4091). Toujours présent (jamais null)
@@ -52,6 +54,17 @@ class CabinetPatient extends Equatable {
 
   /// Proches gérés par ce patient (#4091). Mêmes conditions que [guardians].
   final List<GuardianshipLink>? dependents;
+
+  /// Alerte administrative active (impayé échu, document manquant — #4093),
+  /// pour le filtre rapide « Alertes » (#5118). Même disponibilité que
+  /// [balanceDueCents] : `null` tant que la liste paginée ne l'expose pas
+  /// (dépend du ticket d'endpoint enrichi).
+  final bool? hasActiveAlerts;
+
+  /// Rendez-vous à venir programmé, pour le filtre rapide « Sans RDV à
+  /// venir » (#5118). Mêmes conditions de disponibilité que
+  /// [hasActiveAlerts].
+  final bool? hasUpcomingAppointment;
 
   const CabinetPatient({
     required this.id,
@@ -68,6 +81,8 @@ class CabinetPatient extends Equatable {
     this.noShowCount,
     this.guardians,
     this.dependents,
+    this.hasActiveAlerts,
+    this.hasUpcomingAppointment,
   });
 
   /// #4542 : quelques dossiers ont `firstName`/`lastName` vides côté back

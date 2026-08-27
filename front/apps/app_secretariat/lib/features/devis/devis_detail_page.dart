@@ -5,8 +5,9 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'devis_bloc.dart';
 import 'devis_event.dart';
-import 'devis_page.dart' show formatEuros, mapQuoteStatus;
+import 'devis_page.dart' show mapQuoteStatus;
 import 'devis_state.dart';
+import 'widgets/quote_timeline.dart';
 
 /// Détail d'un devis côté secrétariat.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
@@ -68,9 +69,67 @@ class _DevisDetailPageState extends State<DevisDetailPage> {
                   .add(DevisDetailLoadRequested(widget.id)),
             );
           }
-          return const Center(child: CircularProgressIndicator());
+          return const _DevisDetailSkeleton();
         },
       ),
+    );
+  }
+}
+
+/// Squelette de chargement du détail d'un devis, calqué sur le rythme des
+/// sections de [_DevisDetailBody] (en-tête montant + carte de lignes).
+class _DevisDetailSkeleton extends StatelessWidget {
+  const _DevisDetailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('devis_detail_skeleton'),
+      padding: const EdgeInsets.all(16),
+      children: const [
+        NubiaSkeletonLoader(height: 96, borderRadius: 16),
+        SizedBox(height: 16),
+        Center(
+          child: NubiaSkeletonLoader(height: 22, width: 90, borderRadius: 999),
+        ),
+        SizedBox(height: 16),
+        NubiaCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: NubiaSkeletonLoader(height: 18, width: 140),
+                  ),
+                  SizedBox(width: 12),
+                  NubiaSkeletonLoader(
+                    height: 22,
+                    width: 76,
+                    borderRadius: 999,
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: NubiaSkeletonLoader(height: 12, width: 90)),
+                  SizedBox(width: 12),
+                  NubiaSkeletonLoader(height: 14, width: 64),
+                ],
+              ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: NubiaSkeletonLoader(height: 12, width: 90)),
+                  SizedBox(width: 12),
+                  NubiaSkeletonLoader(height: 14, width: 64),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -89,6 +148,8 @@ class _DevisDetailBody extends StatelessWidget {
         return 'Envoyé';
       case CabinetQuoteStatus.signed:
         return 'Signé';
+      case CabinetQuoteStatus.paid:
+        return 'Payé';
       case CabinetQuoteStatus.expired:
         return 'Expiré';
       case CabinetQuoteStatus.cancelled:
@@ -103,10 +164,12 @@ class _DevisDetailBody extends StatelessWidget {
       case CabinetQuoteStatus.sent:
         return StatusPillVariant.warning;
       case CabinetQuoteStatus.signed:
+      case CabinetQuoteStatus.paid:
         return StatusPillVariant.success;
       case CabinetQuoteStatus.expired:
-      case CabinetQuoteStatus.cancelled:
         return StatusPillVariant.error;
+      case CabinetQuoteStatus.cancelled:
+        return StatusPillVariant.neutral;
     }
   }
 
@@ -122,13 +185,23 @@ class _DevisDetailBody extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         AmountHeader(
-          label: 'Total du plan de soins',
-          amount: formatEuros(quote.totalCents),
+          label: 'Reste à charge patient · sur '
+              '${NubiaMoney.formatCents(quote.totalCents)}',
+          amount: NubiaMoney.formatCents(quote.patientShareCents),
           caption: quote.patientName,
-          remainingLabel: 'Part patient',
-          remainingAmount: formatEuros(quote.patientShareCents),
-          remainingCaption: 'Reste à charge',
         ),
+        // Ventilation AMO/AMC (#5091) : même calcul et même vocabulaire que
+        // l'app Patient (VentilationBar, packages/nubia_design_system).
+        // Omise si le back n'a pas renvoyé les lignes du devis.
+        if (hasItems) ...[
+          const SizedBox(height: 16),
+          VentilationBar(
+            amoCents: quote.items!.amoShareTotalCents,
+            amcCents: quote.items!.amcShareTotalCents,
+            racCents: quote.patientShareCents,
+            racLabel: 'Reste à charge',
+          ),
+        ],
         const SizedBox(height: 16),
         Center(
           child: StatusPill(
@@ -152,6 +225,10 @@ class _DevisDetailBody extends StatelessWidget {
                     context.read<DevisBloc>().add(DevisSendRequested(quote.id)),
           ),
         ],
+        // Bloc « Suivi » (#5090) : où en est ce devis ? Étapes dont la
+        // donnée existe uniquement (cf. commentaire de QuoteTimeline).
+        const SizedBox(height: 16),
+        QuoteTimeline(quote: quote),
         if (hasDates) ...[
           const SizedBox(height: 16),
           NubiaCard(
@@ -183,7 +260,7 @@ class _DevisDetailBody extends StatelessWidget {
               for (final item in quote.items!)
                 QuoteLine(
                   label: item.label,
-                  amount: formatEuros(item.totalCents),
+                  amount: NubiaMoney.formatCents(item.totalCents),
                 ),
             ],
           ),

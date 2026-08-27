@@ -24,6 +24,7 @@ export 'src/widgets/nubia_checkbox.dart';
 export 'src/widgets/nubia_chip.dart';
 export 'src/widgets/nubia_empty_state.dart';
 export 'src/widgets/nubia_error_widget.dart';
+export 'src/widgets/nubia_inline_error.dart';
 export 'src/widgets/nubia_primitives.dart';
 export 'src/widgets/nubia_radio.dart';
 export 'src/widgets/nubia_search_bar.dart';
@@ -39,6 +40,7 @@ export 'src/widgets/metric_tile.dart';
 export 'src/widgets/segmented_control.dart';
 export 'src/widgets/nubia_toggle.dart';
 export 'src/widgets/status_pill.dart';
+export 'src/widgets/ventilation_bar.dart';
 
 // A2UI catalog ↔ widget prop mappers
 export 'src/a2ui/ds_props.dart';

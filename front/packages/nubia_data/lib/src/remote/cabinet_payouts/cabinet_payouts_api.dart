@@ -15,4 +15,16 @@ class CabinetPayoutsApi {
         .map((e) => CabinetPayoutDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  /// POST /cabinet/payouts/:id/reconcile (#5969) — persiste le rapprochement
+  /// manuel côté back, survit à un refresh.
+  Future<void> reconcilePayout(String id) async {
+    await _dio.post<void>('/cabinet/payouts/$id/reconcile');
+  }
+
+  /// POST /cabinet/payouts/:id/flag-accountant (#5969) — trace le
+  /// signalement au comptable côté back (aucun no-op silencieux).
+  Future<void> flagPayoutToAccountant(String id) async {
+    await _dio.post<void>('/cabinet/payouts/$id/flag-accountant');
+  }
 }

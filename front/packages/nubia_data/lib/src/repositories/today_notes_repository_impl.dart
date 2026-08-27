@@ -17,14 +17,21 @@ class TodayNotesRepositoryImpl implements TodayNotesRepository {
     try {
       final raw = await _api.getTodayNotes();
       final notes = raw.map((e) {
+        final initials = (e['patient_initials'] as String?) ?? '';
+        final name = e['patient_name'] as String?;
         return ClinicalNoteSummary(
           id: (e['id'] as String?) ?? '',
           timestamp: DateTime.tryParse(
                 (e['timestamp'] ?? e['started_at'] ?? '') as String,
               ) ??
               DateTime.now(),
-          patientInitials: (e['patient_initials'] as String?) ?? '',
-          status: (e['status'] as String?) ?? '',
+          patientInitials: initials,
+          status: _parseStatus(e['status'] as String?),
+          // #5047 : nom réel renvoyé par l'API (#6038), repli sur les
+          // initiales si absent/vide par prudence.
+          patientName: (name != null && name.trim().isNotEmpty)
+              ? name
+              : initials,
         );
       }).toList();
       return Right(notes);
@@ -35,6 +42,25 @@ class TodayNotesRepositoryImpl implements TodayNotesRepository {
       return const Right([]);
     } catch (_) {
       return const Right([]);
+    }
+  }
+
+  /// Table de correspondance explicite statut API → [ClinicalNoteStatus]
+  /// (#5053) — jamais de `String.contains` : « cancelled » (note non signée)
+  /// ne doit jamais être confondu avec « completed » (note signée) par un
+  /// matching approximatif. `cs.status` (`consultation_session`) ne connaît
+  /// que `in_progress` / `completed` / `cancelled` (api/src/clinical.rs) ;
+  /// toute autre valeur retombe sur [ClinicalNoteStatus.unknown].
+  static ClinicalNoteStatus _parseStatus(String? value) {
+    switch (value) {
+      case 'completed':
+        return ClinicalNoteStatus.signed;
+      case 'in_progress':
+        return ClinicalNoteStatus.draft;
+      case 'cancelled':
+        return ClinicalNoteStatus.unsigned;
+      default:
+        return ClinicalNoteStatus.unknown;
     }
   }
 }

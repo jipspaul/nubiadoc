@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -35,11 +36,24 @@ class MockListBookableSlotsUseCase extends Mock
 class MockListCabinetPractitionersUseCase extends Mock
     implements ListCabinetPractitionersUseCase {}
 
+class MockListCabinetPatientsUseCase extends Mock
+    implements ListCabinetPatientsUseCase {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 final _weekStart = DateTime(2026, 7, 6); // lundi
+
+/// Lundi de la semaine réelle du jour d'exécution du test — `AgendaPage`
+/// charge toujours `_currentWeekStart()` (agenda_page.dart), jamais
+/// `_weekStart` ci-dessus, donc les tests qui vérifient un rendu de grille
+/// réel (colonnes/compteurs) doivent daté leurs entrées sur cette semaine-là.
+DateTime _thisWeekMonday() {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  return today.subtract(Duration(days: today.weekday - 1));
+}
 
 final _entry = AgendaEntry(
   id: 'e-1',
@@ -128,6 +142,21 @@ class _AgendaBodyDirect extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(CabinetAppointment(
+      id: '',
+      cabinetId: '',
+      patientId: '',
+      patientName: '',
+      practitionerId: '',
+      practitionerName: '',
+      startsAt: DateTime(2026, 1, 1),
+      duration: const Duration(minutes: 30),
+      motif: '',
+      status: CabinetAppointmentStatus.requested,
+    ));
+  });
+
   late MockGetCabinetAgendaUseCase mockGetAgenda;
   late MockCreateCabinetAppointmentUseCase mockCreate;
   late MockConfirmAppointmentUseCase mockConfirm;
@@ -169,7 +198,7 @@ void main() {
       act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
       expect: () => [
         const AgendaLoading(),
-        AgendaLoaded(entries: [_entry]),
+        AgendaLoaded(entries: [_entry], weekStart: _weekStart),
       ],
     );
 
@@ -186,7 +215,7 @@ void main() {
       act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
       expect: () => [
         const AgendaLoading(),
-        const AgendaLoaded(entries: []),
+        AgendaLoaded(entries: const [], weekStart: _weekStart),
       ],
     );
 
@@ -213,13 +242,18 @@ void main() {
         );
         return makeBloc();
       },
-      seed: () => AgendaLoaded(entries: [_entry]),
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
       act: (bloc) => bloc
           .add(const AgendaAppointmentConfirmRequested(appointmentId: 'e-1')),
       expect: () => [
-        AgendaLoaded(entries: [_entry], actionInProgress: true),
         AgendaLoaded(
           entries: [_entry],
+          weekStart: _weekStart,
+          actionInProgress: true,
+        ),
+        AgendaLoaded(
+          entries: [_entry],
+          weekStart: _weekStart,
           actionInProgress: false,
           actionError: 'Erreur réseau',
         ),
@@ -234,15 +268,20 @@ void main() {
         );
         return makeBloc();
       },
-      seed: () => AgendaLoaded(entries: [_entry]),
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
       act: (bloc) => bloc.add(AgendaAppointmentRescheduleRequested(
         appointmentId: 'e-1',
         newStartsAt: DateTime(2026, 7, 8, 10, 0),
       )),
       expect: () => [
-        AgendaLoaded(entries: [_entry], actionInProgress: true),
         AgendaLoaded(
           entries: [_entry],
+          weekStart: _weekStart,
+          actionInProgress: true,
+        ),
+        AgendaLoaded(
+          entries: [_entry],
+          weekStart: _weekStart,
           actionInProgress: false,
           actionError: 'Erreur réseau',
         ),
@@ -324,12 +363,9 @@ void main() {
       expect(find.byKey(const Key('entry_e-1')), findsOneWidget);
     });
 
-    // #5168 : pastille praticien de la grille agenda — même couleur, dérivée
-    // du practitionerId via practitionerColor, que la colonne Praticien de
-    // la salle d'attente (front/apps/app_secretariat/waiting_room_page.dart).
     testWidgets(
-        'pastille praticien — couleur dérivée de practitionerId via practitionerColor — #5168',
-        (tester) async {
+        'affiche la mention de cloisonnement secrétariat (aucune donnée '
+        'clinique) — #5080', (tester) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
           .thenAnswer((_) async => const Right([]));
@@ -353,13 +389,26 @@ void main() {
       );
       await tester.pump();
 
-      final dot = tester.widget<Container>(
-        find.byKey(const Key('entry_practitioner_dot_e-1')),
+      // La note vit sous la grille, en pied de page fixe (plus le dernier
+      // item d'une liste défilante) — directement visible, sans scroll.
+      final notice = find.byKey(const Key('agenda_confidentiality_notice'));
+      expect(notice, findsOneWidget);
+      expect(
+        find.descendant(of: notice, matching: find.byIcon(Icons.shield)),
+        findsOneWidget,
       );
-      final decoration = dot.decoration as BoxDecoration;
-      expect(decoration.color, practitionerColor(_entry.practitionerId));
+      expect(
+        find.descendant(
+          of: notice,
+          matching: find.text(
+            'Aucune donnée clinique côté secrétariat — motif administratif '
+            'uniquement, cloisonnement conservé.',
+          ),
+        ),
+        findsOneWidget,
+      );
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
 
     testWidgets('affiche l\'état vide quand aucun créneau', (tester) async {
@@ -406,27 +455,10 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // #3896 — nom/motif du patient visibles sur mobile pour un RDV « À confirmer ».
+  // #5079 — volet latéral détail du RDV sélectionné.
   // -------------------------------------------------------------------------
-
-  group('carte RDV mobile (#3896)', () {
-    testWidgets(
-        'nom du patient visible sur un viewport mobile 390px, RDV à confirmer',
-        (tester) async {
-      final entry = AgendaEntry(
-        id: 'm-1',
-        cabinetId: 'cab-1',
-        practitionerId: 'prac-1',
-        practitionerName: 'Dr Hugo Marin',
-        startsAt: DateTime(2026, 7, 7, 9, 0),
-        endsAt: DateTime(2026, 7, 7, 9, 30),
-        patientId: 'pat-1',
-        patientName: 'Marc Dubois',
-        motif: 'Contrôle',
-        isFree: false,
-        status: 'requested',
-      );
-
+  group('volet latéral détail du RDV sélectionné (#5079)', () {
+    Future<void> pumpWithEntry(WidgetTester tester, AgendaEntry entry) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
           .thenAnswer((_) async => const Right([]));
@@ -442,13 +474,190 @@ void main() {
             listPractitioners: mockListPractitioners,
           ));
 
-      // Viewport mobile 390x844 — repro exacte de l'issue (le nom s'affichait
-      // normalement à 1280px mais était clippé à ~0px de largeur à 390px,
-      // avant que la pastille+bouton « Confirmer » soit sortie du Row Expanded).
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets(
+        'sélectionner un RDV confirmé ouvre le volet avec en-tête daté, '
+        'identité, motif · durée et pastille Confirmé (sans action Confirmer)',
+        (tester) async {
+      final entry = AgendaEntry(
+        id: 'p-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Amélie Rousseau',
+        startsAt: DateTime(2026, 8, 11, 14, 30),
+        endsAt: DateTime(2026, 8, 11, 15, 0),
+        patientId: 'pat-1',
+        patientName: 'Camille Moreau',
+        motif: 'Détartrage',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      await pumpWithEntry(tester, entry);
+
+      expect(find.byKey(const Key('agenda_detail_panel_p-1')), findsNothing);
+
+      // Le rendu des blocs RDV cliquables dans la grille est un ticket
+      // séparé (#5069, « blocs RDV positionnés ») — la sélection reste
+      // accessible via ↓ (#5082), indépendante du rendu.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      final panel = find.byKey(const Key('agenda_detail_panel_p-1'));
+      expect(panel, findsOneWidget);
+      expect(
+        find.descendant(of: panel, matching: find.text('Camille Moreau')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: panel,
+          matching: find.textContaining('Détartrage · 30 min'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: panel,
+          matching: find.textContaining('Mardi 11 août'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: panel, matching: find.text('Confirmé')),
+        findsOneWidget,
+      );
+      // RDV déjà confirmé : pas d'action Confirmer (un re-clic donnerait 409).
+      expect(find.byKey(const Key('confirm_p-1')), findsNothing);
+
+      // Bouton fermer referme le volet.
+      await tester.tap(find.byKey(const Key('agenda_detail_close')));
+      await tester.pump();
+      expect(panel, findsNothing);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
+        'un RDV à confirmer propose l\'action Confirmer dans le volet et '
+        'dispatch AgendaAppointmentConfirmRequested', (tester) async {
+      final entry = AgendaEntry(
+        id: 'p-2',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Amélie Rousseau',
+        startsAt: DateTime(2026, 8, 11, 14, 30),
+        endsAt: DateTime(2026, 8, 11, 15, 0),
+        patientId: 'pat-1',
+        patientName: 'Camille Moreau',
+        motif: 'Détartrage',
+        isFree: false,
+        status: 'requested',
+      );
+
+      when(() => mockConfirm('p-2')).thenAnswer(
+        (_) async => Right(
+          CabinetAppointment(
+            id: 'p-2',
+            cabinetId: 'cab-1',
+            patientId: 'pat-1',
+            patientName: 'Camille Moreau',
+            practitionerId: 'prac-1',
+            practitionerName: 'Dr Amélie Rousseau',
+            startsAt: entry.startsAt,
+            duration: entry.duration,
+            motif: 'Détartrage',
+            status: CabinetAppointmentStatus.confirmed,
+            slotId: 'slot-1',
+          ),
+        ),
+      );
+
+      await pumpWithEntry(tester, entry);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      final panel = find.byKey(const Key('agenda_detail_panel_p-2'));
+      expect(
+        find.descendant(of: panel, matching: find.text('À confirmer')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('confirm_p-2')));
+      await tester.pump();
+
+      verify(() => mockConfirm('p-2')).called(1);
+
+      await GetIt.instance.reset();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Couleur par praticien (blocs + légende, #5074)
+  // -------------------------------------------------------------------------
+
+  group('couleur par praticien — blocs + légende de pied (#5074)', () {
+    testWidgets(
+        '1er praticien du roster -> bloc émeraude, 2e -> sable, 3e -> neutre, '
+        'même si le 3e n\'a aucun RDV cette semaine (#4666)', (tester) async {
+      final rousseauEntry = AgendaEntry(
+        id: 'e-rousseau',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-rousseau',
+        practitionerName: 'Dr Rousseau',
+        startsAt: DateTime(2026, 7, 7, 9, 0),
+        endsAt: DateTime(2026, 7, 7, 9, 30),
+        patientName: 'Marie Dupont',
+        motif: 'Contrôle',
+        isFree: false,
+        status: 'confirmed',
+      );
+      final lefevreEntry = AgendaEntry(
+        id: 'e-lefevre',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-lefevre',
+        practitionerName: 'Dr Lefèvre',
+        startsAt: DateTime(2026, 7, 7, 10, 0),
+        endsAt: DateTime(2026, 7, 7, 10, 30),
+        patientName: 'Marc Dubois',
+        motif: 'Détartrage',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([rousseauEntry, lefevreEntry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+      // Roster complet : Dr Nadeau (3e) n'a aucun RDV cette semaine mais
+      // reste présent dans le roster (#4666), donc dans la palette/légende.
+      when(() => mockListPractitioners()).thenAnswer(
+        (_) async => const Right([
+          CabinetPractitioner(id: 'prac-rousseau', displayName: 'Dr Rousseau'),
+          CabinetPractitioner(id: 'prac-lefevre', displayName: 'Dr Lefèvre'),
+          CabinetPractitioner(id: 'prac-nadeau', displayName: 'Dr Nadeau'),
+        ]),
+      );
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -458,16 +667,29 @@ void main() {
       );
       await tester.pump();
 
+      // Le rendu des blocs RDV (couleur par praticien sur le bloc lui-même)
+      // est un ticket séparé (#5069, « blocs RDV positionnés ») — seule la
+      // légende de pied, indépendante du rendu de la grille, est vérifiable
+      // ici.
+      //
+      // Légende de pied : les 3 praticiens du roster apparaissent, y compris
+      // Dr Nadeau (0 RDV cette semaine) — #4666 ne doit pas régresser.
+      expect(find.byKey(const Key('agenda_legend_practitioner_prac-rousseau')),
+          findsOneWidget);
+      expect(find.byKey(const Key('agenda_legend_practitioner_prac-lefevre')),
+          findsOneWidget);
+      expect(find.byKey(const Key('agenda_legend_practitioner_prac-nadeau')),
+          findsOneWidget);
+      expect(find.byKey(const Key('agenda_legend_pending')), findsOneWidget);
       expect(
-        find.text('Marc Dubois'),
+        find.descendant(
+          of: find.byKey(const Key('agenda_legend_practitioner_prac-nadeau')),
+          matching: find.text('Dr Nadeau'),
+        ),
         findsOneWidget,
-        reason: 'le nom du patient doit rester visible à 390px de large, '
-            'pas clippé par la pastille/bouton Confirmer',
       );
-      expect(find.textContaining('Contrôle'), findsOneWidget);
-      expect(find.byKey(const Key('confirm_m-1')), findsOneWidget);
 
-      await gi.reset();
+      await GetIt.instance.reset();
     });
   });
 
@@ -475,16 +697,25 @@ void main() {
   // Filtre praticien (dropdown)
   // -------------------------------------------------------------------------
 
-  group('filtre praticien (dropdown)', () {
-    testWidgets('3 RDV 2 praticiens → sélection 1 → filtre live',
-        (tester) async {
+  group('filtre praticien (puces à bascule, #5076)', () {
+    testWidgets(
+        '3 RDV 2 praticiens → bascule 1 puce → filtre live sur le compteur '
+        'de la colonne jour', (tester) async {
+      // AgendaPage charge toujours `_currentWeekStart()` (semaine réelle du
+      // jour d'exécution du test) — un jour ouvré de cette semaine réelle
+      // (mardi), pas une date fixe, pour que les 3 entrées tombent dans une
+      // colonne de la grille.
+      final day = _thisWeekMonday().add(const Duration(days: 1));
+      DateTime at(int hour) => DateTime(day.year, day.month, day.day, hour, 0);
+      final dayKey = '${day.year}-${day.month}-${day.day}';
+
       final e1 = AgendaEntry(
         id: 'f-1',
         cabinetId: 'cab-1',
         practitionerId: 'prac-1',
         practitionerName: 'Dr Martin',
-        startsAt: DateTime(2026, 7, 7, 9, 0),
-        endsAt: DateTime(2026, 7, 7, 9, 30),
+        startsAt: at(9),
+        endsAt: at(9).add(const Duration(minutes: 30)),
         patientName: 'Alice Durand',
         isFree: false,
       );
@@ -493,8 +724,8 @@ void main() {
         cabinetId: 'cab-1',
         practitionerId: 'prac-1',
         practitionerName: 'Dr Martin',
-        startsAt: DateTime(2026, 7, 7, 10, 0),
-        endsAt: DateTime(2026, 7, 7, 10, 30),
+        startsAt: at(10),
+        endsAt: at(10).add(const Duration(minutes: 30)),
         patientName: 'Bob Dupont',
         isFree: false,
       );
@@ -503,8 +734,8 @@ void main() {
         cabinetId: 'cab-1',
         practitionerId: 'prac-2',
         practitionerName: 'Dr Dupont',
-        startsAt: DateTime(2026, 7, 7, 11, 0),
-        endsAt: DateTime(2026, 7, 7, 11, 30),
+        startsAt: at(11),
+        endsAt: at(11).add(const Duration(minutes: 30)),
         patientName: 'Charlie Bernard',
         isFree: false,
       );
@@ -533,137 +764,48 @@ void main() {
       );
       await tester.pump();
 
-      // Les 3 entrées sont visibles
-      expect(find.byKey(const Key('entry_f-1')), findsOneWidget);
-      expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
-      expect(find.byKey(const Key('entry_f-3')), findsOneWidget);
+      String countTextOf(String key) =>
+          tester.widget<Text>(find.byKey(Key(key))).data!;
 
-      // Ouvre le dropdown
-      await tester.tap(find.byKey(const Key('practitioner_filter_dropdown')));
-      await tester.pumpAndSettle();
+      // Les 3 entrées comptent dans la colonne du jour.
+      expect(countTextOf('agenda_day_count_$dayKey'), '3');
 
-      // Sélectionne Dr Martin
-      await tester.tap(find.text('Dr Martin').last);
-      await tester.pumpAndSettle();
-
-      // Seules les 2 entrées de Dr Martin restent visibles
-      expect(find.byKey(const Key('entry_f-1')), findsOneWidget);
-      expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
-      expect(find.byKey(const Key('entry_f-3')), findsNothing);
-
-      await gi.reset();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // #4666 — nom du praticien sur l'agenda cabinet : résolu via le roster
-  // (ListCabinetPractitionersUseCase), pas seulement via `entry.practitionerName`
-  // (qui peut être vide pour un slot, cf. #4608).
-  // -------------------------------------------------------------------------
-  group('résolution du nom praticien via le roster (#4666)', () {
-    testWidgets(
-        'practitioner_id connu (roster) mais practitionerName vide sur '
-        'l\'entrée -> nom affiché sans séparateur pendant', (tester) async {
-      final entry = AgendaEntry(
-        id: 'r-1',
-        cabinetId: 'cab-1',
-        practitionerId: 'prac-1',
-        // Nom vide sur l'entrée elle-même (ex : slot non enrichi) — seul le
-        // roster connaît le nom.
-        practitionerName: '',
-        startsAt: DateTime(2026, 7, 7, 9, 0),
-        endsAt: DateTime(2026, 7, 7, 9, 30),
-        patientId: 'pat-1',
-        patientName: 'Marc Dubois',
-        motif: 'Contrôle',
-        isFree: false,
-      );
-
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-      when(() => mockListPractitioners()).thenAnswer(
-        (_) async => const Right([
-          CabinetPractitioner(id: 'prac-1', displayName: 'Dr Hugo Marin'),
-        ]),
-      );
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
+      // Chaque puce affiche le compteur (total, non filtré) d'entrées du
+      // praticien.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('practitioner_chip_prac-1')),
+          matching: find.text('2'),
         ),
+        findsOneWidget,
       );
-      await tester.pump();
-
-      expect(find.textContaining('Dr Hugo Marin'), findsOneWidget);
-      // Pas de séparateur '·' pendant : le motif et le nom sont joints par
-      // ' · ', jamais un ' · ' en tête isolé.
-      expect(find.text('· Dr Hugo Marin'), findsNothing);
-
-      await gi.reset();
-    });
-
-    testWidgets(
-        'practitioner_id inconnu du roster -> aucun nom, pas de libellé '
-        'orphelin', (tester) async {
-      final entry = AgendaEntry(
-        id: 'r-2',
-        cabinetId: 'cab-1',
-        practitionerId: 'prac-inconnu',
-        practitionerName: '',
-        startsAt: DateTime(2026, 7, 7, 9, 0),
-        endsAt: DateTime(2026, 7, 7, 9, 30),
-        patientId: 'pat-1',
-        patientName: 'Marc Dubois',
-        motif: 'Contrôle',
-        isFree: false,
-      );
-
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
-      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
-          .thenAnswer((_) async => const Right([]));
-      when(() => mockListPractitioners()).thenAnswer(
-        (_) async => const Right([
-          CabinetPractitioner(id: 'prac-1', displayName: 'Dr Hugo Marin'),
-        ]),
-      );
-
-      final gi = GetIt.instance;
-      await gi.reset();
-      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
-            getAgenda: mockGetAgenda,
-            createAppointment: mockCreate,
-            confirmAppointment: mockConfirm,
-            rescheduleAppointment: mockReschedule,
-            listSlots: mockListSlots,
-            listPractitioners: mockListPractitioners,
-          ));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: AgendaPage()),
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('practitioner_chip_prac-2')),
+          matching: find.text('1'),
         ),
+        findsOneWidget,
       );
-      await tester.pump();
 
-      // Le motif reste visible, seul (pas de "· <motif>" ni "<motif> ·").
-      expect(find.text('Contrôle'), findsOneWidget);
-      expect(find.textContaining('Dr Hugo Marin'), findsNothing);
+      // Bascule la puce Dr Martin (prac-1) : seules ses 2 entrées restent
+      // filtrées → le compteur de la colonne jour passe à 2.
+      await tester.tap(find.byKey(const Key('practitioner_chip_prac-1')));
+      await tester.pumpAndSettle();
+      expect(countTextOf('agenda_day_count_$dayKey'), '2');
 
-      await gi.reset();
+      // Bascule aussi la puce Dr Dupont (prac-2) : les deux puces actives en
+      // même temps filtrent sur les deux praticiens (filtre non exclusif) →
+      // les 3 entrées reviennent.
+      await tester.tap(find.byKey(const Key('practitioner_chip_prac-2')));
+      await tester.pumpAndSettle();
+      expect(countTextOf('agenda_day_count_$dayKey'), '3');
+
+      // Re-bascule (off) la puce Dr Martin : Dr Dupont seul reste actif.
+      await tester.tap(find.byKey(const Key('practitioner_chip_prac-1')));
+      await tester.pumpAndSettle();
+      expect(countTextOf('agenda_day_count_$dayKey'), '1');
+
+      await GetIt.instance.reset();
     });
   });
 
@@ -735,6 +877,337 @@ void main() {
       final s =
           slot(id: 's1', start: DateTime(2026, 7, 8, 9, 0), available: false);
       expect(bookableSlots([s], const []), isEmpty);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // #5082 — raccourcis clavier de bout en bout.
+  // -------------------------------------------------------------------------
+  group('raccourcis clavier (#5082)', () {
+    void registerBloc(GetIt gi) {
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+    }
+
+    Future<void> pumpAgenda(WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('→/← changent de semaine (±7j), T revient à aujourd\'hui',
+        (tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi);
+
+      await pumpAgenda(tester);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+      await tester.pumpAndSettle();
+
+      final captured =
+          verify(() => mockGetAgenda(captureAny())).captured.cast<DateTime>();
+      expect(captured.length, 4);
+      // → : +7 jours par rapport à la semaine initiale.
+      expect(captured[1].difference(captured[0]), const Duration(days: 7));
+      // ← : retour exact à la semaine initiale (pure arithmétique de dates,
+      // aucun nouvel appel à DateTime.now()).
+      expect(captured[2], captured[0]);
+      // T : revient au jour courant — comparaison sur la date seule (année/
+      // mois/jour), DateTime.now() pouvant différer de quelques
+      // microsecondes entre le 1er chargement et l'appui sur T.
+      expect(captured[3].year, captured[0].year);
+      expect(captured[3].month, captured[0].month);
+      expect(captured[3].day, captured[0].day);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
+        '↑/↓ déplacent la sélection, ⏎ confirme seulement un RDV en attente',
+        (tester) async {
+      final pending = AgendaEntry(
+        id: 'sel-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: DateTime(2026, 7, 7, 9, 0),
+        endsAt: DateTime(2026, 7, 7, 9, 30),
+        patientName: 'Alice Durand',
+        isFree: false,
+        status: 'requested',
+      );
+      final confirmed = AgendaEntry(
+        id: 'sel-2',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: DateTime(2026, 7, 7, 10, 0),
+        endsAt: DateTime(2026, 7, 7, 10, 30),
+        patientName: 'Bob Dupont',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([pending, confirmed]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockConfirm(any()))
+          .thenAnswer((_) async => Left(NetworkFailure('erreur')));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi);
+
+      await pumpAgenda(tester);
+
+      // ↓ sélectionne le 1er RDV (en attente) → ⏎ le confirme.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      verify(() => mockConfirm('sel-1')).called(1);
+
+      // ↓ sélectionne ensuite le 2e RDV (déjà confirmé) → ⏎ ne fait rien
+      // (même règle que le bouton Confirmer, masqué une fois confirmé — un
+      // re-clic donnerait 409).
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      verifyNever(() => mockConfirm('sel-2'));
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets('⌘N ouvre le dialogue Nouveau RDV', (tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi);
+      final mockListPatients = MockListCabinetPatientsUseCase();
+      when(() => mockListPatients()).thenAnswer((_) async => const Right([]));
+      gi.registerFactory<ListCabinetPatientsUseCase>(() => mockListPatients);
+
+      await pumpAgenda(tester);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nouveau rendez-vous'), findsOneWidget);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets('/ met le focus sur la recherche patient', (tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi);
+
+      await pumpAgenda(tester);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.slash);
+      await tester.pumpAndSettle();
+
+      final focusNode = tester
+          .widget<TextField>(find.descendant(
+            of: find.byKey(const Key('agenda_patient_search')),
+            matching: find.byType(TextField),
+          ))
+          .focusNode;
+      expect(focusNode?.hasFocus, isTrue);
+
+      await GetIt.instance.reset();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // #5078 — dialogue « Nouveau RDV » simplifié (patient en recherche). Le
+  // rendu de créneaux libres cliquables dans la grille (#5077) est hors
+  // périmètre de #5069 (ticket « blocs RDV positionnés ») — le dialogue
+  // s'ouvre donc ici via le bouton « Nouveau RDV » de la barre d'outils
+  // (toujours présent, indépendant du rendu de la grille) avec le picker de
+  // créneau.
+  // -------------------------------------------------------------------------
+  group('Nouveau RDV — dialogue simplifié (#5078)', () {
+    void registerBloc(GetIt gi, MockListCabinetPatientsUseCase listPatients) {
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+      gi.registerFactory<ListCabinetPatientsUseCase>(() => listPatients);
+    }
+
+    Future<void> pumpAgenda(WidgetTester tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    /// Ouvre le dialogue via le bouton « Nouveau RDV » puis choisit
+    /// [freeSlot] dans le picker (un seul créneau disponible dans ces tests).
+    Future<void> openDialogAndPickSlot(
+      WidgetTester tester,
+      Slot freeSlot,
+      String slotLabel,
+    ) async {
+      await tester.tap(find.byKey(const Key('new_appointment_button')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('slot_picker_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(slotLabel).last);
+      await tester.pumpAndSettle();
+    }
+
+    final freeSlot = Slot(
+      id: 'slot-1',
+      cabinetId: 'cab-1',
+      practitionerId: 'prac-1',
+      startsAt: DateTime(2026, 7, 7, 9, 0),
+      endsAt: DateTime(2026, 7, 7, 9, 30),
+      isAvailable: true,
+    );
+    // `_slotLabel` (agenda_page.dart) pour `freeSlot` : mardi 7 juillet 2026.
+    const freeSlotLabel = 'Mar 7 juil. – 09:00';
+    final alice = CabinetPatient(
+      id: 'pat-alice',
+      cabinetId: 'cab-1',
+      firstName: 'Alice',
+      lastName: 'Durand',
+      createdAt: DateTime(2020, 1, 1),
+    );
+    final bob = CabinetPatient(
+      id: 'pat-bob',
+      cabinetId: 'cab-1',
+      firstName: 'Bob',
+      lastName: 'Martin',
+      createdAt: DateTime(2020, 1, 1),
+    );
+
+    testWidgets(
+        'le patient se choisit via une recherche filtrant par nom, et créer '
+        'reste désactivé sans patient choisi', (tester) async {
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => Right([freeSlot]));
+      final mockListPatients = MockListCabinetPatientsUseCase();
+      when(() => mockListPatients())
+          .thenAnswer((_) async => Right([alice, bob]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi, mockListPatients);
+
+      await pumpAgenda(tester);
+      await openDialogAndPickSlot(tester, freeSlot, freeSlotLabel);
+
+      // Pas de dropdown listant toute la patientèle.
+      expect(find.byKey(const Key('patient_picker_dropdown')), findsNothing);
+
+      final createButton = find.byKey(const Key('create_appointment_button'));
+      expect(tester.widget<FilledButton>(createButton).onPressed, isNull);
+
+      await tester.enterText(
+          find.byKey(const Key('patient_search_field')), 'ali');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('patient_option_pat-alice')), findsOneWidget);
+      expect(find.byKey(const Key('patient_option_pat-bob')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('patient_option_pat-alice')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('patient_search_field')), findsNothing);
+      expect(find.text('Alice Durand'), findsOneWidget);
+      expect(tester.widget<FilledButton>(createButton).onPressed, isNotNull);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
+        'créer le RDV envoie un CabinetAppointment avec slotId et le '
+        'patientId résolu par la recherche', (tester) async {
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => Right([freeSlot]));
+      final mockListPatients = MockListCabinetPatientsUseCase();
+      when(() => mockListPatients()).thenAnswer((_) async => Right([alice]));
+      when(() => mockCreate(any())).thenAnswer(
+        (_) async => Right(CabinetAppointment(
+          id: 'appt-1',
+          cabinetId: 'cab-1',
+          patientId: alice.id,
+          patientName: alice.fullName,
+          practitionerId: freeSlot.practitionerId,
+          practitionerName: 'Dr Martin',
+          startsAt: freeSlot.startsAt,
+          duration: freeSlot.duration,
+          motif: 'Consultation',
+          status: CabinetAppointmentStatus.requested,
+          slotId: freeSlot.id,
+        )),
+      );
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi, mockListPatients);
+
+      await pumpAgenda(tester);
+      await openDialogAndPickSlot(tester, freeSlot, freeSlotLabel);
+
+      await tester.enterText(
+          find.byKey(const Key('patient_search_field')), 'ali');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('patient_option_pat-alice')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('create_appointment_button')));
+      await tester.pumpAndSettle();
+
+      final captured = verify(() => mockCreate(captureAny())).captured;
+      expect(captured, hasLength(1));
+      final appointment = captured.first as CabinetAppointment;
+      expect(appointment.slotId, freeSlot.id);
+      expect(appointment.patientId, alice.id);
+
+      await GetIt.instance.reset();
     });
   });
 }

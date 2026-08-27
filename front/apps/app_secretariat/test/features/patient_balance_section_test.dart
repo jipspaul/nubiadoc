@@ -1,18 +1,15 @@
 //! Tests widget : `PatientBalanceSection` (#4045) — solde=0 et solde>0,
-//! (#4090) — compteur de lapins (`noShowCount`) 0 et 3, même fetch,
+//! (#4090) — compteur de rendez-vous manqués (`noShowCount`) 0 et 3, même fetch,
 //! (#4092) — indicateur tuteur, patient avec vs sans tuteur déclaré.
+//! (#5115) — présentation pure : les données viennent du chargement unique
+//! de la fiche, l'échec est désormais visible (fini le SizedBox.shrink()).
 
-import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:get_it/get_it.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_secretariat/features/patients/patients_page.dart';
-
-class _MockGetCabinetPatient extends Mock implements GetCabinetPatientUseCase {}
 
 CabinetPatient _patient({
   int? balanceDueCents,
@@ -31,28 +28,16 @@ CabinetPatient _patient({
     );
 
 void main() {
-  late _MockGetCabinetPatient getPatient;
-
-  setUp(() {
-    getPatient = _MockGetCabinetPatient();
-    GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
-      () => getPatient,
-    );
-    addTearDown(GetIt.instance.reset);
-  });
-
-  Widget buildSection() => MaterialApp(
+  Widget buildSection({CabinetPatient? patient, String? error}) => MaterialApp(
         theme: NubiaTheme.light,
         home: Scaffold(
-          body: const PatientBalanceSection(patientId: 'patient-1'),
+          body: PatientBalanceSection(patient: patient, error: error),
         ),
       );
 
   testWidgets('solde = 0 : affiché sans mise en avant', (tester) async {
-    when(() => getPatient('patient-1'))
-        .thenAnswer((_) async => Right(_patient(balanceDueCents: 0)));
-
-    await tester.pumpWidget(buildSection());
+    await tester
+        .pumpWidget(buildSection(patient: _patient(balanceDueCents: 0)));
     await tester.pumpAndSettle();
 
     expect(find.text('Solde : 0,00 €'), findsOneWidget);
@@ -62,10 +47,8 @@ void main() {
 
   testWidgets('solde > 0 : affiché en évidence (couleur error)',
       (tester) async {
-    when(() => getPatient('patient-1'))
-        .thenAnswer((_) async => Right(_patient(balanceDueCents: 3050)));
-
-    await tester.pumpWidget(buildSection());
+    await tester
+        .pumpWidget(buildSection(patient: _patient(balanceDueCents: 3050)));
     await tester.pumpAndSettle();
 
     expect(find.text('Solde : 30,50 €'), findsOneWidget);
@@ -74,29 +57,37 @@ void main() {
     expect(text.style?.color, cs.error);
   });
 
-  testWidgets('0 lapin : affiché sans mise en avant', (tester) async {
-    when(() => getPatient('patient-1')).thenAnswer(
-      (_) async => Right(_patient(balanceDueCents: 0, noShowCount: 0)),
-    );
-
-    await tester.pumpWidget(buildSection());
+  testWidgets(
+      'solde > 999 € : séparateur de milliers (#5123, NubiaMoney.formatCents)',
+      (tester) async {
+    await tester
+        .pumpWidget(buildSection(patient: _patient(balanceDueCents: 124567)));
     await tester.pumpAndSettle();
 
-    expect(find.text('Lapins : 0'), findsOneWidget);
+    expect(find.text('Solde : 1 245,67 €'), findsOneWidget);
+  });
+
+  testWidgets('0 rendez-vous manqué : affiché sans mise en avant',
+      (tester) async {
+    await tester.pumpWidget(
+      buildSection(patient: _patient(balanceDueCents: 0, noShowCount: 0)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rendez-vous manqués : 0'), findsOneWidget);
     final text =
         tester.widget<Text>(find.byKey(const Key('patient_no_show_count')));
     expect(text.style?.color, isNull);
   });
 
-  testWidgets('3 lapins : affiché en évidence (couleur error)', (tester) async {
-    when(() => getPatient('patient-1')).thenAnswer(
-      (_) async => Right(_patient(balanceDueCents: 0, noShowCount: 3)),
+  testWidgets('3 rendez-vous manqués : affiché en évidence (couleur error)',
+      (tester) async {
+    await tester.pumpWidget(
+      buildSection(patient: _patient(balanceDueCents: 0, noShowCount: 3)),
     );
-
-    await tester.pumpWidget(buildSection());
     await tester.pumpAndSettle();
 
-    expect(find.text('Lapins : 3'), findsOneWidget);
+    expect(find.text('Rendez-vous manqués : 3'), findsOneWidget);
     final text =
         tester.widget<Text>(find.byKey(const Key('patient_no_show_count')));
     final cs = Theme.of(tester.element(find.byType(Scaffold))).colorScheme;
@@ -104,18 +95,18 @@ void main() {
   });
 
   testWidgets('tuteur déclaré : affiché avec son nom (#4092)', (tester) async {
-    when(() => getPatient('patient-1')).thenAnswer(
-      (_) async => Right(_patient(guardians: const [
-        GuardianshipLink(
-          accountId: 'guardian-1',
-          firstName: 'Paul',
-          lastName: 'Tuteur',
-          relationship: 'parent',
-        ),
-      ])),
+    await tester.pumpWidget(
+      buildSection(
+        patient: _patient(guardians: const [
+          GuardianshipLink(
+            accountId: 'guardian-1',
+            firstName: 'Paul',
+            lastName: 'Tuteur',
+            relationship: 'parent',
+          ),
+        ]),
+      ),
     );
-
-    await tester.pumpWidget(buildSection());
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('patient_guardians')), findsOneWidget);
@@ -123,13 +114,23 @@ void main() {
   });
 
   testWidgets('aucun tuteur : indicateur absent (#4092)', (tester) async {
-    when(() => getPatient('patient-1')).thenAnswer(
-      (_) async => Right(_patient(guardians: const [])),
-    );
-
-    await tester.pumpWidget(buildSection());
+    await tester
+        .pumpWidget(buildSection(patient: _patient(guardians: const [])));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('patient_guardians')), findsNothing);
+  });
+
+  // ── Échec visible (#5115) ────────────────────────────────────────────
+
+  testWidgets(
+      'échec du chargement — message visible, plus de SizedBox.shrink() '
+      'silencieux', (tester) async {
+    await tester.pumpWidget(buildSection(error: 'Erreur réseau'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_balance_error')), findsOneWidget);
+    expect(find.textContaining('Erreur réseau'), findsOneWidget);
+    expect(find.byKey(const Key('patient_balance')), findsNothing);
   });
 }

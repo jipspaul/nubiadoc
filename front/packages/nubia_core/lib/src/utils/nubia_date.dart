@@ -82,6 +82,14 @@ class NubiaDate {
 
   static String _pad2(int n) => n.toString().padLeft(2, '0');
 
+  /// Horodatage court jour+heure, heure locale ; ex. `26/08 14:30`. Utilisé
+  /// par les en-têtes de groupe de messages (#5126) — remplace les
+  /// `_formatTimestamp` locaux par écran (fondation 3, #5128).
+  static String dayMonthTime(DateTime dateTime) {
+    final dt = dateTime.toLocal();
+    return '${_pad2(dt.day)}/${_pad2(dt.month)} ${timeOnly(dt)}';
+  }
+
   static const _weekdaysFull = [
     'Lundi',
     'Mardi',
@@ -101,14 +109,18 @@ class NubiaDate {
     return la.year == lb.year && la.month == lb.month && la.day == lb.day;
   }
 
-  /// Libellé du séparateur de jour d'un fil de messages (#5278) : jour
-  /// courant → « Aujourd'hui » ; sinon → jour de semaine + jour + mois, ex.
-  /// « Mardi 22 juillet ». [dateTime] peut être en UTC : converti via
-  /// `.toLocal()` avant comparaison, pour éviter le bug #3856.
+  /// Libellé du séparateur de jour d'un fil de messages (#5278, #5127) :
+  /// jour courant → « Aujourd'hui » ; veille → « Hier » ; sinon → jour de
+  /// semaine + jour + mois, ex. « Mardi 22 juillet ». [dateTime] peut être
+  /// en UTC : converti via `.toLocal()` avant comparaison, pour éviter le
+  /// bug #3856.
   static String daySeparatorLabel(DateTime dateTime, {DateTime? now}) {
     final dt = dateTime.toLocal();
     final reference = now ?? DateTime.now();
     if (isSameDay(dt, reference)) return "Aujourd'hui";
+    final yesterday =
+        DateTime(reference.year, reference.month, reference.day - 1);
+    if (isSameDay(dt, yesterday)) return 'Hier';
     return '${_weekdaysFull[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
   }
 

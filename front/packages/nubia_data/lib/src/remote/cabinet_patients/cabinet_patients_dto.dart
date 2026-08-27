@@ -15,6 +15,8 @@ class CabinetPatientDto {
   final int? noShowCount;
   final List<GuardianshipLink>? guardians;
   final List<GuardianshipLink>? dependents;
+  final bool? hasActiveAlerts;
+  final bool? hasUpcomingAppointment;
 
   const CabinetPatientDto({
     required this.id,
@@ -31,6 +33,8 @@ class CabinetPatientDto {
     this.noShowCount,
     this.guardians,
     this.dependents,
+    this.hasActiveAlerts,
+    this.hasUpcomingAppointment,
   });
 
   factory CabinetPatientDto.fromJson(Map<String, dynamic> json) {
@@ -68,16 +72,21 @@ class CabinetPatientDto {
       socialSecurityNumber: json['social_security_number'] as String?,
       lastVisitAt: json['last_visit_at'] as String?,
       createdAt: json['created_at'] as String,
-      // Absent de la liste paginée (`GET /cabinet/patients`), présent
-      // uniquement sur `GET /cabinet/patients/:id` (#4044).
+      // Présent sur `GET /cabinet/patients/:id` (#4044) et, depuis #5112,
+      // sur la liste paginée `GET /cabinet/patients` — reste nullable
+      // (best-effort) dans les deux cas.
       balanceDueCents: json['balance_due_cents'] as int?,
-      // Idem (#4090).
+      // Idem (#4090, #5112).
       noShowCount: json['no_show_count'] as int?,
       // Idem (#4091) — toujours des tableaux (jamais absents) sur le
       // détail ; `null` seulement si la clé n'existe pas du tout dans la
       // réponse (liste paginée).
       guardians: parseLinks('guardians'),
       dependents: parseLinks('dependents'),
+      // Filtres rapides secrétariat (#5118) — mêmes conditions de
+      // disponibilité que balanceDueCents/noShowCount ci-dessus.
+      hasActiveAlerts: json['has_active_alerts'] as bool?,
+      hasUpcomingAppointment: json['has_upcoming_appointment'] as bool?,
     );
   }
 
@@ -109,6 +118,8 @@ class CabinetPatientDto {
         noShowCount: noShowCount,
         guardians: guardians,
         dependents: dependents,
+        hasActiveAlerts: hasActiveAlerts,
+        hasUpcomingAppointment: hasUpcomingAppointment,
       );
 
   factory CabinetPatientDto.fromDomain(CabinetPatient p) => CabinetPatientDto(

@@ -24,6 +24,10 @@ enum QuoteCardStatus {
 
   /// Refusé par le patient.
   refused,
+
+  /// Annulé (par le cabinet ou à la demande du patient) — distinct de
+  /// [refused] : clôture neutre, pas un refus (#5093).
+  cancelled,
 }
 
 /// Une ligne d'acte d'un devis : libellé + montant formaté.
@@ -54,6 +58,9 @@ class QuoteLine {
 /// - [subtitle] : sous-titre optionnel (ex. praticien).
 /// - [totalLabel] / [total] : ligne total optionnelle (montant tabulaire, gras).
 /// - [ctaLabel] / [onCtaPressed] : CTA principal optionnel.
+/// - [ctaIcon] / [ctaVariant] / [ctaLoading] : personnalisation du CTA (icône,
+///   variante `NubiaButton`, état de chargement) — ex. action contextuelle au
+///   statut par ligne dans une liste (#5087).
 ///
 /// Réfs mockup : `design/mockups/lib/screens-wedge.jsx` (WedgeLines + Card).
 class QuoteCard extends StatelessWidget {
@@ -67,6 +74,9 @@ class QuoteCard extends StatelessWidget {
     this.total,
     this.ctaLabel,
     this.onCtaPressed,
+    this.ctaIcon,
+    this.ctaVariant = NubiaButtonVariant.primary,
+    this.ctaLoading = false,
   });
 
   final String title;
@@ -77,6 +87,9 @@ class QuoteCard extends StatelessWidget {
   final String? total;
   final String? ctaLabel;
   final VoidCallback? onCtaPressed;
+  final IconData? ctaIcon;
+  final NubiaButtonVariant ctaVariant;
+  final bool ctaLoading;
 
   static const List<FontFeature> _tabular = [FontFeature.tabularFigures()];
 
@@ -109,6 +122,7 @@ class QuoteCard extends StatelessWidget {
               StatusPill(
                 label: statusStyle.label,
                 variant: statusStyle.variant,
+                icon: statusStyle.icon,
               ),
             ],
           ),
@@ -204,6 +218,9 @@ class QuoteCard extends StatelessWidget {
             NubiaButton(
               label: ctaLabel!,
               onPressed: onCtaPressed,
+              icon: ctaIcon,
+              variant: ctaVariant,
+              isLoading: ctaLoading,
               size: NubiaButtonSize.lg,
             ),
           ],
@@ -216,10 +233,11 @@ class QuoteCard extends StatelessWidget {
 /// Mapping statut → libellé FR + variant [StatusPill].
 @immutable
 class _StatusStyle {
-  const _StatusStyle(this.label, this.variant);
+  const _StatusStyle(this.label, this.variant, {this.icon});
 
   final String label;
   final StatusPillVariant variant;
+  final IconData? icon;
 
   static _StatusStyle of(QuoteCardStatus status) {
     switch (status) {
@@ -235,6 +253,12 @@ class _StatusStyle {
         return const _StatusStyle('Expiré', StatusPillVariant.error);
       case QuoteCardStatus.refused:
         return const _StatusStyle('Refusé', StatusPillVariant.error);
+      case QuoteCardStatus.cancelled:
+        return const _StatusStyle(
+          'Annulé',
+          StatusPillVariant.neutral,
+          icon: Icons.cancel,
+        );
     }
   }
 }

@@ -9,7 +9,6 @@ import '../financial_bloc.dart';
 import '../financial_event.dart';
 import '../financial_state.dart';
 import 'financial_format_utils.dart';
-import 'ventilation_bar.dart';
 
 /// Détail d'un devis (actes, panier 100% Santé, acompte, signature) —
 /// extrait de `financial_page.dart` (#4061, CLAUDE.md plafond 700 lignes).
@@ -72,7 +71,12 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                         : 'Devis du ${formatQuoteDate(quote.createdAt)}',
                   ),
                 const SizedBox(height: 20),
-                VentilationBar(quote: quote),
+                VentilationBar(
+                  amoCents: quote.items.amoShareTotalCents,
+                  amcCents: quote.items.amcShareTotalCents,
+                  racCents: quote.patientShareCents,
+                  racLabel: 'Reste à votre charge',
+                ),
                 const SizedBox(height: 12),
                 if (hasRac0Alternative) ...[
                   _Rac0AlternativeBanner(

@@ -18,7 +18,8 @@
 //! Stripe : `id`/`amount`/`currency`/`arrival_date`/`status` ; GoCardless :
 //! `id`/`amount`/`currency`/`reference`/`status`) pour que l'écran soit
 //! compréhensible et directement remplaçable par un vrai client HTTP plus
-//! tard (même contrat de sortie, `PayoutView`, inchangé).
+//! tard (même contrat de sortie, `PayoutView`, à l'exception de
+//! `internal_payments`, propre à cet écran).
 //!
 //! Rapprochement : pour chaque payout mock, on calcule la somme des
 //! `payment.amount` internes (`status='paid'`, `provider` correspondant,
@@ -39,7 +40,8 @@
 //! `main` (le fichier n'est pas dans `paths-ignore` de `deploy.yml`) pour
 //! que le prochain run `deploy` publie enfin cette route.
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -74,6 +76,41 @@ pub struct PayoutView {
     /// Somme des paiements internes trouvés pour ce jour/provider — permet
     /// à l'UI d'expliquer l'écart plutôt que de juste afficher "à vérifier".
     pub internal_payments_total_cents: i64,
+    /// Chaque paiement interne (`payment`, tous canaux) enregistré ce
+    /// jour-là pour le cabinet — liste « Paiements internes du jour »
+    /// (#5109). Contrairement à `internal_payments_total_cents`, non filtré
+    /// par provider : inclut aussi les règlements espèces/chèque/virement
+    /// (`provider='manual'`), qui ne transitent jamais par Stripe/GoCardless.
+    pub internal_payments: Vec<InternalPaymentView>,
+}
+
+#[derive(Serialize)]
+pub struct InternalPaymentView {
+    pub patient_name: String,
+    /// Heure `HH:mm` de l'encaissement (`payment.paid_at`).
+    pub time: String,
+    pub amount_cents: i64,
+    /// Libellé FR du canal (ex. « Carte », « Espèces ») — dérivé de
+    /// `payment.method`.
+    pub method_label: &'static str,
+    /// `false` pour les canaux physiques (espèces, chèque, virement) qui ne
+    /// transitent jamais par le prestataire Stripe/GoCardless — affiché
+    /// comme « non rapprochable » côté UI.
+    pub reconcilable_by_provider: bool,
+}
+
+/// Libellé FR + rapprochabilité par le prestataire pour un `payment.method`.
+fn describe_method(method: &str) -> (&'static str, bool) {
+    match method {
+        "card" => ("Carte", true),
+        "apple_pay" => ("Apple Pay", true),
+        "google_pay" => ("Google Pay", true),
+        "sepa" => ("SEPA", true),
+        "cash" => ("Espèces", false),
+        "check" => ("Chèque", false),
+        "bank_transfer" => ("Virement", false),
+        _ => ("Autre", false),
+    }
 }
 
 #[derive(Serialize)]
@@ -128,6 +165,23 @@ pub async fn list_payouts(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Rapprochements manuels persistés (#5969) : une fois marqué "rapproché"
+    // par le secrétariat, le statut ne doit plus jamais régresser au simple
+    // recalcul mock, y compris après un refresh/redéploiement.
+    let reconciled_rows = sqlx::query(
+        "SELECT payout_id FROM cabinet_payout_action \
+         WHERE cabinet_id = $1 AND action = 'reconciled'",
+    )
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let manually_reconciled: std::collections::HashSet<String> = reconciled_rows
+        .iter()
+        .map(|r| r.try_get::<String, _>("payout_id"))
+        .collect::<Result<_, _>>()
+        .map_err(|_| AppError::Internal)?;
+
     let mut data = Vec::new();
     for payout in MOCK_PAYOUTS {
         if let Some(filter) = query.provider.as_deref() {
@@ -150,11 +204,56 @@ pub async fn list_payouts(
         .map_err(|_| AppError::Internal)?;
         let internal_total: i64 = row.try_get("total_cents").map_err(|_| AppError::Internal)?;
 
-        let reconciliation_status = if internal_total == payout.amount_cents {
-            "reconciled"
-        } else {
-            "to_verify"
-        };
+        let reconciliation_status =
+            if internal_total == payout.amount_cents || manually_reconciled.contains(payout.id) {
+                "reconciled"
+            } else {
+                "to_verify"
+            };
+
+        // Liste « Paiements internes du jour » (#5109) : tous les canaux
+        // (pas seulement `payout.provider`, contrairement au total ci-dessus)
+        // pour que l'écart affiché à l'écran s'explique par des règlements
+        // physiques (espèces/chèque) qui ne transitent jamais par le
+        // prestataire.
+        let payment_rows = sqlx::query(
+            "SELECT p.first_name || ' ' || p.last_name AS patient_name, \
+                    pay.method, \
+                    (pay.amount * 100)::bigint AS amount_cents, \
+                    to_char(pay.paid_at, 'HH24:MI') AS paid_at_time \
+             FROM payment pay \
+             JOIN patient p ON p.id = pay.patient_id \
+             WHERE pay.cabinet_id = $1 AND pay.status = 'paid' \
+               AND pay.method IS NOT NULL AND pay.paid_at::date = $2::date \
+             ORDER BY pay.paid_at ASC",
+        )
+        .bind(claims.cabinet_id)
+        .bind(payout.arrival_date)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        let mut internal_payments = Vec::with_capacity(payment_rows.len());
+        for prow in &payment_rows {
+            let patient_name: String = prow
+                .try_get("patient_name")
+                .map_err(|_| AppError::Internal)?;
+            let method: String = prow.try_get("method").map_err(|_| AppError::Internal)?;
+            let amount_cents: i64 = prow
+                .try_get("amount_cents")
+                .map_err(|_| AppError::Internal)?;
+            let time: String = prow
+                .try_get("paid_at_time")
+                .map_err(|_| AppError::Internal)?;
+            let (method_label, reconcilable_by_provider) = describe_method(&method);
+            internal_payments.push(InternalPaymentView {
+                patient_name,
+                time,
+                amount_cents,
+                method_label,
+                reconcilable_by_provider,
+            });
+        }
 
         data.push(PayoutView {
             id: payout.id.to_string(),
@@ -165,8 +264,71 @@ pub async fn list_payouts(
             provider_status: "paid",
             reconciliation_status,
             internal_payments_total_cents: internal_total,
+            internal_payments,
         });
     }
 
     Ok(Json(PayoutsResponse { data }))
+}
+
+/// Enregistre une action humaine (`reconciled` ou `flagged_to_accountant`)
+/// sur un payout mock — idempotent (`ON CONFLICT DO NOTHING`, cf. migration
+/// 0237). `404` si `payout_id` ne correspond à aucun mock connu.
+async fn record_payout_action(
+    state: &AppState,
+    claims: &ProSecretaryPlusClaims,
+    payout_id: &str,
+    action: &str,
+) -> Result<(), AppError> {
+    if !MOCK_PAYOUTS.iter().any(|p| p.id == payout_id) {
+        return Err(AppError::NotFound);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO cabinet_payout_action (cabinet_id, payout_id, action, created_by) \
+         VALUES ($1, $2, $3, $4) \
+         ON CONFLICT (cabinet_id, payout_id, action) DO NOTHING",
+    )
+    .bind(claims.cabinet_id)
+    .bind(payout_id)
+    .bind(action)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+    Ok(())
+}
+
+/// `POST /v1/cabinet/payouts/:id/reconcile` — marque le virement comme
+/// rapproché (décision humaine, #5969). Persisté : survit à un refresh,
+/// contrairement à l'ancienne mutation purement locale côté Flutter.
+pub async fn reconcile_payout(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(payout_id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    record_payout_action(&state, &claims, &payout_id, "reconciled").await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /v1/cabinet/payouts/:id/flag-accountant` — signale l'écart au
+/// comptable (#5969). Aucun système de notification/email disponible pour
+/// ce mock (cf. docstring module) : la trace DB fait office d'alerte —
+/// remplace l'ancien handler vide qui ne faisait strictement rien.
+pub async fn flag_payout_to_accountant(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(payout_id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    record_payout_action(&state, &claims, &payout_id, "flagged_to_accountant").await?;
+    Ok(StatusCode::NO_CONTENT)
 }

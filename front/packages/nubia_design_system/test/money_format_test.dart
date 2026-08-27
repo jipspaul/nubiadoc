@@ -39,4 +39,18 @@ void main() {
       );
     });
   });
+
+  group('NubiaMoney.formatCents (#5123)', () {
+    test('groupe les milliers et affiche toujours deux décimales', () {
+      expect(NubiaMoney.formatCents(124567), '1 245,67 €');
+    });
+
+    test('affiche les décimales même nulles', () {
+      expect(NubiaMoney.formatCents(14850), '148,50 €');
+    });
+
+    test('affiche « 0,00 € » pour un montant nul', () {
+      expect(NubiaMoney.formatCents(0), '0,00 €');
+    });
+  });
 }

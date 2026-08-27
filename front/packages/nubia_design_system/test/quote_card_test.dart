@@ -56,6 +56,24 @@ void main() {
       expect(find.text('Signé'), findsOneWidget);
     });
 
+    testWidgets('statut annulé affiche « Annulé » (jamais « Refusé »,'
+        ' #5093)', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const QuoteCard(
+            title: 'Devis',
+            status: QuoteCardStatus.cancelled,
+            lines: _lines,
+          ),
+        ),
+      );
+
+      expect(find.text('Annulé'), findsOneWidget);
+      expect(find.text('Refusé'), findsNothing);
+      final pill = tester.widget<StatusPill>(find.byType(StatusPill));
+      expect(pill.variant, StatusPillVariant.neutral);
+    });
+
     testWidgets('affiche la sous-ligne detail quand fournie (#4063)',
         (tester) async {
       await tester.pumpWidget(

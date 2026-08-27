@@ -92,6 +92,14 @@ void main() {
       );
     });
 
+    test('veille → "Hier"', () {
+      final now = DateTime(2026, 8, 17, 14, 30);
+      expect(
+        NubiaDate.daySeparatorLabel(DateTime(2026, 8, 16, 22, 0), now: now),
+        'Hier',
+      );
+    });
+
     test('jour antérieur → "<jour de semaine> <jour> <mois>"', () {
       final now = DateTime(2026, 8, 17, 14, 30);
       // 2026-07-21 est un mardi.
@@ -163,6 +171,25 @@ void main() {
       final local = utc.toLocal();
       expect(
         NubiaDate.timeOnly(utc),
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}',
+      );
+    });
+  });
+
+  group('NubiaDate.dayMonthTime', () {
+    test('formate jj/MM HH:mm', () {
+      expect(NubiaDate.dayMonthTime(DateTime(2026, 8, 26, 14, 30)), '26/08 14:30');
+      expect(NubiaDate.dayMonthTime(DateTime(2026, 1, 2, 8, 5)), '02/01 08:05');
+    });
+
+    test('convertit en heure locale avant formatage (bug #3856)', () {
+      final utc = DateTime.utc(2026, 8, 16, 23, 30);
+      final local = utc.toLocal();
+      expect(
+        NubiaDate.dayMonthTime(utc),
+        '${local.day.toString().padLeft(2, '0')}/'
+        '${local.month.toString().padLeft(2, '0')} '
         '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}',
       );

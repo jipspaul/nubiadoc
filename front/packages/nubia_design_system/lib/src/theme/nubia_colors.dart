@@ -28,9 +28,15 @@ class NubiaColors {
   static const n900 = Color(0xFF1C1917);
 
   // Accent premium (sable) — rare
+  static const sand50 = Color(0xFFF9F4EA);
   static const sand100 = Color(0xFFF3EAD7);
   static const sand500 = Color(0xFFB0894F);
   static const sand700 = Color(0xFF876435);
+
+  // Rôle praticien (badge messagerie interne #5125) — violet, distinct de
+  // la marque émeraude, réservé à cet usage sémantique.
+  static const roleViolet100 = Color(0xFFEDE9FE);
+  static const roleViolet700 = Color(0xFF6D28D9);
 
   // Sémantiques (fg/bg clair puis sombre)
   static const successFg = Color(0xFF15803D);

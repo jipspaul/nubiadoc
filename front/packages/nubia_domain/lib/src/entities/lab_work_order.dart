@@ -5,7 +5,10 @@ import 'package:equatable/equatable.dart';
 class LabWorkOrder extends Equatable {
   final String id;
   final String patientId;
+  final String patientDisplayName;
   final String? quoteItemId;
+  final String toothFdi;
+  final String workNature;
   final String? appointmentId;
   final String labName;
   final int purchasePriceCents;
@@ -16,7 +19,10 @@ class LabWorkOrder extends Equatable {
   const LabWorkOrder({
     required this.id,
     required this.patientId,
+    required this.patientDisplayName,
     this.quoteItemId,
+    required this.toothFdi,
+    required this.workNature,
     this.appointmentId,
     required this.labName,
     required this.purchasePriceCents,
@@ -28,7 +34,10 @@ class LabWorkOrder extends Equatable {
   LabWorkOrder copyWith({String? status}) => LabWorkOrder(
         id: id,
         patientId: patientId,
+        patientDisplayName: patientDisplayName,
         quoteItemId: quoteItemId,
+        toothFdi: toothFdi,
+        workNature: workNature,
         appointmentId: appointmentId,
         labName: labName,
         purchasePriceCents: purchasePriceCents,
