@@ -561,11 +561,6 @@ List<CabinetTeamMessage> _filterMessages(
       .toList();
 }
 
-String _pad2(int n) => n.toString().padLeft(2, '0');
-
-String _formatTimestamp(DateTime d) =>
-    '${_pad2(d.day)}/${_pad2(d.month)} ${_pad2(d.hour)}:${_pad2(d.minute)}';
-
 /// Badge rôle de l'auteur (#5125) : teinte violette pour un praticien,
 /// neutre pour le staff (secrétaire/assistante) — libellé verbatim maquette.
 bool _isPractitionerRole(String role) => role.startsWith('Praticien');
@@ -742,7 +737,7 @@ class _MessageGroupItem extends StatelessWidget {
                       ],
                       const SizedBox(width: 8),
                       Text(
-                        _formatTimestamp(message.createdAt),
+                        NubiaDate.dayMonthTime(message.createdAt),
                         style:
                             Theme.of(context).textTheme.bodySmall?.copyWith(
                                   color: Theme.of(context)

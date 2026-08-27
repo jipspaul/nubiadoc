@@ -159,4 +159,40 @@ void main() {
       );
     });
   });
+
+  group('NubiaDate.timeOnly', () {
+    test('formate HH:mm avec zéros de tête', () {
+      expect(NubiaDate.timeOnly(DateTime(2026, 8, 17, 8, 5)), '08:05');
+      expect(NubiaDate.timeOnly(DateTime(2026, 8, 17, 17, 42)), '17:42');
+    });
+
+    test('convertit en heure locale avant formatage (bug UTC #3856)', () {
+      final utc = DateTime.utc(2026, 8, 16, 23, 30);
+      final local = utc.toLocal();
+      expect(
+        NubiaDate.timeOnly(utc),
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}',
+      );
+    });
+  });
+
+  group('NubiaDate.dayMonthTime', () {
+    test('formate jj/MM HH:mm', () {
+      expect(NubiaDate.dayMonthTime(DateTime(2026, 8, 26, 14, 30)), '26/08 14:30');
+      expect(NubiaDate.dayMonthTime(DateTime(2026, 1, 2, 8, 5)), '02/01 08:05');
+    });
+
+    test('convertit en heure locale avant formatage (bug #3856)', () {
+      final utc = DateTime.utc(2026, 8, 16, 23, 30);
+      final local = utc.toLocal();
+      expect(
+        NubiaDate.dayMonthTime(utc),
+        '${local.day.toString().padLeft(2, '0')}/'
+        '${local.month.toString().padLeft(2, '0')} '
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}',
+      );
+    });
+  });
 }
