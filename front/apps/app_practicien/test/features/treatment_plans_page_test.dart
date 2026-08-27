@@ -217,8 +217,7 @@ void main() {
       expect(find.text('Générer le devis'), findsOneWidget);
     });
 
-    testWidgets('Renommer ouvre le dialogue titre pré-rempli',
-        (tester) async {
+    testWidgets('Renommer ouvre le dialogue titre pré-rempli', (tester) async {
       when(() => listPlans('pat-1')).thenAnswer(
         (_) async => Right([_planWithPhases]),
       );
@@ -226,8 +225,7 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      await tester
-          .tap(find.byKey(const Key('treatment_plan_rename_plan-1')));
+      await tester.tap(find.byKey(const Key('treatment_plan_rename_plan-1')));
       await tester.pumpAndSettle();
 
       expect(
@@ -353,6 +351,70 @@ void main() {
       find.byKey(const Key('plan_footer_warning_plan-1')),
       findsNothing,
     );
+  });
+
+  group('en-tête de panneau détail → nom, statut, date, KPIs (#5017)', () {
+    testWidgets('pill « Créé le » formatée en DD/MM/YYYY', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('treatment_plan_created_at_plan-1')),
+        findsOneWidget,
+      );
+      expect(find.text('Créé le 01/01/2026'), findsOneWidget);
+    });
+
+    testWidgets(
+        'trois KPIs libellés avec montants à 0,00 € '
+        '(agrégats de montants #5013 pas encore livrés)', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final kpis = find.byKey(const Key('treatment_plan_kpis_plan-1'));
+      expect(kpis, findsOneWidget);
+      expect(
+        find.descendant(of: kpis, matching: find.text('TOTAL DU PLAN')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: kpis, matching: find.text('DEVIS SIGNÉ')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: kpis, matching: find.text('RESTE À DEVISER')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('plan_kpi_total')),
+          matching: find.text('0,00 €'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('plan_kpi_signed')),
+          matching: find.text('0,00 €'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('plan_kpi_remaining')),
+          matching: find.text('0,00 €'),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 
   testWidgets('bandeau patient → nom, âge et libellé « Plans de traitement »',
