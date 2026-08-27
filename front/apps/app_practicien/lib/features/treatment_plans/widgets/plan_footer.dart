@@ -8,9 +8,9 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 /// à 0).
 ///
 /// [realizedCents]/[engagedCents]/[remainingToQuoteCents] proviennent des
-/// agrégats de montants du plan (ticket domaine « agrégats de montants »,
-/// #5013, pas encore livré : `TreatmentPlan`/`TreatmentPhase` ne portent
-/// aucun montant pour l'instant, donc l'appelant passe 0 en attendant).
+/// agrégats de montants du plan (`TreatmentPlan.realizedCents`/
+/// `engagedCents`/`remainingToQuoteCents`, ticket domaine « agrégats de
+/// montants », #5013).
 class PlanFooter extends StatelessWidget {
   const PlanFooter({
     super.key,

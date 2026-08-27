@@ -288,14 +288,11 @@ class _PlanCardState extends State<_PlanCard> {
               ],
             ),
             const SizedBox(height: 12),
-            // Agrégats à 0 tant que le ticket domaine « agrégats de
-            // montants » (#5013) n'a pas doté TreatmentPlan de montants
-            // réels (même limitation que PlanFooter ci-dessous).
             PlanKpiRow(
               key: Key('treatment_plan_kpis_${plan.id}'),
-              totalCents: 0,
-              signedCents: 0,
-              remainingToQuoteCents: 0,
+              totalCents: plan.totalCents,
+              signedCents: plan.engagedCents,
+              remainingToQuoteCents: plan.remainingToQuoteCents,
             ),
             const SizedBox(height: 16),
             if (plan.phases.isEmpty)
@@ -316,11 +313,7 @@ class _PlanCardState extends State<_PlanCard> {
                         key: Key('treatment_phase_${phase.id}'),
                         phase: phase,
                         busy: busy,
-                        // Agrégat à 0 tant que le ticket domaine « agrégats
-                        // de montants » (#5013) n'a pas doté TreatmentPhase
-                        // d'un montant réel (même limitation que PlanKpiRow
-                        // et PlanFooter ci-dessus).
-                        amountCents: 0,
+                        amountCents: phase.totalCents,
                         // Liste vide tant que le ticket domaine « actes
                         // rattachés à une phase » n'a pas doté TreatmentPhase
                         // d'une liste d'actes (#5015 : la carte doit rester
@@ -355,15 +348,12 @@ class _PlanCardState extends State<_PlanCard> {
               decoration: const BoxDecoration(
                 border: Border(top: BorderSide(color: NubiaColors.n200)),
               ),
-              // Agrégats à 0 tant que le ticket domaine « agrégats de
-              // montants » (#5013) n'a pas doté TreatmentPlan/TreatmentPhase
-              // de montants réels.
               child: PlanFooter(
                 key: Key('plan_footer_${plan.id}'),
                 warningKey: Key('plan_footer_warning_${plan.id}'),
-                realizedCents: 0,
-                engagedCents: 0,
-                remainingToQuoteCents: 0,
+                realizedCents: plan.realizedCents,
+                engagedCents: plan.engagedCents,
+                remainingToQuoteCents: plan.remainingToQuoteCents,
               ),
             ),
           ],

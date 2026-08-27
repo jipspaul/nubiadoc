@@ -6,9 +6,8 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 /// avant), « Devis signé » et « Reste à deviser ».
 ///
 /// [totalCents]/[signedCents]/[remainingToQuoteCents] proviennent des
-/// agrégats de montants du plan (ticket domaine « agrégats de montants »,
-/// #5013, pas encore livré : `TreatmentPlan` ne porte aucun montant pour
-/// l'instant, donc l'appelant passe 0 en attendant).
+/// agrégats de montants du plan (`TreatmentPlan.totalCents`/`engagedCents`/
+/// `remainingToQuoteCents`, ticket domaine « agrégats de montants », #5013).
 class PlanKpiRow extends StatelessWidget {
   const PlanKpiRow({
     super.key,
