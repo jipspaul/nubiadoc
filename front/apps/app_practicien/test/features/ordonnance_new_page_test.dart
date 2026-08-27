@@ -175,7 +175,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('allergies_banner')), findsOneWidget);
+      expect(find.text('Allergies connues au dossier'), findsOneWidget);
       expect(find.text('Pénicilline'), findsOneWidget);
+      expect(
+        find.textContaining('Affichage informatif'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('hors périmètre dispositif médical (ADR-009 §8.6)'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('patient sans allergie → aucun bandeau affiché (#4076)',
