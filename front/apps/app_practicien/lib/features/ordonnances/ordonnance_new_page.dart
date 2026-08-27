@@ -141,16 +141,19 @@ class _OrdonnanceNewBodyState extends State<OrdonnanceNewBody> {
 
 // ---------------------------------------------------------------------------
 
-/// Une ligne de médicament en cours de saisie (controllers par champ).
+/// Une ligne de médicament en cours de saisie.
 ///
-/// La quantité n'est plus saisie librement (#4992) : elle se dérive de la
-/// posologie (dose + fréquence) et de la durée via [calculatedQuantity].
-/// [quantityOverride] permet de la surcharger via l'action « Modifier »
-/// quand le calcul échoue ou ne convient pas.
+/// Dose, fréquence et durée sont choisies en listes déroulantes (#4991,
+/// maquette design-v2) plutôt que saisies en texte libre. La quantité n'est
+/// pas non plus saisie librement (#4992) : elle se dérive de [dose],
+/// [frequency] et [duration] via [calculatedQuantity]. [quantityOverride]
+/// permet de la surcharger via l'action « Modifier » quand le calcul échoue
+/// ou ne convient pas.
 class _ItemDraft {
   final label = TextEditingController();
-  final posology = TextEditingController();
-  final duration = TextEditingController();
+  String? dose;
+  String? frequency;
+  String? duration;
   final quantityOverride = TextEditingController();
 
   /// Vrai quand l'encart de calcul a été remplacé par la saisie manuelle
@@ -158,8 +161,14 @@ class _ItemDraft {
   /// rebuilds de `_ItemCard` (StatelessWidget reconstruit à chaque `_refresh`).
   bool overridingQuantity = false;
 
+  /// Posologie au format texte libre (« 1 comprimé, 3 fois / jour ») —
+  /// combine [dose] et [frequency] pour rester compatible avec
+  /// `PrescriptionItem.posology` (aperçu du document, calcul de quantité).
+  String get posology =>
+      (dose != null && frequency != null) ? '$dose, $frequency' : '';
+
   CalculatedQuantity? get calculatedQuantity =>
-      computeQuantity(posology.text, duration.text);
+      computeQuantity(posology, duration ?? '');
 
   String? get effectiveQuantity {
     final override = quantityOverride.text.trim();
@@ -169,21 +178,20 @@ class _ItemDraft {
 
   bool get isValid =>
       label.text.trim().isNotEmpty &&
-      posology.text.trim().isNotEmpty &&
-      duration.text.trim().isNotEmpty &&
+      dose != null &&
+      frequency != null &&
+      duration != null &&
       (effectiveQuantity?.isNotEmpty ?? false);
 
   PrescriptionItem toItem() => PrescriptionItem(
         label: label.text.trim(),
-        posology: posology.text.trim(),
-        duration: duration.text.trim(),
+        posology: posology,
+        duration: duration ?? '',
         quantity: effectiveQuantity ?? '',
       );
 
   void dispose() {
     label.dispose();
-    posology.dispose();
-    duration.dispose();
     quantityOverride.dispose();
   }
 }
@@ -568,6 +576,37 @@ class _AllergiesBanner extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+/// Options de dose (#4991, maquette design-v2 `.fields`) — couvre les formes
+/// galéniques les plus courantes (comprimé, sachet, bain de bouche…).
+const _doseOptions = <NubiaSelectItem<String>>[
+  NubiaSelectItem(value: '1 comprimé', label: '1 comprimé'),
+  NubiaSelectItem(value: '2 comprimés', label: '2 comprimés'),
+  NubiaSelectItem(value: '1 sachet', label: '1 sachet'),
+  NubiaSelectItem(value: '1 ampoule', label: '1 ampoule'),
+  NubiaSelectItem(value: '1 dose', label: '1 dose'),
+  NubiaSelectItem(value: '1 application', label: '1 application'),
+  NubiaSelectItem(value: '1 bain de bouche', label: '1 bain de bouche'),
+  NubiaSelectItem(value: '5 ml', label: '5 ml'),
+];
+
+/// Options de fréquence quotidienne (#4991).
+const _frequencyOptions = <NubiaSelectItem<String>>[
+  NubiaSelectItem(value: '1 fois / jour', label: '1 fois / jour'),
+  NubiaSelectItem(value: '2 fois / jour', label: '2 fois / jour'),
+  NubiaSelectItem(value: '3 fois / jour', label: '3 fois / jour'),
+  NubiaSelectItem(value: '4 fois / jour', label: '4 fois / jour'),
+];
+
+/// Options de durée de traitement (#4991).
+const _durationOptions = <NubiaSelectItem<String>>[
+  NubiaSelectItem(value: '3 jours', label: '3 jours'),
+  NubiaSelectItem(value: '5 jours', label: '5 jours'),
+  NubiaSelectItem(value: '7 jours', label: '7 jours'),
+  NubiaSelectItem(value: '10 jours', label: '10 jours'),
+  NubiaSelectItem(value: '14 jours', label: '14 jours'),
+  NubiaSelectItem(value: '1 mois', label: '1 mois'),
+];
+
 class _ItemCard extends StatelessWidget {
   const _ItemCard({
     required this.index,
@@ -611,20 +650,48 @@ class _ItemCard extends StatelessWidget {
             onChanged: (_) => onChanged(),
           ),
           const SizedBox(height: 12),
-          NubiaTextField(
-            key: Key('item_${index}_posology'),
-            controller: draft.posology,
-            label: 'Posologie',
-            hint: 'ex. 1 comprimé matin et soir',
-            onChanged: (_) => onChanged(),
-          ),
-          const SizedBox(height: 12),
-          NubiaTextField(
-            key: Key('item_${index}_duration'),
-            controller: draft.duration,
-            label: 'Durée',
-            hint: 'ex. 7 jours',
-            onChanged: (_) => onChanged(),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: NubiaSelect<String>(
+                  key: Key('item_${index}_posology'),
+                  items: _doseOptions,
+                  value: draft.dose,
+                  label: 'Dose',
+                  onChanged: (v) {
+                    draft.dose = v;
+                    onChanged();
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: NubiaSelect<String>(
+                  key: Key('item_${index}_frequency'),
+                  items: _frequencyOptions,
+                  value: draft.frequency,
+                  label: 'Fréquence',
+                  onChanged: (v) {
+                    draft.frequency = v;
+                    onChanged();
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: NubiaSelect<String>(
+                  key: Key('item_${index}_duration'),
+                  items: _durationOptions,
+                  value: draft.duration,
+                  label: 'Durée',
+                  onChanged: (v) {
+                    draft.duration = v;
+                    onChanged();
+                  },
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           _QuantityCalc(index: index, draft: draft, onChanged: onChanged),
