@@ -51,6 +51,33 @@ final _planWithPhases = TreatmentPlan(
   ],
 );
 
+final _planWithProgress = TreatmentPlan(
+  id: 'plan-progress',
+  title: 'Réhabilitation secteur 2',
+  status: 'in_progress',
+  createdAt: DateTime(2026, 1, 1),
+  phases: const [
+    TreatmentPhase(
+      id: 'phase-progress-1',
+      position: 1,
+      title: 'Phase 1',
+      status: 'done',
+    ),
+    TreatmentPhase(
+      id: 'phase-progress-2',
+      position: 2,
+      title: 'Phase 2',
+      status: 'in_progress',
+    ),
+    TreatmentPhase(
+      id: 'phase-progress-3',
+      position: 3,
+      title: 'Phase 3',
+      status: 'requested',
+    ),
+  ],
+);
+
 final _planNoPhases = TreatmentPlan(
   id: 'plan-2',
   title: 'Plan couronne',
@@ -132,6 +159,66 @@ void main() {
     expect(
       find.byKey(const Key('treatment_plan_no_phases_plan-2')),
       findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'entrée de plan → pill statut, nombre de phases, barre segmentée et '
+      'total affichés (#5011)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithProgress]),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('treatment_plan_plan-progress')),
+        matching: find.byKey(const Key('treatment_plan_phase_count_plan-progress')),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('3 phases'), findsOneWidget);
+    expect(find.text('1 phase sur 3 terminée'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const Key('treatment_plan_total_plan-progress')),
+          )
+          .data,
+      '0,00 €',
+    );
+
+    final barFinder =
+        find.byKey(const Key('treatment_plan_progress_bar_plan-progress'));
+    expect(barFinder, findsOneWidget);
+    final segments = tester
+        .widget<Row>(find.descendant(of: barFinder, matching: find.byType(Row)))
+        .children
+        .whereType<Expanded>()
+        .toList();
+    expect(segments, hasLength(3));
+    Color colorOf(Expanded segment) =>
+        ((segment.child as Container).decoration! as BoxDecoration)
+            .color as Color;
+    expect(colorOf(segments[0]), NubiaColors.brand600);
+    expect(colorOf(segments[1]), NubiaColors.n200);
+    expect(colorOf(segments[2]), NubiaColors.n200);
+  });
+
+  testWidgets(
+      'plan sans phase → pas de résumé d\'avancement (#5011)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planNoPhases]),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('treatment_plan_progress_bar_plan-2')),
+      findsNothing,
     );
   });
 
