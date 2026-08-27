@@ -142,31 +142,107 @@ class _OrdonnanceNewBodyState extends State<OrdonnanceNewBody> {
 // ---------------------------------------------------------------------------
 
 /// Une ligne de médicament en cours de saisie (controllers par champ).
+///
+/// La quantité n'est plus saisie librement (#4992) : elle se dérive de la
+/// posologie (dose + fréquence) et de la durée via [calculatedQuantity].
+/// [quantityOverride] permet de la surcharger via l'action « Modifier »
+/// quand le calcul échoue ou ne convient pas.
 class _ItemDraft {
   final label = TextEditingController();
   final posology = TextEditingController();
   final duration = TextEditingController();
-  final quantity = TextEditingController();
+  final quantityOverride = TextEditingController();
+
+  /// Vrai quand l'encart de calcul a été remplacé par la saisie manuelle
+  /// (tap sur « Modifier ») — état UI porté par le draft pour survivre aux
+  /// rebuilds de `_ItemCard` (StatelessWidget reconstruit à chaque `_refresh`).
+  bool overridingQuantity = false;
+
+  CalculatedQuantity? get calculatedQuantity =>
+      computeQuantity(posology.text, duration.text);
+
+  String? get effectiveQuantity {
+    final override = quantityOverride.text.trim();
+    if (override.isNotEmpty) return override;
+    return calculatedQuantity?.label;
+  }
 
   bool get isValid =>
       label.text.trim().isNotEmpty &&
       posology.text.trim().isNotEmpty &&
       duration.text.trim().isNotEmpty &&
-      quantity.text.trim().isNotEmpty;
+      (effectiveQuantity?.isNotEmpty ?? false);
 
   PrescriptionItem toItem() => PrescriptionItem(
         label: label.text.trim(),
         posology: posology.text.trim(),
         duration: duration.text.trim(),
-        quantity: quantity.text.trim(),
+        quantity: effectiveQuantity ?? '',
       );
 
   void dispose() {
     label.dispose();
     posology.dispose();
     duration.dispose();
-    quantity.dispose();
+    quantityOverride.dispose();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Calcul de quantité (#4992) — dose × fréquence × durée.
+// ---------------------------------------------------------------------------
+
+/// Quantité dérivée de la posologie et de la durée (ex. « 15 comprimés »).
+class CalculatedQuantity {
+  const CalculatedQuantity({required this.count, required this.unit});
+
+  final int count;
+  final String unit;
+
+  String get label => '$count $unit';
+}
+
+final _leadingNumber = RegExp(r'(\d+)');
+final _explicitFrequency =
+    RegExp(r'(\d+)\s*(?:fois|x)\s*(?:/|par)\s*jour', caseSensitive: false);
+final _firstUnitWord = RegExp(r'\d+\s*([A-Za-zÀ-ÿ]+)');
+
+/// Dérive dose × fréquence × durée à partir du texte libre de posologie
+/// (« 1 comprimé, 3 fois par jour », « 1 comprimé matin et soir »…) et de
+/// durée (« 5 jours »). Retourne `null` si l'un des trois facteurs ne peut
+/// pas être extrait — la ligne reste alors invalide tant que la posologie et
+/// la durée ne le permettent pas (ou que la quantité n'est pas surchargée).
+CalculatedQuantity? computeQuantity(String posology, String duration) {
+  final trimmedPosology = posology.trim();
+  final doseMatch = _leadingNumber.firstMatch(trimmedPosology);
+  if (doseMatch == null) return null;
+  final dose = int.parse(doseMatch.group(1)!);
+
+  final frequency = _frequencyFrom(trimmedPosology);
+  if (frequency == null) return null;
+
+  final durationMatch = _leadingNumber.firstMatch(duration.trim());
+  if (durationMatch == null) return null;
+  final days = int.parse(durationMatch.group(1)!);
+
+  final count = dose * frequency * days;
+  return CalculatedQuantity(count: count, unit: _unitFrom(trimmedPosology, count));
+}
+
+int? _frequencyFrom(String posology) {
+  final explicit = _explicitFrequency.firstMatch(posology);
+  if (explicit != null) return int.parse(explicit.group(1)!);
+  final lower = posology.toLowerCase();
+  final moments =
+      ['matin', 'midi', 'soir'].where((moment) => lower.contains(moment)).length;
+  return moments > 0 ? moments : null;
+}
+
+String _unitFrom(String posology, int count) {
+  final match = _firstUnitWord.firstMatch(posology);
+  var unit = match?.group(1)?.trim() ?? 'unité';
+  if (count > 1 && !unit.endsWith('s')) unit = '${unit}s';
+  return unit;
 }
 
 class _PrescriptionForm extends StatefulWidget {
@@ -543,28 +619,88 @@ class _ItemCard extends StatelessWidget {
             onChanged: (_) => onChanged(),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: NubiaTextField(
-                  key: Key('item_${index}_duration'),
-                  controller: draft.duration,
-                  label: 'Durée',
-                  hint: 'ex. 7 jours',
-                  onChanged: (_) => onChanged(),
-                ),
+          NubiaTextField(
+            key: Key('item_${index}_duration'),
+            controller: draft.duration,
+            label: 'Durée',
+            hint: 'ex. 7 jours',
+            onChanged: (_) => onChanged(),
+          ),
+          const SizedBox(height: 12),
+          _QuantityCalc(index: index, draft: draft, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Encart de quantité calculée (#4992, maquette design-v2 `.calc`) : remplace
+/// le champ libre « Quantité » par dose × fréquence × durée, avec une action
+/// « Modifier » pour surcharger manuellement quand le calcul échoue ou ne
+/// convient pas.
+class _QuantityCalc extends StatelessWidget {
+  const _QuantityCalc({
+    required this.index,
+    required this.draft,
+    required this.onChanged,
+  });
+
+  final int index;
+  final _ItemDraft draft;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (draft.overridingQuantity) {
+      return NubiaTextField(
+        key: Key('item_${index}_quantity'),
+        controller: draft.quantityOverride,
+        label: 'Quantité',
+        hint: 'ex. 1 boîte',
+        onChanged: (_) => onChanged(),
+      );
+    }
+
+    final calculated = draft.calculatedQuantity;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      key: Key('item_${index}_quantity_calc'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: NubiaColors.brand50,
+        border: Border.all(color: NubiaColors.brand200),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.calculate_outlined,
+              size: 20, color: NubiaColors.brand700),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              calculated != null
+                  ? 'Quantité calculée : ${calculated.label}'
+                  : 'Quantité calculée : renseignez la posologie et la '
+                      'durée pour la calculer.',
+              style: textTheme.bodyMedium?.copyWith(
+                color: NubiaColors.brand700,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: NubiaTextField(
-                  key: Key('item_${index}_quantity'),
-                  controller: draft.quantity,
-                  label: 'Quantité',
-                  hint: 'ex. 1 boîte',
-                  onChanged: (_) => onChanged(),
-                ),
-              ),
-            ],
+            ),
+          ),
+          NubiaButton(
+            key: Key('item_${index}_quantity_modify'),
+            label: 'Modifier',
+            variant: NubiaButtonVariant.tertiary,
+            size: NubiaButtonSize.sm,
+            onPressed: () {
+              draft.quantityOverride.text = calculated?.label ?? '';
+              draft.overridingQuantity = true;
+              onChanged();
+            },
           ),
         ],
       ),
