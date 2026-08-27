@@ -13,6 +13,7 @@ import '../consultation_clinique/ccam_picker.dart';
 import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
 import 'widgets/patient_header_bar.dart';
+import 'widgets/phase_acts_list.dart';
 import 'widgets/phase_quote_banner.dart';
 import 'widgets/phase_timeline.dart';
 import 'widgets/plan_footer.dart';
@@ -320,6 +321,11 @@ class _PlanCardState extends State<_PlanCard> {
                         // d'un montant réel (même limitation que PlanKpiRow
                         // et PlanFooter ci-dessus).
                         amountCents: 0,
+                        // Liste vide tant que le ticket domaine « actes
+                        // rattachés à une phase » n'a pas doté TreatmentPhase
+                        // d'une liste d'actes (#5015 : la carte doit rester
+                        // valide sans lignes d'actes en attendant).
+                        acts: const [],
                         onAddAct: () => _openAddAct(context, phase),
                         onOpenQuote: () => context.push(AppRouter.devis),
                         onGenerateQuote: () => context.push(AppRouter.devis),
@@ -376,6 +382,7 @@ class _PhaseCard extends StatelessWidget {
     required this.phase,
     required this.busy,
     required this.amountCents,
+    required this.acts,
     required this.onAddAct,
     required this.onOpenQuote,
     required this.onGenerateQuote,
@@ -384,6 +391,7 @@ class _PhaseCard extends StatelessWidget {
   final TreatmentPhase phase;
   final bool busy;
   final int amountCents;
+  final List<PhaseActRow> acts;
   final VoidCallback onAddAct;
   final VoidCallback onOpenQuote;
   final VoidCallback onGenerateQuote;
@@ -416,10 +424,12 @@ class _PhaseCard extends StatelessWidget {
               ),
             ],
           ),
+          // Liste des actes de la phase (#5015, maquette design-v2 point 2,
+          // `.act`) : une ligne par acte sous l'en-tête de la carte. Rien
+          // n'est rendu si `acts` est vide.
+          PhaseActsList(acts: acts),
           // Phase active (#5023) : affordance d'ajout d'acte sous la
-          // liste des actes de la phase. Le rendu des actes eux-mêmes
-          // (ticket dédié « rendu des actes ») n'existe pas encore, donc
-          // l'affordance suit directement l'en-tête de la carte.
+          // liste des actes de la phase.
           if (phase.status == 'in_progress')
             _AddActAffordance(
               key: Key('treatment_phase_add_act_${phase.id}'),
