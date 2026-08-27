@@ -582,6 +582,137 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Panneau « Rythme de la salle » (#5038)
+  // ---------------------------------------------------------------------------
+
+  group('Rythme de la salle (widget, #5038)', () {
+    final entries = [
+      WaitingRoomEntry(
+        id: 'wr-1',
+        cabinetId: 'cab-1',
+        patientId: 'pat-1',
+        patientName: 'Camille Moreau',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 32)),
+      ),
+      WaitingRoomEntry(
+        id: 'wr-2',
+        cabinetId: 'cab-1',
+        patientId: 'pat-2',
+        patientName: 'Théo Girard',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 18)),
+      ),
+      WaitingRoomEntry(
+        id: 'wr-3',
+        cabinetId: 'cab-1',
+        patientId: 'pat-3',
+        patientName: 'Léa Bernard',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 3)),
+      ),
+      WaitingRoomEntry(
+        id: 'wr-4',
+        cabinetId: 'cab-1',
+        patientId: 'pat-4',
+        patientName: 'Sophie Roux',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 11)),
+      ),
+      WaitingRoomEntry(
+        id: 'wr-5',
+        cabinetId: 'cab-1',
+        patientId: 'pat-5',
+        patientName: 'Yanis Diallo',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 6)),
+      ),
+    ];
+
+    testWidgets(
+        'affiche l\'attente moyenne et l\'attente la plus longue avec le nom '
+        'du patient', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('room_pace_panel')), findsOneWidget);
+      expect(find.text('Rythme de la salle'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_average')),
+          matching: find.text('Attente moyenne'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_average')),
+          matching: find.text('sur les 5 présents'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_average')),
+          matching: find.text('14 min'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_longest')),
+          matching: find.text('Attente la plus longue'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_longest')),
+          matching: find.text('Camille Moreau'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_longest')),
+          matching: find.text('32 min'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('la valeur de l\'attente la plus longue est en couleur '
+        'warning', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+      final longestValue = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_longest')),
+          matching: find.text('32 min'),
+        ),
+      );
+      expect(longestValue.style?.color, tokens.warningFg);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Rechargement en échec — erreur inline non bloquante
   // ---------------------------------------------------------------------------
 
