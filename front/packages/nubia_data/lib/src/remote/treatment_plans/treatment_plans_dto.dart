@@ -1,31 +1,67 @@
 import 'package:nubia_domain/src/entities/treatment_plan.dart';
 
+/// Parsing tolérant : `quote_number`/`number` absent → référence ignorée
+/// (la phase est traitée comme non couverte par `TreatmentPhaseDto`).
+class TreatmentPhaseQuoteRefDto {
+  final String quoteNumber;
+  final String? signedAt;
+  final bool depositPaid;
+
+  const TreatmentPhaseQuoteRefDto({
+    required this.quoteNumber,
+    this.signedAt,
+    this.depositPaid = false,
+  });
+
+  factory TreatmentPhaseQuoteRefDto.fromJson(Map<String, dynamic> json) =>
+      TreatmentPhaseQuoteRefDto(
+        quoteNumber:
+            json['quote_number'] as String? ?? json['number'] as String? ?? '',
+        signedAt: json['signed_at'] as String?,
+        depositPaid: json['deposit_paid'] as bool? ?? false,
+      );
+
+  TreatmentPhaseQuoteRef toDomain() => TreatmentPhaseQuoteRef(
+        quoteNumber: quoteNumber,
+        signedAt: signedAt != null ? DateTime.parse(signedAt!) : null,
+        depositPaid: depositPaid,
+      );
+}
+
 class TreatmentPhaseDto {
   final String id;
   final int position;
   final String title;
   final String status;
+  final TreatmentPhaseQuoteRefDto? quoteRef;
 
   const TreatmentPhaseDto({
     required this.id,
     required this.position,
     required this.title,
     required this.status,
+    this.quoteRef,
   });
 
-  factory TreatmentPhaseDto.fromJson(Map<String, dynamic> json) =>
-      TreatmentPhaseDto(
-        id: json['id'] as String,
-        position: json['position'] as int,
-        title: json['title'] as String,
-        status: json['status'] as String,
-      );
+  factory TreatmentPhaseDto.fromJson(Map<String, dynamic> json) {
+    final rawQuoteRef = (json['quote'] ?? json['quote_ref']);
+    return TreatmentPhaseDto(
+      id: json['id'] as String,
+      position: json['position'] as int,
+      title: json['title'] as String,
+      status: json['status'] as String,
+      quoteRef: rawQuoteRef is Map<String, dynamic>
+          ? TreatmentPhaseQuoteRefDto.fromJson(rawQuoteRef)
+          : null,
+    );
+  }
 
   TreatmentPhase toDomain() => TreatmentPhase(
         id: id,
         position: position,
         title: title,
         status: status,
+        quoteRef: quoteRef?.toDomain(),
       );
 }
 
