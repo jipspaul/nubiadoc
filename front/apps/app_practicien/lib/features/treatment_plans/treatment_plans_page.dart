@@ -680,8 +680,26 @@ class _PlanProgressSummary extends StatelessWidget {
   }
 }
 
+/// Libellés/couleurs du statut de phase (#5006, maquette design-v2 point 1)
+/// — vocabulaire `PHASE_STATUS_ORDER` côté API (`requested`/`confirmed`/
+/// `in_progress`/`done`), formulé côté praticien (distinct du libellé
+/// patient de `treatment_plan_detail_page.dart`).
+const _phaseStatusLabels = {
+  'requested': 'Planifiée',
+  'confirmed': 'Confirmée',
+  'in_progress': 'En cours',
+  'done': 'Terminée',
+};
+
+const _phaseStatusVariants = {
+  'requested': StatusPillVariant.neutral,
+  'confirmed': StatusPillVariant.info,
+  'in_progress': StatusPillVariant.warning,
+  'done': StatusPillVariant.success,
+};
+
 /// Carte `.bd` d'une phase (#5021, maquette design-v2 `.ph`) — en-tête
-/// (titre + statut) et, pour la phase active, l'affordance d'ajout d'acte
+/// (statut + titre) et, pour la phase active, l'affordance d'ajout d'acte
 /// sous la carte. Affichée à droite du rail vertical par [PhaseTimeline].
 class _PhaseCard extends StatelessWidget {
   const _PhaseCard({
@@ -712,13 +730,15 @@ class _PhaseCard extends StatelessWidget {
         children: [
           Row(
             children: [
+              StatusPill(
+                key: Key('treatment_phase_status_${phase.id}'),
+                label: _phaseStatusLabels[phase.status] ?? phase.status,
+                variant: _phaseStatusVariants[phase.status] ??
+                    StatusPillVariant.neutral,
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(phase.title, style: textTheme.bodyMedium),
-              ),
-              StatusPill(
-                label: treatmentPlanStatusLabels[phase.status] ?? phase.status,
-                variant: treatmentPlanStatusVariants[phase.status] ??
-                    StatusPillVariant.info,
               ),
               const SizedBox(width: 8),
               Text(
