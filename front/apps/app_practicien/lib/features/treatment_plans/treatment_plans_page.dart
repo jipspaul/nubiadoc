@@ -136,31 +136,39 @@ class _PlansList extends StatelessWidget {
   }
 }
 
-class _PlanCard extends StatelessWidget {
+class _PlanCard extends StatefulWidget {
   const _PlanCard({required this.plan, required this.busy});
 
   final TreatmentPlan plan;
   final bool busy;
 
-  Future<void> _promptNewPhase(BuildContext context) async {
-    final cubit = context.read<TreatmentPlansCubit>();
-    final title = await showDialog<String>(
-      context: context,
-      builder: (_) => _TitlePromptDialog(
-        dialogKey: Key('treatment_phase_create_dialog_${plan.id}'),
-        fieldKey: Key('treatment_phase_title_field_${plan.id}'),
-        submitKey: Key('treatment_phase_create_submit_${plan.id}'),
-        dialogTitle: 'Nouvelle phase',
-        fieldLabel: 'Titre de la phase',
-      ),
-    );
-    if (title != null && title.isNotEmpty) {
-      final nextPosition = plan.phases.isEmpty
-          ? 1
-          : plan.phases.map((p) => p.position).reduce((a, b) => a > b ? a : b) +
-              1;
-      await cubit.createPhase(plan.id, title, nextPosition);
-    }
+  @override
+  State<_PlanCard> createState() => _PlanCardState();
+}
+
+class _PlanCardState extends State<_PlanCard> {
+  final _newPhaseTitleController = TextEditingController();
+  bool _composingPhase = false;
+
+  @override
+  void dispose() {
+    _newPhaseTitleController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitNewPhase(BuildContext context) async {
+    final title = _newPhaseTitleController.text.trim();
+    if (title.isEmpty) return;
+    final plan = widget.plan;
+    final nextPosition = plan.phases.isEmpty
+        ? 1
+        : plan.phases.map((p) => p.position).reduce((a, b) => a > b ? a : b) +
+            1;
+    await context.read<TreatmentPlansCubit>().createPhase(
+          plan.id,
+          title,
+          nextPosition,
+        );
   }
 
   /// Ouvre la sélection d'acte CCAM (réutilise [CcamPicker], #5023). Aucun
@@ -194,6 +202,8 @@ class _PlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final plan = widget.plan;
+    final busy = widget.busy;
     final textTheme = Theme.of(context).textTheme;
     return Card(
       key: Key('treatment_plan_${plan.id}'),
@@ -255,14 +265,22 @@ class _PlanCard extends StatelessWidget {
                   ),
               ],
             const SizedBox(height: 8),
-            NubiaButton(
-              key: Key('treatment_plan_add_phase_${plan.id}'),
-              variant: NubiaButtonVariant.secondary,
-              size: NubiaButtonSize.sm,
-              icon: Icons.add,
-              label: 'Ajouter une phase',
-              onPressed: busy ? null : () => _promptNewPhase(context),
-            ),
+            if (_composingPhase)
+              _NewPhaseComposer(
+                fieldKey: Key('treatment_phase_title_field_${plan.id}'),
+                submitKey: Key('treatment_phase_create_submit_${plan.id}'),
+                controller: _newPhaseTitleController,
+                busy: busy,
+                onSubmit: () => _submitNewPhase(context),
+                onCancel: () => setState(() => _composingPhase = false),
+              )
+            else
+              _NewPhaseEntry(
+                key: Key('treatment_plan_add_phase_${plan.id}'),
+                onTap: busy
+                    ? null
+                    : () => setState(() => _composingPhase = true),
+              ),
           ],
         ),
       ),
@@ -322,6 +340,108 @@ class _TitlePromptDialogState extends State<_TitlePromptDialog> {
           icon: Icons.check,
           label: 'Créer',
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+        ),
+      ],
+    );
+  }
+}
+
+/// Entrée « Ajouter une phase » (maquette design-v2 `.newph`) : séparateur
+/// pointillé, icône `add`, libellé gris `n500`, au bas de la chronologie des
+/// phases. Composition en place au tap (#5022) — plus d'`AlertDialog`.
+class _NewPhaseEntry extends StatelessWidget {
+  const _NewPhaseEntry({super.key, required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 1,
+          child: CustomPaint(
+            painter: _DashedLinePainter(color: tokens.borderDefault),
+          ),
+        ),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.add, size: 18, color: NubiaColors.n500),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Ajouter une phase',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: NubiaColors.n500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Composition en place d'une nouvelle phase (#5022, maquette design-v2
+/// `.newph`) : remplace [_NewPhaseEntry] au tap — champ de titre + validation,
+/// sans quitter le contexte du plan (pas d'`AlertDialog`).
+class _NewPhaseComposer extends StatelessWidget {
+  const _NewPhaseComposer({
+    required this.fieldKey,
+    required this.submitKey,
+    required this.controller,
+    required this.busy,
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  final Key fieldKey;
+  final Key submitKey;
+  final TextEditingController controller;
+  final bool busy;
+  final VoidCallback onSubmit;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: NubiaTextField(
+            key: fieldKey,
+            variant: NubiaTextFieldVariant.outlined,
+            controller: controller,
+            label: 'Titre de la phase',
+            enabled: !busy,
+            onSubmitted: busy ? null : (_) => onSubmit(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        NubiaButton(
+          key: submitKey,
+          size: NubiaButtonSize.sm,
+          icon: Icons.check,
+          label: 'Créer',
+          onPressed: busy ? null : onSubmit,
+        ),
+        const SizedBox(width: 4),
+        NubiaButton(
+          variant: NubiaButtonVariant.tertiary,
+          size: NubiaButtonSize.sm,
+          label: 'Annuler',
+          onPressed: busy ? null : onCancel,
         ),
       ],
     );
