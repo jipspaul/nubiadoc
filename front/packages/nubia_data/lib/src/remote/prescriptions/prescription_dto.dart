@@ -1,9 +1,55 @@
+import 'package:nubia_domain/src/entities/medication_reference.dart';
 import 'package:nubia_domain/src/entities/prescription.dart';
 import 'package:nubia_domain/src/entities/prescription_template.dart';
+
+class MedicationReferenceDto {
+  final String id;
+  final String dci;
+  final String galenicForm;
+  final String therapeuticClass;
+
+  const MedicationReferenceDto({
+    required this.id,
+    required this.dci,
+    required this.galenicForm,
+    required this.therapeuticClass,
+  });
+
+  factory MedicationReferenceDto.fromJson(Map<String, dynamic> json) =>
+      MedicationReferenceDto(
+        id: json['id'] as String,
+        dci: json['dci'] as String,
+        galenicForm: json['galenic_form'] as String? ?? '',
+        therapeuticClass: json['therapeutic_class'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'dci': dci,
+        'galenic_form': galenicForm,
+        'therapeutic_class': therapeuticClass,
+      };
+
+  MedicationReference toDomain() => MedicationReference(
+        id: id,
+        dci: dci,
+        galenicForm: galenicForm,
+        therapeuticClass: therapeuticClass,
+      );
+
+  static MedicationReferenceDto fromDomain(MedicationReference ref) =>
+      MedicationReferenceDto(
+        id: ref.id,
+        dci: ref.dci,
+        galenicForm: ref.galenicForm,
+        therapeuticClass: ref.therapeuticClass,
+      );
+}
 
 class PrescriptionItemDto {
   final String label;
   final String? form;
+  final MedicationReferenceDto? productReference;
   final String posology;
   final String duration;
   final String quantity;
@@ -13,6 +59,7 @@ class PrescriptionItemDto {
   const PrescriptionItemDto({
     required this.label,
     this.form,
+    this.productReference,
     required this.posology,
     required this.duration,
     required this.quantity,
@@ -20,10 +67,16 @@ class PrescriptionItemDto {
     this.nonRenouvelable = false,
   });
 
+  /// `product_reference` est absent des lignes historiques : rétro-
+  /// compatibilité DTO, on retombe sur `null` (texte libre uniquement).
   factory PrescriptionItemDto.fromJson(Map<String, dynamic> json) =>
       PrescriptionItemDto(
         label: json['label'] as String,
         form: json['form'] as String?,
+        productReference: json['product_reference'] != null
+            ? MedicationReferenceDto.fromJson(
+                json['product_reference'] as Map<String, dynamic>)
+            : null,
         posology: json['posology'] as String,
         duration: json['duration'] as String,
         quantity: json['quantity'] as String? ?? '',
@@ -34,6 +87,8 @@ class PrescriptionItemDto {
   Map<String, dynamic> toJson() => {
         'label': label,
         if (form != null) 'form': form,
+        if (productReference != null)
+          'product_reference': productReference!.toJson(),
         'posology': posology,
         'duration': duration,
         'quantity': quantity,
@@ -45,6 +100,7 @@ class PrescriptionItemDto {
   PrescriptionItem toDomain() => PrescriptionItem(
         label: label,
         form: form,
+        productReference: productReference?.toDomain(),
         posology: posology,
         duration: duration,
         quantity: quantity,
@@ -56,6 +112,9 @@ class PrescriptionItemDto {
       PrescriptionItemDto(
         label: item.label,
         form: item.form,
+        productReference: item.productReference != null
+            ? MedicationReferenceDto.fromDomain(item.productReference!)
+            : null,
         posology: item.posology,
         duration: item.duration,
         quantity: item.quantity,
