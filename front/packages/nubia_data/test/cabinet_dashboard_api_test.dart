@@ -51,6 +51,9 @@ void main() {
           );
           return fakeResponse(List.filled(11, <String, dynamic>{}));
         }
+        if (params?['status'] == 'no_show') {
+          return fakeResponse(List.filled(2, <String, dynamic>{}));
+        }
         // Appel "RDV du jour" (results[0]).
         return fakeResponse(List.filled(43, <String, dynamic>{}));
       });
@@ -66,6 +69,17 @@ void main() {
           queryParameters: null,
         ),
       ).thenAnswer((_) async => fakeResponse(const []));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/stats/activity',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse([
+          {'act_count': 5, 'total_amount_cents': 12000},
+          {'act_count': 3, 'total_amount_cents': 8000},
+        ]),
+      );
 
       final summary = await CabinetDashboardApi(apiClient).getSummary();
 
@@ -74,6 +88,23 @@ void main() {
         11,
         reason: 'ne doit compter que les requested du jour, pas 105 '
             'toutes dates confondues',
+      );
+      expect(
+        summary.weeklyCompletedActs,
+        8,
+        reason: 'somme des act_count de /cabinet/stats/activity (lundi-vendredi)',
+      );
+      expect(
+        summary.weeklyFeesCents,
+        20000,
+        reason:
+            'somme des total_amount_cents de /cabinet/stats/activity (lundi-vendredi)',
+      );
+      expect(
+        summary.weeklyNoShowCount,
+        greaterThan(0),
+        reason: 'no_show agrégés depuis /cabinet/appointments?status=no_show '
+            'sur les jours ouvrés déjà écoulés de la semaine',
       );
     });
   });
