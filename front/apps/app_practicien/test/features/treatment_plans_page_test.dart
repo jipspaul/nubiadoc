@@ -236,6 +236,44 @@ void main() {
     expect(find.text('Erreur serveur.'), findsOneWidget);
   });
 
+  testWidgets(
+      'pied de panneau → réalisé/engagé à 0,00 € et pas d\'avertissement '
+      '(agrégats de montants #5013 pas encore livrés)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases]),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('plan_footer_plan-1')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('plan_footer_plan-1')),
+        matching: find.textContaining('Réalisé : '),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('plan_footer_plan-1')),
+        matching: find.textContaining('Engagé (devis signé) : '),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('plan_footer_plan-1')),
+        matching: find.textContaining('0,00 €'),
+      ),
+      findsWidgets,
+    );
+    expect(
+      find.byKey(const Key('plan_footer_warning_plan-1')),
+      findsNothing,
+    );
+  });
+
   testWidgets('bandeau patient → nom, âge et libellé « Plans de traitement »',
       (tester) async {
     when(() => listPlans('pat-1'))
