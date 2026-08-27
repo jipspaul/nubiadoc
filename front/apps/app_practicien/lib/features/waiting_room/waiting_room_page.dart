@@ -970,13 +970,18 @@ class _EntryCard extends StatelessWidget {
     final waitLabel =
         waitMinutes < 1 ? 'À l\'instant' : '$waitMinutes min d\'attente';
 
-    // Statut dérivé du temps d'attente : jamais la couleur seule (label + pill).
-    final (String statusLabel, StatusPillVariant statusVariant) =
-        switch (waitMinutes) {
-      < 15 => ('Moins de 15 min', StatusPillVariant.info),
-      < 30 => ('Plus de 15 min', StatusPillVariant.warning),
-      _ => ('Plus de 30 min', StatusPillVariant.error),
-    };
+    // Urgence sans praticien attribué (#5168) : la ligne le dit (pastille
+    // neutre « Sans RDV ») et son action est « Attribuer », pas « Appeler »
+    // (#5033) — jamais la couleur seule (label + pill).
+    final unassigned = entry.practitionerId == null;
+
+    final (String statusLabel, StatusPillVariant statusVariant) = unassigned
+        ? ('Sans RDV', StatusPillVariant.neutral)
+        : switch (waitMinutes) {
+            < 15 => ('Moins de 15 min', StatusPillVariant.info),
+            < 30 => ('Plus de 15 min', StatusPillVariant.warning),
+            _ => ('Plus de 30 min', StatusPillVariant.error),
+          };
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -1015,6 +1020,21 @@ class _EntryCard extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             StatusPill(label: statusLabel, variant: statusVariant),
+            const SizedBox(width: 4),
+            IconButton(
+              key: Key('entry_action_${entry.id}'),
+              tooltip: unassigned ? 'Attribuer' : NubiaL10n.call,
+              icon: Icon(unassigned ? Icons.person_add : Icons.campaign),
+              onPressed: () => unassigned
+                  ? ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Attribution d'un praticien à venir"),
+                      ),
+                    )
+                  : context
+                      .read<WaitingRoomBloc>()
+                      .add(WaitingRoomCallRequested(entry.id)),
+            ),
           ],
         ),
       ),
