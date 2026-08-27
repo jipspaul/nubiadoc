@@ -178,6 +178,14 @@ class _PrescriptionForm extends StatefulWidget {
   State<_PrescriptionForm> createState() => _PrescriptionFormState();
 }
 
+/// Seuil à partir duquel la composition et l'aperçu du document
+/// s'affichent côte à côte (maquette design-v2, tablette cible 1258×834).
+/// En dessous, la composition reste seule, pleine largeur.
+const _kOrdonnanceSplitBreakpoint = 900.0;
+
+/// Largeur du volet `.rgt` (aperçu) de la maquette design-v2.
+const _kOrdonnancePreviewWidth = 458.0;
+
 class _PrescriptionFormState extends State<_PrescriptionForm> {
   final List<_ItemDraft> _items = [_ItemDraft()];
   List<String> _allergies = const [];
@@ -240,58 +248,95 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
 
   @override
   Widget build(BuildContext context) {
+    final composition = SingleChildScrollView(
+      key: const Key('ordonnance_form'),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PatientIdentityHeader(patient: _patient),
+          const SizedBox(height: 20),
+          for (var i = 0; i < _items.length; i++) ...[
+            _ItemCard(
+              index: i,
+              draft: _items[i],
+              onChanged: _refresh,
+              onRemove: _items.length == 1
+                  ? null
+                  : () => setState(() => _items.removeAt(i).dispose()),
+            ),
+            const SizedBox(height: 12),
+          ],
+          NubiaButton(
+            key: const Key('add_item_button'),
+            label: 'Ajouter un médicament',
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.add,
+            onPressed: widget.loading
+                ? null
+                : () => setState(() => _items.add(_ItemDraft())),
+          ),
+          const SizedBox(height: 24),
+          NubiaButton(
+            key: const Key('submit_ordonnance_button'),
+            label: 'Créer l\'ordonnance',
+            isLoading: widget.loading,
+            onPressed: (!_formValid || widget.loading) ? null : _submit,
+          ),
+        ],
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (_allergies.isNotEmpty) _AllergiesBanner(allergies: _allergies),
         Expanded(
-          child: SingleChildScrollView(
-            key: const Key('ordonnance_form'),
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 640),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _PatientIdentityHeader(patient: _patient),
-                    const SizedBox(height: 20),
-                    for (var i = 0; i < _items.length; i++) ...[
-                      _ItemCard(
-                        index: i,
-                        draft: _items[i],
-                        onChanged: _refresh,
-                        onRemove: _items.length == 1
-                            ? null
-                            : () => setState(
-                                () => _items.removeAt(i).dispose()),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    NubiaButton(
-                      key: const Key('add_item_button'),
-                      label: 'Ajouter un médicament',
-                      variant: NubiaButtonVariant.secondary,
-                      icon: Icons.add,
-                      onPressed: widget.loading
-                          ? null
-                          : () => setState(() => _items.add(_ItemDraft())),
-                    ),
-                    const SizedBox(height: 24),
-                    NubiaButton(
-                      key: const Key('submit_ordonnance_button'),
-                      label: 'Créer l\'ordonnance',
-                      isLoading: widget.loading,
-                      onPressed:
-                          (!_formValid || widget.loading) ? null : _submit,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < _kOrdonnanceSplitBreakpoint) {
+                return composition;
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: composition),
+                  const SizedBox(
+                    width: _kOrdonnancePreviewWidth,
+                    child: _DocumentPreviewPane(),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Volet `.rgt` de la maquette design-v2 (§ note 7) : aperçu du document,
+/// largeur fixe, fond `n50` et bordure gauche séparant la composition
+/// (gauche) de l'aperçu (droite). Le contenu de l'aperçu lui-même est hors
+/// périmètre de ce ticket (#4998) et sera fourni par #4997.
+class _DocumentPreviewPane extends StatelessWidget {
+  const _DocumentPreviewPane();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border(left: BorderSide(color: NubiaColors.n200)),
+      ),
+      child: const NubiaEmptyState(
+        key: Key('ordonnance_document_preview'),
+        icon: Icons.description_outlined,
+        title: 'Aperçu du document',
+        subtitle: 'L\'aperçu de l\'ordonnance apparaîtra ici.',
+      ),
     );
   }
 }
