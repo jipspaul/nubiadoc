@@ -199,7 +199,7 @@ void main() {
       act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
       expect: () => [
         const WaitingRoomLoading(),
-        const WaitingRoomLoaded(entries: []),
+        WaitingRoomLoaded(entries: []),
       ],
     );
 
@@ -962,6 +962,95 @@ void main() {
       expect(find.byType(RefreshProgressIndicator), findsNothing);
       await ctrl.close();
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Indicateur de fraîcheur — barre de titre (#5035)
+  // ---------------------------------------------------------------------------
+
+  group('Indicateur de fraîcheur (widget, #5035)', () {
+    testWidgets(
+        'affiche « Mise à jour il y a … » dans la barre de titre après '
+        'chargement', (tester) async {
+      when(() => mockList()).thenAnswer((_) async => Right([_entry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const WaitingRoomPage(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('waiting_room_freshness_indicator')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Mise à jour il y a'), findsOneWidget);
+    });
+
+    testWidgets('pas d\'indicateur hors état Loaded (chargement)',
+        (tester) async {
+      final mockBloc = MockWaitingRoomBloc();
+      when(() => mockBloc.state).thenReturn(const WaitingRoomLoading());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: mockBloc,
+            child: const WaitingRoomPage(),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('waiting_room_freshness_indicator')),
+        findsNothing,
+      );
+    });
+  });
+
+  group('WaitingRoomLoaded.loadedAt (#5035)', () {
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'l\'horodatage de chargement se remet à jour à chaque rechargement '
+      'réussi (manuel ou périodique)',
+      build: () {
+        when(() => mockList()).thenAnswer((_) async => Right([_entry]));
+        return _makeBloc(list: mockList, callNext: mockCallNext);
+      },
+      act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
+      verify: (bloc) {
+        final loaded = bloc.state as WaitingRoomLoaded;
+        expect(
+          DateTime.now().difference(loaded.loadedAt).inSeconds,
+          lessThan(5),
+        );
+      },
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'un rechargement en échec conserve le loadedAt du chargement '
+      'précédent (reloadError non bloquant)',
+      build: () {
+        when(() => mockList()).thenAnswer(
+          (_) async => Left(NetworkFailure('Réseau indisponible')),
+        );
+        return _makeBloc(list: mockList, callNext: mockCallNext);
+      },
+      seed: () => WaitingRoomLoaded(
+        entries: [_entry],
+        loadedAt: DateTime(2020, 1, 1),
+      ),
+      act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
+      verify: (bloc) {
+        final loaded = bloc.state as WaitingRoomLoaded;
+        expect(loaded.loadedAt, DateTime(2020, 1, 1));
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------

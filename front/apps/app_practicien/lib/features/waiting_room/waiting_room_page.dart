@@ -71,7 +71,23 @@ class WaitingRoomPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(NubiaL10n.waitingRoom),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                NubiaL10n.waitingRoom,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 16),
+            BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
+              builder: (context, state) => state is WaitingRoomLoaded
+                  ? _FreshnessIndicator(loadedAt: state.loadedAt)
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: NubiaL10n.refresh,
@@ -84,6 +100,71 @@ class WaitingRoomPage extends StatelessWidget {
       ),
       body: const WaitingRoomBody(),
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Pastille verte + texte relatif dans la barre de titre — âge de la
+/// dernière donnée reçue (maquette design-v2, `.live` : « Mise à jour il y a
+/// 8 s »). Se rafraîchit à la seconde sans dépendre d'un nouvel état du bloc.
+class _FreshnessIndicator extends StatefulWidget {
+  const _FreshnessIndicator({required this.loadedAt});
+
+  final DateTime loadedAt;
+
+  @override
+  State<_FreshnessIndicator> createState() => _FreshnessIndicatorState();
+}
+
+class _FreshnessIndicatorState extends State<_FreshnessIndicator> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      key: const Key('waiting_room_freshness_indicator'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: const BoxDecoration(
+            color: NubiaColors.brand600,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          'Mise à jour il y a ${_relativeAge(widget.loadedAt)}',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: NubiaColors.n500),
+        ),
+      ],
+    );
+  }
+
+  static String _relativeAge(DateTime loadedAt) {
+    final elapsed = DateTime.now().difference(loadedAt);
+    if (elapsed.inSeconds < 60) return '${elapsed.inSeconds} s';
+    if (elapsed.inMinutes < 60) return '${elapsed.inMinutes} min';
+    return '${elapsed.inHours} h';
   }
 }
 
