@@ -76,5 +76,92 @@ void main() {
             'toutes dates confondues',
       );
     });
+
+    test(
+        'associe le patient suivant depuis la salle d\'attente + la durée '
+        'du RDV du jour (#5045)', () async {
+      final arrivedAt = DateTime.now().subtract(const Duration(minutes: 12));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/appointments',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer((invocation) async {
+        final params = invocation.namedArguments[#queryParameters]
+            as Map<String, dynamic>?;
+        if (params?['status'] == 'requested') {
+          return fakeResponse(const []);
+        }
+        return fakeResponse([
+          {
+            'id': 'appt-1',
+            'patient_id': 'pat-1',
+            'patient_name': 'Camille Moreau',
+            'practitioner_id': 'prac-1',
+            'practitioner_name': 'Dr. Rousseau',
+            'starts_at': '2026-08-26T14:30:00.000Z',
+            'duration_minutes': 30,
+            'motif': 'Pose de couronne',
+            'status': 'confirmed',
+          },
+        ]);
+      });
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/waiting-room',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse([
+            {
+              'appointment_id': 'appt-1',
+              'patient_name': 'Camille Moreau',
+              'motif': 'Pose de couronne',
+              'starts_at': '2026-08-26T14:30:00.000Z',
+              'checkin_at': arrivedAt.toIso8601String(),
+            },
+          ]));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/conversations',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+
+      final summary = await CabinetDashboardApi(apiClient).getSummary();
+
+      expect(summary.nextPatientName, 'Camille Moreau');
+      expect(summary.nextPatientReason, 'Pose de couronne');
+      expect(
+        summary.nextPatientDurationMinutes,
+        30,
+        reason: 'joint le RDV du jour correspondant pour la durée prévue',
+      );
+      expect(summary.nextPatientWaitingMinutes, greaterThanOrEqualTo(11));
+    });
+
+    test('nextPatient est absent quand la salle d\'attente est vide', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/appointments',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/waiting-room',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/conversations',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+
+      final summary = await CabinetDashboardApi(apiClient).getSummary();
+
+      expect(summary.nextPatientName, isNull);
+    });
   });
 }

@@ -40,5 +40,48 @@ void main() {
       expect(summary.unreadMessages, 3);
       expect(summary.pendingConfirmations, 2);
     });
+
+    test('le patient suivant (#5045) est absent par défaut', () {
+      const summary = ProDashboardSummary(
+        todayAppointments: 0,
+        waitingRoomCount: 0,
+        unreadMessages: 0,
+        pendingConfirmations: 0,
+        weeklyCompletedActs: 0,
+        weeklyFeesCents: 0,
+        weeklyNoShowCount: 0,
+      );
+
+      expect(summary.nextPatientName, isNull);
+      expect(summary.nextPatientReason, isNull);
+      expect(summary.nextPatientAppointmentTime, isNull);
+      expect(summary.nextPatientDurationMinutes, isNull);
+      expect(summary.nextPatientWaitingMinutes, isNull);
+      expect(summary.nextPatientAllergyLabel, isNull);
+      expect(summary.nextPatientTreatmentPlanCents, isNull);
+      expect(summary.nextPatientLastVisitAt, isNull);
+    });
+
+    test('expose le patient suivant quand présent', () {
+      final summary = ProDashboardSummary(
+        todayAppointments: 9,
+        waitingRoomCount: 1,
+        unreadMessages: 0,
+        pendingConfirmations: 0,
+        weeklyCompletedActs: 0,
+        weeklyFeesCents: 0,
+        weeklyNoShowCount: 0,
+        nextPatientName: 'Camille Moreau',
+        nextPatientReason: 'Pose de couronne',
+        nextPatientAppointmentTime: DateTime(2026, 8, 26, 14, 30),
+        nextPatientDurationMinutes: 30,
+        nextPatientWaitingMinutes: 12,
+      );
+
+      expect(summary.nextPatientName, 'Camille Moreau');
+      expect(summary.nextPatientReason, 'Pose de couronne');
+      expect(summary.nextPatientDurationMinutes, 30);
+      expect(summary.nextPatientWaitingMinutes, 12);
+    });
   });
 }
