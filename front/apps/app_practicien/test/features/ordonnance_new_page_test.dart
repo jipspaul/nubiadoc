@@ -329,6 +329,49 @@ void main() {
       ).called(1);
     });
 
+    testWidgets(
+        'tablette large (1258×834) → composition et aperçu côte à côte, '
+        'volet aperçu ~458 px (#4998)', (tester) async {
+      tester.view.physicalSize = const Size(1258, 834);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ordonnance_form')), findsOneWidget);
+      expect(
+          find.byKey(const Key('ordonnance_document_preview')), findsOneWidget);
+
+      final previewWidth = tester
+          .getSize(find.byKey(const Key('ordonnance_document_preview')))
+          .width;
+      expect(previewWidth, closeTo(458, 1));
+
+      final formLeft =
+          tester.getTopLeft(find.byKey(const Key('ordonnance_form'))).dx;
+      final previewLeft = tester
+          .getTopLeft(find.byKey(const Key('ordonnance_document_preview')))
+          .dx;
+      expect(previewLeft, greaterThan(formLeft));
+    });
+
+    testWidgets('écran étroit → pas de volet aperçu, formulaire pleine largeur',
+        (tester) async {
+      tester.view.physicalSize = const Size(700, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ordonnance_form')), findsOneWidget);
+      expect(
+          find.byKey(const Key('ordonnance_document_preview')), findsNothing);
+    });
+
     testWidgets('bouton Ajouter → deuxième carte médicament', (tester) async {
       await tester.pumpWidget(_wrap(bloc));
 
