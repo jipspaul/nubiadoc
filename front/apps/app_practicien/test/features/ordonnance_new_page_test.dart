@@ -178,6 +178,9 @@ Widget _wrap(OrdonnancesBloc bloc, {String? patientId = 'patient-1'}) =>
       ),
     );
 
+/// Remplit une ligne médicament avec une posologie/durée dont la quantité se
+/// calcule automatiquement (#4992) : 1 comprimé × 2 (matin et soir) × 7
+/// jours = 14 comprimés — aucune saisie de quantité n'est plus nécessaire.
 Future<void> _fillItem(WidgetTester tester, int index) async {
   await tester.enterText(
       find.byKey(Key('item_${index}_label')), 'Amoxicilline 500mg');
@@ -186,8 +189,6 @@ Future<void> _fillItem(WidgetTester tester, int index) async {
       find.byKey(Key('item_${index}_posology')), '1 comprimé matin et soir');
   await tester.pump();
   await tester.enterText(find.byKey(Key('item_${index}_duration')), '7 jours');
-  await tester.pump();
-  await tester.enterText(find.byKey(Key('item_${index}_quantity')), '1 boîte');
   await tester.pump();
 }
 
@@ -310,8 +311,8 @@ void main() {
     });
 
     testWidgets(
-        'formulaire complet → submit dispatch OrdonnancesCreateRequested',
-        (tester) async {
+        'formulaire complet → submit dispatch OrdonnancesCreateRequested '
+        'avec la quantité calculée (#4992)', (tester) async {
       await tester.pumpWidget(_wrap(bloc));
       await _fillItem(tester, 0);
 
@@ -319,14 +320,136 @@ void main() {
           .ensureVisible(find.byKey(const Key('submit_ordonnance_button')));
       await tester.tap(find.byKey(const Key('submit_ordonnance_button')));
 
+      // _fillItem : 1 comprimé × 2 (matin et soir) × 7 jours = 14 comprimés.
       verify(
         () => bloc.add(
           const OrdonnancesCreateRequested(
             patientId: 'patient-1',
-            items: [_item],
+            items: [
+              PrescriptionItem(
+                label: 'Amoxicilline 500mg',
+                posology: '1 comprimé matin et soir',
+                duration: '7 jours',
+                quantity: '14 comprimés',
+              ),
+            ],
           ),
         ),
       ).called(1);
+    });
+
+    group('quantité calculée (#4992)', () {
+      testWidgets('aucun champ de saisie libre par défaut', (tester) async {
+        await tester.pumpWidget(_wrap(bloc));
+
+        expect(find.byKey(const Key('item_0_quantity')), findsNothing);
+        expect(
+            find.byKey(const Key('item_0_quantity_calc')), findsOneWidget);
+        expect(find.byKey(const Key('item_0_quantity_modify')),
+            findsOneWidget);
+      });
+
+      testWidgets(
+          'dose × fréquence × durée → recalculée à chaque changement',
+          (tester) async {
+        await tester.pumpWidget(_wrap(bloc));
+
+        expect(find.textContaining('Quantité calculée :'), findsOneWidget);
+        expect(find.textContaining('renseignez la posologie'), findsOneWidget);
+
+        await tester.enterText(
+            find.byKey(const Key('item_0_posology')), '1 comprimé, 3 fois par jour');
+        await tester.pump();
+        await tester.enterText(
+            find.byKey(const Key('item_0_duration')), '5 jours');
+        await tester.pump();
+
+        // 1 × 3 × 5 = 15 comprimés.
+        expect(find.textContaining('Quantité calculée : 15 comprimés'),
+            findsOneWidget);
+
+        await tester.enterText(
+            find.byKey(const Key('item_0_duration')), '10 jours');
+        await tester.pump();
+
+        expect(find.textContaining('Quantité calculée : 30 comprimés'),
+            findsOneWidget);
+      });
+
+      testWidgets('« Modifier » permet de surcharger la quantité calculée',
+          (tester) async {
+        await tester.pumpWidget(_wrap(bloc));
+        await tester.enterText(
+            find.byKey(const Key('item_0_label')), 'Amoxicilline 500mg');
+        await tester.pump();
+        await tester.enterText(
+            find.byKey(const Key('item_0_posology')), '1 comprimé, 3 fois par jour');
+        await tester.pump();
+        await tester.enterText(
+            find.byKey(const Key('item_0_duration')), '5 jours');
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('item_0_quantity_modify')));
+        await tester.pump();
+
+        expect(find.byKey(const Key('item_0_quantity_calc')), findsNothing);
+        final field = find.byKey(const Key('item_0_quantity'));
+        expect(field, findsOneWidget);
+        // Le champ de surcharge démarre pré-rempli avec la valeur calculée.
+        expect(
+          tester
+              .widget<NubiaTextField>(field)
+              .controller
+              ?.text,
+          '15 comprimés',
+        );
+
+        await tester.enterText(field, '1 boîte de 16');
+        await tester.pump();
+
+        await tester
+            .ensureVisible(find.byKey(const Key('submit_ordonnance_button')));
+        await tester.tap(find.byKey(const Key('submit_ordonnance_button')));
+
+        verify(
+          () => bloc.add(
+            OrdonnancesCreateRequested(
+              patientId: 'patient-1',
+              items: [
+                PrescriptionItem(
+                  label: 'Amoxicilline 500mg',
+                  posology: '1 comprimé, 3 fois par jour',
+                  duration: '5 jours',
+                  quantity: '1 boîte de 16',
+                ),
+              ],
+            ),
+          ),
+        ).called(1);
+      });
+
+      testWidgets(
+          'sans dose/fréquence/durée exploitables → ligne invalide (submit désactivé)',
+          (tester) async {
+        await tester.pumpWidget(_wrap(bloc));
+        await tester.enterText(
+            find.byKey(const Key('item_0_label')), 'Vaccin');
+        await tester.pump();
+        await tester.enterText(
+            find.byKey(const Key('item_0_posology')), 'selon protocole');
+        await tester.pump();
+        await tester.enterText(
+            find.byKey(const Key('item_0_duration')), 'unique');
+        await tester.pump();
+
+        final submitButton = tester.widget<FilledButton>(
+          find.descendant(
+            of: find.byKey(const Key('submit_ordonnance_button')),
+            matching: find.byType(FilledButton),
+          ),
+        );
+        expect(submitButton.onPressed, isNull);
+      });
     });
 
     testWidgets(
