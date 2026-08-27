@@ -188,6 +188,43 @@ void main() {
     );
 
     blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'un rechargement en échec alors qu\'une liste est déjà affichée '
+      'conserve la liste avec une reloadError (non bloquant)',
+      build: () {
+        when(() => mockList()).thenAnswer(
+          (_) async => Left(NetworkFailure('Réseau indisponible')),
+        );
+        return _makeBloc(list: mockList, callNext: mockCallNext);
+      },
+      seed: () => WaitingRoomLoaded(entries: [_entry]),
+      act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
+      expect: () => [
+        const WaitingRoomLoading(),
+        WaitingRoomLoaded(
+          entries: [_entry],
+          reloadError: 'Réseau indisponible',
+        ),
+      ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'un rechargement réussi efface une reloadError précédente',
+      build: () {
+        when(() => mockList()).thenAnswer((_) async => Right([_entry]));
+        return _makeBloc(list: mockList, callNext: mockCallNext);
+      },
+      seed: () => WaitingRoomLoaded(
+        entries: [_entry],
+        reloadError: 'Réseau indisponible',
+      ),
+      act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
+      expect: () => [
+        const WaitingRoomLoading(),
+        WaitingRoomLoaded(entries: [_entry]),
+      ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
       'CallNext recharge la liste après succès',
       build: () {
         when(() => mockList()).thenAnswer((_) async => Right([_entry]));
@@ -264,6 +301,51 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('waiting_room_error')), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Rechargement en échec — erreur inline non bloquante
+  // ---------------------------------------------------------------------------
+
+  group('reloadError (widget)', () {
+    testWidgets(
+        'échec de rechargement conserve la liste et affiche NubiaInlineError',
+        (tester) async {
+      final mockBloc = MockWaitingRoomBloc();
+      final loaded = WaitingRoomLoaded(entries: [_entry]);
+      final withReloadError = WaitingRoomLoaded(
+        entries: [_entry],
+        reloadError: 'Réseau indisponible',
+      );
+      whenListen<WaitingRoomState>(
+        mockBloc,
+        Stream.fromIterable([withReloadError]),
+        initialState: loaded,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: mockBloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('waiting_room_error')), findsNothing);
+      expect(find.byKey(const Key('entry_wr-1')), findsOneWidget);
+      expect(
+          find.byKey(const Key('waiting_room_reload_error')), findsOneWidget);
+      expect(find.text('Réseau indisponible'), findsOneWidget);
+
+      clearInteractions(mockBloc);
+      await tester.tap(find.text('Réessayer'));
+      verify(() => mockBloc.add(any(that: isA<WaitingRoomLoadRequested>())))
+          .called(1);
     });
   });
 

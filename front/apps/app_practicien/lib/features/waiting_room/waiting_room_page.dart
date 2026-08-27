@@ -132,6 +132,17 @@ class _LoadedViewState extends State<_LoadedView> {
           if (widget.state.actionInProgress)
             const LinearProgressIndicator(
                 key: Key('waiting_room_action_progress')),
+          if (widget.state.reloadError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: NubiaInlineError(
+                key: const Key('waiting_room_reload_error'),
+                message: widget.state.reloadError!,
+                onRetry: () => context
+                    .read<WaitingRoomBloc>()
+                    .add(const WaitingRoomLoadRequested()),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: Row(
