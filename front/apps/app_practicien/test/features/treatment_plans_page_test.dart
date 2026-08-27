@@ -134,7 +134,18 @@ void main() {
         home: const TreatmentPlansPage(patientId: 'pat-1'),
       );
 
+  // Layout maître-détail (#5010) pensé pour la tablette 1258×834 de la
+  // maquette : élargit la surface de test, comme consultation_clinique
+  // (layout 3 colonnes) le fait déjà pour son propre seuil large.
+  Future<void> _setSurface(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
+
   testWidgets('aucun plan → empty state affiché', (tester) async {
+    await _setSurface(tester);
     when(() => listPlans('pat-1'))
         .thenAnswer((_) async => const Right(_emptyPlans));
 
@@ -144,12 +155,14 @@ void main() {
     expect(find.byKey(const Key('treatment_plans_empty')), findsOneWidget);
   });
 
-  testWidgets('plans avec phases → liste affichée, triée par position',
-      (tester) async {
+  testWidgets(
+      'plans avec phases → premier plan sélectionné par défaut dans le '
+      'panneau détail (#5010)', (tester) async {
     when(() => listPlans('pat-1')).thenAnswer(
       (_) async => Right([_planWithPhases, _planNoPhases]),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -157,9 +170,54 @@ void main() {
     expect(find.byKey(const Key('treatment_phase_phase-1')), findsOneWidget);
     expect(find.text('Phase 1 · Chirurgie'), findsOneWidget);
     expect(
+      find.byKey(const Key('treatment_plan_list_item_plan-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('treatment_plan_no_phases_plan-2')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+      'colonne des plans → tap sur une entrée change le plan affiché dans '
+      'le panneau détail (#5010)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases, _planNoPhases]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_plan_plan-1')), findsOneWidget);
+    expect(find.byKey(const Key('treatment_plan_plan-2')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('treatment_plan_list_item_plan-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_plan_plan-1')), findsNothing);
+    expect(find.byKey(const Key('treatment_plan_plan-2')), findsOneWidget);
+    expect(
       find.byKey(const Key('treatment_plan_no_phases_plan-2')),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+      'colonne des plans → en-tête « Plans du patient » avec badge count '
+      '(#5010)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases, _planNoPhases]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_plans_list')), findsOneWidget);
+    expect(find.text('Plans du patient'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
   });
 
   testWidgets(
@@ -169,13 +227,15 @@ void main() {
       (_) async => Right([_planWithProgress]),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
     expect(
       find.descendant(
         of: find.byKey(const Key('treatment_plan_plan-progress')),
-        matching: find.byKey(const Key('treatment_plan_phase_count_plan-progress')),
+        matching:
+            find.byKey(const Key('treatment_plan_phase_count_plan-progress')),
       ),
       findsOneWidget,
     );
@@ -200,19 +260,20 @@ void main() {
         .toList();
     expect(segments, hasLength(3));
     Color colorOf(Expanded segment) =>
-        ((segment.child as Container).decoration! as BoxDecoration)
-            .color as Color;
+        ((segment.child as Container).decoration! as BoxDecoration).color
+            as Color;
     expect(colorOf(segments[0]), NubiaColors.brand600);
     expect(colorOf(segments[1]), NubiaColors.n200);
     expect(colorOf(segments[2]), NubiaColors.n200);
   });
 
-  testWidgets(
-      'plan sans phase → pas de résumé d\'avancement (#5011)', (tester) async {
+  testWidgets('plan sans phase → pas de résumé d\'avancement (#5011)',
+      (tester) async {
     when(() => listPlans('pat-1')).thenAnswer(
       (_) async => Right([_planNoPhases]),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -229,6 +290,7 @@ void main() {
       (_) async => Right([_planWithPhases]),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -251,6 +313,7 @@ void main() {
       (_) async => Right([_planWithActivePhase]),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -275,6 +338,7 @@ void main() {
       (_) async => Right([_planWithPhases]),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -288,6 +352,7 @@ void main() {
     when(() => createPlan('pat-1', 'Plan blanchiment'))
         .thenAnswer((_) async => const Right('plan-new'));
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -311,6 +376,7 @@ void main() {
         (_) async => Right([_planWithPhases]),
       );
 
+      await _setSurface(tester);
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -331,6 +397,7 @@ void main() {
         (_) async => Right([_planWithPhases]),
       );
 
+      await _setSurface(tester);
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -367,6 +434,7 @@ void main() {
         ],
       );
 
+      await _setSurface(tester);
       await tester.pumpWidget(MaterialApp.router(
         theme: NubiaTheme.light,
         routerConfig: router,
@@ -391,6 +459,7 @@ void main() {
     when(() => createPhase('plan-1', 'Phase 2 · Prothèse', 2))
         .thenAnswer((_) async => const Right('phase-new'));
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -417,6 +486,7 @@ void main() {
       (_) async => const Left(ServerFailure(message: 'Erreur serveur.')),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -431,6 +501,7 @@ void main() {
       (_) async => Right([_planWithPhases]),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -468,6 +539,7 @@ void main() {
         (_) async => Right([_planWithPhases]),
       );
 
+      await _setSurface(tester);
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -485,6 +557,7 @@ void main() {
         (_) async => Right([_planWithPhases]),
       );
 
+      await _setSurface(tester);
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -531,6 +604,7 @@ void main() {
     when(() => listPlans('pat-1'))
         .thenAnswer((_) async => const Right(_emptyPlans));
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -553,6 +627,7 @@ void main() {
       (_) async => Right([_planWithPhases]),
     );
 
+    await _setSurface(tester);
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -587,6 +662,7 @@ void main() {
         (_) async => Right([_planWithPhases]),
       );
 
+      await _setSurface(tester);
       await tester.pumpWidget(MaterialApp.router(
         theme: NubiaTheme.light,
         routerConfig: makeRouter(),
@@ -607,6 +683,7 @@ void main() {
     when(() => listPlans('pat-1'))
         .thenAnswer((_) async => const Right(_emptyPlans));
 
+    await _setSurface(tester);
     await tester.pumpWidget(MaterialApp(
       theme: NubiaTheme.light,
       home: Builder(

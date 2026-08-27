@@ -90,7 +90,7 @@ class _TreatmentPlansBody extends StatelessWidget {
                       onRetry: () => context.read<TreatmentPlansCubit>().load(),
                     ),
                   TreatmentPlansLoaded(:final plans, :final busy) =>
-                    _PlansList(plans: plans, busy: busy),
+                    _PlansSplitView(plans: plans, busy: busy),
                 },
               ),
             ],
@@ -118,14 +118,41 @@ class _TreatmentPlansBody extends StatelessWidget {
   }
 }
 
-class _PlansList extends StatelessWidget {
-  const _PlansList({required this.plans, required this.busy});
+/// Layout maître-détail (#5010, maquette design-v2 point 5/6) : colonne
+/// gauche `.lst` (liste compacte, sélection) + panneau détail `.det` à
+/// droite affichant le plan sélectionné (contenu inchangé, ex-`_PlansList`).
+/// Sélection portée localement (pas de changement de contrat cubit #4051) :
+/// le premier plan est sélectionné par défaut.
+class _PlansSplitView extends StatefulWidget {
+  const _PlansSplitView({required this.plans, required this.busy});
 
   final List<TreatmentPlan> plans;
   final bool busy;
 
   @override
+  State<_PlansSplitView> createState() => _PlansSplitViewState();
+}
+
+class _PlansSplitViewState extends State<_PlansSplitView> {
+  String? _selectedPlanId;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPlanId = widget.plans.isEmpty ? null : widget.plans.first.id;
+  }
+
+  @override
+  void didUpdateWidget(covariant _PlansSplitView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.plans.any((plan) => plan.id == _selectedPlanId)) {
+      _selectedPlanId = widget.plans.isEmpty ? null : widget.plans.first.id;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final plans = widget.plans;
     if (plans.isEmpty) {
       return const NubiaEmptyState(
         key: Key('treatment_plans_empty'),
@@ -134,11 +161,151 @@ class _PlansList extends StatelessWidget {
         subtitle: 'Créez le premier plan avec le bouton +.',
       );
     }
-    return ListView.builder(
+    final selected = plans.firstWhere(
+      (plan) => plan.id == _selectedPlanId,
+      orElse: () => plans.first,
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _PlansListColumn(
+          plans: plans,
+          selectedPlanId: selected.id,
+          onSelect: (id) => setState(() => _selectedPlanId = id),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            child: _PlanCard(plan: selected, busy: widget.busy),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Colonne maître `.lst` (maquette design-v2 point 5/6) : en-tête « Plans du
+/// patient » + badge count, puis une entrée compacte par plan.
+class _PlansListColumn extends StatelessWidget {
+  const _PlansListColumn({
+    required this.plans,
+    required this.selectedPlanId,
+    required this.onSelect,
+  });
+
+  final List<TreatmentPlan> plans;
+  final String selectedPlanId;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
       key: const Key('treatment_plans_list'),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-      itemCount: plans.length,
-      itemBuilder: (context, i) => _PlanCard(plan: plans[i], busy: busy),
+      width: 314,
+      decoration: const BoxDecoration(
+        color: NubiaColors.n0,
+        border: Border(right: BorderSide(color: NubiaColors.n200)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.assignment,
+                  size: 18,
+                  color: NubiaColors.n600,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Plans du patient', style: textTheme.titleSmall),
+                ),
+                const SizedBox(width: 8),
+                NubiaBadge.count(count: plans.length),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              itemCount: plans.length,
+              itemBuilder: (context, i) {
+                final plan = plans[i];
+                return _PlanListItem(
+                  plan: plan,
+                  selected: plan.id == selectedPlanId,
+                  onTap: () => onSelect(plan.id),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Entrée compacte `.pl` d'un plan dans la colonne maître : titre + statut.
+/// Sélectionnée (`.pl.on`) : fond `brand50`, bordure gauche `brand700` 3px.
+/// Le détail (KPIs, phases, footer) reste dans le panneau `.det`
+/// (ex-`_PlanCard`) — hors scope de ce ticket squelette (#5010).
+class _PlanListItem extends StatelessWidget {
+  const _PlanListItem({
+    required this.plan,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final TreatmentPlan plan;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      key: Key('treatment_plan_list_item_${plan.id}'),
+      margin: const EdgeInsets.only(bottom: 4),
+      decoration: BoxDecoration(
+        color: selected ? NubiaColors.brand50 : Colors.transparent,
+        border: Border(
+          left: BorderSide(
+            color: selected ? NubiaColors.brand700 : Colors.transparent,
+            width: 3,
+          ),
+        ),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    plan.title,
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                StatusPill(
+                  label: treatmentPlanStatusLabels[plan.status] ?? plan.status,
+                  variant: treatmentPlanStatusVariants[plan.status] ??
+                      StatusPillVariant.info,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -264,8 +431,8 @@ class _PlanCardState extends State<_PlanCard> {
                         '${plan.phases.length} phase'
                         '${plan.phases.length > 1 ? 's' : ''}',
                         key: Key('treatment_plan_phase_count_${plan.id}'),
-                        style:
-                            textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
+                        style: textTheme.bodySmall
+                            ?.copyWith(color: NubiaColors.n500),
                       ),
                       StatusPill(
                         key: Key('treatment_plan_created_at_${plan.id}'),
