@@ -463,8 +463,8 @@ void main() {
       );
       expect(find.text('Appeler Camille Moreau'), findsOneWidget);
       expect(find.byIcon(Icons.campaign), findsOneWidget);
-      expect(find.byKey(const Key('next_patient_hero_open_file')),
-          findsOneWidget);
+      expect(
+          find.byKey(const Key('next_patient_hero_open_file')), findsOneWidget);
       expect(find.text('Ouvrir le dossier'), findsOneWidget);
       expect(find.byIcon(Icons.folder_open), findsOneWidget);
     });
@@ -473,8 +473,7 @@ void main() {
         (tester) async {
       when(() => mockList())
           .thenAnswer((_) async => Right([heroEntry, otherEntry]));
-      when(() => mockCallNext())
-          .thenAnswer((_) async => Right(heroEntry));
+      when(() => mockCallNext()).thenAnswer((_) async => Right(heroEntry));
       final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
         ..add(const WaitingRoomLoadRequested());
       await tester.pumpWidget(
@@ -539,8 +538,7 @@ void main() {
     testWidgets(
         'entrée non attribuée : pastille « Sans RDV » et icône person_add',
         (tester) async {
-      when(() => mockList())
-          .thenAnswer((_) async => Right([unassignedEntry]));
+      when(() => mockList()).thenAnswer((_) async => Right([unassignedEntry]));
       final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
         ..add(const WaitingRoomLoadRequested());
       await tester.pumpWidget(
@@ -580,8 +578,7 @@ void main() {
     testWidgets(
         'entrée non attribuée : le bouton déclenche « Attribuer », pas un '
         'appel', (tester) async {
-      when(() => mockList())
-          .thenAnswer((_) async => Right([unassignedEntry]));
+      when(() => mockList()).thenAnswer((_) async => Right([unassignedEntry]));
       final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
         ..add(const WaitingRoomLoadRequested());
       await tester.pumpWidget(
@@ -649,8 +646,7 @@ void main() {
         'entrée attribuée en tête de file : le bouton déclenche l\'appel',
         (tester) async {
       when(() => mockList()).thenAnswer((_) async => Right([assignedEntry]));
-      when(() => mockCallNext())
-          .thenAnswer((_) async => Right(assignedEntry));
+      when(() => mockCallNext()).thenAnswer((_) async => Right(assignedEntry));
       final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
         ..add(const WaitingRoomLoadRequested());
       await tester.pumpWidget(
@@ -668,6 +664,76 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(() => mockCallNext()).called(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Motif du RDV en tête du sous-titre de chaque ligne (#5030)
+  // ---------------------------------------------------------------------------
+
+  group('Motif du RDV sur chaque ligne (#5030)', () {
+    testWidgets('motif présent : préfixe le sous-titre avec « · »',
+        (tester) async {
+      final entry = WaitingRoomEntry(
+        id: 'wr-1',
+        cabinetId: 'cab-1',
+        patientId: 'pat-1',
+        patientName: 'Yanis Diallo',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 6)),
+        reason: 'Pose de couronne',
+      );
+      when(() => mockList()).thenAnswer((_) async => Right([entry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-1')),
+          matching: find.textContaining('Pose de couronne · 6 min d\'attente'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('motif absent : pas de « · » orphelin', (tester) async {
+      final entry = WaitingRoomEntry(
+        id: 'wr-1',
+        cabinetId: 'cab-1',
+        patientId: 'pat-1',
+        patientName: 'Yanis Diallo',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 6)),
+      );
+      when(() => mockList()).thenAnswer((_) async => Right([entry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-1')),
+          matching: find.text('6 min d\'attente'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 
@@ -956,7 +1022,8 @@ void main() {
       );
     });
 
-    testWidgets('la valeur de l\'attente la plus longue est en couleur '
+    testWidgets(
+        'la valeur de l\'attente la plus longue est en couleur '
         'warning', (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1.0;
