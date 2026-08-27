@@ -30,13 +30,51 @@ class OrdonnanceNewPage extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class OrdonnanceNewBody extends StatelessWidget {
+class OrdonnanceNewBody extends StatefulWidget {
   const OrdonnanceNewBody({super.key, this.patientId});
   final String? patientId;
 
   @override
+  State<OrdonnanceNewBody> createState() => _OrdonnanceNewBodyState();
+}
+
+class _OrdonnanceNewBodyState extends State<OrdonnanceNewBody> {
+  late final SendToPharmacyCubit _pharmacyCubit;
+
+  /// Vrai lorsque le bouton combiné a été tapé : consommé au prochain
+  /// `OrdonnancesSigned` pour enchaîner l'envoi (#5000), sinon la
+  /// signature reste une action isolée.
+  bool _autoSendToPharmacy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pharmacyCubit = GetIt.instance<SendToPharmacyCubit>();
+  }
+
+  @override
+  void dispose() {
+    _pharmacyCubit.close();
+    super.dispose();
+  }
+
+  void _onSign(Prescription prescription) {
+    _autoSendToPharmacy = false;
+    context
+        .read<OrdonnancesBloc>()
+        .add(OrdonnancesSignRequested(prescription.id));
+  }
+
+  void _onSignAndSendToPharmacy(Prescription prescription) {
+    _autoSendToPharmacy = true;
+    context
+        .read<OrdonnancesBloc>()
+        .add(OrdonnancesSignRequested(prescription.id));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final pid = patientId;
+    final pid = widget.patientId;
     if (pid == null || pid.isEmpty) {
       return const NubiaEmptyState(
         key: Key('ordonnances_new'),
@@ -45,40 +83,57 @@ class OrdonnanceNewBody extends StatelessWidget {
         subtitle: 'Ouvrez une fiche patient pour prescrire.',
       );
     }
-    return BlocConsumer<OrdonnancesBloc, OrdonnancesState>(
-      listener: (context, state) {
-        if (state is OrdonnancesError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
+    return BlocProvider<SendToPharmacyCubit>.value(
+      value: _pharmacyCubit,
+      child: BlocConsumer<OrdonnancesBloc, OrdonnancesState>(
+        listener: (context, state) {
+          if (state is OrdonnancesError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+          if (state is OrdonnancesSigned) {
+            // La pharmacie déclarée n'est connue qu'une fois le patientId
+            // disponible (post-signature ici) ; `send()` exige, lui, le
+            // `prescription.id` — d'où l'enchaînement load() puis send().
+            final autoSend = _autoSendToPharmacy;
+            _autoSendToPharmacy = false;
+            _pharmacyCubit.load(state.prescription.patientId).then((_) {
+              if (autoSend) _pharmacyCubit.send(state.prescription.id);
+            });
+          }
+        },
+        builder: (context, state) {
+          if (state is OrdonnancesSigned) {
+            return _SignedConfirmation(prescription: state.prescription);
+          }
+          if (state is OrdonnancesCreated ||
+              state is OrdonnancesSigningInProgress ||
+              state is OrdonnancesApplyingTemplate) {
+            final prescription = switch (state) {
+              OrdonnancesCreated(:final prescription) => prescription,
+              OrdonnancesSigningInProgress(:final prescription) =>
+                prescription,
+              OrdonnancesApplyingTemplate(:final prescription) => prescription,
+              _ => throw StateError('unreachable'),
+            };
+            return _DraftReview(
+              prescription: prescription,
+              signing: state is OrdonnancesSigningInProgress,
+              applyingTemplate: state is OrdonnancesApplyingTemplate,
+              onSign: () => _onSign(prescription),
+              onSignAndSendToPharmacy: () =>
+                  _onSignAndSendToPharmacy(prescription),
+            );
+          }
+          // Initial, Loading, Error : le formulaire reste monté pour ne pas
+          // perdre la saisie (l'erreur est surfacée en snackbar).
+          return _PrescriptionForm(
+            patientId: pid,
+            loading: state is OrdonnancesLoading,
           );
-        }
-      },
-      builder: (context, state) {
-        if (state is OrdonnancesSigned) {
-          return _SignedConfirmation(prescription: state.prescription);
-        }
-        if (state is OrdonnancesCreated ||
-            state is OrdonnancesSigningInProgress ||
-            state is OrdonnancesApplyingTemplate) {
-          final prescription = switch (state) {
-            OrdonnancesCreated(:final prescription) => prescription,
-            OrdonnancesSigningInProgress(:final prescription) => prescription,
-            OrdonnancesApplyingTemplate(:final prescription) => prescription,
-            _ => throw StateError('unreachable'),
-          };
-          return _DraftReview(
-            prescription: prescription,
-            signing: state is OrdonnancesSigningInProgress,
-            applyingTemplate: state is OrdonnancesApplyingTemplate,
-          );
-        }
-        // Initial, Loading, Error : le formulaire reste monté pour ne pas
-        // perdre la saisie (l'erreur est surfacée en snackbar).
-        return _PrescriptionForm(
-          patientId: pid,
-          loading: state is OrdonnancesLoading,
-        );
-      },
+        },
+      ),
     );
   }
 }
@@ -375,10 +430,14 @@ class _DraftReview extends StatelessWidget {
     required this.prescription,
     required this.signing,
     required this.applyingTemplate,
+    required this.onSign,
+    required this.onSignAndSendToPharmacy,
   });
   final Prescription prescription;
   final bool signing;
   final bool applyingTemplate;
+  final VoidCallback onSign;
+  final VoidCallback onSignAndSendToPharmacy;
 
   @override
   Widget build(BuildContext context) {
@@ -440,11 +499,16 @@ class _DraftReview extends StatelessWidget {
                   label: 'Signer l\'ordonnance',
                   icon: Icons.draw_outlined,
                   isLoading: signing,
-                  onPressed: busy
-                      ? null
-                      : () => context
-                          .read<OrdonnancesBloc>()
-                          .add(OrdonnancesSignRequested(prescription.id)),
+                  onPressed: busy ? null : onSign,
+                ),
+                const SizedBox(height: 8),
+                NubiaButton(
+                  key: const Key('sign_and_send_to_pharmacy_button'),
+                  label: 'Signer et envoyer à la pharmacie',
+                  variant: NubiaButtonVariant.secondary,
+                  icon: Icons.local_pharmacy,
+                  isLoading: signing,
+                  onPressed: busy ? null : onSignAndSendToPharmacy,
                 ),
                 const _EidasImmutabilityNotice(),
               ],
@@ -528,12 +592,6 @@ class _SignedConfirmation extends StatelessWidget {
   const _SignedConfirmation({required this.prescription});
   final Prescription prescription;
 
-  static Widget sendCard(Prescription prescription) => BlocProvider(
-        create: (_) =>
-            GetIt.instance<SendToPharmacyCubit>()..load(prescription.patientId),
-        child: SendToPharmacyCard(prescription: prescription),
-      );
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -570,7 +628,7 @@ class _SignedConfirmation extends StatelessWidget {
                   ?.copyWith(color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 24),
-            sendCard(prescription),
+            SendToPharmacyCard(prescription: prescription),
             const SizedBox(height: 16),
             NubiaButton(
               key: const Key('back_to_ordonnances_button'),
