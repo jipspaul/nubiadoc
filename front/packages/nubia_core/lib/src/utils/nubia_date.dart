@@ -72,6 +72,16 @@ class NubiaDate {
     return '${dt.day} ${_monthsAbbr[dt.month - 1]}';
   }
 
+  /// Heure seule, heure locale, chiffres tabulaires ; ex. `17:42`, `08:12`.
+  /// Utiliser ce helper plutôt qu'un `_formatTimestamp` local par écran
+  /// (fondation 3, #5128).
+  static String timeOnly(DateTime dateTime) {
+    final dt = dateTime.toLocal();
+    return '${_pad2(dt.hour)}:${_pad2(dt.minute)}';
+  }
+
+  static String _pad2(int n) => n.toString().padLeft(2, '0');
+
   static const _weekdaysFull = [
     'Lundi',
     'Mardi',
