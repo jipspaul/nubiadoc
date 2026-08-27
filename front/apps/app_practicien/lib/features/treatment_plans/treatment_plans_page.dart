@@ -11,6 +11,7 @@ import '../consultation_clinique/ccam_picker.dart';
 import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
 import 'widgets/patient_header_bar.dart';
+import 'widgets/phase_timeline.dart';
 
 class TreatmentPlansPage extends StatelessWidget {
   const TreatmentPlansPage({super.key, required this.patientId});
@@ -219,8 +220,7 @@ class _PlanCardState extends State<_PlanCard> {
                   child: Text(plan.title, style: textTheme.titleMedium),
                 ),
                 StatusPill(
-                  label: treatmentPlanStatusLabels[plan.status] ??
-                      plan.status,
+                  label: treatmentPlanStatusLabels[plan.status] ?? plan.status,
                   variant: treatmentPlanStatusVariants[plan.status] ??
                       StatusPillVariant.info,
                 ),
@@ -234,36 +234,22 @@ class _PlanCardState extends State<_PlanCard> {
                 key: Key('treatment_plan_no_phases_${plan.id}'),
               )
             else
-              for (final phase in plan.phases) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    key: Key('treatment_phase_${phase.id}'),
-                    children: [
-                      Text('${phase.position}. ', style: textTheme.bodyMedium),
-                      Expanded(
-                        child: Text(phase.title, style: textTheme.bodyMedium),
+              PhaseTimeline(
+                children: [
+                  for (final (index, phase) in plan.phases.indexed)
+                    PhaseStep(
+                      status: phase.status,
+                      number: phase.position,
+                      isLast: index == plan.phases.length - 1,
+                      card: _PhaseCard(
+                        key: Key('treatment_phase_${phase.id}'),
+                        phase: phase,
+                        busy: busy,
+                        onAddAct: () => _openAddAct(context, phase),
                       ),
-                      StatusPill(
-                        label: treatmentPlanStatusLabels[phase.status] ??
-                            phase.status,
-                        variant: treatmentPlanStatusVariants[phase.status] ??
-                            StatusPillVariant.info,
-                      ),
-                    ],
-                  ),
-                ),
-                // Phase active (#5023) : affordance d'ajout d'acte sous la
-                // liste des actes de la phase. Le rendu des actes eux-mêmes
-                // (ticket dédié « rendu des actes ») n'existe pas encore, donc
-                // l'affordance suit directement la ligne de la phase.
-                if (phase.status == 'in_progress')
-                  _AddActAffordance(
-                    key: Key('treatment_phase_add_act_${phase.id}'),
-                    buttonKey: Key('treatment_phase_add_act_button_${phase.id}'),
-                    onTap: busy ? null : () => _openAddAct(context, phase),
-                  ),
-              ],
+                    ),
+                ],
+              ),
             const SizedBox(height: 8),
             if (_composingPhase)
               _NewPhaseComposer(
@@ -277,12 +263,61 @@ class _PlanCardState extends State<_PlanCard> {
             else
               _NewPhaseEntry(
                 key: Key('treatment_plan_add_phase_${plan.id}'),
-                onTap: busy
-                    ? null
-                    : () => setState(() => _composingPhase = true),
+                onTap:
+                    busy ? null : () => setState(() => _composingPhase = true),
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Carte `.bd` d'une phase (#5021, maquette design-v2 `.ph`) — en-tête
+/// (titre + statut) et, pour la phase active, l'affordance d'ajout d'acte
+/// sous la carte. Affichée à droite du rail vertical par [PhaseTimeline].
+class _PhaseCard extends StatelessWidget {
+  const _PhaseCard({
+    super.key,
+    required this.phase,
+    required this.busy,
+    required this.onAddAct,
+  });
+
+  final TreatmentPhase phase;
+  final bool busy;
+  final VoidCallback onAddAct;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(phase.title, style: textTheme.bodyMedium),
+              ),
+              StatusPill(
+                label: treatmentPlanStatusLabels[phase.status] ?? phase.status,
+                variant: treatmentPlanStatusVariants[phase.status] ??
+                    StatusPillVariant.info,
+              ),
+            ],
+          ),
+          // Phase active (#5023) : affordance d'ajout d'acte sous la
+          // liste des actes de la phase. Le rendu des actes eux-mêmes
+          // (ticket dédié « rendu des actes ») n'existe pas encore, donc
+          // l'affordance suit directement l'en-tête de la carte.
+          if (phase.status == 'in_progress')
+            _AddActAffordance(
+              key: Key('treatment_phase_add_act_${phase.id}'),
+              buttonKey: Key('treatment_phase_add_act_button_${phase.id}'),
+              onTap: busy ? null : onAddAct,
+            ),
+        ],
       ),
     );
   }
