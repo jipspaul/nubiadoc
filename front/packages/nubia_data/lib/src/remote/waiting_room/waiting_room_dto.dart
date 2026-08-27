@@ -10,6 +10,7 @@ class WaitingRoomEntryDto {
   final String arrivedAt;
   final int? estimatedWaitMinutes;
   final String? reason;
+  final String? appointmentReason;
   final String? appointmentTime;
   final String? practitionerId;
   final String? practitionerName;
@@ -24,6 +25,7 @@ class WaitingRoomEntryDto {
     required this.arrivedAt,
     this.estimatedWaitMinutes,
     this.reason,
+    this.appointmentReason,
     this.appointmentTime,
     this.practitionerId,
     this.practitionerName,
@@ -51,6 +53,8 @@ class WaitingRoomEntryDto {
         estimatedWaitMinutes: (json['wait_minutes'] as num?)?.toInt() ??
             (json['estimated_wait_minutes'] as num?)?.toInt(),
         reason: json['motif'] as String?,
+        appointmentReason: (json['motif'] as String?) ??
+            (json['appointment_reason'] as String?),
         appointmentTime: json['starts_at'] as String?,
         practitionerId: json['practitioner_id'] as String?,
         practitionerName: json['practitioner_name'] as String?,
@@ -73,6 +77,7 @@ class WaitingRoomEntryDto {
         arrivedAt: DateTime.parse(arrivedAt),
         estimatedWaitMinutes: estimatedWaitMinutes,
         reason: reason,
+        appointmentReason: appointmentReason,
         appointmentTime:
             appointmentTime != null ? DateTime.tryParse(appointmentTime!) : null,
         practitionerId: practitionerId,
