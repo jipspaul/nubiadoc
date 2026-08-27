@@ -221,6 +221,8 @@ class _LoadedViewState extends State<_LoadedView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _RoomPacePanel(entries: widget.state.entries),
+                    const SizedBox(height: 12),
                     _MyPatientsPanel(entries: widget.state.entries),
                     const SizedBox(height: 12),
                     const _PresencePanel(key: Key('presence_panel')),
@@ -233,6 +235,134 @@ class _LoadedViewState extends State<_LoadedView> {
           ],
         );
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Panneau latéral « Rythme de la salle » (maquette design-v2, #5038, `.bx`
+/// header `timer`) — attente moyenne et attente la plus longue parmi les
+/// présents, dérivées de [WaitingRoomEntry.waitSoFar]. (La ligne « Retard sur
+/// le planning » de la maquette est un ticket séparé.)
+class _RoomPacePanel extends StatelessWidget {
+  const _RoomPacePanel({required this.entries});
+
+  final List<WaitingRoomEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+
+    final waitMinutes = entries.map((e) => e.waitSoFar.inMinutes).toList();
+    final averageMinutes = waitMinutes.isEmpty
+        ? 0
+        : (waitMinutes.reduce((a, b) => a + b) / waitMinutes.length).round();
+
+    var longestIndex = 0;
+    for (var i = 1; i < waitMinutes.length; i++) {
+      if (waitMinutes[i] > waitMinutes[longestIndex]) longestIndex = i;
+    }
+    final longestMinutes = waitMinutes.isEmpty ? 0 : waitMinutes[longestIndex];
+    final longestPatientName =
+        entries.isEmpty ? '' : entries[longestIndex].patientName;
+
+    return NubiaCard(
+      key: const Key('room_pace_panel'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.timer, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Rythme de la salle',
+                  style: textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _PaceRow(
+            key: const Key('room_pace_average'),
+            label: 'Attente moyenne',
+            subtitle: 'sur les ${entries.length} présents',
+            value: '$averageMinutes min',
+          ),
+          const SizedBox(height: 12),
+          _PaceRow(
+            key: const Key('room_pace_longest'),
+            label: 'Attente la plus longue',
+            subtitle: longestPatientName,
+            value: '$longestMinutes min',
+            valueColor: tokens.warningFg,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Une ligne du panneau « Rythme de la salle » : libellé + sous-texte, durée
+/// à droite (couleur warning pour l'attente la plus longue).
+class _PaceRow extends StatelessWidget {
+  const _PaceRow({
+    super.key,
+    required this.label,
+    required this.subtitle,
+    required this.value,
+    this.valueColor,
+  });
+
+  final String label;
+  final String subtitle;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style:
+                    textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style:
+                    textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          value,
+          style: textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: valueColor ?? tokens.neutralFg,
+          ),
+        ),
+      ],
     );
   }
 }
