@@ -115,13 +115,19 @@ class _LoadedView extends StatefulWidget {
   State<_LoadedView> createState() => _LoadedViewState();
 }
 
+/// Largeur de la colonne latérale « Praticiens présents » (maquette
+/// design-v2, #5040) — sous ce seuil de largeur disponible, la colonne
+/// disparaît plutôt que d'écraser la file (comportement tablette/portrait).
+const kPresencePanelBreakpoint = 900.0;
+const kPresencePanelWidth = 280.0;
+
 class _LoadedViewState extends State<_LoadedView> {
   Completer<void>? _refreshCompleter;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return BlocListener<WaitingRoomBloc, WaitingRoomState>(
+    final body = BlocListener<WaitingRoomBloc, WaitingRoomState>(
       listenWhen: (_, s) => s is WaitingRoomLoaded || s is WaitingRoomError,
       listener: (_, __) {
         _refreshCompleter?.complete();
@@ -195,6 +201,178 @@ class _LoadedViewState extends State<_LoadedView> {
                           entry: widget.state.entries[i], position: i + 1),
                     ),
                   ),
+          ),
+        ],
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < kPresencePanelBreakpoint) return body;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: body),
+            const SizedBox(
+              width: kPresencePanelWidth,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(0, 16, 16, 16),
+                child: _PresencePanel(key: Key('presence_panel')),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Panneau latéral « Praticiens présents » (maquette design-v2, #5040,
+/// `.bx` header `groups`) — liste statique le temps qu'un flux de présence
+/// existe côté domaine (aucune source de données praticiens-présents
+/// aujourd'hui dans [WaitingRoomLoaded]).
+class _PresencePanel extends StatelessWidget {
+  const _PresencePanel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        NubiaCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.groups, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Praticiens présents',
+                      style: textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const _PractitionerPresenceRow(
+                initials: 'AR',
+                name: 'Dr Amélie Rousseau',
+                subtitle: 'Vous · en consultation',
+                statusLabel: 'Présente',
+                statusVariant: StatusPillVariant.success,
+              ),
+              const SizedBox(height: 12),
+              const _PractitionerPresenceRow(
+                initials: 'ML',
+                name: 'Dr Marc Lefèvre',
+                subtitle: 'Fauteuil 2 · termine à 18h',
+                statusLabel: 'Départ 18h',
+                statusVariant: StatusPillVariant.warning,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        const _ConfidentialityNote(),
+      ],
+    );
+  }
+}
+
+/// Une ligne du panneau « Praticiens présents » : avatar, nom, sous-texte,
+/// pastille de statut (jamais couleur seule — label + [StatusPill]).
+class _PractitionerPresenceRow extends StatelessWidget {
+  const _PractitionerPresenceRow({
+    required this.initials,
+    required this.name,
+    required this.subtitle,
+    required this.statusLabel,
+    required this.statusVariant,
+  });
+
+  final String initials;
+  final String name;
+  final String subtitle;
+  final String statusLabel;
+  final StatusPillVariant statusVariant;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        NubiaAvatar(initials: initials, radius: 16),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style:
+                    textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              StatusPill(label: statusLabel, variant: statusVariant),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Note de confidentialité clinique (maquette design-v2, `.note`, icône
+/// `shield`) — verbatim : la file d'attente n'affiche que le motif
+/// administratif, jamais d'alerte clinique (celles-ci restent réservées à
+/// la carte du prochain appelé).
+class _ConfidentialityNote extends StatelessWidget {
+  const _ConfidentialityNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      key: const Key('waiting_room_confidentiality_note'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.shield, size: 18, color: NubiaColors.n400),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'La file affiche le motif administratif du rendez-vous. Les '
+              'alertes cliniques ne figurent que sur la carte du prochain '
+              'appelé.',
+              style: textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+            ),
           ),
         ],
       ),
