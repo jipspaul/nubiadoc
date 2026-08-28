@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import '../treatment_plans/treatment_status_style.dart';
 import 'async_section_state.dart';
 import 'medical_questionnaire_review_section.dart';
+import 'patient_current_plan_section.dart';
 import 'patient_fiche_bloc.dart';
 import 'patient_journal_section.dart';
 
@@ -389,9 +390,51 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
           body: TabBarView(
             controller: _tabController,
             children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: PatientJournalSection(patientId: patient.id),
+              // #4977, maquette design-v2 §.bx — colonne droite pour
+              // l'encart « Plan en cours », visible sans changer d'écran.
+              // `LayoutBuilder` : en dessous de 900px (poste étroit, mêmes
+              // contraintes que les tests widget existants du journal), la
+              // colonne journal garde sa pleine largeur et l'encart passe
+              // sous elle plutôt que de la comprimer jusqu'à débordement.
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final journal = PatientJournalSection(patientId: patient.id);
+                  final currentPlan = PatientCurrentPlanSection(
+                    key: const Key('patient_fiche_current_plan_section'),
+                    patientId: patient.id,
+                  );
+                  if (constraints.maxWidth < 900) {
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          journal,
+                          const SizedBox(height: 16),
+                          currentPlan,
+                        ],
+                      ),
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: journal,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 320,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(0, 16, 16, 16),
+                          child: currentPlan,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
