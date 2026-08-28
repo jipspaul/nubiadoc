@@ -50,6 +50,33 @@ void registerMedicalRecordStub() {
   );
 }
 
+class _MockMedicationReferenceRepository extends Mock
+    implements MedicationReferenceRepository {}
+
+final _medicationReferenceRepo = _MockMedicationReferenceRepository();
+
+const _medicationReference = MedicationReference(
+  id: 'med-1',
+  dci: 'Amoxicilline',
+  galenicForm: 'comprimé dispersible',
+  therapeuticClass: 'Pénicilline',
+);
+
+/// Affordance d'ajout (#4987) : `_AddItemSearchField` résout
+/// `SearchMedicationReferencesUseCase` via GetIt, même pattern que
+/// `registerMedicalRecordStub` ci-dessus — le contenu réel du référentiel
+/// (ticket « recherche référentiel DCI ») n'étant pas encore câblé en
+/// production, ce stub simule son activation pour tester l'affordance.
+void registerMedicationReferenceStub() {
+  when(() => _medicationReferenceRepo.searchMedicationReferences(
+        query: any(named: 'query'),
+      )).thenAnswer((_) async => const Right([_medicationReference]));
+  if (GetIt.instance.isRegistered<SearchMedicationReferencesUseCase>()) return;
+  GetIt.instance.registerFactory<SearchMedicationReferencesUseCase>(
+    () => SearchMedicationReferencesUseCase(_medicationReferenceRepo),
+  );
+}
+
 class _MockCabinetPatientsRepository extends Mock
     implements CabinetPatientsRepository {}
 
@@ -154,6 +181,23 @@ const _template = PrescriptionTemplate(
   isGlobal: true,
 );
 
+/// Modèle du cabinet (#4986, section « Partir d'un modèle ») : deux lignes,
+/// pour couvrir le pluriel de l'étiquette « N ligne(s) » et l'origine
+/// « Cabinet » (opposée au modèle standard [_template] ci-dessus).
+const _cabinetTemplateItem = PrescriptionItem(
+  label: 'Ibuprofène 400mg',
+  posology: '1 cp x 3/jour',
+  duration: '3 jours',
+  quantity: 'QSP 9 cp',
+);
+
+const _cabinetTemplate = PrescriptionTemplate(
+  id: 'tmpl-2',
+  label: 'Post-extraction',
+  items: [_templateItem, _cabinetTemplateItem],
+  isGlobal: false,
+);
+
 /// Devis (ordonnance) tel que renvoyé après application du modèle #4074 :
 /// mêmes lignes que le modèle, `id`/`patientId` inchangés.
 final _prescriptionWithTemplateItems = Prescription(
@@ -212,9 +256,11 @@ void main() {
   setUp(() {
     bloc = MockOrdonnancesBloc();
     when(() => bloc.state).thenReturn(const OrdonnancesInitial());
+    when(() => bloc.loadTemplates()).thenAnswer((_) async => const []);
     registerMedicalRecordStub();
     registerCabinetPatientStub();
     registerSendToPharmacyStub();
+    registerMedicationReferenceStub();
   });
 
   group('OrdonnanceNewBody', () {
@@ -307,10 +353,10 @@ void main() {
 
       expect(find.byKey(const Key('allergies_banner')), findsOneWidget);
       // La saisie reste pleinement utilisable : les champs sont éditables et
-      // le bouton "Ajouter un médicament" reste actif.
-      final addButton =
-          tester.widget<NubiaButton>(find.byKey(const Key('add_item_button')));
-      expect(addButton.onPressed, isNotNull);
+      // le champ de recherche d'ajout reste actif.
+      final searchField = tester
+          .widget<NubiaSearchBar>(find.byKey(const Key('add_item_button')));
+      expect(searchField.enabled, isTrue);
       await _fillItem(tester, 0);
       final submitButton = tester.widget<FilledButton>(
         find.descendant(
@@ -488,15 +534,34 @@ void main() {
           find.byKey(const Key('ordonnance_document_preview')), findsNothing);
     });
 
-    testWidgets('bouton Ajouter → deuxième carte médicament', (tester) async {
+    testWidgets(
+        'recherche → sélectionner un résultat ajoute une deuxième carte '
+        'médicament (#4987)', (tester) async {
       await tester.pumpWidget(_wrap(bloc));
 
       await tester.ensureVisible(find.byKey(const Key('add_item_button')));
-      await tester.tap(find.byKey(const Key('add_item_button')));
+      expect(
+        tester.widget(find.byKey(const Key('add_item_button'))),
+        isA<NubiaSearchBar>(),
+      );
+      expect(find.text('Ajouter un médicament'), findsNothing);
+      await tester.enterText(find.byKey(const Key('add_item_button')), 'amox');
+      await tester.pump();
+
+      final resultKey = const Key('add_item_result_med-1');
+      await tester.ensureVisible(find.byKey(resultKey));
+      await tester.tap(find.byKey(resultKey));
       await tester.pump();
 
       expect(find.byKey(const Key('item_card_0')), findsOneWidget);
       expect(find.byKey(const Key('item_card_1')), findsOneWidget);
+      expect(
+        tester
+            .widget<NubiaTextField>(find.byKey(const Key('item_1_label')))
+            .controller
+            ?.text,
+        'Amoxicilline',
+      );
     });
 
     testWidgets(
@@ -764,6 +829,58 @@ void main() {
 
       expect(find.text('Erreur de création.'), findsOneWidget);
       expect(find.byKey(const Key('ordonnance_form')), findsOneWidget);
+    });
+
+    testWidgets(
+        'OrdonnancesInitial → section "Partir d\'un modèle" visible en tête '
+        'du formulaire, sans ordonnance créée au préalable (#4986)',
+        (tester) async {
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_template, _cabinetTemplate]);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('template_section')), findsOneWidget);
+      expect(find.text('Partir d\'un modèle'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+
+      expect(
+          find.byKey(const Key('template_card_tmpl-1')), findsOneWidget);
+      expect(find.text('Antalgique post-opératoire palier 1'),
+          findsOneWidget);
+      expect(find.text('Standard · 1 ligne'), findsOneWidget);
+
+      expect(
+          find.byKey(const Key('template_card_tmpl-2')), findsOneWidget);
+      expect(find.text('Post-extraction'), findsOneWidget);
+      expect(find.text('Cabinet · 2 lignes'), findsOneWidget);
+    });
+
+    testWidgets(
+        'OrdonnancesInitial → sélectionner une carte modèle préremplit les '
+        'lignes et l\'active visuellement (#4986)', (tester) async {
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_template, _cabinetTemplate]);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester
+          .ensureVisible(find.byKey(const Key('template_card_tmpl-2')));
+      await tester.tap(find.byKey(const Key('template_card_tmpl-2')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Paracétamol 1 g'), findsOneWidget);
+      expect(find.text('Ibuprofène 400mg'), findsOneWidget);
+
+      final card = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('template_card_tmpl-2')),
+          matching: find.byType(Material),
+        ),
+      );
+      expect(card.color, NubiaColors.brand50);
     });
   });
 }

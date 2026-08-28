@@ -27,6 +27,20 @@ pub struct PrescriptionItemInput {
     pub posology: String,
     pub duration: String,
     pub quantity: Option<String>,
+    /// Posologie décomposée `{dose, frequency_per_day, duration_in_days}`
+    /// (design-v2, #4991-#4999). `None` pour une ligne en texte libre.
+    #[serde(default)]
+    pub structured_posology: Option<serde_json::Value>,
+    /// Référence produit référentiel médicament `{id, dci, galenic_form,
+    /// therapeutic_class}` (design-v2). `None` hors référentiel.
+    #[serde(default)]
+    pub product_reference: Option<serde_json::Value>,
+    /// Motif de la mention légale « non substituable » (ex. MTE).
+    #[serde(default)]
+    pub non_substitution_reason: Option<String>,
+    /// Mention légale « non renouvelable ».
+    #[serde(default)]
+    pub non_renouvelable: bool,
 }
 
 /// Body de `POST /v1/cabinet/prescriptions`.
@@ -77,6 +91,9 @@ pub async fn create_prescription(
         }
         if let Some(quantity) = &item.quantity {
             crate::text_validation::reject_nul_byte(quantity)?;
+        }
+        if let Some(reason) = &item.non_substitution_reason {
+            crate::text_validation::reject_nul_byte(reason)?;
         }
     }
 
@@ -176,8 +193,9 @@ pub async fn create_prescription(
     for item in &body.items {
         sqlx::query(
             "INSERT INTO prescription_item \
-             (cabinet_id, prescription_id, label, form, posology, duration, quantity) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+             (cabinet_id, prescription_id, label, form, posology, duration, quantity, \
+              structured_posology, product_reference, non_substitution_reason, non_renouvelable) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
         )
         .bind(claims.cabinet_id)
         .bind(prescription_id)
@@ -186,6 +204,10 @@ pub async fn create_prescription(
         .bind(&item.posology)
         .bind(&item.duration)
         .bind(&item.quantity)
+        .bind(&item.structured_posology)
+        .bind(&item.product_reference)
+        .bind(&item.non_substitution_reason)
+        .bind(item.non_renouvelable)
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -337,6 +359,13 @@ pub async fn sign_prescription(
                 posology: r.try_get("posology").map_err(|_| AppError::Internal)?,
                 duration: r.try_get("duration").map_err(|_| AppError::Internal)?,
                 quantity: r.try_get("quantity").map_err(|_| AppError::Internal)?,
+                // Non nécessaires au rendu PDF (render_prescription_pdf n'imprime
+                // que label/form/posology/duration/quantity) — pas de colonne
+                // supplémentaire à sélectionner ici.
+                structured_posology: None,
+                product_reference: None,
+                non_substitution_reason: None,
+                non_renouvelable: false,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -472,6 +501,10 @@ pub struct PrescriptionItemDto {
     pub posology: String,
     pub duration: String,
     pub quantity: Option<String>,
+    pub structured_posology: Option<serde_json::Value>,
+    pub product_reference: Option<serde_json::Value>,
+    pub non_substitution_reason: Option<String>,
+    pub non_renouvelable: bool,
 }
 
 /// DTO ordonnance — partagé par create (201) et get (200).
@@ -530,7 +563,8 @@ pub async fn get_prescription(
         row.try_get("created_at").map_err(|_| AppError::Internal)?;
 
     let item_rows = sqlx::query(
-        "SELECT id, label, form, posology, duration, quantity \
+        "SELECT id, label, form, posology, duration, quantity, \
+                structured_posology, product_reference, non_substitution_reason, non_renouvelable \
          FROM prescription_item \
          WHERE prescription_id = $1 AND cabinet_id = $2",
     )
@@ -552,6 +586,18 @@ pub async fn get_prescription(
                 posology: r.try_get("posology").map_err(|_| AppError::Internal)?,
                 duration: r.try_get("duration").map_err(|_| AppError::Internal)?,
                 quantity: r.try_get("quantity").map_err(|_| AppError::Internal)?,
+                structured_posology: r
+                    .try_get("structured_posology")
+                    .map_err(|_| AppError::Internal)?,
+                product_reference: r
+                    .try_get("product_reference")
+                    .map_err(|_| AppError::Internal)?,
+                non_substitution_reason: r
+                    .try_get("non_substitution_reason")
+                    .map_err(|_| AppError::Internal)?,
+                non_renouvelable: r
+                    .try_get("non_renouvelable")
+                    .map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;

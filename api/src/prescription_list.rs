@@ -102,7 +102,8 @@ pub async fn list_patient_prescriptions(
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
 
         let item_rows = sqlx::query(
-            "SELECT id, label, form, posology, duration, quantity \
+            "SELECT id, label, form, posology, duration, quantity, \
+                    structured_posology, product_reference, non_substitution_reason, non_renouvelable \
              FROM prescription_item \
              WHERE prescription_id = $1 AND cabinet_id = $2",
         )
@@ -122,6 +123,18 @@ pub async fn list_patient_prescriptions(
                     posology: r.try_get("posology").map_err(|_| AppError::Internal)?,
                     duration: r.try_get("duration").map_err(|_| AppError::Internal)?,
                     quantity: r.try_get("quantity").map_err(|_| AppError::Internal)?,
+                    structured_posology: r
+                        .try_get("structured_posology")
+                        .map_err(|_| AppError::Internal)?,
+                    product_reference: r
+                        .try_get("product_reference")
+                        .map_err(|_| AppError::Internal)?,
+                    non_substitution_reason: r
+                        .try_get("non_substitution_reason")
+                        .map_err(|_| AppError::Internal)?,
+                    non_renouvelable: r
+                        .try_get("non_renouvelable")
+                        .map_err(|_| AppError::Internal)?,
                 })
             })
             .collect::<Result<Vec<_>, AppError>>()?;

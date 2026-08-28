@@ -288,6 +288,8 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
   final List<_ItemDraft> _items = [_ItemDraft()];
   List<String> _allergies = const [];
   CabinetPatient? _patient;
+  List<PrescriptionTemplate> _templates = const [];
+  String? _selectedTemplateId;
 
   bool get _formValid => _items.isNotEmpty && _items.every((i) => i.isValid);
 
@@ -296,6 +298,35 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
     super.initState();
     _loadAllergies();
     _loadPatient();
+    _loadTemplates();
+  }
+
+  /// #4986 (maquette design-v2) : les modèles sont proposés en tête du
+  /// formulaire, avant toute saisie, plutôt qu'après création du brouillon
+  /// (`_DraftReview`) — reprend `OrdonnancesBloc.loadTemplates()` (#4074),
+  /// déjà utilisé par `PrescriptionTemplatePicker`.
+  Future<void> _loadTemplates() async {
+    final templates = await context.read<OrdonnancesBloc>().loadTemplates();
+    if (!mounted) return;
+    setState(() => _templates = templates);
+  }
+
+  /// Applique un modèle à la composition en cours : remplace les lignes
+  /// saisies par celles du modèle (libellé seul — dose/fréquence/durée
+  /// restent à choisir dans les listes déroulantes, comme pour un ajout via
+  /// `_AddItemSearchField`).
+  void _applyTemplate(PrescriptionTemplate template) {
+    setState(() {
+      _selectedTemplateId = template.id;
+      for (final item in _items) {
+        item.dispose();
+      }
+      _items
+        ..clear()
+        ..addAll(template.items.isEmpty
+            ? [_ItemDraft()]
+            : template.items.map((i) => _ItemDraft()..label.text = i.label));
+    });
   }
 
   /// Affichage passif uniquement (#4076, ADR-009 §8.6) : jamais de blocage
@@ -376,6 +407,11 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
                   },
           ),
           const SizedBox(height: 20),
+          _TemplateSection(
+            templates: _templates,
+            selectedTemplateId: _selectedTemplateId,
+            onSelected: _applyTemplate,
+          ),
           for (var i = 0; i < _items.length; i++) ...[
             _ItemCard(
               index: i,
@@ -387,14 +423,15 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
             ),
             const SizedBox(height: 12),
           ],
-          NubiaButton(
-            key: const Key('add_item_button'),
-            label: 'Ajouter un médicament',
-            variant: NubiaButtonVariant.secondary,
-            icon: Icons.add,
-            onPressed: (widget.loading || widget.applyingTemplate)
-                ? null
-                : () => setState(() => _items.add(_ItemDraft())),
+          // Résolution de merge : main a remplacé le bouton « Ajouter un
+          // médicament » par la recherche au référentiel DCI (#4989) — on garde
+          // cette version. On y reporte la garde apportée par #4988 : pendant
+          // l'application d'un modèle, on ne peut pas ajouter de ligne.
+          _AddItemSearchField(
+            enabled: !widget.loading && !widget.applyingTemplate,
+            onSelected: (reference) => setState(
+              () => _items.add(_ItemDraft()..label.text = reference.dci),
+            ),
           ),
           const SizedBox(height: 24),
           NubiaButton(
@@ -438,6 +475,165 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Section « Partir d'un modèle » (#4986, maquette design-v2) : cibles
+/// tactiles affichées en tête de la composition, avant la saisie ligne à
+/// ligne — remplace l'unique point d'entrée `use_template_button` de
+/// `_DraftReview`, qui n'apparaissait qu'après création du brouillon (donc
+/// après une saisie manuelle que le modèle aurait de toute façon effacée).
+/// Vide (`templates` non chargés ou aucun modèle) : ne s'affiche pas.
+class _TemplateSection extends StatelessWidget {
+  const _TemplateSection({
+    required this.templates,
+    required this.selectedTemplateId,
+    required this.onSelected,
+  });
+
+  final List<PrescriptionTemplate> templates;
+  final String? selectedTemplateId;
+  final ValueChanged<PrescriptionTemplate> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (templates.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return Padding(
+      key: const Key('template_section'),
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          NubiaCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.description_outlined,
+                        size: 20, color: theme.colorScheme.onSurface),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Partir d\'un modèle',
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    NubiaBadge.count(count: templates.length),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final template in templates)
+                      SizedBox(
+                        width: 150,
+                        child: _TemplateCard(
+                          key: Key('template_card_${template.id}'),
+                          template: template,
+                          selected: template.id == selectedTemplateId,
+                          onTap: () => onSelected(template),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: Divider(color: tokens.borderSubtle)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text('ou',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: tokens.textTertiary)),
+              ),
+              Expanded(child: Divider(color: tokens.borderSubtle)),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
+
+/// Carte tactile d'un modèle (#4986) : libellé + origine (Cabinet/Standard,
+/// `PrescriptionTemplate.isGlobal`, #4073) et nombre de lignes. État actif
+/// (bordure/fond émeraude `brand600`/`brand50`) sur le modèle sélectionné —
+/// même distinction cabinet/standard que `PrescriptionTemplatePicker`, sans
+/// en changer la sémantique.
+class _TemplateCard extends StatelessWidget {
+  const _TemplateCard({
+    super.key,
+    required this.template,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final PrescriptionTemplate template;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    final origin = template.isGlobal ? 'Standard' : 'Cabinet';
+    final lineCount = template.items.length;
+    final lines = lineCount > 1 ? '$lineCount lignes' : '$lineCount ligne';
+
+    return Material(
+      color: selected ? NubiaColors.brand50 : theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: selected ? NubiaColors.brand600 : tokens.borderSubtle,
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                template.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: selected
+                      ? NubiaColors.brand700
+                      : theme.colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '$origin · $lines',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: tokens.textTertiary),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -736,6 +932,95 @@ class _ItemCard extends StatelessWidget {
           _QuantityCalc(index: index, draft: draft, onChanged: onChanged),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Affordance d'ajout d'une ligne médicament (#4987, maquette design-v2) :
+/// remplace l'ancien bouton plein « Ajouter un médicament » par un champ de
+/// recherche — choisir un résultat de l'autocomplétion est l'unique geste
+/// d'ajout. Le contenu du référentiel (ticket « recherche référentiel DCI »)
+/// n'est pas encore câblé dans le DI : tant que
+/// [SearchMedicationReferencesUseCase] n'y est pas enregistré, le champ reste
+/// un shell fonctionnel sans suggestion, prêt à s'activer sans autre
+/// changement ici.
+class _AddItemSearchField extends StatefulWidget {
+  const _AddItemSearchField({required this.enabled, required this.onSelected});
+
+  final bool enabled;
+  final ValueChanged<MedicationReference> onSelected;
+
+  @override
+  State<_AddItemSearchField> createState() => _AddItemSearchFieldState();
+}
+
+class _AddItemSearchFieldState extends State<_AddItemSearchField> {
+  final _controller = TextEditingController();
+  List<MedicationReference> _results = const [];
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search(String query) async {
+    if (query.trim().isEmpty ||
+        !GetIt.instance.isRegistered<SearchMedicationReferencesUseCase>()) {
+      setState(() => _results = const []);
+      return;
+    }
+    final result = await GetIt.instance<SearchMedicationReferencesUseCase>()(
+      query: query,
+    );
+    if (!mounted) return;
+    setState(() => _results = result.getOrElse(() => const []));
+  }
+
+  void _select(MedicationReference reference) {
+    widget.onSelected(reference);
+    _controller.clear();
+    setState(() => _results = const []);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        NubiaSearchBar(
+          key: const Key('add_item_button'),
+          controller: _controller,
+          hint: 'Rechercher un médicament (DCI)…',
+          enabled: widget.enabled,
+          onChanged: _search,
+        ),
+        if (_results.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          NubiaCard(
+            key: const Key('add_item_results'),
+            padding: EdgeInsets.zero,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final reference in _results)
+                  ListRow(
+                    key: Key('add_item_result_${reference.id}'),
+                    title: reference.dci,
+                    subtitle: '${reference.galenicForm} · DCI',
+                    trailing: Text(
+                      reference.therapeuticClass,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    onTap: () => _select(reference),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

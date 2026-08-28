@@ -1,4 +1,6 @@
 import 'package:dartz/dartz.dart' hide State;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -13,13 +15,32 @@ import 'patient_journal_section.dart';
 
 class PatientFiche extends StatelessWidget {
   final CabinetPatient patient;
-  const PatientFiche({super.key, required this.patient});
+
+  /// Callbacks d'action de l'en-tête (#4985, maquette design-v2 §.hb) —
+  /// `PatientFiche` n'est référencée par aucune route à ce jour (cf.
+  /// `patients_page.dart`), donc sans cible de navigation établie pour
+  /// « Nouveau devis »/« Démarrer une consultation ». Laissés au caller
+  /// plutôt que fabriqués : bouton désactivé (comportement `NubiaButton`
+  /// standard) tant qu'aucun callback n'est fourni.
+  final VoidCallback? onNewQuote;
+  final VoidCallback? onStartConsultation;
+
+  const PatientFiche({
+    super.key,
+    required this.patient,
+    this.onNewQuote,
+    this.onStartConsultation,
+  });
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => PatientFicheBloc(),
-      child: _PatientFicheScaffold(patient: patient),
+      child: _PatientFicheScaffold(
+        patient: patient,
+        onNewQuote: onNewQuote,
+        onStartConsultation: onStartConsultation,
+      ),
     );
   }
 }
@@ -28,7 +49,14 @@ class PatientFiche extends StatelessWidget {
 /// Documents (GED, #4042, désormais avec filtre catégorie + upload).
 class _PatientFicheScaffold extends StatefulWidget {
   final CabinetPatient patient;
-  const _PatientFicheScaffold({required this.patient});
+  final VoidCallback? onNewQuote;
+  final VoidCallback? onStartConsultation;
+
+  const _PatientFicheScaffold({
+    required this.patient,
+    this.onNewQuote,
+    this.onStartConsultation,
+  });
 
   @override
   State<_PatientFicheScaffold> createState() => _PatientFicheScaffoldState();
@@ -78,20 +106,33 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
           (prev.exportPdfError == null && curr.exportPdfError != null),
       listener: (context, state) async {
         if (state.pdfBytes != null) {
-          final box = context.findRenderObject() as RenderBox?;
-          final origin =
-              box == null ? null : box.localToGlobal(Offset.zero) & box.size;
-          await Share.shareXFiles(
-            [
-              XFile.fromData(
-                state.pdfBytes!,
-                name: state.pdfFilename ?? 'fiche_patient.pdf',
-                mimeType: 'application/pdf',
-              ),
-            ],
-            subject: 'Fiche ${patient.fullName}',
-            sharePositionOrigin: origin,
-          );
+          final filename = state.pdfFilename ?? 'fiche_patient.pdf';
+          if (isDesktopPlatform) {
+            // Desktop : la feuille de partage système (`Share.shareXFiles`)
+            // n'est pas implémentée sur Linux et n'a de sens qu'en présence
+            // d'apps de partage tierces sur Windows/macOS — on attend un
+            // téléchargement/enregistrement classique à la place.
+            await GetIt.instance<FilePickerService>().saveFile(
+              bytes: state.pdfBytes!,
+              fileName: filename,
+            );
+          } else {
+            final box = context.findRenderObject() as RenderBox?;
+            final origin = box == null
+                ? null
+                : box.localToGlobal(Offset.zero) & box.size;
+            await Share.shareXFiles(
+              [
+                XFile.fromData(
+                  state.pdfBytes!,
+                  name: filename,
+                  mimeType: 'application/pdf',
+                ),
+              ],
+              subject: 'Fiche ${patient.fullName}',
+              sharePositionOrigin: origin,
+            );
+          }
         }
         if (state.exportPdfError != null) {
           if (!context.mounted) return;
@@ -101,69 +142,182 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
         }
       },
       builder: (context, state) {
+        final cs = Theme.of(context).colorScheme;
+        final textTheme = Theme.of(context).textTheme;
+        final tokens = Theme.of(context).extension<NubiaTokens>()!;
+
         return Scaffold(
-          appBar: AppBar(
-            // #4974 — pastilles d'alerte clinique à côté du nom, visibles
-            // quel que soit l'onglet actif (en-tête, pas dans un onglet) ;
-            // `Wrap` plutôt que `Row` pour refluer si le nombre d'alertes
-            // dépasse la largeur disponible, même convention que
-            // `PatientIdentityBar` (#4957).
-            title: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 4,
+          // #4985, maquette design-v2 §.hd/.hb — en-tête identité (retour,
+          // avatar à initiales, nom, sous-titre) + barre d'actions, en lieu
+          // et place de l'`AppBar` à titre seul. `Container`+`TabBar` plutôt
+          // qu'`AppBar.title`/`actions` : la maquette demande un en-tête à
+          // deux lignes (nom, sous-titre) et trois boutons libellés, hors du
+          // gabarit standard d'une AppBar (même convention que
+          // `PatientHeaderBar`, #5024).
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(172),
+            child: Column(
               children: [
-                Text(patient.fullName),
-                for (final alert in _medicalAlerts)
-                  StatusPill(
-                    key: Key(
-                        'patient_fiche_alert_pill_${alert.kind}_${alert.label}'),
-                    label: _clinicalAlertLabel(alert),
-                    variant: alert.kind == 'allergie'
-                        ? StatusPillVariant.error
-                        : StatusPillVariant.warning,
-                    icon: alert.kind == 'allergie' ? Icons.warning : null,
+                Container(
+                  key: const Key('patient_fiche_header'),
+                  decoration: BoxDecoration(
+                    color: cs.surface,
+                    border:
+                        Border(bottom: BorderSide(color: tokens.borderSubtle)),
                   ),
-              ],
-            ),
-            actions: [
-              if (state.isExportingPdf)
-                const Padding(
-                  padding: EdgeInsets.all(14),
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        key: const Key('patient_fiche_back_button'),
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.maybePop(context),
+                      ),
+                      NubiaAvatar(
+                        key: const Key('patient_fiche_avatar'),
+                        initials: initialsFrom(patient.fullName),
+                        radius: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // #4974 — pastilles d'alerte clinique à côté du
+                            // nom, visibles quel que soit l'onglet actif
+                            // (en-tête, pas dans un onglet) ; `Wrap` plutôt
+                            // que `Row` pour refluer si le nombre d'alertes
+                            // dépasse la largeur disponible, même convention
+                            // que `PatientIdentityBar` (#4957).
+                            Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                Text(
+                                  patient.fullName,
+                                  key: const Key('patient_fiche_name'),
+                                  style: textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                for (final alert in _medicalAlerts)
+                                  StatusPill(
+                                    key: Key(
+                                        'patient_fiche_alert_pill_${alert.kind}_${alert.label}'),
+                                    label: _clinicalAlertLabel(alert),
+                                    variant: alert.kind == 'allergie'
+                                        ? StatusPillVariant.error
+                                        : StatusPillVariant.warning,
+                                    icon: alert.kind == 'allergie'
+                                        ? Icons.warning
+                                        : null,
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _patientSubtitle(patient),
+                              key: const Key('patient_fiche_subtitle'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.bodySmall
+                                  ?.copyWith(color: cs.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Défile horizontalement plutôt que de contraindre
+                      // dans le `Row` parent : trois boutons libellés +
+                      // toggle ne tiennent pas toujours dans la largeur
+                      // disponible (ex. surface de test étroite) — préférer
+                      // un défilement discret à un débordement `RenderFlex`.
+                      // `Expanded` (plutôt qu'un enfant nu) : borne la
+                      // largeur du scroll view, sinon il se dimensionne à
+                      // la largeur naturelle de son contenu et déborde
+                      // quand même du `Row` parent.
+                      Expanded(
+                        flex: 2,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              if (state.isExportingPdf)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 14),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  ),
+                                )
+                              else
+                                NubiaButton(
+                                  key: const Key('export_pdf_button'),
+                                  label: 'Exporter',
+                                  icon: Icons.picture_as_pdf_outlined,
+                                  variant: NubiaButtonVariant.secondary,
+                                  size: NubiaButtonSize.sm,
+                                  onPressed: () => context
+                                      .read<PatientFicheBloc>()
+                                      .add(ExportPdfRequested(patient)),
+                                ),
+                              const SizedBox(width: 8),
+                              NubiaButton(
+                                key:
+                                    const Key('patient_fiche_new_quote_button'),
+                                label: 'Nouveau devis',
+                                icon: Icons.description_outlined,
+                                variant: NubiaButtonVariant.secondary,
+                                size: NubiaButtonSize.sm,
+                                onPressed: widget.onNewQuote,
+                              ),
+                              const SizedBox(width: 8),
+                              NubiaButton(
+                                key: const Key(
+                                    'patient_fiche_start_consultation_button'),
+                                label: 'Démarrer une consultation',
+                                icon: Icons.medical_services_outlined,
+                                variant: NubiaButtonVariant.primary,
+                                size: NubiaButtonSize.sm,
+                                onPressed: widget.onStartConsultation,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Hors du cluster défilant : toujours atteignable sans
+                      // scroll (le bouton le plus ancien de l'en-tête, cf.
+                      // `patient_fiche_clinical_toggle_test.dart`).
+                      IconButton(
+                        key: const Key('toggle_clinical'),
+                        icon: Icon(
+                          state.showClinical
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        tooltip: state.showClinical
+                            ? 'Masquer notes cliniques'
+                            : 'Afficher notes cliniques',
+                        onPressed: () => context
+                            .read<PatientFicheBloc>()
+                            .add(const ToggleClinicalVisibility()),
+                      ),
+                    ],
                   ),
-                )
-              else
-                IconButton(
-                  key: const Key('export_pdf_button'),
-                  icon: const Icon(Icons.picture_as_pdf_outlined),
-                  tooltip: 'Exporter PDF',
-                  onPressed: () => context
-                      .read<PatientFicheBloc>()
-                      .add(ExportPdfRequested(patient)),
                 ),
-              IconButton(
-                key: const Key('toggle_clinical'),
-                icon: Icon(
-                  state.showClinical ? Icons.visibility_off : Icons.visibility,
+                TabBar(
+                  key: const Key('patient_fiche_tabs'),
+                  controller: _tabController,
+                  tabs: const [
+                    Tab(text: 'Résumé'),
+                    Tab(text: 'Documents'),
+                  ],
                 ),
-                tooltip: state.showClinical
-                    ? 'Masquer notes cliniques'
-                    : 'Afficher notes cliniques',
-                onPressed: () => context
-                    .read<PatientFicheBloc>()
-                    .add(const ToggleClinicalVisibility()),
-              ),
-            ],
-            bottom: TabBar(
-              key: const Key('patient_fiche_tabs'),
-              controller: _tabController,
-              tabs: const [
-                Tab(text: 'Résumé'),
-                Tab(text: 'Documents'),
               ],
             ),
           ),
@@ -186,11 +340,59 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
   }
 }
 
+/// Desktop natif (Windows/Linux/macOS) : `Share.shareXFiles` (#4983) n'y
+/// est pas cohérent (non implémenté sur Linux, feuille de partage système
+/// hors sujet sans app tierce sur Windows/macOS) — un export y déclenche un
+/// téléchargement/enregistrement classique à la place. Le web garde la
+/// feuille de partage : `defaultTargetPlatform` y reflète le device
+/// simulé (souvent mobile/tablette), pas l'OS hôte réel.
+bool get isDesktopPlatform =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS);
+
 /// Libellé de pastille d'alerte clinique (#4974) — même convention que
 /// `PatientIdentityBar._clinicalAlertLabel` / `PatientAlertsBox._labelFor`
 /// (préfixe « Allergie » pour `kind == 'allergie'`, libellé brut sinon).
 String _clinicalAlertLabel(MedicalAlert alert) =>
     alert.kind == 'allergie' ? 'Allergie ${alert.label}' : alert.label;
+
+/// Date JJ/MM/AAAA (heure locale) — format imposé par la maquette design-v2,
+/// partagé par l'en-tête et `ClinicalSection`.
+String _formatDate(DateTime d) {
+  final local = d.toLocal();
+  return '${local.day.toString().padLeft(2, '0')}/'
+      '${local.month.toString().padLeft(2, '0')}/'
+      '${local.year}';
+}
+
+/// Âge en années révolues à partir d'une date de naissance (heure locale) —
+/// même calcul que `PatientIdentityBar._age` (consultation_clinique).
+int _ageInYears(DateTime birthDate) {
+  final now = DateTime.now();
+  final d = birthDate.toLocal();
+  var age = now.year - d.year;
+  if (now.month < d.month || (now.month == d.month && now.day < d.day)) {
+    age--;
+  }
+  return age;
+}
+
+/// Sous-titre d'en-tête (#4985, maquette design-v2 §.sb) : âge · date de
+/// naissance · ancienneté · dernière visite — champs absents (naissance
+/// inconnue, jamais venu) omis proprement plutôt que fabriqués.
+String _patientSubtitle(CabinetPatient patient) {
+  final birthDate = patient.birthDate;
+  final lastVisit = patient.lastVisitAt;
+  final parts = <String>[
+    if (birthDate != null) '${_ageInYears(birthDate)} ans',
+    if (birthDate != null) 'né(e) le ${_formatDate(birthDate)}',
+    'patient(e) depuis ${patient.createdAt.toLocal().year}',
+    if (lastVisit != null) 'dernière visite le ${_formatDate(lastVisit)}',
+  ];
+  return parts.join(' · ');
+}
 
 class ClinicalSection extends StatelessWidget {
   final CabinetPatient patient;
@@ -246,10 +448,6 @@ class ClinicalSection extends StatelessWidget {
       ),
     );
   }
-
-  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/'
-      '${d.month.toString().padLeft(2, '0')}/'
-      '${d.year}';
 }
 
 /// Étiquettes administratives du patient (#4041) — chargement, ajout,
@@ -414,8 +612,7 @@ class PatientOrthodonticsSection extends StatefulWidget {
       _PatientOrthodonticsSectionState();
 }
 
-class _PatientOrthodonticsSectionState
-    extends State<PatientOrthodonticsSection>
+class _PatientOrthodonticsSectionState extends State<PatientOrthodonticsSection>
     with
         AsyncSectionState<List<OrthodonticTreatment>,
             PatientOrthodonticsSection> {
@@ -756,9 +953,58 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
                     leading: Icon(_iconFor(doc.mimeType), color: cs.primary),
                     title: doc.filename,
                     subtitle: '${doc.category} · ${_formatSize(doc.sizeBytes)}',
+                    trailing: Icon(
+                      Icons.lock_outline,
+                      color: cs.onSurfaceVariant,
+                      semanticLabel: 'Lecture indisponible depuis le cabinet',
+                    ),
                   ),
               ],
             ),
+          if (documents != null && documents.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const _DocumentsReadOnlyNotice(
+              key: Key('patient_documents_ged_notice'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Bandeau info (#4286) : aucune route backend ne sert le contenu d'un
+/// document côté cabinet (`GET /v1/documents/:id/download` réservé au
+/// patient) — la liste ne doit pas ressembler à des éléments cliquables,
+/// donc on l'énonce en clair en plus du cadenas sur chaque ligne.
+class _DocumentsReadOnlyNotice extends StatelessWidget {
+  const _DocumentsReadOnlyNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.infoBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_outline, size: 18, color: tokens.infoFg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "Aucun document n'est consultable depuis le cabinet (#4286) : "
+              'le back ne sert le contenu qu\'au patient lui-même. Les '
+              "documents s'envoient et se listent, mais ne s'ouvrent pas — "
+              "l'icône le dit.",
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: tokens.infoFg,
+                  ),
+            ),
+          ),
         ],
       ),
     );
