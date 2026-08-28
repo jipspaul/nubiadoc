@@ -647,10 +647,18 @@ class PatientTagsSection extends StatefulWidget {
 class _PatientTagsSectionState extends State<PatientTagsSection>
     with AsyncSectionState<List<PatientTag>, PatientTagsSection> {
   bool _submitting = false;
+  bool _addingTag = false;
+  final _tagLabelController = TextEditingController();
 
   @override
   Future<Either<Failure, List<PatientTag>>> fetchSection() =>
       GetIt.instance<ListPatientTagsUseCase>()(widget.patientId);
+
+  @override
+  void dispose() {
+    _tagLabelController.dispose();
+    super.dispose();
+  }
 
   Future<void> _addTag(String label) async {
     setState(() => _submitting = true);
@@ -680,33 +688,19 @@ class _PatientTagsSectionState extends State<PatientTagsSection>
     );
   }
 
-  Future<void> _openAddDialog() async {
-    final controller = TextEditingController();
-    final label = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nouvelle étiquette'),
-        content: NubiaTextField(
-          key: const Key('patient_tag_label_field'),
-          controller: controller,
-          label: 'Libellé',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            key: const Key('patient_tag_dialog_confirm'),
-            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: const Text('Ajouter'),
-          ),
-        ],
-      ),
-    );
-    if (label != null && label.isNotEmpty) {
-      await _addTag(label);
-    }
+  void _startAddTag() => setState(() => _addingTag = true);
+
+  void _cancelAddTag() {
+    _tagLabelController.clear();
+    setState(() => _addingTag = false);
+  }
+
+  Future<void> _confirmAddTag() async {
+    final label = _tagLabelController.text.trim();
+    if (label.isEmpty) return;
+    _tagLabelController.clear();
+    setState(() => _addingTag = false);
+    await _addTag(label);
   }
 
   @override
@@ -736,10 +730,46 @@ class _PatientTagsSectionState extends State<PatientTagsSection>
                       )
                     : const Icon(Icons.add),
                 tooltip: 'Ajouter une étiquette',
-                onPressed: _submitting ? null : _openAddDialog,
+                onPressed:
+                    (_submitting || _addingTag) ? null : _startAddTag,
               ),
             ],
           ),
+          if (_addingTag) ...[
+            const SizedBox(height: 8),
+            Row(
+              key: const Key('patient_tags_add_inline'),
+              children: [
+                Expanded(
+                  child: NubiaTextField(
+                    key: const Key('patient_tag_label_field'),
+                    controller: _tagLabelController,
+                    label: 'Libellé',
+                    onSubmitted: (_) => _confirmAddTag(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  key: const Key('patient_tag_add_confirm'),
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check),
+                  tooltip: 'Confirmer',
+                  onPressed: _submitting ? null : _confirmAddTag,
+                ),
+                IconButton(
+                  key: const Key('patient_tag_add_cancel'),
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Annuler',
+                  onPressed: _submitting ? null : _cancelAddTag,
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           if (error != null)
             NubiaErrorWidget(message: error!, onRetry: loadSection)
