@@ -54,7 +54,9 @@ void main() {
   Widget buildSection() => MaterialApp(
         theme: NubiaTheme.light,
         home: Scaffold(
-          body: const PatientDocumentsSection(patientId: 'patient-1'),
+          body: const SingleChildScrollView(
+            child: PatientDocumentsSection(patientId: 'patient-1'),
+          ),
         ),
       );
 

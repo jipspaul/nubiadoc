@@ -1181,33 +1181,25 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
             ),
           ],
           const SizedBox(height: 8),
-          SizedBox(
-            height: 36,
-            child: ListView(
-              key: const Key('patient_documents_filters'),
-              scrollDirection: Axis.horizontal,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    key: const Key('patient_documents_filter_all'),
-                    label: const Text('Tous'),
-                    selected: _categoryFilter == null,
-                    onSelected: (_) => _setFilter(null),
-                  ),
+          Wrap(
+            key: const Key('patient_documents_filters'),
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                key: const Key('patient_documents_filter_all'),
+                label: const Text('Tous'),
+                selected: _categoryFilter == null,
+                onSelected: (_) => _setFilter(null),
+              ),
+              for (final (value, label, _) in _kDocumentCategories)
+                ChoiceChip(
+                  key: Key('patient_documents_filter_$value'),
+                  label: Text(label),
+                  selected: _categoryFilter == value,
+                  onSelected: (_) => _setFilter(value),
                 ),
-                for (final (value, label, _) in _kDocumentCategories)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      key: Key('patient_documents_filter_$value'),
-                      label: Text(label),
-                      selected: _categoryFilter == value,
-                      onSelected: (_) => _setFilter(value),
-                    ),
-                  ),
-              ],
-            ),
+            ],
           ),
           const SizedBox(height: 8),
           if (error != null)
