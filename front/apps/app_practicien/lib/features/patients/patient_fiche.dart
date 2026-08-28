@@ -9,7 +9,9 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../treatment_plans/treatment_status_style.dart';
 import 'async_section_state.dart';
+import 'medical_questionnaire_review_section.dart';
 import 'patient_fiche_bloc.dart';
 import 'patient_journal_section.dart';
 
@@ -45,8 +47,12 @@ class PatientFiche extends StatelessWidget {
   }
 }
 
-/// #4133 — deux onglets : Résumé (contenu historique inchangé) et
-/// Documents (GED, #4042, désormais avec filtre catégorie + upload).
+/// #4982, maquette design-v2 point 8 — cinq onglets (Journal, Plans de
+/// traitement, Documents, Questionnaire médical, Facturation) en lieu et
+/// place des deux onglets Résumé/Documents de #4133 : le questionnaire
+/// médical et l'orthodontie ne restent plus noyés dans un défilement
+/// unique, chacun a désormais son propre onglet (l'orthodontie sous
+/// « Plans de traitement », son regroupement clinique naturel).
 class _PatientFicheScaffold extends StatefulWidget {
   final CabinetPatient patient;
   final VoidCallback? onNewQuote;
@@ -74,11 +80,21 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
   /// que de bloquer l'affichage de la fiche.
   List<MedicalAlert> _medicalAlerts = const [];
 
+  /// Comptes des badges d'onglet (#4982, maquette design-v2 point 8 —
+  /// badges « Plans de traitement »/« Documents » affichés une fois les
+  /// données chargées). Chargés à part du contenu de chaque onglet, même
+  /// convention passive que [_medicalAlerts] : une erreur de chargement
+  /// laisse simplement l'onglet sans badge plutôt que de bloquer la fiche.
+  List<TreatmentPlan> _treatmentPlans = const [];
+  List<PatientDocument> _documents = const [];
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadMedicalAlerts();
+    _loadTreatmentPlans();
+    _loadDocuments();
   }
 
   Future<void> _loadMedicalAlerts() async {
@@ -88,6 +104,26 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
     result.fold(
       (_) {},
       (record) => setState(() => _medicalAlerts = record.medicalAlerts),
+    );
+  }
+
+  Future<void> _loadTreatmentPlans() async {
+    final result =
+        await GetIt.instance<ListTreatmentPlansUseCase>()(widget.patient.id);
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (plans) => setState(() => _treatmentPlans = plans),
+    );
+  }
+
+  Future<void> _loadDocuments() async {
+    final result =
+        await GetIt.instance<ListPatientDocumentsUseCase>()(widget.patient.id);
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (documents) => setState(() => _documents = documents),
     );
   }
 
@@ -118,9 +154,8 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
             );
           } else {
             final box = context.findRenderObject() as RenderBox?;
-            final origin = box == null
-                ? null
-                : box.localToGlobal(Offset.zero) & box.size;
+            final origin =
+                box == null ? null : box.localToGlobal(Offset.zero) & box.size;
             await Share.shareXFiles(
               [
                 XFile.fromData(
@@ -313,9 +348,39 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                 TabBar(
                   key: const Key('patient_fiche_tabs'),
                   controller: _tabController,
-                  tabs: const [
-                    Tab(text: 'Résumé'),
-                    Tab(text: 'Documents'),
+                  isScrollable: true,
+                  labelColor: NubiaColors.n900,
+                  unselectedLabelColor: cs.onSurfaceVariant,
+                  labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  indicatorColor: NubiaColors.n900,
+                  tabs: [
+                    _FicheTab(
+                      key: const Key('patient_fiche_tab_journal'),
+                      icon: Icons.timeline,
+                      label: 'Journal',
+                    ),
+                    _FicheTab(
+                      key: const Key('patient_fiche_tab_treatment_plans'),
+                      icon: Icons.assignment,
+                      label: 'Plans de traitement',
+                      badgeCount: _treatmentPlans.length,
+                    ),
+                    _FicheTab(
+                      key: const Key('patient_fiche_tab_documents'),
+                      icon: Icons.folder,
+                      label: 'Documents',
+                      badgeCount: _documents.length,
+                    ),
+                    _FicheTab(
+                      key: const Key('patient_fiche_tab_questionnaire'),
+                      icon: Icons.assignment_ind,
+                      label: 'Questionnaire médical',
+                    ),
+                    _FicheTab(
+                      key: const Key('patient_fiche_tab_billing'),
+                      icon: Icons.payments,
+                      label: 'Facturation',
+                    ),
                   ],
                 ),
               ],
@@ -328,14 +393,132 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                 padding: const EdgeInsets.all(16),
                 child: PatientJournalSection(patientId: patient.id),
               ),
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _TreatmentPlansCard(
+                      key: const Key('patient_treatment_plans_card'),
+                      plans: _treatmentPlans,
+                    ),
+                    const SizedBox(height: 16),
+                    PatientOrthodonticsSection(patientId: patient.id),
+                  ],
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: PatientDocumentsSection(patientId: patient.id),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: MedicalQuestionnaireReviewSection(
+                  patientId: patient.id,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: NubiaEmptyState(
+                  key: Key('patient_fiche_billing_placeholder'),
+                  icon: Icons.payments_outlined,
+                  title: 'Facturation à venir',
+                  subtitle: "Cet onglet n'est pas encore câblé côté dossier "
+                      'patient — retrouvez les devis et paiements depuis '
+                      "l'écran Devis du cabinet en attendant.",
+                ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+/// Onglet `.tabs` de la fiche patient (#4982, maquette design-v2 point 8) :
+/// icône + libellé + badge de compteur optionnel. Étend `Tab` (plutôt qu'un
+/// widget composite séparé) pour conserver son `preferredSize` — sans ça,
+/// `TabBar` retombe sur un calcul de hauteur par défaut moins précis
+/// (cf. `_TabBarState._buildTabs`, ligne où `tab is PreferredSizeWidget`
+/// conditionne l'ajustement vertical texte+icône). Icône dans [child]
+/// plutôt que dans le slot `icon` de `Tab` : ce dernier fait passer
+/// `preferredSize` de 46 à 72dp (texte+icône empilés), ce qui déborde du
+/// `PreferredSize` fixe (172dp) de l'en-tête de la fiche.
+class _FicheTab extends Tab {
+  _FicheTab({
+    super.key,
+    required IconData icon,
+    required String label,
+    int? badgeCount,
+  }) : super(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18),
+              const SizedBox(width: 6),
+              Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+              if (badgeCount != null && badgeCount > 0) ...[
+                const SizedBox(width: 6),
+                NubiaBadge.count(count: badgeCount),
+              ],
+            ],
+          ),
+        );
+}
+
+/// Encart « Plans de traitement » (#4982) : résumé des plans du patient,
+/// même vocabulaire de statut que l'écran dédié (`treatmentPlanStatusStyle`,
+/// #5304) — le détail complet (phases, actes) reste sur l'écran
+/// `TreatmentPlansPage` existant, hors scope de cet onglet-résumé.
+class _TreatmentPlansCard extends StatelessWidget {
+  const _TreatmentPlansCard({super.key, required this.plans});
+
+  final List<TreatmentPlan> plans;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.assignment_outlined, size: 20, color: cs.primary),
+              const SizedBox(width: 8),
+              Text('Plans de traitement',
+                  style: Theme.of(context).textTheme.titleMedium),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (plans.isEmpty)
+            Text(
+              'Aucun plan de traitement.',
+              key: const Key('patient_treatment_plans_empty'),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            )
+          else
+            Column(
+              key: const Key('patient_treatment_plans_list'),
+              children: [
+                for (final plan in plans)
+                  Builder(builder: (context) {
+                    final (label, variant) =
+                        treatmentPlanStatusStyle(plan.status);
+                    return ListRow(
+                      key: Key('patient_treatment_plan_${plan.id}'),
+                      title: plan.title,
+                      trailing: StatusPill(label: label, variant: variant),
+                    );
+                  }),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }

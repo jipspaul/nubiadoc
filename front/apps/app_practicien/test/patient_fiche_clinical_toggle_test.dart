@@ -16,6 +16,12 @@ class _MockListPatientJournal extends Mock
 
 class _MockGetMedicalRecord extends Mock implements GetMedicalRecordUseCase {}
 
+class _MockListTreatmentPlans extends Mock
+    implements ListTreatmentPlansUseCase {}
+
+class _MockListOrthodonticTreatments extends Mock
+    implements ListOrthodonticTreatmentsUseCase {}
+
 final _patient = CabinetPatient(
   id: 'pat-1',
   cabinetId: 'cab-1',
@@ -48,6 +54,23 @@ void main() {
     );
     GetIt.instance.registerFactory<GetMedicalRecordUseCase>(
       () => getMedicalRecord,
+    );
+
+    // #4982 — onglet « Plans de traitement », adjacent à l'onglet initial
+    // (Journal) : `TabBarView` le pré-construit (cache du `PageView`),
+    // donc son `initState` s'exécute même sans y naviguer.
+    final listTreatmentPlans = _MockListTreatmentPlans();
+    when(() => listTreatmentPlans(any()))
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance.registerFactory<ListTreatmentPlansUseCase>(
+      () => listTreatmentPlans,
+    );
+
+    final listOrthodonticTreatments = _MockListOrthodonticTreatments();
+    when(() => listOrthodonticTreatments(any()))
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance.registerFactory<ListOrthodonticTreatmentsUseCase>(
+      () => listOrthodonticTreatments,
     );
 
     addTearDown(GetIt.instance.reset);
