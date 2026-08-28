@@ -50,6 +50,33 @@ void registerMedicalRecordStub() {
   );
 }
 
+class _MockMedicationReferenceRepository extends Mock
+    implements MedicationReferenceRepository {}
+
+final _medicationReferenceRepo = _MockMedicationReferenceRepository();
+
+const _medicationReference = MedicationReference(
+  id: 'med-1',
+  dci: 'Amoxicilline',
+  galenicForm: 'comprimé dispersible',
+  therapeuticClass: 'Pénicilline',
+);
+
+/// Affordance d'ajout (#4987) : `_AddItemSearchField` résout
+/// `SearchMedicationReferencesUseCase` via GetIt, même pattern que
+/// `registerMedicalRecordStub` ci-dessus — le contenu réel du référentiel
+/// (ticket « recherche référentiel DCI ») n'étant pas encore câblé en
+/// production, ce stub simule son activation pour tester l'affordance.
+void registerMedicationReferenceStub() {
+  when(() => _medicationReferenceRepo.searchMedicationReferences(
+        query: any(named: 'query'),
+      )).thenAnswer((_) async => const Right([_medicationReference]));
+  if (GetIt.instance.isRegistered<SearchMedicationReferencesUseCase>()) return;
+  GetIt.instance.registerFactory<SearchMedicationReferencesUseCase>(
+    () => SearchMedicationReferencesUseCase(_medicationReferenceRepo),
+  );
+}
+
 class _MockCabinetPatientsRepository extends Mock
     implements CabinetPatientsRepository {}
 
@@ -215,6 +242,7 @@ void main() {
     registerMedicalRecordStub();
     registerCabinetPatientStub();
     registerSendToPharmacyStub();
+    registerMedicationReferenceStub();
   });
 
   group('OrdonnanceNewBody', () {
@@ -245,7 +273,8 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('ordonnance_patient_header')), findsOneWidget);
+      expect(
+          find.byKey(const Key('ordonnance_patient_header')), findsOneWidget);
       expect(find.text('Julie Martin'), findsOneWidget);
       expect(find.text('Brouillon'), findsOneWidget);
       expect(
@@ -306,10 +335,10 @@ void main() {
 
       expect(find.byKey(const Key('allergies_banner')), findsOneWidget);
       // La saisie reste pleinement utilisable : les champs sont éditables et
-      // le bouton "Ajouter un médicament" reste actif.
-      final addButton =
-          tester.widget<NubiaButton>(find.byKey(const Key('add_item_button')));
-      expect(addButton.onPressed, isNotNull);
+      // le champ de recherche d'ajout reste actif.
+      final searchField = tester
+          .widget<NubiaSearchBar>(find.byKey(const Key('add_item_button')));
+      expect(searchField.enabled, isTrue);
       await _fillItem(tester, 0);
       final submitButton = tester.widget<FilledButton>(
         find.descendant(
@@ -353,14 +382,11 @@ void main() {
         await tester.pumpWidget(_wrap(bloc));
 
         expect(find.byKey(const Key('item_0_quantity')), findsNothing);
-        expect(
-            find.byKey(const Key('item_0_quantity_calc')), findsOneWidget);
-        expect(find.byKey(const Key('item_0_quantity_modify')),
-            findsOneWidget);
+        expect(find.byKey(const Key('item_0_quantity_calc')), findsOneWidget);
+        expect(find.byKey(const Key('item_0_quantity_modify')), findsOneWidget);
       });
 
-      testWidgets(
-          'dose × fréquence × durée → recalculée à chaque changement',
+      testWidgets('dose × fréquence × durée → recalculée à chaque changement',
           (tester) async {
         await tester.pumpWidget(_wrap(bloc));
 
@@ -399,10 +425,7 @@ void main() {
         expect(field, findsOneWidget);
         // Le champ de surcharge démarre pré-rempli avec la valeur calculée.
         expect(
-          tester
-              .widget<NubiaTextField>(field)
-              .controller
-              ?.text,
+          tester.widget<NubiaTextField>(field).controller?.text,
           '15 comprimés',
         );
 
@@ -434,8 +457,7 @@ void main() {
           'sans dose/fréquence/durée sélectionnées → ligne invalide (submit désactivé)',
           (tester) async {
         await tester.pumpWidget(_wrap(bloc));
-        await tester.enterText(
-            find.byKey(const Key('item_0_label')), 'Vaccin');
+        await tester.enterText(find.byKey(const Key('item_0_label')), 'Vaccin');
         await tester.pump();
         await _select(tester, const Key('item_0_posology'), '1 comprimé');
         await _select(tester, const Key('item_0_frequency'), '2 fois / jour');
@@ -494,15 +516,34 @@ void main() {
           find.byKey(const Key('ordonnance_document_preview')), findsNothing);
     });
 
-    testWidgets('bouton Ajouter → deuxième carte médicament', (tester) async {
+    testWidgets(
+        'recherche → sélectionner un résultat ajoute une deuxième carte '
+        'médicament (#4987)', (tester) async {
       await tester.pumpWidget(_wrap(bloc));
 
       await tester.ensureVisible(find.byKey(const Key('add_item_button')));
-      await tester.tap(find.byKey(const Key('add_item_button')));
+      expect(
+        tester.widget(find.byKey(const Key('add_item_button'))),
+        isA<NubiaSearchBar>(),
+      );
+      expect(find.text('Ajouter un médicament'), findsNothing);
+      await tester.enterText(find.byKey(const Key('add_item_button')), 'amox');
+      await tester.pump();
+
+      final resultKey = const Key('add_item_result_med-1');
+      await tester.ensureVisible(find.byKey(resultKey));
+      await tester.tap(find.byKey(resultKey));
       await tester.pump();
 
       expect(find.byKey(const Key('item_card_0')), findsOneWidget);
       expect(find.byKey(const Key('item_card_1')), findsOneWidget);
+      expect(
+        tester
+            .widget<NubiaTextField>(find.byKey(const Key('item_1_label')))
+            .controller
+            ?.text,
+        'Amoxicilline',
+      );
     });
 
     testWidgets('OrdonnancesCreated → relecture brouillon + bouton Signer',
@@ -568,8 +609,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('send_to_pharmacy_done')), findsOneWidget);
-      expect(find.textContaining('transmise à Pharmacie du Port'),
-          findsOneWidget);
+      expect(
+          find.textContaining('transmise à Pharmacie du Port'), findsOneWidget);
       verify(() => _prescriptionRepo.sendToPharmacy(
             prescriptionId: 'presc-1',
             pharmacyId: 'pharma-1',

@@ -234,15 +234,17 @@ CalculatedQuantity? computeQuantity(String posology, String duration) {
   final days = int.parse(durationMatch.group(1)!);
 
   final count = dose * frequency * days;
-  return CalculatedQuantity(count: count, unit: _unitFrom(trimmedPosology, count));
+  return CalculatedQuantity(
+      count: count, unit: _unitFrom(trimmedPosology, count));
 }
 
 int? _frequencyFrom(String posology) {
   final explicit = _explicitFrequency.firstMatch(posology);
   if (explicit != null) return int.parse(explicit.group(1)!);
   final lower = posology.toLowerCase();
-  final moments =
-      ['matin', 'midi', 'soir'].where((moment) => lower.contains(moment)).length;
+  final moments = ['matin', 'midi', 'soir']
+      .where((moment) => lower.contains(moment))
+      .length;
   return moments > 0 ? moments : null;
 }
 
@@ -351,14 +353,11 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
             ),
             const SizedBox(height: 12),
           ],
-          NubiaButton(
-            key: const Key('add_item_button'),
-            label: 'Ajouter un médicament',
-            variant: NubiaButtonVariant.secondary,
-            icon: Icons.add,
-            onPressed: widget.loading
-                ? null
-                : () => setState(() => _items.add(_ItemDraft())),
+          _AddItemSearchField(
+            enabled: !widget.loading,
+            onSelected: (reference) => setState(
+              () => _items.add(_ItemDraft()..label.text = reference.dci),
+            ),
           ),
           const SizedBox(height: 24),
           NubiaButton(
@@ -697,6 +696,95 @@ class _ItemCard extends StatelessWidget {
           _QuantityCalc(index: index, draft: draft, onChanged: onChanged),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Affordance d'ajout d'une ligne médicament (#4987, maquette design-v2) :
+/// remplace l'ancien bouton plein « Ajouter un médicament » par un champ de
+/// recherche — choisir un résultat de l'autocomplétion est l'unique geste
+/// d'ajout. Le contenu du référentiel (ticket « recherche référentiel DCI »)
+/// n'est pas encore câblé dans le DI : tant que
+/// [SearchMedicationReferencesUseCase] n'y est pas enregistré, le champ reste
+/// un shell fonctionnel sans suggestion, prêt à s'activer sans autre
+/// changement ici.
+class _AddItemSearchField extends StatefulWidget {
+  const _AddItemSearchField({required this.enabled, required this.onSelected});
+
+  final bool enabled;
+  final ValueChanged<MedicationReference> onSelected;
+
+  @override
+  State<_AddItemSearchField> createState() => _AddItemSearchFieldState();
+}
+
+class _AddItemSearchFieldState extends State<_AddItemSearchField> {
+  final _controller = TextEditingController();
+  List<MedicationReference> _results = const [];
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search(String query) async {
+    if (query.trim().isEmpty ||
+        !GetIt.instance.isRegistered<SearchMedicationReferencesUseCase>()) {
+      setState(() => _results = const []);
+      return;
+    }
+    final result = await GetIt.instance<SearchMedicationReferencesUseCase>()(
+      query: query,
+    );
+    if (!mounted) return;
+    setState(() => _results = result.getOrElse(() => const []));
+  }
+
+  void _select(MedicationReference reference) {
+    widget.onSelected(reference);
+    _controller.clear();
+    setState(() => _results = const []);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        NubiaSearchBar(
+          key: const Key('add_item_button'),
+          controller: _controller,
+          hint: 'Rechercher un médicament (DCI)…',
+          enabled: widget.enabled,
+          onChanged: _search,
+        ),
+        if (_results.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          NubiaCard(
+            key: const Key('add_item_results'),
+            padding: EdgeInsets.zero,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final reference in _results)
+                  ListRow(
+                    key: Key('add_item_result_${reference.id}'),
+                    title: reference.dci,
+                    subtitle: '${reference.galenicForm} · DCI',
+                    trailing: Text(
+                      reference.therapeuticClass,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    onTap: () => _select(reference),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
