@@ -552,3 +552,104 @@ async fn create_prescription_no_appointment_returns_403() {
 
     cleanup_fixture(&db, cabinet_id, prac_user_id, prac_id, patient_id).await;
 }
+
+// ── Test 6 (#6101) : champs design-v2 persistés puis restitués au GET ───────
+
+#[tokio::test]
+async fn create_prescription_persists_design_v2_fields() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_user_id, prac_id, patient_id) = insert_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": patient_id,
+        "items": [
+            {
+                "label": "Amoxicilline",
+                "form": "comprimé",
+                "posology": "1 comprimé 3 fois par jour",
+                "duration": "7 jours",
+                "quantity": "21",
+                "structured_posology": {"dose": 1, "frequency_per_day": 3, "duration_in_days": 7},
+                "non_substitution_reason": "MTE marge thérapeutique étroite",
+                "non_renouvelable": true,
+                "product_reference": {
+                    "id": "11111111-2222-3333-4444-555555555555",
+                    "dci": "Amoxicilline",
+                    "galenic_form": "comprimé",
+                    "therapeutic_class": "antibiotique"
+                }
+            }
+        ]
+    });
+
+    let token = make_practitioner_token(prac_user_id, cabinet_id);
+
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/prescriptions")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let created: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let prescription_id = created["prescription_id"].as_str().unwrap().to_string();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/prescriptions/{}", prescription_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let fetched: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let item = &fetched["items"][0];
+
+    assert_eq!(
+        item["structured_posology"],
+        json!({"dose": 1.0, "frequency_per_day": 3.0, "duration_in_days": 7})
+    );
+    assert_eq!(
+        item["non_substitution_reason"],
+        "MTE marge thérapeutique étroite"
+    );
+    assert_eq!(item["non_renouvelable"], true);
+    assert_eq!(
+        item["product_reference"],
+        json!({
+            "id": "11111111-2222-3333-4444-555555555555",
+            "dci": "Amoxicilline",
+            "galenic_form": "comprimé",
+            "therapeutic_class": "antibiotique"
+        })
+    );
+
+    cleanup_fixture(&db, cabinet_id, prac_user_id, prac_id, patient_id).await;
+}
