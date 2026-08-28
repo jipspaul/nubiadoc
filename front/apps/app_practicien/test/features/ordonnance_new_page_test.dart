@@ -598,14 +598,16 @@ void main() {
 
       expect(find.byKey(const Key('ordonnance_form')), findsOneWidget);
       expect(find.byKey(const Key('ordonnance_draft_review')), findsNothing);
-      final addButton = tester.widget<OutlinedButton>(
-        find.descendant(
-          of: find.byKey(const Key('add_item_button')),
-          matching: find.byType(OutlinedButton),
-        ),
+      // main a remplacé le bouton « Ajouter un médicament » par la recherche au
+      // référentiel DCI (NubiaSearchBar, #4989). L'intention de #4988 est
+      // inchangée — on ne doit pas pouvoir ajouter de ligne pendant
+      // l'application d'un modèle — mais elle s'exprime désormais par
+      // `enabled`, pas par un `onPressed` nul.
+      final addField = tester.widget<NubiaSearchBar>(
+        find.byKey(const Key('add_item_button')),
       );
-      expect(addButton.onPressed, isNull,
-          reason: 'Ajouter un médicament doit être désactivé pendant '
+      expect(addField.enabled, isFalse,
+          reason: 'la recherche de médicament doit être désactivée pendant '
               'l\'application du modèle');
     });
 
