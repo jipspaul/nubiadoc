@@ -1,4 +1,6 @@
 import 'package:dartz/dartz.dart' hide State;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -104,20 +106,33 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
           (prev.exportPdfError == null && curr.exportPdfError != null),
       listener: (context, state) async {
         if (state.pdfBytes != null) {
-          final box = context.findRenderObject() as RenderBox?;
-          final origin =
-              box == null ? null : box.localToGlobal(Offset.zero) & box.size;
-          await Share.shareXFiles(
-            [
-              XFile.fromData(
-                state.pdfBytes!,
-                name: state.pdfFilename ?? 'fiche_patient.pdf',
-                mimeType: 'application/pdf',
-              ),
-            ],
-            subject: 'Fiche ${patient.fullName}',
-            sharePositionOrigin: origin,
-          );
+          final filename = state.pdfFilename ?? 'fiche_patient.pdf';
+          if (isDesktopPlatform) {
+            // Desktop : la feuille de partage système (`Share.shareXFiles`)
+            // n'est pas implémentée sur Linux et n'a de sens qu'en présence
+            // d'apps de partage tierces sur Windows/macOS — on attend un
+            // téléchargement/enregistrement classique à la place.
+            await GetIt.instance<FilePickerService>().saveFile(
+              bytes: state.pdfBytes!,
+              fileName: filename,
+            );
+          } else {
+            final box = context.findRenderObject() as RenderBox?;
+            final origin = box == null
+                ? null
+                : box.localToGlobal(Offset.zero) & box.size;
+            await Share.shareXFiles(
+              [
+                XFile.fromData(
+                  state.pdfBytes!,
+                  name: filename,
+                  mimeType: 'application/pdf',
+                ),
+              ],
+              subject: 'Fiche ${patient.fullName}',
+              sharePositionOrigin: origin,
+            );
+          }
         }
         if (state.exportPdfError != null) {
           if (!context.mounted) return;
@@ -324,6 +339,18 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
     );
   }
 }
+
+/// Desktop natif (Windows/Linux/macOS) : `Share.shareXFiles` (#4983) n'y
+/// est pas cohérent (non implémenté sur Linux, feuille de partage système
+/// hors sujet sans app tierce sur Windows/macOS) — un export y déclenche un
+/// téléchargement/enregistrement classique à la place. Le web garde la
+/// feuille de partage : `defaultTargetPlatform` y reflète le device
+/// simulé (souvent mobile/tablette), pas l'OS hôte réel.
+bool get isDesktopPlatform =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS);
 
 /// Libellé de pastille d'alerte clinique (#4974) — même convention que
 /// `PatientIdentityBar._clinicalAlertLabel` / `PatientAlertsBox._labelFor`
