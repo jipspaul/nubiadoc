@@ -634,7 +634,7 @@ async fn create_prescription_persists_design_v2_fields() {
 
     assert_eq!(
         item["structured_posology"],
-        json!({"dose": 1.0, "frequency_per_day": 3.0, "duration_in_days": 7})
+        json!({"dose": 1, "frequency_per_day": 3, "duration_in_days": 7})
     );
     assert_eq!(
         item["non_substitution_reason"],
