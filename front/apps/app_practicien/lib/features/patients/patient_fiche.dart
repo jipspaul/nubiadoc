@@ -617,6 +617,7 @@ class _PatientOrthodonticsSectionState extends State<PatientOrthodonticsSection>
         AsyncSectionState<List<OrthodonticTreatment>,
             PatientOrthodonticsSection> {
   bool _adding = false;
+  bool _pickingKind = false;
 
   @override
   Future<Either<Failure, List<OrthodonticTreatment>>> fetchSection() =>
@@ -633,31 +634,13 @@ class _PatientOrthodonticsSectionState extends State<PatientOrthodonticsSection>
     );
   }
 
-  Future<void> _addStep() async {
+  void _startAddStep() => setState(() => _pickingKind = true);
+
+  void _cancelAddStep() => setState(() => _pickingKind = false);
+
+  Future<void> _addStep(String kind) async {
     final treatment = _activeTreatment;
     if (treatment == null) return;
-
-    final kind = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Type d\'étape'),
-            ),
-            for (final (value, label) in _kOrthodonticStepKinds)
-              ListTile(
-                key: Key('ortho_step_kind_$value'),
-                title: Text(label),
-                onTap: () => Navigator.pop(ctx, value),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (kind == null || !mounted) return;
 
     final nextStepNumber = treatment.steps.isEmpty
         ? 1
@@ -666,7 +649,10 @@ class _PatientOrthodonticsSectionState extends State<PatientOrthodonticsSection>
                 .reduce((a, b) => a > b ? a : b) +
             1;
 
-    setState(() => _adding = true);
+    setState(() {
+      _adding = true;
+      _pickingKind = false;
+    });
     final result = await GetIt.instance<AddOrthodonticStepUseCase>()(
       treatment.id,
       stepNumber: nextStepNumber,
@@ -715,10 +701,20 @@ class _PatientOrthodonticsSectionState extends State<PatientOrthodonticsSection>
                         )
                       : const Icon(Icons.add),
                   tooltip: 'Ajouter une étape',
-                  onPressed: _adding ? null : _addStep,
+                  onPressed:
+                      (_adding || _pickingKind) ? null : _startAddStep,
                 ),
             ],
           ),
+          if (_pickingKind) ...[
+            const SizedBox(height: 8),
+            _OrthodonticStepKindPicker(
+              key: const Key('patient_orthodontics_kind_picker'),
+              busy: _adding,
+              onSelect: _addStep,
+              onCancel: _adding ? null : _cancelAddStep,
+            ),
+          ],
           const SizedBox(height: 8),
           if (error != null)
             NubiaErrorWidget(message: error!, onRetry: loadSection)
@@ -753,6 +749,80 @@ class _PatientOrthodonticsSectionState extends State<PatientOrthodonticsSection>
                   ),
               ],
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Choix du type d'étape ortho (#4980, maquette design-v2 point 7) : sur
+/// poste fixe, remplace le `showModalBottomSheet` par une sélection en
+/// place, sous le bouton d'ajout — même convention que
+/// `_DocumentCategoryPicker` (#4981). Les trois `kind` restent ceux de
+/// [_kOrthodonticStepKinds].
+class _OrthodonticStepKindPicker extends StatelessWidget {
+  const _OrthodonticStepKindPicker({
+    super.key,
+    required this.busy,
+    required this.onSelect,
+    required this.onCancel,
+  });
+
+  final bool busy;
+  final ValueChanged<String> onSelect;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.borderDefault),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  "Type d'étape",
+                  style: textTheme.labelLarge,
+                ),
+              ),
+              if (busy)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  key: const Key('patient_orthodontics_kind_cancel'),
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'Annuler',
+                  onPressed: onCancel,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (value, label) in _kOrthodonticStepKinds)
+                NubiaChip(
+                  key: Key('ortho_step_kind_$value'),
+                  label: label,
+                  variant: NubiaChipVariant.choice,
+                  onTap: busy ? null : () => onSelect(value),
+                ),
+            ],
+          ),
         ],
       ),
     );
