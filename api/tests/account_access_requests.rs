@@ -291,7 +291,11 @@ async fn access_request_resend_then_cancel_hides_from_list() {
         .await
         .unwrap();
     let items = body_json(list).await;
-    assert!(!items.as_array().unwrap().iter().any(|it| it["id"] == request_id));
+    assert!(!items
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|it| it["id"] == request_id));
 
     let row_still_exists: i64 =
         sqlx::query_scalar("SELECT count(*) FROM account_access_request WHERE id = $1::uuid")
@@ -299,7 +303,10 @@ async fn access_request_resend_then_cancel_hides_from_list() {
             .fetch_one(&db)
             .await
             .unwrap();
-    assert_eq!(row_still_exists, 1, "cancel ne doit jamais DELETE la ligne SQL (§07 §10)");
+    assert_eq!(
+        row_still_exists, 1,
+        "cancel ne doit jamais DELETE la ligne SQL (§07 §10)"
+    );
 
     // Une demande annulée ne peut plus être relancée ni annulée à nouveau.
     let resend_after_cancel = post_action(&requester_token, &request_id, "resend").await;

@@ -5085,7 +5085,9 @@ fn access_request_from_row(row: &sqlx::postgres::PgRow) -> Result<AccessRequestR
     let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
     let last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
-    let relationship: String = row.try_get("relationship").map_err(|_| AppError::Internal)?;
+    let relationship: String = row
+        .try_get("relationship")
+        .map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let channel: String = row.try_get("channel").map_err(|_| AppError::Internal)?;
     let scope: Vec<String> = row.try_get("scope").map_err(|_| AppError::Internal)?;
