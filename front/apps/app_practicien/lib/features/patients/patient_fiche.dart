@@ -926,9 +926,58 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
                     leading: Icon(_iconFor(doc.mimeType), color: cs.primary),
                     title: doc.filename,
                     subtitle: '${doc.category} · ${_formatSize(doc.sizeBytes)}',
+                    trailing: Icon(
+                      Icons.lock_outline,
+                      color: cs.onSurfaceVariant,
+                      semanticLabel: 'Lecture indisponible depuis le cabinet',
+                    ),
                   ),
               ],
             ),
+          if (documents != null && documents.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const _DocumentsReadOnlyNotice(
+              key: Key('patient_documents_ged_notice'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Bandeau info (#4286) : aucune route backend ne sert le contenu d'un
+/// document côté cabinet (`GET /v1/documents/:id/download` réservé au
+/// patient) — la liste ne doit pas ressembler à des éléments cliquables,
+/// donc on l'énonce en clair en plus du cadenas sur chaque ligne.
+class _DocumentsReadOnlyNotice extends StatelessWidget {
+  const _DocumentsReadOnlyNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.infoBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_outline, size: 18, color: tokens.infoFg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "Aucun document n'est consultable depuis le cabinet (#4286) : "
+              'le back ne sert le contenu qu\'au patient lui-même. Les '
+              "documents s'envoient et se listent, mais ne s'ouvrent pas — "
+              "l'icône le dit.",
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: tokens.infoFg,
+                  ),
+            ),
+          ),
         ],
       ),
     );
