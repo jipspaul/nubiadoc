@@ -797,6 +797,7 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
     with AsyncSectionState<List<PatientDocument>, PatientDocumentsSection> {
   String? _categoryFilter;
   bool _uploading = false;
+  PickedFile? _pendingFile;
 
   @override
   Future<Either<Failure, List<PatientDocument>>> fetchSection() =>
@@ -810,35 +811,17 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
     loadSection();
   }
 
-  Future<void> _pickAndUpload() async {
+  Future<void> _pickFile() async {
     final file = await GetIt.instance<FilePickerService>().pickFile();
     if (file == null || !mounted) return;
+    setState(() => _pendingFile = file);
+  }
 
-    final category = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => SafeArea(
-        child: FractionallySizedBox(
-          heightFactor: 0.75,
-          child: ListView(
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Type de document'),
-              ),
-              for (final (value, label, icon) in _kDocumentCategories)
-                ListTile(
-                  key: Key('upload_cat_$value'),
-                  leading: Icon(icon),
-                  title: Text(label),
-                  onTap: () => Navigator.pop(ctx, value),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (category == null || !mounted) return;
+  void _cancelPending() => setState(() => _pendingFile = null);
+
+  Future<void> _selectCategoryAndUpload(String category) async {
+    final file = _pendingFile;
+    if (file == null) return;
 
     setState(() => _uploading = true);
     final result = await GetIt.instance<UploadPatientDocumentUseCase>()(
@@ -849,7 +832,10 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
       category: category,
     );
     if (!mounted) return;
-    setState(() => _uploading = false);
+    setState(() {
+      _uploading = false;
+      _pendingFile = null;
+    });
     result.fold(
       (failure) => ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(failure.message))),
@@ -896,10 +882,21 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
                       )
                     : const Icon(Icons.upload_file_outlined),
                 tooltip: 'Envoyer un document',
-                onPressed: _uploading ? null : _pickAndUpload,
+                onPressed:
+                    (_uploading || _pendingFile != null) ? null : _pickFile,
               ),
             ],
           ),
+          if (_pendingFile != null) ...[
+            const SizedBox(height: 8),
+            _DocumentCategoryPicker(
+              key: const Key('patient_documents_category_picker'),
+              fileName: _pendingFile!.name,
+              busy: _uploading,
+              onSelect: _selectCategoryAndUpload,
+              onCancel: _uploading ? null : _cancelPending,
+            ),
+          ],
           const SizedBox(height: 8),
           SizedBox(
             height: 36,
@@ -967,6 +964,83 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
               key: Key('patient_documents_ged_notice'),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Choix de la catégorie à l'upload d'un document (#4981, maquette design-v2
+/// point 7) : sur poste fixe, remplace le `showModalBottomSheet` à 75 % de
+/// hauteur par une sélection en place, sous le bouton d'upload. Les 12
+/// catégories restent celles de [_kDocumentCategories] (valeurs brutes API).
+class _DocumentCategoryPicker extends StatelessWidget {
+  const _DocumentCategoryPicker({
+    super.key,
+    required this.fileName,
+    required this.busy,
+    required this.onSelect,
+    required this.onCancel,
+  });
+
+  final String fileName;
+  final bool busy;
+  final ValueChanged<String> onSelect;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.borderDefault),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Type de document — $fileName',
+                  style: textTheme.labelLarge,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (busy)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  key: const Key('patient_documents_category_cancel'),
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'Annuler',
+                  onPressed: onCancel,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (value, label, icon) in _kDocumentCategories)
+                NubiaChip(
+                  key: Key('upload_cat_$value'),
+                  label: label,
+                  icon: icon,
+                  variant: NubiaChipVariant.choice,
+                  onTap: busy ? null : () => onSelect(value),
+                ),
+            ],
+          ),
         ],
       ),
     );
