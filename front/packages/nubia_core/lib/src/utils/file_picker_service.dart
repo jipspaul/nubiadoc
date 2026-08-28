@@ -31,6 +31,13 @@ abstract class FilePickerService {
 
   /// Returns the selected [PickedFile], or `null` if the user cancelled.
   Future<PickedFile?> pickFile({List<String>? allowedExtensions});
+
+  /// Prompts a native save dialog for [bytes] and writes it to the chosen
+  /// location. Returns the saved path, or `null` if the user cancelled.
+  Future<String?> saveFile({
+    required Uint8List bytes,
+    required String fileName,
+  });
 }
 
 /// Default runtime implementation backed by the `file_picker` package.
@@ -56,6 +63,13 @@ class DefaultFilePickerService extends FilePickerService {
       bytes: bytes,
     );
   }
+
+  @override
+  Future<String?> saveFile({
+    required Uint8List bytes,
+    required String fileName,
+  }) =>
+      FilePicker.platform.saveFile(fileName: fileName, bytes: bytes);
 }
 
 String _mimeFromExtension(String? ext) {
