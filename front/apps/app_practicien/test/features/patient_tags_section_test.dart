@@ -77,4 +77,31 @@ void main() {
 
     expect(find.byType(NubiaChip), findsNWidgets(3));
   });
+
+  testWidgets('ajout — champ inline, aucun AlertDialog', (tester) async {
+    when(() => listTags('patient-1')).thenAnswer((_) async => const Right([]));
+    final createTag = _MockCreatePatientTag();
+    GetIt.instance.unregister<CreatePatientTagUseCase>();
+    GetIt.instance.registerFactory<CreatePatientTagUseCase>(() => createTag);
+    when(() => createTag('patient-1', label: 'Anxieuse'))
+        .thenAnswer((_) async => Right(_tag('a')));
+
+    await tester.pumpWidget(buildSection());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('patient_tags_add_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byKey(const Key('patient_tag_label_field')), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('patient_tag_label_field')),
+      'Anxieuse',
+    );
+    await tester.tap(find.byKey(const Key('patient_tag_add_confirm')));
+    await tester.pumpAndSettle();
+
+    verify(() => createTag('patient-1', label: 'Anxieuse')).called(1);
+  });
 }
