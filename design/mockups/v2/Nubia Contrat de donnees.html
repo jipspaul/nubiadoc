@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia — Contrat de données : champs manquants côté domaine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:48px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.pg{width:1180px;margin:0 auto;background:var(--n0);border-radius:14px;padding:52px 56px 56px;box-shadow:0 30px 70px -24px rgba(28,25,23,.35),0 0 0 1px rgba(28,25,23,.07)}
+.kick{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+h1{font-family:Fraunces,serif;font-size:40px;line-height:47px;font-weight:600;letter-spacing:-.9px;margin:11px 0 16px}
+.lede{font-size:16px;line-height:27px;color:var(--n600);max-width:820px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.lede strong{color:var(--n900);font-weight:600}
+.meta{display:flex;gap:34px;margin-top:26px;padding-top:22px;border-top:1px solid var(--n200)}
+.mi .v{font-size:26px;font-weight:700;letter-spacing:-.6px;line-height:30px}
+.mi .l{font-size:12px;color:var(--n500);margin-top:3px}
+.mi.d .v{color:var(--dangFg)}
+.mi.w .v{color:var(--warnFg)}
+h2{font-family:Fraunces,serif;font-size:25px;font-weight:600;letter-spacing:-.4px;margin:44px 0 6px;display:flex;align-items:baseline;gap:12px}
+h2 .num{font-family:Inter,sans-serif;font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--n400);background:var(--n100);border-radius:6px;padding:3px 8px;position:relative;top:-3px}
+.sub{font-size:14px;line-height:22px;color:var(--n600);max-width:820px;margin-bottom:16px}
+.sub code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);padding:0 12px 8px 0;border-bottom:1.5px solid var(--n300);vertical-align:bottom}
+td{padding:11px 12px 11px 0;border-bottom:1px solid var(--n100);vertical-align:top;line-height:19px}
+td code,th code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px;white-space:nowrap}
+.fld{width:210px}
+.fld .n{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;color:var(--n900)}
+.fld .t{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--n500);margin-top:3px}
+.scr{width:186px;color:var(--n600)}
+.blk{color:var(--n700)}
+.blk b{font-weight:600;color:var(--n900)}
+.pr{width:86px}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;border-radius:5px;padding:3px 8px;white-space:nowrap}
+.tag.p1{background:var(--dangBg);color:var(--dangFg)}
+.tag.p2{background:var(--warnBg);color:var(--warnFg)}
+.tag.p3{background:var(--n100);color:var(--n600)}
+.ent{display:flex;align-items:center;gap:9px;margin-top:30px;margin-bottom:9px}
+.ent .ic{font-size:19px;color:var(--n400)}
+.ent .n{font-family:ui-monospace,Menlo,monospace;font-size:14px;font-weight:700}
+.ent .f{font-size:12px;color:var(--n500)}
+.ent .cnt{margin-left:auto;font-size:11px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:3px 10px}
+.cal{margin-top:40px;background:var(--n50);border:1px solid var(--n200);border-left:4px solid var(--n900);border-radius:11px;padding:20px 22px}
+.cal .h{font-size:15px;font-weight:600;display:flex;align-items:center;gap:9px}
+.cal .h .ic{font-size:20px}
+.cal .p{font-size:13.5px;line-height:21px;color:var(--n600);margin-top:9px;max-width:800px}
+.cal .p code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--n0);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.cal .p strong{color:var(--n900);font-weight:600}
+.wave{margin-top:22px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.wv{background:var(--n0);border:1px solid var(--n200);border-radius:11px;padding:15px 16px}
+.wv .n{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.wv .t{font-size:15px;font-weight:600;margin-top:5px;letter-spacing:-.2px}
+.wv .d{font-size:12.5px;line-height:19px;color:var(--n600);margin-top:6px}
+.wv ul{list-style:none;margin-top:9px;display:flex;flex-direction:column;gap:5px}
+.wv li{font-size:12px;line-height:17px;color:var(--n600);display:flex;gap:7px}
+.wv li::before{content:"—";color:var(--n300);flex:0 0 auto}
+.wv.a{border-left:3px solid var(--dangFg)}
+.wv.b{border-left:3px solid var(--warnFg)}
+.wv.c{border-left:3px solid var(--n400)}
+.foot{margin-top:40px;padding-top:22px;border-top:1px solid var(--n200);font-size:12.5px;line-height:20px;color:var(--n500)}
+.foot code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+</style></head>
+<body><div class="pg" data-screen-label="Contrat de données">
+
+<div class="kick">Écosystème Nubia · Sortie de l'audit UI/UX</div>
+<h1>Le domaine porte les objets,<br>pas les liens entre eux</h1>
+<p class="lede">Vingt-trois écrans refondus, un même constat revenu <strong>huit fois</strong> : l'interface ne peut pas afficher ce que le modèle n'expose pas. Un bon de travail prothétique sans patient ni dent, un devis sans date d'expiration, une commande de pharmacie sans ses lignes d'ordonnance — chaque fois, le défaut de conception est en amont du widget. Ce document rassemble ces manques, écran par écran, avec ce qui devient impossible sans eux.</p>
+<p class="lede" style="margin-top:14px">Aucun de ces champs n'est une invention de designer : chacun est <strong>déjà nécessaire au métier</strong> que l'écran prétend servir, et souvent déjà présent ailleurs dans le système — la date de réception d'une commande s'affiche dans son détail mais pas dans la liste, le statut <code>expired</code> existe sans la date qui le produit.</p>
+
+<div class="meta">
+<div class="mi d"><div class="v">8</div><div class="l">entités concernées</div></div>
+<div class="mi"><div class="v">24</div><div class="l">champs manquants</div></div>
+<div class="mi w"><div class="v">9</div><div class="l">bloquants (P1)</div></div>
+<div class="mi"><div class="v">14</div><div class="l">écrans impactés</div></div>
+</div>
+
+<h2><span class="num">01</span>Facturation et devis</h2>
+<p class="sub">Le cœur commercial du produit. Trois entités portent des montants ou des états de signature, aucune ne porte les liens qui les rendent exploitables.</p>
+
+<div class="ent"><span class="ic f">description</span><span class="n">CabinetQuote</span><span class="f">Secrétariat · devis</span><span class="cnt">2 champs</span></div>
+<table>
+<thead><tr><th class="fld">Champ</th><th class="scr">Écran demandeur</th><th class="blk">Impossible sans lui</th><th class="pr">Priorité</th></tr></thead>
+<tbody>
+<tr><td class="fld"><div class="n">expiresAt</div><div class="t">DateTime?</div></td><td class="scr">Devis (liste + volet)</td><td class="blk">La colonne <b>Échéance</b> et le compteur « expirent sous 7 jours ». Le statut <code>expired</code> existe déjà dans <code>CabinetQuoteStatus</code> — le back connaît donc la notion, il ne l'expose pas comme date. Sans elle, le secrétariat ne peut pas relancer avant expiration.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">status: paid</div><div class="t">enum + 1 valeur</div></td><td class="scr">Devis</td><td class="blk"><code>QuoteCardStatus.paid</code> <b>existe dans le design system et n'est jamais utilisé</b>, faute d'équivalent côté domaine : un devis dont l'acompte est réglé s'affiche « Signé ». Symétriquement, <code>cancelled</code> est rabattu sur « Refusé ».</td><td class="pr"><span class="tag p2">P2</span></td></tr>
+</tbody></table>
+
+<div class="ent"><span class="ic f">assignment</span><span class="n">TreatmentPlan / TreatmentPhase</span><span class="f">Praticien · plans de traitement</span><span class="cnt">3 champs</span></div>
+<table>
+<thead><tr><th class="fld">Champ</th><th class="scr">Écran demandeur</th><th class="blk">Impossible sans lui</th><th class="pr">Priorité</th></tr></thead>
+<tbody>
+<tr><td class="fld"><div class="n">phase.acts</div><div class="t">List&lt;PlanAct&gt;</div></td><td class="scr">Plan de traitement</td><td class="blk">Un plan est aujourd'hui un <b>titre</b> et ses phases sont des <b>titres</b>. Les actes n'existent que dans <code>ClinicalSession</code>, côté consultation. Sans eux : ni montant, ni dent, ni code CCAM dans le plan.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">phase.quoteId</div><div class="t">String?</div></td><td class="scr">Plan de traitement</td><td class="blk">Le lien entre le plan et l'objet que le patient signe. Sans lui, impossible de savoir <b>ce qui n'est couvert par aucun devis</b> — l'information qui déclenche l'action commerciale.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">totals</div><div class="t">{total, engaged, done}</div></td><td class="scr">Plan de traitement</td><td class="blk">Calculables côté client si les actes existent, mais mieux servis par le back qui détient déjà la facturation.</td><td class="pr"><span class="tag p3">P3</span></td></tr>
+</tbody></table>
+
+<h2><span class="num">02</span>Chaîne de prescription</h2>
+<p class="sub">La même lacune vue des deux bouts : le praticien écrit une ordonnance en texte libre, la pharmacie reçoit une commande qui ignore ses propres lignes.</p>
+
+<div class="ent"><span class="ic f">medication</span><span class="n">PrescriptionItem</span><span class="f">Praticien · ordonnance</span><span class="cnt">3 champs</span></div>
+<table>
+<thead><tr><th class="fld">Champ</th><th class="scr">Écran demandeur</th><th class="blk">Impossible sans lui</th><th class="pr">Priorité</th></tr></thead>
+<tbody>
+<tr><td class="fld"><div class="n">posology</div><div class="t">{dose, freq, duration}</div></td><td class="scr">Ordonnance</td><td class="blk">L'entité est <b>quatre chaînes libres</b> (<code>label</code>, <code>posology</code>, <code>duration</code>, <code>quantity</code>). Sans décomposition, la quantité reste saisie à la main au lieu d'être calculée — source d'erreur sur un document légal.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">productRef</div><div class="t">{dci, form, class}</div></td><td class="scr">Ordonnance</td><td class="blk">Une DCI saisie à la main dans un document légal, faute de frappe comprise. Sans référentiel médicament, pas d'autocomplétion possible.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">legalMentions</div><div class="t">{nonSubst+motif, nonRenew}</div></td><td class="scr">Ordonnance · Pharmacie</td><td class="blk">« Non substituable » et son motif (ex. MTE), « non renouvelable » : ces mentions <b>engagent la délivrance</b> et n'existent sur aucun champ. L'ordonnance imprimée ne peut pas les porter.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+</tbody></table>
+
+<div class="ent"><span class="ic f">local_pharmacy</span><span class="n">PharmacyOrder</span><span class="f">Pharmacie · délivrance et file</span><span class="cnt">5 champs</span></div>
+<table>
+<thead><tr><th class="fld">Champ</th><th class="scr">Écran demandeur</th><th class="blk">Impossible sans lui</th><th class="pr">Priorité</th></tr></thead>
+<tbody>
+<tr><td class="fld"><div class="n">lines</div><div class="t">List&lt;PrescriptionLine&gt;</div></td><td class="scr">Délivrance</td><td class="blk"><b>Le défaut central de l'app Pharmacie.</b> L'écran de délivrance ne montre pas ce qu'il faut délivrer : le seul accès aux lignes est un bouton PDF qui <b>quitte l'application</b>. Or lire molécule, posologie et substituabilité <i>est</i> le métier du pharmacien.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">billing</div><div class="t">{total, amo, amc}</div></td><td class="scr">Délivrance</td><td class="blk">Le brief cite la liaison facturation comme cœur du métier ; l'écran n'affiche aucun montant. Le patient ne peut pas entendre au comptoir ce qu'il a lu dans son application.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">receivedAt</div><div class="t">DateTime</div></td><td class="scr">File des commandes</td><td class="blk">Le temps d'attente, qui ordonne le travail du comptoir. <b>La donnée existe</b> — le détail affiche « reçue à 09:12 » — elle n'est simplement pas sur la ligne de liste.</td><td class="pr"><span class="tag p2">P2</span></td></tr>
+<tr><td class="fld"><div class="n">prescriber</div><div class="t">{name, cabinet}</div></td><td class="scr">File des commandes</td><td class="blk">Une pharmacie sert plusieurs cabinets ; savoir de qui vient l'ordonnance conditionne les questions à poser en cas de doute.</td><td class="pr"><span class="tag p2">P2</span></td></tr>
+<tr><td class="fld"><div class="n">line.availability</div><div class="t">enum</div></td><td class="scr">Préparation · stock</td><td class="blk">Le compteur de ruptures et la réponse éclairée à une demande de stock : le pharmacien accepte ou refuse aujourd'hui en aveugle.</td><td class="pr"><span class="tag p3">P3</span></td></tr>
+</tbody></table>
+
+<h2><span class="num">03</span>Files d'attente et horodatages</h2>
+<p class="sub">Quatre écrans pilotent une attente — salle d'attente, commandes, demandes de stock, travaux labo — et aucun n'affiche depuis combien de temps. C'est pourtant l'information qui ordonne le travail.</p>
+
+<div class="ent"><span class="ic f">precision_manufacturing</span><span class="n">LabWorkOrder</span><span class="f">Praticien · travaux de laboratoire</span><span class="cnt">4 champs</span></div>
+<table>
+<thead><tr><th class="fld">Champ</th><th class="scr">Écran demandeur</th><th class="blk">Impossible sans lui</th><th class="pr">Priorité</th></tr></thead>
+<tbody>
+<tr><td class="fld"><div class="n">patient</div><div class="t">{id, name}</div></td><td class="scr">Travaux labo</td><td class="blk">L'entité ne porte que <code>labName</code>, <code>status</code> et <code>purchasePriceCents</code>. L'écran est donc organisé autour du <b>fournisseur</b> alors que le métier l'est autour du patient : « la couronne de Mme Martin est-elle arrivée ? » n'a pas de réponse.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">tooth · workType</div><div class="t">String · enum</div></td><td class="scr">Travaux labo</td><td class="blk">Dent en notation FDI et nature du travail (couronne, bridge, facette). Sans elles, deux bons du même labo sont indiscernables.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">expectedAt</div><div class="t">DateTime?</div></td><td class="scr">Travaux labo</td><td class="blk">Ni retard, ni tri par urgence — alors que repérer un retard est <b>la</b> raison d'ouvrir cet écran.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">fittingAppointmentId</div><div class="t">String?</div></td><td class="scr">Travaux labo</td><td class="blk">Donne une cible à l'action « Programmer la pose ».</td><td class="pr"><span class="tag p3">P3</span></td></tr>
+</tbody></table>
+
+<div class="ent"><span class="ic f">inventory_2</span><span class="n">StockRequest</span><span class="f">Secrétariat + Pharmacie · stock</span><span class="cnt">3 champs</span></div>
+<table>
+<thead><tr><th class="fld">Champ</th><th class="scr">Écran demandeur</th><th class="blk">Impossible sans lui</th><th class="pr">Priorité</th></tr></thead>
+<tbody>
+<tr><td class="fld"><div class="n">createdAt · pharmacy</div><div class="t">DateTime · objet</div></td><td class="scr">Stock (2 apps)</td><td class="blk">La création envoie un <code>pharmacyId</code> et l'écran n'affiche <b>jamais le nom correspondant</b>. Un cabinet travaillant avec trois officines ne sait pas à qui il a demandé quoi — ni quand.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">respondedAt</div><div class="t">DateTime?</div></td><td class="scr">Stock (2 apps)</td><td class="blk">Le délai de réponse, et donc la relance — le geste quotidien de cet écran, aujourd'hui impossible.</td><td class="pr"><span class="tag p2">P2</span></td></tr>
+<tr><td class="fld"><div class="n">fulfilledAt</div><div class="t">DateTime?</div></td><td class="scr">Stock (2 apps)</td><td class="blk">La traçabilité de la réception au cabinet.</td><td class="pr"><span class="tag p3">P3</span></td></tr>
+</tbody></table>
+
+<h2><span class="num">04</span>Listes et agrégats</h2>
+<p class="sub">Deux cas où l'absence d'un champ de liste ne dégrade pas seulement l'affichage : elle produit un défaut de performance mesurable.</p>
+
+<div class="ent"><span class="ic f">groups</span><span class="n">CabinetPatient</span><span class="f">Secrétariat · fiches patients</span><span class="cnt">3 champs</span></div>
+<table>
+<thead><tr><th class="fld">Champ</th><th class="scr">Écran demandeur</th><th class="blk">Impossible sans lui</th><th class="pr">Priorité</th></tr></thead>
+<tbody>
+<tr><td class="fld"><div class="n">alerts</div><div class="t">List&lt;PatientAlert&gt;</div></td><td class="scr">Fiches patients</td><td class="blk"><b>Défaut de performance, pas seulement d'affichage.</b> <code>PatientAlertBadge</code> appelle <code>ListPatientAlertsUseCase</code> dans son <code>initState</code> et il est instancié <b>par ligne</b> : sur 312 patients, jusqu'à 312 requêtes, relancées à chaque recyclage du <code>ListView.builder</code>.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">balanceDueCents</div><div class="t">int?</div></td><td class="scr">Fiches patients</td><td class="blk">Seul <code>GET /cabinet/patients/:id</code> renvoie le solde (#4044). La colonne « Solde » et le filtre « impayés » — ce sur quoi un poste d'accueil trie son travail — n'existent pas.</td><td class="pr"><span class="tag p2">P2</span></td></tr>
+<tr><td class="fld"><div class="n">noShowCount</div><div class="t">int?</div></td><td class="scr">Fiches patients</td><td class="blk">Le filtre et l'alerte « prévenir la veille ».</td><td class="pr"><span class="tag p3">P3</span></td></tr>
+</tbody></table>
+
+<div class="ent"><span class="ic f">folder</span><span class="n">Document · Dependent · ClinicalNoteSummary</span><span class="f">Patient · Praticien</span><span class="cnt">4 champs</span></div>
+<table>
+<thead><tr><th class="fld">Champ</th><th class="scr">Écran demandeur</th><th class="blk">Impossible sans lui</th><th class="pr">Priorité</th></tr></thead>
+<tbody>
+<tr><td class="fld"><div class="n">Document.issuedAt</div><div class="t">DateTime</div></td><td class="scr">Patient · documents</td><td class="blk">Le groupement par période — « l'ordonnance de la semaine dernière » n'a aucun repère temporel dans un coffre-fort de santé.</td><td class="pr"><span class="tag p2">P2</span></td></tr>
+<tr><td class="fld"><div class="n">Document.issuer</div><div class="t">{name, kind}</div></td><td class="scr">Patient · documents</td><td class="blk">Rien ne distingue un document déposé par le cabinet d'un fichier que le patient a lui-même envoyé. Dans un coffre-fort de santé, la provenance vaut le contenu.</td><td class="pr"><span class="tag p2">P2</span></td></tr>
+<tr><td class="fld"><div class="n">Dependent.birthDate</div><div class="t">DateTime — <b>existe déjà</b></div></td><td class="scr">Patient · proches</td><td class="blk"><b>Correction :</b> <code>AddDependentUseCase</code> accepte déjà ce paramètre et le transmet à l'API — seul le formulaire ne le collecte pas (corrigé). Reste la question de conformité : à 18 ans, l'accès du parent au dossier de son enfant doit cesser. Aucune date de naissance côté proche ⇒ rien ne peut déclencher cette bascule.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+<tr><td class="fld"><div class="n">note.status</div><div class="t">enum (au lieu de String)</div></td><td class="scr">Praticien · tableau de bord</td><td class="blk"><b>Produit un bug visible.</b> <code>_variantFor()</code> devine la sémantique par sous-chaîne — et « non signé » contient « signé », donc une note <b>non signée s'affiche en vert succès</b>. Une énumération supprime la classe entière de défauts.</td><td class="pr"><span class="tag p1">P1</span></td></tr>
+</tbody></table>
+
+<div class="cal"><div class="h"><span class="ic f">route</span>Un dernier manque, qui n'est pas un champ</div>
+<div class="p"><strong>#4286 — la GED cabinet n'a pas de route de lecture.</strong> <code>GET /v1/documents/:id/download</code> est réservé au patient lui-même : un praticien peut téléverser une radio panoramique, la voir listée avec sa taille, et <strong>ne jamais l'ouvrir depuis Nubia</strong>. C'est le seul écran de la refonte où j'ai choisi de rendre la limite visible — cadenas et mention explicite — plutôt que d'afficher des lignes qui ressemblent à des liens. Un lien mort dans un dossier médical coûte plus cher qu'une mention honnête.</div>
+</div>
+
+<h2><span class="num">05</span>Ordre de traitement suggéré</h2>
+<p class="sub">Les trois vagues sont ordonnées par rapport valeur / coût, pas par entité. La première ne demande aucune décision produit.</p>
+
+<div class="wave">
+<div class="wv a"><div class="n">Vague 1 · débloque</div><div class="t">Ce qui empêche un écran d'exister</div>
+<div class="d">Sans ces champs, la refonte livrée ne peut pas être construite telle quelle.</div>
+<ul>
+<li><code>PharmacyOrder.lines</code> + <code>billing</code></li>
+<li><code>LabWorkOrder</code> : patient, dent, type, échéance</li>
+<li><code>TreatmentPhase.acts</code> + <code>quoteId</code></li>
+<li><code>CabinetPatient.alerts</code> (supprime le N+1)</li>
+<li><code>note.status</code> en énumération</li>
+</ul></div>
+<div class="wv b"><div class="n">Vague 2 · corrige</div><div class="t">Ce qui rend une file pilotable</div>
+<div class="d">Horodatages et libellés. Peu coûteux, effet immédiat sur quatre écrans de production.</div>
+<ul>
+<li><code>CabinetQuote.expiresAt</code></li>
+<li><code>StockRequest</code> : dates + pharmacie résolue</li>
+<li><code>PharmacyOrder.receivedAt</code> en liste</li>
+<li><code>Document</code> : date et émetteur</li>
+<li><code>CabinetPatient.balanceDueCents</code></li>
+</ul></div>
+<div class="wv c"><div class="n">Vague 3 · complète</div><div class="t">Ce qui demande une décision produit</div>
+<div class="d">Ces champs supposent un arbitrage métier ou réglementaire avant d'être spécifiés.</div>
+<ul>
+<li><code>PrescriptionItem</code> structuré + référentiel médicament</li>
+<li>Bascule de majorité (le champ <code>birthDate</code> existe, la règle non)</li>
+<li>Route de lecture GED cabinet (#4286)</li>
+<li><code>QuoteCardStatus.paid</code> côté domaine</li>
+<li>Disponibilité par ligne de stock</li>
+</ul></div>
+</div>
+
+<div class="foot">Établi à partir de la lecture du dépôt <code>jipspaul/nubiadoc</code>, branche <code>main</code> — 23 écrans refondus sur les quatre applications. Chaque champ est référencé dans le README de l'application concernée (<code>flutter/app_*/README.md</code>), avec la citation du code d'origine et le numéro de ticket lorsqu'il existe. Les priorités sont indicatives : elles reflètent le coût d'absence côté interface, pas la difficulté d'implémentation côté back.</div>
+
+</div></body></html>

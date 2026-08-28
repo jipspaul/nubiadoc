@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Pharmacie — Devis & Stock v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+.win{width:1440px;height:860px;background:var(--n0);border-radius:12px;overflow:hidden;box-shadow:0 30px 70px -24px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09);display:flex}
+.rail{width:58px;flex:0 0 58px;background:var(--n900);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px}
+.rail .lg{width:30px;height:30px;border-radius:8px;background:var(--brand600);display:grid;place-items:center;color:#fff;font-size:14px;font-weight:700;margin-bottom:8px}
+.rail .it{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#8A8580}
+.rail .it .ic{font-size:20px}
+.rail .it.on{background:rgba(255,255,255,.11);color:#fff}
+.rail .sp{flex:1}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n50)}
+.tb{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 20px}
+.tb .r1{display:flex;align-items:center;gap:16px}
+.tb h1{font-size:20px;font-weight:600;letter-spacing:-.35px}
+.kpis{display:flex;align-items:flex-end;gap:22px;margin-left:8px}
+.kpi .v{font-size:18px;font-weight:700;letter-spacing:-.3px;line-height:21px;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:10.5px;color:var(--n500);margin-top:1px}
+.kpi.w .v{color:var(--warnFg)}
+.kpi.d .v{color:var(--dangFg)}
+.sp2{flex:1}
+.srch{width:230px;height:34px;border:1px solid var(--n200);border-radius:9px;display:flex;align-items:center;gap:8px;padding:0 11px;font-size:13px;color:var(--n400)}
+.srch .ic{font-size:18px}
+.hb{height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--n200);display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;background:var(--n0)}
+.hb .ic{font-size:17px;color:var(--n500)}
+.hb.p{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.hb.p .ic{color:#fff}
+.tb .r2{display:flex;align-items:center;gap:8px;margin-top:11px}
+.fc{height:30px;padding:0 11px;border:1px solid var(--n200);border-radius:99px;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--n800);background:var(--n0)}
+.fc.on{background:var(--n900);border-color:var(--n900);color:#fff}
+.fc.on .n{background:rgba(255,255,255,.2);color:#fff}
+.fc .n{font-size:11px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:1px 6px;font-variant-numeric:tabular-nums}
+.fc .dt{width:8px;height:8px;border-radius:99px}
+/* table */
+.split{flex:1;display:flex;min-height:0}
+.tbl{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n0)}
+.thead,.row{display:grid;align-items:center;gap:12px}
+.thead{padding:8px 20px;border-bottom:1px solid var(--n200);font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.thead .r2{text-align:right}
+.tbody{flex:1;overflow:hidden}
+.row{padding:11px 20px;border-bottom:1px solid var(--n100);border-left:3px solid transparent}
+.row.on{background:var(--brand50);border-left-color:var(--brand700)}
+.gq .thead,.gq .row{grid-template-columns:104px minmax(0,1fr) 168px 96px 116px 122px}
+.gs .thead,.gs .row{grid-template-columns:96px minmax(0,1fr) 200px 74px 112px 168px}
+.dt2{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.dt2 .s{font-size:10.5px;color:var(--n500);margin-top:2px;font-weight:400}
+.dt2 .s.late{color:var(--dangFg);font-weight:600}
+.dt2 .s.soon{color:var(--warnFg);font-weight:600}
+.who{display:flex;align-items:center;gap:10px;min-width:0}
+.av{width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:11.5px;font-weight:600;color:var(--brand800)}
+.av.sq{border-radius:8px;background:var(--brand50);border:1px solid var(--brand100);color:var(--brand700)}
+.av.sq .ic{font-size:16px}
+.who .n1{font-size:13.5px;font-weight:600;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who .n2{font-size:11px;color:var(--n500);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.items{font-size:12px;color:var(--n700);min-width:0}
+.items .s{font-size:10.5px;color:var(--n500);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amt{text-align:right;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.amt .s{font-size:10.5px;color:var(--n500);font-weight:400}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.info{background:var(--infoBg);color:var(--infoFg)}.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.dang{background:var(--dangBg);color:var(--dangFg)}.pill.mut{background:var(--n100);color:var(--n500)}
+.act{display:flex;justify-content:flex-end;gap:6px}
+.ab{height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--n200);display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;background:var(--n0);white-space:nowrap}
+.ab .ic{font-size:15px;color:var(--n500)}
+.ab.p{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.ab.p .ic{color:#fff}
+.ab.dn{border-color:#FECACA;color:var(--dangFg)}
+.ab.dn .ic{color:var(--dangFg)}
+.foot{border-top:1px solid var(--n200);background:var(--n0);padding:9px 20px;display:flex;align-items:center;gap:16px;font-size:11.5px;color:var(--n500)}
+.foot b{color:var(--n900);font-weight:600}
+/* detail */
+.det{width:352px;flex:0 0 352px;border-left:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column}
+.dh{padding:12px 15px;border-bottom:1px solid var(--n200)}
+.dh .r1{display:flex;align-items:center;gap:9px}
+.dh .t{font-size:13.5px;font-weight:600}
+.dh .x{margin-left:auto;color:var(--n400)}
+.dh .x .ic{font-size:18px}
+.dh .who2{display:flex;align-items:center;gap:10px;margin-top:10px}
+.dh .av2{width:38px;height:38px;flex:0 0 38px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--brand800)}
+.dh .nm{font-size:15px;font-weight:600;letter-spacing:-.15px}
+.dh .sb{font-size:11.5px;color:var(--n500);margin-top:1px}
+.db{flex:1;overflow:hidden}
+.sec{padding:11px 15px;border-bottom:1px solid var(--n200)}
+.sh{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);margin-bottom:9px;display:flex;align-items:center}
+.sh .n{margin-left:auto;font-size:11px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:1px 7px;letter-spacing:0;text-transform:none}
+.it2{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--n100);font-size:12.5px}
+.it2:last-child{border-bottom:0}
+.it2 .q{width:30px;flex:0 0 30px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.it2 .l{flex:1;min-width:0}
+.it2 .l .n{font-size:11px;color:var(--n500);margin-top:1px}
+.it2 .p{margin-left:auto;flex:0 0 auto;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tot{display:flex;align-items:center;padding-top:9px;margin-top:5px;border-top:1.5px solid var(--n300);font-size:13px}
+.tot .k{font-weight:600}
+.tot .v{margin-left:auto;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.warnb{display:flex;gap:8px;background:var(--warnBg);border:1px solid #FDE68A;border-radius:9px;padding:9px 10px;margin-top:9px}
+.warnb .ic{font-size:15px;color:var(--warnFg);flex:0 0 15px;margin-top:1px}
+.warnb .t{font-size:11.5px;line-height:16px;color:#78350F}
+.warnb .t b{font-weight:600}
+.st{display:flex;gap:10px;padding:5px 0}
+.st .d{width:9px;height:9px;border-radius:99px;background:var(--brand600);flex:0 0 9px;margin-top:5px}
+.st .d.off{background:var(--n300)}
+.st .t1{font-size:12.5px;font-weight:500}
+.st .t2{font-size:11px;color:var(--n500);margin-top:1px;font-variant-numeric:tabular-nums}
+.acts2{padding:13px 15px;border-top:1px solid var(--n200);display:flex;flex-direction:column;gap:8px;margin-top:auto}
+.cta{height:42px;border-radius:11px;background:var(--brand700);color:#fff;display:flex;align-items:center;justify-content:center;gap:7px;font-size:14px;font-weight:500}
+.cta .ic{font-size:18px}
+.cta.s{background:var(--n0);border:1px solid var(--n200);color:var(--n900);height:38px;font-size:13px}
+.cta.s .ic{color:var(--n500)}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<!-- ══════════ DEVIS ══════════ -->
+<div><div class="cap">App Pharmacie · PC 1440 × 860 — devis d'officine</div>
+<div class="win" data-screen-label="Pharmacie · Devis">
+<div class="rail"><div class="lg">N</div>
+<div class="it"><span class="ic">space_dashboard</span></div><div class="it"><span class="ic">receipt_long</span></div><div class="it"><span class="ic">qr_code_scanner</span></div><div class="it on"><span class="ic f">description</span></div><div class="it"><span class="ic">inventory_2</span></div><div class="it"><span class="ic">chat_bubble</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+
+<div class="main">
+<div class="tb">
+<div class="r1"><h1>Devis</h1>
+<div class="kpis">
+<div class="kpi"><div class="v">12</div><div class="l">devis actifs</div></div>
+<div class="kpi w"><div class="v">4</div><div class="l">en attente de réponse</div></div>
+<div class="kpi d"><div class="v">2</div><div class="l">brouillons non envoyés</div></div>
+<div class="kpi"><div class="v tnum">1 840 €</div><div class="l">montant accepté</div></div>
+</div>
+<div class="sp2"></div>
+<div class="srch"><span class="ic">search</span>Patient, article…</div>
+<div class="hb p"><span class="ic">add</span>Nouveau devis</div>
+</div>
+<div class="r2">
+<div class="fc on">Tous<span class="n">12</span></div>
+<div class="fc"><span class="dt" style="background:var(--n400)"></span>Brouillons<span class="n">2</span></div>
+<div class="fc"><span class="dt" style="background:var(--warnFg)"></span>Envoyés<span class="n">4</span></div>
+<div class="fc"><span class="dt" style="background:var(--okFg)"></span>Acceptés<span class="n">5</span></div>
+<div class="fc"><span class="dt" style="background:var(--dangFg)"></span>Refusés / expirés<span class="n">1</span></div>
+</div>
+</div>
+
+<div class="split">
+<div class="tbl gq">
+<div class="thead"><span>Devis</span><span>Patient</span><span>Contenu</span><span class="r2">Total</span><span>Statut</span><span class="r2">Action</span></div>
+<div class="tbody">
+
+<div class="row on">
+<div class="dt2">10/08<div class="s soon">Envoyé il y a 1 j</div></div>
+<div class="who"><div class="av">JM</div><div style="min-width:0"><div class="n1">Julie Martin</div><div class="n2">DEV-P-0412</div></div></div>
+<div class="items">Gouttière de blanchiment<div class="s">+ 2 autres articles</div></div>
+<div class="amt tnum">248,00 €</div>
+<div><span class="pill warn"><span class="ic f">schedule</span>Envoyé</span></div>
+<div class="act"><div class="ab p"><span class="ic">notifications</span>Relancer</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">11/08<div class="s">Créé ce matin</div></div>
+<div class="who"><div class="av">SR</div><div style="min-width:0"><div class="n1">Sophie Roux</div><div class="n2">DEV-P-0415</div></div></div>
+<div class="items">Orthèse d'avancée mandibulaire<div class="s">1 article</div></div>
+<div class="amt tnum">420,00 €</div>
+<div><span class="pill mut"><span class="ic f">edit_note</span>Brouillon</span></div>
+<div class="act"><div class="ab p"><span class="ic">send</span>Envoyer</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">09/08<div class="s">Accepté le 10/08</div></div>
+<div class="who"><div class="av">AB</div><div style="min-width:0"><div class="n1">Ahmed Belkacem</div><div class="n2">DEV-P-0408</div></div></div>
+<div class="items">Kit hygiène post-implant<div class="s">+ 3 autres articles</div></div>
+<div class="amt tnum">96,50 €</div>
+<div><span class="pill ok"><span class="ic f">check_circle</span>Accepté</span></div>
+<div class="act"><div class="ab"><span class="ic">inventory</span>Préparer</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">08/08<div class="s soon">Envoyé il y a 3 j</div></div>
+<div class="who"><div class="av">TG</div><div style="min-width:0"><div class="n1">Théo Girard</div><div class="n2">DEV-P-0405</div></div></div>
+<div class="items">Gouttière de bruxisme<div class="s">1 article</div></div>
+<div class="amt tnum">310,00 €</div>
+<div><span class="pill warn"><span class="ic f">schedule</span>Envoyé</span></div>
+<div class="act"><div class="ab p"><span class="ic">notifications</span>Relancer</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">05/08<div class="s">Accepté le 06/08</div></div>
+<div class="who"><div class="av">CM</div><div style="min-width:0"><div class="n1">Camille Moreau</div><div class="n2">DEV-P-0398</div></div></div>
+<div class="items">Brosse à dents électrique<div class="s">+ 1 autre article</div></div>
+<div class="amt tnum">184,00 €</div>
+<div><span class="pill ok"><span class="ic f">check_circle</span>Accepté</span></div>
+<div class="act"><div class="ab"><span class="ic">check</span>Délivré</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">28/07<div class="s late">Expiré le 11/08</div></div>
+<div class="who"><div class="av">MD</div><div style="min-width:0"><div class="n1">Marc Dubois</div><div class="n2">DEV-P-0384</div></div></div>
+<div class="items">Prothèse amovible partielle<div class="s">1 article</div></div>
+<div class="amt tnum">640,00 €</div>
+<div><span class="pill dang"><span class="ic f">event_busy</span>Expiré</span></div>
+<div class="act"><div class="ab"><span class="ic">refresh</span>Réémettre</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">24/07<div class="s">Refusé le 26/07</div></div>
+<div class="who"><div class="av">LB</div><div style="min-width:0"><div class="n1">Léa Bernard</div><div class="n2">DEV-P-0379</div></div></div>
+<div class="items">Kit d'aligneurs d'entretien<div class="s">+ 2 autres articles</div></div>
+<div class="amt tnum">520,00 €</div>
+<div><span class="pill dang"><span class="ic f">cancel</span>Refusé</span></div>
+<div class="act"><div class="ab"><span class="ic">visibility</span>Voir</div></div>
+</div>
+
+</div>
+<div class="foot"><span><b>7</b> devis affichés sur 12</span><span>Taux d'acceptation : <b>71 %</b></span><span>Délai moyen de réponse : <b>2,4 j</b></span></div>
+</div>
+
+<div class="det">
+<div class="dh"><div class="r1"><span class="t">DEV-P-0412</span><span class="pill warn"><span class="ic f">schedule</span>Envoyé</span><span class="x"><span class="ic">close</span></span></div>
+<div class="who2"><div class="av2">JM</div><div style="min-width:0;flex:1"><div class="nm">Julie Martin</div><div class="sb">Créé le 10/08 · envoyé le 10/08 à 11:04</div></div></div></div>
+
+<div class="db">
+<div class="sec"><div class="sh">Articles<span class="n">3 lignes</span></div>
+<div class="it2"><span class="q">1</span><span class="l">Gouttière de blanchiment<div class="n">sur empreinte · labo partenaire</div></span><span class="p">180,00 €</span></div>
+<div class="it2"><span class="q">2</span><span class="l">Gel blanchissant 16 %<div class="n">seringue 3 ml</div></span><span class="p">29,00 €</span></div>
+<div class="it2"><span class="q">1</span><span class="l">Étui de conservation</span><span class="p">10,00 €</span></div>
+<div class="tot"><span class="k">Total</span><span class="v tnum">248,00 €</span></div>
+<div class="warnb"><span class="ic f">info</span><span class="t"><b>Hors remboursement.</b> Ces articles de confort ne donnent lieu à aucune part AMO ni AMC — le patient règle l'intégralité.</span></div>
+</div>
+
+<div class="sec"><div class="sh">Suivi</div>
+<div class="st"><span class="d"></span><div><div class="t1">Devis créé</div><div class="t2">10/08 · 10:52</div></div></div>
+<div class="st"><span class="d"></span><div><div class="t1">Envoyé au patient</div><div class="t2">10/08 · 11:04 · notification</div></div></div>
+<div class="st"><span class="d off"></span><div><div class="t1">Réponse du patient</div><div class="t2">en attente depuis 1 jour</div></div></div>
+</div>
+</div>
+
+<div class="acts2">
+<div class="cta"><span class="ic">notifications</span>Relancer le patient</div>
+<div class="cta s"><span class="ic">edit</span>Modifier le devis</div>
+</div>
+</div>
+
+</div>
+</div>
+</div></div>
+
+<!-- ══════════ STOCK ══════════ -->
+<div><div class="cap">App Pharmacie · PC 1440 × 860 — demandes de stock des cabinets</div>
+<div class="win" data-screen-label="Pharmacie · Demandes de stock">
+<div class="rail"><div class="lg">N</div>
+<div class="it"><span class="ic">space_dashboard</span></div><div class="it"><span class="ic">receipt_long</span></div><div class="it"><span class="ic">qr_code_scanner</span></div><div class="it"><span class="ic">description</span></div><div class="it on"><span class="ic f">inventory_2</span></div><div class="it"><span class="ic">chat_bubble</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+
+<div class="main">
+<div class="tb">
+<div class="r1"><h1>Demandes de stock</h1>
+<div class="kpis">
+<div class="kpi d"><div class="v">3</div><div class="l">à répondre</div></div>
+<div class="kpi w"><div class="v">2</div><div class="l">acceptées, à livrer</div></div>
+<div class="kpi"><div class="v">21</div><div class="l">honorées ce mois</div></div>
+<div class="kpi"><div class="v">2</div><div class="l">cabinets partenaires</div></div>
+</div>
+<div class="sp2"></div>
+<div class="srch"><span class="ic">search</span>Cabinet, article…</div>
+</div>
+<div class="r2">
+<div class="fc on"><span class="dt" style="background:var(--infoFg)"></span>À répondre<span class="n">3</span></div>
+<div class="fc"><span class="dt" style="background:var(--warnFg)"></span>Acceptées<span class="n">2</span></div>
+<div class="fc"><span class="dt" style="background:var(--okFg)"></span>Honorées<span class="n">21</span></div>
+<div class="fc"><span class="dt" style="background:var(--dangFg)"></span>Refusées<span class="n">2</span></div>
+</div>
+</div>
+
+<div class="split">
+<div class="tbl gs">
+<div class="thead"><span>Reçue</span><span>Cabinet</span><span>Articles demandés</span><span class="r2">Lignes</span><span>Statut</span><span class="r2">Action</span></div>
+<div class="tbody">
+
+<div class="row on">
+<div class="dt2">10:24<div class="s soon">Attend 2 h</div></div>
+<div class="who"><div class="av sq"><span class="ic f">medical_services</span></div><div style="min-width:0"><div class="n1">Cabinet Nubia Opéra</div><div class="n2">Sarah Lemoine</div></div></div>
+<div class="items">Compresses, Articaïne, gants<div class="s">21 unités au total</div></div>
+<div class="amt">3<div class="s">lignes</div></div>
+<div><span class="pill info"><span class="ic f">inbox</span>Reçue</span></div>
+<div class="act"><div class="ab p"><span class="ic">check</span>Accepter</div><div class="ab dn"><span class="ic">close</span>Refuser</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">09:40<div class="s soon">Attend 2 h 45</div></div>
+<div class="who"><div class="av sq"><span class="ic f">medical_services</span></div><div style="min-width:0"><div class="n1">Cabinet Saint-Lazare</div><div class="n2">Marc Vidal</div></div></div>
+<div class="items">Digues en latex, clamps<div class="s">14 unités au total</div></div>
+<div class="amt">2<div class="s">lignes</div></div>
+<div><span class="pill info"><span class="ic f">inbox</span>Reçue</span></div>
+<div class="act"><div class="ab p"><span class="ic">check</span>Accepter</div><div class="ab dn"><span class="ic">close</span>Refuser</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">Hier<div class="s late">Attend 1 j</div></div>
+<div class="who"><div class="av sq"><span class="ic f">medical_services</span></div><div style="min-width:0"><div class="n1">Cabinet Nubia Opéra</div><div class="n2">Sarah Lemoine</div></div></div>
+<div class="items">Fils de suture 4/0<div class="s">6 unités</div></div>
+<div class="amt">1<div class="s">ligne</div></div>
+<div><span class="pill info"><span class="ic f">inbox</span>Reçue</span></div>
+<div class="act"><div class="ab p"><span class="ic">check</span>Accepter</div><div class="ab dn"><span class="ic">close</span>Refuser</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">08/08<div class="s">Acceptée le 08/08</div></div>
+<div class="who"><div class="av sq"><span class="ic f">medical_services</span></div><div style="min-width:0"><div class="n1">Cabinet Nubia Opéra</div><div class="n2">Sarah Lemoine</div></div></div>
+<div class="items">Anesthésique Articaïne 4 %<div class="s">« dispo en stock, livraison mardi »</div></div>
+<div class="amt">1<div class="s">ligne</div></div>
+<div><span class="pill warn"><span class="ic f">local_shipping</span>Acceptée</span></div>
+<div class="act"><div class="ab p"><span class="ic">done_all</span>Marquer honorée</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">07/08<div class="s">Acceptée le 07/08</div></div>
+<div class="who"><div class="av sq"><span class="ic f">medical_services</span></div><div style="min-width:0"><div class="n1">Cabinet Saint-Lazare</div><div class="n2">Marc Vidal</div></div></div>
+<div class="items">Bains de bouche chlorhexidine<div class="s">12 unités</div></div>
+<div class="amt">1<div class="s">ligne</div></div>
+<div><span class="pill warn"><span class="ic f">local_shipping</span>Acceptée</span></div>
+<div class="act"><div class="ab p"><span class="ic">done_all</span>Marquer honorée</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">05/08<div class="s">Honorée le 06/08</div></div>
+<div class="who"><div class="av sq"><span class="ic f">medical_services</span></div><div style="min-width:0"><div class="n1">Cabinet Nubia Opéra</div><div class="n2">Sarah Lemoine</div></div></div>
+<div class="items">Compresses, gants, masques<div class="s">40 unités au total</div></div>
+<div class="amt">3<div class="s">lignes</div></div>
+<div><span class="pill ok"><span class="ic f">check_circle</span>Honorée</span></div>
+<div class="act"><div class="ab"><span class="ic">visibility</span>Voir</div></div>
+</div>
+
+<div class="row">
+<div class="dt2">04/08<div class="s">Refusée le 04/08</div></div>
+<div class="who"><div class="av sq"><span class="ic f">medical_services</span></div><div style="min-width:0"><div class="n1">Cabinet Saint-Lazare</div><div class="n2">Marc Vidal</div></div></div>
+<div class="items">Implants titane 4,2 mm<div class="s">« hors catalogue officine »</div></div>
+<div class="amt">1<div class="s">ligne</div></div>
+<div><span class="pill dang"><span class="ic f">cancel</span>Refusée</span></div>
+<div class="act"><div class="ab"><span class="ic">visibility</span>Voir</div></div>
+</div>
+
+</div>
+<div class="foot"><span><b>7</b> demandes affichées sur 28</span><span>Délai moyen de réponse : <b>3 h 20</b></span><span>Taux d'acceptation : <b>88 %</b></span></div>
+</div>
+
+<div class="det">
+<div class="dh"><div class="r1"><span class="t">Demande du 11/08 · 10:24</span><span class="pill info"><span class="ic f">inbox</span>Reçue</span><span class="x"><span class="ic">close</span></span></div>
+<div class="who2"><div class="av2" style="border-radius:11px;background:var(--brand50);border:1px solid var(--brand100);color:var(--brand700)"><span class="ic f">medical_services</span></div><div style="min-width:0;flex:1"><div class="nm">Cabinet Nubia Opéra</div><div class="sb">12 rue de la Paix, 75002 · Sarah Lemoine</div></div></div></div>
+
+<div class="db">
+<div class="sec"><div class="sh">Articles demandés<span class="n">3 lignes · 21 unités</span></div>
+<div class="it2"><span class="q">12</span><span class="l">Compresses stériles 10×10<div class="n">boîtes de 50</div></span><span class="p" style="color:var(--okFg)">En stock</span></div>
+<div class="it2"><span class="q">6</span><span class="l">Anesthésique Articaïne 4 %<div class="n">carpules · à conserver au frais</div></span><span class="p" style="color:var(--okFg)">En stock</span></div>
+<div class="it2"><span class="q">3</span><span class="l">Gants nitrile taille M<div class="n">boîtes de 100</div></span><span class="p" style="color:var(--warnFg)">2 dispo</span></div>
+<div class="warnb"><span class="ic f">warning</span><span class="t"><b>Une ligne partiellement disponible.</b> Accepter engage la totalité de la demande — précisez la réserve dans la note de réponse.</span></div>
+</div>
+
+<div class="sec"><div class="sh">Historique du cabinet</div>
+<div class="st"><span class="d"></span><div><div class="t1">21 demandes honorées</div><div class="t2">depuis janvier 2026</div></div></div>
+<div class="st"><span class="d"></span><div><div class="t1">Délai de réponse habituel</div><div class="t2">sous 4 h en moyenne</div></div></div>
+</div>
+</div>
+
+<div class="acts2">
+<div class="cta"><span class="ic">check</span>Accepter avec une note</div>
+<div class="cta s" style="border-color:#FECACA;color:var(--dangFg)"><span class="ic" style="color:var(--dangFg)">close</span>Refuser — motif obligatoire</div>
+</div>
+</div>
+
+</div>
+</div>
+</div></div>
+
+<div class="notes">
+<div class="nk">App Pharmacie · Devis & Stock</div>
+<h2>Deux écrans, la même carte, le même angle mort</h2>
+<p class="lede">Les devis d'officine et les demandes de stock partagent une structure identique : une <code>NubiaCard</code> par élément, un <code>Row(spaceBetween)</code> titre + pastille, les lignes concaténées en <code>'• ${quantity} × ${label}'</code>, et les actions en bas. Aucun des deux n'affiche de <strong>date</strong> — ni création, ni envoi, ni réception. Or les deux écrans servent à piloter une attente : celle du patient qui doit accepter un devis, celle du cabinet qui attend une réponse.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Le délai devient la première colonne</div><div class="np">« Envoyé il y a 3 jours », « attend 1 j » : c'est ce qui décide d'une relance côté devis, et ce qui fait qu'un cabinet reste sans réponse côté stock. La donnée manque aux deux écrans.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Un refus sans motif obligatoire</div><div class="np">Côté stock, <code>_askRejectNote</code> ouvre un champ « Note (<strong>optionnelle</strong>) », et <code>note.isEmpty ? null : note</code> envoie donc un refus muet. Un cabinet qui voit sa demande refusée sans un mot rappelle au téléphone — le motif doit être obligatoire, comme il l'est côté secrétariat pour le refus de commande.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Deux boutons pleine largeur pour deux intentions opposées</div><div class="np"><em>Accepter</em> et <em>Refuser</em> sont deux <code>Expanded</code> de même poids, côte à côte. Le refus est irréversible et engage une relation commerciale : il passe en action secondaire teintée, jamais à égalité avec l'acceptation.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Le prix unitaire, jamais la ligne</div><div class="np">Côté devis, chaque ligne affiche <code>quantity × label — unitPrice</code> : le lecteur doit multiplier de tête pour vérifier un total. Le sous-total par ligne manque, et l'alignement en colonnes rend la vérification immédiate.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Aucune disponibilité sur une demande de stock</div><div class="np">Répondre à une demande suppose de savoir ce qu'on a en réserve. L'écran ne montre rien : le pharmacien accepte ou refuse en aveugle, ou va vérifier ailleurs. Le volet indique l'état par ligne — et signale le cas qui pose problème, celui de la disponibilité partielle.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">« Expiré » et « Refusé » ne sont pas la même chose</div><div class="np">La table <code>_variants</code> les rend tous deux en <code>error</code>. Un refus est une décision du patient ; une expiration est un délai dépassé, donc une occasion manquée — et surtout, la seule des deux qui appelle une action (réémettre).</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Ni compteurs, ni filtres, ni recherche</div><div class="np">Les deux écrans empilent des cartes sans agrégat. Quatre compteurs et des facettes de statut par écran : combien attendent, combien de brouillons oubliés, quel montant accepté, quel taux d'acceptation.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Un brouillon oublié est un revenu perdu</div><div class="np">Un devis en <code>draft</code> non envoyé n'existe pour personne. Le compteur le remonte en tête d'écran : deux brouillons dormants, c'est 730 € qui n'ont jamais été proposés.</div></div></li>
+<li class="oli"><span class="onum">9</span><div><div class="nh">Chargement</div><div class="np"><code>CircularProgressIndicator</code> centré sur les deux écrans — alors que la file des commandes, dans la <em>même application</em>, utilise déjà des squelettes au bon rythme. L'incohérence est interne à l'app.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">payments</span>Septième format monétaire — et le plus proche du bon</div>
+<div class="p"><code>formatCents()</code> côté devis pharmacie fait <code>(cents / 100).toStringAsFixed(2).replaceAll('.', ',')</code> : la virgule décimale est correcte, mais <strong>le séparateur de milliers manque</strong> — exactement le même défaut que <code>_formatBalance()</code> côté secrétariat, écrit indépendamment. Deux équipes ont résolu à moitié le même problème, de la même façon, sans se voir.</div>
+<div class="p">Décompte final sur l'ensemble du dépôt : <strong>huit implémentations</strong> du formatage monétaire, dont <strong>deux</strong> correctes — <code>formatQuoteCents</code> (app Patient) et celle du devis praticien, écrites indépendamment l'une de l'autre. Deux équipes ont résolu correctement le même problème sans se voir, pendant que six autres le résolvaient à moitié. C'est le point du backlog qui s'est le plus aggravé au fil de l'audit — et le moins coûteux à corriger, puisque <code>NubiaMoney.formatCents</code> est déjà écrit.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Ce que ces deux écrans font bien</div>
+<div class="p"><strong>L'état de chargement est porté par identifiant.</strong> <code>sendingId</code> côté devis, <code>respondingId</code> côté stock : seule la carte concernée passe en attente, comme sur les travaux de laboratoire. Trois écrans du dépôt appliquent ce motif — c'est celui à généraliser aux autres.</div>
+<div class="p"><strong>Le refus passe par un dialogue, pas par une action directe.</strong> Même si la note y est optionnelle, le principe d'une confirmation explicite avant un état terminal est le bon. Il suffit de rendre le motif obligatoire.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>Cycle des devis conservé : <code>draft</code> → <code>sent</code> → <code>accepted</code>/<code>refused</code>/<code>expired</code> ; l'envoi n'est proposé que sur un brouillon.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Cycle des demandes de stock conservé : <code>sent</code> → <code>accepted</code>/<code>rejected</code> → <code>fulfilled</code> ; « Marquer honorée » n'apparaît que sur une demande acceptée.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>StockRequestResponse.accept</code> / <code>.reject</code> / <code>.fulfill</code> et leur événement <code>StockRespondRequested</code> inchangés.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Libellés français des deux tables <code>_labels</code> repris mot pour mot.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>sendingId</code> et <code>respondingId</code> continuent de désactiver la seule carte concernée.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>La création de devis reste hors périmètre de l'écran (« Créez un devis depuis le détail d'une commande ») — le bouton d'en-tête y renvoie.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>quote_&lt;id&gt;</code>, <code>quote_send_&lt;id&gt;</code>, <code>stock_request_&lt;id&gt;</code>, <code>stock_accept_&lt;id&gt;</code>, <code>stock_reject_&lt;id&gt;</code>, <code>stock_reject_confirm</code>, <code>stock_fulfill_&lt;id&gt;</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Champs à exposer : horodatages (création, envoi, réponse) sur les deux entités, et un état de disponibilité par ligne de demande de stock.</span></li>
+</ul></div>
+</div>
+</div></body></html>

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia — Écrans PC : ordonnance, plan de traitement, pharmacie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+/* intro */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+h1{font-family:Fraunces,serif;font-size:34px;line-height:41px;font-weight:600;letter-spacing:-.7px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:920px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.sec{margin-top:34px}
+.cap{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.cap .t{font-size:13px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--n500)}
+.cap .g{margin-left:auto;font-size:12px;color:var(--n500);background:var(--brand50);border:1px solid var(--brand200);border-radius:99px;padding:4px 11px}
+.cap .g b{color:var(--brand800);font-weight:600}
+/* window */
+.win{width:1440px;height:900px;background:var(--n0);border-radius:12px;overflow:hidden;box-shadow:0 30px 70px -24px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09);display:flex}
+.rail{width:58px;flex:0 0 58px;background:var(--n900);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px}
+.rail .lg{width:30px;height:30px;border-radius:8px;background:var(--brand600);display:grid;place-items:center;color:#fff;font-size:14px;font-weight:700;margin-bottom:8px}
+.rail .it{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#8A8580}
+.rail .it .ic{font-size:20px}
+.rail .it.on{background:rgba(255,255,255,.11);color:#fff}
+.rail .sp{flex:1}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n50)}
+/* topbar */
+.tb{background:var(--n0);border-bottom:1px solid var(--n200);padding:10px 18px;display:flex;align-items:center;gap:13px}
+.av{width:38px;height:38px;flex:0 0 38px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:13.5px;font-weight:600;color:var(--brand800)}
+.nm{font-size:17px;font-weight:600;letter-spacing:-.25px}
+.sub{font-size:12px;color:var(--n500);margin-top:1px}
+.sp2{flex:1}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.info{background:var(--infoBg);color:var(--infoFg)}.pill.dang{background:var(--dangBg);color:var(--dangFg)}.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.mut{background:var(--n100);color:var(--n500)}
+.kb{display:flex;align-items:center;gap:7px;height:32px;border:1px solid var(--n200);border-radius:9px;padding:0 10px;color:var(--n400);font-size:12.5px}
+.kb .ic{font-size:16px}
+.kb b{font-size:10px;font-weight:600;background:var(--n50);border:1px solid var(--n200);border-radius:4px;padding:1px 5px;color:var(--n500)}
+.tot{text-align:right}
+.tot .l{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.tot .v{font-size:20px;font-weight:600;letter-spacing:-.4px}
+.cta1{height:40px;padding:0 15px;border-radius:11px;background:var(--brand700);color:#fff;display:flex;align-items:center;gap:7px;font-size:14.5px;font-weight:500}
+.cta1 .ic{font-size:18px}
+.cta2{height:40px;padding:0 13px;border-radius:11px;background:var(--n0);border:1px solid var(--n200);color:var(--n900);display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:500}
+.cta2 .ic{font-size:17px;color:var(--n500)}
+/* columns */
+.cols{flex:1;display:flex;min-height:0}
+.c1{width:288px;flex:0 0 288px;border-right:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column;gap:12px;padding:14px;overflow:hidden}
+.c2{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;padding:14px;overflow:hidden}
+.c3{width:392px;flex:0 0 392px;border-left:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column;overflow:hidden}
+.bx{border:1px solid var(--n200);border-radius:12px;background:var(--n0)}
+.bx.gr{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.bh{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--n100)}
+.bh .ic{font-size:17px;color:var(--n500)}
+.bh .t{font-size:12.5px;font-weight:600}
+.bh .n{margin-left:auto;font-size:10.5px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:2px 7px}
+.bh .m{margin-left:auto;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.bd{padding:11px 12px}
+.rowl{flex:1;overflow:hidden}
+/* generic row */
+.r{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--n100)}
+.r:last-child{border-bottom:0}
+.r .l1{font-size:13px;font-weight:500}
+.r .l2{font-size:11.5px;color:var(--n500);margin-top:1px}
+.r .m{margin-left:auto;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cc{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:var(--n100);border:1px solid var(--n200);border-radius:4px;padding:0 5px;color:var(--n600);margin-left:6px}
+.tb2{width:32px;height:32px;flex:0 0 32px;border-radius:8px;background:var(--brand50);border:1px solid var(--brand100);display:grid;place-items:center;font-size:11.5px;font-weight:600;color:var(--brand800)}
+.tb2.no{background:var(--n100);border-color:var(--n200);color:var(--n400)}
+.al{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#78350F;background:var(--warnBg);border:1px solid #FDE68A;border-radius:8px;padding:7px 9px;margin-bottom:7px}
+.al:last-child{margin-bottom:0}
+.al .ic{font-size:15px;color:var(--warnFg)}
+.mut{font-size:11.5px;color:var(--n500)}
+/* ordonnance */
+.tpl{display:flex;flex-wrap:wrap;gap:7px;padding:11px 12px}
+.tc{border:1px solid var(--n200);border-radius:9px;padding:8px 11px}
+.tc .a1{font-size:12.5px;font-weight:600}
+.tc .a2{font-size:10.5px;color:var(--n500);margin-top:2px}
+.tc.on{border-color:var(--brand600);background:var(--brand50)}
+.tc.on .a1{color:var(--brand800)}.tc.on .a2{color:var(--brand700)}
+.med{border:1px solid var(--n200);border-radius:12px;padding:12px;background:var(--n0)}
+.med .m1{display:flex;align-items:center;gap:9px}
+.med .idx{width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:var(--n100);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--n600)}
+.med .dci{font-size:14px;font-weight:600;letter-spacing:-.1px}
+.med .frm{font-size:11.5px;color:var(--n500);margin-left:6px;font-weight:400}
+.med .del{margin-left:auto;color:var(--n400)}
+.med .del .ic{font-size:17px}
+.flds{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+.fl{font-size:10px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--n400);margin-bottom:4px}
+.sel{height:36px;border:1px solid var(--n200);border-radius:9px;display:flex;align-items:center;padding:0 10px;font-size:12.5px;font-weight:500}
+.sel .ic{margin-left:auto;font-size:16px;color:var(--n400)}
+.calc{display:flex;align-items:center;gap:8px;margin-top:10px;background:var(--brand50);border:1px solid var(--brand200);border-radius:9px;padding:8px 10px}
+.calc .ic{font-size:15px;color:var(--brand700)}
+.calc .t{font-size:12px;color:var(--brand800)}
+.calc .t b{font-weight:600}
+.sf{height:38px;border:1px solid var(--n200);border-radius:10px;display:flex;align-items:center;gap:8px;padding:0 11px;color:var(--n400);font-size:12.5px}
+.sf .ic{font-size:17px}
+.sf b{margin-left:auto;font-size:10px;font-weight:600;background:var(--n50);border:1px solid var(--n200);border-radius:4px;padding:1px 5px;color:var(--n500)}
+/* prescription sheet */
+.pvb{flex:1;min-height:0;padding:14px}
+.sheet{background:var(--n0);border:1px solid var(--n200);border-radius:5px;box-shadow:0 8px 22px -14px rgba(28,25,23,.4);padding:18px;height:100%;display:flex;flex-direction:column;font-size:11px;line-height:15px;color:var(--n800)}
+.sh1{display:flex;justify-content:space-between;border-bottom:1px solid var(--n200);padding-bottom:10px}
+.sh1 .dr{font-size:12.5px;font-weight:700}
+.sh1 .ln{font-size:10px;color:var(--n500);margin-top:1px}
+.sh1 .rt{text-align:right;font-size:10px;color:var(--n500)}
+.pt{display:flex;justify-content:space-between;margin-top:11px;font-size:10.5px;color:var(--n600)}
+.pt b{color:var(--n900);font-weight:600;font-size:11.5px}
+.rx{margin-top:12px;flex:1}
+.rxl{padding:8px 0;border-bottom:1px dotted var(--n300)}
+.rxl .a{font-size:11.5px;font-weight:700}
+.rxl .b{margin-top:2px;color:var(--n600)}
+.rxl .c{margin-top:2px;font-size:10px;color:var(--n500);display:flex;gap:9px}
+.rxl .ns{font-size:9px;font-weight:700;color:var(--dangFg);text-transform:uppercase;letter-spacing:.3px}
+.sig{margin-top:10px;border-top:1px solid var(--n200);padding-top:10px;display:flex;justify-content:space-between;align-items:flex-end}
+.sig .p2{font-size:10px;color:var(--n400)}
+.sig .box{width:106px;height:40px;border:1px dashed var(--n300);border-radius:5px;display:grid;place-items:center;font-size:9.5px;color:var(--n400)}
+.pf{padding:12px 14px;border-top:1px solid var(--n200);display:flex;flex-direction:column;gap:8px}
+.rsr{display:flex;align-items:flex-start;gap:8px;font-size:11px;line-height:15px;color:var(--n500)}
+.rsr .ic{font-size:14px;color:var(--brand700);flex:0 0 14px;margin-top:1px}
+.rsr b{color:var(--n600);font-weight:600}
+/* plan */
+.pl{padding:12px;border-bottom:1px solid var(--n100);border-left:3px solid transparent}
+.pl.on{background:var(--brand50);border-left-color:var(--brand700)}
+.pl .t1{font-size:13.5px;font-weight:600}
+.pl .t2{font-size:11px;color:var(--n500);margin-top:3px;display:flex;align-items:center;gap:6px}
+.bar{height:5px;border-radius:99px;background:var(--n200);margin-top:8px;display:flex;gap:2px;overflow:hidden}
+.bar i{flex:1;border-radius:99px;background:var(--n200)}
+.bar i.on{background:var(--brand600)}
+.pl .t3{display:flex;margin-top:6px;font-size:11px;color:var(--n500)}
+.pl .t3 .m{margin-left:auto;font-weight:600;color:var(--n900);font-variant-numeric:tabular-nums}
+.dash{height:36px;border:1px dashed var(--n300);border-radius:9px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--n500);margin:11px 12px}
+.dash .ic{font-size:16px}
+.ph{display:flex;gap:12px}
+.ph .rl{width:24px;flex:0 0 24px;display:flex;flex-direction:column;align-items:center}
+.ph .dt{width:24px;height:24px;border-radius:99px;border:2px solid var(--n300);background:var(--n0);display:grid;place-items:center;font-size:10.5px;font-weight:700;color:var(--n500)}
+.ph .dt.done{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.ph .dt.now{border-color:var(--n900);color:var(--n900)}
+.ph .ln2{flex:1;width:2px;background:var(--n200);margin:4px 0}
+.ph .ln2.done{background:var(--brand200)}
+.ph .bd2{flex:1;min-width:0;padding-bottom:12px}
+.fin{padding:12px}
+.fr{display:flex;align-items:center;font-size:12.5px;padding:5px 0}
+.fr .k{color:var(--n600)}
+.fr .v{margin-left:auto;font-weight:600;font-variant-numeric:tabular-nums}
+.fr.tt{border-top:1px solid var(--n200);margin-top:6px;padding-top:9px}
+.fr.tt .k{font-weight:600}.fr.tt .v{font-size:15px;font-weight:700}
+.gap{display:flex;gap:9px;margin-top:11px;background:var(--warnBg);border:1px solid #FDE68A;border-radius:9px;padding:10px 11px}
+.gap .ic{font-size:16px;color:var(--warnFg);flex:0 0 16px;margin-top:1px}
+.gap .t{font-size:11.5px;line-height:16px;color:#78350F}
+.gap .t b{font-weight:600}
+.dvs{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--n50);border-top:1px solid var(--n100);font-size:11px;color:var(--n600)}
+.dvs .ic{font-size:14px;color:var(--n400)}
+.dvs b{font-weight:600;color:var(--n900)}
+.dvs .go{margin-left:auto;font-size:11px;font-weight:600;color:var(--brand700)}
+/* pharmacy */
+.q{padding:10px 12px;border-bottom:1px solid var(--n100);border-left:3px solid transparent}
+.q.on{background:var(--brand50);border-left-color:var(--brand700)}
+.q .h1{display:flex;align-items:center;gap:7px}
+.q .nm2{font-size:13px;font-weight:600}
+.q .t2{font-size:11px;color:var(--n500);margin-top:3px;display:flex;align-items:center;gap:6px}
+.q .oid{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:var(--n500)}
+.pres{padding:10px 12px;display:flex;gap:18px;background:var(--n50);border-bottom:1px solid var(--n100)}
+.pk .k{font-size:9.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--n400)}
+.pk .v{font-size:12px;font-weight:500;margin-top:2px}
+.ln3{display:flex;gap:11px;padding:11px 12px;border-bottom:1px solid var(--n100)}
+.cbx{width:22px;height:22px;flex:0 0 22px;border-radius:6px;border:1.5px solid var(--n300);display:grid;place-items:center;color:transparent;margin-top:1px}
+.cbx .ic{font-size:15px}
+.cbx.on{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.ln3 .nm3{font-size:13.5px;font-weight:600;letter-spacing:-.1px}
+.ln3 .po{font-size:12px;color:var(--n600);margin-top:2px}
+.tg{display:inline-block;font-size:10px;font-weight:600;border-radius:5px;padding:2px 6px;background:var(--n100);color:var(--n600);border:1px solid var(--n200);margin-top:6px;margin-right:6px}
+.tg.ns{background:var(--dangBg);color:var(--dangFg);border-color:#FECACA}
+.tg.sub{background:var(--brand50);color:var(--brand800);border-color:var(--brand200)}
+.qty{margin-left:auto;text-align:right;flex:0 0 auto}
+.qty .a{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.qty .b{font-size:10.5px;color:var(--n500);margin-top:1px}
+.cam{height:150px;border-radius:11px;background:#1C1917;position:relative;display:grid;place-items:center;margin-top:10px}
+.cam .fr2{width:104px;height:104px;position:relative}
+.cam .fr2 i{position:absolute;width:22px;height:22px;border:3px solid #34D399}
+.cam .fr2 i:nth-child(1){top:0;left:0;border-right:0;border-bottom:0;border-top-left-radius:7px}
+.cam .fr2 i:nth-child(2){top:0;right:0;border-left:0;border-bottom:0;border-top-right-radius:7px}
+.cam .fr2 i:nth-child(3){bottom:0;left:0;border-right:0;border-top:0;border-bottom-left-radius:7px}
+.cam .fr2 i:nth-child(4){bottom:0;right:0;border-left:0;border-top:0;border-bottom-right-radius:7px}
+.cam .cp{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:10.5px;color:rgba(255,255,255,.6)}
+.exp{background:var(--n50);border:1px solid var(--n200);border-radius:10px;padding:10px 11px}
+.exp .k{font-size:9.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--n400)}
+.exp .v{font-size:14px;font-weight:600;margin-top:2px}
+.exp .s{font-size:11px;color:var(--n500);margin-top:1px}
+.mf{height:40px;border:1px solid var(--n200);border-radius:10px;display:flex;align-items:center;gap:8px;padding:0 11px;color:var(--n400);font-size:12.5px;margin-top:10px}
+.mf .ic{font-size:17px}
+/* per-screen notes */
+.pn{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px 32px;margin-top:16px;padding-bottom:6px}
+.pi{display:flex;gap:11px}
+.pnum{flex:0 0 22px;height:22px;border-radius:6px;background:var(--n900);color:#fff;font-size:11px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.pt2{font-size:13.5px;font-weight:600;line-height:20px;letter-spacing:-.05px}
+.pp{font-size:12.5px;line-height:19px;color:var(--n600);margin-top:3px}
+.pp code{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--n100);border:1px solid var(--n200);border-radius:4px;padding:1px 4px}
+.close{margin-top:34px;border-top:1px solid var(--n300);padding-top:22px}
+.close .h{font-family:Fraunces,serif;font-size:22px;font-weight:600;letter-spacing:-.3px}
+.close .p{font-size:13.5px;line-height:21px;color:var(--n600);margin-top:8px;max-width:920px}
+.close .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+</style></head>
+<body><div class="wrap">
+
+<div>
+<div class="nk">Écosystème Nubia · Adaptation PC</div>
+<h1>Les trois écrans professionnels en 1440 × 900</h1>
+<p class="lede">Même principe que pour la consultation : la largeur ne sert pas à étaler l'existant, elle finance une <strong>troisième colonne</strong> que la version tablette obligeait à aller chercher ailleurs. À chaque écran, cette colonne est différente — et c'est elle qui justifie le poste fixe. Les trois points de bascule (≥ 1280 / 900–1279 / &lt; 900) et les règles d'implémentation sont documentés dans « Praticien Consultation PC ».</p>
+</div>
+
+<!-- ════════ 1. ORDONNANCE ════════ -->
+<div class="sec">
+<div class="cap"><span class="t">Praticien · Nouvelle ordonnance</span><span class="g">Ce que la largeur achète : <b>les traitements en cours</b></span></div>
+<div class="win" data-screen-label="Praticien PC · Ordonnance">
+<div class="rail"><div class="lg">N</div>
+<div class="it"><span class="ic">space_dashboard</span></div><div class="it"><span class="ic">calendar_month</span></div><div class="it"><span class="ic">meeting_room</span></div><div class="it"><span class="ic">groups</span></div><div class="it"><span class="ic">dentistry</span></div><div class="it on"><span class="ic f">medication</span></div><div class="it"><span class="ic">description</span></div><div class="it"><span class="ic">precision_manufacturing</span></div><div class="it"><span class="ic">inventory_2</span></div><div class="it"><span class="ic">chat_bubble</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+<div class="main">
+<div class="tb"><div class="av">JM</div><div><div style="display:flex;align-items:center;gap:9px"><span class="nm">Julie Martin</span><span class="pill info">Brouillon</span></div><div class="sub">41 ans · née le 07/06/1985 · Dr A. Rousseau</div></div>
+<div class="sp2"></div><div class="kb"><span class="ic">search</span>Médicament, modèle…<b>⌘K</b></div><div class="cta2"><span class="ic">history</span>Ordonnances passées</div></div>
+<div class="cols">
+
+<div class="c1">
+<div class="bx"><div class="bh"><span class="ic f">warning</span><span class="t">Allergies au dossier</span></div>
+<div class="bd"><div class="al"><span class="ic f">medication</span>Pénicilline</div><div class="al"><span class="ic f">masks</span>Latex</div>
+<div class="mut" style="margin-top:9px">Affichage informatif. Aucune vérification automatique — hors périmètre dispositif médical (ADR-009 §8.6).</div></div></div>
+
+<div class="bx"><div class="bh"><span class="ic f">medication_liquid</span><span class="t">Traitements en cours</span><span class="n">2</span></div>
+<div><div class="r"><div style="min-width:0;flex:1"><div class="l1">FLUINDIONE 20 mg</div><div class="l2">AVK · depuis le 12/03 · Dr Ferrand</div></div></div>
+<div class="r"><div style="min-width:0;flex:1"><div class="l1">LÉVOTHYROXINE 75 µg</div><div class="l2">depuis 2019 · Dr Ferrand</div></div></div></div></div>
+
+<div class="bx"><div class="bh"><span class="ic f">history</span><span class="t">3 dernières ordonnances</span></div>
+<div><div class="r"><div style="min-width:0;flex:1"><div class="l1">22/07 · 2 lignes</div><div class="l2">Amoxicilline, Paracétamol</div></div></div>
+<div class="r"><div style="min-width:0;flex:1"><div class="l1">04/07 · 1 ligne</div><div class="l2">Chlorhexidine</div></div></div>
+<div class="r"><div style="min-width:0;flex:1"><div class="l1">16/06 · 1 ligne</div><div class="l2">Paracétamol</div></div></div></div></div>
+</div>
+
+<div class="c2">
+<div class="bx"><div class="bh"><span class="ic f">description</span><span class="t">Partir d'un modèle</span><span class="n">4</span></div>
+<div class="tpl"><div class="tc on"><div class="a1">Post-extraction</div><div class="a2">Cabinet · 3 lignes</div></div><div class="tc"><div class="a1">Post-implant</div><div class="a2">Cabinet · 4 lignes</div></div><div class="tc"><div class="a1">Antibioprophylaxie</div><div class="a2">Standard · 1 ligne</div></div><div class="tc"><div class="a1">Douleur aiguë</div><div class="a2">Standard · 2 lignes</div></div></div></div>
+
+<div class="med"><div class="m1"><span class="idx">1</span><span class="dci">PARACÉTAMOL 1 g<span class="frm">comprimé</span></span><span class="del"><span class="ic">delete</span></span></div>
+<div class="flds"><div><div class="fl">Dose</div><div class="sel">1 comprimé<span class="ic">expand_more</span></div></div><div><div class="fl">Fréquence</div><div class="sel">3 fois / jour<span class="ic">expand_more</span></div></div><div><div class="fl">Durée</div><div class="sel">5 jours<span class="ic">expand_more</span></div></div></div>
+<div class="calc"><span class="ic f">calculate</span><span class="t">Quantité calculée : <b>15 comprimés</b> — 1 boîte de 16</span></div></div>
+
+<div class="med"><div class="m1"><span class="idx">2</span><span class="dci">CHLORHEXIDINE 0,12 %<span class="frm">bain de bouche</span></span><span class="del"><span class="ic">delete</span></span></div>
+<div class="flds"><div><div class="fl">Dose</div><div class="sel">1 bain de bouche<span class="ic">expand_more</span></div></div><div><div class="fl">Fréquence</div><div class="sel">2 fois / jour<span class="ic">expand_more</span></div></div><div><div class="fl">Durée</div><div class="sel">10 jours<span class="ic">expand_more</span></div></div></div>
+<div class="calc"><span class="ic f">calculate</span><span class="t">Quantité calculée : <b>1 flacon 300 ml</b></span></div></div>
+
+<div class="sf"><span class="ic">search</span>Ajouter un médicament — code CCAM ou libellé<b>⌘K</b></div>
+</div>
+
+<div class="c3">
+<div class="bh" style="padding:11px 14px;border-bottom:1px solid var(--n200)"><span class="ic f">preview</span><span class="t">Aperçu de l'ordonnance</span></div>
+<div class="pvb"><div class="sheet">
+<div class="sh1"><div><div class="dr">Dr Amélie Rousseau</div><div class="ln">Chirurgien-dentiste · RPPS 10 004 219 887</div><div class="ln">Cabinet Nubia Opéra · 12 rue de la Paix, 75002 Paris</div></div><div class="rt">Paris,<br>le 10/08/2026</div></div>
+<div class="pt"><span><b>Julie Martin</b> · née le 07/06/1985</span><span>41 ans</span></div>
+<div class="rx">
+<div class="rxl"><div class="a">PARACÉTAMOL 1 g, comprimé</div><div class="b">1 comprimé, 3 fois par jour, pendant 5 jours</div><div class="c"><span>Quantité : 15 comprimés</span><span>Non renouvelable</span></div></div>
+<div class="rxl"><div class="a">CHLORHEXIDINE 0,12 %, bain de bouche</div><div class="b">1 bain de bouche, 2 fois par jour, pendant 10 jours</div><div class="c"><span>Quantité : 1 flacon 300 ml</span><span class="ns">Non substituable — MTE</span></div></div>
+</div>
+<div class="sig"><span class="p2">Ordonnance à signer<br>2 médicaments</span><div class="box">Signature</div></div>
+</div></div>
+<div class="pf"><div class="cta1" style="justify-content:center"><span class="ic">draw</span>Signer l'ordonnance</div>
+<div class="cta2" style="justify-content:center"><span class="ic">local_pharmacy</span>Signer et envoyer à la pharmacie</div>
+<div class="rsr"><span class="ic f">lock</span><span>Signature <b>eIDAS</b> · document horodaté et non modifiable</span></div></div>
+</div>
+
+</div></div></div>
+
+<div class="pn">
+<div class="pi"><span class="pnum">1</span><div><div class="pt2">Les traitements en cours deviennent permanents</div><div class="pp">C'est le gain décisif : prescrire sans voir qu'un patient est sous AVK, c'est prescrire à l'aveugle. Sur tablette cette information vit dans la fiche patient, donc dans un autre écran. Ici elle est à côté de la saisie — <strong>affichée, jamais croisée automatiquement</strong>, conformément à l'ADR-009 §8.6.</div></div></div>
+<div class="pi"><span class="pnum">2</span><div><div class="pt2">L'aperçu passe de 458 à 392 px… et gagne</div><div class="pp">Contre-intuitif : la colonne d'aperçu <em>rétrécit</em> de 66 px. Mais elle n'a plus à partager sa hauteur avec la note du praticien, donc le document tient en entier sans compression — ce qui compte pour un document qu'on signe.</div></div></div>
+<div class="pi"><span class="pnum">3</span><div><div class="pt2">L'historique remplace un aller-retour</div><div class="pp">Trois dernières ordonnances en colonne de gauche : « qu'est-ce que je lui ai déjà donné ? » se répond sans quitter la composition. Alimenté par <code>OrdonnancesLoaded</code>, déjà existant.</div></div></div>
+</div>
+</div>
+
+<!-- ════════ 2. PLAN DE TRAITEMENT ════════ -->
+<div class="sec">
+<div class="cap"><span class="t">Praticien · Plan de traitement</span><span class="g">Ce que la largeur achète : <b>la couverture financière</b></span></div>
+<div class="win" data-screen-label="Praticien PC · Plan de traitement">
+<div class="rail"><div class="lg">N</div>
+<div class="it"><span class="ic">space_dashboard</span></div><div class="it"><span class="ic">calendar_month</span></div><div class="it"><span class="ic">meeting_room</span></div><div class="it"><span class="ic">groups</span></div><div class="it"><span class="ic">dentistry</span></div><div class="it"><span class="ic">medication</span></div><div class="it on"><span class="ic f">description</span></div><div class="it"><span class="ic">precision_manufacturing</span></div><div class="it"><span class="ic">inventory_2</span></div><div class="it"><span class="ic">chat_bubble</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+<div class="main">
+<div class="tb"><div class="av">JM</div><div><div class="nm">Julie Martin</div><div class="sub">41 ans · suivie par Dr A. Rousseau</div></div>
+<div class="sp2"></div><div class="kb"><span class="ic">search</span>Plan, acte, devis…<b>⌘K</b></div><div class="cta2"><span class="ic">edit</span>Renommer</div><div class="cta1"><span class="ic">description</span>Générer le devis</div></div>
+<div class="cols">
+
+<div class="c1" style="padding:0;gap:0">
+<div class="bh" style="padding:11px 14px;border-bottom:1px solid var(--n200)"><span class="ic f">assignment</span><span class="t">Plans du patient</span><span class="n">2</span></div>
+<div class="rowl">
+<div class="pl on"><div class="t1">Réhabilitation secteur 2</div><div class="t2"><span class="pill info">En cours</span><span>3 phases</span></div><div class="bar"><i class="on"></i><i class="on"></i><i></i></div><div class="t3"><span>1 phase sur 3 terminée</span><span class="m">1 635,92 €</span></div></div>
+<div class="pl"><div class="t1">Maintenance parodontale</div><div class="t2"><span class="pill ok">Terminé</span><span>2 phases</span></div><div class="bar"><i class="on"></i><i class="on"></i></div><div class="t3"><span>2 phases sur 2</span><span class="m">168,00 €</span></div></div>
+</div>
+<div class="dash"><span class="ic">add</span>Nouveau plan</div>
+</div>
+
+<div class="c2">
+<div class="ph"><div class="rl"><div class="dt done"><span class="ic" style="font-size:14px">check</span></div><div class="ln2 done"></div></div>
+<div class="bd2"><div class="bx"><div class="bh"><span class="pill ok">Terminée</span><span class="t">Assainissement</span><span class="m tnum">82,42 €</span></div>
+<div class="r"><div class="tb2 no">—</div><div style="min-width:0;flex:1"><div class="l1">Détartrage complet<span class="cc">HBJD001</span></div><div class="l2">Réalisé le 22/07</div></div><span class="m tnum">28,92 €</span></div>
+<div class="r"><div class="tb2">26</div><div style="min-width:0;flex:1"><div class="l1">Restauration 2 faces<span class="cc">HBMD042</span></div><div class="l2">Réalisé le 22/07</div></div><span class="m tnum">53,50 €</span></div>
+<div class="dvs"><span class="ic f">verified</span><span>Devis <b>DEV-2041</b> · signé le 04/08 · acompte réglé</span><span class="go">Ouvrir</span></div></div></div></div>
+
+<div class="ph"><div class="rl"><div class="dt now">2</div><div class="ln2"></div></div>
+<div class="bd2"><div class="bx"><div class="bh"><span class="pill warn">En cours</span><span class="t">Endodontie et reconstitution</span><span class="m tnum">353,50 €</span></div>
+<div class="r"><div class="tb2">26</div><div style="min-width:0;flex:1"><div class="l1">Traitement endodontique<span class="cc">HBFD001</span></div><div class="l2">Séance du 11/08 · en cours</div></div><span class="m tnum">93,50 €</span></div>
+<div class="r"><div class="tb2">26</div><div style="min-width:0;flex:1"><div class="l1">Inlay-core<span class="cc">HBLD745</span></div><div class="l2">À programmer</div></div><span class="m tnum">260,00 €</span></div>
+<div class="dvs"><span class="ic f">verified</span><span>Devis <b>DEV-2041</b> · signé le 04/08</span><span class="go">Ouvrir</span></div></div></div></div>
+
+<div class="ph"><div class="rl"><div class="dt">3</div></div>
+<div class="bd2"><div class="bx"><div class="bh"><span class="pill mut">Planifiée</span><span class="t">Prothèse d'usage</span><span class="m tnum">1 200,00 €</span></div>
+<div class="r"><div class="tb2">26</div><div style="min-width:0;flex:1"><div class="l1">Couronne céramo-métallique<span class="cc">HBLD038</span></div><div class="l2">Après cicatrisation · délai labo 8 j</div></div><span class="m tnum">1 200,00 €</span></div>
+<div class="dvs" style="background:var(--warnBg);border-top-color:#FDE68A"><span class="ic f" style="color:var(--warnFg)">error</span><span style="color:#78350F">Aucun devis — phase non acceptée</span><span class="go" style="color:#78350F">Générer</span></div></div></div></div>
+
+<div class="dash" style="margin:0 0 0 36px"><span class="ic">add</span>Ajouter une phase</div>
+</div>
+
+<div class="c3">
+<div class="bh" style="padding:11px 14px;border-bottom:1px solid var(--n200)"><span class="ic f">account_balance_wallet</span><span class="t">Couverture financière</span></div>
+<div class="fin">
+<div class="fr"><span class="k">Total du plan</span><span class="v tnum">1 635,92 €</span></div>
+<div class="fr"><span class="k">Réalisé et facturé</span><span class="v tnum">82,42 €</span></div>
+<div class="fr"><span class="k">Engagé (devis signé)</span><span class="v tnum">435,92 €</span></div>
+<div class="fr tt"><span class="k">Non couvert par un devis</span><span class="v tnum" style="color:var(--warnFg)">1 200,00 €</span></div>
+<div class="gap"><span class="ic f">error</span><span class="t"><b>La phase 3 n'est couverte par aucun devis.</b> Le laboratoire ne peut pas être commandé avant l'accord de la patiente — et 73 % du montant du plan reste sans engagement.</span></div>
+<div class="cta1" style="justify-content:center;margin-top:11px"><span class="ic">description</span>Générer le devis de la phase 3</div>
+</div>
+<div class="bh" style="padding:11px 14px;border-top:1px solid var(--n200);border-bottom:1px solid var(--n200)"><span class="ic f">receipt_long</span><span class="t">Devis rattachés</span><span class="n">1</span></div>
+<div>
+<div class="r"><div style="min-width:0;flex:1"><div class="l1">DEV-2041</div><div class="l2">Phases 1 et 2 · signé le 04/08 · acompte 130 €</div></div><span class="pill ok">Signé</span></div>
+</div>
+<div class="bh" style="padding:11px 14px;border-top:1px solid var(--n200);border-bottom:1px solid var(--n200)"><span class="ic f">event</span><span class="t">Prochaines séances</span></div>
+<div>
+<div class="r"><div style="min-width:0;flex:1"><div class="l1">Mardi 11 août · 14:30</div><div class="l2">Phase 2 · endodontie</div></div><span class="pill info">Aujourd'hui</span></div>
+<div class="r"><div style="min-width:0;flex:1"><div class="l1">À programmer</div><div class="l2">Phase 2 · inlay-core</div></div><span class="go" style="font-size:11.5px;font-weight:600;color:var(--brand700)">Planifier</span></div>
+</div>
+</div>
+
+</div></div></div>
+
+<div class="pn">
+<div class="pi"><span class="pnum">1</span><div><div class="pt2">Le trou de couverture devient un chiffre</div><div class="pp">Sur tablette, l'absence de devis se lit phase par phase. La colonne financière l'agrège : <strong>1 200 € sans engagement, soit 73 % du plan</strong>. C'est l'information qui déclenche l'action commerciale, et elle n'existait nulle part.</div></div></div>
+<div class="pi"><span class="pnum">2</span><div><div class="pt2">Devis rattachés et séances à venir</div><div class="pp">Un plan vit entre trois objets : ses phases, ses devis, ses rendez-vous. La colonne réunit les deux derniers — dont le « à programmer » qui, sans cela, ne se voit qu'en ouvrant l'agenda.</div></div></div>
+<div class="pi"><span class="pnum">3</span><div><div class="pt2">Le CTA quitte la barre du haut</div><div class="pp">« Générer le devis » devient contextuel : il porte le numéro de phase concernée. Un bouton générique en en-tête ne dit pas ce qu'il va produire quand trois phases coexistent.</div></div></div>
+</div>
+</div>
+
+<!-- ════════ 3. PHARMACIE ════════ -->
+<div class="sec">
+<div class="cap"><span class="t">Pharmacie · Délivrance au comptoir</span><span class="g">Ce que la largeur achète : <b>la file d'attente</b></span></div>
+<div class="win" data-screen-label="Pharmacie PC · Délivrance">
+<div class="rail"><div class="lg">N</div>
+<div class="it"><span class="ic">space_dashboard</span></div><div class="it on"><span class="ic f">receipt_long</span></div><div class="it"><span class="ic">qr_code_scanner</span></div><div class="it"><span class="ic">description</span></div><div class="it"><span class="ic">inventory_2</span></div><div class="it"><span class="ic">chat_bubble</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+<div class="main">
+<div class="tb"><div><div style="display:flex;align-items:center;gap:9px"><span class="nm">Julie Martin</span><span class="pill ok"><span class="ic f">check_circle</span>Prête</span><span class="pill mut">CMD-4821</span></div><div class="sub">Ordonnance du 10/08 · Dr Amélie Rousseau · reçue 09:12, prête 10:04</div></div>
+<div class="sp2"></div><div class="kb"><span class="ic">search</span>Patient, commande…<b>⌘K</b></div><div class="cta2"><span class="ic">block</span>Refuser</div></div>
+<div class="cols">
+
+<div class="c1" style="padding:0;gap:0">
+<div class="bh" style="padding:11px 14px;border-bottom:1px solid var(--n200)"><span class="ic f">list_alt</span><span class="t">File du jour</span><span class="n">6</span></div>
+<div class="rowl">
+<div class="q on"><div class="h1"><span class="nm2">Julie Martin</span><span class="pill ok" style="margin-left:auto">Prête</span></div><div class="t2"><span class="oid">CMD-4821</span><span>·</span><span>3 lignes</span></div></div>
+<div class="q"><div class="h1"><span class="nm2">Marc Dubois</span><span class="pill ok" style="margin-left:auto">Prête</span></div><div class="t2"><span class="oid">CMD-4839</span><span>·</span><span>1 ligne</span></div></div>
+<div class="q"><div class="h1"><span class="nm2">Sophie Roux</span><span class="pill warn" style="margin-left:auto">En prépa</span></div><div class="t2"><span class="oid">CMD-4842</span><span>·</span><span>2 lignes</span></div></div>
+<div class="q"><div class="h1"><span class="nm2">Ahmed Belkacem</span><span class="pill warn" style="margin-left:auto">En prépa</span></div><div class="t2"><span class="oid">CMD-4845</span><span>·</span><span>4 lignes</span></div></div>
+<div class="q"><div class="h1"><span class="nm2">Léa Bernard</span><span class="pill info" style="margin-left:auto">Reçue</span></div><div class="t2"><span class="oid">CMD-4851</span><span>·</span><span>2 lignes</span></div></div>
+<div class="q"><div class="h1"><span class="nm2">Théo Girard</span><span class="pill info" style="margin-left:auto">Reçue</span></div><div class="t2"><span class="oid">CMD-4852</span><span>·</span><span>1 ligne</span></div></div>
+</div>
+</div>
+
+<div class="c2" style="padding:0;gap:0">
+<div class="bh" style="padding:11px 14px;border-bottom:1px solid var(--n200)"><span class="ic f">medication</span><span class="t">Ordonnance — 3 lignes</span><span class="n" style="margin-left:auto">2 sur 3 préparées</span></div>
+<div class="pres"><div class="pk"><div class="k">Prescripteur</div><div class="v">Dr Amélie Rousseau</div></div><div class="pk"><div class="k">RPPS</div><div class="v tnum">10 004 219 887</div></div><div class="pk"><div class="k">Prescrite le</div><div class="v tnum">10/08/2026</div></div><div class="pk"><div class="k">Valable jusqu'au</div><div class="v tnum">10/11/2026</div></div></div>
+<div class="rowl">
+<div class="ln3"><div class="cbx on"><span class="ic f">check</span></div><div style="min-width:0;flex:1"><div class="nm3">AMOXICILLINE 1 g — comprimé dispersible</div><div class="po">1 comprimé matin et soir, pendant 7 jours</div><div><span class="tg sub">Substituable</span><span class="tg">Générique : Amoxicilline Biogaran</span></div>
+<div class="al" style="margin-top:8px"><span class="ic f">warning</span><span>Interaction possible — AVK déclaré au dossier. Surveillance INR ; à signaler au patient.</span></div></div>
+<div class="qty"><div class="a tnum">14</div><div class="b">comprimés</div></div></div>
+<div class="ln3"><div class="cbx on"><span class="ic f">check</span></div><div style="min-width:0;flex:1"><div class="nm3">PARACÉTAMOL 1 g — comprimé</div><div class="po">1 comprimé jusqu'à 3 fois par jour si douleur, max 3 g/24 h</div><div><span class="tg sub">Substituable</span></div></div><div class="qty"><div class="a tnum">8</div><div class="b">comprimés</div></div></div>
+<div class="ln3"><div class="cbx"><span class="ic f">check</span></div><div style="min-width:0;flex:1"><div class="nm3">CHLORHEXIDINE 0,12 % — bain de bouche</div><div class="po">2 bains de bouche par jour après les repas, pendant 10 jours</div><div><span class="tg ns">Non substituable — MTE</span></div></div><div class="qty"><div class="a tnum">1</div><div class="b">flacon 300 ml</div></div></div>
+</div>
+<div class="dvs" style="padding:10px 14px"><span class="ic f">picture_as_pdf</span><span>Ordonnance originale (PDF) disponible en recours</span><span class="go">Voir l'original</span></div>
+</div>
+
+<div class="c3">
+<div class="bh" style="padding:11px 14px;border-bottom:1px solid var(--n200)"><span class="ic f">qr_code_scanner</span><span class="t">Retrait</span></div>
+<div style="padding:12px 14px;border-bottom:1px solid var(--n200)">
+<div class="exp"><div class="k">Retrait attendu pour</div><div class="v">Julie Martin</div><div class="s">CMD-4821 · 3 lignes · 2 sur 3 préparées</div></div>
+<div class="cam"><div class="fr2"><i></i><i></i><i></i><i></i></div><div class="cp">Présentez le QR de retrait du patient</div></div>
+<div class="mf"><span class="ic">keyboard</span>Saisir le code de retrait</div>
+</div>
+<div class="bh" style="padding:11px 14px;border-bottom:1px solid var(--n200)"><span class="ic f">euro</span><span class="t">À encaisser</span></div>
+<div class="fin">
+<div class="fr"><span class="k">Montant total</span><span class="v tnum">24,80 €</span></div>
+<div class="fr"><span class="k">Part Assurance Maladie</span><span class="v tnum">− 16,36 €</span></div>
+<div class="fr"><span class="k">Part mutuelle</span><span class="v tnum">− 6,44 €</span></div>
+<div class="fr tt"><span class="k">Reste à payer</span><span class="v tnum">2,00 €</span></div>
+</div>
+<div class="pf" style="margin-top:auto"><div class="cta1" style="justify-content:center;background:var(--n100);color:var(--n400)"><span class="ic">check_circle</span>Valider le retrait</div>
+<div class="rsr" style="justify-content:center"><span class="ic f">info</span><span>Scannez le QR du patient pour débloquer</span></div></div>
+</div>
+
+</div></div></div>
+
+<div class="pn">
+<div class="pi"><span class="pnum">1</span><div><div class="pt2">La file d'attente ne disparaît plus</div><div class="pp">C'est le gain le plus concret des trois. Sur tablette, ouvrir une commande fait perdre la liste : le pharmacien navigue en aller-retour pendant qu'une file se forme. Ici les six commandes du jour restent visibles, avec leur statut — on passe de l'une à l'autre d'un clic.</div></div></div>
+<div class="pi"><span class="pnum">2</span><div><div class="pt2">Scan et encaissement côte à côte</div><div class="pp">Les deux gestes du comptoir s'enchaînent sans changer d'écran : vérifier l'identité, puis annoncer le reste à payer. Le montant est formaté comme dans l'app Patient — le patient entend ce qu'il a lu.</div></div></div>
+<div class="pi"><span class="pnum">3</span><div><div class="pt2">L'ordonnance occupe le centre</div><div class="pp">700 px pour les lignes, contre 370 sur tablette : la posologie tient sur une ligne, l'alerte d'interaction s'affiche sous la molécule concernée au lieu d'être renvoyée en pied de carte.</div></div></div>
+</div>
+</div>
+
+<div class="close">
+<div class="h">Le cas Patient : une question, pas un oubli</div>
+<p class="p">Les quatre applications ne se valent pas sur ce point. <strong>Secrétariat</strong> était déjà conçue PC (agenda, salle d'attente, navigation), <strong>Praticien</strong> et <strong>Pharmacie</strong> ont maintenant leurs deux cibles. <strong>Patient</strong> reste volontairement mobile : c'est un usage domestique, ponctuel, souvent depuis la salle d'attente ou le canapé — la contrainte de <code>ProConfig</code> et le shell à cinq onglets le confirment.</p>
+<p class="p">Une version web patient est un <em>autre produit</em>, pas une adaptation : les concurrents la construisent d'abord pour la <strong>recherche de praticien</strong> et la <strong>réservation</strong> — un tunnel indexable par les moteurs, où l'annuaire, les créneaux et le compte se lisent sur une page large. Refondre les quatre onglets mobiles en trois colonnes n'apporterait rien ; concevoir un tunnel de réservation web changerait l'acquisition. Dites-moi si c'est ce que vous voulez explorer, et je le traite comme tel.</p>
+</div>
+
+</div></body></html>

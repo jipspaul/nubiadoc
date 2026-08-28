@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Praticien — Consultation au fauteuil v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1290px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+/* tablet */
+.tab{width:1290px;background:var(--n900);border-radius:34px;padding:16px;box-shadow:0 34px 74px -26px rgba(28,25,23,.5)}
+.scr{width:1258px;height:834px;background:var(--n50);border-radius:22px;overflow:hidden;display:flex;flex-direction:column}
+/* header */
+.hd{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 18px;display:flex;align-items:center;gap:14px}
+.bk{width:38px;height:38px;flex:0 0 38px;border-radius:11px;border:1px solid var(--n200);display:grid;place-items:center;color:var(--n600)}
+.bk .ic{font-size:20px}
+.pav{width:46px;height:46px;flex:0 0 46px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:15px;font-weight:600;color:var(--brand800)}
+.pid .n1{display:flex;align-items:center;gap:9px}
+.pid .nm{font-size:19px;font-weight:600;letter-spacing:-.3px}
+.pid .n2{display:flex;align-items:center;gap:10px;margin-top:2px;font-size:12.5px;color:var(--n500)}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.info{background:var(--infoBg);color:var(--infoFg)}.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.dang{background:var(--dangBg);color:var(--dangFg)}
+.hsp{flex:1}
+.tot{text-align:right}
+.tot .l{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.tot .v{font-size:22px;font-weight:600;letter-spacing:-.4px;margin-top:1px}
+.done{height:42px;padding:0 16px;border-radius:11px;background:var(--brand700);color:#fff;display:flex;align-items:center;gap:7px;font-size:15px;font-weight:500}
+.done .ic{font-size:19px}
+/* split */
+.split{flex:1;display:flex;min-height:0}
+.lft{flex:1;min-width:0;display:flex;flex-direction:column;padding:16px;gap:14px}
+.rgt{width:452px;flex:0 0 452px;border-left:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column}
+.pan{background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:14px}
+.ph{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.ph .t{font-size:13.5px;font-weight:600;letter-spacing:-.1px}
+.ph .hint{margin-left:auto;font-size:11.5px;color:var(--n400)}
+/* dental chart */
+.arch{display:flex;flex-direction:column;gap:7px;align-items:center}
+.qrow{display:flex;gap:16px}
+.quad{display:flex;gap:4px}
+.tth{width:38px;height:44px;border:1px solid var(--n200);border-radius:7px;background:var(--n0);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600;color:var(--n600);position:relative}
+.tth .d{width:5px;height:5px;border-radius:99px;background:transparent}
+.tth.past{background:var(--n100);border-color:var(--n200);color:var(--n500)}
+.tth.past .d{background:var(--n400)}
+.tth.sess{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.tth.sess .d{background:#fff}
+.tth.watch{background:var(--warnBg);border-color:#FDE68A;color:#78350F}
+.tth.watch .d{background:var(--warnFg)}
+.tth.sel{outline:2.5px solid var(--n900);outline-offset:1px;z-index:2}
+.tth.sel::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:-13px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--n900)}
+.midln{width:100%;height:1px;background:var(--n200);margin:3px 0}
+.lgd{display:flex;gap:14px;margin-top:12px;padding-top:11px;border-top:1px solid var(--n100);font-size:11px;color:var(--n500)}
+.lgd i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+/* acts */
+.acts{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--n0);border:1px solid var(--n200);border-radius:14px;overflow:hidden}
+.acth{padding:13px 14px;border-bottom:1px solid var(--n200);display:flex;align-items:center;gap:9px}
+.acth .t{font-size:13.5px;font-weight:600}
+.acth .c{font-size:11px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:2px 8px}
+.actl{flex:1;overflow:hidden}
+.arow{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--n100)}
+.arow .tb{width:38px;height:38px;flex:0 0 38px;border-radius:10px;background:var(--brand50);border:1px solid var(--brand100);display:grid;place-items:center;font-size:12.5px;font-weight:600;color:var(--brand800)}
+.arow .tb.no{background:var(--n100);border-color:var(--n200);color:var(--n400)}
+.arow .l1{font-size:14px;font-weight:500;letter-spacing:-.1px}
+.arow .l2{font-size:12px;color:var(--n500);margin-top:1px;display:flex;align-items:center;gap:7px}
+.arow .cc{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--n100);border:1px solid var(--n200);border-radius:4px;padding:0 5px}
+.arow .m{margin-left:auto;flex:0 0 auto;white-space:nowrap;font-size:15px;font-weight:600;letter-spacing:-.2px}
+.arow .st{width:32px;flex:0 0 32px;height:32px;border-radius:9px;border:1px solid var(--n200);display:grid;place-items:center;color:var(--n500)}
+.arow .st .ic{font-size:17px}
+.arow .st.on{background:var(--okBg);border-color:#BBF7D0;color:var(--okFg)}
+.totrow{padding:12px 14px;background:var(--n50);border-top:1px solid var(--n200);display:flex;align-items:center}
+.totrow .l{font-size:13px;font-weight:500;color:var(--n600)}
+.totrow .v{margin-left:auto;font-size:17px;font-weight:700;letter-spacing:-.3px}
+/* right panel */
+.rsec{padding:14px 16px;border-bottom:1px solid var(--n200)}
+.rsec.gr{flex:1;min-height:0;display:flex;flex-direction:column;border-bottom:0}
+.selt{display:flex;align-items:center;gap:8px;background:var(--brand50);border:1px solid var(--brand200);border-radius:11px;padding:9px 11px;margin-bottom:12px}
+.selt .ic{font-size:18px;color:var(--brand700)}
+.selt .t{font-size:13px;font-weight:600;color:var(--brand800)}
+.selt .x{margin-left:auto;color:var(--brand700)}
+.selt .x .ic{font-size:17px}
+.sf{height:42px;border:1px solid var(--n200);border-radius:11px;display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--n400);font-size:13.5px}
+.sf .ic{font-size:19px}
+.fav{margin-top:11px}
+.favl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);margin-bottom:8px}
+.fchips{display:flex;flex-wrap:wrap;gap:7px}
+.fc{border:1px solid var(--n200);border-radius:10px;padding:8px 11px;background:var(--n0);min-width:0}
+.fc .c1{font-size:12.5px;font-weight:600;letter-spacing:-.1px}
+.fc .c2{font-size:10.5px;color:var(--n500);margin-top:1px;font-family:ui-monospace,Menlo,monospace}
+.res{margin-top:12px;border-top:1px solid var(--n100)}
+.rr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--n100)}
+.rr .l1{font-size:13.5px;font-weight:500}
+.rr .l2{font-size:11.5px;color:var(--n500);margin-top:1px}
+.rr .add{margin-left:auto;width:30px;height:30px;border-radius:9px;background:var(--brand700);color:#fff;display:grid;place-items:center}
+.rr .add .ic{font-size:18px}
+.rr .amt{margin-left:auto;font-size:13px;font-weight:600;color:var(--n600);white-space:nowrap}
+/* note */
+.note{flex:1;min-height:0;display:flex;flex-direction:column}
+.nta{flex:1;border:1px solid var(--n200);border-radius:11px;padding:11px 12px;font-size:13px;line-height:20px;color:var(--n800);background:var(--n0);overflow:hidden}
+.nta .ph2{color:var(--n400)}
+.sav{display:flex;align-items:center;gap:6px;margin-top:9px;font-size:11.5px;color:var(--okFg)}
+.sav .ic{font-size:15px}
+.tmpl{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--brand700);border:1px solid var(--n200);border-radius:9px;padding:5px 9px}
+.tmpl .ic{font-size:15px}
+/* notes */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:820px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.keep{margin-top:8px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Praticien · Tablette 1258 × 834 (paysage)</div>
+<div class="tab"><div class="scr" data-screen-label="Praticien · Consultation au fauteuil">
+
+<div class="hd">
+<div class="bk"><span class="ic">arrow_back</span></div>
+<div class="pav">CM</div>
+<div class="pid"><div class="n1"><span class="nm">Camille Moreau</span><span class="pill dang"><span class="ic f">warning</span>Allergie pénicilline</span><span class="pill info">En cours</span></div>
+<div class="n2"><span>34 ans · née le 12/03/1992</span><span>·</span><span>Dernière visite 22/07</span><span>·</span><span>Dr A. Rousseau</span></div></div>
+<div class="hsp"></div>
+<div class="tot"><div class="l">Total séance</div><div class="v tnum">1 460,00 €</div></div>
+<div class="done"><span class="ic">check</span>Terminer</div>
+</div>
+
+<div class="split">
+<div class="lft">
+<div class="pan">
+<div class="ph"><span class="ic f" style="font-size:18px;color:var(--n500)">dentistry</span><span class="t">Schéma dentaire</span><span class="hint">Touchez une dent pour l'associer à l'acte suivant</span></div>
+<div class="arch">
+<div class="qrow">
+<div class="quad"><div class="tth">18<div class="d"></div></div><div class="tth past">17<div class="d"></div></div><div class="tth">16<div class="d"></div></div><div class="tth">15<div class="d"></div></div><div class="tth watch">14<div class="d"></div></div><div class="tth">13<div class="d"></div></div><div class="tth">12<div class="d"></div></div><div class="tth">11<div class="d"></div></div></div>
+<div class="quad"><div class="tth">21<div class="d"></div></div><div class="tth">22<div class="d"></div></div><div class="tth">23<div class="d"></div></div><div class="tth">24<div class="d"></div></div><div class="tth">25<div class="d"></div></div><div class="tth sess sel">26<div class="d"></div></div><div class="tth past">27<div class="d"></div></div><div class="tth">28<div class="d"></div></div></div>
+</div>
+<div class="midln"></div>
+<div class="qrow">
+<div class="quad"><div class="tth">48<div class="d"></div></div><div class="tth">47<div class="d"></div></div><div class="tth past">46<div class="d"></div></div><div class="tth">45<div class="d"></div></div><div class="tth">44<div class="d"></div></div><div class="tth">43<div class="d"></div></div><div class="tth">42<div class="d"></div></div><div class="tth">41<div class="d"></div></div></div>
+<div class="quad"><div class="tth">31<div class="d"></div></div><div class="tth">32<div class="d"></div></div><div class="tth">33<div class="d"></div></div><div class="tth">34<div class="d"></div></div><div class="tth">35<div class="d"></div></div><div class="tth watch">36<div class="d"></div></div><div class="tth">37<div class="d"></div></div><div class="tth">38<div class="d"></div></div></div>
+</div>
+</div>
+<div class="lgd">
+<span><i style="background:var(--brand600)"></i>Acte de cette séance</span>
+<span><i style="background:var(--n100);border:1px solid var(--n200)"></i>Soin antérieur</span>
+<span><i style="background:var(--warnBg);border:1px solid #FDE68A"></i>À surveiller</span>
+<span><i style="background:var(--n0);border:1px solid var(--n200)"></i>Saine</span>
+</div>
+</div>
+
+<div class="acts">
+<div class="acth"><span class="ic f" style="font-size:18px;color:var(--n500)">list_alt</span><span class="t">Actes de la séance</span><span class="c">3</span></div>
+<div class="actl">
+<div class="arow"><div class="tb">26</div><div style="min-width:0;flex:1"><div class="l1">Couronne céramo-métallique</div><div class="l2"><span class="cc">HBLD038</span><span>14:12</span></div></div><span class="m tnum">1 200,00 €</span><div class="st on"><span class="ic f">verified</span></div></div>
+<div class="arow"><div class="tb">26</div><div style="min-width:0;flex:1"><div class="l1">Inlay-core</div><div class="l2"><span class="cc">HBLD745</span><span>14:18</span></div></div><span class="m tnum">260,00 €</span><div class="st"><span class="ic">qr_code_scanner</span></div></div>
+<div class="arow"><div class="tb no">—</div><div style="min-width:0;flex:1"><div class="l1">Consultation de contrôle</div><div class="l2"><span class="cc">HBQK389</span><span>14:05</span></div></div><span class="m tnum">0,00 €</span><div class="st"><span class="ic">qr_code_scanner</span></div></div>
+</div>
+<div class="totrow"><span class="l">Total des actes enregistrés</span><span class="v tnum">1 460,00 €</span></div>
+</div>
+</div>
+
+<div class="rgt">
+<div class="rsec">
+<div class="ph"><span class="ic f" style="font-size:18px;color:var(--n500)">add_circle</span><span class="t">Ajouter un acte</span></div>
+<div class="selt"><span class="ic f">dentistry</span><span class="t">Dent 26 sélectionnée</span><span class="x"><span class="ic">close</span></span></div>
+<div class="sf"><span class="ic">search</span>Code CCAM ou libellé…</div>
+<div class="fav"><div class="favl">Favoris</div>
+<div class="fchips">
+<div class="fc"><div class="c1">Détartrage</div><div class="c2">HBJD001</div></div>
+<div class="fc"><div class="c1">Couronne CM</div><div class="c2">HBLD038</div></div>
+<div class="fc"><div class="c1">Inlay-core</div><div class="c2">HBLD745</div></div>
+<div class="fc"><div class="c1">Endodontie</div><div class="c2">HBFD001</div></div>
+<div class="fc"><div class="c1">Extraction</div><div class="c2">HBGD036</div></div>
+</div></div>
+<div class="res">
+<div class="rr"><div style="min-width:0;flex:1"><div class="l1">Restauration 2 faces</div><div class="l2">HBMD042 · dent 26 · 53,50 €</div></div><div class="add"><span class="ic">add</span></div></div>
+<div class="rr"><div style="min-width:0;flex:1"><div class="l1">Scellement de sillon</div><div class="l2">HBBD002 · dent 26 · 21,60 €</div></div><div class="add"><span class="ic">add</span></div></div>
+</div>
+</div>
+
+<div class="rsec gr">
+<div class="ph"><span class="ic f" style="font-size:18px;color:var(--n500)">edit_note</span><span class="t">Note de séance</span><span class="tmpl"><span class="ic">description</span>Modèle</span></div>
+<div class="note">
+<div class="nta">Pose de couronne céramo-métallique sur 26 après reconstitution par inlay-core. Empreinte numérique réalisée, occlusion contrôlée. Patiente informée du délai laboratoire de 8 jours.<span class="ph2"> </span></div>
+<div class="sav"><span class="ic f">cloud_done</span>Enregistré automatiquement à 14:23</div>
+</div>
+</div>
+</div>
+</div>
+
+</div></div></div>
+
+<div class="notes">
+<div class="nk">App Praticien · Consultation au fauteuil</div>
+<h2>Le nom du patient n'apparaît nulle part</h2>
+<p class="lede">L'en-tête de <code>_LoadedView</code> affiche la chaîne littérale « Consultation au fauteuil ». <code>_HistoriqueTile</code>, lui, titre bien par <code>session.patientName</code> (#3371) — mais dès qu'on entre dans la séance, <strong>l'identité disparaît</strong>. Un praticien qui saisit des actes gantés, entre deux patients, n'a aucune confirmation à l'écran de la bouche dans laquelle il travaille. Et rien ne rappelle une allergie.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Une identité permanente en en-tête</div><div class="np">Nom, âge, date de naissance, dernière visite, praticien de la séance — et les alertes cliniques en pastille rouge. Le dialogue bloquant <code>clinical_risk_warning_dialog</code> (#4057/#4058) reste le filet de sécurité du back ; l'en-tête le rend rarement nécessaire.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Le schéma dentaire devient l'interface</div><div class="np">Aujourd'hui la dent se choisit dans un <code>showModalBottomSheet</code> derrière un bouton « Choisir une dent », puis on cherche l'acte. Sur tablette, le <code>ToothGrid</code> existant tient en permanence à l'écran : on touche la dent, l'ajout d'acte est déjà contextualisé (#4048 conservé, <code>selectedTooth</code> passé à <code>CcamPicker</code>).</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Une bouche n'est pas quatre lignes</div><div class="np">⚠️ Cette arcade est une <strong>évolution assumée</strong> de <code>tooth_grid.dart</code>, qui empile aujourd'hui quatre rangées (<code>upperRight</code>, <code>upperLeft</code>, <code>lowerRight</code>, <code>lowerLeft</code>) : les deux quadrants d'une même arcade sont deux lignes distinctes et la ligne médiane n'existe pas. Trois points à trancher : <code>ToothGrid</code> est aussi consommée par <code>DentalChartPage</code> (#4047), donc la correction est partagée ; son API <code>colorFor → Color</code> ne peut porter ni contour de sélection ni pastille d'état ; et <code>ToothButton</code> fait 32 × 32, sous le plancher tactile de 44 px pour une main gantée.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">La note s'enregistre seule</div><div class="np">« Enregistrer la note » est un bouton manuel : gants, interruptions, passage au patient suivant — la note se perd. Autosave débattu à 1,5 s avec un état visible (« Enregistré automatiquement à 14:23 »). La garde de <code>didUpdateWidget</code>, qui évite d'écraser une saisie en cours, reste indispensable et est conservée.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Six blocs empilés, la liste d'actes en dernier</div><div class="np">Le <code>Column</code> actuel empile en-tête, note, sélecteur de dent, <code>CcamPicker</code>, bouton de stérilisation, puis la liste — l'enregistrement de la séance arrive après tout le reste, dans l'espace qui reste. Deux colonnes : à gauche ce qui se consulte (schéma, actes), à droite ce qui se saisit (acte, note).</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Le total quitte le sous-titre</div><div class="np">« 3 acte(s) CCAM · 1460.00 € » vit en <code>bodySmall</code> gris dans l'en-tête. Le total monte en tête de droite et se répète en pied de liste, en chiffres tabulaires.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Défaut de format : « 1460.00 € »</div><div class="np"><code>_euros()</code> fait <code>(cents / 100).toStringAsFixed(2)</code> — donc un <strong>point décimal</strong> et aucun séparateur de milliers, sur un écran français. L'app Patient a déjà <code>formatQuoteCents()</code> (virgule, espace fine insécable, « − » typographique) : à remonter dans un utilitaire partagé plutôt qu'à réécrire.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">La stérilisation se rattache à un acte visible</div><div class="np">Le scan cible <code>session.acts.last</code> — « l'acte en cours » par convention (#4139) — mais rien à l'écran ne dit auquel. L'action passe sur la ligne d'acte : une pastille verte quand la pochette est tracée, l'icône de scan sinon. Le rattachement devient explicite.</div></div></li>
+<li class="oli"><span class="onum">9</span><div><div class="nh">Favoris en cible tactile</div><div class="np"><code>FavoriteActsUseCase</code> alimente déjà <code>CcamPicker</code>. Sur tablette, les favoris méritent des cibles franches en haut du panneau : l'immense majorité des séances se compose de cinq actes récurrents, qui doivent s'ajouter sans clavier.</div></div></li>
+</ol>
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>#4057/#4058 — <code>clinicalRiskWarning</code> reste un dialogue bloquant, jamais un snackbar : l'acte <strong>n'a pas</strong> été enregistré (409 back), puis <code>ClinicalRiskWarningConsumed</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#3403 — <code>actionError</code> (403 sur la séance d'un confrère) en snackbar puis consommé ; la séance affiche son praticien.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4048 — <code>selectedTooth</code> pré-remplit l'éditeur d'acte au lieu d'une saisie texte libre.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#3402 — l'éditeur fournit dent + montant, transmis au <code>POST .../acts</code> ; le total est bien la somme des montants.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4125 — <code>CrTemplatePicker</code> trié par pertinence sur le <code>ccam_code</code> du premier acte, injecté dans la note.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4139 — le scan de stérilisation cible toujours un <code>consultationActId</code> réel (<code>acts</code> trié <code>created_at</code> ASC côté back).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>« Terminer » désactivé si <code>actionInProgress</code> ou <code>session.isFinished</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>consultation_note_field</code>, <code>save_note_button</code>, <code>ccam_picker</code>, <code>act_tooth_picker_button</code>, <code>act_tooth_picker_clear</code>, <code>cr_template_picker_button</code>, <code>sterilization_scan_button</code>, <code>complete_consultation_button</code>, <code>act_&lt;id&gt;</code>, <code>consultation_empty</code>, <code>consultation_action_progress</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Constantes de quadrants FDI et préfixe de clés (<code>act_tooth_picker_&lt;code&gt;</code>) réutilisés tels quels — les tests continuent de cibler leurs dents.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>StatusPill</code> (rayon plein, <code>labelSmall</code> 500) et <code>NubiaAvatar</code> (<code>CircleAvatar</code>, <code>radius</code>) selon leurs signatures réelles.</span></li>
+</ul></div>
+</div>
+</div></body></html>

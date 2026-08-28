@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Pharmacie — Délivrance v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1290px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+.tab{width:1290px;background:var(--n900);border-radius:34px;padding:16px;box-shadow:0 34px 74px -26px rgba(28,25,23,.5)}
+.scr{width:1258px;height:834px;background:var(--n50);border-radius:22px;overflow:hidden;display:flex;flex-direction:column}
+/* header */
+.hd{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 18px;display:flex;align-items:center;gap:14px}
+.bk{width:38px;height:38px;flex:0 0 38px;border-radius:11px;border:1px solid var(--n200);display:grid;place-items:center;color:var(--n600)}
+.bk .ic{font-size:20px}
+.oid{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--n100);border:1px solid var(--n200);border-radius:6px;padding:3px 7px;color:var(--n600)}
+.hnm{font-size:19px;font-weight:600;letter-spacing:-.3px}
+.hsub{font-size:12.5px;color:var(--n500);margin-top:2px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.info{background:var(--infoBg);color:var(--infoFg)}.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.dang{background:var(--dangBg);color:var(--dangFg)}
+.hsp{flex:1}
+/* steps */
+.steps{display:flex;align-items:center;gap:0}
+.st{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--n400)}
+.st .b{width:20px;height:20px;border-radius:99px;border:1.5px solid var(--n300);display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--n400)}
+.st.done{color:var(--brand800)}
+.st.done .b{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.st.now{color:var(--n900)}
+.st.now .b{border-color:var(--n900);color:var(--n900);background:var(--n0)}
+.stl{width:26px;height:1.5px;background:var(--n200);margin:0 9px}
+.stl.done{background:var(--brand200)}
+/* split */
+.split{flex:1;display:flex;min-height:0}
+.lft{flex:1;min-width:0;padding:16px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.rgt{width:436px;flex:0 0 436px;border-left:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column}
+.pan{background:var(--n0);border:1px solid var(--n200);border-radius:14px}
+.ph{display:flex;align-items:center;gap:9px;padding:13px 14px;border-bottom:1px solid var(--n200)}
+.ph .ic{font-size:18px;color:var(--n500)}
+.ph .t{font-size:13.5px;font-weight:600;letter-spacing:-.1px}
+.ph .r{margin-left:auto;display:flex;align-items:center;gap:8px}
+.orig{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--brand700);border:1px solid var(--n200);border-radius:8px;padding:5px 9px}
+.orig .ic{font-size:15px;color:var(--brand700)}
+/* prescriber */
+.pres{padding:12px 14px;display:flex;gap:22px;border-bottom:1px solid var(--n100);background:var(--n50)}
+.pk .k{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.pk .v{font-size:13px;font-weight:500;margin-top:2px}
+/* lines */
+.lines{overflow:hidden}
+.ln{display:flex;gap:12px;padding:13px 14px;border-bottom:1px solid var(--n100)}
+.cbx{width:24px;height:24px;flex:0 0 24px;border-radius:6px;border:1.5px solid var(--n300);display:grid;place-items:center;margin-top:2px;color:transparent}
+.cbx .ic{font-size:17px}
+.cbx.on{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.ln .nm{font-size:14.5px;font-weight:600;letter-spacing:-.15px}
+.ln .po{font-size:13px;color:var(--n600);margin-top:2px}
+.ln .mt{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px}
+.tag{font-size:10.5px;font-weight:600;border-radius:6px;padding:2px 7px;background:var(--n100);color:var(--n600);border:1px solid var(--n200)}
+.tag.ns{background:var(--dangBg);color:var(--dangFg);border-color:#FECACA}
+.tag.sub{background:var(--brand50);color:var(--brand800);border-color:var(--brand200)}
+.qty{margin-left:auto;flex:0 0 auto;text-align:right}
+.qty .q{font-size:15px;font-weight:700;letter-spacing:-.2px}
+.qty .u{font-size:11px;color:var(--n500);margin-top:1px}
+.alert{display:flex;gap:9px;margin:8px 0 0;background:var(--warnBg);border:1px solid #FDE68A;border-radius:10px;padding:9px 10px}
+.alert .ic{font-size:16px;color:var(--warnFg);flex:0 0 16px;margin-top:1px}
+.alert .t{font-size:12px;line-height:17px;color:#78350F}
+.alert .t b{font-weight:600}
+/* right: scan */
+.rsec{padding:16px;border-bottom:1px solid var(--n200)}
+.rsec.gr{flex:1;min-height:0;display:flex;flex-direction:column}
+.expect{background:var(--n50);border:1px solid var(--n200);border-radius:12px;padding:12px}
+.expect .l{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.expect .v{font-size:15px;font-weight:600;letter-spacing:-.15px;margin-top:3px}
+.expect .s{font-size:12px;color:var(--n500);margin-top:2px}
+.cam{margin-top:12px;height:186px;border-radius:12px;background:#1C1917;position:relative;overflow:hidden;display:grid;place-items:center}
+.cam .fr{width:130px;height:130px;border-radius:12px;position:relative}
+.cam .fr i{position:absolute;width:26px;height:26px;border:3px solid var(--brand400,#34D399);border-color:#34D399}
+.cam .fr i:nth-child(1){top:0;left:0;border-right:0;border-bottom:0;border-top-left-radius:8px}
+.cam .fr i:nth-child(2){top:0;right:0;border-left:0;border-bottom:0;border-top-right-radius:8px}
+.cam .fr i:nth-child(3){bottom:0;left:0;border-right:0;border-top:0;border-bottom-left-radius:8px}
+.cam .fr i:nth-child(4){bottom:0;right:0;border-left:0;border-top:0;border-bottom-right-radius:8px}
+.cam .cap2{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-size:11.5px;color:rgba(255,255,255,.65)}
+.mism{margin-top:12px;background:var(--dangBg);border:1px solid #FECACA;border-radius:12px;padding:12px}
+.mism .h{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--dangFg)}
+.mism .h .ic{font-size:18px}
+.mism .p{font-size:12.5px;line-height:18px;color:#7F1D1D;margin-top:6px}
+.mism .cmp{display:flex;gap:10px;margin-top:10px}
+.mism .cc{flex:1;min-width:0;background:rgba(255,255,255,.7);border:1px solid #FECACA;border-radius:9px;padding:8px 9px}
+.mism .cc .k{font-size:10px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:#9F1239}
+.mism .cc .v{font-size:13px;font-weight:600;margin-top:2px;color:#7F1D1D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mism .acts{display:flex;gap:8px;margin-top:11px}
+.mb{flex:1;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:500}
+.mb .ic{font-size:16px}
+.mb.p{background:var(--dangFg);color:#fff}
+.mb.s{background:var(--n0);border:1px solid #FECACA;color:var(--dangFg)}
+.manual{margin-top:12px}
+.manual .l{font-size:11.5px;color:var(--n500);margin-bottom:7px}
+.mf{height:44px;border:1px solid var(--n200);border-radius:11px;display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--n400);font-size:13.5px;background:var(--n0)}
+.mf .ic{font-size:19px}
+/* footer actions */
+.foot{padding:14px 16px;border-top:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column;gap:9px}
+.cta{height:48px;border-radius:12px;background:var(--brand700);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:500}
+.cta .ic{font-size:19px}
+.cta.dis{background:var(--n100);color:var(--n400)}
+.sub2{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--n500)}
+.sub2 .ic{font-size:15px;color:var(--n400)}
+.rej{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--dangFg)}
+.rej .ic{font-size:15px}
+/* billing */
+.bill{padding:14px 16px;border-top:1px solid var(--n200);background:var(--n50)}
+.bill .r{display:flex;align-items:center;font-size:13px;padding:4px 0}
+.bill .r .k{color:var(--n600)}
+.bill .r .v{margin-left:auto;font-weight:600}
+.bill .r.tot{border-top:1px solid var(--n200);margin-top:5px;padding-top:9px}
+.bill .r.tot .k{font-weight:600}
+.bill .r.tot .v{font-size:16px;font-weight:700}
+/* notes */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:820px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.keep{margin-top:8px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Pharmacie · Tablette 1258 × 834 (paysage) — comptoir</div>
+<div class="tab"><div class="scr" data-screen-label="Pharmacie · Délivrance et scan de retrait">
+
+<div class="hd">
+<div class="bk"><span class="ic">arrow_back</span></div>
+<div><div style="display:flex;align-items:center;gap:10px"><span class="hnm">Julie Martin</span><span class="oid">CMD-4821</span><span class="pill ok"><span class="ic f">check_circle</span>Prête</span></div>
+<div class="hsub">Ordonnance du 10/08 · Dr Amélie Rousseau · reçue à 09:12, prête à 10:04</div></div>
+<div class="hsp"></div>
+<div class="steps">
+<div class="st done"><span class="b"><span class="ic" style="font-size:12px">check</span></span>Reçue</div><span class="stl done"></span>
+<div class="st done"><span class="b"><span class="ic" style="font-size:12px">check</span></span>Préparation</div><span class="stl done"></span>
+<div class="st now"><span class="b">3</span>Prête</div><span class="stl"></span>
+<div class="st"><span class="b">4</span>Retirée</div>
+</div>
+</div>
+
+<div class="split">
+<div class="lft">
+<div class="pan" style="flex:1;min-height:0;display:flex;flex-direction:column">
+<div class="ph"><span class="ic f">medication</span><span class="t">Ordonnance — 3 lignes</span><div class="r"><span class="orig"><span class="ic">picture_as_pdf</span>Voir l'original</span></div></div>
+<div class="pres">
+<div class="pk"><div class="k">Prescripteur</div><div class="v">Dr Amélie Rousseau</div></div>
+<div class="pk"><div class="k">RPPS</div><div class="v tnum">10 004 219 887</div></div>
+<div class="pk"><div class="k">Prescrite le</div><div class="v tnum">10/08/2026</div></div>
+<div class="pk"><div class="k">Valable jusqu'au</div><div class="v tnum">10/11/2026</div></div>
+</div>
+<div class="lines">
+<div class="ln"><div class="cbx on"><span class="ic f">check</span></div>
+<div style="min-width:0;flex:1"><div class="nm">AMOXICILLINE 1 g — comprimé dispersible</div><div class="po">1 comprimé matin et soir, pendant 7 jours</div>
+<div class="mt"><span class="tag sub">Substituable</span><span class="tag">Générique délivré : Amoxicilline Biogaran</span></div>
+<div class="alert"><span class="ic f">warning</span><span class="t"><b>Interaction possible</b> — AVK déclaré au dossier patient. Surveillance de l'INR recommandée ; à signaler au patient.</span></div></div>
+<div class="qty"><div class="q tnum">14</div><div class="u">comprimés</div></div></div>
+
+<div class="ln"><div class="cbx on"><span class="ic f">check</span></div>
+<div style="min-width:0;flex:1"><div class="nm">PARACÉTAMOL 1 g — comprimé</div><div class="po">1 comprimé jusqu'à 3 fois par jour si douleur, max 3 g/24 h</div>
+<div class="mt"><span class="tag sub">Substituable</span></div></div>
+<div class="qty"><div class="q tnum">8</div><div class="u">comprimés</div></div></div>
+
+<div class="ln"><div class="cbx"><span class="ic f">check</span></div>
+<div style="min-width:0;flex:1"><div class="nm">CHLORHEXIDINE 0,12 % — bain de bouche</div><div class="po">2 bains de bouche par jour après les repas, pendant 10 jours</div>
+<div class="mt"><span class="tag ns">Non substituable — MTE</span></div></div>
+<div class="qty"><div class="q tnum">1</div><div class="u">flacon 300 ml</div></div></div>
+</div>
+</div>
+</div>
+
+<div class="rgt">
+<div class="rsec">
+<div class="expect"><div class="l">Retrait attendu pour</div><div class="v">Julie Martin</div><div class="s">Commande CMD-4821 · 3 lignes · 2 sur 3 préparées</div></div>
+<div class="cam"><div class="fr"><i></i><i></i><i></i><i></i></div><div class="cap2">Présentez le QR de retrait du patient</div></div>
+
+<div class="mism">
+<div class="h"><span class="ic f">error</span>Ce QR ne correspond pas à cette commande</div>
+<div class="p">Le code scanné est valide, mais il concerne un autre patient. Ne délivrez pas ce sachet.</div>
+<div class="cmp"><div class="cc"><div class="k">Sachet en main</div><div class="v">Julie Martin</div></div><div class="cc"><div class="k">QR scanné</div><div class="v">Marc Dubois — CMD-4839</div></div></div>
+<div class="acts"><div class="mb p"><span class="ic">qr_code_scanner</span>Réessayer</div><div class="mb s"><span class="ic">swap_horiz</span>Ouvrir CMD-4839</div></div>
+</div>
+
+<div class="manual"><div class="l">QR illisible ou caméra indisponible ?</div>
+<div class="mf"><span class="ic">keyboard</span>Saisir le code de retrait</div></div>
+</div>
+
+<div class="bill">
+<div class="r"><span class="k">Montant total</span><span class="v tnum">24,80 €</span></div>
+<div class="r"><span class="k">Part Assurance Maladie (AMO)</span><span class="v tnum">− 16,36 €</span></div>
+<div class="r"><span class="k">Part mutuelle (AMC)</span><span class="v tnum">− 6,44 €</span></div>
+<div class="r tot"><span class="k">À encaisser</span><span class="v tnum">2,00 €</span></div>
+</div>
+
+<div class="foot">
+<div class="cta dis"><span class="ic">check_circle</span>Valider le retrait</div>
+<div class="sub2"><span class="ic f">info</span>Scannez le bon QR pour débloquer la validation</div>
+<div class="rej"><span class="ic">block</span>Refuser la commande</div>
+</div>
+</div>
+</div>
+
+</div></div></div>
+
+<div class="notes">
+<div class="nk">App Pharmacie · Délivrance & retrait</div>
+<h2>L'écran de délivrance ne montre pas ce qu'il faut délivrer</h2>
+<p class="lede"><code>order_detail_page.dart</code> affiche un nom de patient, trois horodatages, et un bouton « Ouvrir l'ordonnance (PDF) » qui appelle <code>core.openDocumentUrl</code> — donc <strong>quitte l'application</strong>. Or lire les lignes de l'ordonnance (molécule, posologie, quantité, substituable ou non) <em>est</em> le métier du pharmacien. L'écran central de l'app ne contient pas son contenu central.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">L'ordonnance dans l'écran</div><div class="np">Lignes lisibles, posologie en clair, quantité en gros à droite, et les mentions qui engagent : <span class="tag sub">Substituable</span> ou <span class="tag ns">Non substituable</span>. Le PDF reste accessible en « Voir l'original » — un recours, plus le seul accès.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Le scan comparait un token, pas deux patients</div><div class="np">Le point de sécurité le plus grave. <code>PickupScanPage</code> ne reçoit <code>orderId</code> que « pour le retour » : la validation se fait <strong>par token</strong>. Un pharmacien peut donc scanner le QR de Marc Dubois avec le sachet de Julie Martin en main : le back valide (le token est bon), et <code>_SuccessView</code> affiche « Commande retirée » avec le nom de Marc. Rien ne compare la commande d'origine et celle du token. Ici la comparaison est explicite et bloquante.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Trois erreurs, un même texte rouge</div><div class="np"><code>_InlineError</code> est un <code>Text</code> en <code>colorScheme.error</code>. Or 404 (code inconnu), 409 (mauvais statut) et 410 (expiré) demandent trois conduites différentes. Et <code>PickupScanCubit.reset()</code> existe mais <strong>n'est jamais appelé par l'UI</strong> : après un échec, aucun bouton ne relance un scan.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Le scan ne doit pas être une autre page</div><div class="np">Aujourd'hui « Scanner le retrait » fait <code>context.go('/orders/:id/pickup')</code> : l'ordonnance disparaît pendant le scan. Au comptoir, les deux vont ensemble — le scan devient un panneau, la commande reste à l'écran. La route est conservée pour l'accès direct.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">« Refuser » n'est pas l'égal de « Préparer »</div><div class="np">Dans <code>_ContextualAction</code>, le refus est un <code>NubiaButton</code> secondaire <strong>pleine largeur, juste sous l'action principale</strong> — alors qu'il exige un motif et mène à <code>rejected</code>, un état terminal. Il passe en lien discret, à distance du geste principal.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Le statut devient un chemin</div><div class="np">Les transitions <code>received → preparing → ready → pickedUp</code> sont pilotées par <code>canTransitionTo</code> mais l'écran n'en montre qu'une pastille. Un fil de quatre étapes dit où en est la commande et ce qui vient ensuite.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">La préparation se coche</div><div class="np">« Marquer prête » est un bouton unique pour une ordonnance de trois lignes : rien ne trace ce qui a été réellement sorti des rayons. Une case par ligne, et le compteur « 2 sur 3 préparées » qui conditionne le passage à <em>Prête</em>.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">La liaison facturation manque</div><div class="np">Le brief la cite comme cœur du métier ; l'écran n'affiche aucun montant. Total, part AMO, part AMC, <strong>à encaisser</strong> — même vocabulaire et même formatage que l'app Patient, pour que le patient entende au comptoir ce qu'il a lu dans son application.</div></div></li>
+<li class="oli"><span class="onum">9</span><div><div class="nh">Une largeur enfin utilisée</div><div class="np">L'écran est une seule <code>SingleChildScrollView</code> en colonne étroite sur une cible tablette/desktop. Deux volets : à gauche ce qui se lit (l'ordonnance), à droite ce qui s'exécute (préparation, scan, encaissement).</div></div></li>
+</ol>
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>Validation <strong>par token</strong> : <code>ConfirmPharmacyPickupUseCase</code> ne reçoit que le code, le back ignore la provenance (caméra ou saisie). La comparaison patient est un garde-fou <em>d'interface</em>, ajouté avant l'appel.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Saisie manuelle <strong>toujours</strong> proposée — repli Windows/Linux, caméra refusée, QR illisible (<code>QrScannerView.isSupported</code>).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Le serveur reste l'autorité sur les transitions : <code>canTransitionTo</code> pilote l'affichage, un 409 remonte en erreur.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Motif de refus obligatoire : l'event <code>OrderDetailRejectRequested</code> n'est émis que si le motif est non vide.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Distinction <code>PickupScanInvalidCode</code> (404/409/410) vs <code>PickupScanError</code> conservée — et enfin exploitée à l'écran.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Minimisation des données patient de <code>PickupInfoCard</code> respectée : identité et horodatages, rien de clinique au-delà de l'ordonnance à délivrer.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>États terminaux (<code>pickedUp</code>, <code>rejected</code>, <code>cancelled</code>) sans action, comme aujourd'hui.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>order_detail_back</code>, <code>order_detail_open_document</code>, <code>order_detail_create_quote</code>, <code>order_action_accept</code>, <code>order_action_reject</code>, <code>order_action_ready</code>, <code>order_action_scan</code>, <code>reject_reason_field</code>, <code>reject_confirm</code>, <code>pickup_invalid_code</code>, <code>pickup_success_patient</code>, <code>pickup_back_to_orders</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>StatusPill</code> / <code>OrderStatusPill</code> et <code>NubiaButton</code> selon leurs signatures réelles (<code>isLoading</code>, pas de <code>expanded</code>).</span></li>
+</ul></div>
+</div>
+</div></body></html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Patient — Messagerie v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:14px}
+.phones{display:flex;gap:36px;align-items:flex-start}
+.ph{width:390px;flex:0 0 390px}
+.phl{font-size:12.5px;font-weight:600;color:var(--n600);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.phl .n{width:20px;height:20px;border-radius:6px;background:var(--n900);color:#fff;font-size:10.5px;display:grid;place-items:center}
+.screen{width:390px;height:844px;background:var(--n50);border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 26px 60px -22px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09)}
+.sbar{height:50px;flex:0 0 50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 7px;font-size:14px;font-weight:600;background:var(--n0)}
+.sbar .r{display:flex;gap:5px;align-items:center}
+.sbar .r .ic{font-size:16px}
+.hd{background:var(--n0);padding:6px 20px 14px;border-bottom:1px solid var(--n200)}
+.hd h1{font-size:26px;font-weight:600;letter-spacing:-.5px}
+.hd .sb{font-size:13px;color:var(--n500);margin-top:3px}
+.body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.tabnav{height:78px;flex:0 0 78px;background:var(--n0);border-top:1px solid var(--n200);display:flex;padding:0 8px}
+.tn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--n400);font-size:10.5px;font-weight:500;padding-bottom:14px;position:relative}
+.tn .ic{font-size:23px}
+.tn.on{color:var(--brand700)}
+.tn .bdg{position:absolute;top:12px;left:50%;margin-left:5px;min-width:17px;height:17px;border-radius:99px;background:var(--dangFg);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;padding:0 5px;border:2px solid var(--n0)}
+/* conversations */
+.scroll{flex:1;overflow:hidden}
+.cv{display:flex;gap:13px;padding:14px 20px;border-bottom:1px solid var(--n100);background:var(--n0)}
+.cv.un{background:var(--brand50)}
+.cv .av{width:46px;height:46px;flex:0 0 46px;border-radius:14px;background:var(--brand100);display:grid;place-items:center;color:var(--brand800);position:relative}
+.cv .av .ic{font-size:23px}
+.cv .av.ph2{background:#E0F2FE;color:#0369A1}
+.cv .mid{flex:1;min-width:0}
+.cv .r1{display:flex;align-items:baseline;gap:8px}
+.cv .nm{font-size:15.5px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cv .tm{margin-left:auto;flex:0 0 auto;font-size:11.5px;color:var(--n500);font-variant-numeric:tabular-nums}
+.cv.un .tm{color:var(--brand700);font-weight:600}
+.cv .who{font-size:11.5px;color:var(--n500);margin-top:2px}
+.cv .pv{font-size:13.5px;color:var(--n600);margin-top:5px;line-height:19px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cv.un .pv{color:var(--n800);font-weight:500}
+.cv .ft{display:flex;align-items:center;gap:7px;margin-top:7px}
+.tag{font-size:10.5px;font-weight:600;border-radius:5px;padding:3px 7px}
+.tag.u{background:var(--dangBg);color:var(--dangFg)}
+.tag.i{background:var(--infoBg);color:var(--infoFg)}
+.tag.n{background:var(--n100);color:var(--n600)}
+.cv .dot{width:9px;height:9px;border-radius:99px;background:var(--brand600);flex:0 0 9px;margin-left:auto}
+.gh{font-size:11.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);padding:14px 20px 8px;background:var(--n50)}
+/* thread */
+.th{background:var(--n0);border-bottom:1px solid var(--n200);padding:8px 14px 12px;display:flex;align-items:center;gap:12px}
+.th .bk{width:36px;height:36px;flex:0 0 36px;border-radius:50%;background:var(--n100);display:grid;place-items:center;color:var(--n700)}
+.th .bk .ic{font-size:20px}
+.th .av{width:40px;height:40px;flex:0 0 40px;border-radius:12px;background:var(--brand100);display:grid;place-items:center;color:var(--brand800)}
+.th .av .ic{font-size:20px}
+.th .nm{font-size:16px;font-weight:600;letter-spacing:-.2px}
+.th .st{font-size:11.5px;color:var(--n500);margin-top:2px;display:flex;align-items:center;gap:5px}
+.th .st .d{width:6px;height:6px;border-radius:99px;background:var(--okFg)}
+.msgs{flex:1;overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:3px;background:var(--n50)}
+.dsep{text-align:center;font-size:11px;font-weight:600;color:var(--n400);margin:8px 0}
+.mb{max-width:82%;padding:10px 13px;border-radius:16px;font-size:14.5px;line-height:20px;position:relative}
+.mb.them{background:var(--n0);border:1px solid var(--n200);border-bottom-left-radius:5px;align-self:flex-start}
+.mb.me{background:var(--brand700);color:#fff;border-bottom-right-radius:5px;align-self:flex-end}
+.mmeta{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:10.5px}
+.mb.them .mmeta{color:var(--n400)}
+.mb.me .mmeta{color:rgba(255,255,255,.7);justify-content:flex-end}
+.mmeta .ic{font-size:13px}
+.mfrom{font-size:11px;font-weight:600;color:var(--brand700);margin-bottom:3px}
+.mb.urg{border-color:#FCA5A5;background:#FFFBFA}
+.ubar{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:var(--dangFg);margin-bottom:5px}
+.ubar .ic{font-size:13px}
+.att{display:flex;align-items:center;gap:9px;background:var(--n50);border:1px solid var(--n200);border-radius:10px;padding:8px 10px;margin-top:8px}
+.att .ic{font-size:19px;color:var(--brand700)}
+.att .a1{font-size:12.5px;font-weight:500}
+.att .a2{font-size:11px;color:var(--n500);margin-top:1px}
+/* composer */
+.cmp{background:var(--n0);border-top:1px solid var(--n200);padding:10px 14px 12px}
+.qr{display:flex;gap:7px;margin-bottom:9px;overflow:hidden}
+.qc{height:30px;padding:0 12px;border-radius:99px;border:1px solid var(--n200);display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:500;color:var(--n700);white-space:nowrap;flex:0 0 auto}
+.qc .ic{font-size:14px;color:var(--n500)}
+.cin{display:flex;align-items:flex-end;gap:9px}
+.cin .plus{width:42px;height:42px;flex:0 0 42px;border-radius:50%;border:1px solid var(--n200);display:grid;place-items:center;color:var(--n600)}
+.cin .plus .ic{font-size:21px}
+.cin .fld{flex:1;min-height:42px;border:1px solid var(--n200);border-radius:21px;padding:11px 15px;font-size:14.5px;color:var(--n400);background:var(--n0)}
+.cin .snd{width:42px;height:42px;flex:0 0 42px;border-radius:50%;background:var(--brand700);display:grid;place-items:center;color:#fff}
+.cin .snd .ic{font-size:20px}
+.disc{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--n100)}
+.disc .ic{font-size:14px;color:var(--n400);flex:0 0 14px;margin-top:1px}
+.disc .t{font-size:11px;line-height:16px;color:var(--n500)}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Patient · Mobile 390 × 844 — messagerie avec le cabinet</div>
+<div class="phones">
+
+<div class="ph">
+<div class="phl"><span class="n">1</span>Liste des conversations</div>
+<div class="screen" data-screen-label="Patient · Conversations">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><h1>Messages</h1><div class="sb">2 conversations · 3 non lus</div></div>
+<div class="body">
+<div class="scroll">
+
+<div class="cv un">
+<div class="av"><span class="ic f">medical_services</span></div>
+<div class="mid">
+<div class="r1"><span class="nm">Cabinet Nubia Opéra</span><span class="tm">11:24</span></div>
+<div class="who">Dr Amélie Rousseau</div>
+<div class="pv">Bonjour Julie, votre couronne est arrivée du laboratoire. Souhaitez-vous que nous programmions la pose cette semaine ?</div>
+<div class="ft"><span class="tag i">Réponse attendue</span><span class="dot"></span></div>
+</div>
+</div>
+
+<div class="cv un">
+<div class="av ph2"><span class="ic f">local_pharmacy</span></div>
+<div class="mid">
+<div class="r1"><span class="nm">Pharmacie du Théâtre</span><span class="tm">10:04</span></div>
+<div class="who">Votre pharmacie</div>
+<div class="pv">Votre commande CMD-4821 est prête. Nous vous attendons au comptoir avec votre QR de retrait.</div>
+<div class="ft"><span class="tag n">2 nouveaux</span><span class="dot"></span></div>
+</div>
+</div>
+
+<div class="gh">Conversations précédentes</div>
+
+<div class="cv">
+<div class="av"><span class="ic f">medical_services</span></div>
+<div class="mid">
+<div class="r1"><span class="nm">Cabinet Nubia Opéra</span><span class="tm">4 août</span></div>
+<div class="who">Secrétariat</div>
+<div class="pv">Votre devis DEV-2041 vous a été envoyé. Vous pouvez le consulter dans l'onglet Documents.</div>
+</div>
+</div>
+
+<div class="cv">
+<div class="av"><span class="ic f">medical_services</span></div>
+<div class="mid">
+<div class="r1"><span class="nm">Cabinet Nubia Opéra</span><span class="tm">22 juil.</span></div>
+<div class="who">Dr Amélie Rousseau</div>
+<div class="pv">Suites du détartrage : évitez le café et le thé pendant 24 h. N'hésitez pas si une gêne persiste.</div>
+</div>
+</div>
+
+</div>
+</div>
+<div class="tabnav">
+<div class="tn"><span class="ic">home</span>Accueil</div>
+<div class="tn"><span class="ic">event</span>Mes RDV</div>
+<div class="tn"><span class="ic">folder</span>Documents</div>
+<div class="tn on"><span class="ic f">chat_bubble</span>Messages<span class="bdg">3</span></div>
+<div class="tn"><span class="ic">person</span>Profil</div>
+</div>
+</div>
+</div>
+
+<div class="ph">
+<div class="phl"><span class="n">2</span>Conversation ouverte</div>
+<div class="screen" data-screen-label="Patient · Fil de conversation">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="th">
+<div class="bk"><span class="ic">arrow_back</span></div>
+<div class="av"><span class="ic f">medical_services</span></div>
+<div style="min-width:0;flex:1"><div class="nm">Cabinet Nubia Opéra</div><div class="st"><span class="d"></span>Répond en général sous 2 h</div></div>
+</div>
+<div class="body">
+<div class="msgs">
+
+<div class="dsep">Mardi 22 juillet</div>
+
+<div class="mb them">
+<div class="mfrom">Dr Amélie Rousseau</div>
+Suites du détartrage : évitez le café et le thé pendant 24 h. N'hésitez pas si une gêne persiste.
+<div class="mmeta">14:12</div>
+</div>
+
+<div class="mb me">
+Merci docteur, tout va bien.
+<div class="mmeta">18:40<span class="ic f">done_all</span></div>
+</div>
+
+<div class="dsep">Lundi 4 août</div>
+
+<div class="mb them">
+<div class="mfrom">Secrétariat</div>
+Votre devis DEV-2041 vous a été envoyé.
+<div class="att"><span class="ic f">request_quote</span><div style="min-width:0;flex:1"><div class="a1">Devis DEV-2041</div><div class="a2">435,92 € · reste à charge 148,50 €</div></div><span class="ic" style="font-size:17px;color:var(--n400)">chevron_right</span></div>
+<div class="mmeta">09:20</div>
+</div>
+
+<div class="dsep">Aujourd'hui</div>
+
+<div class="mb them urg">
+<div class="ubar"><span class="ic f">priority_high</span>URGENT</div>
+<div class="mfrom">Dr Amélie Rousseau</div>
+Bonjour Julie, votre couronne est arrivée du laboratoire. Souhaitez-vous que nous programmions la pose cette semaine ?
+<div class="mmeta">11:24</div>
+</div>
+
+</div>
+
+<div class="cmp">
+<div class="qr">
+<div class="qc"><span class="ic">event_available</span>Proposer un créneau</div>
+<div class="qc"><span class="ic">check</span>Merci !</div>
+<div class="qc"><span class="ic">schedule</span>Je rappelle</div>
+</div>
+<div class="cin">
+<div class="plus"><span class="ic">add</span></div>
+<div class="fld">Votre message…</div>
+<div class="snd"><span class="ic f">send</span></div>
+</div>
+<div class="disc"><span class="ic f">info</span><span class="t">Cette messagerie n'est pas un service d'urgence. En cas de douleur aiguë ou de saignement, appelez le cabinet au 01 42 61 08 90 ou le 15.</span></div>
+</div>
+
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<div class="notes">
+<div class="nk">App Patient · Messagerie</div>
+<h2>Une messagerie qui ne dit pas qui parle</h2>
+<p class="lede">Le fil affiche deux bulles : <code>MessageSender.patient</code> à droite, tout le reste à gauche. Or « tout le reste », dans un cabinet dentaire, c'est <strong>le praticien ou le secrétariat</strong> — et la réponse attendue n'est pas la même. Une consigne post-opératoire du Dr Rousseau et une relance administrative sur un devis arrivent aujourd'hui dans la même bulle grise, sans nom, sans rôle.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">L'auteur au-dessus du message</div><div class="np">Le nom et le rôle de l'émetteur en tête de bulle. C'est l'information qui décide du ton de la réponse — et elle conditionne aussi la confiance : un patient doit savoir s'il lit un avis clinique ou une relance de facturation.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">L'urgence disparaît en ouvrant la conversation</div><div class="np">Le badge <code>Urgent</code> n'existe que dans la <strong>liste</strong> (<code>last?.urgency</code>), jamais dans le fil. Ouvrir le message fait donc disparaître le signal qui a fait cliquer — et un message urgent plus ancien dans l'historique n'est jamais signalé. <code>MessageUrgency</code> doit être porté par la bulle.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Aucun horodatage sur les messages</div><div class="np"><code>_MessageBubble</code> n'affiche que <code>message.text</code>. Dans une conversation médicale, « quand m'a-t-on dit ça ? » est une question courante — et sans séparateurs de jour, un fil de trois mois est un mur indifférencié.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Un thread qui remplace tout l'écran</div><div class="np">L'onglet Messages passe de la liste au fil par un <strong>changement d'état du même bloc</strong> — pas par une navigation. Conséquence : le bouton retour matériel d'Android ne ferme pas la conversation, et l'onglet garde un fil ouvert quand on y revient. Il faut une vraie route (<code>/messages/:id</code>).</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Un champ Material brut dans une app au design system</div><div class="np">La barre de saisie est un <code>TextField</code> avec <code>OutlineInputBorder</code> et un <code>IconButton</code> — pas de <code>NubiaTextField</code>, pas de <code>NubiaButton</code>. C'est visible : rayon, épaisseur de bordure et couleur de focus diffèrent du reste de l'application.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Les pièces jointes n'existent pas</div><div class="np">Le cabinet envoie des devis, des ordonnances, des consignes — qui vivent dans le coffre-fort documentaire, sans lien depuis la conversation qui les annonce. Une pièce jointe cliquable relie les deux et supprime un aller-retour.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Des réponses rapides, parce qu'on écrit peu sur mobile</div><div class="np">La majorité des réponses patient tiennent en trois mots. Trois suggestions contextuelles évitent d'ouvrir le clavier — et augmentent le taux de réponse, ce dont le cabinet a besoin pour ses relances.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Une mention d'urgence, obligatoire</div><div class="np">Toute messagerie de santé asynchrone doit dire qu'elle n'est pas un canal d'urgence, avec le numéro à appeler. Son absence est un risque, pas une omission de confort.</div></div></li>
+<li class="oli"><span class="onum">9</span><div><div class="nh">Deux interlocuteurs, deux couleurs</div><div class="np">Le cabinet et la pharmacie écrivent au même patient. Un pictogramme et une teinte distincts par type d'interlocuteur évitent la confusion — d'autant que l'app Pharmacie possède sa propre messagerie (<code>pharma_messaging</code>).</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">bug_report</span>Une pastille de non-lu qui ne se met jamais à jour</div>
+<div class="p">Ouvrir une conversation émet <code>MessagingThreadOpened</code>, mais l'état <code>MessagingThreadLoaded</code> ne porte <strong>aucune remise à zéro de <code>unreadCount</code></strong>, et revenir en arrière (<code>MessagingBackRequested</code>) recharge la liste depuis le serveur. Le compteur ne dépend donc que du back : si l'API ne marque pas les messages comme lus à la lecture du fil, la pastille reste allumée sur une conversation que le patient vient de lire.</div>
+<div class="p">Cas à trancher avec l'équipe back : <strong>quel événement marque un message comme lu</strong> — l'ouverture du fil, ou son affichage effectif à l'écran ? La seconde option est la seule correcte pour un fil long, mais elle demande un appel explicite que l'interface n'émet pas aujourd'hui.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Deux décisions du code à conserver — et à généraliser</div>
+<div class="p"><strong>#4545 — <code>reverse: true</code> plutôt qu'un <code>ScrollController</code> piloté à la main.</strong> Le commentaire explique le choix : la conversation s'ouvre sur le dernier message et reste ancrée en bas à chaque nouveau message, sans code de défilement dédié. C'est le mécanisme des messageries usuelles, et il évite une classe entière de bugs de position.</div>
+<div class="p"><strong>#3856 — le piège UTC, documenté et corrigé.</strong> Le commentaire de <code>_formatTimestamp</code> est le meilleur du dépôt : il explique que <code>DateTime.parse()</code> sur un ISO en <code>+00:00</code> produit un <code>isUtc == true</code>, que lire <code>.hour</code> brut affichait l'heure UTC (−2 h en été), et que la comparaison <code>sameDay</code> confrontait un instant UTC à un <code>DateTime.now()</code> local — faussée autour de minuit. <strong>C'est exactement le défaut que <code>NubiaDate</code> généralise</strong> : cette fonction devrait devenir <code>NubiaDate.relative()</code> et servir aux quatre applications.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>#4545 — <code>reverse: true</code> avec index inversé conservé tel quel ; aucun <code>ScrollController</code> ajouté.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#3856 — <code>toLocal()</code> avant lecture de l'heure, comparaison <code>sameDay</code> en local. À déplacer dans <code>NubiaDate</code>, sans changer la règle.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>lastMessagePreview</code> (aperçu tronqué côté serveur) reste prioritaire sur <code>last?.text</code>, avec le repli sur l'état non-lu pour les anciens payloads.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>lastMessageAt ?? last?.sentAt</code> — même ordre de repli.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Envoi : texte vidé après <code>MessagingSendRequested</code>, <code>sending</code> désactivant le bouton, message vide refusé.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Les quatre états d'erreur restent distincts (liste vs fil), chacun avec son action de reprise.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Le patient ne peut pas ouvrir une conversation : <code>NubiaEmptyState</code> conserve « Votre cabinet vous contactera ici ».</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>messaging_loading</code>, <code>messaging_error</code>, <code>messaging_empty</code>, <code>messaging_conversations_list</code>, <code>conv_&lt;id&gt;</code>, <code>messaging_thread_loading</code>, <code>messaging_thread_error</code>, <code>messaging_thread_empty</code>, <code>messaging_thread_messages</code>, <code>messaging_back_button</code>, <code>messaging_input</code>, <code>messaging_send_button</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Champs à exposer : auteur du message (nom + rôle), pièces jointes liées à un document, et la règle de marquage comme lu.</span></li>
+</ul></div>
+</div>
+</div></body></html>

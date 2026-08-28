@@ -101,6 +101,7 @@ build_front app_patient    patient
 build_front app_practicien praticien
 build_front app_secretariat secretary
 build_front app_pharmacie   pharmacie
+build_front app_infirmiere  infirmiere
 
 say "4/6 provision LXC (idempotent)"
 SSH 'sh -s' < "$ROOT/infra/deploy/provision.sh"
@@ -118,7 +119,7 @@ SSH 'rm -rf /opt/nubia/migrations /opt/nubia/seed && mkdir -p /opt/nubia/migrati
 tar czf - -C "$ROOT/db/migrations" . | SSH 'tar xzf - -C /opt/nubia/migrations'
 tar czf - -C "$ROOT/db/seed" . | SSH 'tar xzf - -C /opt/nubia/seed'
 # bundles flutter
-for d in patient praticien secretary pharmacie; do
+for d in patient praticien secretary pharmacie infirmiere; do
   SSH "rm -rf /opt/nubia/www/$d && mkdir -p /opt/nubia/www/$d"
   tar czf - -C "$OUT/www-$d" . | SSH "tar xzf - -C /opt/nubia/www/$d"
 done
@@ -133,5 +134,6 @@ cat <<EOF
    praticien   http://${HOST}:8082
    secrétariat http://${HOST}:8083
    pharmacie   http://${HOST}:8084
+   infirmière  http://${HOST}:8085
    api         http://${HOST}:3000/v1/health
 EOF

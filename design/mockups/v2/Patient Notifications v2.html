@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Patient — Notifications v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:14px}
+.phones{display:flex;gap:36px;align-items:flex-start}
+.ph{width:390px;flex:0 0 390px}
+.phl{font-size:12.5px;font-weight:600;color:var(--n600);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.phl .n{width:20px;height:20px;border-radius:6px;background:var(--n900);color:#fff;font-size:10.5px;display:grid;place-items:center}
+.screen{width:390px;height:1060px;flex:0 0 auto;background:var(--n50);border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 26px 60px -22px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09)}
+.sbar{height:50px;flex:0 0 50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 7px;font-size:14px;font-weight:600;background:var(--n0)}
+.sbar .r{display:flex;gap:5px;align-items:center}
+.sbar .r .ic{font-size:16px}
+.hd{background:var(--n0);padding:6px 20px 12px;border-bottom:1px solid var(--n200)}
+.hd .row{display:flex;align-items:center;gap:12px}
+.hd h1{font-size:24px;font-weight:600;letter-spacing:-.45px}
+.hd .sb{font-size:12.5px;color:var(--n500);margin-top:2px}
+.hd .mk{margin-left:auto;flex:0 0 auto;font-size:12.5px;font-weight:600;color:var(--brand700);display:flex;align-items:center;gap:5px}
+.hd .mk .ic{font-size:16px}
+.body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.fw{display:flex;gap:7px;padding:11px 20px;background:var(--n0);border-bottom:1px solid var(--n200);overflow:hidden}
+.fc{height:30px;padding:0 12px;border-radius:99px;border:1px solid var(--n200);display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;white-space:nowrap;flex:0 0 auto}
+.fc.on{background:var(--n900);border-color:var(--n900);color:#fff}
+.fc .n{font-size:11px;font-weight:600;color:var(--n500);font-variant-numeric:tabular-nums}
+.fc.on .n{color:rgba(255,255,255,.7)}
+.scroll{flex:1;overflow:hidden}
+.gh{font-size:11.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);padding:14px 20px 8px;background:var(--n50)}
+/* notif row */
+.nr{display:flex;gap:12px;padding:13px 20px;background:var(--n0);border-bottom:1px solid var(--n100)}
+.nr.un{background:var(--brand50)}
+.nr .ico{width:40px;height:40px;flex:0 0 40px;border-radius:12px;display:grid;place-items:center;position:relative}
+.nr .ico .ic{font-size:20px}
+.nr .ico.ev{background:#EDE9FE;color:#6D28D9}
+.nr .ico.ms{background:#CFFAFE;color:#0E7490}
+.nr .ico.dc{background:var(--brand50);color:var(--brand700)}
+.nr .ico.pa{background:var(--warnBg);color:var(--warnFg)}
+.nr .ico.ph{background:#E0F2FE;color:#0369A1}
+.nr .mid{flex:1;min-width:0}
+.nr .r1{display:flex;align-items:baseline;gap:8px}
+.nr .t1{font-size:14.5px;font-weight:600;letter-spacing:-.15px;flex:1;min-width:0}
+.nr:not(.un) .t1{font-weight:500;color:var(--n700)}
+.nr .tm{flex:0 0 auto;font-size:11.5px;color:var(--n500);font-variant-numeric:tabular-nums}
+.nr.un .tm{color:var(--brand700);font-weight:600}
+.nr .t2{font-size:13px;line-height:19px;color:var(--n600);margin-top:4px}
+.nr .act{display:inline-flex;align-items:center;gap:5px;margin-top:9px;height:32px;padding:0 12px;border-radius:9px;border:1px solid var(--n200);background:var(--n0);font-size:12.5px;font-weight:500;color:var(--n900)}
+.nr .act .ic{font-size:15px;color:var(--n500)}
+.nr .act.p{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.nr .act.p .ic{color:#fff}
+.nr .dot{width:9px;height:9px;border-radius:99px;background:var(--brand600);flex:0 0 9px;margin-top:6px}
+/* prefs */
+.blk{background:var(--n0);border:1px solid var(--n200);border-radius:16px;overflow:hidden;margin:0 20px 12px}
+.bh{padding:12px 14px;border-bottom:1px solid var(--n100);font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.bh .ic{font-size:17px;color:var(--n500)}
+.tgr{display:flex;align-items:center;gap:11px;padding:11px 14px;border-bottom:1px solid var(--n100)}
+.tgr:last-child{border-bottom:0}
+.tgr>.ic{font-size:20px;color:var(--n500);flex:0 0 20px}
+.tgr .l{flex:1;min-width:0}
+.tgr .l1{font-size:14px;font-weight:500}
+.tgr .l2{font-size:11.5px;color:var(--n500);margin-top:2px}
+.tg{width:46px;height:27px;border-radius:99px;background:var(--n300);position:relative;flex:0 0 46px}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tg.on{background:var(--brand600)}
+.tg.on::after{left:22px}
+.tg.lock{background:var(--n200)}
+.tg.lock::after{background:var(--n400)}
+.reqp{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;background:var(--n100);color:var(--n500);border-radius:5px;padding:2px 6px;margin-top:4px}
+.reqp .ic{font-size:11px}
+.chn{display:flex;gap:7px;padding:11px 14px;border-bottom:1px solid var(--n100)}
+.cb{flex:1;height:56px;border-radius:11px;border:1px solid var(--n200);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;font-weight:500;color:var(--n600)}
+.cb .ic{font-size:19px;color:var(--n400)}
+.cb.on{border-color:var(--brand600);background:var(--brand50);color:var(--brand800)}
+.cb.on .ic{color:var(--brand700)}
+.info{display:flex;gap:9px;background:var(--n0);border:1px solid var(--n200);border-radius:12px;padding:11px 12px;margin:0 20px}
+.info .ic{font-size:17px;color:var(--n400);flex:0 0 17px;margin-top:1px}
+.info .t{font-size:11.5px;line-height:17px;color:var(--n500)}
+.tabnav{height:78px;flex:0 0 78px;background:var(--n0);border-top:1px solid var(--n200);display:flex;padding:0 8px}
+.tn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--n400);font-size:10.5px;font-weight:500;padding-bottom:14px;position:relative}
+.tn .ic{font-size:23px}
+.tn.on{color:var(--brand700)}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Patient · Mobile 390 × 1060 — notifications</div>
+<div class="phones">
+
+<div class="ph">
+<div class="phl"><span class="n">1</span>Boîte de réception</div>
+<div class="screen" data-screen-label="Patient · Notifications">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="row"><div><h1>Notifications</h1><div class="sb">3 non lues</div></div><span class="mk"><span class="ic">done_all</span>Tout marquer lu</span></div></div>
+<div class="body">
+<div class="fw">
+<div class="fc on">Toutes<span class="n">8</span></div>
+<div class="fc">Rendez-vous<span class="n">3</span></div>
+<div class="fc">Documents<span class="n">2</span></div>
+<div class="fc">Paiements<span class="n">1</span></div>
+</div>
+<div class="scroll">
+
+<div class="gh">Aujourd'hui</div>
+
+<div class="nr un">
+<div class="ico ph"><span class="ic f">local_pharmacy</span></div>
+<div class="mid"><div class="r1"><span class="t1">Votre commande est prête</span><span class="tm">10:04</span></div>
+<div class="t2">Pharmacie du Théâtre · à retirer sous 7 jours, présentez votre code au comptoir.</div>
+<div class="act p"><span class="ic">qr_code_2</span>Afficher mon code</div></div>
+<span class="dot"></span>
+</div>
+
+<div class="nr un">
+<div class="ico ms"><span class="ic f">chat_bubble</span></div>
+<div class="mid"><div class="r1"><span class="t1">Message du Dr Rousseau</span><span class="tm">09:20</span></div>
+<div class="t2">« Votre couronne est arrivée du laboratoire. Souhaitez-vous programmer la pose cette semaine ? »</div>
+<div class="act"><span class="ic">reply</span>Répondre</div></div>
+<span class="dot"></span>
+</div>
+
+<div class="nr un">
+<div class="ico ev"><span class="ic f">event</span></div>
+<div class="mid"><div class="r1"><span class="t1">Rendez-vous demain à 14:30</span><span class="tm">08:00</span></div>
+<div class="t2">Dr Amélie Rousseau · Cabinet Nubia Opéra, 12 rue de la Paix.</div>
+<div class="act"><span class="ic">event_available</span>Voir le rendez-vous</div></div>
+<span class="dot"></span>
+</div>
+
+<div class="gh">Cette semaine</div>
+
+<div class="nr">
+<div class="ico dc"><span class="ic f">folder</span></div>
+<div class="mid"><div class="r1"><span class="t1">Nouvelle ordonnance disponible</span><span class="tm">Lun.</span></div>
+<div class="t2">Ajoutée à vos documents par le Dr Rousseau.</div></div>
+</div>
+
+<div class="nr">
+<div class="ico pa"><span class="ic f">receipt_long</span></div>
+<div class="mid"><div class="r1"><span class="t1">Devis à signer</span><span class="tm">9 août</span></div>
+<div class="t2">DEV-2041 · 435,92 € dont 148,50 € à votre charge.</div></div>
+</div>
+
+<div class="nr">
+<div class="ico ev"><span class="ic f">event</span></div>
+<div class="mid"><div class="r1"><span class="t1">Rendez-vous confirmé</span><span class="tm">8 août</span></div>
+<div class="t2">Mardi 11 août à 14:30 avec le Dr Rousseau.</div></div>
+</div>
+
+<div class="nr">
+<div class="ico dc"><span class="ic f">folder</span></div>
+<div class="mid"><div class="r1"><span class="t1">Facture disponible</span><span class="tm">4 août</span></div>
+<div class="t2">Consultation du 22 juillet · 82,42 €.</div></div>
+</div>
+
+</div>
+</div>
+<div class="tabnav">
+<div class="tn"><span class="ic">home</span>Accueil</div>
+<div class="tn"><span class="ic">event</span>Mes RDV</div>
+<div class="tn"><span class="ic">folder</span>Documents</div>
+<div class="tn"><span class="ic">chat_bubble</span>Messages</div>
+<div class="tn on"><span class="ic f">person</span>Profil</div>
+</div>
+</div>
+</div>
+
+<div class="ph">
+<div class="phl"><span class="n">2</span>Préférences de notification</div>
+<div class="screen" data-screen-label="Patient · Préférences de notification">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="row"><div><h1>Préférences</h1><div class="sb">Ce que vous recevez, et comment</div></div></div></div>
+<div class="body"><div class="scroll" style="padding-top:14px">
+
+<div class="blk">
+<div class="bh"><span class="ic f">notifications_active</span>Comment vous prévenir</div>
+<div class="chn">
+<div class="cb on"><span class="ic f">smartphone</span>Notification</div>
+<div class="cb on"><span class="ic f">mail</span>E-mail</div>
+<div class="cb"><span class="ic f">sms</span>SMS</div>
+</div>
+<div class="tgr"><span class="ic">bedtime</span><div class="l"><div class="l1">Pas avant 8h ni après 21h</div><div class="l2">Sauf urgence de votre cabinet</div></div><span class="tg on"></span></div>
+</div>
+
+<div class="blk">
+<div class="bh"><span class="ic f">event</span>Rendez-vous</div>
+<div class="tgr"><span class="ic">event_available</span><div class="l"><div class="l1">Confirmation et modification</div><div class="l2">Quand un RDV est créé, déplacé ou annulé</div><div class="reqp"><span class="ic f">lock</span>Toujours activé</div></div><span class="tg on lock"></span></div>
+<div class="tgr"><span class="ic">alarm</span><div class="l"><div class="l1">Rappel 48 h avant</div></div><span class="tg on"></span></div>
+<div class="tgr"><span class="ic">alarm_on</span><div class="l"><div class="l1">Rappel 2 h avant</div></div><span class="tg on"></span></div>
+</div>
+
+<div class="blk">
+<div class="bh"><span class="ic f">medical_services</span>Mes soins</div>
+<div class="tgr"><span class="ic">chat_bubble</span><div class="l"><div class="l1">Messages du cabinet</div><div class="l2">Réponses de votre praticien ou du secrétariat</div></div><span class="tg on"></span></div>
+<div class="tgr"><span class="ic">folder</span><div class="l"><div class="l1">Nouveaux documents</div><div class="l2">Ordonnances, comptes-rendus, factures</div></div><span class="tg on"></span></div>
+<div class="tgr"><span class="ic">local_pharmacy</span><div class="l"><div class="l1">Suivi de commande pharmacie</div><div class="l2">Préparation, commande prête à retirer</div></div><span class="tg on"></span></div>
+</div>
+
+<div class="blk">
+<div class="bh"><span class="ic f">payments</span>Devis et paiements</div>
+<div class="tgr"><span class="ic">description</span><div class="l"><div class="l1">Nouveau devis à signer</div></div><span class="tg on"></span></div>
+<div class="tgr"><span class="ic">receipt_long</span><div class="l"><div class="l1">Rappel de paiement</div><div class="l2">Solde impayé au cabinet</div></div><span class="tg on"></span></div>
+</div>
+
+<div class="blk">
+<div class="bh"><span class="ic f">campaign</span>Le cabinet</div>
+<div class="tgr"><span class="ic">campaign</span><div class="l"><div class="l1">Actualités et prévention</div><div class="l2">Dépend de votre consentement marketing</div></div><span class="tg"></span></div>
+</div>
+
+<div class="info"><span class="ic f">shield</span><span class="t">Les notifications de rendez-vous ne peuvent pas être désactivées : elles vous informent d'un changement qui vous concerne directement. Vous pouvez en revanche choisir par quel canal les recevoir.</span></div>
+
+</div></div>
+</div>
+</div>
+
+</div>
+</div>
+
+<div class="notes">
+<div class="nk">App Patient · Notifications</div>
+<h2>Une notification qu'on ne peut ni trier, ni retrouver, ni ignorer</h2>
+<p class="lede">L'inbox est une <code>ListView.separated</code> de <code>ListTile</code> : icône, titre en gras si non lu, corps en sous-titre. <strong>Pas d'horodatage, pas de regroupement, pas de filtre.</strong> Une notification vieille de trois semaines s'affiche exactement comme celle de ce matin — et sur un produit qui notifie les rendez-vous, les messages, les documents, les devis et les cinq états d'une commande de pharmacie, la liste devient rapidement illisible.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Quand ? est la première question</div><div class="np">Aucun horodatage nulle part, alors que <code>AppNotification</code> en porte nécessairement un (la liste est triée). « 10:04 » et un regroupement par jour transforment une pile en journal — et <code>NubiaDate.relative()</code> existe déjà, écrite dans la messagerie.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Toucher marque comme lu <em>et</em> navigue</div><div class="np">Le <code>onTap</code> émet <code>NotificationMarkReadRequested</code> puis <code>context.go(deepLink)</code> — deux effets pour un geste. Un patient qui veut simplement <em>voir</em> ses notifications se retrouve déplacé dans l'app, et la notification qu'il lisait a disparu de sa liste de non-lus. L'action explicite est séparée du corps.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Cinq types, une seule apparence</div><div class="np">La table <code>_iconFor</code> distingue bien cinq types — mais toutes les icônes sortent dans la même couleur, primaire ou grise selon le statut de lecture. Un rendez-vous, un devis et une commande prête se ressemblent. Une pastille colorée par famille rend la liste scannable.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Aucun filtre</div><div class="np">« Où est ce devis dont on m'a parlé ? » n'a pas de réponse. Quatre facettes avec leur compte, calculables côté client depuis <code>state.notifications</code> — comme la file des commandes pharmacie le fait déjà.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">« Tout marquer comme lu » caché en haut à droite</div><div class="np">Un <code>TextButton</code> aligné à droite, sans icône, au-dessus de la liste — et qui disparaît dès qu'il n'y a plus de non-lus, donc dont on n'apprend jamais l'existence. Il rejoint l'en-tête, à côté du compteur.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">L'écran de préférences n'existe pas</div><div class="np">Le profil renvoie vers « Préférences notifications » et le tableau de bord porte deux bascules (e-mail, push) — mais l'écran de destination n'a pas d'équivalent lu dans le dépôt. Le second téléphone en propose la structure : <strong>par quel canal</strong> d'abord, <strong>pour quoi</strong> ensuite.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Certaines notifications ne se désactivent pas</div><div class="np">Prévenir d'un rendez-vous annulé n'est pas une option marketing : c'est une information dont le patient a besoin. La bascule est verrouillée et l'explique — mais le choix du canal reste ouvert.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Des heures calmes</div><div class="np">Un cabinet qui prépare son planning à 6 h du matin ne doit pas réveiller ses patients. Une plage horaire par défaut, avec une exception explicite pour les urgences.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">call_split</span>Deux résolveurs de liens profonds, deux vocabulaires</div>
+<div class="p">Le produit contient <strong>deux fonctions distinctes</strong> qui traduisent une notification en route, et elles ne parlent pas le même langage.</div>
+<div class="p"><code>NotificationDeepLinkHandler._resolveRoute(type, targetId)</code> travaille sur le <strong>type</strong> du push FCM et couvre neuf valeurs, dont cinq états de commande pharmacie (<code>order_received</code>, <code>pharmacy_order_ready</code>…). <code>_NotificationTile._resolveDeepLink(deepLink)</code> travaille sur une <strong>URL</strong> renvoyée par l'API et ne connaît qu'un cas particulier : la réécriture de <code>/appointments/&lt;id&gt;</code>.</div>
+<div class="p">Conséquence : une notification ouverte depuis un push et la même notification ouverte depuis l'inbox peuvent aboutir ailleurs. Et toute nouvelle famille de notification demande une modification <strong>aux deux endroits</strong> — avec un repli différent (<code>AppRouter.notifications</code> d'un côté, l'URL brute de l'autre). Une seule fonction, prenant l'objet notification complet, supprime la classe entière de divergences.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Trois décisions à conserver</div>
+<div class="p"><strong>La réécriture d'<code>/appointments/&lt;id&gt;</code> est documentée.</strong> Le commentaire explique que la route patient <code>/appointments</code> sert au <em>booking</em> et n'accepte pas d'identifiant, d'où la convention <code>mesRdv?id=</code> — déjà en place pour les push. Le raisonnement est écrit, pas seulement le code.</div>
+<div class="p"><strong>La résolution de route est pure et testable.</strong> <code>resolveRouteForTest</code> avec <code>@visibleForTesting</code> : la logique de navigation est vérifiable sans Firebase. C'est ce qui rend la fusion des deux résolveurs peu risquée.</div>
+<div class="p"><strong>L'absence de Firebase ne casse rien.</strong> Le <code>try/catch</code> silencieux autour de <code>getInitialMessage</code> est commenté (« Firebase not initialised — missing native config in dev/CI ») : l'app démarre en développement sans configuration native.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>Les cinq <code>NotificationType</code> et leur table d'icônes conservés — seule la couleur par famille s'ajoute.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>NotificationMarkReadRequested</code> et <code>NotificationMarkAllReadRequested</code> inchangés.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>La réécriture <code>/appointments/&lt;id&gt;</code> → <code>mesRdv?id=</code> est conservée, commentaire compris.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Les neuf types de push et leurs routes (dont les cinq états de commande) restent couverts.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Le repli sur <code>AppRouter.notifications</code> pour un type inconnu est conservé.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>NubiaEmptyState</code> repris mot pour mot (« Aucune notification · Vous êtes à jour »).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>notifications_loading</code>, <code>notifications_error</code>, <code>notifications_empty</code>, <code>notifications_list</code>, <code>notif_&lt;id&gt;</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>⚠️ L'écran de préférences est une <strong>proposition</strong> : aucun fichier correspondant n'a été lu dans le dépôt, sa structure est à confronter à l'API de préférences existante (<code>notifPrefs</code> du profil).</span></li>
+</ul></div>
+</div>
+</div></body></html>

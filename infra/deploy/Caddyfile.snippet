@@ -29,6 +29,14 @@ pharmacie.nubia.example.com {
     reverse_proxy 192.168.1.100:8084
 }
 
+# App infirmière — soins à domicile « type Uber » (ex. réel : infirmiere.doc.nubia-link.com).
+# ⚠️ Le DNS *.doc.nubia-link.com est un wildcard : le sous-domaine résout DÉJÀ. C'est
+# l'absence de ce bloc qui fait échouer le handshake TLS (Caddy n'a pas de cert pour un
+# hôte qu'il ne connaît pas) — même cause que `reservation` resté injoignable (#5628/#5632).
+infirmiere.nubia.example.com {
+    reverse_proxy 192.168.1.100:8085
+}
+
 # Back-office Astro (SSR)
 console.nubia.example.com {
     reverse_proxy 192.168.1.100:4321

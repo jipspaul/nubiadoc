@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Patient — Passeport implantaire v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:14px}
+.phones{display:flex;gap:36px;align-items:flex-start}
+.ph{width:390px;flex:0 0 390px}
+.phl{font-size:12.5px;font-weight:600;color:var(--n600);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.phl .n{width:20px;height:20px;border-radius:6px;background:var(--n900);color:#fff;font-size:10.5px;display:grid;place-items:center}
+.screen{width:390px;height:990px;flex:0 0 auto;background:var(--n50);border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 26px 60px -22px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09)}
+.screen.tall{height:1265px}
+.sbar{height:50px;flex:0 0 50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 7px;font-size:14px;font-weight:600;background:var(--n0)}
+.sbar .r{display:flex;gap:5px;align-items:center}
+.sbar .r .ic{font-size:16px}
+.hd{background:var(--n0);padding:6px 20px 14px;border-bottom:1px solid var(--n200)}
+.hd .row{display:flex;align-items:center;gap:12px}
+.hd .bk{width:36px;height:36px;flex:0 0 36px;border-radius:50%;background:var(--n100);display:grid;place-items:center;color:var(--n700)}
+.hd .bk .ic{font-size:20px}
+.hd h1{font-size:21px;font-weight:600;letter-spacing:-.4px}
+.hd .sb{font-size:12.5px;color:var(--n500);margin-top:2px}
+.body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.scroll{flex:1;overflow:hidden;padding:14px 20px 18px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.mut{background:var(--n100);color:var(--n500)}.pill.info{background:var(--infoBg);color:var(--infoFg)}
+/* intro */
+.intro{background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:14px;display:flex;gap:11px;margin-bottom:14px}
+.intro .ic{font-size:20px;color:var(--brand700);flex:0 0 20px;margin-top:1px}
+.intro .t{font-size:12.5px;line-height:18px;color:var(--n700)}
+.intro .t b{font-weight:600;color:var(--n900)}
+.gh{font-size:11.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);padding:4px 2px 9px;display:flex;align-items:center}
+.gh .n{margin-left:auto;font-weight:500;letter-spacing:0;text-transform:none;font-size:11.5px;color:var(--n500)}
+/* implant card */
+.ic2{background:var(--n0);border:1px solid var(--n200);border-radius:16px;padding:15px;margin-bottom:11px}
+.ic2 .r1{display:flex;align-items:center;gap:12px}
+.ic2 .th{width:46px;height:46px;flex:0 0 46px;border-radius:13px;background:var(--brand50);border:1px solid var(--brand100);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--brand800)}
+.ic2 .th .n2{font-size:15px;font-weight:700;line-height:16px}
+.ic2 .th .l2{font-size:8.5px;font-weight:600;letter-spacing:.3px;opacity:.7}
+.ic2 .nm{font-size:16px;font-weight:600;letter-spacing:-.2px}
+.ic2 .br{font-size:12.5px;color:var(--n500);margin-top:2px}
+.ic2 .kv{display:flex;align-items:baseline;gap:10px;padding:6px 0;font-size:12.5px;border-top:1px solid var(--n100)}
+.ic2 .kv:first-of-type{margin-top:11px}
+.ic2 .kv .k{width:96px;flex:0 0 96px;color:var(--n500)}
+.ic2 .kv .v{flex:1;min-width:0;font-weight:500}
+.ic2 .kv .v.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.ic2 .go{display:flex;align-items:center;justify-content:center;gap:6px;height:38px;border:1px solid var(--n200);border-radius:11px;margin-top:11px;font-size:13px;font-weight:500;color:var(--brand700)}
+.ic2 .go .ic{font-size:16px}
+/* export */
+.exp{background:var(--n0);border:1px solid var(--n200);border-radius:16px;padding:15px;margin-top:4px}
+.exp .t1{font-size:14.5px;font-weight:600}
+.exp .t2{font-size:12.5px;line-height:18px;color:var(--n600);margin-top:5px}
+.exp .b{height:46px;border-radius:12px;background:var(--brand700);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14.5px;font-weight:500;margin-top:12px}
+.exp .b .ic{font-size:19px}
+.info{display:flex;gap:9px;background:var(--n0);border:1px solid var(--n200);border-radius:12px;padding:11px 12px;margin-top:12px}
+.info .ic{font-size:17px;color:var(--n400);flex:0 0 17px;margin-top:1px}
+.info .t{font-size:11.5px;line-height:17px;color:var(--n500)}
+/* detail hero */
+.hero{background:var(--n0);border:1px solid var(--n200);border-radius:18px;padding:18px;margin-bottom:14px;text-align:center}
+.hero .th2{width:64px;height:64px;margin:0 auto;border-radius:18px;background:var(--brand50);border:1px solid var(--brand100);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--brand800)}
+.hero .th2 .n2{font-size:21px;font-weight:700;line-height:22px}
+.hero .th2 .l2{font-size:9px;font-weight:600;letter-spacing:.3px;opacity:.7}
+.hero .nm{font-size:19px;font-weight:600;letter-spacing:-.3px;margin-top:11px}
+.hero .br{font-size:13px;color:var(--n600);margin-top:3px}
+.hero .pl{margin-top:10px}
+.blk{background:var(--n0);border:1px solid var(--n200);border-radius:16px;overflow:hidden;margin-bottom:12px}
+.bh{padding:12px 14px;border-bottom:1px solid var(--n100);font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.bh .ic{font-size:17px;color:var(--n500)}
+.kv2{display:flex;align-items:baseline;gap:10px;padding:9px 14px;border-bottom:1px solid var(--n100);font-size:13px}
+.kv2:last-child{border-bottom:0}
+.kv2 .k{width:104px;flex:0 0 104px;color:var(--n500)}
+.kv2 .v{flex:1;min-width:0;font-weight:500}
+.kv2 .v.mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+.alert{display:flex;gap:11px;background:var(--infoBg);border:1px solid #A5F3FC;border-radius:14px;padding:14px;margin-bottom:12px}
+.alert .ic{font-size:21px;color:var(--infoFg);flex:0 0 21px;margin-top:1px}
+.alert .t1{font-size:14px;font-weight:600;color:#155E75}
+.alert .t2{font-size:12.5px;line-height:18px;color:#155E75;margin-top:4px}
+.acts{display:flex;flex-direction:column;gap:9px;margin-top:2px}
+.ab{height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14.5px;font-weight:500}
+.ab .ic{font-size:19px}
+.ab.p{background:var(--brand700);color:#fff}
+.ab.s{background:var(--n0);border:1px solid var(--n200);color:var(--n900);height:42px;font-size:13.5px}
+.ab.s .ic{color:var(--n500)}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Patient · Mobile 390 — passeport implantaire</div>
+<div class="phones">
+
+<div class="ph">
+<div class="phl"><span class="n">1</span>Mes implants</div>
+<div class="screen" data-screen-label="Patient · Passeport implantaire">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="row"><div class="bk"><span class="ic">arrow_back</span></div><div><h1>Passeport implantaire</h1><div class="sb">2 implants enregistrés</div></div></div></div>
+<div class="body"><div class="scroll">
+
+<div class="intro"><span class="ic f">badge</span><span class="t"><b>Un document à conserver à vie.</b> Il identifie les dispositifs posés dans votre bouche — à présenter à tout professionnel de santé, notamment avant une IRM ou en cas d'urgence.</span></div>
+
+<div class="gh">Implants posés<span class="n">2</span></div>
+
+<div class="ic2">
+<div class="r1"><div class="th"><span class="n2">36</span><span class="l2">FDI</span></div>
+<div style="min-width:0;flex:1"><div class="nm">Molaire inférieure gauche</div><div class="br">Nobel Biocare · Replace Select</div></div></div>
+<div class="kv"><span class="k">Posé le</span><span class="v">12 mars 2026</span></div>
+<div class="kv"><span class="k">N° de lot</span><span class="v mono">NB-4471-22A</span></div>
+<div class="kv"><span class="k">Praticien</span><span class="v">Dr Marc Lefèvre</span></div>
+<div class="go"><span class="ic">chevron_right</span>Voir la fiche complète</div>
+</div>
+
+<div class="ic2">
+<div class="r1"><div class="th"><span class="n2">26</span><span class="l2">FDI</span></div>
+<div style="min-width:0;flex:1"><div class="nm">Molaire supérieure gauche</div><div class="br">Straumann · BLT Roxolid</div></div></div>
+<div class="kv"><span class="k">Posé le</span><span class="v">4 juillet 2026</span></div>
+<div class="kv"><span class="k">N° de lot</span><span class="v mono">ST-9021-07C</span></div>
+<div class="kv"><span class="k">Praticien</span><span class="v">Dr Amélie Rousseau</span></div>
+<div class="go"><span class="ic">chevron_right</span>Voir la fiche complète</div>
+</div>
+
+<div class="exp">
+<div class="t1">Emporter mon passeport</div>
+<div class="t2">Un PDF officiel reprenant vos deux implants, leurs références et leurs numéros de lot.</div>
+<div class="b"><span class="ic">picture_as_pdf</span>Exporter en PDF</div>
+</div>
+
+<div class="info"><span class="ic f">verified_user</span><span class="t">La traçabilité des dispositifs médicaux implantables est une obligation légale : votre praticien conserve ces informations, et vous en avez une copie permanente.</span></div>
+
+</div></div>
+</div>
+</div>
+
+<div class="ph">
+<div class="phl"><span class="n">2</span>Fiche d'un implant</div>
+<div class="screen tall" data-screen-label="Patient · Détail d'un implant">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="row"><div class="bk"><span class="ic">arrow_back</span></div><div><h1>Implant · dent 36</h1><div class="sb">Posé le 12 mars 2026</div></div></div></div>
+<div class="body"><div class="scroll">
+
+<div class="hero">
+<div class="th2"><span class="n2">36</span><span class="l2">FDI</span></div>
+<div class="nm">Molaire inférieure gauche</div>
+<div class="br">Nobel Biocare · Replace Select</div>
+<div class="pl"><span class="pill ok"><span class="ic f">check_circle</span>En place depuis 5 mois</span></div>
+</div>
+
+<div class="alert"><span class="ic f">health_and_safety</span><div><div class="t1">Compatible IRM sous conditions</div><div class="t2">Titane grade 4. Signalez cet implant avant tout examen d'imagerie — présentez cette fiche au radiologue.</div></div></div>
+
+<div class="blk">
+<div class="bh"><span class="ic f">inventory_2</span>Identification du dispositif</div>
+<div class="kv2"><span class="k">Fabricant</span><span class="v">Nobel Biocare</span></div>
+<div class="kv2"><span class="k">Modèle</span><span class="v">Replace Select Tapered</span></div>
+<div class="kv2"><span class="k">Référence</span><span class="v mono">36214</span></div>
+<div class="kv2"><span class="k">N° de lot</span><span class="v mono">NB-4471-22A</span></div>
+<div class="kv2"><span class="k">Dimensions</span><span class="v">Ø 4,3 mm · L 11,5 mm</span></div>
+<div class="kv2"><span class="k">Matériau</span><span class="v">Titane grade 4</span></div>
+</div>
+
+<div class="blk">
+<div class="bh"><span class="ic f">medical_services</span>Pose</div>
+<div class="kv2"><span class="k">Date</span><span class="v">12 mars 2026</span></div>
+<div class="kv2"><span class="k">Praticien</span><span class="v">Dr Marc Lefèvre</span></div>
+<div class="kv2"><span class="k">Cabinet</span><span class="v">Nubia Opéra, Paris 2<sup>e</sup></span></div>
+<div class="kv2"><span class="k">Prothèse</span><span class="v">Couronne céramo-métallique</span></div>
+</div>
+
+<div class="blk">
+<div class="bh"><span class="ic f">event_repeat</span>Suivi recommandé</div>
+<div class="kv2"><span class="k">Dernier contrôle</span><span class="v">4 juillet 2026</span></div>
+<div class="kv2"><span class="k">Prochain</span><span class="v" style="color:var(--brand700)">Mars 2027 · annuel</span></div>
+</div>
+
+<div class="acts">
+<div class="ab p"><span class="ic">picture_as_pdf</span>Exporter cette fiche</div>
+<div class="ab s"><span class="ic">share</span>Partager avec un professionnel</div>
+</div>
+
+<div class="info"><span class="ic f">lock</span><span class="t">Ces informations viennent de votre dossier médical. Seul votre praticien peut les modifier.</span></div>
+
+</div></div>
+</div>
+</div>
+
+</div>
+</div>
+
+<div class="notes">
+<div class="nk">App Patient · Passeport implantaire</div>
+<h2>Un document légal réduit à trois lignes concaténées</h2>
+<p class="lede">Le passeport implantaire n'est pas une commodité : la <strong>traçabilité des dispositifs médicaux implantables est une obligation légale</strong>, et ce document suit le patient à vie — il est demandé avant une IRM, en cas d'urgence, ou par tout praticien qui reprend le suivi. L'écran actuel le rend en <code>ListTile</code> : la marque en titre, et tout le reste écrasé dans un sous-titre joint par des points médians.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">La dent, pas la marque</div><div class="np"><code>title: Text(implant.brand)</code> met « Nobel Biocare » en titre. Un patient ne cherche pas un fabricant : il cherche <em>quel implant, à quel endroit</em>. La position FDI devient le repère de tête, avec sa traduction en clair — « dent 36 · molaire inférieure gauche ».</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Trois informations dans une phrase</div><div class="np"><code>[position, date, lot].join(' · ')</code> produit une ligne unique en <code>bodySmall</code> gris, où le numéro de lot — l'information qui sert au rappel de lot d'un fabricant — se lit au milieu d'une phrase. Chaque champ devient une ligne étiquetée.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">L'écran ne dit pas ce qu'il est</div><div class="np">Ni titre explicatif, ni mention de l'obligation de traçabilité. Un patient qui ouvre « Passeport implantaire » depuis son profil ne sait pas pourquoi ce document existe ni quand le présenter. Deux phrases suffisent.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">L'information de sécurité manque</div><div class="np">La raison la plus fréquente de présenter un passeport implantaire est un <strong>examen d'imagerie</strong>. Matériau, compatibilité IRM, dimensions : ce sont les données qu'un radiologue demande, et elles ne figurent nulle part. C'est le manque le plus conséquent de cet écran.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Un état vide sans explication</div><div class="np">« Aucun implant enregistré » sans sous-titre. Le <code>NubiaEmptyState</code> accepte un <code>subtitle</code> — les autres écrans de l'app l'utilisent : « Vos implants apparaîtront ici après leur pose. »</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Partager, pas seulement exporter</div><div class="np">Exporter en PDF suppose que le patient sache quoi en faire. « Partager avec un professionnel » nomme l'usage réel — et l'export par implant, en plus de l'export global, évite de transmettre tout un historique pour une seule question.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Le suivi, absent</div><div class="np">Un implant se contrôle périodiquement. Dernier contrôle et prochain rendez-vous recommandé transforment un registre en outil de prévention — et donnent au cabinet une raison légitime de relancer.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Chargement, et erreur affichée deux fois</div><div class="np"><code>CircularProgressIndicator</code> centré ; et <code>ImplantPassportError</code> déclenche <strong>à la fois</strong> un snackbar (par le <code>listenWhen</code>) et un <code>NubiaErrorWidget</code> plein écran. Même motif que sur les travaux de laboratoire et les consentements.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">bug_report</span>Une date insérée sans formatage</div>
+<div class="p"><code>'Posé le ${implant.placementDate}'</code> interpole la valeur <strong>telle qu'elle arrive</strong>. Selon son type, le patient lit « Posé le 2026-03-12 » (chaîne ISO de l'API) ou, si c'est un <code>DateTime</code>, « Posé le 2026-03-12 00:00:00.000Z ». Dans les deux cas, ce n'est pas une date française — sur un document que le patient peut présenter à un radiologue.</div>
+<div class="p">C'est le pendant exact du problème des huit formats monétaires, et il se corrige avec la même fondation : <code>NubiaDate.dayLong()</code> rend « 12 mars 2026 », en heure locale. Le champ <code>toothPosition</code> mérite le même traitement : <code>'Position ${implant.toothPosition}'</code> affiche un numéro FDI brut, sans sa traduction anatomique.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Le contournement de l'export est correct — et documenté</div>
+<div class="p">Après <code>openDocumentUrl(state.exportUrl!)</code>, le code rappelle <code>load()</code> avec un commentaire explicite : « repasse par un état sans <code>exportUrl</code> pour éviter de rouvrir le lien à chaque rebuild ». C'est un vrai piège des <code>BlocListener</code> — une URL laissée dans l'état se rouvre à chaque reconstruction — et il est ici identifié, résolu et expliqué.</div>
+<div class="p">Le repli est également prévu : si <code>openDocumentUrl</code> renvoie <code>false</code>, un message le signale au lieu de laisser le patient devant un bouton sans effet. Ce niveau de soin sur un cas limite mérite d'être la norme du dépôt.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>Export PDF par <code>export()</code> puis <code>openDocumentUrl</code>, avec le rechargement qui purge <code>exportUrl</code> — conservé tel quel, commentaire compris.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Message d'échec d'ouverture (« Impossible d'ouvrir l'export. ») repris mot pour mot.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Les trois champs optionnels (<code>toothPosition</code>, <code>placementDate</code>, <code>lotNumber</code>) restent optionnels : une ligne absente ne s'affiche pas.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>NubiaErrorWidget</code> conserve son <code>onRetry</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Lecture seule : aucune action de modification n'est ajoutée — les données viennent du dossier médical.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>implant_passport_list</code>, <code>implant_passport_empty</code>, <code>implant_&lt;id&gt;</code>, <code>implant_passport_export_button</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Dates par <code>NubiaDate.dayLong()</code> (fondation 3) — la correction du formatage brut.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Champs à exposer : fabricant/modèle/référence distincts de <code>brand</code>, dimensions, matériau, compatibilité IRM, et la date du dernier contrôle.</span></li>
+</ul></div>
+</div>
+</div></body></html>

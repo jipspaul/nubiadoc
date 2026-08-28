@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Les questions ouvertes — arbitrages 1 à 3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.doc{width:1120px;margin:0 auto;background:var(--n0);border-radius:14px;box-shadow:0 30px 70px -24px rgba(28,25,23,.4),0 0 0 1px rgba(28,25,23,.08);padding:52px 56px 56px}
+.kick{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+h1{font-family:Fraunces,serif;font-size:38px;line-height:45px;font-weight:600;letter-spacing:-.8px;margin:11px 0 14px}
+.lede{font-size:15.5px;line-height:26px;color:var(--n600);max-width:860px}
+code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.meta{display:flex;gap:26px;margin-top:22px;padding:14px 16px;background:var(--n50);border:1px solid var(--n200);border-radius:11px;flex-wrap:wrap}
+.mi .k{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.mi .v{font-size:13.5px;font-weight:500;margin-top:3px}
+h2{font-family:Fraunces,serif;font-size:24px;line-height:31px;font-weight:600;letter-spacing:-.4px;margin:40px 0 6px;padding-top:24px;border-top:1px solid var(--n200);display:flex;align-items:baseline;gap:12px}
+h2 .who{font-family:Inter,sans-serif;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border-radius:6px;padding:4px 9px;margin-left:auto}
+.who.dpo{background:#EDE9FE;color:#6D28D9}
+.who.prod{background:var(--brand50);color:var(--brand800)}
+.who.back{background:var(--infoBg);color:var(--infoFg)}
+h2 .n{font-family:Inter,sans-serif;font-size:12px;font-weight:600;color:var(--n400)}
+.sub{font-size:14px;line-height:22px;color:var(--n600);margin-bottom:6px;max-width:900px}
+table{width:100%;border-collapse:collapse;margin:14px 0 6px;font-size:13.5px}
+th{text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);padding:0 12px 8px 0;border-bottom:1.5px solid var(--n300);vertical-align:bottom}
+td{padding:12px 12px 12px 0;border-bottom:1px solid var(--n100);vertical-align:top;line-height:20px}
+td.num{width:34px;padding-right:0}
+td.num span{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600}
+td .q{font-size:14.5px;font-weight:600;line-height:21px}
+td .why{font-size:13px;line-height:19px;color:var(--n600);margin-top:4px}
+td .why b{font-weight:600;color:var(--n900)}
+td.rec{width:250px}
+.rc{font-size:13px;line-height:19px;color:var(--brand800);background:var(--brand50);border:1px solid var(--brand200);border-radius:9px;padding:9px 10px}
+.rc .h{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--brand700);margin-bottom:4px}
+.none{font-size:12.5px;line-height:19px;color:var(--n500);background:var(--n50);border:1px dashed var(--n300);border-radius:9px;padding:9px 10px}
+.none .h{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);margin-bottom:4px}
+td.dec{width:104px}
+.box{border:1px dashed var(--n300);border-radius:6px;height:44px;width:100%;background:var(--n50)}
+.imp{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;border-radius:5px;padding:2px 7px;margin-bottom:6px}
+.imp .ic{font-size:12px}
+.imp.h{background:var(--dangBg);color:var(--dangFg)}
+.imp.m{background:var(--warnBg);color:var(--warnFg)}
+.warn{display:flex;gap:12px;background:var(--warnBg);border:1px solid #FDE68A;border-radius:12px;padding:15px 16px;margin:20px 0 0}
+.warn .ic{font-size:21px;color:var(--warnFg);flex:0 0 21px;margin-top:1px}
+.warn .t{font-size:14px;line-height:22px;color:#78350F}
+.warn .t b{font-weight:600}
+.foot{margin-top:40px;padding-top:24px;border-top:1px solid var(--n200)}
+.foot h3{font-family:Fraunces,serif;font-size:20px;font-weight:600;letter-spacing:-.3px;margin-bottom:10px}
+.foot p{font-size:14px;line-height:22px;color:var(--n600);max-width:900px;margin-bottom:10px}
+.foot p b{font-weight:600;color:var(--n900)}
+.sign{margin-top:28px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+.sign .f{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);margin-bottom:8px}
+.sign .l{height:34px;border-bottom:1px solid var(--n300)}
+</style></head>
+<body><div class="doc" data-screen-label="Les 13 questions ouvertes">
+
+<div class="kick">Écosystème Nubia · Vague 3 · Récapitulatif des arbitrages</div>
+<h1>Les treize questions à trancher</h1>
+<p class="lede">Toutes les questions ouvertes des trois arbitrages, en un seul document. Chacune porte ce qui est en jeu, ma recommandation quand j'en ai une — et une case pour votre décision. Aucune ne peut être tranchée par le design : ce sont des questions de droit, de responsabilité ou de stratégie produit.</p>
+
+<div class="meta">
+<div class="mi"><div class="k">Questions</div><div class="v">13 · dont 5 sans recommandation</div></div>
+<div class="mi"><div class="k">DPO / juridique</div><div class="v">10 questions (arbitrages 1 et 2)</div></div>
+<div class="mi"><div class="k">Produit</div><div class="v">3 questions (arbitrage 3)</div></div>
+<div class="mi"><div class="k">Hors des 13</div><div class="v">1 vérification back, immédiate</div></div>
+<div class="mi"><div class="k">Détail par sujet</div><div class="v">Arbitrages 1, 2 et 3</div></div>
+</div>
+
+<h2><span class="n">Arbitrage 1</span> Bases légales des consentements <span class="who dpo">DPO</span></h2>
+<p class="sub">Six finalités s'affichent comme six bascules équivalentes. Le RGPD n'admet le consentement que s'il est <b>libre</b> : un consentement dont le refus empêche d'accéder au service est une autre base légale mal étiquetée.</p>
+
+<table>
+<thead><tr><th class="num"></th><th>Question</th><th class="rec">Ma recommandation</th><th class="dec">Décision</th></tr></thead>
+<tbody>
+
+<tr>
+<td class="num"><span>1</span></td>
+<td><div class="imp h"><span class="ic f">priority_high</span>Bloque la refonte</div>
+<div class="q">« Soins » et « Traitement de mes données de santé » relèvent-ils du consentement ?</div>
+<div class="why">Si un patient qui les refuse s'attend malgré tout à être soigné, la bascule ment. <b>Elles conditionnent la structure entière de l'écran.</b></div></td>
+<td><div class="rc"><div class="h">Recommandation</div>Non — mission de soins et exécution du contrat. Section verrouillée, base légale énoncée en clair.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+<tr>
+<td class="num"><span>2</span></td>
+<td><div class="q">« Partage avec un confrère » : équipe de soins ou hors équipe ?</div>
+<div class="why">Les deux régimes diffèrent. Si les deux cas coexistent, une seule bascule ne peut pas les représenter — il en faut deux, ou une reformulation.</div></td>
+<td><div class="none"><div class="h">Aucune</div>Je ne peux pas trancher : la réponse dépend de l'organisation réelle des cabinets clients.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+<tr>
+<td class="num"><span>3</span></td>
+<td><div class="q">Exposer l'historique des consentements au patient ?</div>
+<div class="why">La table d'audit existe (<code>0008_audit_consent.sql</code>) mais n'est consultable nulle part. La date fait partie de la preuve du consentement.</div></td>
+<td><div class="rc"><div class="h">Recommandation</div>Oui — une entrée « Historique de mes choix » : date, finalité, sens du changement.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+<tr>
+<td class="num"><span>4</span></td>
+<td><div class="q">Versionner le texte affiché avec chaque octroi ?</div>
+<div class="why">Prouver un consentement, c'est prouver <b>ce que la personne a lu</b>. Si une formulation change, les consentements antérieurs portent sur l'ancienne.</div></td>
+<td><div class="rc"><div class="h">Recommandation</div>Oui — stocker un identifiant de version de libellé à côté de chaque octroi.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+<tr>
+<td class="num"><span>5</span></td>
+<td><div class="q">Qui est responsable de traitement — le cabinet, l'éditeur, ou les deux ?</div>
+<div class="why">Détermine les mentions obligatoires en pied d'écran et le contact du DPO à afficher.</div></td>
+<td><div class="none"><div class="h">Aucune</div>La maquette suppose « Cabinet responsable, hébergement HDS en France » — à confirmer, pas à deviner.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+</tbody></table>
+
+<h2><span class="n">Arbitrage 2</span> Majorité des proches mineurs <span class="who dpo">DPO + juridique</span></h2>
+<p class="sub">À dix-huit ans, l'accès du parent au dossier de son enfant doit cesser. Aucun mécanisme du produit ne déclenche cette bascule, et l'écran traite l'enfant, le conjoint et « autre » avec les mêmes droits.</p>
+
+<table>
+<thead><tr><th class="num"></th><th>Question</th><th class="rec">Ma recommandation</th><th class="dec">Décision</th></tr></thead>
+<tbody>
+
+<tr>
+<td class="num"><span>6</span></td>
+<td><div class="imp h"><span class="ic f">priority_high</span>Conformité</div>
+<div class="q">Quel mécanisme à 18 ans : coupure sèche, préavis puis coupure, ou transfert de compte ?</div>
+<div class="why">La coupure silencieuse est correcte juridiquement et mauvaise en pratique : elle produit un appel au cabinet à chaque anniversaire, sans explication à donner.</div></td>
+<td><div class="rc"><div class="h">Recommandation</div>Préavis d'un mois, puis coupure. Le transfert de compte reste la bonne cible, mais après.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+<tr>
+<td class="num"><span>7</span></td>
+<td><div class="imp h"><span class="ic f">priority_high</span>Découvert en écrivant</div>
+<div class="q">Faut-il l'accord du conjoint avant de gérer son compte ?</div>
+<div class="why">Aujourd'hui : prénom, nom, lien — et l'on gère le dossier de santé d'un adulte. Aucune preuve d'accord. <b>Ce point n'était pas dans l'audit initial et me semble au moins aussi sérieux que la majorité.</b></div></td>
+<td><div class="rc"><div class="h">Recommandation</div>Oui — l'ajout d'un conjoint devient une <b>invitation à accepter</b>, pas une saisie. Cela change l'écran et le parcours.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+<tr>
+<td class="num"><span>8</span></td>
+<td><div class="q">Que fait-on des proches dont la date de naissance est inconnue ?</div>
+<div class="why">Le champ existe dans <code>AddDependentUseCase</code> mais reste optionnel, et tous les proches déjà en base ont une date nulle. Sans date, aucune bascule.</div></td>
+<td><div class="rc"><div class="h">Recommandation</div>Demander la date au cabinet, qui l'a déjà au dossier ; ne solliciter le parent qu'en dernier recours.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+<tr>
+<td class="num"><span>9</span></td>
+<td><div class="q">Que devient l'historique déjà consulté par le parent ?</div>
+<div class="why">Il a légitimement vu les documents de son enfant mineur. En conserve-t-il une copie, ou tout accès cesse-t-il rétroactivement ?</div></td>
+<td><div class="none"><div class="h">Aucune</div>Les deux réponses se défendent : la seconde est plus stricte, la première plus proche de l'usage papier.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+<tr>
+<td class="num"><span>10</span></td>
+<td><div class="q">Le seuil est-il 18 ans sans exception ?</div>
+<div class="why">Majeurs protégés (tutelle, curatelle), mineurs pouvant s'opposer à l'accès parental sur certaines informations.</div></td>
+<td><div class="none"><div class="h">Aucune</div>Question de droit pur. À défaut, les traiter hors application dans un premier temps.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+</tbody></table>
+
+<h2><span class="n">Arbitrage 3</span> Architecture d'information du Secrétariat <span class="who prod">Produit</span></h2>
+<p class="sub">Le routeur déclare 17 destinations de premier niveau sans hiérarchie, dont deux écrans sans rapport aux noms quasi identiques.</p>
+
+<table>
+<thead><tr><th class="num"></th><th>Question</th><th class="rec">Ma recommandation</th><th class="dec">Décision</th></tr></thead>
+<tbody>
+
+<tr>
+<td class="num"><span>11</span></td>
+<td><div class="imp h"><span class="ic f">priority_high</span>Bloque un écran</div>
+<div class="q">Que devient le tableau de bord ?</div>
+<div class="why">Il paraphrase ses propres chiffres en prose, avec un indice qui renvoie explicitement à l'agenda (« Consultez l'agenda du cabinet pour le détail »). <b>Un écran qui dit « consultez l'agenda » ne mérite pas d'être la page d'accueil.</b></div></td>
+<td><div class="rc"><div class="h">Recommandation</div>Supprimer les deux panneaux de paraphrase et en faire une vraie file de travail — ou le fusionner dans l'agenda.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+<tr>
+<td class="num"><span>12</span></td>
+<td><div class="q">Quels rôles existent réellement dans <code>ProAuthCubit</code> ?</div>
+<div class="why">Le groupe « Réglages » doit se réduire — voire disparaître — selon le rôle. <code>/admin-membres</code> et <code>/admin-secretariats</code> supposent un rôle administrateur.</div></td>
+<td><div class="none"><div class="h">Aucune</div>Question factuelle : je n'ai pas lu le fichier. La réponse détermine le filtrage.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+<tr>
+<td class="num"><span>13</span></td>
+<td><div class="imp m"><span class="ic f">schedule</span>Validation simple</div>
+<div class="q">Valider le renommage de <code>/liste-attente</code> ?</div>
+<div class="why">« Salle d'attente » et « Liste d'attente » diffèrent d'un mot et désignent deux choses sans rapport — qui est physiquement présent, contre qui cherche un créneau. Aucune formation ne rattrape une ambiguïté de vocabulaire.</div></td>
+<td><div class="rc"><div class="h">Recommandation</div>« Demandes de créneau ». Renommage de libellé et de route, sans impact fonctionnel.</div></td>
+<td><div class="box"></div></td>
+</tr>
+
+</tbody></table>
+
+<div class="warn"><span class="ic f">bolt</span><div class="t"><b>Une seule chose n'attend personne.</b> Vérifier en une requête si <code>POST /consents</code> accepte aujourd'hui de mettre <code>soins</code> à <code>false</code>, et quel effet cela produit. Si l'appel réussit sans rien changer, l'interface promet un droit qui n'est pas exécuté — et cette réponse éclaire directement la question 1.</div></div>
+
+<div class="foot">
+<h3>Ce qui n'attend aucune de ces treize réponses</h3>
+<p>Les <b>21 autres champs</b> du contrat de données, les <b>trois fondations partagées</b> (<code>nubia_core</code>, <code>nubia_messaging</code>, états d'écran), les <b>neuf correctifs immédiats</b> et les <b>sept correctifs</b> déjà appliqués suite aux arbitrages. La première vague de travail est purement technique et peut démarrer sans vous.</p>
+<p>En pratique : <b>quatre questions</b> sur treize bloquent réellement un écran (1, 6, 7, 11). Les neuf autres affinent, sécurisent ou complètent — elles peuvent suivre.</p>
+
+<div class="sign">
+<div><div class="f">DPO / juridique</div><div class="l"></div></div>
+<div><div class="f">Produit</div><div class="l"></div></div>
+<div><div class="f">Date</div><div class="l"></div></div>
+</div>
+</div>
+
+</div></body></html>

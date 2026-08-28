@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nubia Pro — Comparatif V1 / V2 par user story</title>
+<link rel="stylesheet" href="lib/tokens.css" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #f0eee9; }
+  #theme-bar {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 300; display: flex; align-items: center; gap: 14px;
+    background: rgba(255,255,255,0.9); backdrop-filter: blur(12px);
+    border: 1px solid rgba(0,0,0,0.07); border-radius: 999px;
+    padding: 7px 8px 7px 16px; box-shadow: 0 4px 20px rgba(28,25,23,0.10);
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  #theme-bar .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; color: #1C1917; }
+  #theme-bar .dot { width: 18px; height: 18px; border-radius: 50%; background: #047857; display: inline-flex; align-items: center; justify-content: center; }
+  #theme-bar .seg { display: flex; gap: 2px; background: #F5F5F4; border-radius: 999px; padding: 3px; }
+  #theme-bar .seg button { border: none; background: transparent; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 500; color: #78716C; padding: 6px 14px; border-radius: 999px; transition: all .15s; }
+  #theme-bar .seg button.on { background: #fff; color: #1C1917; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .winctl:hover { background: var(--primary-subtle-bg) !important; color: var(--primary) !important; }
+  .winctl-x:hover { background: var(--danger-bg) !important; color: var(--danger-fg) !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="lib/components.jsx"></script>
+<script type="text/babel" src="lib/bo-components.jsx"></script>
+<script type="text/babel" src="lib/bo-secr-dash.jsx"></script>
+<script type="text/babel" src="lib/bo-secr-screens.jsx"></script>
+<script type="text/babel" src="lib/bo-praticien.jsx"></script>
+<script type="text/babel" src="lib/bo-praticien-core.jsx"></script>
+<script type="text/babel" src="lib/spotlight-components.jsx"></script>
+<script type="text/babel" src="lib/spotlight-ui.jsx"></script>
+
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+const FW = 1200, FH = 752, AW = 1248, AH = 800;
+
+// Lazy frame — only mount the (heavy) screen when it is near the viewport,
+// and unmount when it scrolls far away. Caps the number of live back-office
+// screens to a handful instead of mounting all ~60 at once.
+function Frame({ children }) {
+  const ref = useRef(null);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') { setShow(true); return; }
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) setShow(e.isIntersecting);
+    }, { rootMargin: '400px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div style={{ width: AW, height: AH, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div ref={ref} style={{ width: FW, height: FH, borderRadius: 14, overflow: 'hidden', background: '#fff', position: 'relative',
+        boxShadow: '0 30px 90px rgba(28,25,23,0.28), 0 0 0 1px rgba(0,0,0,0.06)' }}>
+        {show ? children : (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFAF9' }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#047857" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+const A = (id, label, node) => (
+  <DCArtboard id={id} label={label} width={AW} height={AH} style={{ background: 'transparent', boxShadow: 'none' }}>
+    <Frame>{node}</Frame>
+  </DCArtboard>
+);
+
+// V1 "no direct equivalent" filler for the assistant story
+function NoEquiv({ dark }) {
+  return (
+    <div className={'nubia' + (dark ? ' nubia-dark' : '')} style={{ height: '100%', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60 }}>
+      <div style={{ maxWidth: 420, textAlign: 'center' }}>
+        <div style={{ width: 52, height: 52, borderRadius: 13, background: 'var(--n-100)', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+          <Icon name="search" size={26} stroke={2} /></div>
+        <div style={{ font: "600 18px/1.4 'Inter'", color: 'var(--text-primary)' }}>Pas d'équivalent direct en V1</div>
+        <div style={{ font: "400 14px/1.6 'Inter'", color: 'var(--text-secondary)', marginTop: 8 }}>
+          Pour obtenir cette synthèse, la secrétaire doit naviguer manuellement : Tableau de bord → Devis → Fiche patient,
+          puis recouper les informations. La V2 répond en une phrase.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [dark, setDark] = useState(false);
+  return (
+    <React.Fragment>
+      <div id="theme-bar">
+        <span className="brand"><span className="dot"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg></span>Nubia</span>
+        <div className="seg">
+          <button className={!dark ? 'on' : ''} onClick={() => setDark(false)}>Clair</button>
+          <button className={dark ? 'on' : ''} onClick={() => setDark(true)}>Sombre</button>
+        </div>
+      </div>
+
+      <DesignCanvas>
+        <DCSection id="us-intro" title="Comparatif par user story" subtitle="Version 1 — Back-office classique · Version 2 — Spotlight. Mêmes besoins, deux paradigmes, côte à côte.">
+          <DCArtboard id="legend" label="Légende" width={560} height={AH} style={{ background: 'transparent', boxShadow: 'none' }}>
+            <div className="nubia" style={{ width: 560, height: AH, background: '#fff', borderRadius: 14, boxShadow: '0 30px 90px rgba(28,25,23,0.18)', padding: '48px 44px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ font: "600 24px/1.3 'Inter'", color: '#1C1917', textWrap: 'balance' }}>Deux versions du back-office, comparées sur les mêmes besoins.</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 26 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <span style={{ width: 38, height: 38, borderRadius: 9, background: '#ECFDF5', color: '#047857', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name="dashboard" size={20} stroke={2} /></span>
+                  <div><div style={{ font: "600 15px/1.2 'Inter'", color: '#1C1917' }}>Version 1 — Back-office classique</div><div style={{ font: "400 13px/1.4 'Inter'", color: '#78716C' }}>Sidebar, tableaux de bord, écrans dédiés.</div></div>
+                </div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <span style={{ width: 38, height: 38, borderRadius: 9, background: '#F3EAD7', color: '#876435', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name="search" size={20} stroke={2} /></span>
+                  <div><div style={{ font: "600 15px/1.2 'Inter'", color: '#1C1917' }}>Version 2 — Spotlight</div><div style={{ font: "400 13px/1.4 'Inter'", color: '#78716C' }}>Même contenu que la V1, sans la barre latérale. Plein écran par défaut, fenêtres redimensionnables, recherche + assistant.</div></div>
+                </div>
+              </div>
+              <div style={{ marginTop: 28, font: "400 13px/1.5 'Inter'", color: '#A8A29E' }}>Chaque ligne ci-dessous = une user story, vue dans les deux versions. Basculez clair / sombre en haut.</div>
+            </div>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="us0" title="Point d'entrée · Poser une question ou ouvrir une vue" subtitle="La force du produit : on tape directement sa question dans la barre. Le dock démarre vide.">
+          {A('us0-v1', 'Version 1 · Recherche dans la barre', <ScreenSecrAgenda dark={dark} />)}
+          {A('us0-v2', 'Version 2 · On pose la question directement', <SpotStatic dark={dark} mode="search" query="Combien ai-je encaissé aujourd'hui ?" sel={0} />)}
+        </DCSection>
+
+        <DCSection id="us1" title="US · Piloter l'activité du jour" subtitle="« En tant que secrétaire, je veux voir d'un coup d'œil ce qui se passe aujourd'hui. »">
+          {A('us1-v1', 'Version 1 · Tableau de bord (avec sidebar)', <ScreenSecrDashA dark={dark} />)}
+          {A('us1-v2', 'Version 2 · Plein écran (même contenu, sans sidebar)', <SpotStatic dark={dark} mode="full" view="dash" />)}
+          {A('us1-v2b', 'Version 2 · Réduit en fenêtre · plusieurs ouvertes', <SpotStatic dark={dark} mode="windows" view="dash" second="salle" />)}
+        </DCSection>
+
+        <DCSection id="us2" title="US · Suivre la salle d'attente en temps réel" subtitle="« En tant que praticien, je veux savoir qui attend et appeler le patient suivant. »">
+          {A('us2-v1', 'Version 1 · Salle d\'attente (avec sidebar)', <ScreenPratSalle dark={dark} />)}
+          {A('us2-v2', 'Version 2 · Plein écran', <SpotStatic dark={dark} mode="full" view="salle" />)}
+          {A('us2-v2b', 'Version 2 · Réduit · plusieurs fenêtres', <SpotStatic dark={dark} mode="windows" view="salle" second="agenda" />)}
+        </DCSection>
+
+        <DCSection id="us3" title="US · Estimer le reste à charge d'un devis" subtitle="« En tant que secrétaire, je veux suivre les devis et relancer les acomptes. »">
+          {A('us3-v1', 'Version 1 · Devis & paiements (avec sidebar)', <ScreenSecrDevis dark={dark} />)}
+          {A('us3-v2', 'Version 2 · Plein écran', <SpotStatic dark={dark} mode="full" view="devis" />)}
+          {A('us3-v2b', 'Version 2 · Réduit · plusieurs fenêtres', <SpotStatic dark={dark} mode="windows" view="devis" second="fiche" />)}
+        </DCSection>
+
+        <DCSection id="us4" title="US · Consulter une fiche patient" subtitle="« En tant que praticien, je veux ouvrir le dossier clinique d'un patient. »">
+          {A('us4-v1', 'Version 1 · Dossier clinique (avec sidebar)', <ScreenPratFiche dark={dark} />)}
+          {A('us4-v2', 'Version 2 · Plein écran', <SpotStatic dark={dark} mode="full" view="fiche" />)}
+          {A('us4-v2b', 'Version 2 · Réduit · plusieurs fenêtres', <SpotStatic dark={dark} mode="windows" view="fiche" second="agenda" />)}
+        </DCSection>
+
+        <DCSection id="us5" title="US · Obtenir une synthèse en langage naturel" subtitle="« Je veux poser une question et recevoir une réponse. » — différenciateur Spotlight.">
+          {A('us5-v1', 'Version 1 · Recherche manuelle', <NoEquiv dark={dark} />)}
+          {A('us5-v2', 'Version 2 · Demander à Nubia (plein écran)', <SpotStatic dark={dark} mode="full" view="assistant" />)}
+          {A('us5-v2b', 'Version 2 · Réduit · à côté d\'une autre vue', <SpotStatic dark={dark} mode="windows" view="assistant" second="dash" />)}
+        </DCSection>
+
+        {/* ═══════════════ ACTE PRATICIEN — le cœur de l'app ═══════════════ */}
+        <DCSection id="prat-intro" title="Praticien — le cœur de l'app" subtitle="Le parcours du praticien : piloter sa journée, gérer ses patients, soigner au fauteuil, planifier et prescrire. Chaque écran existe en V1 (back-office classique) et V2 (Spotlight).">
+          <DCArtboard id="prat-legend" label="Le parcours de soin" width={560} height={AH} style={{ background: 'transparent', boxShadow: 'none' }}>
+            <div className="nubia" style={{ width: 560, height: AH, background: '#fff', borderRadius: 14, boxShadow: '0 30px 90px rgba(28,25,23,0.18)', padding: '48px 44px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start', font: '600 11px/1 Inter', letterSpacing: 0.6, textTransform: 'uppercase', color: '#047857', background: '#ECFDF5', padding: '7px 12px', borderRadius: 999, marginBottom: 18 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#047857" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4v5a4 4 0 0 0 8 0V4M6 4H4M14 4h2M10 17v-3M10 17a4 4 0 0 0 8 0v-1M18 13a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></svg>
+                Praticien
+              </span>
+              <div style={{ font: "600 26px/1.25 'Inter'", color: '#1C1917', letterSpacing: -0.4, textWrap: 'balance' }}>Là où le praticien gère réellement ses patients.</div>
+              <div style={{ font: "400 14px/1.6 'Inter'", color: '#57534E', marginTop: 12 }}>De l'arrivée au fauteuil jusqu'à l'ordonnance : le contenu clinique vit ici, réservé au praticien. La V2 ouvre les mêmes écrans en plein écran ou côte à côte, sans barre latérale.</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 26 }}>
+                {[['dashboard','Piloter ma journée clinique'],['users','Gérer mes patients'],['stethoscope','Soigner au fauteuil — le cœur'],['document','Construire un plan & un devis'],['pill','Prescrire en sécurité']].map((r,i)=>(
+                  <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <span style={{ width: 34, height: 34, borderRadius: 9, background: '#ECFDF5', color: '#047857', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name={r[0]} size={18} stroke={2} /></span>
+                    <span style={{ font: "500 15px/1.3 'Inter'", color: '#1C1917' }}>{r[1]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="prat1" title="US · Piloter ma journée clinique" subtitle="« En tant que praticien, je veux mon agenda, mon patient suivant et ce que je dois valider, d'un coup d'œil. »">
+          {A('prat1-v1', 'Version 1 · Tableau de bord praticien (avec sidebar)', <ScreenPratDashboard dark={dark} />)}
+          {A('prat1-v2', 'Version 2 · Plein écran (même contenu, sans sidebar)', <SpotStatic dark={dark} mode="full" view="pratdash" />)}
+          {A('prat1-v2b', 'Version 2 · Réduit · à côté de la salle d\'attente', <SpotStatic dark={dark} mode="windows" view="pratdash" second="salle" />)}
+        </DCSection>
+
+        <DCSection id="prat2" title="US · Gérer mes patients" subtitle="« Je veux retrouver mes dossiers : traitements en cours, prochains RDV, soldes, alertes. »">
+          {A('prat2-v1', 'Version 1 · Mes patients (avec sidebar)', <ScreenPratPatients dark={dark} />)}
+          {A('prat2-v2', 'Version 2 · Plein écran', <SpotStatic dark={dark} mode="full" view="patients" />)}
+          {A('prat2-v2b', 'Version 2 · Réduit · à côté d\'une fiche', <SpotStatic dark={dark} mode="windows" view="patients" second="fiche" />)}
+        </DCSection>
+
+        <DCSection id="prat3" title="US · Soigner au fauteuil — le cœur de l'app" subtitle="« Pendant le soin, je veux le contexte clinique, je saisis mes actes et ma note, et j'enchaîne (ordonnance, étape suivante, facturation). »">
+          {A('prat3-v1', 'Version 1 · Consultation en cours (avec sidebar)', <ScreenPratConsultation dark={dark} />)}
+          {A('prat3-v2', 'Version 2 · Plein écran', <SpotStatic dark={dark} mode="full" view="consult" />)}
+          {A('prat3-v2b', 'Version 2 · Réduit · le dossier ouvert à côté', <SpotStatic dark={dark} mode="windows" view="consult" second="fiche" />)}
+        </DCSection>
+
+        <DCSection id="prat4" title="US · Construire un plan de traitement & un devis" subtitle="« Je structure les soins en phases, je chiffre, j'estime le reste à charge, j'envoie le devis. »">
+          {A('prat4-v1', 'Version 1 · Plan de traitement (avec sidebar)', <ScreenPratPlan dark={dark} />)}
+          {A('prat4-v2', 'Version 2 · Plein écran', <SpotStatic dark={dark} mode="full" view="plan" />)}
+          {A('prat4-v2b', 'Version 2 · Réduit · à côté du dossier', <SpotStatic dark={dark} mode="windows" view="plan" second="fiche" />)}
+        </DCSection>
+
+        <DCSection id="prat5" title="US · Prescrire une ordonnance en sécurité" subtitle="« Je prescris ; le système bloque ce qui est contre-indiqué (allergie) et propose une alternative. »">
+          {A('prat5-v1', 'Version 1 · Ordonnance (avec sidebar)', <ScreenPratOrdonnance dark={dark} />)}
+          {A('prat5-v2', 'Version 2 · Plein écran', <SpotStatic dark={dark} mode="full" view="ordo" />)}
+          {A('prat5-v2b', 'Version 2 · Réduit · pendant la consultation', <SpotStatic dark={dark} mode="windows" view="ordo" second="consult" />)}
+        </DCSection>
+      </DesignCanvas>
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

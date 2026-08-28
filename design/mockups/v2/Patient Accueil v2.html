@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Patient — Accueil v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand400:#34D399;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--brand900:#064E3B;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n800:#292524;--n900:#1C1917;--sand500:#B0894F;--sand100:#F3EAD7;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:48px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;letter-spacing:normal;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.wrap{display:flex;flex-wrap:wrap;gap:64px;align-items:flex-start;justify-content:flex-start;width:max-content;margin:0 auto}
+/* ---- phone ---- */
+.phone{width:414px;flex:0 0 414px;background:var(--n900);border-radius:52px;padding:12px;box-shadow:0 40px 80px -20px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.08)}
+.screen{width:390px;height:1290px;background:var(--n50);border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.status{height:52px;flex:0 0 52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px;font-size:14px;font-weight:600;letter-spacing:-.1px}
+.status .rt{display:flex;align-items:center;gap:5px}.status .ic{font-size:16px}
+.body{flex:1;overflow:hidden;padding:4px 20px 0}
+/* ---- header ---- */
+.hdr{display:flex;align-items:flex-start;gap:12px;padding:8px 0 22px}
+.hdr h1{font-family:Fraunces,serif;font-size:30px;line-height:36px;font-weight:600;letter-spacing:-.5px}
+.hdr .sub{font-size:14px;line-height:22px;color:var(--n500);margin-top:2px}
+.hdr .acts{margin-left:auto;display:flex;gap:8px;align-items:center;padding-top:4px}
+.iconbtn{width:44px;height:44px;border-radius:14px;background:var(--n0);border:1px solid var(--n200);display:grid;place-items:center;position:relative;color:var(--n600)}
+.iconbtn .ic{font-size:22px}
+.dot{position:absolute;top:10px;right:11px;width:9px;height:9px;border-radius:99px;background:var(--dangFg);border:2px solid var(--n0)}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:16px;font-weight:600;color:var(--brand800)}
+/* ---- hero rdv ---- */
+.hero{background:var(--brand700);border-radius:22px;padding:20px;color:#fff;position:relative;overflow:hidden;box-shadow:0 14px 30px -12px rgba(4,120,87,.55)}
+.hero::after{content:"";position:absolute;right:-70px;top:-70px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.06)}
+.pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.16);border-radius:99px;padding:5px 11px 5px 8px;font-size:12px;font-weight:500;letter-spacing:.2px}
+.pill .ic{font-size:14px}
+.hero .when{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-.3px;margin-top:14px}
+.hero .who{font-size:15px;line-height:24px;color:rgba(255,255,255,.82);margin-top:3px}
+.hero hr{border:0;border-top:1px solid rgba(255,255,255,.16);margin:16px 0 13px}
+.hero .addr{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:19px;color:rgba(255,255,255,.78)}
+.hero .addr .ic{font-size:17px;flex:0 0 17px;margin-top:1px}
+.hero .btns{display:flex;gap:10px;margin-top:17px}
+.btn{flex:1;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:15px;font-weight:600;letter-spacing:-.1px}
+.btn .ic{font-size:19px}
+.btn.solid{background:#fff;color:var(--brand700)}
+.btn.ghost{border:1.5px solid rgba(255,255,255,.42);color:#fff}
+/* ---- sections ---- */
+.lab{font-size:12px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--n400);margin:26px 0 10px;display:flex;align-items:center;gap:8px}
+.lab .n{background:var(--n200);color:var(--n600);border-radius:99px;font-size:11px;letter-spacing:0;padding:1px 7px}
+.card{background:var(--n0);border:1px solid var(--n200);border-radius:18px;overflow:hidden}
+.row{display:flex;align-items:center;gap:13px;padding:15px 16px}
+.row+.row{border-top:1px solid var(--n100)}
+.pas{width:42px;height:42px;flex:0 0 42px;border-radius:12px;display:grid;place-items:center}
+.pas .ic{font-size:21px}
+.pas.w{background:var(--warnBg);color:var(--warnFg)}.pas.d{background:var(--dangBg);color:var(--dangFg)}.pas.b{background:var(--brand50);color:var(--brand700)}.pas.i{background:var(--infoBg);color:var(--infoFg)}
+.row .t{font-size:15px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.row .s{font-size:13px;line-height:18px;color:var(--n500);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.row .end{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--n400)}
+.row .end .ic{font-size:20px}
+.amount{font-size:16px;font-weight:600;color:var(--dangFg);letter-spacing:-.2px}
+.badge{min-width:22px;height:22px;border-radius:99px;background:var(--brand700);color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center;padding:0 6px}
+/* ---- grid ---- */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{background:var(--n0);border:1px solid var(--n200);border-radius:18px;padding:15px;min-height:96px;display:flex;flex-direction:column;justify-content:space-between}
+.tile .pas{width:38px;height:38px;flex:0 0 38px;border-radius:11px}
+.tile .tl{font-size:14px;font-weight:600;line-height:19px;letter-spacing:-.1px}
+.tile .tm{font-size:12px;color:var(--n400);margin-top:1px}
+/* ---- suivi ---- */
+.plan{background:var(--n0);border:1px solid var(--n200);border-radius:18px;padding:16px}
+.plan .top{display:flex;align-items:center;gap:10px}
+.plan .top .ic{font-size:20px;color:var(--sand500)}
+.plan .top .t{font-size:15px;font-weight:600;letter-spacing:-.1px}
+.plan .top .st{margin-left:auto;font-size:12px;font-weight:600;color:var(--n500)}
+.track{height:8px;border-radius:99px;background:var(--n100);margin:14px 0 11px;display:flex;gap:3px;overflow:hidden}
+.track i{flex:1;border-radius:99px;background:var(--n200)}
+.track i.on{background:var(--brand600)}
+.plan .next{font-size:13px;line-height:19px;color:var(--n500)}
+.plan .next b{color:var(--n900);font-weight:600}
+/* ---- nav ---- */
+.nav{flex:0 0 84px;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-top:1px solid var(--n200);display:grid;grid-template-columns:repeat(5,1fr);padding:10px 6px 0}
+.nv{display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--n400);font-size:11px;font-weight:500}
+.nv .ic{font-size:24px}
+.nv.on{color:var(--brand700)}
+.nv .cap{position:relative}
+.nv .cap .b{position:absolute;top:-3px;right:-9px;min-width:16px;height:16px;border-radius:99px;background:var(--dangFg);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;padding:0 4px;border:2px solid #fff}
+.hbar{width:132px;height:5px;border-radius:99px;background:var(--n300);margin:8px auto 0}
+/* ---- notes ---- */
+.notes{flex:0 0 400px;width:400px;padding-top:14px}
+.notes .kicker{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:34px;line-height:41px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.notes .lede{font-size:15px;line-height:25px;color:var(--n600)}
+.notes ol{list-style:none;margin-top:28px;display:flex;flex-direction:column;gap:20px}
+.notes li{display:flex;gap:14px}
+.notes .num{flex:0 0 26px;height:26px;border-radius:8px;background:var(--n900);color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.notes .h{font-size:15px;font-weight:600;line-height:22px;letter-spacing:-.1px}
+.notes .p{font-size:14px;line-height:22px;color:var(--n600);margin-top:3px}
+.notes .p code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.tok{margin-top:32px;border-top:1px solid var(--n300);padding-top:22px;display:flex;flex-wrap:wrap;gap:8px}
+.sw{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--n600);background:var(--n0);border:1px solid var(--n200);border-radius:99px;padding:5px 11px 5px 6px}
+.sw i{width:16px;height:16px;border-radius:99px;display:block}
+</style></head>
+<body><div class="wrap">
+<div class="phone"><div class="screen" data-screen-label="Patient · Accueil v2">
+<div class="status"><span>9:41</span><span class="rt"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="body">
+<div class="hdr"><div><h1>Bonjour Camille</h1><div class="sub">Mardi 11 août</div></div>
+<div class="acts"><div class="iconbtn"><span class="ic">search</span></div><div class="iconbtn"><span class="ic">notifications</span><span class="dot"></span></div></div></div>
+
+<div class="hero"><span class="pill"><span class="ic f">schedule</span>Dans 2 jours</span>
+<div class="when">Jeudi 13 août · 14:30</div>
+<div class="who">Dr Amélie Rousseau · Détartrage</div>
+<hr>
+<div class="addr"><span class="ic f">place</span><span>Cabinet Nubia Opéra — 12 rue de la Paix, 75002 Paris<br>2<sup>e</sup> étage, ascenseur</span></div>
+<div class="btns"><div class="btn solid"><span class="ic">directions</span>Itinéraire</div><div class="btn ghost"><span class="ic">checklist</span>Préparer</div></div></div>
+
+<div class="lab">À faire<span class="n">3</span></div>
+<div class="card">
+<div class="row"><div class="pas w"><span class="ic">draw</span></div><div><div class="t">Devis à signer</div><div class="s">Implantologie · 2 documents</div></div><div class="end"><span class="badge">2</span><span class="ic">chevron_right</span></div></div>
+<div class="row"><div class="pas d"><span class="ic">receipt_long</span></div><div><div class="t">Reste à charge</div><div class="s">Facture du 22 juillet</div></div><div class="end"><span class="amount">148,50 €</span><span class="ic">chevron_right</span></div></div>
+<div class="row"><div class="pas b"><span class="ic">chat_bubble</span></div><div><div class="t">Message du cabinet</div><div class="s">Dr Rousseau · il y a 3 h</div></div><div class="end"><span class="badge">1</span><span class="ic">chevron_right</span></div></div>
+</div>
+
+<div class="lab">Accès rapide</div>
+<div class="grid">
+<div class="tile"><div class="pas b"><span class="ic">medication</span></div><div><div class="tl">Mes ordonnances</div><div class="tm">1 active</div></div></div>
+<div class="tile"><div class="pas i"><span class="ic">folder_open</span></div><div><div class="tl">Mes documents</div><div class="tm">12 fichiers</div></div></div>
+<div class="tile"><div class="pas b"><span class="ic">local_pharmacy</span></div><div><div class="tl">Ma pharmacie</div><div class="tm">Pharmacie du Théâtre</div></div></div>
+<div class="tile"><div class="pas b"><span class="ic">group</span></div><div><div class="tl">Mes proches</div><div class="tm">2 comptes liés</div></div></div>
+</div>
+
+<div class="lab">Mon suivi</div>
+<div class="plan"><div class="top"><span class="ic f">workspace_premium</span><span class="t">Plan de traitement</span><span class="st">3 / 5 étapes</span></div>
+<div class="track"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div>
+<div class="next">Prochaine étape · <b>Pose de la couronne</b> — à programmer après le 13 août.</div></div>
+<div style="height:20px"></div>
+</div>
+<div class="nav">
+<div class="nv on"><span class="ic f">home</span>Accueil</div>
+<div class="nv"><span class="ic">event</span>Mes RDV</div>
+<div class="nv"><span class="cap"><span class="ic">chat_bubble</span><span class="b">1</span></span>Messages</div>
+<div class="nv"><span class="ic">folder</span>Documents</div>
+<div class="nv"><span class="ic">person</span>Profil</div>
+<div class="hbar" style="grid-column:1/-1"></div>
+</div>
+</div></div>
+
+<div class="notes">
+<div class="kicker">App Patient · Mobile</div>
+<h2>Accueil : de tableau de bord à compagnon de santé</h2>
+<p class="lede">L'accueil actuel ouvre sur trois tuiles de métriques abstraites — dont « Prochain RDV » qui affiche un <em>compteur</em>, pas une date. Un patient ne vient pas lire des KPI : il vient savoir <strong>quand</strong>, <strong>où</strong>, et <strong>ce qu'il doit faire</strong>.</p>
+<ol>
+<li><span class="num">1</span><div><div class="h">Le prochain RDV devient le héros</div><div class="p">Carte pleine largeur en <code>brand/700</code> : date en clair, praticien, motif, adresse, et deux actions tactiles de 48 px (Itinéraire / Préparer). <code>Hero</code> partagé vers <code>detail_rdv_page</code>. Sans RDV, la carte devient un CTA « Prendre rendez-vous ».</div></div></li>
+<li><span class="num">2</span><div><div class="h">« À faire » porte les montants, pas des compteurs</div><div class="p">Les 3 <code>MetricTile</code> fusionnent en une liste d'actions lisibles : le reste à charge s'affiche en euros (<code>danger/fg</code>) au lieu d'un chiffre nu. La section disparaît quand tout est à jour — l'<code>EmptyState</code> existant prend le relais.</div></div></li>
+<li><span class="num">3</span><div><div class="h">Accès rapide : les wedges enfin visibles</div><div class="p">Ordonnances, documents, pharmacie et proches sont aujourd'hui enterrés dans le routeur. Grille 2×2, cibles de 96 px, sous-titre d'état pour rassurer avant le tap.</div></div></li>
+<li><span class="num">4</span><div><div class="h">Un fil de suivi rassurant</div><div class="p">La barre de progression du plan de traitement (segments <code>brand/600</code>, animée à l'entrée) transforme une facturation complexe en parcours compréhensible. Seul endroit où l'accent sable est autorisé.</div></div></li>
+<li><span class="num">5</span><div><div class="h">L'accueil doit enfin exister</div><div class="p">Constat en lisant <code>dashboard_page.dart</code> : <code>HomePage</code> n'est monté sur <strong>aucun onglet</strong>. Le shell ouvre sur « Rechercher » — l'annuaire — donc un patient fidèle atterrit sur un moteur de recherche au lieu de son suivi. Proposition : <strong>Accueil devient l'onglet 0</strong>, l'annuaire remonte derrière la loupe de l'en-tête (seul accès restant — donc obligatoire). L'avatar disparaît de l'en-tête : Profil est déjà l'onglet 5, et les 52 px récupérés gardent la salutation sur une ligne.</div></div></li>
+<li><span class="num">6</span><div><div class="h">Micro-animations Flutter</div><div class="p">Entrée en cascade (<code>AnimationController</code> unique + <code>Interval</code>, 60 ms de décalage), <code>TweenAnimationBuilder</code> sur la progression, <code>AnimatedScale</code> 0.97 au press. Zéro widget hell : 6 sous-widgets, aucun au-delà de 150 lignes.</div></div></li>
+</ol>
+<div class="tok">
+<span class="sw"><i style="background:#047857"></i>brand/700 primaire</span>
+<span class="sw"><i style="background:#FAFAF9"></i>bg/page n50</span>
+<span class="sw"><i style="background:#B91C1C"></i>danger/fg</span>
+<span class="sw"><i style="background:#B45309"></i>warning/fg</span>
+<span class="sw"><i style="background:#B0894F"></i>accent sable</span>
+<span class="sw">Fraunces display · Inter</span>
+</div>
+</div>
+</div></body></html>

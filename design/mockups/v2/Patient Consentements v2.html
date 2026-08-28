@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Patient — Consentements v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:14px}
+.phones{display:flex;gap:36px;align-items:flex-start}
+.ph{width:390px;flex:0 0 390px}
+.phl{font-size:12.5px;font-weight:600;color:var(--n600);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.phl .n{width:20px;height:20px;border-radius:6px;background:var(--n900);color:#fff;font-size:10.5px;display:grid;place-items:center}
+.screen{width:390px;height:940px;background:var(--n50);border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 26px 60px -22px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09)}
+.sbar{height:50px;flex:0 0 50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 7px;font-size:14px;font-weight:600;background:var(--n0)}
+.sbar .r{display:flex;gap:5px;align-items:center}
+.sbar .r .ic{font-size:16px}
+.hd{background:var(--n0);padding:6px 20px 14px;border-bottom:1px solid var(--n200)}
+.hd .row{display:flex;align-items:center;gap:12px}
+.hd .bk{width:36px;height:36px;flex:0 0 36px;border-radius:50%;background:var(--n100);display:grid;place-items:center;color:var(--n700)}
+.hd .bk .ic{font-size:20px}
+.hd h1{font-size:22px;font-weight:600;letter-spacing:-.4px}
+.hd .sb{font-size:12.5px;color:var(--n500);margin-top:2px}
+.body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.scroll{flex:1;overflow:hidden;padding:14px 20px 18px}
+/* intro */
+.intro{background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:14px;display:flex;gap:11px;margin-bottom:16px}
+.intro .ic{font-size:20px;color:var(--brand700);flex:0 0 20px;margin-top:1px}
+.intro .t{font-size:13px;line-height:19px;color:var(--n700)}
+.intro .t b{font-weight:600;color:var(--n900)}
+.gh{font-size:11.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);padding:4px 2px 9px;display:flex;align-items:center}
+.gh .n{margin-left:auto;font-weight:500;letter-spacing:0;text-transform:none;font-size:11.5px;color:var(--n500)}
+/* consent card */
+.cc{background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:14px;margin-bottom:11px}
+.cc.req{border-color:var(--n300);background:var(--n50)}
+.cc .r1{display:flex;align-items:flex-start;gap:11px}
+.cc .ico{width:36px;height:36px;flex:0 0 36px;border-radius:10px;background:var(--brand50);display:grid;place-items:center;color:var(--brand700)}
+.cc .ico .ic{font-size:19px}
+.cc.req .ico{background:var(--n100);color:var(--n500)}
+.cc .nm{font-size:15px;font-weight:600;letter-spacing:-.15px}
+.cc .wh{font-size:12.5px;line-height:18px;color:var(--n600);margin-top:4px}
+.tg{width:48px;height:28px;border-radius:99px;background:var(--n300);position:relative;flex:0 0 48px;margin-top:4px}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tg.on{background:var(--brand600)}
+.tg.on::after{left:23px}
+.tg.lock{background:var(--n200)}
+.tg.lock::after{background:var(--n400)}
+.cc .meta{display:flex;align-items:center;gap:7px;margin-top:11px;padding-top:10px;border-top:1px solid var(--n100);font-size:11.5px;color:var(--n500)}
+.cc .meta .ic{font-size:14px;color:var(--n400)}
+.cc .meta .go{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--brand700)}
+.reqp{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;background:var(--n200);color:var(--n600);border-radius:5px;padding:3px 7px;margin-top:8px}
+.reqp .ic{font-size:12px}
+.who{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.wc{font-size:11px;font-weight:500;background:var(--n50);border:1px solid var(--n200);border-radius:6px;padding:4px 8px;color:var(--n600);display:inline-flex;align-items:center;gap:5px}
+.wc .ic{font-size:13px;color:var(--n400)}
+/* rights */
+.rgt{background:var(--n0);border:1px solid var(--n200);border-radius:14px;overflow:hidden;margin-top:4px}
+.rr{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--n100)}
+.rr:last-child{border-bottom:0}
+.rr .ic{font-size:20px;color:var(--n500);flex:0 0 20px}
+.rr .l{font-size:14px;font-weight:500;flex:1;min-width:0}
+.rr .s{font-size:11.5px;color:var(--n500);margin-top:2px;font-weight:400}
+.rr .cv{font-size:19px;color:var(--n300)}
+.foot2{display:flex;gap:9px;background:var(--n0);border:1px solid var(--n200);border-radius:12px;padding:12px;margin-top:14px}
+.foot2 .ic{font-size:17px;color:var(--n400);flex:0 0 17px;margin-top:1px}
+.foot2 .t{font-size:11.5px;line-height:17px;color:var(--n500)}
+/* sheet (écran 2) */
+.dim{position:absolute;inset:0;background:rgba(28,25,23,.45)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--n0);border-radius:26px 26px 0 0;padding:10px 20px 30px;max-height:78%;display:flex;flex-direction:column}
+.grab{width:38px;height:4px;border-radius:99px;background:var(--n300);margin:0 auto 16px}
+.sh1{font-size:20px;font-weight:600;letter-spacing:-.35px}
+.sh2{font-size:13.5px;line-height:20px;color:var(--n600);margin-top:7px}
+.blk{background:var(--n50);border:1px solid var(--n200);border-radius:13px;padding:13px;margin-top:14px}
+.bt{font-size:11.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--n400);margin-bottom:8px}
+.bl{display:flex;gap:9px;font-size:13px;line-height:19px;color:var(--n700);padding:5px 0}
+.bl .ic{font-size:16px;color:var(--brand700);flex:0 0 16px;margin-top:1px}
+.bl.no .ic{color:var(--dangFg)}
+.warnb{display:flex;gap:10px;background:var(--warnBg);border:1px solid #FDE68A;border-radius:12px;padding:12px;margin-top:14px}
+.warnb .ic{font-size:19px;color:var(--warnFg);flex:0 0 19px;margin-top:1px}
+.warnb .t{font-size:12.5px;line-height:18px;color:#78350F}
+.warnb .t b{font-weight:600}
+.sacts{display:flex;flex-direction:column;gap:9px;margin-top:18px}
+.sb1{height:50px;border-radius:13px;background:var(--dangFg);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:500}
+.sb1 .ic{font-size:19px}
+.sb2{height:46px;border-radius:13px;border:1px solid var(--n200);display:flex;align-items:center;justify-content:center;font-size:14.5px;font-weight:500;color:var(--n900)}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Patient · Mobile 390 × 940 — consentements RGPD</div>
+<div class="phones">
+
+<div class="ph">
+<div class="phl"><span class="n">1</span>Mes consentements</div>
+<div class="screen" data-screen-label="Patient · Consentements">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="row"><div class="bk"><span class="ic">arrow_back</span></div><div><h1>Mes consentements</h1><div class="sb">4 accordés · 2 refusés</div></div></div></div>
+<div class="body"><div class="scroll">
+
+<div class="intro"><span class="ic f">shield</span><span class="t">Vous décidez de ce que Nubia peut faire de vos données. <b>Chaque choix est modifiable à tout moment</b> et prend effet immédiatement.</span></div>
+
+<div class="gh">Nécessaire au service<span class="n">non modifiable</span></div>
+
+<div class="cc req">
+<div class="r1"><div class="ico"><span class="ic f">health_and_safety</span></div>
+<div style="min-width:0;flex:1"><div class="nm">Soins</div><div class="wh">Votre praticien enregistre les actes réalisés et son compte-rendu dans votre dossier médical.</div>
+<div class="reqp"><span class="ic f">lock</span>Requis pour être soigné</div></div>
+<div class="tg on lock"></div></div>
+</div>
+
+<div class="cc req">
+<div class="r1"><div class="ico"><span class="ic f">database</span></div>
+<div style="min-width:0;flex:1"><div class="nm">Traitement de mes données de santé</div><div class="wh">Conservation sécurisée de votre dossier chez un hébergeur agréé données de santé, en France.</div>
+<div class="reqp"><span class="ic f">lock</span>Base légale : exécution du contrat</div></div>
+<div class="tg on lock"></div></div>
+</div>
+
+<div class="gh">Partages<span class="n">vous décidez</span></div>
+
+<div class="cc">
+<div class="r1"><div class="ico"><span class="ic f">local_pharmacy</span></div>
+<div style="min-width:0;flex:1"><div class="nm">Partage avec ma pharmacie</div><div class="wh">Vos ordonnances sont transmises à la pharmacie que vous avez choisie, pour préparation avant votre passage.</div>
+<div class="who"><span class="wc"><span class="ic f">store</span>Pharmacie du Théâtre</span></div></div>
+<div class="tg on"></div></div>
+<div class="meta"><span class="ic f">check_circle</span>Accordé le 12 mars 2026<span class="go">Détails</span></div>
+</div>
+
+<div class="cc">
+<div class="r1"><div class="ico"><span class="ic f">groups</span></div>
+<div style="min-width:0;flex:1"><div class="nm">Partage avec un confrère</div><div class="wh">Un autre praticien peut consulter votre dossier s'il vous prend en charge — second avis, urgence, remplacement.</div></div>
+<div class="tg on"></div></div>
+<div class="meta"><span class="ic f">check_circle</span>Accordé le 12 mars 2026<span class="go">Détails</span></div>
+</div>
+
+<div class="gh">Technologies</div>
+
+<div class="cc">
+<div class="r1"><div class="ico"><span class="ic f">mic</span></div>
+<div style="min-width:0;flex:1"><div class="nm">Assistance IA pendant la consultation</div><div class="wh">Votre praticien peut dicter son compte-rendu ; une IA le met en forme. L'enregistrement n'est pas conservé.</div></div>
+<div class="tg"></div></div>
+<div class="meta"><span class="ic">cancel</span>Refusé le 4 août 2026<span class="go">Détails</span></div>
+</div>
+
+<div class="gh">Communications</div>
+
+<div class="cc">
+<div class="r1"><div class="ico"><span class="ic f">campaign</span></div>
+<div style="min-width:0;flex:1"><div class="nm">Communications marketing</div><div class="wh">Nouveautés du cabinet, offres de prévention. Sans effet sur vos rappels de rendez-vous.</div></div>
+<div class="tg"></div></div>
+<div class="meta"><span class="ic">cancel</span>Jamais accordé<span class="go">Détails</span></div>
+</div>
+
+<div class="gh">Vos droits</div>
+<div class="rgt">
+<div class="rr"><span class="ic">download</span><div style="min-width:0;flex:1"><div class="l">Exporter mes données</div><div class="s">Copie complète, format lisible · sous 30 jours</div></div><span class="ic cv">chevron_right</span></div>
+<div class="rr"><span class="ic">history</span><div style="min-width:0;flex:1"><div class="l">Historique de mes choix</div><div class="s">8 modifications enregistrées</div></div><span class="ic cv">chevron_right</span></div>
+<div class="rr"><span class="ic">person_off</span><div style="min-width:0;flex:1"><div class="l">Supprimer mon compte</div><div class="s">Sous réserve des durées légales de conservation</div></div><span class="ic cv">chevron_right</span></div>
+</div>
+
+<div class="foot2"><span class="ic f">gavel</span><span class="t">Responsable de traitement : Cabinet Nubia Opéra. Données hébergées en France chez un hébergeur agréé HDS. Délégué à la protection des données : dpo@nubia.fr</span></div>
+
+</div></div>
+</div>
+</div>
+
+<div class="ph">
+<div class="phl"><span class="n">2</span>Retirer un consentement — conséquences</div>
+<div class="screen" data-screen-label="Patient · Retrait de consentement">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="row"><div class="bk"><span class="ic">arrow_back</span></div><div><h1>Mes consentements</h1><div class="sb">4 accordés · 2 refusés</div></div></div></div>
+<div class="body"><div class="scroll">
+<div class="intro"><span class="ic f">shield</span><span class="t">Vous décidez de ce que Nubia peut faire de vos données. <b>Chaque choix est modifiable à tout moment</b> et prend effet immédiatement.</span></div>
+<div class="gh">Nécessaire au service<span class="n">non modifiable</span></div>
+<div class="cc req"><div class="r1"><div class="ico"><span class="ic f">health_and_safety</span></div><div style="min-width:0;flex:1"><div class="nm">Soins</div><div class="wh">Votre praticien enregistre les actes réalisés et son compte-rendu dans votre dossier médical.</div><div class="reqp"><span class="ic f">lock</span>Requis pour être soigné</div></div><div class="tg on lock"></div></div></div>
+</div></div>
+
+<div class="dim"></div>
+<div class="sheet">
+<div class="grab"></div>
+<div class="sh1">Retirer le partage avec votre pharmacie ?</div>
+<div class="sh2">Ce choix prend effet immédiatement et reste modifiable.</div>
+
+<div class="blk"><div class="bt">Ce qui change</div>
+<div class="bl no"><span class="ic f">cancel</span>Vos prochaines ordonnances ne seront plus transmises à la Pharmacie du Théâtre.</div>
+<div class="bl no"><span class="ic f">cancel</span>Vous devrez présenter votre ordonnance papier ou le PDF de votre application.</div>
+</div>
+
+<div class="blk"><div class="bt">Ce qui ne change pas</div>
+<div class="bl"><span class="ic f">check_circle</span>Vos ordonnances passées restent dans vos documents.</div>
+<div class="bl"><span class="ic f">check_circle</span>Vos rendez-vous et votre suivi de soins sont inchangés.</div>
+</div>
+
+<div class="warnb"><span class="ic f">info</span><span class="t"><b>Une commande est en cours.</b> La commande CMD-4821, déjà transmise, sera honorée normalement — le retrait ne s'applique qu'aux ordonnances futures.</span></div>
+
+<div class="sacts">
+<div class="sb1"><span class="ic">block</span>Retirer ce consentement</div>
+<div class="sb2">Annuler</div>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+</div>
+
+<div class="notes">
+<div class="nk">App Patient · Consentements</div>
+<h2>Six interrupteurs sans conséquences énoncées</h2>
+<p class="lede">L'écran est une <code>ListView</code> de <code>SwitchListTile</code> : un libellé, une bascule. Rien ne dit <strong>ce que chaque consentement autorise réellement</strong>, ni ce qui se passe quand on le retire. Sur un écran RGPD d'un produit de santé, le consentement doit être <em>éclairé</em> — c'est la définition légale, pas une exigence de confort : un accord donné sans compréhension de sa portée n'est pas valide.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Dire ce que chaque consentement autorise</div><div class="np">Une phrase par finalité, en langue claire : qui accède à quoi, pour quoi faire. « Partage avec ma pharmacie » devient « vos ordonnances sont transmises à la pharmacie que vous avez choisie, pour préparation avant votre passage » — et le nom de cette pharmacie s'affiche.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Le retrait annonce ses conséquences</div><div class="np">Une bascule qui coupe un service doit dire lequel, <strong>avant</strong> le geste. La feuille de confirmation sépare ce qui change de ce qui ne change pas — et signale le cas particulier : une commande déjà transmise sera honorée.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Tout n'est pas un consentement</div><div class="np">« Soins » et « Traitement de mes données de santé » sont la <strong>base légale du service</strong> : les présenter comme des bascules librement révocables au même rang que le marketing est trompeur — un patient qui les coupe s'attend à rester soigné. Ils passent en section verrouillée, avec leur base légale énoncée.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Une date, sur chaque choix</div><div class="np">Le RGPD impose de pouvoir prouver le consentement : sa date fait partie de la preuve. Elle est absente de l'écran — et l'historique des modifications, alors que la table d'audit existe (<code>0008_audit_consent.sql</code>), n'est consultable nulle part.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Les autres droits n'existent pas dans l'app</div><div class="np">Export des données, historique des choix, suppression du compte : trois droits opposables que l'écran ne propose pas. Un patient qui veut exercer son droit d'accès n'a aujourd'hui aucun chemin dans le produit.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Regrouper par nature</div><div class="np">Six finalités à plat mélangent l'obligatoire, le partage entre professionnels, une technologie d'assistance et du marketing. Quatre groupes rendent la page lisible en dix secondes.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Le responsable de traitement, nommé</div><div class="np">Cabinet responsable, hébergement HDS en France, contact du DPO. Mentions obligatoires, absentes de l'écran, et rassurantes quand elles sont présentes.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Le compteur d'état</div><div class="np">« 4 accordés · 2 refusés » en sous-titre : le patient sait où il en est avant de faire défiler.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">bug_report</span>Un retrait silencieux en cas d'échec</div>
+<div class="p">La bascule est optimiste : <code>toggle(purpose, v)</code> part, et <code>state.pending == consent.purpose</code> désactive le seul interrupteur concerné — bonne pratique. Mais en cas d'échec, l'état <code>ConsentsError</code> déclenche <strong>à la fois</strong> un <code>SnackBar</code> (par le <code>listenWhen</code>) <strong>et</strong> un <code>NubiaErrorWidget</code> plein écran qui remplace la liste : le patient perd la vue de tous ses consentements parce qu'un seul n'a pas pu être modifié.</p>
+<div class="p">Sur un écran RGPD, c'est plus grave qu'ailleurs : <strong>un patient doit toujours pouvoir vérifier l'état réel de ses choix</strong>, surtout quand une modification vient d'échouer. L'erreur doit rester locale à la ligne concernée, avec la bascule revenue à son état serveur.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Le commentaire le plus important du fichier</div>
+<div class="p">La table <code>_kConsentLabels</code> porte un avertissement explicite : elle doit couvrir <strong>exactement</strong> les finalités émises par l'API (<code>api/src/auth/mod.rs</code>, <code>db/migrations/0008_audit_consent.sql</code>), car un écart affiche la clé brute en <code>snake_case</code> à l'utilisateur sur un écran RGPD (#3706). Deux finalités jamais émises — <code>research</code> et <code>third_party_sharing</code> — ont d'ailleurs été retirées.</p>
+<div class="p">C'est le bon réflexe, et il faut aller plus loin : le repli <code>?? consent.purpose</code> reste un risque. Sur cet écran précisément, une finalité inconnue ne devrait <strong>pas</strong> s'afficher avec sa clé technique — mieux vaut un libellé générique explicite (« Finalité non documentée — contactez le cabinet ») qu'un <code>partage_confrere</code> affiché tel quel à un patient.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>#3706 — table <code>_kConsentLabels</code> conservée avec ses six finalités réellement émises par l'API, dans leur formulation exacte.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Bascule optimiste avec <code>state.pending</code> désactivant le seul interrupteur en cours — motif à conserver et à généraliser.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Le retrait prend effet immédiatement (RGPD) : la formulation d'origine est reprise mot pour mot dans l'introduction.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>NubiaEmptyState</code> conservé pour le cas « aucun consentement à gérer ».</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>consents_list</code>, <code>consents_empty</code>, <code>consent_&lt;purpose&gt;</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Aucune finalité inventée : les quatre groupes réorganisent les six existantes, sans en ajouter.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>⚠️ La distinction « nécessaire au service » / « optionnel » est une <strong>proposition à valider juridiquement</strong> — le modèle ne porte pas cette information, et c'est au DPO de trancher quelle finalité relève de quelle base légale.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Champs à exposer : date d'octroi/retrait par finalité, base légale, et accès à la table d'audit existante.</span></li>
+</ul></div>
+</div>
+</div></body></html>

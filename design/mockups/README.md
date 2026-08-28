@@ -4,6 +4,13 @@
 > Medium = HTML/CSS/JS (prototypes), pas du code de prod. Cible d'implémentation = **Flutter + Bloc** (cf. `../03-design-system/03-flutter-theme.md`). On reproduit le **rendu**, pas la structure interne du proto.
 > ⚠️ Design system appliqué : émeraude `#047857`, neutres pierre, Inter (+ Fraunces côté patient), clair **et** sombre, arrondi doux (cf. `../03-design-system/`).
 
+## ⚠️ La référence courante est `v2/`
+
+Les 4 fichiers ci-dessous sont la version **agrégée et antérieure** du design. La référence de
+conformité **par écran** (une maquette par écran, 48 fichiers) vit désormais dans
+[`v2/`](v2/) — mapping écran ⟷ maquette ⟷ sources Dart dans [`v2/INDEX.md`](v2/INDEX.md).
+C'est ce que l'agent QA compare à l'app live. **En cas de divergence, `v2/` fait foi.**
+
 ## Les 4 fichiers
 
 | Fichier | Cible | Contenu |

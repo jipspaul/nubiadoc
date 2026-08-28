@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia — Index de livraison UI/UX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:56px 40px 80px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+/* hero */
+.nk{font-size:12px;font-weight:600;letter-spacing:.9px;text-transform:uppercase;color:var(--brand700)}
+h1{font-family:Fraunces,serif;font-size:44px;line-height:52px;font-weight:600;letter-spacing:-1px;margin:12px 0 16px}
+.lede{font-size:16.5px;line-height:27px;color:var(--n600);max-width:780px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:13.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.metrics{display:flex;gap:34px;margin-top:28px;padding-top:24px;border-top:1px solid var(--n300)}
+.mi .v{font-family:Fraunces,serif;font-size:34px;font-weight:600;letter-spacing:-.7px;line-height:38px}
+.mi .l{font-size:12.5px;color:var(--n500);margin-top:4px}
+/* section */
+.sec{display:flex;flex-direction:column;gap:14px}
+.sh{display:flex;align-items:center;gap:12px}
+.sh .ico{width:34px;height:34px;flex:0 0 34px;border-radius:10px;display:grid;place-items:center;color:#fff}
+.sh .ico .ic{font-size:19px}
+.sh h2{font-size:20px;font-weight:600;letter-spacing:-.3px}
+.sh .n{margin-left:auto;font-size:12.5px;color:var(--n500)}
+.sh .cx{font-size:12.5px;color:var(--n500);margin-top:2px}
+/* card grid */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{display:flex;gap:13px;background:var(--n0);border:1px solid var(--n200);border-radius:13px;padding:14px 15px;text-decoration:none;color:inherit}
+.card:hover{border-color:var(--n300);box-shadow:0 6px 18px -12px rgba(28,25,23,.3)}
+.card .cid{width:26px;height:26px;flex:0 0 26px;border-radius:8px;background:var(--n100);display:grid;place-items:center;font-size:11.5px;font-weight:700;color:var(--n600);margin-top:1px}
+.card .t1{font-size:14.5px;font-weight:600;letter-spacing:-.15px;color:var(--n900)}
+.card .t2{font-size:12.5px;line-height:18px;color:var(--n600);margin-top:4px}
+.card .m{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{font-size:10.5px;font-weight:600;border-radius:5px;padding:2px 7px;background:var(--n100);color:var(--n600);border:1px solid var(--n200)}
+.tag.d{background:var(--dangBg);color:var(--dangFg);border-color:#FECACA}
+.tag.b{background:var(--brand50);color:var(--brand800);border-color:var(--brand200)}
+.tag.i{background:var(--infoBg);color:var(--infoFg);border-color:#A5F3FC}
+.card .go{margin-left:auto;flex:0 0 auto;color:var(--n300);align-self:center}
+.card .go .ic{font-size:19px}
+.wide{grid-column:1 / -1}
+/* findings */
+.fx{background:var(--n0);border:1px solid var(--n300);border-radius:14px;overflow:hidden}
+.fxh{padding:14px 18px;border-bottom:1px solid var(--n200);background:var(--n50);display:flex;align-items:center;gap:10px}
+.fxh .ic{font-size:19px;color:var(--n500)}
+.fxh .t{font-size:15px;font-weight:600;letter-spacing:-.2px}
+.fr{display:flex;gap:14px;padding:14px 18px;border-bottom:1px solid var(--n100)}
+.fr:last-child{border-bottom:0}
+.fr .num{width:24px;height:24px;flex:0 0 24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:1px}
+.fr .h{font-size:14.5px;font-weight:600;letter-spacing:-.1px}
+.fr .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:4px}
+.fr .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.fr .cnt{margin-left:auto;flex:0 0 auto;text-align:right}
+.fr .cnt .v{font-size:22px;font-weight:700;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.fr .cnt .l{font-size:10.5px;color:var(--n500);margin-top:1px}
+.fr .cnt.d .v{color:var(--dangFg)}
+/* waves */
+.wv{background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:16px 18px}
+.wv .wh{display:flex;align-items:center;gap:9px;font-size:14.5px;font-weight:600}
+.wv .wh .b{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;border-radius:5px;padding:3px 8px}
+.wv .wh .b.a{background:var(--okBg);color:var(--okFg)}
+.wv .wh .b.b{background:var(--warnBg);color:var(--warnFg)}
+.wv .wh .b.c{background:var(--n100);color:var(--n600)}
+.wv .wh .cost{margin-left:auto;font-size:12px;color:var(--n500)}
+.wv ul{list-style:none;margin-top:11px;display:flex;flex-direction:column;gap:7px}
+.wv li{display:flex;gap:9px;font-size:13px;line-height:19px;color:var(--n700)}
+.wv li .ic{font-size:16px;color:var(--brand700);flex:0 0 16px;margin-top:2px}
+.wv li code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.wv .waves{display:flex;flex-direction:column;gap:12px}
+/* thesis */
+.th{background:var(--n900);border-radius:16px;padding:30px 34px;color:#fff}
+.th .k{font-size:11.5px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand200)}
+.th .q{font-family:Fraunces,serif;font-size:27px;line-height:37px;font-weight:600;letter-spacing:-.5px;margin-top:12px}
+.th .p{font-size:14px;line-height:23px;color:rgba(255,255,255,.72);margin-top:14px;max-width:800px}
+.th .p code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:rgba(255,255,255,.12);border-radius:4px;padding:1px 5px;color:#fff}
+.foot{font-size:12.5px;color:var(--n500);line-height:19px;border-top:1px solid var(--n300);padding-top:18px}
+.foot code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+</style></head>
+<body><div class="wrap">
+
+<div>
+<div class="nk">Écosystème Nubia · Mission design</div>
+<h1>Index de livraison</h1>
+<p class="lede">Point d'entrée unique de la refonte UI/UX. Chaque écran a été refondu <strong>à partir du code lu dans le dépôt</strong>, jamais d'une capture : le défaut est cité avec son fichier, la logique métier préservée est listée issue par issue, et les champs manquants côté domaine sont signalés là où l'interface ne peut pas les inventer.</p>
+<div class="metrics">
+<div class="mi"><div class="v">38</div><div class="l">livrables</div></div>
+<div class="mi"><div class="v">61</div><div class="l">fichiers Dart</div></div>
+<div class="mi"><div class="v">4</div><div class="l">applications</div></div>
+<div class="mi"><div class="v">27</div><div class="l">défauts identifiés</div></div>
+<div class="mi"><div class="v">24</div><div class="l">champs à exposer</div></div>
+</div>
+</div>
+
+<div class="sec">
+<div class="sh"><div class="ico" style="background:#6D28D9"><span class="ic f">smartphone</span></div>
+<div><h2>App Patient</h2><div class="cx">Mobile 390 px · grand public, rassurant, sans friction</div></div>
+<span class="n">12 écrans</span></div>
+<div class="grid">
+<a class="card" href="Patient Accueil v2.html"><span class="cid">01</span><div style="min-width:0;flex:1"><div class="t1">Accueil</div><div class="t2">« Prochain RDV » affichait un compteur au lieu d'une date.</div><div class="m"><span class="tag">Annuaire</span><span class="tag">Progression de soins</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Mes RDV v2.html"><span class="cid">02</span><div style="min-width:0;flex:1"><div class="t1">Mes rendez-vous</div><div class="t2">Liste plate sans distinction passé / à venir.</div><div class="m"><span class="tag">Annulation</span><span class="tag">Itinéraire</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Réservation v2.html"><span class="cid">03</span><div style="min-width:0;flex:1"><div class="t1">Réservation</div><div class="t2">Créneaux en UTC, groupement par jour serveur.</div><div class="m"><span class="tag i">#3825</span><span class="tag">SlotChip</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Facturation v2.html"><span class="cid">04</span><div style="min-width:0;flex:1"><div class="t1">Devis & reste à charge</div><div class="t2">Ventilation AMO/AMC comme résultat d'un calcul.</div><div class="m"><span class="tag b">Format monétaire correct</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Mon plan de soins v2.html"><span class="cid">05</span><div style="min-width:0;flex:1"><div class="t1">Mon plan de soins</div><div class="t2">Un titre et un statut, aucune étape ni montant.</div><div class="m"><span class="tag d">Brouillons exposés</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Documents et Proches v2.html"><span class="cid">06</span><div style="min-width:0;flex:1"><div class="t1">Documents, proches, profil</div><div class="t2">Coffre-fort sans dates ni émetteur.</div><div class="m"><span class="tag d">Majorité non gérée</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Messagerie v2.html"><span class="cid">07</span><div style="min-width:0;flex:1"><div class="t1">Messagerie</div><div class="t2">Praticien et secrétariat dans la même bulle grise.</div><div class="m"><span class="tag i">#3856 UTC</span><span class="tag i">#4545</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Suivi de commande v2.html"><span class="cid">08</span><div style="min-width:0;flex:1"><div class="t1">Suivi de commande</div><div class="t2">Le QR enterré sous une liste de puces.</div><div class="m"><span class="tag d">Erreur sans issue</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Consentements v2.html"><span class="cid">09</span><div style="min-width:0;flex:1"><div class="t1">Consentements</div><div class="t2">Six bascules sans conséquences énoncées.</div><div class="m"><span class="tag d">RGPD · éclairé</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Passeport implantaire v2.html"><span class="cid">10</span><div style="min-width:0;flex:1"><div class="t1">Passeport implantaire</div><div class="t2">Document légal en trois lignes concaténées.</div><div class="m"><span class="tag d">Sécurité IRM absente</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Notifications v2.html"><span class="cid">11</span><div style="min-width:0;flex:1"><div class="t1">Notifications</div><div class="t2">Ni horodatage, ni filtre, ni regroupement.</div><div class="m"><span class="tag d">2 résolveurs de liens</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Patient Web Tunnel reservation.html"><span class="cid">12</span><div style="min-width:0;flex:1"><div class="t1">Tunnel web · acquisition</div><div class="t2">Créé, pas refondu — la seule surface avant installation.</div><div class="m"><span class="tag b">Nouveau</span><span class="tag">Indexable</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+</div>
+</div>
+
+<div class="sec">
+<div class="sh"><div class="ico" style="background:#047857"><span class="ic f">desktop_windows</span></div>
+<div><h2>App Secrétariat</h2><div class="cx">Desktop 1360 px · densité, clavier, réduction de fatigue</div></div>
+<span class="n">8 écrans + 1 étude</span></div>
+<div class="grid">
+<a class="card" href="Secretariat Tableau de bord v2.html"><span class="cid">13</span><div style="min-width:0;flex:1"><div class="t1">Tableau de bord</div><div class="t2">Deux cartes qui paraphrasent les chiffres du dessus.</div><div class="m"><span class="tag d">Seul remplissage du dépôt</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Secretariat Agenda v2.html"><span class="cid">14</span><div style="min-width:0;flex:1"><div class="t1">Agenda semaine</div><div class="t2">Chargeait une semaine sans afficher un seul jour.</div><div class="m"><span class="tag d">weekStart absent</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Secretariat Salle d'attente v2.html"><span class="cid">15</span><div style="min-width:0;flex:1"><div class="t1">Salle d'attente</div><div class="t2">« Le suivant » appelé sans dire qui.</div><div class="m"><span class="tag d">actionError efface la liste</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Secretariat Fiches patients v2.html"><span class="cid">16</span><div style="min-width:0;flex:1"><div class="t1">Fiches patients</div><div class="t2">Une requête réseau par ligne de liste.</div><div class="m"><span class="tag d">312 appels</span><span class="tag d">Tooltip inaccessible</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Secretariat Devis v2.html"><span class="cid">17</span><div style="min-width:0;flex:1"><div class="t1">Devis</div><div class="t2">Trie sur une date jamais affichée.</div><div class="m"><span class="tag d">Tri contradictoire</span><span class="tag">paid inutilisé</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Secretariat Encaissements v2.html"><span class="cid">18</span><div style="min-width:0;flex:1"><div class="t1">Rapprochement bancaire</div><div class="t2">Commence par dire qu'il est faux, en gris.</div><div class="m"><span class="tag d">Données de démo</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Secretariat Stock v2.html"><span class="cid">19</span><div style="min-width:0;flex:1"><div class="t1">Demandes de stock</div><div class="t2">Pharmacie destinataire jamais nommée.</div><div class="m"><span class="tag d">Lignes perdues en silence</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Secretariat Messagerie interne v2.html"><span class="cid">20</span><div style="min-width:0;flex:1"><div class="t1">Messagerie interne</div><div class="t2">Fil d'équipe sans mention ni épinglage.</div><div class="m"><span class="tag i">#4538</span><span class="tag i">#4156</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card wide" href="Secretariat Navigation v2.html"><span class="cid">21</span><div style="min-width:0;flex:1"><div class="t1">Architecture de navigation</div><div class="t2">Dix-sept destinations, aucune hiérarchie — dont <code>/salle-attente</code> et <code>/liste-attente</code>, deux écrans distincts aux noms quasi identiques, et <code>/a2ui-demo</code> dont la route répond en production (le bouton, lui, est bien gardé).</div><div class="m"><span class="tag d">Route de démo joignable</span><span class="tag d">Renommage urgent</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+</div>
+</div>
+
+<div class="sec">
+<div class="sh"><div class="ico" style="background:#0369A1"><span class="ic f">dentistry</span></div>
+<div><h2>App Praticien</h2><div class="cx">Tablette 1258 px et PC 1440 px · clinique, saisie rapide au fauteuil</div></div>
+<span class="n">7 écrans + 1 étude PC</span></div>
+<div class="grid">
+<a class="card" href="Praticien Tableau de bord v2.html"><span class="cid">21</span><div style="min-width:0;flex:1"><div class="t1">Tableau de bord</div><div class="t2">Quatre compteurs à la place d'une journée.</div><div class="m"><span class="tag d">« non signé » en vert</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Praticien Consultation v2.html"><span class="cid">22</span><div style="min-width:0;flex:1"><div class="t1">Consultation au fauteuil</div><div class="t2">L'identité du patient disparaît de l'écran.</div><div class="m"><span class="tag d">ToothGrid : 4 rangées</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Praticien Dossier patient v2.html"><span class="cid">23</span><div style="min-width:0;flex:1"><div class="t1">Dossier patient</div><div class="t2">« Notes cliniques » ne contient aucune note.</div><div class="m"><span class="tag d">GED en écriture seule</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Praticien Ordonnance v2.html"><span class="cid">24</span><div style="min-width:0;flex:1"><div class="t1">Nouvelle ordonnance</div><div class="t2">DCI saisie à la main dans un document légal.</div><div class="m"><span class="tag i">ADR-009 §8.6</span><span class="tag">MDR</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Praticien Plan de traitement v2.html"><span class="cid">25</span><div style="min-width:0;flex:1"><div class="t1">Plan de traitement</div><div class="t2">Un plan sans un seul montant.</div><div class="m"><span class="tag d">Card Material</span><span class="tag">Statut brut</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Praticien Travaux labo v2.html"><span class="cid">26</span><div style="min-width:0;flex:1"><div class="t1">Travaux de laboratoire</div><div class="t2">Un bon sans patient et sans dent.</div><div class="m"><span class="tag b">updatingId · bon motif</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card wide" href="Praticien Consultation PC.html"><span class="cid">27</span><div style="min-width:0;flex:1"><div class="t1">Consultation · version PC + règles de bascule</div><div class="t2">Ce que la largeur achète : l'historique du patient, permanent. Trois points de bascule documentés (≥ 1280 / 900–1279 / &lt; 900).</div><div class="m"><span class="tag">1440 × 900</span><span class="tag">Responsive</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+</div>
+</div>
+
+<div class="sec">
+<div class="sh"><div class="ico" style="background:#B45309"><span class="ic f">local_pharmacy</span></div>
+<div><h2>App Pharmacie</h2><div class="cx">Tablette et PC · délivrance, lecture d'ordonnance, sécurisation</div></div>
+<span class="n">4 écrans + 1 étude PC</span></div>
+<div class="grid">
+<a class="card wide" href="Pharmacie Delivrance v2.html"><span class="cid">28</span><div style="min-width:0;flex:1"><div class="t1">Délivrance & scan de retrait</div><div class="t2">Le point de sécurité le plus grave de l'écosystème : la validation se fait <strong>par token</strong>, donc scanner le QR d'un autre patient avec le sachet en main <strong>réussit</strong>. Et l'écran de délivrance ne montre jamais les lignes de l'ordonnance.</div><div class="m"><span class="tag d">Mauvais patient possible</span><span class="tag d">PDF externe</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Pharmacie File des commandes v2.html"><span class="cid">29</span><div style="min-width:0;flex:1"><div class="t1">File des commandes</div><div class="t2">Une file d'attente sans temps d'attente.</div><div class="m"><span class="tag b">Squelette · bon motif</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Pharmacie Devis et Stock v2.html"><span class="cid">30</span><div style="min-width:0;flex:1"><div class="t1">Devis & stock</div><div class="t2">Un refus sans motif obligatoire.</div><div class="m"><span class="tag d">Refus muet</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Pharmacie Messagerie v2.html"><span class="cid">31</span><div style="min-width:0;flex:1"><div class="t1">Messagerie patient</div><div class="t2">Trois mentions d'une autre application.</div><div class="m"><span class="tag d">toLocal() oublié</span><span class="tag i">#3854</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card wide" href="Ecrans PC - Praticien et Pharmacie.html"><span class="cid">32</span><div style="min-width:0;flex:1"><div class="t1">Versions PC · Praticien & Pharmacie</div><div class="t2">Les trois écrans professionnels en 1440 × 900 — ordonnance, plan de traitement, délivrance. Chacun gagne une colonne différente (traitements en cours, couverture financière, file d'attente), et c'est elle qui justifie le poste fixe.</div><div class="m"><span class="tag">Étude commune aux 2 apps</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+</div>
+</div>
+
+<div class="sec">
+<div class="sh"><div class="ico" style="background:var(--n900)"><span class="ic f">description</span></div>
+<div><h2>Documents transverses</h2><div class="cx">À lire avant d'ouvrir un écran — ils portent les décisions communes</div></div>
+<span class="n">4 documents</span></div>
+<div class="grid">
+<a class="card" href="Nubia Backlog UI-UX.html"><span class="cid">33</span><div style="min-width:0;flex:1"><div class="t1">Synthèse d'audit</div><div class="t2">27 défauts classés par gravité, 5 fondations partagées.</div><div class="m"><span class="tag">6 P1</span><span class="tag">11 P2</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Nubia Contrat de donnees.html"><span class="cid">34</span><div style="min-width:0;flex:1"><div class="t1">Contrat de données</div><div class="t2">24 champs manquants sur 8 entités, en 3 vagues.</div><div class="m"><span class="tag">Priorisé</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Nubia Correctifs immediats.html"><span class="cid">35</span><div style="min-width:0;flex:1"><div class="t1">Correctifs immédiats</div><div class="t2">9 diffs prêts, aucun arbitrage requis.</div><div class="m"><span class="tag b">Mergeable</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+<a class="card" href="Nubia Parcours transverse.html"><span class="cid">36</span><div style="min-width:0;flex:1"><div class="t1">Parcours transverse</div><div class="t2">Une couronne, quatre applications, seize étapes.</div><div class="m"><span class="tag">Bout en bout</span></div></div><span class="go"><span class="ic">arrow_forward</span></span></a>
+</div>
+</div>
+
+<div class="sec">
+<div class="sh"><div class="ico" style="background:#0E7490"><span class="ic f">warning</span></div>
+<div><h2>Les défauts qui reviennent</h2><div class="cx">Comptés sur l'ensemble des écrans lus — chacun se corrige une fois</div></div></div>
+<div class="fx">
+<div class="fr"><span class="num">1</span><div style="min-width:0;flex:1"><div class="h">Formatage monétaire divergent</div><div class="p">Huit implémentations locales, <strong>deux seulement correctes</strong> (<code>formatQuoteCents</code>, app Patient). Deux équipes ont même résolu à moitié le même problème, indépendamment et de la même façon. Un montant mal formaté sur un produit de facturation est un défaut de crédibilité.</div></div><div class="cnt d"><div class="v">7</div><div class="l">variantes</div></div></div>
+<div class="fr"><span class="num">2</span><div style="min-width:0;flex:1"><div class="h">Chargement par spinner centré</div><div class="p">Il <em>remplace</em> le contenu — un rechargement fait disparaître ce que l'utilisateur lisait. Trois écrans font pourtant déjà bien, avec des squelettes au rythme des lignes réelles.</div></div><div class="cnt d"><div class="v">8</div><div class="l">écrans</div></div></div>
+<div class="fr"><span class="num">3</span><div style="min-width:0;flex:1"><div class="h">Champs de liaison absents du domaine</div><div class="p">Un bon de travail sans patient, un plan sans devis, une commande sans ordonnance. <strong>Le domaine porte les objets, pas les liens entre eux</strong> — c'est le fil conducteur de tout l'audit.</div></div><div class="cnt d"><div class="v">24</div><div class="l">champs</div></div></div>
+<div class="fr"><span class="num">4</span><div style="min-width:0;flex:1"><div class="h">Erreur affichée deux fois</div><div class="p">Snackbar <em>et</em> erreur plein écran qui remplace la liste. Sur les consentements, un patient perd la vue de tous ses choix RGPD parce qu'un seul n'a pas pu être modifié.</div></div><div class="cnt d"><div class="v">4</div><div class="l">écrans</div></div></div>
+<div class="fr"><span class="num">5</span><div style="min-width:0;flex:1"><div class="h">Le même écran écrit trois fois</div><div class="p">Trois messageries dupliquent bulle, horodatage, initiales et repli d'aperçu. <strong>Les correctifs ne voyagent pas</strong> : le bug UTC diagnostiqué et corrigé côté patient est resté côté pharmacie.</div></div><div class="cnt d"><div class="v">3</div><div class="l">copies</div></div></div>
+<div class="fr"><span class="num">6</span><div style="min-width:0;flex:1"><div class="h">FAB sur cible desktop et tablette</div><div class="p">Un bouton flottant qui masque la dernière ligne, compensé par un <code>padding bottom: 96</code>. Sur un poste fixe, l'action appartient à la barre d'outils, avec son raccourci clavier.</div></div><div class="cnt"><div class="v">5</div><div class="l">écrans</div></div></div>
+</div>
+</div>
+
+<div class="sec">
+<div class="sh"><div class="ico" style="background:var(--brand700)"><span class="ic f">layers</span></div>
+<div><h2>Fondations livrées, prêtes à merger</h2><div class="cx">61 fichiers Dart · <code>flutter/</code> dans ce projet</div></div></div>
+<div class="waves">
+<div class="wv"><div class="wh"><span class="b a">Vague 1</span>Aucune décision produit requise<span class="cost">quelques heures</span></div>
+<ul>
+<li><span class="ic f">check_circle</span><code>nubia_core</code> — <code>NubiaMoney</code>, <code>NubiaInitials</code>, <code>NubiaDate</code>. Remplace 7 formats monétaires et 8 formats de date. <code>NubiaDate</code> appelle <code>toLocal()</code> lui-même : aucun appelant n'a à y penser.</li>
+<li><span class="ic f">check_circle</span><code>nubia_design_system/states</code> — <code>NubiaScreenState</code> et <code>NubiaInlineError</code>, avec <code>STATES.md</code>. <code>onRetry</code> et <code>subtitle</code> rendus obligatoires par conception.</li>
+<li><span class="ic f">check_circle</span>Les 9 correctifs immédiats, diffs prêts — dont la garde <code>kDebugMode</code> sur <code>/a2ui-demo</code>, qui existe déjà côté Praticien.</li>
+</ul></div>
+<div class="wv"><div class="wh"><span class="b b">Vague 2</span>Refactorisation partagée<span class="cost">quelques jours</span></div>
+<ul>
+<li><span class="ic f">check_circle</span><code>nubia_messaging</code> — <code>MessageBubble</code>, <code>ConversationRow</code>, <code>MessageComposer</code>. Migrer la <strong>Pharmacie d'abord</strong> : c'est la copie qui porte le bug UTC non corrigé.</li>
+<li><span class="ic f">check_circle</span>Widgets d'écran livrés : consultation au fauteuil, agenda semaine, tableau patients, délivrance pharmacie.</li>
+<li><span class="ic f">check_circle</span>Évolution de <code>ToothGrid</code> — 4 rangées empilées vers 2 arcades anatomiques, cible tactile 32 → 44 px. Correction partagée avec <code>DentalChartPage</code>.</li>
+</ul></div>
+<div class="wv"><div class="wh"><span class="b c">Vague 3</span>Demande des décisions produit<span class="cost">à arbitrer</span></div>
+<ul>
+<li><span class="ic f">check_circle</span>Les 24 champs du contrat de données, par ordre de valeur — la première tranche ne demande aucun arbitrage.</li>
+<li><span class="ic f">check_circle</span>Renommer <code>/liste-attente</code> en « Demandes de créneau » et regrouper les 17 routes du Secrétariat.</li>
+<li><span class="ic f">check_circle</span>Trancher avec le DPO : bases légales des consentements, fin d'accès parental à la majorité, périmètre du fil interne.</li>
+</ul></div>
+</div>
+</div>
+
+<div class="th">
+<div class="k">Ce que l'audit a montré</div>
+<div class="q">Le domaine porte les objets, pas les liens entre eux.</div>
+<div class="p">Un bon de travail prothétique sans patient ni dent, un plan de traitement qui ignore ses devis, une commande de pharmacie qui ignore son ordonnance, un dossier patient sans historique. Huit écrans, un seul défaut de conception — et il explique la plupart des interfaces pauvres rencontrées : <strong>elles n'avaient rien à afficher</strong>. Aucune refonte visuelle ne compense un modèle qui ne relie pas.</div>
+<div class="p">La bonne nouvelle est que le dépôt contient déjà ses propres réponses : le commentaire UTC de <code>messaging_page</code>, le miroir explicite de <code>STATUS_ORDER</code>, le tri défensif des étapes ortho, <code>updatingId</code> par identifiant, le QR qui n'encode que son token. Ces décisions sont justes et documentées — elles n'étaient simplement pas partagées. Les fondations livrées les généralisent plutôt que d'en inventer d'autres.</div>
+</div>
+
+<div class="foot">Chaque maquette porte ses annotations : le défaut cité avec son fichier, ce qui change et pourquoi, la logique métier préservée issue par issue, et les clés de test conservées ou impactées. Le code Dart proposé vit sous <code>flutter/</code>, un README par application. Le suivi du dépôt source est dans <code>github.md</code>.</div>
+
+</div></body></html>

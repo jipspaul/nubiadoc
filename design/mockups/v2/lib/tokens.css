@@ -1,0 +1,106 @@
+/* Nubia — design tokens (from design/03-design-system/01-tokens.md)
+   Light is the default; .nubia-dark overrides the semantic role layer.
+   Only the SEMANTIC role tokens should be consumed by screens. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap');
+
+.nubia {
+  /* brand ramp — émeraude */
+  --brand-50:#ECFDF5; --brand-100:#D1FAE5; --brand-200:#A7F3D0;
+  --brand-300:#6EE7B7; --brand-400:#34D399; --brand-500:#10B981;
+  --brand-600:#059669; --brand-700:#047857; --brand-800:#065F46; --brand-900:#064E3B;
+
+  /* neutrals — warm stone */
+  --n-0:#FFFFFF; --n-50:#FAFAF9; --n-100:#F5F5F4; --n-200:#E7E5E4;
+  --n-300:#D6D3D1; --n-400:#A8A29E; --n-500:#78716C; --n-600:#57534E;
+  --n-700:#44403C; --n-800:#292524; --n-900:#1C1917;
+
+  /* premium gold-sand accent (rare, decorative only) */
+  --accent-100:#F3EAD7; --accent-500:#B0894F; --accent-700:#876435;
+
+  /* semantic state colors — light */
+  --success-fg:#15803D; --success-bg:#DCFCE7;
+  --warning-fg:#B45309; --warning-bg:#FEF3C7;
+  --danger-fg:#B91C1C;  --danger-bg:#FEE2E2;
+  --info-fg:#0E7490;    --info-bg:#CFFAFE;
+
+  /* semantic role layer — light (the layer screens consume) */
+  --bg-page:#FAFAF9;
+  --bg-surface:#FFFFFF;
+  --bg-elevated:#FFFFFF;
+  --text-primary:#1C1917;
+  --text-secondary:#57534E;
+  --text-tertiary:#A8A29E;
+  --text-on-primary:#FFFFFF;
+  --border-subtle:#E7E5E4;
+  --border-default:#D6D3D1;
+  --border-strong:#A8A29E;
+  --primary:#047857;
+  --primary-hover:#065F46;
+  --primary-pressed:#064E3B;
+  --primary-subtle-bg:#ECFDF5;
+  --primary-subtle-fg:#065F46;
+  --focus-ring:rgba(5,150,105,0.35);
+
+  /* elevation */
+  --shadow-sm:0 1px 2px rgba(28,25,23,0.05);
+  --shadow-md:0 2px 8px rgba(28,25,23,0.07);
+  --shadow-lg:0 8px 24px rgba(28,25,23,0.10);
+
+  /* radii */
+  --r-xs:4px; --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px; --r-full:999px;
+
+  /* type */
+  --font-ui:'Inter', -apple-system, system-ui, sans-serif;
+  --font-display:'Fraunces', Georgia, serif;
+
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.nubia-dark {
+  --success-fg:#4ADE80; --success-bg:#14271A;
+  --warning-fg:#FBBF24; --warning-bg:#2A1E05;
+  --danger-fg:#F87171;  --danger-bg:#2A1212;
+  --info-fg:#38BDF8;    --info-bg:#082530;
+
+  --bg-page:#1C1917;
+  --bg-surface:#292524;
+  --bg-elevated:#44403C;
+  --text-primary:#FAFAF9;
+  --text-secondary:#D6D3D1;
+  --text-tertiary:#A8A29E;
+  --text-on-primary:#052E22;
+  --border-subtle:#44403C;
+  --border-default:#57534E;
+  --border-strong:#78716C;
+  --primary:#34D399;
+  --primary-hover:#6EE7B7;
+  --primary-pressed:#A7F3D0;
+  --primary-subtle-bg:#0B3D2E;
+  --primary-subtle-fg:#A7F3D0;
+  --focus-ring:rgba(52,211,153,0.45);
+
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md:0 2px 8px rgba(0,0,0,0.5);
+  --shadow-lg:0 8px 24px rgba(0,0,0,0.6);
+}
+
+/* type scale helpers */
+.nubia .t-display{font-family:var(--font-display);font-size:32px;line-height:40px;font-weight:600;letter-spacing:-0.5px;}
+.nubia .t-h1{font-size:28px;line-height:36px;font-weight:600;letter-spacing:-0.4px;}
+.nubia .t-h2{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-0.3px;}
+.nubia .t-h3{font-size:20px;line-height:28px;font-weight:600;letter-spacing:-0.2px;}
+.nubia .t-title{font-size:18px;line-height:26px;font-weight:500;}
+.nubia .t-body-lg{font-size:16px;line-height:26px;font-weight:400;}
+.nubia .t-body{font-size:14px;line-height:22px;font-weight:400;}
+.nubia .t-label{font-size:14px;line-height:20px;font-weight:500;}
+.nubia .t-caption{font-size:13px;line-height:18px;font-weight:400;}
+.nubia .t-micro{font-size:12px;line-height:16px;font-weight:500;}
+.nubia .tabular{font-variant-numeric:tabular-nums;}
+
+.nubia *{box-sizing:border-box;}
+.nubia ::-webkit-scrollbar{display:none;}
+.nubia{scrollbar-width:none;}

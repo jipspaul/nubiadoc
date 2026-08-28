@@ -134,7 +134,7 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
 # port 2575 contourne Caddy — le filtrer au niveau hôte/LXC aux IP des
 # partenaires EAI attendus avant toute mise en service réelle.
 
-echo "[deploy] web (nginx statique 8081/8082/8083/8084)"
+echo "[deploy] web (nginx statique 8081/8082/8083/8084/8085)"
 podman rm -f nubia-web >/dev/null 2>&1 || true
 # nginx statique : 256Mi largement suffisant (juste sert des fichiers).
 podman run -d --name nubia-web --network host --restart unless-stopped \
