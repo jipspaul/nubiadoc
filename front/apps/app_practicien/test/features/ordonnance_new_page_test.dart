@@ -181,6 +181,23 @@ const _template = PrescriptionTemplate(
   isGlobal: true,
 );
 
+/// Modèle du cabinet (#4986, section « Partir d'un modèle ») : deux lignes,
+/// pour couvrir le pluriel de l'étiquette « N ligne(s) » et l'origine
+/// « Cabinet » (opposée au modèle standard [_template] ci-dessus).
+const _cabinetTemplateItem = PrescriptionItem(
+  label: 'Ibuprofène 400mg',
+  posology: '1 cp x 3/jour',
+  duration: '3 jours',
+  quantity: 'QSP 9 cp',
+);
+
+const _cabinetTemplate = PrescriptionTemplate(
+  id: 'tmpl-2',
+  label: 'Post-extraction',
+  items: [_templateItem, _cabinetTemplateItem],
+  isGlobal: false,
+);
+
 /// Devis (ordonnance) tel que renvoyé après application du modèle #4074 :
 /// mêmes lignes que le modèle, `id`/`patientId` inchangés.
 final _prescriptionWithTemplateItems = Prescription(
@@ -239,6 +256,7 @@ void main() {
   setUp(() {
     bloc = MockOrdonnancesBloc();
     when(() => bloc.state).thenReturn(const OrdonnancesInitial());
+    when(() => bloc.loadTemplates()).thenAnswer((_) async => const []);
     registerMedicalRecordStub();
     registerCabinetPatientStub();
     registerSendToPharmacyStub();
@@ -766,6 +784,58 @@ void main() {
 
       expect(find.text('Erreur de création.'), findsOneWidget);
       expect(find.byKey(const Key('ordonnance_form')), findsOneWidget);
+    });
+
+    testWidgets(
+        'OrdonnancesInitial → section "Partir d\'un modèle" visible en tête '
+        'du formulaire, sans ordonnance créée au préalable (#4986)',
+        (tester) async {
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_template, _cabinetTemplate]);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('template_section')), findsOneWidget);
+      expect(find.text('Partir d\'un modèle'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+
+      expect(
+          find.byKey(const Key('template_card_tmpl-1')), findsOneWidget);
+      expect(find.text('Antalgique post-opératoire palier 1'),
+          findsOneWidget);
+      expect(find.text('Standard · 1 ligne'), findsOneWidget);
+
+      expect(
+          find.byKey(const Key('template_card_tmpl-2')), findsOneWidget);
+      expect(find.text('Post-extraction'), findsOneWidget);
+      expect(find.text('Cabinet · 2 lignes'), findsOneWidget);
+    });
+
+    testWidgets(
+        'OrdonnancesInitial → sélectionner une carte modèle préremplit les '
+        'lignes et l\'active visuellement (#4986)', (tester) async {
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_template, _cabinetTemplate]);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester
+          .ensureVisible(find.byKey(const Key('template_card_tmpl-2')));
+      await tester.tap(find.byKey(const Key('template_card_tmpl-2')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Paracétamol 1 g'), findsOneWidget);
+      expect(find.text('Ibuprofène 400mg'), findsOneWidget);
+
+      final card = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('template_card_tmpl-2')),
+          matching: find.byType(Material),
+        ),
+      );
+      expect(card.color, NubiaColors.brand50);
     });
   });
 }
