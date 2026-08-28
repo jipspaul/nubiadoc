@@ -312,6 +312,16 @@ void main() {
   group('TodayScheduleCard widget', () {
     late MockAgendaBloc mockBloc;
 
+    // Instant ÉPINGLÉ. Ces tests construisent leurs RDV en décalage relatif
+    // (-90 min … +120 min) et la carte filtre « aujourd'hui » sur la DATE de
+    // calendrier : ancrés sur DateTime.now(), les RDV à +90/+120 min basculaient
+    // sur le lendemain dès que la suite tournait à moins de deux heures de
+    // minuit, et le badge affichait « 3 RDV » au lieu de « 4 RDV ». La CI virait
+    // au rouge entre ~23h30 et ~01h30 selon l'heure de passage, sur des PR qui
+    // ne touchaient pas le tableau de bord. Un midi fixe garde toutes les
+    // entrées dans la même journée, quelle que soit l'heure d'exécution.
+    final pinnedNow = DateTime(2026, 3, 17, 12, 0);
+
     setUp(() {
       mockBloc = MockAgendaBloc();
     });
@@ -341,7 +351,10 @@ void main() {
           home: Scaffold(
             body: BlocProvider<AgendaBloc>.value(
               value: mockBloc,
-              child: TodayScheduleCard(summary: summary),
+              child: TodayScheduleCard(
+                summary: summary,
+                clock: () => pinnedNow,
+              ),
             ),
           ),
         );
@@ -349,7 +362,7 @@ void main() {
     testWidgets(
         'déroule les RDV du jour triés par heure avec le badge total/restants',
         (tester) async {
-      final now = DateTime.now();
+      final now = pinnedNow;
       final entries = [
         entry(
           id: 'past',
@@ -415,7 +428,7 @@ void main() {
 
     testWidgets('estompe le RDV passé et teinte le RDV courant',
         (tester) async {
-      final now = DateTime.now();
+      final now = pinnedNow;
       final entries = [
         entry(
           id: 'past',
@@ -480,7 +493,7 @@ void main() {
     testWidgets(
         'dérive le pill de statut depuis AgendaEntry, pas une chaîne libre',
         (tester) async {
-      final now = DateTime.now();
+      final now = pinnedNow;
       final entries = [
         entry(
           id: 'done',
@@ -541,7 +554,7 @@ void main() {
     testWidgets(
         'exclut un RDV annulé (ou absent) du compteur restants et de la liste (#6040)',
         (tester) async {
-      final now = DateTime.now();
+      final now = pinnedNow;
       final entries = [
         entry(
           id: 'confirmed',
@@ -589,7 +602,7 @@ void main() {
     testWidgets('affiche un état vide DS quand aucun RDV aujourd\'hui',
         (tester) async {
       when(() => mockBloc.state).thenReturn(
-        AgendaLoaded(entries: const [], weekStart: DateTime.now()),
+        AgendaLoaded(entries: const [], weekStart: pinnedNow),
       );
 
       const summary = ProDashboardSummary(
