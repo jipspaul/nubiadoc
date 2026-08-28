@@ -818,6 +818,63 @@ void main() {
       expect(find.text('Ordonnance signée'), findsOneWidget);
     });
 
+    group('TherapeuticClassLabel (#4990)', () {
+      testWidgets(
+          'classes différentes → même couple de couleurs neutres (n100/n600)',
+          (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: const Scaffold(
+              body: Column(
+                children: [
+                  TherapeuticClassLabel(therapeuticClass: 'Pénicilline'),
+                  TherapeuticClassLabel(therapeuticClass: 'Macrolide'),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final pills = tester.widgetList<StatusPill>(find.byType(StatusPill));
+        expect(pills.map((p) => p.variant),
+            everyElement(StatusPillVariant.neutral));
+      });
+
+      testWidgets(
+          'classe identique à une allergie du dossier → toujours la teinte '
+          'neutre, jamais celle du bandeau allergies (#4076, ADR-009 §8.6)',
+          (tester) async {
+        final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: const Scaffold(
+              body: Column(
+                children: [
+                  // Même libellé que l'allergie du dossier (cas limite).
+                  TherapeuticClassLabel(therapeuticClass: 'Pénicilline'),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final pill = tester.widget<StatusPill>(find.byType(StatusPill));
+        expect(pill.variant, StatusPillVariant.neutral);
+
+        final container = tester.widget<Container>(find.descendant(
+          of: find.byType(StatusPill),
+          matching: find.byType(Container),
+        ));
+        final decoration = container.decoration as BoxDecoration;
+        expect(decoration.color, tokens.neutralBg);
+        expect(decoration.color, isNot(tokens.dangerBg));
+        expect(decoration.color, isNot(tokens.warningBg));
+      });
+    });
+
     testWidgets('OrdonnancesError → snackbar, formulaire toujours monté',
         (tester) async {
       whenListen(

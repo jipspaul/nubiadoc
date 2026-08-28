@@ -811,6 +811,30 @@ class _AllergiesBanner extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+/// Étiquette de classe thérapeutique (#4990, maquette design-v2 `.aci .tg`) :
+/// rendue dans une teinte neutre unique, identique pour toutes les classes
+/// (`NubiaTokens.neutralBg`/`neutralFg`, équivalent n100/n600). Ne prend
+/// délibérément PAS les allergies du dossier en paramètre — les colorer
+/// selon `_allergies` reviendrait à effectuer la vérification de
+/// contre-indication que l'ADR-009 §8.6 exclut (#4076). À consommer par le
+/// widget de résultat de recherche référentiel DCI (#4989) quand il sera
+/// créé.
+class TherapeuticClassLabel extends StatelessWidget {
+  const TherapeuticClassLabel({super.key, required this.therapeuticClass});
+
+  final String therapeuticClass;
+
+  @override
+  Widget build(BuildContext context) {
+    return StatusPill(
+      label: therapeuticClass,
+      variant: StatusPillVariant.neutral,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 /// Options de dose (#4991, maquette design-v2 `.fields`) — couvre les formes
 /// galéniques les plus courantes (comprimé, sachet, bain de bouche…).
 const _doseOptions = <NubiaSelectItem<String>>[
