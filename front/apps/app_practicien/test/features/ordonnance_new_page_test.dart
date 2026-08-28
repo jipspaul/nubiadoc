@@ -564,6 +564,53 @@ void main() {
       );
     });
 
+    testWidgets(
+        'écran de composition → sélectionner un modèle dispatch '
+        'OrdonnancesApplyTemplateRequested avec le patientId, avant toute '
+        'création de brouillon (#4988)', (tester) async {
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_template]);
+
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('use_template_button')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('use_template_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('prescription_template_picker')),
+          findsOneWidget);
+      await tester.tap(find.byKey(const Key('prescription_template_tmpl-1')));
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const OrdonnancesApplyTemplateRequested(
+            patientId: 'patient-1',
+            templateId: 'tmpl-1',
+          ))).called(1);
+    });
+
+    testWidgets(
+        'OrdonnancesApplyingTemplate sans brouillon → formulaire de '
+        'composition reste monté, bouton modèle en chargement (#4988)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const OrdonnancesApplyingTemplate());
+
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('ordonnance_form')), findsOneWidget);
+      expect(find.byKey(const Key('ordonnance_draft_review')), findsNothing);
+      // main a remplacé le bouton « Ajouter un médicament » par la recherche au
+      // référentiel DCI (NubiaSearchBar, #4989). L'intention de #4988 est
+      // inchangée — on ne doit pas pouvoir ajouter de ligne pendant
+      // l'application d'un modèle — mais elle s'exprime désormais par
+      // `enabled`, pas par un `onPressed` nul.
+      final addField = tester.widget<NubiaSearchBar>(
+        find.byKey(const Key('add_item_button')),
+      );
+      expect(addField.enabled, isFalse,
+          reason: 'la recherche de médicament doit être désactivée pendant '
+              'l\'application du modèle');
+    });
+
     testWidgets('OrdonnancesCreated → relecture brouillon + bouton Signer',
         (tester) async {
       when(() => bloc.state).thenReturn(OrdonnancesCreated(_prescription));

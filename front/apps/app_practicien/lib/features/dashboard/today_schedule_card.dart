@@ -12,10 +12,26 @@ import '../agenda/agenda_state.dart';
 /// « RDV aujourd'hui » comme seul compteur (« la journée en clair, pas en
 /// compteur »). Consomme [AgendaBloc], déjà chargé pour la semaine en cours
 /// par l'appelant, et filtre sur la journée d'aujourd'hui.
+///
+/// [clock] fournit l'instant courant. Il est injectable UNIQUEMENT pour les
+/// tests : le filtre « aujourd'hui » compare des dates de calendrier, si bien
+/// qu'un test qui construit ses RDV en décalage de `DateTime.now()` voit ses
+/// entrées basculer sur le lendemain dès qu'il tourne à moins de deux heures de
+/// minuit — la carte affichait alors « 3 RDV » au lieu de « 4 RDV » et la CI
+/// échouait entre ~23h30 et ~01h30, au hasard de l'heure de passage. Épingler
+/// l'horloge rend ces tests déterministes ; en production le défaut
+/// `DateTime.now` est inchangé.
 class TodayScheduleCard extends StatelessWidget {
-  const TodayScheduleCard({super.key, required this.summary});
+  const TodayScheduleCard({
+    super.key,
+    required this.summary,
+    this.clock = DateTime.now,
+  });
 
   final ProDashboardSummary summary;
+
+  /// Source de l'instant courant (défaut : [DateTime.now]). Cf. doc de classe.
+  final DateTime Function() clock;
 
   @override
   Widget build(BuildContext context) {
@@ -26,8 +42,9 @@ class TodayScheduleCard extends StatelessWidget {
       builder: (context, state) {
         final allEntries =
             state is AgendaLoaded ? state.entries : const <AgendaEntry>[];
-        final today = _todayEntries(allEntries);
-        final remaining = today.where((e) => !_isPast(e)).length;
+        final now = clock();
+        final today = _todayEntries(allEntries, now);
+        final remaining = today.where((e) => !_isPast(e, now)).length;
 
         return NubiaCard(
           key: const Key('today_schedule_card'),
@@ -75,6 +92,7 @@ class TodayScheduleCard extends StatelessWidget {
                   _ScheduleRow(
                     entry: today[i],
                     showDivider: i < today.length - 1,
+                    now: now,
                   ),
             ],
           ),
@@ -83,8 +101,7 @@ class TodayScheduleCard extends StatelessWidget {
     );
   }
 
-  List<AgendaEntry> _todayEntries(List<AgendaEntry> entries) {
-    final now = DateTime.now();
+  List<AgendaEntry> _todayEntries(List<AgendaEntry> entries, DateTime now) {
     final result = entries
         .where((e) =>
             !e.isFree &&
@@ -99,26 +116,29 @@ class TodayScheduleCard extends StatelessWidget {
   }
 }
 
-bool _isPast(AgendaEntry entry) => entry.endsAt.isBefore(DateTime.now());
+bool _isPast(AgendaEntry entry, DateTime now) => entry.endsAt.isBefore(now);
 
-bool _isNow(AgendaEntry entry) {
-  final now = DateTime.now();
-  return !entry.startsAt.isAfter(now) && entry.endsAt.isAfter(now);
-}
+bool _isNow(AgendaEntry entry, DateTime now) =>
+    !entry.startsAt.isAfter(now) && entry.endsAt.isAfter(now);
 
 class _ScheduleRow extends StatelessWidget {
-  const _ScheduleRow({required this.entry, required this.showDivider});
+  const _ScheduleRow({
+    required this.entry,
+    required this.showDivider,
+    required this.now,
+  });
 
   final AgendaEntry entry;
   final bool showDivider;
+  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
     final style = ScheduleStatusStyle.of(entry);
-    final past = _isPast(entry);
-    final now = _isNow(entry);
+    final past = _isPast(entry, now);
+    final isNow = _isNow(entry, now);
     final hour = entry.startsAt.hour.toString().padLeft(2, '0');
     final minute = entry.startsAt.minute.toString().padLeft(2, '0');
 
@@ -146,7 +166,7 @@ class _ScheduleRow extends StatelessWidget {
     return Opacity(
       opacity: past ? 0.55 : 1,
       child: Container(
-        color: now ? tokens.primarySubtleBg : null,
+        color: isNow ? tokens.primarySubtleBg : null,
         child: Column(
           children: [
             row,
