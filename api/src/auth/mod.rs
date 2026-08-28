@@ -244,6 +244,11 @@ pub(crate) enum AppError {
     /// `account_guardianship_active_pair_uidx` (migration 0025) ne peut
     /// jamais se déclencher structurellement ; contrôle applicatif requis.
     DuplicateDependent,
+    /// `POST /v1/account/access-requests` (#6119) : une invitation active
+    /// (`envoyee` ou `acceptee`, non annulée/révoquée) existe déjà pour ce
+    /// couple (requester, email/téléphone) — contrôle applicatif, comme
+    /// `DuplicateDependent`.
+    DuplicateAccessRequest,
     /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` (#4481) : l'acte
     /// est référencé par un `stock_movement` ou un `sterilized_pouch` (FK
     /// composite `(consultation_act_id, cabinet_id)` sans `ON DELETE`,
@@ -522,6 +527,11 @@ impl IntoResponse for AppError {
             AppError::DuplicateDependent => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "duplicate_dependent"})),
+            )
+                .into_response(),
+            AppError::DuplicateAccessRequest => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "duplicate_access_request"})),
             )
                 .into_response(),
             AppError::ActLinkedToStock => (
@@ -5032,4 +5042,377 @@ pub async fn get_account_avatar(
             .into_response()),
         _ => Err(AppError::NotFound),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Invitation d'un proche adulte (#6119) — `/v1/account/access-requests*`.
+//
+// Distinct de `account/dependents` (compte géré sans mot de passe, pour un
+// mineur) : ici le proche invité a déjà (ou aura) son propre compte, et
+// n'obtient qu'un accès en lecture au périmètre choisi par l'invitant sur SES
+// propres données, après acceptation.
+//
+// `invitee_account_id` reste NULL tant que l'invité n'a pas agi : il n'est
+// résolu qu'au moment d'`accept`/`refuse`, à partir du compte authentifié qui
+// appelle la route en connaissant l'`id` de la demande (reçu hors-bande,
+// notification/deep-link — cf. `IncomingRequestCubit.load`, pas de route de
+// liste côté invité dans ce lot de 7 endpoints). C'est pourquoi la RLS de
+// `account_access_request` (migration 0239) est ouverte pour `nubia_app` et
+// le filtrage se fait ici, dans chaque `WHERE`.
+// ---------------------------------------------------------------------------
+
+const ACCESS_REQUEST_RELATIONSHIPS: [&str; 3] = ["enfant", "conjoint", "autre"];
+const ACCESS_REQUEST_SCOPE_VALUES: [&str; 4] =
+    ["rendez_vous", "documents", "ordonnances", "dossier_medical"];
+
+/// Une demande d'accès, telle que renvoyée par les 7 endpoints
+/// `/v1/account/access-requests*`.
+#[derive(Serialize)]
+pub struct AccessRequestResponse {
+    id: Uuid,
+    first_name: String,
+    last_name: String,
+    relationship: String,
+    status: String,
+    channel: String,
+    scope: Vec<String>,
+    sent_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    revoked_at: Option<String>,
+}
+
+fn access_request_from_row(row: &sqlx::postgres::PgRow) -> Result<AccessRequestResponse, AppError> {
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+    let last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+    let relationship: String = row.try_get("relationship").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let channel: String = row.try_get("channel").map_err(|_| AppError::Internal)?;
+    let scope: Vec<String> = row.try_get("scope").map_err(|_| AppError::Internal)?;
+    let sent_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("sent_at").map_err(|_| AppError::Internal)?;
+    let revoked_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("revoked_at").map_err(|_| AppError::Internal)?;
+    Ok(AccessRequestResponse {
+        id,
+        first_name,
+        last_name,
+        relationship,
+        status,
+        channel,
+        scope,
+        sent_at: sent_at.to_rfc3339(),
+        revoked_at: revoked_at.map(|t| t.to_rfc3339()),
+    })
+}
+
+/// `GET /v1/account/access-requests` — demandes envoyées par le compte
+/// courant, tous statuts confondus (hors demandes annulées, `cancelled_at`
+/// agit comme un soft-delete — même logique que `active=false` sur
+/// `account_guardianship`).
+pub async fn get_account_access_requests(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<Vec<AccessRequestResponse>>, AppError> {
+    let rows = sqlx::query(
+        "SELECT id, first_name, last_name, relationship, status, channel, scope, sent_at, revoked_at \
+         FROM account_access_request \
+         WHERE requester_account_id = $1 AND cancelled_at IS NULL \
+         ORDER BY sent_at DESC",
+    )
+    .bind(claims.account_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let requests = rows
+        .iter()
+        .map(access_request_from_row)
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        count = requests.len(),
+        "access requests listed"
+    );
+
+    Ok(Json(requests))
+}
+
+/// Corps de la requête `POST /v1/account/access-requests`.
+#[derive(Deserialize)]
+pub struct PostAccessRequestBody {
+    first_name: String,
+    last_name: String,
+    relationship: String,
+    channel: String,
+    #[serde(default)]
+    scope: Vec<String>,
+    email: Option<String>,
+    phone: Option<String>,
+}
+
+/// `POST /v1/account/access-requests` — invite un proche adulte
+/// (conjoint/autre) avec le périmètre de droits accordé.
+///
+/// Un lien actif (`envoyee`/`acceptee`, ni annulé ni révoqué) existe déjà pour
+/// ce couple (requester, email/téléphone) → `409 duplicate_access_request`
+/// (même anti-doublon applicatif que `POST /v1/account/dependents`, #4475).
+pub async fn post_account_access_requests(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Json(body): Json<PostAccessRequestBody>,
+) -> Result<(StatusCode, Json<AccessRequestResponse>), AppError> {
+    if body.first_name.trim().is_empty() || body.last_name.trim().is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    if !ACCESS_REQUEST_RELATIONSHIPS.contains(&body.relationship.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+    if !["email", "sms"].contains(&body.channel.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+    for right in &body.scope {
+        if !ACCESS_REQUEST_SCOPE_VALUES.contains(&right.as_str()) {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    let email = match body.email.as_deref().map(str::trim) {
+        Some(e) if !e.is_empty() => {
+            if !is_valid_email_format(e) {
+                return Err(AppError::ValidationError);
+            }
+            Some(e.to_lowercase())
+        }
+        _ => None,
+    };
+    let phone = match body.phone.as_deref().map(str::trim) {
+        Some(p) if !p.is_empty() => Some(p.to_string()),
+        _ => None,
+    };
+    match body.channel.as_str() {
+        "email" if email.is_none() => return Err(AppError::ValidationError),
+        "sms" if phone.is_none() => return Err(AppError::ValidationError),
+        _ => {}
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    let duplicate = sqlx::query(
+        "SELECT 1 FROM account_access_request \
+         WHERE requester_account_id = $1 AND status IN ('envoyee', 'acceptee') \
+           AND cancelled_at IS NULL AND revoked_at IS NULL \
+           AND ((email IS NOT NULL AND email = $2) OR (phone IS NOT NULL AND phone = $3))",
+    )
+    .bind(claims.account_id)
+    .bind(&email)
+    .bind(&phone)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if duplicate.is_some() {
+        return Err(AppError::DuplicateAccessRequest);
+    }
+
+    let row = sqlx::query(
+        "INSERT INTO account_access_request \
+           (requester_account_id, first_name, last_name, relationship, channel, email, phone, scope) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+         RETURNING id, first_name, last_name, relationship, status, channel, scope, sent_at, revoked_at",
+    )
+    .bind(claims.account_id)
+    .bind(&body.first_name)
+    .bind(&body.last_name)
+    .bind(&body.relationship)
+    .bind(&body.channel)
+    .bind(&email)
+    .bind(&phone)
+    .bind(&body.scope)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let response = access_request_from_row(&row)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        access_request_id = %response.id,
+        channel = %body.channel,
+        "access request sent"
+    );
+
+    Ok((StatusCode::CREATED, Json(response)))
+}
+
+/// `POST /v1/account/access-requests/{id}/resend` — relance une demande
+/// `envoyee` (renvoi du canal, pas de changement de périmètre). Demande
+/// inconnue, déjà décidée ou annulée → `404` (anti-énumération, §07 §2.9).
+pub async fn post_account_access_request_resend(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(request_id): Path<Uuid>,
+) -> Result<Json<AccessRequestResponse>, AppError> {
+    let row = sqlx::query(
+        "UPDATE account_access_request \
+         SET sent_at = now(), updated_at = now() \
+         WHERE id = $1 AND requester_account_id = $2 \
+           AND status = 'envoyee' AND cancelled_at IS NULL \
+         RETURNING id, first_name, last_name, relationship, status, channel, scope, sent_at, revoked_at",
+    )
+    .bind(request_id)
+    .bind(claims.account_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let response = access_request_from_row(&row)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        access_request_id = %request_id,
+        "access request resent"
+    );
+
+    Ok(Json(response))
+}
+
+/// `DELETE /v1/account/access-requests/{id}` — annule une demande `envoyee`,
+/// côté invitant. Soft-delete (`cancelled_at`), jamais de `DELETE` SQL (§07
+/// §10) : exclue de `GET /v1/account/access-requests` ensuite. Demande
+/// inconnue, déjà décidée ou déjà annulée → `404`.
+pub async fn delete_account_access_request(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(request_id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    let updated = sqlx::query(
+        "UPDATE account_access_request \
+         SET cancelled_at = now(), updated_at = now() \
+         WHERE id = $1 AND requester_account_id = $2 \
+           AND status = 'envoyee' AND cancelled_at IS NULL",
+    )
+    .bind(request_id)
+    .bind(claims.account_id)
+    .execute(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        access_request_id = %request_id,
+        "access request cancelled"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Résout une demande `envoyee` en `acceptee`/`refusee` côté invité : lie
+/// `invitee_account_id` au compte courant s'il n'est pas encore établi, sinon
+/// vérifie qu'il correspond déjà (une demande ne peut être réclamée que par
+/// un seul invité). Un titulaire ne peut pas décider sur sa propre demande
+/// envoyée (`requester_account_id <> $2`). Aucune ligne → `404`
+/// (anti-énumération, §07 §2.9 — vaut aussi bien pour un `id` inconnu qu'une
+/// demande déjà décidée/annulée ou déjà réclamée par un autre invité).
+async fn decide_access_request(
+    state: &AppState,
+    claims: &PatientAccountClaims,
+    request_id: Uuid,
+    new_status: &str,
+) -> Result<AccessRequestResponse, AppError> {
+    let row = sqlx::query(
+        "UPDATE account_access_request \
+         SET status = $3, invitee_account_id = COALESCE(invitee_account_id, $2), \
+             decided_at = now(), updated_at = now() \
+         WHERE id = $1 AND status = 'envoyee' AND cancelled_at IS NULL \
+           AND requester_account_id <> $2 \
+           AND (invitee_account_id IS NULL OR invitee_account_id = $2) \
+         RETURNING id, first_name, last_name, relationship, status, channel, scope, sent_at, revoked_at",
+    )
+    .bind(request_id)
+    .bind(claims.account_id)
+    .bind(new_status)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    access_request_from_row(&row)
+}
+
+/// `POST /v1/account/access-requests/{id}/accept` — accepte une invitation
+/// reçue, côté invité.
+pub async fn post_account_access_request_accept(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(request_id): Path<Uuid>,
+) -> Result<Json<AccessRequestResponse>, AppError> {
+    let response = decide_access_request(&state, &claims, request_id, "acceptee").await?;
+
+    tracing::info!(
+        invitee_account_id = %claims.account_id,
+        access_request_id = %request_id,
+        "access request accepted"
+    );
+
+    Ok(Json(response))
+}
+
+/// `POST /v1/account/access-requests/{id}/refuse` — refuse une invitation
+/// reçue, côté invité.
+pub async fn post_account_access_request_refuse(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(request_id): Path<Uuid>,
+) -> Result<Json<AccessRequestResponse>, AppError> {
+    let response = decide_access_request(&state, &claims, request_id, "refusee").await?;
+
+    tracing::info!(
+        invitee_account_id = %claims.account_id,
+        access_request_id = %request_id,
+        "access request refused"
+    );
+
+    Ok(Json(response))
+}
+
+/// `POST /v1/account/access-requests/{id}/revoke` — révoque un accès déjà
+/// accordé, côté invité. Distinct de `DELETE /v1/account/dependents/{id}`,
+/// qui reste la révocation côté gestionnaire d'un dépendant enfant. Demande
+/// inconnue, jamais acceptée par ce compte, ou déjà révoquée → `404`.
+pub async fn post_account_access_request_revoke(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(request_id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    let updated = sqlx::query(
+        "UPDATE account_access_request \
+         SET revoked_at = now(), updated_at = now() \
+         WHERE id = $1 AND invitee_account_id = $2 \
+           AND status = 'acceptee' AND revoked_at IS NULL",
+    )
+    .bind(request_id)
+    .bind(claims.account_id)
+    .execute(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    tracing::info!(
+        invitee_account_id = %claims.account_id,
+        access_request_id = %request_id,
+        "access revoked by invitee"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
 }
