@@ -1,4 +1,4 @@
--- 0239_visit_request_estimated_price.sql
+-- 0240_visit_request_estimated_price.sql
 -- jips/nubiadoc#6117 : aucune notion de prix n'existe dans le domaine nurse
 -- (soins à domicile) — ni endpoint d'estimation, ni colonne. Le patient ne
 -- voit jamais aucun montant avant/pendant/après une visite. Ajoute la colonne
