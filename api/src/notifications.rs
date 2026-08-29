@@ -55,7 +55,10 @@ fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<String> {
             let id = data.get("order_id")?.as_str()?;
             Some(format!("/pharmacy/orders/{id}"))
         }
-        "waiting_room_called" => {
+        "waiting_room_called"
+        | "appointment_confirmed"
+        | "appointment_rescheduled"
+        | "appointment_motif_changed" => {
             let id = data.get("appointment_id")?.as_str()?;
             Some(format!("/appointments/{id}"))
         }

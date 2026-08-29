@@ -1514,7 +1514,7 @@ pub async fn confirm_appointment(
     };
 
     let row = sqlx::query(
-        "SELECT id, status FROM appointment a \
+        "SELECT id, status, patient_id FROM appointment a \
          WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
            AND ($3::uuid IS NULL OR EXISTS ( \
                SELECT 1 FROM provider pr \
@@ -1534,6 +1534,7 @@ pub async fn confirm_appointment(
 
     let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
 
     if status != "requested" {
         return Err(AppError::InvalidStatus);
@@ -1557,6 +1558,43 @@ pub async fn confirm_appointment(
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    // Notification in-app au patient (#6133) : sans elle, la confirmation
+    // cabinet n'était visible que via repoll actif de GET /appointments/:id.
+    // Même résolution app_user_id / patient_account_id que offer_waiting_list_slot.
+    let pat_row = sqlx::query(
+        "SELECT app_user_id, patient_account_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if let Some(row) = pat_row {
+        let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+        let account_id: Option<Uuid> = row
+            .try_get("patient_account_id")
+            .map_err(|_| AppError::Internal)?;
+        let notify_data = serde_json::json!({ "appointment_id": id });
+        if let Some(uid) = uid {
+            notify::notify_user(
+                &mut tx,
+                uid,
+                "appointment_confirmed",
+                "Rendez-vous confirmé",
+                notify_data,
+            )
+            .await?;
+        } else if let Some(account_id) = account_id {
+            notify::notify_patient_account(
+                &mut tx,
+                account_id,
+                "appointment_confirmed",
+                "Rendez-vous confirmé",
+                notify_data,
+            )
+            .await?;
+        }
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -2002,7 +2040,7 @@ pub async fn patch_cabinet_appointment(
     };
 
     let row = sqlx::query(
-        "SELECT id, status, slot_id, practitioner_id, starts_at FROM appointment a \
+        "SELECT id, status, slot_id, practitioner_id, starts_at, patient_id FROM appointment a \
          WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
            AND ($3::uuid IS NULL OR EXISTS ( \
                SELECT 1 FROM provider pr \
@@ -2028,6 +2066,7 @@ pub async fn patch_cabinet_appointment(
         .map_err(|_| AppError::Internal)?;
     let starts_at: chrono::DateTime<chrono::Utc> =
         row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
 
     // Clôture cabinet d'un `checked_in` (typiquement périmé, d'un jour passé,
     // donc absent de waiting-room/queue) : seule sortie de file possible avant
@@ -2273,6 +2312,35 @@ pub async fn patch_cabinet_appointment(
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    // Notification in-app au patient (#6133) : reprogrammation (nouvel
+    // horaire) ou changement de motif par le cabinet doivent l'informer,
+    // même résolution app_user_id / patient_account_id que confirm_appointment/
+    // offer_waiting_list_slot ci-dessus.
+    let pat_row = sqlx::query(
+        "SELECT app_user_id, patient_account_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if let Some(row) = pat_row {
+        let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+        let account_id: Option<Uuid> = row
+            .try_get("patient_account_id")
+            .map_err(|_| AppError::Internal)?;
+        let (kind, title) = if new_starts_at.is_some() {
+            ("appointment_rescheduled", "Rendez-vous reprogrammé")
+        } else {
+            ("appointment_motif_changed", "Motif du rendez-vous modifié")
+        };
+        let notify_data = serde_json::json!({ "appointment_id": id });
+        if let Some(uid) = uid {
+            notify::notify_user(&mut tx, uid, kind, title, notify_data).await?;
+        } else if let Some(account_id) = account_id {
+            notify::notify_patient_account(&mut tx, account_id, kind, title, notify_data).await?;
+        }
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
