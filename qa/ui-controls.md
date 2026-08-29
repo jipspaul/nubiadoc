@@ -12,6 +12,16 @@
 | patient | /profile (Profil) | 18 | 10 | 10 | 0 | 0 | 2026-08-28T22:13:00Z |
 | patient | /profile/dependents (Mes proches) | 17+ (par proche) | 2 (Prendre RDV, Documents sur 1er proche) | 2 | 0 | 0 (mais data sous-jacente `pendingAccessRequests` cassée, cf. #6119) | 2026-08-28T22:14:00Z |
 | patient | /oubliettes | 13 (docs listés) | 0 | - | - | - | 2026-08-28T22:12:00Z (rendu confirmé sain, dates relatives correctes — ancien bug #5736 fixé, pas re-testé bouton par bouton) |
+| praticien | / + nav rail (11 items) | 12 (4 groupes + 8 boutons nav) | 4 (Tableau de bord, Agenda, Salle d'attente, Consultation via nav) | 4 | 0 | 0 | 2026-08-29T00:36:22Z |
+| praticien | /lab-work-orders | 3 (Actualiser, Nouveau bon, Réessayer visible seulement en cas d'erreur réseau) | 2 (Actualiser, Nouveau bon) | 2 | 0 | 0 | 2026-08-29T00:36:22Z |
+| praticien | /patients | 18 (17 fiches + Actualiser implicite) | 0 (inventaire seul, drill non fait ce run) | - | - | - | 2026-08-29T00:36:22Z |
+| praticien | /consultation | 19 (3 filtres statut + 16 fiches) | 0 (inventaire seul) | - | - | - | 2026-08-29T00:36:22Z |
+| praticien | /devis | 10 (fiches devis brouillon) | 0 (inventaire seul) | - | - | - | 2026-08-29T00:36:22Z |
+| praticien | /stock-inventory | 24 (11 lignes stock + 11 boutons Mouvement + Actualiser) | 0 (inventaire seul) | - | - | - | 2026-08-29T00:36:22Z |
+| secretariat | / (dashboard) + 16 routes | ~130 (agrégé sur 16 routes) | 0 (inventaire seul, navigation directe par URL, pas de clic exhaustif) | - | - | - | 2026-08-29T00:36:22Z |
+| secretariat | /cabinet-payouts | 5 (2 nav mois, Actualiser, Exporter CSV, Connecter Stripe) | 1 (Exporter CSV — confirmé DÉSACTIVÉ légitimement, liste virements vide) | 1 | 0 | 0 | 2026-08-29T00:36:22Z |
+| secretariat | /team-messages | 7 (Joindre/Épingler/Mentionner + input + Épingler liste) | 0 (stubs "à venir" documentés dans le code, pas activés ce run) | - | - | - | 2026-08-29T00:36:22Z |
+| pharmacie | / (Commandes) + Stock/Messages/Devis | ~55 (agrégé sur 4 routes) | 0 (inventaire seul, navigation directe par URL) | - | - | - | 2026-08-29T00:36:22Z |
 
 ## Détail des activations « Profil » (2026-08-28T22:13:00Z)
 
