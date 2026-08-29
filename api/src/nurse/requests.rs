@@ -24,6 +24,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::auth::{AppError, PatientAccountClaims};
+use crate::nurse::pricing;
 use crate::{notify, realtime::WsHub, AppState, JobDispatcher};
 
 /// Actes de soin proposables en v1 (liste courte en dur ; un catalogue viendra
@@ -44,8 +45,8 @@ const MAX_OFFER_NURSES: i64 = 10;
 
 /// Colonnes projetées d'une `visit_request` dans les réponses API.
 pub(crate) const VISIT_COLUMNS: &str = "id, nurse_id, status, requested_acts, address, \
-     patient_display_name, notes, requested_at, offered_at, accepted_at, en_route_at, \
-     arrived_at, done_at, cancelled_at";
+     patient_display_name, notes, estimated_price_cents, requested_at, offered_at, \
+     accepted_at, en_route_at, arrived_at, done_at, cancelled_at";
 
 /// Une demande de visite dans les réponses API.
 #[derive(Serialize)]
@@ -57,6 +58,8 @@ pub struct VisitDto {
     pub address: serde_json::Value,
     pub patient_display_name: String,
     pub notes: Option<String>,
+    /// Prix estimé à la création (#6117), figé même si le barème change ensuite.
+    pub estimated_price_cents: i32,
     pub requested_at: String,
     pub offered_at: Option<String>,
     pub accepted_at: Option<String>,
@@ -83,6 +86,9 @@ pub(crate) fn visit_from_row(row: &PgRow) -> Result<VisitDto, AppError> {
             .try_get("patient_display_name")
             .map_err(|_| AppError::Internal)?,
         notes: row.try_get("notes").map_err(|_| AppError::Internal)?,
+        estimated_price_cents: row
+            .try_get("estimated_price_cents")
+            .map_err(|_| AppError::Internal)?,
         requested_at: row
             .try_get::<chrono::DateTime<chrono::Utc>, _>("requested_at")
             .map_err(|_| AppError::Internal)?
@@ -140,11 +146,16 @@ pub async fn create_visit_request(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Prix affiché au patient (#6117) : même barème qu'à l'estimation
+    // (`pricing::estimate_price_cents`), figé sur la demande dès la création.
+    let estimated_price_cents = pricing::estimate_price_cents(&body.requested_acts);
+
     // Insert 'requested' (RLS visit_request_patient_insert). Doublon actif → 409.
     let row = sqlx::query(&format!(
         "INSERT INTO visit_request \
-         (patient_account_id, visit_geo, address, requested_acts, patient_display_name, notes) \
-         VALUES ($1, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, $4, $5, $6, $7) \
+         (patient_account_id, visit_geo, address, requested_acts, patient_display_name, notes, \
+          estimated_price_cents) \
+         VALUES ($1, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, $4, $5, $6, $7, $8) \
          RETURNING {VISIT_COLUMNS}",
     ))
     .bind(claims.account_id) // $1
@@ -154,6 +165,7 @@ pub async fn create_visit_request(
     .bind(&body.requested_acts) // $5
     .bind(&body.patient_display_name) // $6
     .bind(&body.notes) // $7
+    .bind(estimated_price_cents) // $8
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| match &e {

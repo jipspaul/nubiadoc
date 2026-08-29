@@ -11,8 +11,10 @@
 //! - `profile`   : profil de l'infirmière + heartbeat disponibilité/position.
 //! - `requests`  : cycle de vie des demandes de visite (fan-out, accept, transitions)
 //!   — ajouté dans la slice suivante.
+//! - `pricing`   : estimation de prix avant demande (`POST .../estimate`, #6117).
 
 pub mod directory;
+pub mod pricing;
 pub mod profile;
 pub mod requests;
 pub mod visits;

@@ -28,6 +28,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
                 .post(nurse::requests::create_visit_request),
         )
         .route(
+            "/v1/account/visit-requests/estimate",
+            post(nurse::pricing::estimate_visit_price),
+        )
+        .route(
             "/v1/account/visit-requests/:id",
             get(nurse::requests::get_account_visit_request),
         )
