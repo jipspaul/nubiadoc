@@ -233,14 +233,26 @@ Future<void> _select(WidgetTester tester, Key key, String label) async {
   await tester.pumpAndSettle();
 }
 
+/// Choisit [_medicationReference] dans la recherche référentiel de la ligne
+/// [index] (#4989 : le nom (DCI) ne se saisit plus librement, il provient
+/// d'une sélection — `registerMedicationReferenceStub` renvoie
+/// [_medicationReference] pour toute requête non vide).
+Future<void> _selectMedication(WidgetTester tester, int index) async {
+  await tester.enterText(
+      find.byKey(Key('item_${index}_label_search')), 'amoxi');
+  await tester.pump();
+  final resultKey = Key('item_${index}_label_result_med-1');
+  await tester.ensureVisible(find.byKey(resultKey));
+  await tester.tap(find.byKey(resultKey));
+  await tester.pump();
+}
+
 /// Remplit une ligne médicament avec une dose/fréquence/durée dont la
 /// quantité se calcule automatiquement (#4992) : 1 comprimé × 2 fois / jour
 /// × 7 jours = 14 comprimés — aucune saisie de quantité n'est plus
 /// nécessaire.
 Future<void> _fillItem(WidgetTester tester, int index) async {
-  await tester.enterText(
-      find.byKey(Key('item_${index}_label')), 'Amoxicilline 500mg');
-  await tester.pump();
+  await _selectMedication(tester, index);
   await _select(tester, Key('item_${index}_posology'), '1 comprimé');
   await _select(tester, Key('item_${index}_frequency'), '2 fois / jour');
   await _select(tester, Key('item_${index}_duration'), '7 jours');
@@ -384,7 +396,9 @@ void main() {
             patientId: 'patient-1',
             items: [
               PrescriptionItem(
-                label: 'Amoxicilline 500mg',
+                label: 'Amoxicilline',
+                form: 'comprimé dispersible',
+                productReference: _medicationReference,
                 posology: '1 comprimé, 2 fois / jour',
                 duration: '7 jours',
                 quantity: '14 comprimés',
@@ -428,9 +442,7 @@ void main() {
       testWidgets('« Modifier » permet de surcharger la quantité calculée',
           (tester) async {
         await tester.pumpWidget(_wrap(bloc));
-        await tester.enterText(
-            find.byKey(const Key('item_0_label')), 'Amoxicilline 500mg');
-        await tester.pump();
+        await _selectMedication(tester, 0);
         await _select(tester, const Key('item_0_posology'), '1 comprimé');
         await _select(tester, const Key('item_0_frequency'), '3 fois / jour');
         await _select(tester, const Key('item_0_duration'), '5 jours');
@@ -458,9 +470,11 @@ void main() {
           () => bloc.add(
             OrdonnancesCreateRequested(
               patientId: 'patient-1',
-              items: [
+              items: const [
                 PrescriptionItem(
-                  label: 'Amoxicilline 500mg',
+                  label: 'Amoxicilline',
+                  form: 'comprimé dispersible',
+                  productReference: _medicationReference,
                   posology: '1 comprimé, 3 fois / jour',
                   duration: '5 jours',
                   quantity: '1 boîte de 16',
@@ -475,8 +489,7 @@ void main() {
           'sans dose/fréquence/durée sélectionnées → ligne invalide (submit désactivé)',
           (tester) async {
         await tester.pumpWidget(_wrap(bloc));
-        await tester.enterText(find.byKey(const Key('item_0_label')), 'Vaccin');
-        await tester.pump();
+        await _selectMedication(tester, 0);
         await _select(tester, const Key('item_0_posology'), '1 comprimé');
         await _select(tester, const Key('item_0_frequency'), '2 fois / jour');
         // Durée non sélectionnée : ligne incomplète.
@@ -555,13 +568,39 @@ void main() {
 
       expect(find.byKey(const Key('item_card_0')), findsOneWidget);
       expect(find.byKey(const Key('item_card_1')), findsOneWidget);
+      // La ligne ajoutée porte déjà la référence choisie (#4989) : nom + forme
+      // galénique affichés, plus de champ libre à re-saisir.
+      final addedRow = tester
+          .widget<ListRow>(find.byKey(const Key('item_1_label')));
+      expect(addedRow.title, 'Amoxicilline');
+      expect(addedRow.subtitle, 'comprimé dispersible');
+    });
+
+    testWidgets(
+        'ligne existante → recherche référentiel DCI au lieu du texte libre, '
+        'forme galénique affichée après sélection (#4989)', (tester) async {
+      await tester.pumpWidget(_wrap(bloc));
+
+      // Aucune saisie libre possible : la clé porte une recherche, pas un
+      // NubiaTextField.
       expect(
-        tester
-            .widget<NubiaTextField>(find.byKey(const Key('item_1_label')))
-            .controller
-            ?.text,
-        'Amoxicilline',
+        find.descendant(
+          of: find.byKey(const Key('item_0_label')),
+          matching: find.byType(NubiaTextField),
+        ),
+        findsNothing,
       );
+      expect(find.byKey(const Key('item_0_label_search')), findsOneWidget);
+
+      await _selectMedication(tester, 0);
+
+      // La sélection remplace la recherche par le nom + la forme galénique,
+      // sans champ de saisie libre.
+      expect(find.byKey(const Key('item_0_label_search')), findsNothing);
+      final row =
+          tester.widget<ListRow>(find.byKey(const Key('item_0_label')));
+      expect(row.title, 'Amoxicilline');
+      expect(row.subtitle, 'comprimé dispersible');
     });
 
     testWidgets(

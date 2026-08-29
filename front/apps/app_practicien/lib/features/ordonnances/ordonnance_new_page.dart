@@ -154,10 +154,30 @@ class _OrdonnanceNewBodyState extends State<OrdonnanceNewBody> {
 /// ou ne convient pas.
 class _ItemDraft {
   final label = TextEditingController();
+
+  /// Référence produit sélectionnée dans le référentiel médicament (#4989) —
+  /// `null` tant qu'aucun résultat de recherche n'a été choisi, ou après un
+  /// préremplissage par modèle (#4986, libellé seul, hors référentiel).
+  MedicationReference? reference;
+
   String? dose;
   String? frequency;
   String? duration;
   final quantityOverride = TextEditingController();
+
+  /// Fixe le médicament choisi dans le référentiel (#4989) : le libellé
+  /// (DCI) ne se saisit plus librement, il provient de la sélection.
+  void selectReference(MedicationReference selected) {
+    reference = selected;
+    label.text = selected.dci;
+  }
+
+  /// Réinitialise la sélection pour permettre de rechercher un autre
+  /// médicament (#4989).
+  void clearReference() {
+    reference = null;
+    label.text = '';
+  }
 
   /// Vrai quand l'encart de calcul a été remplacé par la saisie manuelle
   /// (tap sur « Modifier ») — état UI porté par le draft pour survivre aux
@@ -188,6 +208,8 @@ class _ItemDraft {
 
   PrescriptionItem toItem() => PrescriptionItem(
         label: label.text.trim(),
+        form: reference?.galenicForm,
+        productReference: reference,
         posology: posology,
         duration: duration ?? '',
         quantity: effectiveQuantity ?? '',
@@ -430,7 +452,7 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
           _AddItemSearchField(
             enabled: !widget.loading && !widget.applyingTemplate,
             onSelected: (reference) => setState(
-              () => _items.add(_ItemDraft()..label.text = reference.dci),
+              () => _items.add(_ItemDraft()..selectReference(reference)),
             ),
           ),
           const SizedBox(height: 24),
@@ -816,9 +838,8 @@ class _AllergiesBanner extends StatelessWidget {
 /// (`NubiaTokens.neutralBg`/`neutralFg`, équivalent n100/n600). Ne prend
 /// délibérément PAS les allergies du dossier en paramètre — les colorer
 /// selon `_allergies` reviendrait à effectuer la vérification de
-/// contre-indication que l'ADR-009 §8.6 exclut (#4076). À consommer par le
-/// widget de résultat de recherche référentiel DCI (#4989) quand il sera
-/// créé.
+/// contre-indication que l'ADR-009 §8.6 exclut (#4076). Consommée par les
+/// résultats de recherche référentiel DCI (#4989, `_MedicationSearchField`).
 class TherapeuticClassLabel extends StatelessWidget {
   const TherapeuticClassLabel({super.key, required this.therapeuticClass});
 
@@ -902,11 +923,10 @@ class _ItemCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          NubiaTextField(
-            key: Key('item_${index}_label'),
-            controller: draft.label,
-            label: 'Médicament (DCI)',
-            onChanged: (_) => onChanged(),
+          _MedicationSearchField(
+            index: index,
+            draft: draft,
+            onChanged: onChanged,
           ),
           const SizedBox(height: 12),
           Row(
@@ -956,6 +976,126 @@ class _ItemCard extends StatelessWidget {
           _QuantityCalc(index: index, draft: draft, onChanged: onChanged),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Champ « Médicament (DCI) » d'une ligne existante (#4989, maquette
+/// design-v2 `.acp`/`.aci`) : remplace le `NubiaTextField` nu par une
+/// recherche sur référentiel — le nom ne se tape plus, il se choisit. Tant
+/// qu'aucun médicament n'est choisi (ni saisi via un modèle, #4986), affiche
+/// la barre de recherche et ses résultats ; une fois un libellé présent,
+/// affiche le nom (+ la forme galénique si connue) avec une action pour
+/// changer de sélection. Même logique de recherche que
+/// `_AddItemSearchField`, dupliquée ici car les deux champs ont des états
+/// affichés différents (ajout d'une ligne vs. édition de la ligne
+/// existante).
+class _MedicationSearchField extends StatefulWidget {
+  const _MedicationSearchField({
+    required this.index,
+    required this.draft,
+    required this.onChanged,
+  });
+
+  final int index;
+  final _ItemDraft draft;
+  final VoidCallback onChanged;
+
+  @override
+  State<_MedicationSearchField> createState() =>
+      _MedicationSearchFieldState();
+}
+
+class _MedicationSearchFieldState extends State<_MedicationSearchField> {
+  final _controller = TextEditingController();
+  List<MedicationReference> _results = const [];
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search(String query) async {
+    if (query.trim().isEmpty ||
+        !GetIt.instance.isRegistered<SearchMedicationReferencesUseCase>()) {
+      setState(() => _results = const []);
+      return;
+    }
+    final result = await GetIt.instance<SearchMedicationReferencesUseCase>()(
+      query: query,
+    );
+    if (!mounted) return;
+    setState(() => _results = result.getOrElse(() => const []));
+  }
+
+  void _select(MedicationReference reference) {
+    widget.draft.selectReference(reference);
+    _controller.clear();
+    setState(() => _results = const []);
+    widget.onChanged();
+  }
+
+  void _clear() {
+    widget.draft.clearReference();
+    widget.onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final draft = widget.draft;
+    if (draft.label.text.trim().isNotEmpty) {
+      return ListRow(
+        key: Key('item_${widget.index}_label'),
+        title: draft.label.text,
+        subtitle: draft.reference?.galenicForm,
+        showDivider: false,
+        leading: const Icon(Icons.medication_outlined, size: 22),
+        trailing: IconButton(
+          key: Key('item_${widget.index}_label_clear'),
+          tooltip: 'Changer de médicament',
+          icon: const Icon(Icons.close, size: 18),
+          onPressed: _clear,
+        ),
+      );
+    }
+
+    return Column(
+      key: Key('item_${widget.index}_label'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        NubiaSearchBar(
+          key: Key('item_${widget.index}_label_search'),
+          controller: _controller,
+          hint: 'Rechercher un médicament (DCI)…',
+          onChanged: _search,
+        ),
+        if (_results.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          NubiaCard(
+            key: Key('item_${widget.index}_label_results'),
+            padding: EdgeInsets.zero,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final reference in _results)
+                  ListRow(
+                    key: Key(
+                        'item_${widget.index}_label_result_${reference.id}'),
+                    title: reference.dci,
+                    subtitle: '${reference.galenicForm} · DCI',
+                    trailing: TherapeuticClassLabel(
+                      therapeuticClass: reference.therapeuticClass,
+                    ),
+                    onTap: () => _select(reference),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
