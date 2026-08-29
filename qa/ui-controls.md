@@ -44,3 +44,21 @@ Note méthodologique : le premier passage de détection (basé sur `page.url()` 
 - Bouton **Prendre RDV** (1er dépendant, "QAFlow Dep") : OK — ouvre la recherche de praticiens (17 praticiens listés, créneaux par jour), confirmé par nouvelles requêtes `GET /v1/search/providers` + `GET /v1/providers/:id/availability` (x17) et nouveau texte Semantics "Booker un RDV...".
 - Bouton **Documents** (1er dépendant) : OK — ouvre la liste de documents du dépendant (paginée par curseur, 15 documents "Cette semaine"), confirmé par `GET /v1/documents?cursor=...` en cascade et texte Semantics "Mes documents / CETTE SEMAINE / 15 documents".
 - **Chargement des invitations en attente (`pendingAccessRequests`) : CASSÉ silencieusement** — `GET /v1/account/access-requests` échoue systématiquement (404 backend, apparaît comme une erreur CORS côté navigateur). Le code Flutter absorbe l'échec (`fold` vers liste vide) donc l'écran ne plante pas visuellement, mais la fonctionnalité entière d'invitation d'un proche ADULTE est inerte. Voir issue **#6119** (P1, streamé cette ronde).
+
+| pharmacie | / (Commandes) + nav Stock/Messages/Devis | 4 (nav) + 6 (filtres switch) | 4 nav + 4 filtres + 1 row action | 9 | 0 | 0 | 2026-08-29T06:15:00Z |
+| pharmacie | /orders/:id/pickup | 3 (Retour, scan-related group, action bar) | 1 (Retour) | 1 | 0 | 0 | 2026-08-29T06:15:00Z |
+| patient | / (dashboard, home hero + quick access) | 11 (Itinéraire, Préparer, À signer, À régler, 3 cards accès rapide, Mes documents, Ma pharmacie, Mes proches, Notifications bell) | 11 | 9 | 1 (Itinéraire, cf #6130) | 0 | 2026-08-29T06:25:00Z |
+| patient | /pharmacy (Ma pharmacie) | 6 (Retour, Itinéraire, Appeler, Envoyer ordonnance, Suivre commandes, Changer pharmacie) | 4 (Envoyer/Suivre/Changer + Retour implicite) | 4 | 0 | 0 | 2026-08-29T06:20:00Z |
+| patient | /messaging (Messages + thread) | 3 (liste conv, champ saisie, bouton envoyer) | 3 (ouverture thread + saisie + envoi réel, 201 confirmé) | 3 | 0 | 0 | 2026-08-29T06:30:00Z |
+| patient | /notifications | 2 (Retour, Tout marquer lu) | 1 (Tout marquer lu, 200 confirmé unread 20->0) | 1 | 0 | 0 | 2026-08-29T06:33:00Z |
+| patient | /profile/dependents (Mes proches) - recheck | 2 (Prendre RDV, Documents 1er proche) | 2 | 2 | 0 | 0 | 2026-08-29T06:22:00Z |
+
+## Détail « Itinéraire » MORT (2026-08-29T06:25:00Z, cf. #6130)
+
+Bouton `Itinéraire` de la carte héros (accueil patient) : `aria-disabled="true"` en PERMANENCE.
+Root cause confirmée par lecture de code : `GET /v1/appointments?filter=upcoming` (endpoint consommé par
+la home) ne renvoie JAMAIS de champ `cabinet`/`cabinet.address` (struct `AppointmentItem`,
+`appointments_read.rs:53-69`), contrairement à `GET /v1/appointments/:id` (détail) qui l'expose bien
+(`AppointmentDetail`, `appointments_response.rs`). Vérifié par clic direct (aucun effet, aucune requête
+réseau, aucun nouvel onglet) + confirmé par le code `hero_appointment_card.dart:201-203`
+(`onPressed: address == null ? null : ...`). Issue #6130 (P1) streamée.
