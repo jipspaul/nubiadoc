@@ -291,6 +291,14 @@ async fn appointments_upcoming_returns_future_confirmed() {
         appt["provider"]["display_name"], "Dr. Test",
         "provider.display_name doit être Dr. Test"
     );
+    // #6130 : la liste doit exposer le cabinet (nom toujours, adresse si connue)
+    // comme le fait déjà le détail — sans ça, le bouton « Itinéraire » de la
+    // carte héros accueil patient reste désactivé pour 100% des RDV.
+    assert_eq!(
+        appt["cabinet"]["name"],
+        format!("Cabinet Appts Test {cabinet_id}"),
+        "cabinet.name doit être présent dans la liste"
+    );
 
     // Cleanup
     {

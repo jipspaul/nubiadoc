@@ -23,8 +23,8 @@ use uuid::Uuid;
 
 use crate::{
     appointments_response::{
-        fetch_beneficiary_for_response, fetch_cabinet_for_response, AppointmentDetail,
-        BeneficiarySummary, CabinetInfo, ProviderDetail,
+        fetch_beneficiary_for_response, fetch_cabinet_for_response, format_establishment_address,
+        AppointmentDetail, BeneficiarySummary, CabinetInfo, ProviderDetail,
     },
     auth::{AppError, PatientAccountClaims},
     AppState,
@@ -66,6 +66,10 @@ pub struct AppointmentItem {
     /// rafraîchissement).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub callback_requested_at: Option<String>,
+    /// #6130 : jusqu'ici absent de la liste (contrairement au détail), ce qui
+    /// laissait le bouton "Itinéraire" de la carte héros accueil toujours
+    /// désactivé (`cabinetAddress` systématiquement `null` côté front).
+    pub cabinet: CabinetInfo,
 }
 
 #[derive(Serialize)]
@@ -179,9 +183,16 @@ pub async fn list_appointments(
               AS provider_display_name, \
              (SELECT p.specialite FROM provider p \
               WHERE p.practitioner_id = a.practitioner_id LIMIT 1) \
-              AS provider_specialty \
+              AS provider_specialty, \
+             c.raison_sociale AS cabinet_name, \
+             c.settings->>'address' AS cabinet_address, \
+             (SELECT e.address FROM provider p \
+              LEFT JOIN establishment e ON e.id = p.establishment_id \
+              WHERE p.practitioner_id = a.practitioner_id LIMIT 1) \
+              AS establishment_address \
          FROM appointment a \
          LEFT JOIN patient pt ON pt.id = a.patient_id \
+         LEFT JOIN cabinet c ON c.id = a.cabinet_id \
          WHERE a.deleted_at IS NULL \
          {status_clause}{cursor_clause} \
          ORDER BY a.starts_at {order}, a.id {order} \
@@ -261,6 +272,22 @@ pub async fn list_appointments(
             .try_get("beneficiary_last_name")
             .map_err(|_| AppError::Internal)?;
         let is_self = beneficiary_account_id == Some(claims.account_id);
+        let cabinet_name: Option<String> = row
+            .try_get("cabinet_name")
+            .map_err(|_| AppError::Internal)?;
+        let cabinet_address: Option<String> = row
+            .try_get("cabinet_address")
+            .map_err(|_| AppError::Internal)?;
+        let establishment_address: Option<serde_json::Value> = row
+            .try_get("establishment_address")
+            .map_err(|_| AppError::Internal)?;
+        // Même repli que `fetch_cabinet_for_response` (#3557) : `cabinet.settings`
+        // ne porte pas toujours d'adresse, on retombe alors sur l'annuaire.
+        let cabinet_address = cabinet_address.or_else(|| {
+            establishment_address
+                .as_ref()
+                .and_then(format_establishment_address)
+        });
 
         last_starts_at = Some(starts_at);
         last_id = Some(id);
@@ -274,6 +301,10 @@ pub async fn list_appointments(
             provider: ProviderSummary {
                 display_name,
                 specialty,
+            },
+            cabinet: CabinetInfo {
+                name: cabinet_name.unwrap_or_default(),
+                address: cabinet_address,
             },
             beneficiary: BeneficiarySummary {
                 account_id: beneficiary_account_id,
