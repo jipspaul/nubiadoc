@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import '../treatment_plans/treatment_status_style.dart';
 import 'async_section_state.dart';
 import 'medical_questionnaire_review_section.dart';
+import 'patient_clinical_alerts_card.dart';
 import 'patient_current_plan_section.dart';
 import 'patient_fiche_bloc.dart';
 import 'patient_journal_section.dart';
@@ -405,6 +406,14 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
               // sous elle plutôt que de la comprimer jusqu'à débordement.
               LayoutBuilder(
                 builder: (context, constraints) {
+                  // #4975, maquette design-v2 §.bx — carte « Alertes
+                  // cliniques » en tête de la colonne gauche (c1), même
+                  // référentiel que les pastilles d'en-tête (#4974) : régie
+                  // par le même toggle `showClinical` que le reste des
+                  // données cliniques (journal, ordonnances, #4976).
+                  final clinicalAlerts = state.showClinical
+                      ? PatientClinicalAlertsCard(alerts: _medicalAlerts)
+                      : const SizedBox.shrink();
                   final journal = PatientJournalSection(
                     patientId: patient.id,
                     showClinical: state.showClinical,
@@ -419,6 +428,9 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          clinicalAlerts,
+                          if (state.showClinical && _medicalAlerts.isNotEmpty)
+                            const SizedBox(height: 16),
                           journal,
                           const SizedBox(height: 16),
                           currentPlan,
@@ -432,7 +444,16 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                       Expanded(
                         child: SingleChildScrollView(
                           padding: const EdgeInsets.all(16),
-                          child: journal,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              clinicalAlerts,
+                              if (state.showClinical &&
+                                  _medicalAlerts.isNotEmpty)
+                                const SizedBox(height: 16),
+                              journal,
+                            ],
+                          ),
                         ),
                       ),
                       SizedBox(

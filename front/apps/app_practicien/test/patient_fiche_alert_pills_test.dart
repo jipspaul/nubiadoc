@@ -114,8 +114,24 @@ void main() {
       tester.widget<StatusPill>(riskPill).variant,
       StatusPillVariant.warning,
     );
-    expect(find.text('Allergie Pénicilline'), findsOneWidget);
-    expect(find.text('Anticoagulant (AVK)'), findsOneWidget);
+    // #4975 — les mêmes alertes apparaissent aussi dans la carte « Alertes
+    // cliniques » de la colonne gauche (même référentiel) : on scope la
+    // recherche du libellé aux pastilles d'en-tête pour ne pas dépendre du
+    // nombre total d'occurrences à l'écran.
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('patient_fiche_header')),
+        matching: find.text('Allergie Pénicilline'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('patient_fiche_header')),
+        matching: find.text('Anticoagulant (AVK)'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('les pastilles restent visibles après changement d\'onglet',
