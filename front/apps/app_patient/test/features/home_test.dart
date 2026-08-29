@@ -312,10 +312,57 @@ void main() {
       expect(find.byKey(const Key('quick_access_documents')), findsOneWidget);
       expect(find.byKey(const Key('quick_access_pharmacy')), findsOneWidget);
       expect(find.byKey(const Key('quick_access_dependents')), findsOneWidget);
+      expect(find.byKey(const Key('quick_access_home_care')), findsOneWidget);
       expect(find.text('Mes ordonnances'), findsOneWidget);
       expect(find.text('Mes documents'), findsOneWidget);
       expect(find.text('Ma pharmacie'), findsOneWidget);
       expect(find.text('Mes proches'), findsOneWidget);
+      expect(find.text('Soins à domicile'), findsOneWidget);
+    });
+
+    testWidgets('tuile « Soins à domicile » navigue vers /home-care',
+        (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      final authCubit = MockAuthCubit();
+      when(() => authCubit.state).thenReturn(const AuthUnauthenticated());
+
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: GoRouter(
+          initialLocation: '/',
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, __) => MultiBlocProvider(
+                providers: [
+                  BlocProvider.value(value: bloc),
+                  BlocProvider<AuthCubit>(create: (_) => authCubit),
+                ],
+                child: const Scaffold(body: HomePage()),
+              ),
+            ),
+            GoRoute(
+              path: '/home-care',
+              builder: (_, __) => const Scaffold(body: Text('Home care')),
+            ),
+          ],
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+        find.byKey(const Key('quick_access_home_care'), skipOffstage: false),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('quick_access_home_care')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home care'), findsOneWidget);
     });
 
     testWidgets('tuile « Mes documents » navigue vers /documents',
