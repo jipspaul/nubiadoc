@@ -54,7 +54,9 @@ void main() {
   Widget buildSection() => MaterialApp(
         theme: NubiaTheme.light,
         home: Scaffold(
-          body: const PatientDocumentsSection(patientId: 'patient-1'),
+          body: const SingleChildScrollView(
+            child: PatientDocumentsSection(patientId: 'patient-1'),
+          ),
         ),
       );
 
@@ -125,6 +127,13 @@ void main() {
     await tester.tap(find.byKey(const Key('patient_documents_upload_button')));
     await tester.pumpAndSettle();
 
+    // #4981 : choix de la catégorie en place, plus de bottom sheet.
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(
+      find.byKey(const Key('patient_documents_category_picker')),
+      findsOneWidget,
+    );
+
     await tester.tap(find.byKey(const Key('upload_cat_radio')));
     await tester.pumpAndSettle();
 
@@ -135,5 +144,44 @@ void main() {
           mimeType: 'image/jpeg',
           category: 'radio',
         )).called(1);
+    expect(
+      find.byKey(const Key('patient_documents_category_picker')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('upload : annuler la sélection referme le choix sans uploader',
+      (tester) async {
+    when(() => listDocs('patient-1', category: null))
+        .thenAnswer((_) async => const Right([]));
+    when(() => filePicker.pickFile()).thenAnswer(
+      (_) async => PickedFile(
+        path: null,
+        name: 'radio.jpg',
+        mimeType: 'image/jpeg',
+        bytes: Uint8List.fromList([1, 2, 3]),
+      ),
+    );
+
+    await tester.pumpWidget(buildSection());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('patient_documents_upload_button')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('patient_documents_category_cancel')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('patient_documents_category_picker')),
+      findsNothing,
+    );
+    verifyNever(() => uploadDoc(
+          any(),
+          bytes: any(named: 'bytes'),
+          filename: any(named: 'filename'),
+          mimeType: any(named: 'mimeType'),
+          category: any(named: 'category'),
+        ));
   });
 }

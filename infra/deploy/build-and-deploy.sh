@@ -134,6 +134,6 @@ cat <<EOF
    praticien   http://${HOST}:8082
    secrétariat http://${HOST}:8083
    pharmacie   http://${HOST}:8084
-   infirmière  http://${HOST}:8085
+   infirmiere  http://${HOST}:8085
    api         http://${HOST}:3000/v1/health
 EOF

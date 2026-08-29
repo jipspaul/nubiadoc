@@ -362,5 +362,25 @@ SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'consent_record'
     AND policyname = 'consent_account_select'),
   'consent_record : policy consent_account_select présente (0048)');
 
+-- ----- account_access_request (0239, issue #6119) -----
+SELECT has_table('account_access_request');
+SELECT col_not_null('account_access_request', 'requester_account_id',
+  'account_access_request.requester_account_id NOT NULL');
+SELECT col_not_null('account_access_request', 'status',
+  'account_access_request.status NOT NULL');
+SELECT col_has_default('account_access_request', 'status',
+  'account_access_request.status défaut envoyee');
+SELECT fk_ok('account_access_request', 'requester_account_id', 'patient_account', 'id',
+  'account_access_request.requester_account_id FK → patient_account.id');
+SELECT fk_ok('account_access_request', 'invitee_account_id', 'patient_account', 'id',
+  'account_access_request.invitee_account_id FK → patient_account.id');
+SELECT ok( (SELECT relrowsecurity FROM pg_class WHERE relname = 'account_access_request'),
+  'account_access_request : ROW LEVEL SECURITY activée (0239)');
+SELECT ok( (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'account_access_request'),
+  'account_access_request : FORCE ROW LEVEL SECURITY (0239)');
+SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'account_access_request'
+    AND policyname = 'access_request_app_all'),
+  'account_access_request : policy access_request_app_all présente (0239)');
+
 SELECT * FROM finish();
 ROLLBACK;

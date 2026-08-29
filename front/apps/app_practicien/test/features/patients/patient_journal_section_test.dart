@@ -22,11 +22,18 @@ void main() {
     addTearDown(GetIt.instance.reset);
   });
 
-  Future<void> pumpSection(WidgetTester tester) => tester.pumpWidget(
+  Future<void> pumpSection(
+    WidgetTester tester, {
+    bool showClinical = true,
+  }) =>
+      tester.pumpWidget(
         MaterialApp(
           theme: NubiaTheme.light,
-          home: const Scaffold(
-            body: PatientJournalSection(patientId: 'pat-1'),
+          home: Scaffold(
+            body: PatientJournalSection(
+              patientId: 'pat-1',
+              showClinical: showClinical,
+            ),
           ),
         ),
       );
@@ -164,5 +171,44 @@ void main() {
 
     expect(find.text('Traitement endodontique'), findsOneWidget);
     expect(find.text('Ordonnance'), findsOneWidget);
+  });
+
+  // #4976, maquette design-v2 point 4 — `showClinical: false` masque ce qui
+  // est réellement clinique (actes, ordonnances) ; devis/documents/rendez-
+  // vous restent visibles.
+  testWidgets(
+      'showClinical: false masque les actes et ordonnances, garde le reste',
+      (tester) async {
+    when(() => listJournal(any())).thenAnswer(
+      (_) async => Right([
+        PatientJournalEntry(
+          date: DateTime(2026, 8, 10),
+          kind: PatientJournalKind.acte,
+          title: 'Traitement endodontique',
+          subtitle: 'HBFD001',
+          tags: const [],
+        ),
+        PatientJournalEntry(
+          date: DateTime(2026, 8, 9),
+          kind: PatientJournalKind.ordonnance,
+          title: 'Ordonnance',
+          subtitle: 'Amoxicilline 1 g',
+          tags: const [],
+        ),
+        PatientJournalEntry(
+          date: DateTime(2026, 8, 8),
+          kind: PatientJournalKind.devis,
+          title: 'Devis implant',
+          tags: const [],
+        ),
+      ]),
+    );
+
+    await pumpSection(tester, showClinical: false);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Traitement endodontique'), findsNothing);
+    expect(find.text('Ordonnance'), findsNothing);
+    expect(find.text('Devis implant'), findsOneWidget);
   });
 }

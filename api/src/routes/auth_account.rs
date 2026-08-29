@@ -1,7 +1,7 @@
 //! Routes auth + compte pro/patient. Extrait de `lib.rs::build_router` (refactor taille).
 
 use axum::{
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 
@@ -97,5 +97,29 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             get(auth::get_account_dependent_by_id)
                 .patch(auth::patch_account_dependent)
                 .delete(auth::delete_account_dependent),
+        )
+        .route(
+            "/v1/account/access-requests",
+            get(auth::get_account_access_requests).post(auth::post_account_access_requests),
+        )
+        .route(
+            "/v1/account/access-requests/:id",
+            delete(auth::delete_account_access_request),
+        )
+        .route(
+            "/v1/account/access-requests/:id/resend",
+            post(auth::post_account_access_request_resend),
+        )
+        .route(
+            "/v1/account/access-requests/:id/accept",
+            post(auth::post_account_access_request_accept),
+        )
+        .route(
+            "/v1/account/access-requests/:id/refuse",
+            post(auth::post_account_access_request_refuse),
+        )
+        .route(
+            "/v1/account/access-requests/:id/revoke",
+            post(auth::post_account_access_request_revoke),
         )
 }

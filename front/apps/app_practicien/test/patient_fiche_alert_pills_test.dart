@@ -16,6 +16,12 @@ class _MockListPatientJournal extends Mock
 
 class _MockGetMedicalRecord extends Mock implements GetMedicalRecordUseCase {}
 
+class _MockListTreatmentPlans extends Mock
+    implements ListTreatmentPlansUseCase {}
+
+class _MockListOrthodonticTreatments extends Mock
+    implements ListOrthodonticTreatmentsUseCase {}
+
 final _patient = CabinetPatient(
   id: 'pat-1',
   cabinetId: 'cab-1',
@@ -39,6 +45,23 @@ void main() {
     when(() => listJournal(any())).thenAnswer((_) async => const Right([]));
     GetIt.instance.registerFactory<ListPatientJournalUseCase>(
       () => listJournal,
+    );
+
+    // #4982 — onglet « Plans de traitement », adjacent à l'onglet initial
+    // (Journal) : `TabBarView` le pré-construit (cache du `PageView`),
+    // donc son `initState` s'exécute même sans y naviguer.
+    final listTreatmentPlans = _MockListTreatmentPlans();
+    when(() => listTreatmentPlans(any()))
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance.registerFactory<ListTreatmentPlansUseCase>(
+      () => listTreatmentPlans,
+    );
+
+    final listOrthodonticTreatments = _MockListOrthodonticTreatments();
+    when(() => listOrthodonticTreatments(any()))
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance.registerFactory<ListOrthodonticTreatmentsUseCase>(
+      () => listOrthodonticTreatments,
     );
 
     addTearDown(GetIt.instance.reset);
@@ -69,7 +92,8 @@ void main() {
     ]);
 
     await tester.pumpWidget(
-      MaterialApp(theme: NubiaTheme.light, home: PatientFiche(patient: _patient)),
+      MaterialApp(
+          theme: NubiaTheme.light, home: PatientFiche(patient: _patient)),
     );
     await tester.pumpAndSettle();
 
@@ -77,8 +101,7 @@ void main() {
       const Key('patient_fiche_alert_pill_allergie_Pénicilline'),
     );
     final riskPill = find.byKey(
-      const Key(
-          'patient_fiche_alert_pill_medico_legal_Anticoagulant (AVK)'),
+      const Key('patient_fiche_alert_pill_medico_legal_Anticoagulant (AVK)'),
     );
 
     expect(allergyPill, findsOneWidget);
@@ -91,8 +114,24 @@ void main() {
       tester.widget<StatusPill>(riskPill).variant,
       StatusPillVariant.warning,
     );
-    expect(find.text('Allergie Pénicilline'), findsOneWidget);
-    expect(find.text('Anticoagulant (AVK)'), findsOneWidget);
+    // #4975 — les mêmes alertes apparaissent aussi dans la carte « Alertes
+    // cliniques » de la colonne gauche (même référentiel) : on scope la
+    // recherche du libellé aux pastilles d'en-tête pour ne pas dépendre du
+    // nombre total d'occurrences à l'écran.
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('patient_fiche_header')),
+        matching: find.text('Allergie Pénicilline'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('patient_fiche_header')),
+        matching: find.text('Anticoagulant (AVK)'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('les pastilles restent visibles après changement d\'onglet',
@@ -102,7 +141,8 @@ void main() {
     ]);
 
     await tester.pumpWidget(
-      MaterialApp(theme: NubiaTheme.light, home: PatientFiche(patient: _patient)),
+      MaterialApp(
+          theme: NubiaTheme.light, home: PatientFiche(patient: _patient)),
     );
     await tester.pumpAndSettle();
 
@@ -125,7 +165,8 @@ void main() {
     await registerMedicalRecord(const []);
 
     await tester.pumpWidget(
-      MaterialApp(theme: NubiaTheme.light, home: PatientFiche(patient: _patient)),
+      MaterialApp(
+          theme: NubiaTheme.light, home: PatientFiche(patient: _patient)),
     );
     await tester.pumpAndSettle();
 

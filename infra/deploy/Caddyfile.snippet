@@ -29,10 +29,11 @@ pharmacie.nubia.example.com {
     reverse_proxy 192.168.1.100:8084
 }
 
-# App infirmière — soins à domicile « type Uber » (ex. réel : infirmiere.doc.nubia-link.com).
-# ⚠️ Le DNS *.doc.nubia-link.com est un wildcard : le sous-domaine résout DÉJÀ. C'est
-# l'absence de ce bloc qui fait échouer le handshake TLS (Caddy n'a pas de cert pour un
-# hôte qu'il ne connaît pas) — même cause que `reservation` resté injoignable (#5628/#5632).
+# App infirmiere (soins à domicile) — ex. réel : infirmiere.doc.nubia-link.com
+# #6115 : bloc absent -> déploiement (build-and-deploy.sh) ne construisait/
+# poussait jamais le bundle web de cette app -> aucun backend origin sur
+# 8085 derrière ce host -> 502 Caddy constant malgré un cert TLS déjà
+# provisionné pour le domaine.
 infirmiere.nubia.example.com {
     reverse_proxy 192.168.1.100:8085
 }
@@ -48,12 +49,18 @@ api.nubia.example.com {
 }
 
 # Tunnel web de réservation, HTML rendu côté serveur (ADR-013, #5356) — module
-# api/src/web_tunnel/. Pas de sous-domaine/bloc dédié ici : #5628 a montré
-# qu'un port séparé (WEB_TUNNEL_PORT) nécessitait un nouveau sous-domaine +
-# certificat TLS jamais raccordés sur le Caddy réel de l'hôte (config
-# manuelle, hors dépôt) — la fonctionnalité restait donc invisible malgré un
-# code fonctionnellement correct. Les 3 pages du tunnel (/reservation/confirmer,
-# /<query_slug>/<locality_slug>, /<slug>) sont désormais mergées dans le
-# routeur de l'API (même port, cf. main.rs) : le bloc `api` ci-dessus les
-# sert déjà, sans action supplémentaire côté Caddy. Pas de collision avec
-# /v1/... (préfixe fixe, jamais capturé par ces catch-all à 1/2 segments).
+# api/src/web_tunnel/. Les 3 pages du tunnel (/reservation/confirmer,
+# /<query_slug>/<locality_slug>, /<slug>) sont mergées dans le routeur de
+# l'API (même port, cf. main.rs) : pas de conteneur/port séparé à exposer.
+# Pas de collision avec /v1/... (préfixe fixe, jamais capturé par ces
+# catch-all à 1/2 segments).
+#
+# Un bloc Caddy DÉDIÉ reste nécessaire : le domaine public réel de ce tunnel
+# est reservation.doc.nubia-link.com (distinct de api.doc.nubia-link.com),
+# déjà résolu côté DNS vers cet hôte. Sans bloc à son nom, Caddy n'a ni
+# site-block ni certificat pour ce SNI et rejette le handshake TLS avec une
+# alerte "internal error" (#6116) — même s'il sert déjà les mêmes routes que
+# le bloc `api` ci-dessus sur le même port.
+reservation.nubia.example.com {
+    reverse_proxy 192.168.1.100:3000
+}

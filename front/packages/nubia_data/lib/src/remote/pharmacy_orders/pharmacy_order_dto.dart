@@ -26,7 +26,8 @@ class PharmacyOrderDto {
   final int? lineCount;
 
   /// Même contrat que `GET /pharmacy/orders/:id/items` côté pharmacien
-  /// (#5349) — pas encore exposé par `GET /account/orders/:id` : `lines[]`
+  /// (#5349), exposé aussi par `GET /account/orders/:id` depuis #5644 —
+  /// seule source de vérité posologie entre les deux vues (#4996). `lines[]`
   /// absent → liste vide, la carte « Votre ordonnance » ne s'affiche pas.
   final List<PrescriptionItemDto> lines;
   final int? billingTotalCents;
