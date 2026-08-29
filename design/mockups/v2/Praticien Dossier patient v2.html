@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Praticien — Dossier patient v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+.win{width:1440px;height:900px;background:var(--n0);border-radius:12px;overflow:hidden;box-shadow:0 30px 70px -24px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09);display:flex}
+.rail{width:58px;flex:0 0 58px;background:var(--n900);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px}
+.rail .lg{width:30px;height:30px;border-radius:8px;background:var(--brand600);display:grid;place-items:center;color:#fff;font-size:14px;font-weight:700;margin-bottom:8px}
+.rail .it{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#8A8580}
+.rail .it .ic{font-size:20px}
+.rail .it.on{background:rgba(255,255,255,.11);color:#fff}
+.rail .sp{flex:1}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n50)}
+/* header */
+.hd{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 20px}
+.hd .r1{display:flex;align-items:center;gap:14px}
+.bk{width:36px;height:36px;flex:0 0 36px;border-radius:10px;border:1px solid var(--n200);display:grid;place-items:center;color:var(--n600)}
+.bk .ic{font-size:19px}
+.av{width:46px;height:46px;flex:0 0 46px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:15px;font-weight:600;color:var(--brand800)}
+.nm{font-size:21px;font-weight:600;letter-spacing:-.4px}
+.sb{font-size:12.5px;color:var(--n500);margin-top:2px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.info{background:var(--infoBg);color:var(--infoFg)}.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.dang{background:var(--dangBg);color:var(--dangFg)}.pill.mut{background:var(--n100);color:var(--n500)}
+.sp2{flex:1}
+.hb{height:36px;padding:0 12px;border-radius:10px;border:1px solid var(--n200);display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;background:var(--n0)}
+.hb .ic{font-size:17px;color:var(--n500)}
+.hb.p{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.hb.p .ic{color:#fff}
+.tabs{display:flex;gap:22px;margin-top:12px}
+.tab{padding-bottom:9px;font-size:13.5px;font-weight:500;color:var(--n500);border-bottom:2px solid transparent;display:flex;align-items:center;gap:6px}
+.tab.on{color:var(--n900);font-weight:600;border-bottom-color:var(--n900)}
+.tab .n{font-size:10.5px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:1px 6px}
+/* body */
+.body{flex:1;min-height:0;display:flex;gap:16px;padding:16px 20px}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.c1{width:296px;flex:0 0 296px}
+.c2{flex:1}
+.c3{width:340px;flex:0 0 340px}
+.bx{background:var(--n0);border:1px solid var(--n200);border-radius:14px}
+.bx.gr{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.bh{display:flex;align-items:center;gap:9px;padding:11px 13px;border-bottom:1px solid var(--n100)}
+.bh .ic{font-size:17px;color:var(--n500)}
+.bh .t{font-size:13px;font-weight:600;letter-spacing:-.05px}
+.bh .n{margin-left:auto;font-size:10.5px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:2px 7px}
+.bh .ad{margin-left:auto;color:var(--n400)}
+.bh .ad .ic{font-size:17px}
+/* alerts */
+.alr{padding:11px 13px}
+.al{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 9px;border-radius:8px;margin-bottom:6px}
+.al:last-child{margin-bottom:0}
+.al.d{background:var(--dangBg);color:#7F1D1D}
+.al.w{background:var(--warnBg);color:#78350F}
+.al .ic{font-size:15px}
+.al.d .ic{color:var(--dangFg)}.al.w .ic{color:var(--warnFg)}
+/* kv */
+.kv{display:flex;align-items:baseline;gap:10px;padding:7px 13px;border-bottom:1px solid var(--n100);font-size:12.5px}
+.kv:last-child{border-bottom:0}
+.kv .k{width:92px;flex:0 0 92px;color:var(--n500)}
+.kv .v{flex:1;min-width:0;font-weight:500}
+.kv .v.tn{font-variant-numeric:tabular-nums}
+.chps{display:flex;flex-wrap:wrap;gap:6px;padding:10px 13px}
+.chp{height:25px;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--n300);border-radius:99px;padding:0 9px;font-size:11.5px;font-weight:500}
+.chp .ic{font-size:13px;color:var(--n400)}
+.chp.add{border-style:dashed;color:var(--n500)}
+/* journal */
+.jf{display:flex;gap:6px;padding:9px 13px;border-bottom:1px solid var(--n100);flex-wrap:wrap}
+.fc{height:26px;padding:0 10px;border:1px solid var(--n200);border-radius:99px;display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;color:var(--n700);background:var(--n0)}
+.fc.on{background:var(--n900);border-color:var(--n900);color:#fff}
+.fc .ic{font-size:13px}
+.jl{flex:1;overflow:hidden}
+.je{display:flex;gap:12px;padding:11px 13px;border-bottom:1px solid var(--n100)}
+.je .dt{width:52px;flex:0 0 52px;text-align:right}
+.je .dt .d{font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.je .dt .y{font-size:10.5px;color:var(--n500);margin-top:1px}
+.je .rl{width:2px;flex:0 0 2px;background:var(--n200);position:relative;border-radius:2px}
+.je .rl::before{content:"";position:absolute;left:-4px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--n0);border:2px solid var(--n300)}
+.je.act .rl::before{border-color:var(--brand600);background:var(--brand600)}
+.je.doc .rl::before{border-color:var(--infoFg)}
+.je.ord .rl::before{border-color:var(--warnFg)}
+.je .bd{flex:1;min-width:0;padding-bottom:2px}
+.je .t1{font-size:13.5px;font-weight:600;letter-spacing:-.1px}
+.je .t1 .cc{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:var(--n100);border:1px solid var(--n200);border-radius:4px;padding:0 5px;color:var(--n600);margin-left:7px;font-weight:400}
+.je .t2{font-size:12px;color:var(--n600);margin-top:3px;line-height:17px}
+.je .mt{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center}
+.tb2{font-size:10.5px;font-weight:600;border-radius:5px;padding:2px 6px;background:var(--brand50);color:var(--brand800);border:1px solid var(--brand100)}
+.tb2.n{background:var(--n100);color:var(--n600);border-color:var(--n200)}
+.je .am{margin-left:auto;flex:0 0 auto;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* docs */
+.dr{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid var(--n100)}
+.dr:last-child{border-bottom:0}
+.dr .ico{width:30px;height:30px;flex:0 0 30px;border-radius:8px;background:var(--n50);border:1px solid var(--n200);display:grid;place-items:center;color:var(--brand700)}
+.dr .ico .ic{font-size:16px}
+.dr .d1{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dr .d2{font-size:11px;color:var(--n500);margin-top:1px}
+.dr .lk{margin-left:auto;color:var(--n300)}
+.dr .lk .ic{font-size:16px}
+.nb2{display:flex;gap:8px;background:var(--infoBg);border:1px solid #A5F3FC;border-radius:9px;padding:8px 10px;margin:10px 13px}
+.nb2 .ic{font-size:15px;color:var(--infoFg);flex:0 0 15px;margin-top:1px}
+.nb2 .t{font-size:11px;line-height:16px;color:#155E75}
+.nb2 .t b{font-weight:600}
+/* plan */
+.pw{padding:11px 13px}
+.pw .t1{font-size:13px;font-weight:600}
+.pw .bar{height:6px;border-radius:99px;background:var(--n200);margin-top:8px;display:flex;gap:2px;overflow:hidden}
+.pw .bar i{flex:1;border-radius:99px;background:var(--n200)}
+.pw .bar i.on{background:var(--brand600)}
+.pw .t2{display:flex;margin-top:7px;font-size:11.5px;color:var(--n500)}
+.pw .t2 .m{margin-left:auto;font-weight:600;color:var(--n900);font-variant-numeric:tabular-nums}
+.pw .gap{display:flex;gap:7px;margin-top:9px;background:var(--warnBg);border:1px solid #FDE68A;border-radius:8px;padding:7px 9px}
+.pw .gap .ic{font-size:14px;color:var(--warnFg);flex:0 0 14px;margin-top:1px}
+.pw .gap .t{font-size:11px;line-height:15px;color:#78350F}
+.ortho{display:flex;align-items:center;gap:9px;padding:8px 13px;border-bottom:1px solid var(--n100);font-size:12.5px}
+.ortho:last-child{border-bottom:0}
+.ortho .n{width:20px;height:20px;flex:0 0 20px;border-radius:50%;border:1.5px solid var(--n300);display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--n500)}
+.ortho .n.done{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.ortho .l{font-weight:500}
+.ortho .s{margin-left:auto;font-size:11px;color:var(--n500);font-variant-numeric:tabular-nums}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Praticien · PC 1440 × 900 — dossier patient</div>
+<div class="win" data-screen-label="Praticien · Dossier patient">
+<div class="rail"><div class="lg">N</div>
+<div class="it"><span class="ic">space_dashboard</span></div><div class="it"><span class="ic">calendar_month</span></div><div class="it"><span class="ic">meeting_room</span></div><div class="it on"><span class="ic f">groups</span></div><div class="it"><span class="ic">dentistry</span></div><div class="it"><span class="ic">medication</span></div><div class="it"><span class="ic">description</span></div><div class="it"><span class="ic">precision_manufacturing</span></div><div class="it"><span class="ic">inventory_2</span></div><div class="it"><span class="ic">chat_bubble</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+
+<div class="main">
+<div class="hd">
+<div class="r1"><div class="bk"><span class="ic">arrow_back</span></div><div class="av">JM</div>
+<div style="min-width:0"><div style="display:flex;align-items:center;gap:9px"><span class="nm">Julie Martin</span><span class="pill dang"><span class="ic f">warning</span>Allergie pénicilline</span><span class="pill warn">AVK</span></div>
+<div class="sb">41 ans · née le 07/06/1985 · patiente depuis 2019 · dernière visite le 22/07/2026</div></div>
+<div class="sp2"></div>
+<div class="hb"><span class="ic">picture_as_pdf</span>Exporter</div>
+<div class="hb"><span class="ic">description</span>Nouveau devis</div>
+<div class="hb p"><span class="ic">dentistry</span>Démarrer une consultation</div>
+</div>
+<div class="tabs">
+<div class="tab on"><span class="ic f" style="font-size:16px">timeline</span>Journal</div>
+<div class="tab"><span class="ic" style="font-size:16px">assignment</span>Plans de traitement<span class="n">2</span></div>
+<div class="tab"><span class="ic" style="font-size:16px">folder</span>Documents<span class="n">14</span></div>
+<div class="tab"><span class="ic" style="font-size:16px">assignment_ind</span>Questionnaire médical</div>
+<div class="tab"><span class="ic" style="font-size:16px">payments</span>Facturation</div>
+</div>
+</div>
+
+<div class="body">
+
+<div class="col c1">
+<div class="bx"><div class="bh"><span class="ic f">warning</span><span class="t">Alertes cliniques</span></div>
+<div class="alr">
+<div class="al d"><span class="ic f">medication</span>Allergie pénicilline</div>
+<div class="al d"><span class="ic f">bloodtype</span>Sous AVK — surveiller l'INR</div>
+<div class="al w"><span class="ic f">masks</span>Latex</div>
+</div></div>
+
+<div class="bx"><div class="bh"><span class="ic f">contact_page</span><span class="t">Administratif</span></div>
+<div class="kv"><span class="k">Téléphone</span><span class="v tn">06 42 18 07 55</span></div>
+<div class="kv"><span class="k">Email</span><span class="v" style="font-size:11.5px">julie.martin@email.fr</span></div>
+<div class="kv"><span class="k">Mutuelle</span><span class="v">Alan Santé</span></div>
+<div class="kv"><span class="k">Solde dû</span><span class="v tn" style="color:var(--dangFg)">148,50 €</span></div>
+</div>
+
+<div class="bx"><div class="bh"><span class="ic f">label</span><span class="t">Étiquettes</span><span class="ad"><span class="ic">add</span></span></div>
+<div class="chps"><span class="chp">Anxieuse<span class="ic">close</span></span><span class="chp">Parking réservé<span class="ic">close</span></span><span class="chp add"><span class="ic">add</span>Ajouter</span></div>
+</div>
+
+<div class="bx"><div class="bh"><span class="ic f">align_horizontal_center</span><span class="t">Suivi orthodontique</span></div>
+<div class="ortho"><span class="n done"><span class="ic" style="font-size:11px">check</span></span><span class="l">Bague</span><span class="s">12/03/2026</span></div>
+<div class="ortho"><span class="n done"><span class="ic" style="font-size:11px">check</span></span><span class="l">Gouttière</span><span class="s">04/06/2026</span></div>
+<div class="ortho"><span class="n">3</span><span class="l">Contention</span><span class="s">à venir</span></div>
+</div>
+</div>
+
+<div class="col c2">
+<div class="bx gr">
+<div class="bh"><span class="ic f">timeline</span><span class="t">Journal du patient</span><span class="n">tout l'historique</span></div>
+<div class="jf">
+<div class="fc on"><span class="ic">filter_list</span>Tout</div>
+<div class="fc">Actes</div>
+<div class="fc">Ordonnances</div>
+<div class="fc">Documents</div>
+<div class="fc">Devis</div>
+<div class="fc">Rendez-vous</div>
+</div>
+<div class="jl">
+
+<div class="je act"><div class="dt"><div class="d">11 août</div><div class="y">aujourd'hui</div></div><div class="rl"></div>
+<div class="bd"><div class="t1">Traitement endodontique<span class="cc">HBFD001</span></div>
+<div class="t2">Séance en cours · phase 2 du plan « Réhabilitation secteur 2 »</div>
+<div class="mt"><span class="tb2">Dent 26</span><span class="tb2 n">Dr A. Rousseau</span><span class="am">93,50 €</span></div></div></div>
+
+<div class="je ord"><div class="dt"><div class="d">10 août</div><div class="y">2026</div></div><div class="rl"></div>
+<div class="bd"><div class="t1">Ordonnance signée</div>
+<div class="t2">Amoxicilline 1 g · Paracétamol 1 g · Chlorhexidine 0,12 %</div>
+<div class="mt"><span class="tb2 n">3 lignes</span><span class="tb2 n">Envoyée à la Pharmacie du Théâtre</span></div></div></div>
+
+<div class="je doc"><div class="dt"><div class="d">4 août</div><div class="y">2026</div></div><div class="rl"></div>
+<div class="bd"><div class="t1">Devis DEV-2041 signé</div>
+<div class="t2">Phases 1 et 2 du plan de traitement · acompte de 130 € réglé</div>
+<div class="mt"><span class="tb2 n">Reste à charge 148,50 €</span><span class="am">435,92 €</span></div></div></div>
+
+<div class="je act"><div class="dt"><div class="d">22 juil.</div><div class="y">2026</div></div><div class="rl"></div>
+<div class="bd"><div class="t1">Restauration 2 faces<span class="cc">HBMD042</span></div>
+<div class="t2">Composite postérieur · anesthésie locale articaïne</div>
+<div class="mt"><span class="tb2">Dent 26</span><span class="tb2 n">Dr A. Rousseau</span><span class="am">53,50 €</span></div></div></div>
+
+<div class="je act"><div class="dt"><div class="d">22 juil.</div><div class="y">2026</div></div><div class="rl"></div>
+<div class="bd"><div class="t1">Détartrage complet<span class="cc">HBJD001</span></div>
+<div class="t2">Assainissement · phase 1 terminée</div>
+<div class="mt"><span class="tb2 n">Dr A. Rousseau</span><span class="am">28,92 €</span></div></div></div>
+
+<div class="je doc"><div class="dt"><div class="d">18 juil.</div><div class="y">2026</div></div><div class="rl"></div>
+<div class="bd"><div class="t1">Radio panoramique</div>
+<div class="t2">Bilan pré-opératoire secteur 2</div>
+<div class="mt"><span class="tb2 n">Radio · 2,4 Mo</span></div></div></div>
+
+<div class="je doc"><div class="dt"><div class="d">16 juin</div><div class="y">2026</div></div><div class="rl"></div>
+<div class="bd"><div class="t1">Questionnaire médical mis à jour</div>
+<div class="t2">Ajout du traitement AVK · déclaré par la patiente</div>
+<div class="mt"><span class="tb2 n">À revoir en consultation</span></div></div></div>
+
+</div>
+</div>
+</div>
+
+<div class="col c3">
+<div class="bx"><div class="bh"><span class="ic f">assignment</span><span class="t">Plan en cours</span><span class="n">phase 2 / 3</span></div>
+<div class="pw"><div class="t1">Réhabilitation secteur 2</div>
+<div class="bar"><i class="on"></i><i class="on"></i><i></i></div>
+<div class="t2"><span>1 phase terminée sur 3</span><span class="m">1 635,92 €</span></div>
+<div class="gap"><span class="ic f">error</span><span class="t"><b>1 200 € sans devis</b> — la phase 3 n'a pas été acceptée par la patiente.</span></div>
+</div></div>
+
+<div class="bx gr"><div class="bh"><span class="ic f">folder</span><span class="t">Documents récents</span><span class="n">14</span></div>
+<div class="dr"><div class="ico"><span class="ic f">image</span></div><div style="min-width:0;flex:1"><div class="d1">Radio panoramique 18-07.jpg</div><div class="d2">Radio · 2,4 Mo · 18/07</div></div><span class="lk"><span class="ic">lock</span></span></div>
+<div class="dr"><div class="ico"><span class="ic f">picture_as_pdf</span></div><div style="min-width:0;flex:1"><div class="d1">Devis DEV-2041 signé.pdf</div><div class="d2">Devis · 248 Ko · 04/08</div></div><span class="lk"><span class="ic">lock</span></span></div>
+<div class="dr"><div class="ico"><span class="ic f">medication</span></div><div style="min-width:0;flex:1"><div class="d1">Ordonnance 10-08.pdf</div><div class="d2">Ordonnance · 96 Ko · 10/08</div></div><span class="lk"><span class="ic">lock</span></span></div>
+<div class="dr"><div class="ico"><span class="ic f">badge</span></div><div style="min-width:0;flex:1"><div class="d1">Carte mutuelle.jpg</div><div class="d2">Carte mutuelle · 1,2 Mo · 12/03</div></div><span class="lk"><span class="ic">lock</span></span></div>
+<div class="nb2"><span class="ic f">info</span><span class="t"><b>Aucun document n'est consultable depuis le cabinet</b> (#4286) : le back ne sert le contenu qu'au patient lui-même. Les documents s'envoient et se listent, mais ne s'ouvrent pas — l'icône le dit.</span></div>
+</div>
+</div>
+
+</div>
+</div>
+</div></div>
+
+<div class="notes">
+<div class="nk">App Praticien · Dossier patient</div>
+<h2>Le dossier n'a pas d'historique</h2>
+<p class="lede">L'onglet « Résumé » empile cinq sections indépendantes — notes cliniques, questionnaire médical, étiquettes, orthodontie, implants — et la section « Notes cliniques » ne contient <strong>ni note, ni acte, ni ordonnance</strong> : uniquement la date de naissance et la dernière visite. Un praticien qui ouvre un dossier avant une consultation cherche ce qui a été fait à ce patient. Cette information n'existe nulle part dans l'écran.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Un journal, pas cinq sections</div><div class="np">Actes, ordonnances, devis, documents et rendez-vous forment une chronologie unique et filtrable. C'est ainsi qu'un dossier se lit : par ordre d'événements, pas par type d'objet.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Cinq chargements concurrents, cinq états d'échec</div><div class="np">Chaque section est un <code>StatefulWidget</code> qui appelle son propre cas d'usage dans <code>initState</code> — étiquettes, orthodontie, implants, documents, questionnaire. Aucune coordination : cinq requêtes partent ensemble, cinq squelettes clignotent, et un échec s'affiche en <code>Text(_error!)</code> rouge à l'intérieur d'une carte. C'est le motif déjà relevé sur les fiches patients du Secrétariat.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Les alertes cliniques ne sont pas dans l'en-tête</div><div class="np">Allergies et traitements en cours vivent dans le questionnaire médical, plus bas dans la page. Sur un dossier ouvert avant de prescrire, ils remontent en tête et y restent — cohérent avec l'en-tête de la consultation au fauteuil.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Le bouton « masquer les notes cliniques » masque une date de naissance</div><div class="np"><code>toggle_clinical</code> pilote <code>ClinicalSection</code> — qui n'affiche que la naissance et la dernière visite. La bascule est utile (écran visible du patient), mais elle doit couvrir ce qui est réellement clinique : le journal des actes, les ordonnances, les alertes. Sinon elle donne une fausse impression de confidentialité.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Le plan de traitement n'apparaît pas</div><div class="np">Un dossier dentaire sans son plan en cours oblige à changer d'écran pour savoir où en est le patient. Avancement, montant, et le trou de couverture (1 200 € sans devis) tiennent en un encart.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Douze filtres de documents en défilement horizontal</div><div class="np">Les catégories sont rendues en <code>ChoiceChip</code> dans une <code>ListView</code> horizontale de 36 px de haut : sur 1440 px, elles tiennent toutes ; sur tablette, on fait défiler douze puces pour en trouver une. Les documents deviennent un onglet, avec ses filtres sur deux rangs.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Trois dialogues modaux pour trois ajouts</div><div class="np">Étiquette (<code>AlertDialog</code>), type d'étape ortho (<code>showModalBottomSheet</code>), catégorie de document (<code>showModalBottomSheet</code> à 75 % de hauteur). Sur poste fixe, l'ajout se fait en place.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Onglets à la place d'une pile</div><div class="np">Journal, plans, documents, questionnaire, facturation. Les deux onglets actuels (Résumé / Documents) laissent le questionnaire médical et l'orthodontie noyés dans un défilement unique.</div></div></li>
+<li class="oli"><span class="onum">9</span><div><div class="nh">Le PDF part en partage système</div><div class="np"><code>Share.shareXFiles</code> ouvre la feuille de partage iOS/Android — cohérent sur tablette, inattendu sur desktop où l'on attend un téléchargement. À brancher sur le comportement de la plateforme.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">lock</span>Une GED où l'on dépose sans jamais rien relire</div>
+<div class="p">Le commentaire du code est explicite : la prévisualisation et le téléchargement d'un document <strong>n'existent pas côté cabinet</strong> — <code>GET /v1/documents/:id/download</code> est réservé au patient lui-même (#4286). Un praticien peut donc téléverser une radio panoramique, la voir listée avec sa taille… et ne jamais l'ouvrir depuis Nubia.</div>
+<div class="p">Conséquence de conception : tant que la route n'existe pas, la liste de documents ne doit pas <em>ressembler</em> à des éléments cliquables. La maquette met une icône de cadenas et l'énonce en clair. C'est le seul écran de la refonte où j'ai choisi de <strong>rendre une limite visible</strong> plutôt que de la masquer — un lien mort dans un dossier médical coûte plus cher qu'une mention explicite.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Deux décisions à porter au crédit du code</div>
+<div class="p"><strong>Le tri défensif des étapes ortho.</strong> <code>[...treatment.steps]..sort(...)</code> avec un commentaire expliquant que l'API trie déjà correctement, mais que l'entité ne le garantit pas (construction en test, mutation future). C'est la bonne façon de ne pas dépendre d'un ordre implicite.</div>
+<div class="p"><strong>La distinction entre deux vocabulaires de catégories.</strong> Le commentaire précise que <code>PatientDocument.category</code> utilise les valeurs brutes de <code>VALID_CATEGORIES</code> côté API, et <em>non</em> le <code>DocumentCategory</code> du coffre-fort patient, dont le mapping diffère. Deux référentiels proches auraient pu être confondus en silence.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>#4133 — onglets conservés et étendus ; l'upload <code>POST .../documents</code> reste câblé à l'identique.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4042 — filtre par catégorie sur les valeurs brutes de l'API (<code>devis</code>, <code>radio</code>, <code>cbct</code>…), rechargement serveur à chaque changement.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4041 — étiquettes administratives : ajout et suppression inchangés, <code>NubiaChip</code> variante <code>input</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4135/#4136 — traitement affiché : premier <code>in_progress</code>, sinon le premier listé ; <code>stepNumber</code> = max + 1 ; les trois <code>kind</code> valides (bague, contention, gouttière) conservés.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4286 — la limite de la GED est signalée, pas contournée : aucune action de lecture n'est proposée.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Export PDF : <code>ExportPdfRequested</code>, <code>isExportingPdf</code>, <code>exportPdfError</code> et le nom de fichier conservés.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>toggle_clinical</code> conservé — mais étendu à ce qui est réellement clinique.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>patient_fiche_tabs</code>, <code>export_pdf_button</code>, <code>toggle_clinical</code>, <code>clinical_section</code>, <code>clinical_birth_date</code>, <code>clinical_last_visit</code>, <code>patient_tags_section</code>, <code>patient_tag_&lt;id&gt;</code>, <code>patient_tags_add_button</code>, <code>patient_tags_empty</code>, <code>patient_tags_wrap</code>, <code>patient_orthodontics_section</code>, <code>ortho_step_&lt;id&gt;</code>, <code>ortho_step_kind_&lt;v&gt;</code>, <code>patient_documents_section</code>, <code>patient_documents_filters</code>, <code>patient_documents_filter_&lt;v&gt;</code>, <code>patient_document_&lt;id&gt;</code>, <code>upload_cat_&lt;v&gt;</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Champs à exposer : un flux de journal unifié (actes, ordonnances, devis, documents, RDV) — aujourd'hui il faut cinq appels pour reconstituer un historique partiel.</span></li>
+</ul></div>
+</div>
+</div></body></html>

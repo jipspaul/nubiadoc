@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Praticien — Plans de traitement v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1290px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+.tab{width:1290px;background:var(--n900);border-radius:34px;padding:16px;box-shadow:0 34px 74px -26px rgba(28,25,23,.5)}
+.scr{width:1258px;height:834px;background:var(--n50);border-radius:22px;overflow:hidden;display:flex;flex-direction:column}
+/* header */
+.hd{background:var(--n0);border-bottom:1px solid var(--n200);padding:11px 18px;display:flex;align-items:center;gap:13px}
+.bk{width:36px;height:36px;flex:0 0 36px;border-radius:10px;border:1px solid var(--n200);display:grid;place-items:center;color:var(--n600)}
+.bk .ic{font-size:19px}
+.av{width:40px;height:40px;flex:0 0 40px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:14px;font-weight:600;color:var(--brand800)}
+.hnm{font-size:17px;font-weight:600;letter-spacing:-.25px}
+.hsub{font-size:12px;color:var(--n500);margin-top:1px}
+.hsp{flex:1}
+.ttl2{font-size:13px;font-weight:600;color:var(--n600)}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.info{background:var(--infoBg);color:var(--infoFg)}.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.mut{background:var(--n100);color:var(--n500)}
+/* split */
+.split{flex:1;display:flex;min-height:0}
+.lst{width:314px;flex:0 0 314px;border-right:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column}
+.lsth{padding:13px 16px;border-bottom:1px solid var(--n200);display:flex;align-items:center;gap:9px}
+.lsth .t{font-size:13px;font-weight:600}
+.lsth .n{font-size:11px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:2px 8px}
+.lstb{flex:1;overflow:hidden}
+.pl{padding:13px 16px;border-bottom:1px solid var(--n100);border-left:3px solid transparent}
+.pl.on{background:var(--brand50);border-left-color:var(--brand700)}
+.pl .t1{font-size:14px;font-weight:600;letter-spacing:-.1px}
+.pl .t2{font-size:11.5px;color:var(--n500);margin-top:3px;display:flex;align-items:center;gap:7px}
+.pl .bar{height:5px;border-radius:99px;background:var(--n200);margin-top:9px;display:flex;gap:2px;overflow:hidden}
+.pl .bar i{flex:1;border-radius:99px;background:var(--n200)}
+.pl .bar i.on{background:var(--brand600)}
+.pl .t3{display:flex;align-items:center;margin-top:7px;font-size:11.5px;color:var(--n500)}
+.pl .t3 .m{margin-left:auto;font-weight:600;color:var(--n900);font-variant-numeric:tabular-nums}
+.newp{margin:12px 16px;height:38px;border:1px dashed var(--n300);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:13px;font-weight:500;color:var(--n500)}
+.newp .ic{font-size:17px}
+/* detail */
+.det{flex:1;min-width:0;display:flex;flex-direction:column}
+.dth{background:var(--n0);border-bottom:1px solid var(--n200);padding:14px 18px}
+.dth .r1{display:flex;align-items:center;gap:11px}
+.dth .nm{font-size:19px;font-weight:600;letter-spacing:-.3px}
+.dth .r2{display:flex;align-items:flex-end;gap:26px;margin-top:12px}
+.kpi .l{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.kpi .v{font-size:20px;font-weight:700;letter-spacing:-.4px;margin-top:1px}
+.kpi .v.sm{font-size:15px;font-weight:600}
+.dth .acts{margin-left:auto;display:flex;gap:8px}
+.ab{height:38px;padding:0 13px;border-radius:10px;border:1px solid var(--n200);background:var(--n0);display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:var(--n900)}
+.ab .ic{font-size:17px;color:var(--n500)}
+.ab.p{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.ab.p .ic{color:#fff}
+/* phases */
+.dtb{flex:1;overflow:hidden;padding:16px 18px}
+.ph{display:flex;gap:14px}
+.ph .rail{width:26px;flex:0 0 26px;display:flex;flex-direction:column;align-items:center}
+.ph .dot{width:26px;height:26px;border-radius:99px;border:2px solid var(--n300);background:var(--n0);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--n500)}
+.ph .dot.done{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.ph .dot.now{border-color:var(--n900);color:var(--n900)}
+.ph .ln{flex:1;width:2px;background:var(--n200);margin:4px 0}
+.ph .ln.done{background:var(--brand200)}
+.ph .bd{flex:1;min-width:0;padding-bottom:14px}
+.card{background:var(--n0);border:1px solid var(--n200);border-radius:13px;overflow:hidden}
+.card.now{border-color:var(--n300);box-shadow:0 6px 18px -12px rgba(28,25,23,.35)}
+.ch{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid var(--n100)}
+.ch .t{font-size:14px;font-weight:600;letter-spacing:-.1px}
+.ch .m{margin-left:auto;font-size:14.5px;font-weight:700;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
+.act{display:flex;align-items:center;gap:11px;padding:9px 13px;border-bottom:1px solid var(--n100)}
+.act:last-child{border-bottom:0}
+.act .tb{width:32px;height:32px;flex:0 0 32px;border-radius:8px;background:var(--brand50);border:1px solid var(--brand100);display:grid;place-items:center;font-size:11.5px;font-weight:600;color:var(--brand800)}
+.act .tb.no{background:var(--n100);border-color:var(--n200);color:var(--n400)}
+.act .l1{font-size:13px;font-weight:500}
+.act .cc{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:var(--n100);border:1px solid var(--n200);border-radius:4px;padding:0 5px;color:var(--n600);margin-left:7px}
+.act .l2{font-size:11.5px;color:var(--n500);margin-top:1px}
+.act .m{margin-left:auto;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.addact{display:flex;align-items:center;gap:6px;padding:9px 13px;font-size:12.5px;font-weight:500;color:var(--n500);border-top:1px dashed var(--n200)}
+.addact .ic{font-size:16px}
+.dvs{display:flex;align-items:center;gap:8px;padding:9px 13px;background:var(--n50);border-top:1px solid var(--n100);font-size:11.5px;color:var(--n600)}
+.dvs .ic{font-size:15px;color:var(--n400)}
+.dvs b{font-weight:600;color:var(--n900)}
+.dvs .go{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--brand700)}
+.newph{display:flex;align-items:center;gap:7px;height:38px;border:1px dashed var(--n300);border-radius:10px;justify-content:center;font-size:13px;font-weight:500;color:var(--n500);margin-left:40px}
+.newph .ic{font-size:17px}
+/* footer */
+.dtf{border-top:1px solid var(--n200);background:var(--n0);padding:12px 18px;display:flex;align-items:center;gap:22px}
+.dtf .l{font-size:12.5px;color:var(--n600)}
+.dtf .l b{font-weight:600;color:var(--n900);font-variant-numeric:tabular-nums}
+.dtf .sp{flex:1}
+.dtf .warn{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--warnFg);background:var(--warnBg);border:1px solid #FDE68A;border-radius:9px;padding:6px 10px}
+.dtf .warn .ic{font-size:15px}
+/* notes */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:840px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.dom{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--infoFg);border-radius:10px;padding:16px 18px;max-width:840px}
+.dom .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.dom .h .ic{font-size:19px;color:var(--infoFg)}
+.dom .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.dom .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Praticien · Tablette 1258 × 834 — plan de traitement</div>
+<div class="tab"><div class="scr" data-screen-label="Praticien · Plan de traitement">
+
+<div class="hd"><div class="bk"><span class="ic">arrow_back</span></div><div class="av">JM</div>
+<div><div class="hnm">Julie Martin</div><div class="hsub">41 ans · suivie par Dr A. Rousseau</div></div>
+<div class="hsp"></div><span class="ttl2">Plans de traitement</span>
+</div>
+
+<div class="split">
+<div class="lst">
+<div class="lsth"><span class="ic f" style="font-size:17px;color:var(--n500)">assignment</span><span class="t">Plans du patient</span><span class="n">2</span></div>
+<div class="lstb">
+<div class="pl on"><div class="t1">Réhabilitation secteur 2</div>
+<div class="t2"><span class="pill info">En cours</span><span>3 phases</span></div>
+<div class="bar"><i class="on"></i><i class="on"></i><i></i></div>
+<div class="t3"><span>1 phase sur 3 terminée</span><span class="m">1 635,92 €</span></div></div>
+<div class="pl"><div class="t1">Maintenance parodontale</div>
+<div class="t2"><span class="pill ok">Terminé</span><span>2 phases</span></div>
+<div class="bar"><i class="on"></i><i class="on"></i></div>
+<div class="t3"><span>2 phases sur 2 terminées</span><span class="m">168,00 €</span></div></div>
+</div>
+<div class="newp"><span class="ic">add</span>Nouveau plan</div>
+</div>
+
+<div class="det">
+<div class="dth">
+<div class="r1"><span class="nm">Réhabilitation secteur 2</span><span class="pill info">En cours</span><span class="pill mut">Créé le 22/07/2026</span></div>
+<div class="r2">
+<div class="kpi"><div class="l">Total du plan</div><div class="v tnum">1 635,92 €</div></div>
+<div class="kpi"><div class="l">Devis signé</div><div class="v sm tnum">435,92 €</div></div>
+<div class="kpi"><div class="l">Reste à devis&shy;er</div><div class="v sm tnum">1 200,00 €</div></div>
+<div class="acts"><div class="ab"><span class="ic">edit</span>Renommer</div><div class="ab p"><span class="ic">description</span>Générer le devis</div></div>
+</div>
+</div>
+
+<div class="dtb">
+<div class="ph">
+<div class="rail"><div class="dot done"><span class="ic" style="font-size:15px">check</span></div><div class="ln done"></div></div>
+<div class="bd"><div class="card">
+<div class="ch"><span class="pill ok">Terminée</span><span class="t">Assainissement</span><span class="m tnum">82,42 €</span></div>
+<div class="act"><div class="tb no">—</div><div style="min-width:0;flex:1"><div class="l1">Détartrage complet<span class="cc">HBJD001</span></div><div class="l2">Réalisé le 22/07</div></div><span class="m tnum">28,92 €</span></div>
+<div class="act"><div class="tb">26</div><div style="min-width:0;flex:1"><div class="l1">Restauration 2 faces<span class="cc">HBMD042</span></div><div class="l2">Réalisé le 22/07</div></div><span class="m tnum">53,50 €</span></div>
+<div class="dvs"><span class="ic f">verified</span><span>Devis <b>DEV-2041</b> · signé le 04/08 · acompte réglé</span><span class="go">Ouvrir</span></div>
+</div></div>
+</div>
+
+<div class="ph">
+<div class="rail"><div class="dot now">2</div><div class="ln"></div></div>
+<div class="bd"><div class="card now">
+<div class="ch"><span class="pill warn">En cours</span><span class="t">Endodontie et reconstitution</span><span class="m tnum">353,50 €</span></div>
+<div class="act"><div class="tb">26</div><div style="min-width:0;flex:1"><div class="l1">Traitement endodontique<span class="cc">HBFD001</span></div><div class="l2">Séance du 11/08 · en cours</div></div><span class="m tnum">93,50 €</span></div>
+<div class="act"><div class="tb">26</div><div style="min-width:0;flex:1"><div class="l1">Inlay-core<span class="cc">HBLD745</span></div><div class="l2">À programmer</div></div><span class="m tnum">260,00 €</span></div>
+<div class="addact"><span class="ic">add</span>Ajouter un acte à cette phase</div>
+<div class="dvs"><span class="ic f">verified</span><span>Devis <b>DEV-2041</b> · signé le 04/08</span><span class="go">Ouvrir</span></div>
+</div></div>
+</div>
+
+<div class="ph">
+<div class="rail"><div class="dot">3</div></div>
+<div class="bd"><div class="card">
+<div class="ch"><span class="pill mut">Planifiée</span><span class="t">Prothèse d'usage</span><span class="m tnum">1 200,00 €</span></div>
+<div class="act"><div class="tb">26</div><div style="min-width:0;flex:1"><div class="l1">Couronne céramo-métallique<span class="cc">HBLD038</span></div><div class="l2">Après cicatrisation · délai laboratoire 8 j</div></div><span class="m tnum">1 200,00 €</span></div>
+<div class="dvs" style="background:var(--warnBg);border-top-color:#FDE68A"><span class="ic f" style="color:var(--warnFg)">error</span><span style="color:#78350F">Aucun devis — le patient n'a pas encore accepté cette phase</span><span class="go" style="color:#78350F">Générer</span></div>
+</div></div>
+</div>
+
+<div class="newph"><span class="ic">add</span>Ajouter une phase</div>
+</div>
+
+<div class="dtf">
+<span class="l">Réalisé : <b>82,42 €</b></span>
+<span class="l">Engagé (devis signé) : <b>435,92 €</b></span>
+<span class="sp"></span>
+<div class="warn"><span class="ic f">info</span>1 200,00 € du plan ne sont couverts par aucun devis</div>
+</div>
+</div>
+</div>
+
+</div></div></div>
+
+<div class="notes">
+<div class="nk">App Praticien · Plans de traitement</div>
+<h2>Un plan de traitement sans un seul montant</h2>
+<p class="lede">Dans <code>treatment_plans_page.dart</code>, un plan est un <strong>titre</strong> et ses phases sont des <strong>titres</strong>. Ni acte, ni montant, ni lien vers un devis. Or en dentaire, un plan de traitement <em>est</em> l'objet commercial : c'est ce que le patient accepte, échelonne et paie — l'app Patient affiche d'ailleurs un <code>Quote</code> complet avec parts AMO/AMC et reste à charge. Le praticien qui construit le plan ne voit rien de tout cela.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Les statuts sont affichés bruts</div><div class="np"><code>Text(plan.status)</code> et <code>Text(phase.status)</code> impriment la chaîne de l'API en <code>bodySmall</code> gris. Le praticien lit donc <code>in_progress</code> ou <code>draft</code>. Tous les autres écrans du dépôt ont leur table de correspondance (<code>QuoteStatusStyle</code>, <code>AppointmentStatusPill</code>, <code>OrderStatusPill</code>) : il en manque une ici, et un <code>StatusPill</code> avec.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Le montant, la raison d'être du plan</div><div class="np">Chaque phase porte ses actes avec dent, code CCAM et montant ; la phase totalise, le plan totalise. Sans cela, impossible de dire à un patient ce que coûte son parcours — ni de savoir soi-même où l'on en est.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Le lien avec le devis, enfin visible</div><div class="np"><code>treatment_plans</code> et <code>devis</code> sont deux <em>features</em> sans passerelle à l'écran. Chaque phase affiche son devis (numéro, signature, acompte) — et surtout <strong>l'absence de devis</strong> : ici 1 200 € du plan ne sont couverts par aucun accord du patient, ce que le pied d'écran énonce.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Six dialogues pour un plan à cinq phases</div><div class="np">La création passe par <code>_TitlePromptDialog</code> — un <code>AlertDialog</code> à champ unique — une fois pour le plan, une fois par phase. Les phases se composent désormais en place, dans le plan, sans quitter le contexte.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Une chronologie, pas une liste</div><div class="np">Les phases sont ordonnées par <code>position</code> : c'est une séquence de soins, avec un avant et un après. Un rail vertical le montre — terminée, en cours, planifiée — là où l'écran actuel les empile en lignes de texte.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">L'avancement existe côté patient, pas côté praticien</div><div class="np">L'app Patient affiche « 3 / 5 étapes » depuis <code>treatmentProgress</code>. Le praticien qui <em>possède</em> le plan n'a aucun agrégat : la liste de gauche porte désormais la barre d'avancement et le total de chaque plan.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Material <code>Card</code> au lieu de <code>NubiaCard</code></div><div class="np">C'est le seul écran rencontré qui contourne le design system : <code>Card(margin: …)</code> de Material, avec ses ombres et son rayon par défaut, au lieu de <code>NubiaCard</code> et de ses tokens. Écart visible dès qu'on met deux écrans côte à côte.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">La liste clignote à chaque création</div><div class="np"><code>createPlan</code> et <code>createPhase</code> appellent <code>load()</code>, qui émet <code>TreatmentPlansLoading()</code> : tout l'écran repasse par un spinner centré après chaque ajout. <em>À créditer en revanche :</em> <code>actionError</code> est correctement porté par l'état <code>Loaded</code> — la liste ne disparaît pas en cas d'échec, contrairement à la salle d'attente.</div></div></li>
+<li class="oli"><span class="onum">9</span><div><div class="nh">Encore un FAB sur une cible tablette</div><div class="np"><code>FloatingActionButton</code> flotte au-dessus du contenu — d'où le <code>padding bottom: 96</code> de la liste pour l'éviter. L'action rejoint la colonne des plans, là où elle a un sens.</div></div></li>
+</ol>
+
+<div class="dom"><div class="h"><span class="ic f">database</span>Champs à exposer côté domaine — non constructible en l'état</div>
+<div class="p">Le modèle actuel ne porte que ce que l'écran affiche : <code>TreatmentPlan(title, status, phases)</code> et <code>TreatmentPhase(title, status, position)</code>. Cette maquette suppose trois ajouts : <strong>(1)</strong> des <strong>actes rattachés à une phase</strong> (libellé, code CCAM, dent, montant) — aujourd'hui les actes ne vivent que dans <code>ClinicalSession</code>, côté consultation ; <strong>(2)</strong> une <strong>référence de devis par phase</strong>, pour lier le plan à l'objet que le patient signe et savoir ce qui n'est pas couvert ; <strong>(3)</strong> des <strong>agrégats de montants</strong> (total du plan, engagé, réalisé) — calculables côté client si (1) existe, mais mieux servis par le back qui détient déjà la facturation.</div>
+<div class="p">C'est la même lacune que celle relevée pour l'ordonnance et la pharmacie : le domaine porte les objets, pas les <em>liens</em> entre eux. Un plan de traitement qui ignore ses devis, une ordonnance qui ignore ses lignes structurées, une commande de pharmacie qui ignore son ordonnance — trois symptômes d'une même couture manquante.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>#4051 — chargement des plans avec phases imbriquées, création de plan et de phase par les mêmes cas d'usage.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Le tri des phases reste celui du serveur (<code>position</code>) : aucune fusion locale, chaque création recharge la liste — comportement documenté et conservé.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>nextPosition</code> = max(<code>position</code>) + 1, calculé comme aujourd'hui.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>actionError</code> en snackbar sur l'état <code>Loaded</code> ; la liste chargée reste affichée.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>busy</code> désactive les actions de création, comme aujourd'hui.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>TreatmentPlansError</code> conserve son bouton « réessayer ».</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>treatment_plans_list</code>, <code>treatment_plans_empty</code>, <code>treatment_plans_loading</code>, <code>treatment_plans_error</code>, <code>treatment_plan_&lt;id&gt;</code>, <code>treatment_phase_&lt;id&gt;</code>, <code>treatment_plan_no_phases_&lt;id&gt;</code>, <code>treatment_plan_add_phase_&lt;id&gt;</code>, <code>treatment_plan_create_dialog</code>, <code>treatment_plan_title_field</code>, <code>treatment_plan_create_submit</code>, <code>treatment_phase_create_dialog_&lt;id&gt;</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>⚠️ <code>treatment_plans_new_plan_fab</code> disparaît avec le FAB : la clé est reportée sur l'entrée « Nouveau plan » de la colonne.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Montants formatés par la fondation partagée (<code>NubiaMoney.formatCents</code>), en chiffres tabulaires.</span></li>
+</ul></div>
+</div>
+</div></body></html>

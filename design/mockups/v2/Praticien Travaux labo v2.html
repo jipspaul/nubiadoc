@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Praticien — Travaux de laboratoire v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+.win{width:1440px;height:900px;background:var(--n0);border-radius:12px;overflow:hidden;box-shadow:0 30px 70px -24px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09);display:flex}
+.rail{width:58px;flex:0 0 58px;background:var(--n900);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px}
+.rail .lg{width:30px;height:30px;border-radius:8px;background:var(--brand600);display:grid;place-items:center;color:#fff;font-size:14px;font-weight:700;margin-bottom:8px}
+.rail .it{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#8A8580}
+.rail .it .ic{font-size:20px}
+.rail .it.on{background:rgba(255,255,255,.11);color:#fff}
+.rail .sp{flex:1}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n50)}
+.tb{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 20px;display:flex;align-items:center;gap:16px}
+.tb h1{font-size:20px;font-weight:600;letter-spacing:-.35px}
+.kpis{display:flex;align-items:flex-end;gap:22px;margin-left:8px}
+.kpi .v{font-size:18px;font-weight:700;letter-spacing:-.3px;line-height:21px;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:10.5px;color:var(--n500);margin-top:1px}
+.kpi.d .v{color:var(--dangFg)}
+.kpi.w .v{color:var(--warnFg)}
+.sp2{flex:1}
+.hb{height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--n200);display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;background:var(--n0)}
+.hb .ic{font-size:17px;color:var(--n500)}
+.hb.p{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.hb.p .ic{color:#fff}
+/* kanban */
+.board{flex:1;min-height:0;display:flex;gap:14px;padding:16px 20px}
+.lane{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n0);border:1px solid var(--n200);border-radius:14px;overflow:hidden}
+.lh{display:flex;align-items:center;gap:9px;padding:11px 13px;border-bottom:1px solid var(--n200)}
+.lh .dt{width:9px;height:9px;border-radius:99px;flex:0 0 9px}
+.lh .t{font-size:13px;font-weight:600;letter-spacing:-.05px}
+.lh .n{margin-left:auto;font-size:10.5px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:2px 7px}
+.lb{flex:1;overflow:hidden;padding:10px;display:flex;flex-direction:column;gap:9px}
+.card{border:1px solid var(--n200);border-radius:11px;padding:10px;background:var(--n0)}
+.card.late{border-color:#FCA5A5;background:#FFFBFA}
+.card.today{border-color:var(--brand200);background:var(--brand50)}
+.card .r1{display:flex;align-items:center;gap:8px}
+.card .av{width:26px;height:26px;flex:0 0 26px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:10px;font-weight:600;color:var(--brand800)}
+.card .pn{font-size:13px;font-weight:600;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .th{margin-left:auto;flex:0 0 auto;font-size:10.5px;font-weight:600;background:var(--n900);color:#fff;border-radius:5px;padding:2px 6px}
+.card .wk{font-size:12.5px;font-weight:500;margin-top:7px}
+.card .lb2{font-size:11.5px;color:var(--n500);margin-top:3px;display:flex;align-items:center;gap:5px}
+.card .lb2 .ic{font-size:13px}
+.card .ft{display:flex;align-items:center;gap:8px;margin-top:9px;padding-top:8px;border-top:1px solid var(--n100)}
+.card .dd{font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:4px}
+.card .dd .ic{font-size:13px}
+.card .dd.ok2{color:var(--n500);font-weight:400}
+.card .dd.soon{color:var(--warnFg)}
+.card .dd.late2{color:var(--dangFg)}
+.card .pr{margin-left:auto;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.card .adv{margin-top:9px;height:32px;border-radius:8px;border:1px solid var(--n200);display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:500;background:var(--n50)}
+.card .adv .ic{font-size:15px;color:var(--n500)}
+.card .adv.p{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.card .adv.p .ic{color:#fff}
+.card .adv.dis{color:var(--n400);background:var(--n50)}
+.lane .empt{flex:1;display:grid;place-items:center;padding:20px 12px;text-align:center}
+.lane .empt .ic{font-size:26px;color:var(--n300)}
+.lane .empt .t{font-size:12px;color:var(--n400);margin-top:7px}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Praticien · PC 1440 × 900 — travaux de laboratoire</div>
+<div class="win" data-screen-label="Praticien · Travaux de laboratoire">
+<div class="rail"><div class="lg">N</div>
+<div class="it"><span class="ic">space_dashboard</span></div><div class="it"><span class="ic">calendar_month</span></div><div class="it"><span class="ic">meeting_room</span></div><div class="it"><span class="ic">groups</span></div><div class="it"><span class="ic">dentistry</span></div><div class="it"><span class="ic">medication</span></div><div class="it"><span class="ic">description</span></div><div class="it on"><span class="ic f">precision_manufacturing</span></div><div class="it"><span class="ic">inventory_2</span></div><div class="it"><span class="ic">chat_bubble</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+
+<div class="main">
+<div class="tb"><h1>Travaux de laboratoire</h1>
+<div class="kpis">
+<div class="kpi"><div class="v">11</div><div class="l">bons en cours</div></div>
+<div class="kpi d"><div class="v">1</div><div class="l">en retard</div></div>
+<div class="kpi w"><div class="v">3</div><div class="l">attendus cette semaine</div></div>
+<div class="kpi"><div class="v tnum">4 820 €</div><div class="l">engagé chez les labos</div></div>
+</div>
+<div class="sp2"></div>
+<div class="hb"><span class="ic">refresh</span>Actualiser</div>
+<div class="hb p"><span class="ic">add</span>Nouveau bon</div>
+</div>
+
+<div class="board">
+
+<div class="lane">
+<div class="lh"><span class="dt" style="background:var(--infoFg)"></span><span class="t">Envoyé au labo</span><span class="n">4</span></div>
+<div class="lb">
+
+<div class="card late">
+<div class="r1"><div class="av">JM</div><span class="pn">Julie Martin</span><span class="th">26</span></div>
+<div class="wk">Couronne céramo-métallique</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Labo Dentaire Kléber</div>
+<div class="ft"><span class="dd late2"><span class="ic f">error</span>Retard de 2 j</span><span class="pr tnum">1 200,00 €</span></div>
+<div class="adv p"><span class="ic">call</span>Relancer le labo</div>
+</div>
+
+<div class="card">
+<div class="r1"><div class="av">AB</div><span class="pn">Ahmed Belkacem</span><span class="th">36</span></div>
+<div class="wk">Bridge 3 éléments</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Prothèse Opéra</div>
+<div class="ft"><span class="dd soon"><span class="ic">schedule</span>Attendu jeudi</span><span class="pr tnum">890,00 €</span></div>
+<div class="adv"><span class="ic">arrow_forward</span>Passer à l'essayage</div>
+</div>
+
+<div class="card">
+<div class="r1"><div class="av">SR</div><span class="pn">Sophie Roux</span><span class="th">45</span></div>
+<div class="wk">Inlay céramique</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Labo Dentaire Kléber</div>
+<div class="ft"><span class="dd ok2"><span class="ic">schedule</span>Attendu le 21/08</span><span class="pr tnum">340,00 €</span></div>
+<div class="adv"><span class="ic">arrow_forward</span>Passer à l'essayage</div>
+</div>
+
+<div class="card">
+<div class="r1"><div class="av">TG</div><span class="pn">Théo Girard</span><span class="th">11</span></div>
+<div class="wk">Facette céramique</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Esthétique Dentaire 9e</div>
+<div class="ft"><span class="dd ok2"><span class="ic">schedule</span>Attendu le 24/08</span><span class="pr tnum">620,00 €</span></div>
+<div class="adv"><span class="ic">arrow_forward</span>Passer à l'essayage</div>
+</div>
+
+</div>
+</div>
+
+<div class="lane">
+<div class="lh"><span class="dt" style="background:var(--warnFg)"></span><span class="t">Essayage</span><span class="n">3</span></div>
+<div class="lb">
+
+<div class="card today">
+<div class="r1"><div class="av">CM</div><span class="pn">Camille Moreau</span><span class="th">24</span></div>
+<div class="wk">Couronne céramique</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Prothèse Opéra</div>
+<div class="ft"><span class="dd soon"><span class="ic f">event</span>Essayage aujourd'hui 14:30</span><span class="pr tnum">780,00 €</span></div>
+<div class="adv p"><span class="ic">arrow_forward</span>Marquer retourné</div>
+</div>
+
+<div class="card">
+<div class="r1"><div class="av">NL</div><span class="pn">Nina Lopez</span><span class="th">16</span></div>
+<div class="wk">Onlay composite</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Labo Dentaire Kléber</div>
+<div class="ft"><span class="dd ok2"><span class="ic">event</span>Essayage le 13/08</span><span class="pr tnum">420,00 €</span></div>
+<div class="adv"><span class="ic">arrow_forward</span>Marquer retourné</div>
+</div>
+
+<div class="card">
+<div class="r1"><div class="av">HP</div><span class="pn">Hugo Petit</span><span class="th">37</span></div>
+<div class="wk">Couronne provisoire</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Prothèse Opéra</div>
+<div class="ft"><span class="dd ok2"><span class="ic">event</span>Essayage le 14/08</span><span class="pr tnum">180,00 €</span></div>
+<div class="adv"><span class="ic">arrow_forward</span>Marquer retourné</div>
+</div>
+
+</div>
+</div>
+
+<div class="lane">
+<div class="lh"><span class="dt" style="background:var(--brand600)"></span><span class="t">Retourné au cabinet</span><span class="n">2</span></div>
+<div class="lb">
+
+<div class="card today">
+<div class="r1"><div class="av">JM</div><span class="pn">Julie Martin</span><span class="th">26</span></div>
+<div class="wk">Inlay-core</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Labo Dentaire Kléber</div>
+<div class="ft"><span class="dd soon"><span class="ic f">inventory</span>Reçu ce matin</span><span class="pr tnum">260,00 €</span></div>
+<div class="adv p"><span class="ic">event_available</span>Programmer la pose</div>
+</div>
+
+<div class="card">
+<div class="r1"><div class="av">YD</div><span class="pn">Yanis Diallo</span><span class="th">21</span></div>
+<div class="wk">Facette céramique</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Esthétique Dentaire 9e</div>
+<div class="ft"><span class="dd ok2"><span class="ic">inventory</span>Reçu le 08/08</span><span class="pr tnum">590,00 €</span></div>
+<div class="adv"><span class="ic">event_available</span>Programmer la pose</div>
+</div>
+
+</div>
+</div>
+
+<div class="lane">
+<div class="lh"><span class="dt" style="background:var(--n400)"></span><span class="t">Posé</span><span class="n">2 ce mois</span></div>
+<div class="lb">
+
+<div class="card">
+<div class="r1"><div class="av">LM</div><span class="pn">Louis Mercier</span><span class="th">14</span></div>
+<div class="wk">Couronne céramo-métallique</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Prothèse Opéra</div>
+<div class="ft"><span class="dd ok2"><span class="ic f">check_circle</span>Posé le 06/08</span><span class="pr tnum">1 150,00 €</span></div>
+</div>
+
+<div class="card">
+<div class="r1"><div class="av">MD</div><span class="pn">Marc Dubois</span><span class="th">46</span></div>
+<div class="wk">Bridge 3 éléments</div>
+<div class="lb2"><span class="ic f">precision_manufacturing</span>Labo Dentaire Kléber</div>
+<div class="ft"><span class="dd ok2"><span class="ic f">check_circle</span>Posé le 01/08</span><span class="pr tnum">960,00 €</span></div>
+</div>
+
+<div class="empt"><div><span class="ic">history</span><div class="t">Les bons posés<br>sont archivés après 30 jours</div></div></div>
+
+</div>
+</div>
+
+</div>
+</div>
+</div></div>
+
+<div class="notes">
+<div class="nk">App Praticien · Travaux de laboratoire</div>
+<h2>Un bon de travail sans patient et sans dent</h2>
+<p class="lede">La carte affiche <strong>trois choses</strong> : le nom du laboratoire, une pastille de statut, et un prix d'achat. Ni le patient, ni la dent, ni la nature du travail, ni la date attendue. Or un praticien ne cherche pas « ce que le Labo Kléber nous doit » — il cherche <em>si la couronne de Mme Martin pour la dent 26 est arrivée</em>. L'écran est organisé autour du fournisseur ; le métier est organisé autour du patient.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Patient, dent, travail — dans cet ordre</div><div class="np">Le nom du patient devient le titre, la dent une pastille FDI, la nature du travail la ligne principale. Le laboratoire descend en sous-ligne : c'est le prestataire, pas le sujet.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">La date attendue est l'information manquante</div><div class="np">Un travail prothétique se pilote par son délai : le patient a un rendez-vous de pose, et le labo a un engagement. Rien dans l'écran ne dit quand la pièce revient — donc rien ne permet de repérer un retard, alors que c'est <strong>la</strong> raison d'ouvrir cet écran.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Le statut devient une colonne, pas un titre de section</div><div class="np">Les quatre statuts sont groupés en listes empilées verticalement : sur 1440 px, on ne voit qu'« Envoyé au labo » et le début d'« Essayage ». Quatre colonnes donnent la vue d'ensemble du pipeline — le regard trouve immédiatement les deux pièces retournées à programmer.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">« Avancer » ne dit pas vers où</div><div class="np">Le bouton porte le libellé générique <code>Avancer</code> pour quatre transitions différentes. Il annonce désormais son effet : <em>Passer à l'essayage</em>, <em>Marquer retourné</em>, <em>Programmer la pose</em> — même événement <code>LabWorkOrdersStatusChangeRequested</code>, intention explicite.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Un retard n'appelle pas un changement de statut</div><div class="np">Sur un bon en retard, la bonne action n'est pas « avancer » mais <em>relancer le laboratoire</em>. La carte en retard porte donc une action différente, et le compteur d'en-tête la rend visible sans parcourir les colonnes.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Le prix d'achat sans contexte</div><div class="np">Le montant affiché est le <strong>prix d'achat</strong> au laboratoire — une donnée de marge, pas un montant patient. Il reste discret, en pied de carte, et l'en-tête agrège l'engagé total : c'est à ce niveau qu'il devient une information de gestion.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Aucun agrégat, aucun filtre</div><div class="np">Onze bons, aucun total, aucun filtre par laboratoire ni par patient. Quatre compteurs suffisent à répondre aux questions du matin : combien en cours, combien en retard, quoi cette semaine, combien engagé.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Un écran sans création</div><div class="np">L'écran liste des bons mais n'en crée aucun — il faut donc les saisir ailleurs, ou nulle part. Le bouton est proposé ; la création elle-même reste à spécifier (voir encadré).</div></div></li>
+<li class="oli"><span class="onum">9</span><div><div class="nh">Chargement et erreurs</div><div class="np"><code>CircularProgressIndicator</code> centré, et l'erreur s'affiche <strong>deux fois</strong> : en snackbar par le <code>listener</code>, et en plein écran par <code>NubiaErrorWidget</code>. Sur un rechargement échoué, la liste disparaît — squelette par colonne, et erreur non bloquante.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">database</span>Ce que la maquette suppose du domaine</div>
+<div class="p"><code>LabWorkOrder</code> ne porte, dans le code lu, que <code>id</code>, <code>labName</code>, <code>status</code> et <code>purchasePriceCents</code>. Cette refonte suppose quatre champs supplémentaires : <strong>(1)</strong> le <strong>patient</strong> (nom et identifiant) — sans lui, l'écran ne peut pas être organisé autour du métier ; <strong>(2)</strong> la <strong>dent</strong> en notation FDI et la <strong>nature du travail</strong> (couronne, bridge, facette…) ; <strong>(3)</strong> une <strong>date attendue</strong> (<code>expectedAt</code>) — sans elle, ni retard ni tri par urgence ; <strong>(4)</strong> le <strong>rendez-vous de pose</strong> associé, pour que « Programmer la pose » ait une cible.</div>
+<div class="p">C'est la sixième fois de la refonte que le même constat revient : le domaine porte les objets, pas leurs liens. Ici il est particulièrement net — un bon de travail prothétique <em>est</em> par définition la relation entre un patient, une dent, un laboratoire et une date.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Trois décisions du code à conserver telles quelles</div>
+<div class="p"><strong>Le miroir explicite de <code>STATUS_ORDER</code>.</strong> La constante <code>_kStatusOrder</code> est documentée comme la copie de l'ordre défini dans <code>api/src/lab_work_orders.rs</code> (#4148), et elle sert à la fois au groupement et au calcul du statut suivant. Une seule source de vérité, dupliquée sciemment et signalée.</div>
+<div class="p"><strong>La garde sur le dernier statut.</strong> <code>_advance</code> vérifie <code>index >= _kStatusOrder.length - 1</code> avant d'émettre, et le bouton n'est pas rendu sur un bon <code>fitted</code> — double protection contre une transition impossible.</div>
+<div class="p"><strong><code>updatingId</code> par bon.</strong> L'état de chargement est porté par l'identifiant du bon en cours de mise à jour, pas par un booléen global : seul le bouton concerné passe en attente, les dix autres restent actionnables. C'est exactement ce qui manquait à d'autres écrans de la refonte.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>#4148 — <code>_kStatusOrder</code> reste le miroir de <code>STATUS_ORDER</code> côté API ; les colonnes suivent cet ordre exact.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4149 — le groupement par statut est conservé ; seule son orientation change (colonnes au lieu de sections empilées).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Libellés français de <code>_kStatusLabels</code> repris mot pour mot (Envoyé au labo, Essayage, Retourné, Posé).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Transition = statut suivant dans l'ordre, jamais un saut ; aucune action sur un bon <code>fitted</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>updatingId</code> continue de désactiver le seul bouton concerné.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Les statuts inconnus retombent sur <code>StatusPillVariant.info</code> et sur leur valeur brute, comme aujourd'hui.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>lab_work_orders_list</code>, <code>lab_work_orders_empty</code>, <code>lab_work_group_&lt;status&gt;</code>, <code>lab_work_order_&lt;id&gt;</code>, <code>lab_work_order_status_&lt;id&gt;</code>, <code>lab_work_order_advance_&lt;id&gt;</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Montants formatés par <code>NubiaMoney.formatCents</code> — <code>(cents / 100).toStringAsFixed(2)</code> était la <strong>sixième</strong> implémentation locale du dépôt.</span></li>
+</ul></div>
+</div>
+</div></body></html>

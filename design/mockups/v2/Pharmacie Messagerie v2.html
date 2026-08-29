@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Pharmacie — Messagerie v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+.win{background:var(--n0);border-radius:14px;overflow:hidden;box-shadow:0 30px 70px -24px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09);display:flex;height:812px}
+.rail{width:60px;flex:0 0 60px;background:var(--n900);display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:5px}
+.rail .lg{width:32px;height:32px;border-radius:9px;background:var(--brand600);display:grid;place-items:center;color:#fff;font-size:15px;font-weight:700;margin-bottom:9px}
+.rail .it{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:#8A8580}
+.rail .it .ic{font-size:21px}
+.rail .it.on{background:rgba(255,255,255,.11);color:#fff}
+.rail .sp{flex:1}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n50)}
+.tb{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 20px;display:flex;align-items:center;gap:14px}
+.tb h1{font-size:19px;font-weight:600;letter-spacing:-.3px}
+.tb .sb{font-size:12.5px;color:var(--n500);margin-top:2px}
+.sp2{flex:1}
+.srch{width:240px;height:34px;border:1px solid var(--n200);border-radius:9px;display:flex;align-items:center;gap:8px;padding:0 11px;font-size:13px;color:var(--n400)}
+.srch .ic{font-size:18px}
+.split{flex:1;display:flex;min-height:0}
+/* liste */
+.lst{width:344px;flex:0 0 344px;border-right:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column}
+.fw{display:flex;gap:6px;padding:11px 14px;border-bottom:1px solid var(--n200)}
+.fc{height:28px;padding:0 11px;border-radius:99px;border:1px solid var(--n200);display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;white-space:nowrap}
+.fc.on{background:var(--n900);border-color:var(--n900);color:#fff}
+.fc .n{font-size:10.5px;font-weight:600;color:var(--n500);font-variant-numeric:tabular-nums}
+.fc.on .n{color:rgba(255,255,255,.7)}
+.lb{flex:1;overflow:hidden}
+.cv{display:flex;gap:11px;padding:12px 14px;border-bottom:1px solid var(--n100);border-left:3px solid transparent}
+.cv.un{background:var(--brand50)}
+.cv.on{background:var(--brand50);border-left-color:var(--brand700)}
+.cv .av{width:38px;height:38px;flex:0 0 38px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--brand800)}
+.cv .mid{flex:1;min-width:0}
+.cv .r1{display:flex;align-items:baseline;gap:8px}
+.cv .nm{font-size:14px;font-weight:600;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cv .tm{margin-left:auto;flex:0 0 auto;font-size:11px;color:var(--n500);font-variant-numeric:tabular-nums}
+.cv.un .tm{color:var(--brand700);font-weight:600}
+.cv .pv{font-size:12.5px;color:var(--n600);margin-top:4px;line-height:18px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cv.un .pv{color:var(--n800);font-weight:500}
+.cv .ft{display:flex;align-items:center;gap:6px;margin-top:6px}
+.tag{font-size:10px;font-weight:600;border-radius:5px;padding:2px 6px}
+.tag.u{background:var(--dangBg);color:var(--dangFg)}
+.tag.o{background:var(--brand50);color:var(--brand800);border:1px solid var(--brand100)}
+.tag.n{background:var(--n100);color:var(--n600)}
+.cv .bd{margin-left:auto;min-width:18px;height:18px;border-radius:99px;background:var(--brand600);color:#fff;font-size:10.5px;font-weight:700;display:grid;place-items:center;padding:0 5px}
+/* thread */
+.th{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n0)}
+.thd{border-bottom:1px solid var(--n200);padding:11px 18px;display:flex;align-items:center;gap:12px}
+.thd .av2{width:40px;height:40px;flex:0 0 40px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:14px;font-weight:600;color:var(--brand800)}
+.thd .nm{font-size:16px;font-weight:600;letter-spacing:-.2px}
+.thd .sb2{font-size:11.5px;color:var(--n500);margin-top:2px}
+.thd .ab{height:32px;padding:0 11px;border-radius:9px;border:1px solid var(--n200);display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;background:var(--n0)}
+.thd .ab .ic{font-size:15px;color:var(--n500)}
+.msgs{flex:1;overflow:hidden;padding:16px 18px;display:flex;flex-direction:column;gap:3px;background:var(--n50)}
+.dsep{display:flex;align-items:center;gap:11px;margin:10px 0 8px}
+.dsep .ln{flex:1;height:1px;background:var(--n200)}
+.dsep .t{font-size:11px;font-weight:600;color:var(--n500);background:var(--n0);border:1px solid var(--n200);border-radius:99px;padding:3px 11px}
+.mb{max-width:66%;padding:10px 13px;border-radius:15px;font-size:13.5px;line-height:20px}
+.mb.them{background:var(--n0);border:1px solid var(--n200);border-bottom-left-radius:5px;align-self:flex-start}
+.mb.me{background:var(--brand700);color:#fff;border-bottom-right-radius:5px;align-self:flex-end}
+.mfrom{font-size:10.5px;font-weight:600;color:var(--brand700);margin-bottom:3px}
+.mmeta{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:10px}
+.mb.them .mmeta{color:var(--n400)}
+.mb.me .mmeta{color:rgba(255,255,255,.7);justify-content:flex-end}
+.mmeta .ic{font-size:12px}
+.mb.urg{border-color:#FCA5A5;background:#FFFBFA}
+.ubar{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:var(--dangFg);margin-bottom:4px}
+.ubar .ic{font-size:12px}
+.ord{display:flex;align-items:center;gap:9px;background:var(--brand50);border:1px solid var(--brand100);border-radius:10px;padding:8px 10px;margin-top:7px}
+.ord .ic{font-size:17px;color:var(--brand700)}
+.ord .o1{font-size:12.5px;font-weight:600;color:var(--brand800)}
+.ord .o2{font-size:11px;color:var(--brand700);margin-top:1px}
+.ord .go{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--brand700)}
+.cmp{border-top:1px solid var(--n200);background:var(--n0);padding:11px 18px 14px}
+.qr{display:flex;gap:6px;margin-bottom:9px}
+.qc{height:29px;padding:0 11px;border-radius:99px;border:1px solid var(--n200);display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--n700);white-space:nowrap}
+.qc .ic{font-size:14px;color:var(--n500)}
+.cin{display:flex;align-items:flex-end;gap:9px}
+.cfld{flex:1;min-height:44px;border:1px solid var(--n200);border-radius:12px;padding:12px 14px;font-size:13.5px;color:var(--n400)}
+.snd{width:44px;height:44px;flex:0 0 44px;border-radius:12px;background:var(--brand700);display:grid;place-items:center;color:#fff}
+.snd .ic{font-size:19px}
+.hint{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:11px;color:var(--n500)}
+.hint b{font-size:9.5px;font-weight:600;border:1px solid var(--n200);border-radius:4px;padding:1px 5px;background:var(--n50);color:var(--n600)}
+/* aside */
+.ctx{width:288px;flex:0 0 288px;border-left:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column}
+.ah{padding:11px 14px;border-bottom:1px solid var(--n200);display:flex;align-items:center;gap:8px}
+.ah .ic{font-size:16px;color:var(--n500)}
+.ah .t{font-size:12.5px;font-weight:600}
+.ah .n{margin-left:auto;font-size:10.5px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:2px 7px}
+.kr{display:flex;align-items:baseline;gap:9px;padding:8px 14px;border-bottom:1px solid var(--n100);font-size:12.5px}
+.kr .k{width:80px;flex:0 0 80px;color:var(--n500)}
+.kr .v{flex:1;min-width:0;font-weight:500}
+.or{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--n100)}
+.or .ico{width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:var(--brand50);display:grid;place-items:center;color:var(--brand700)}
+.or .ico .ic{font-size:16px}
+.or .n1{font-size:12.5px;font-weight:500}
+.or .n2{font-size:11px;color:var(--n500);margin-top:1px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:500;border-radius:99px;padding:3px 8px;white-space:nowrap;margin-left:auto;flex:0 0 auto}
+.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.mut{background:var(--n100);color:var(--n500)}
+.note{display:flex;gap:9px;background:var(--n50);border:1px solid var(--n200);border-radius:10px;padding:10px 11px;margin:13px 14px}
+.note .ic{font-size:16px;color:var(--n400);flex:0 0 16px;margin-top:1px}
+.note .t{font-size:11px;line-height:16px;color:var(--n500)}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Pharmacie · Desktop 1360 × 812 — messagerie patient</div>
+<div class="win" data-screen-label="Pharmacie · Messagerie">
+<div class="rail"><div class="lg">N</div>
+<div class="it"><span class="ic">space_dashboard</span></div><div class="it"><span class="ic">receipt_long</span></div><div class="it"><span class="ic">qr_code_scanner</span></div><div class="it"><span class="ic">description</span></div><div class="it"><span class="ic">inventory_2</span></div><div class="it on"><span class="ic f">chat_bubble</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+
+<div class="main">
+<div class="tb"><div><h1>Messages</h1><div class="sb">3 conversations · 2 non lues</div></div>
+<div class="sp2"></div>
+<div class="srch"><span class="ic">search</span>Patient, n° de commande…</div>
+</div>
+
+<div class="split">
+
+<div class="lst">
+<div class="fw">
+<div class="fc on">Toutes<span class="n">3</span></div>
+<div class="fc">Non lues<span class="n">2</span></div>
+<div class="fc">Urgentes<span class="n">1</span></div>
+</div>
+<div class="lb">
+
+<div class="cv on un">
+<div class="av">JM</div>
+<div class="mid"><div class="r1"><span class="nm">Julie Martin</span><span class="tm">11:12</span></div>
+<div class="pv">Bonjour, est-ce que je peux passer récupérer ma commande après 18h ce soir ?</div>
+<div class="ft"><span class="tag o">CMD-4821</span><span class="tag n">Prête</span><span class="bd">2</span></div></div>
+</div>
+
+<div class="cv un">
+<div class="av">AB</div>
+<div class="mid"><div class="r1"><span class="nm">Ahmed Belkacem</span><span class="tm">09:48</span></div>
+<div class="pv">Le générique proposé me convient, allez-y. Merci pour votre appel.</div>
+<div class="ft"><span class="tag u">Urgent</span><span class="tag o">CMD-4845</span><span class="bd">1</span></div></div>
+</div>
+
+<div class="cv">
+<div class="av">SR</div>
+<div class="mid"><div class="r1"><span class="nm">Sophie Roux</span><span class="tm">Hier</span></div>
+<div class="pv">Parfait, je passe demain matin. Bonne soirée.</div>
+<div class="ft"><span class="tag o">CMD-4842</span><span class="tag n">En prépa</span></div></div>
+</div>
+
+</div>
+</div>
+
+<div class="th">
+<div class="thd"><div class="av2">JM</div>
+<div style="min-width:0;flex:1"><div class="nm">Julie Martin</div><div class="sb2">Commande CMD-4821 · prête depuis 10:04</div></div>
+<div class="ab"><span class="ic">receipt_long</span>Ouvrir la commande</div>
+</div>
+
+<div class="msgs">
+<div class="dsep"><span class="ln"></span><span class="t">Aujourd'hui</span><span class="ln"></span></div>
+
+<div class="mb me">
+Bonjour Julie, votre commande est prête. Nous vous attendons au comptoir avec votre code de retrait.
+<div class="ord" style="background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.3)"><span class="ic f" style="color:#fff">inventory_2</span><div style="min-width:0;flex:1"><div class="o1" style="color:#fff">CMD-4821 · 3 lignes</div><div class="o2" style="color:rgba(255,255,255,.85)">2,00 € à régler au comptoir</div></div></div>
+<div class="mmeta">10:06<span class="ic f">done_all</span></div>
+</div>
+
+<div class="mb them">
+Bonjour, est-ce que je peux passer récupérer ma commande après 18h ce soir ?
+<div class="mmeta">11:10</div>
+</div>
+
+<div class="mb them">
+Je termine le travail à 18h30, ce serait plus simple pour moi.
+<div class="mmeta">11:12</div>
+</div>
+
+</div>
+
+<div class="cmp">
+<div class="qr">
+<div class="qc"><span class="ic">schedule</span>Nous fermons à 19h30</div>
+<div class="qc"><span class="ic">inventory_2</span>Votre commande est prête</div>
+<div class="qc"><span class="ic">link</span>Joindre la commande</div>
+</div>
+<div class="cin"><div class="cfld">Votre réponse…</div><div class="snd"><span class="ic f">send</span></div></div>
+<div class="hint"><b>⏎</b>envoyer<b>⇧⏎</b>nouvelle ligne<span style="margin-left:auto;display:flex;align-items:center;gap:6px"><span class="ic f" style="font-size:14px;color:var(--n400)">shield</span>Aucun conseil médical par écrit</span></div>
+</div>
+</div>
+
+<div class="ctx">
+<div class="ah"><span class="ic f">person</span><span class="t">Patiente</span></div>
+<div class="kr"><span class="k">Nom</span><span class="v">Julie Martin</span></div>
+<div class="kr"><span class="k">Téléphone</span><span class="v tnum">06 42 18 07 55</span></div>
+<div class="kr"><span class="k">Pharmacie</span><span class="v">Titulaire ici</span></div>
+
+<div class="ah" style="border-top:1px solid var(--n200)"><span class="ic f">receipt_long</span><span class="t">Commandes</span><span class="n">3</span></div>
+<div class="or"><div class="ico"><span class="ic f">inventory_2</span></div><div style="min-width:0;flex:1"><div class="n1">CMD-4821</div><div class="n2">Aujourd'hui · 3 lignes</div></div><span class="pill ok">Prête</span></div>
+<div class="or"><div class="ico"><span class="ic f">check_circle</span></div><div style="min-width:0;flex:1"><div class="n1">CMD-4788</div><div class="n2">22 juillet · 2 lignes</div></div><span class="pill mut">Retirée</span></div>
+<div class="or"><div class="ico"><span class="ic f">check_circle</span></div><div style="min-width:0;flex:1"><div class="n1">CMD-4702</div><div class="n2">16 juin · 1 ligne</div></div><span class="pill mut">Retirée</span></div>
+
+<div class="ah" style="border-top:1px solid var(--n200)"><span class="ic f">local_pharmacy</span><span class="t">Horaires aujourd'hui</span></div>
+<div class="kr"><span class="k">Ouverture</span><span class="v tnum">08:30 – 19:30</span></div>
+<div class="kr"><span class="k">Actuellement</span><span class="v" style="color:var(--okFg)">Ouvert</span></div>
+
+<div class="note"><span class="ic f">shield</span><span class="t">Cette messagerie sert à l'organisation d'une délivrance : disponibilité, horaires, substitution. Un conseil pharmaceutique se donne au comptoir ou par téléphone.</span></div>
+</div>
+
+</div>
+</div>
+</div></div>
+
+<div class="notes">
+<div class="nk">App Pharmacie · Messagerie patient</div>
+<h2>Un écran qui ne sait pas de quelle application il vient</h2>
+<p class="lede">La documentation du fichier annonce : « Écran "Messages" côté <strong>praticien</strong> ». Le commentaire de <code>_MessageBubble</code> précise « Cabinet = <strong>practitioner's</strong> side (right) ». Et l'état vide affiche « Vos conversations <strong>cabinet</strong> apparaîtront ici ». Or ce fichier est dans <code>app_pharmacie</code>, il consomme <code>GET /pharmacy/conversations</code>, et son interlocuteur est un patient. Trois mentions d'une autre application, dans un écran copié sans être relu.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Le vocabulaire du bon métier</div><div class="np">« Vos conversations patients apparaîtront ici », pas « cabinet ». Un pharmacien qui lit un état vide écrit pour une autre application doute de ce qu'il regarde — et l'erreur se propage aux tests, qui reprennent la chaîne.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Le sujet de la conversation, c'est une commande</div><div class="np">Un patient n'écrit pas à sa pharmacie pour discuter : il demande si sa commande est prête, s'il peut passer plus tard, s'il accepte un générique. La commande concernée doit être <strong>dans</strong> la conversation — en pastille sur la liste, en pièce jointe dans le fil, et en colonne de contexte.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Une colonne perdue sur 1360 px</div><div class="np">Le fil remplace la liste par un changement d'état — comme côté patient. Sur un poste de comptoir, les deux tiennent côte à côte, et la troisième colonne porte le contexte : patient, commandes passées, horaires du jour.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">L'urgence disparaît dans le fil</div><div class="np">Même défaut que côté patient : <code>MessageUrgency.urgent</code> alimente un <code>NubiaBadge</code> dans la <em>liste</em>, jamais dans les bulles. Ouvrir la conversation efface le signal qui a fait cliquer.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Aucun horodatage sur les messages</div><div class="np"><code>_MessageBubble</code> n'affiche que <code>message.text</code> — alors que <code>_ConversationTrailing</code> formate correctement l'heure dans la liste. La fonction existe, elle n'est simplement pas appelée là où elle compte.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Des réponses prêtes, parce que ce sont toujours les mêmes</div><div class="np">« Nous fermons à 19h30 », « votre commande est prête » : trois formules couvrent la majorité des échanges d'un comptoir. Elles évitent de retaper vingt fois par jour la même phrase.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Ni recherche, ni filtres</div><div class="np">Un patient au comptoir dit « je vous ai écrit ce matin ». Sans recherche par nom ni facette « non lues », le pharmacien fait défiler.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Un champ Material brut, encore</div><div class="np"><code>TextField</code> avec <code>OutlineInputBorder</code> et <code>IconButton.filled</code> — mêmes écarts au design system que la messagerie patient : rayon, remplissage et couleur de focus diffèrent du reste de l'application.</div></div></li>
+<li class="oli"><span class="onum">9</span><div><div class="nh">Un spinner pour le fil, un squelette pour la liste</div><div class="np">Le même écran utilise <code>_ConversationsSkeleton</code> (bon) pour la liste et <code>CircularProgressIndicator</code> centré pour le fil. L'incohérence est à trois lignes d'écart dans le même <code>switch</code>.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">content_copy</span>Le même code, écrit trois fois</div>
+<div class="p">Cette messagerie et celle de l'app Patient partagent bien plus qu'une ressemblance : <code>_formatTimestamp</code> (HH:mm si aujourd'hui, sinon jj/MM), <code>_initials</code>, le repli <code>lastMessagePreview ?? lastMessage?.text ?? …</code>, la logique de bulle gauche/droite, le squelette de liste. Avec la messagerie interne du secrétariat, cela fait <strong>trois implémentations</strong> du même écran dans le monorepo.</div>
+<div class="p">Deux conséquences observables. D'abord, les correctifs ne voyagent pas : le commentaire UTC exemplaire de l'app Patient (#3856) explique précisément pourquoi <code>DateTime.parse()</code> d'un ISO en <code>+00:00</code> produit une heure fausse — et <strong>cette version-ci n'appelle pas <code>toLocal()</code></strong>. Le même bug a donc été corrigé d'un côté et laissé de l'autre. Ensuite, <code>_initials</code> diverge : la variante patient renvoie deux lettres pour un nom unique (« JU »), celle-ci une seule (« J »).</div>
+<div class="p">La sortie est un paquet <code>nubia_messaging</code> partagé : <code>MessageBubble</code>, <code>ConversationRow</code>, <code>MessageComposer</code>, paramétrés par le rôle de l'interlocuteur. C'est la fondation qui manquait au contrat de données, et elle vaut plus que trois corrections séparées.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Le meilleur commentaire de correctif du dépôt</div>
+<div class="p">#3854 mérite d'être cité en entier tant il est utile : <code>GET /pharmacy/conversations</code> n'a jamais émis <code>last_message</code> (objet imbriqué) — seul <code>last_message_preview</code> (chaîne) est réel, comme côté cabinet (#3373). Lire uniquement <code>lastMessage?.text</code> affichait donc « Aucun message » sur <strong>tous</strong> les fils, y compris ceux qui avaient des non-lus.</div>
+<div class="p">Le repli à trois niveaux qui en découle — aperçu serveur, puis texte du dernier message, puis « N message(s) non lu(s) » — est exactement la bonne défense, et le fait qu'il cite le ticket équivalent de l'autre application montre que quelqu'un avait vu la duplication. C'est ce constat qu'il faut transformer en paquet partagé.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>#3854 / #3373 — repli à trois niveaux sur l'aperçu de conversation conservé tel quel, commentaire compris.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>lastMessageAt ?? lastMessage?.sentAt</code> — même ordre de repli pour l'horodatage.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>MessageSender.cabinet</code> reste le côté droit (l'officine) et le patient à gauche.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Envoi : message vide refusé, champ vidé après <code>PharmaMessagingSendRequested</code>, <code>sending</code> remplaçant le bouton.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>NubiaBadge.count</code> et <code>NubiaBadge.label</code> variante <code>error</code> pour l'urgence — composants DS inchangés.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Les quatre états d'erreur restent distincts (liste vs fil), chacun avec son <code>onRetry</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>_ConversationsSkeleton</code> conservé et étendu au fil, qui utilisait un spinner.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>pharma_messaging_loading</code>, <code>pharma_messaging_error</code>, <code>pharma_messaging_empty</code>, <code>pharma_messaging_conversations_list</code>, <code>conv_&lt;id&gt;</code>, <code>pharma_messaging_thread_loading</code>, <code>pharma_messaging_thread_error</code>, <code>pharma_messaging_thread_empty</code>, <code>pharma_messaging_thread_messages</code>, <code>pharma_messaging_back_button</code>, <code>pharma_messaging_input</code>, <code>pharma_messaging_send_button</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>⚠️ Chaînes à corriger : « Vos conversations cabinet » et les deux commentaires mentionnant le praticien — un test qui assert sur ce libellé devra être mis à jour.</span></li>
+</ul></div>
+</div>
+</div></body></html>

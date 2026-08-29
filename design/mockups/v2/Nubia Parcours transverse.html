@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia — Une couronne, quatre applications</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE;--pat:#0E7490;--pra:#047857;--sec:#7C3AED;--pha:#B45309}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:48px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.pg{width:1240px;margin:0 auto;background:var(--n0);border-radius:14px;padding:52px 56px 56px;box-shadow:0 30px 70px -24px rgba(28,25,23,.35),0 0 0 1px rgba(28,25,23,.07)}
+.kick{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+h1{font-family:Fraunces,serif;font-size:40px;line-height:47px;font-weight:600;letter-spacing:-.9px;margin:11px 0 16px}
+.lede{font-size:16px;line-height:27px;color:var(--n600);max-width:830px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.lede strong{color:var(--n900);font-weight:600}
+.legend{display:flex;gap:22px;margin-top:26px;padding-top:22px;border-top:1px solid var(--n200);flex-wrap:wrap;align-items:center}
+.lg{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:500}
+.lg .sw{width:11px;height:11px;border-radius:4px}
+.lg .n{color:var(--n500);font-weight:400}
+.brk{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--dangFg);background:var(--dangBg);border-radius:8px;padding:6px 11px}
+.brk .ic{font-size:16px}
+/* timeline */
+.tl{margin-top:40px}
+.ev{display:flex;gap:0;position:relative}
+.ev .lane{width:132px;flex:0 0 132px;display:flex;flex-direction:column;align-items:center;padding-top:4px}
+.ev .lane .app{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:4px 9px;border-radius:6px;white-space:nowrap}
+.ev .lane .app.pat{background:#CFFAFE;color:var(--pat)}
+.ev .lane .app.pra{background:var(--brand100);color:var(--pra)}
+.ev .lane .app.sec{background:#EDE9FE;color:var(--sec)}
+.ev .lane .app.pha{background:var(--warnBg);color:var(--pha)}
+.ev .lane .dt{font-size:11px;color:var(--n400);margin-top:6px;font-variant-numeric:tabular-nums}
+.ev .rail{width:34px;flex:0 0 34px;display:flex;flex-direction:column;align-items:center}
+.ev .rail .dot{width:16px;height:16px;border-radius:50%;border:3px solid var(--n0);box-shadow:0 0 0 2px var(--n300);background:var(--n0);margin-top:5px;flex:0 0 16px}
+.ev .rail .dot.pat{box-shadow:0 0 0 2px var(--pat);background:var(--pat)}
+.ev .rail .dot.pra{box-shadow:0 0 0 2px var(--pra);background:var(--pra)}
+.ev .rail .dot.sec{box-shadow:0 0 0 2px var(--sec);background:var(--sec)}
+.ev .rail .dot.pha{box-shadow:0 0 0 2px var(--pha);background:var(--pha)}
+.ev .rail .ln{flex:1;width:2px;background:var(--n200);margin:5px 0 0}
+.ev .bd{flex:1;min-width:0;padding:0 0 22px 6px}
+.ev .t{font-size:16.5px;font-weight:600;letter-spacing:-.25px}
+.ev .scr{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--n500);margin-top:4px}
+.ev .p{font-size:13.5px;line-height:21px;color:var(--n600);margin-top:7px;max-width:800px}
+.ev .p code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ev .p strong{color:var(--n900);font-weight:600}
+.gap{display:flex;gap:11px;background:#FFFBFA;border:1px solid #FECACA;border-left:3px solid var(--dangFg);border-radius:10px;padding:12px 14px;margin-top:11px;max-width:800px}
+.gap .ic{font-size:18px;color:var(--dangFg);flex:0 0 18px;margin-top:1px}
+.gap .gt{font-size:12px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--dangFg)}
+.gap .gp{font-size:13px;line-height:20px;color:#7F1D1D;margin-top:4px}
+.gap .gp code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:rgba(255,255,255,.7);border:1px solid #FECACA;border-radius:4px;padding:1px 5px}
+.gap .gp strong{font-weight:700}
+.ok{display:flex;gap:11px;background:var(--brand50);border:1px solid var(--brand200);border-left:3px solid var(--brand600);border-radius:10px;padding:12px 14px;margin-top:11px;max-width:800px}
+.ok .ic{font-size:18px;color:var(--brand700);flex:0 0 18px;margin-top:1px}
+.ok .gp{font-size:13px;line-height:20px;color:var(--brand800)}
+.ok .gp strong{font-weight:600}
+/* synthesis */
+h2{font-family:Fraunces,serif;font-size:26px;font-weight:600;letter-spacing:-.45px;margin:46px 0 8px}
+.sub{font-size:14.5px;line-height:23px;color:var(--n600);max-width:830px;margin-bottom:20px}
+.sub code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+.cd{background:var(--n0);border:1px solid var(--n200);border-radius:12px;padding:18px}
+.cd .n{font-size:30px;font-weight:700;letter-spacing:-.8px;line-height:33px}
+.cd .n.d{color:var(--dangFg)}
+.cd .h3{font-size:14.5px;font-weight:600;margin-top:8px;letter-spacing:-.15px}
+.cd .p{font-size:12.5px;line-height:19px;color:var(--n600);margin-top:6px}
+.cd .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:4px;padding:1px 4px}
+.final{margin-top:38px;background:var(--n50);border:1px solid var(--n200);border-left:4px solid var(--n900);border-radius:11px;padding:22px 24px}
+.final .h{font-size:16px;font-weight:600;display:flex;align-items:center;gap:10px}
+.final .h .ic{font-size:21px}
+.final .p{font-size:14px;line-height:23px;color:var(--n600);margin-top:11px;max-width:820px}
+.final .p code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n0);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.final .p strong{color:var(--n900);font-weight:600}
+.foot{margin-top:40px;padding-top:22px;border-top:1px solid var(--n200);font-size:12.5px;line-height:20px;color:var(--n500)}
+.foot code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+</style></head>
+<body><div class="pg" data-screen-label="Parcours transverse">
+
+<div class="kick">Écosystème Nubia · Lecture transverse</div>
+<h1>Une couronne, quatre applications,<br>onze passages de relais</h1>
+<p class="lede">Julie Martin a besoin d'une couronne sur la dent 26. Entre le premier rendez-vous et la pose, l'information traverse <strong>les quatre applications onze fois</strong> — et personne, dans le produit, ne voit ce parcours en entier. Chaque écran fait bien son travail ; ce sont les <em>jonctions</em> qui manquent.</p>
+<p class="lede" style="margin-top:14px">Ce document suit un cas unique de bout en bout. Il ne relève aucun défaut nouveau : il montre que les manques déjà identifiés écran par écran forment, mis bout à bout, <strong>une chaîne qui se rompt cinq fois</strong>.</p>
+
+<div class="legend">
+<div class="lg"><span class="sw" style="background:var(--pat)"></span>Patient<span class="n">mobile</span></div>
+<div class="lg"><span class="sw" style="background:var(--pra)"></span>Praticien<span class="n">tablette / PC</span></div>
+<div class="lg"><span class="sw" style="background:var(--sec)"></span>Secrétariat<span class="n">desktop</span></div>
+<div class="lg"><span class="sw" style="background:var(--pha)"></span>Pharmacie<span class="n">comptoir</span></div>
+<div class="brk"><span class="ic f">link_off</span>5 ruptures de chaîne</div>
+</div>
+
+<div class="tl">
+
+<div class="ev">
+<div class="lane"><span class="app pat">Patient</span><span class="dt">18 juil.</span></div>
+<div class="rail"><span class="dot pat"></span><span class="ln"></span></div>
+<div class="bd">
+<div class="t">Julie prend rendez-vous</div>
+<div class="scr">app_patient · réservation → Slot(startsAt, isAvailable)</div>
+<div class="p">Recherche d'un praticien, sélection d'un créneau, confirmation. Le rendez-vous apparaît immédiatement dans l'agenda du secrétariat et dans celui du praticien.</div>
+<div class="ok"><span class="ic f">check_circle</span><span class="gp"><strong>Jonction saine.</strong> Le modèle <code>Slot</code> est partagé, la conversion <code>toLocal()</code> est faite, et le rendez-vous circule sans perte entre les trois applications.</span></div>
+</div>
+</div>
+
+<div class="ev">
+<div class="lane"><span class="app pra">Praticien</span><span class="dt">22 juil.</span></div>
+<div class="rail"><span class="dot pra"></span><span class="ln"></span></div>
+<div class="bd">
+<div class="t">Consultation : diagnostic et actes du jour</div>
+<div class="scr">app_practicien · consultation_clinique → ClinicalSession.acts</div>
+<div class="p">Détartrage et restauration sur la 26. Le praticien constate qu'une couronne sera nécessaire et ouvre un plan de traitement en trois phases.</div>
+<div class="gap"><span class="ic f">link_off</span><div><div class="gt">Rupture 1 — les actes ne rejoignent pas le plan</div><div class="gp">Les actes réalisés vivent dans <code>ClinicalSession</code> ; le plan de traitement ne porte que des <strong>titres de phases</strong>. Rien ne relie l'acte du jour à la phase qu'il accomplit : le praticien saisit deux fois la même information, et l'avancement du plan ne se met pas à jour tout seul.</div></div></div>
+</div>
+</div>
+
+<div class="ev">
+<div class="lane"><span class="app pra">Praticien</span><span class="dt">22 juil.</span></div>
+<div class="rail"><span class="dot pra"></span><span class="ln"></span></div>
+<div class="bd">
+<div class="t">Ordonnance post-opératoire</div>
+<div class="scr">app_practicien · ordonnances → PrescriptionItem × 3</div>
+<div class="p">Amoxicilline, paracétamol, chlorhexidine. Julie est allergique à la pénicilline — l'information est au dossier, affichée dans un bandeau.</div>
+<div class="gap"><span class="ic f">link_off</span><div><div class="gt">Rupture 2 — la posologie part en texte libre</div><div class="gp"><code>PrescriptionItem</code> est <strong>quatre chaînes</strong>. La quantité est saisie à la main, la DCI tapée au clavier, et les mentions légales — « non substituable », son motif — n'existent sur aucun champ. Ce que la pharmacie recevra n'est donc pas structuré : c'est un PDF.</div></div></div>
+</div>
+</div>
+
+<div class="ev">
+<div class="lane"><span class="app pha">Pharmacie</span><span class="dt">22 juil.</span></div>
+<div class="rail"><span class="dot pha"></span><span class="ln"></span></div>
+<div class="bd">
+<div class="t">Délivrance au comptoir</div>
+<div class="scr">app_pharmacie · order_detail → PharmacyOrder</div>
+<div class="p">La commande arrive à la Pharmacie du Théâtre. Le pharmacien doit lire l'ordonnance, préparer, puis délivrer contre le QR de retrait de Julie.</div>
+<div class="gap"><span class="ic f">link_off</span><div><div class="gt">Rupture 3 — l'écran de délivrance ne montre pas ce qu'il faut délivrer</div><div class="gp"><code>PharmacyOrder</code> ne porte <strong>pas ses lignes</strong> : le seul accès à l'ordonnance est un bouton PDF qui <strong>quitte l'application</strong>. Et le scan de retrait valide <em>par token</em> sans comparer les patients — scanner le QR d'un autre patient avec le sachet de Julie en main réussit.</div></div></div>
+</div>
+</div>
+
+<div class="ev">
+<div class="lane"><span class="app sec">Secrétariat</span><span class="dt">4 août</span></div>
+<div class="rail"><span class="dot sec"></span><span class="ln"></span></div>
+<div class="bd">
+<div class="t">Émission et envoi du devis</div>
+<div class="scr">app_secretariat · devis → CabinetQuote(435,92 €)</div>
+<div class="p">Le devis couvre les phases 1 et 2. Il est envoyé à Julie, qui le signe le soir même depuis son application ; l'acompte de 130 € est réglé.</div>
+<div class="gap"><span class="ic f">link_off</span><div><div class="gt">Rupture 4 — le devis ignore le plan qu'il finance</div><div class="gp">Aucun lien entre <code>CabinetQuote</code> et les phases du plan. Le praticien ne peut donc pas savoir <strong>ce qui reste sans devis</strong> — ici la phase 3, soit 1 200 €, soit 73 % du montant total. Personne ne voit ce trou : ni le praticien dans son plan, ni le secrétariat dans sa liste.</div></div></div>
+</div>
+</div>
+
+<div class="ev">
+<div class="lane"><span class="app pat">Patient</span><span class="dt">4 août</span></div>
+<div class="rail"><span class="dot pat"></span><span class="ln"></span></div>
+<div class="bd">
+<div class="t">Julie signe et voit son reste à charge</div>
+<div class="scr">app_patient · financial → formatQuoteCents()</div>
+<div class="p">Le devis affiche 435,92 € au total, 148,50 € de reste à charge après remboursements. Formatage correct, ventilation AMO / AMC claire.</div>
+<div class="ok"><span class="ic f">check_circle</span><span class="gp"><strong>Le seul écran du dépôt qui formate correctement un montant.</strong> Les six autres implémentations produisent « 435.92 € » ou « 1245,67 € » sans séparateur — un patient et son secrétariat lisent donc le même montant sous deux formes différentes.</span></div>
+</div>
+</div>
+
+<div class="ev">
+<div class="lane"><span class="app pra">Praticien</span><span class="dt">11 août</span></div>
+<div class="rail"><span class="dot pra"></span><span class="ln"></span></div>
+<div class="bd">
+<div class="t">Phase 2 : endodontie et empreinte</div>
+<div class="scr">app_practicien · consultation → lab_work</div>
+<div class="p">Traitement endodontique sur la 26, puis empreinte envoyée au Labo Dentaire Kléber pour la couronne céramo-métallique.</div>
+<div class="gap"><span class="ic f">link_off</span><div><div class="gt">Rupture 5 — le bon de travail perd le patient</div><div class="gp"><code>LabWorkOrder</code> ne porte que <code>labName</code>, <code>status</code> et un prix d'achat. <strong>Ni patient, ni dent, ni date attendue.</strong> L'écran des travaux est organisé autour du fournisseur : « la couronne de Mme Martin est-elle arrivée ? » n'a littéralement pas de réponse dans le produit.</div></div></div>
+</div>
+</div>
+
+<div class="ev">
+<div class="lane"><span class="app pat">Patient</span><span class="dt">11 août</span></div>
+<div class="rail"><span class="dot pat"></span><span class="ln"></span></div>
+<div class="bd">
+<div class="t">Julie reçoit un message du cabinet</div>
+<div class="scr">app_patient · messaging → Message(sender: cabinet)</div>
+<div class="p">« Votre couronne est arrivée du laboratoire. Souhaitez-vous que nous programmions la pose ? »</div>
+<div class="gap" style="border-left-color:var(--warnFg);border-color:#FDE68A;background:var(--warnBg)"><span class="ic f" style="color:var(--warnFg)">help</span><div><div class="gt" style="color:var(--warnFg)">Point de friction — qui écrit ?</div><div class="gp" style="color:#78350F">La bulle ne porte ni nom ni rôle : Julie ne sait pas si le message vient du Dr Rousseau ou du secrétariat. Elle ne peut pas non plus répondre par un créneau — la messagerie et l'agenda ne se parlent pas.</div></div></div>
+</div>
+</div>
+
+<div class="ev">
+<div class="lane"><span class="app sec">Secrétariat</span><span class="dt">11 août</span></div>
+<div class="rail"><span class="dot sec"></span><span class="ln"></span></div>
+<div class="bd">
+<div class="t">Prise du rendez-vous de pose</div>
+<div class="scr">app_secretariat · agenda + salle d'attente</div>
+<div class="p">Le secrétariat propose un créneau, le confirme, et accueille Julie le jour venu.</div>
+<div class="ok"><span class="ic f">check_circle</span><span class="gp"><strong>Jonction saine, une fois l'agenda refondu.</strong> La salle d'attente et l'agenda partagent le même modèle de rendez-vous, et le praticien voit l'arrivée de Julie sur son tableau de bord.</span></div>
+</div>
+</div>
+
+<div class="ev">
+<div class="lane"><span class="app pra">Praticien</span><span class="dt">18 août</span></div>
+<div class="rail"><span class="dot pra"></span><span class="ln"></span></div>
+<div class="bd">
+<div class="t">Pose de la couronne</div>
+<div class="scr">app_practicien · consultation → treatment_plans</div>
+<div class="p">La couronne est posée. La phase 3 devrait passer à « terminée », le plan à 100 %, et le bon de travail à <code>fitted</code>.</div>
+<div class="gap"><span class="ic f">link_off</span><div><div class="gt">Rupture 1, à nouveau — trois mises à jour manuelles</div><div class="gp">Marquer l'acte, avancer la phase du plan, avancer le bon de travail : <strong>trois gestes séparés dans trois écrans</strong>, pour un seul événement clinique. Rien ne garantit qu'ils soient tous faits — et un plan resté « en cours » est un patient qu'on ne relance pas.</div></div></div>
+</div>
+</div>
+
+<div class="ev">
+<div class="lane"><span class="app pat">Patient</span><span class="dt">18 août</span></div>
+<div class="rail"><span class="dot pat"></span></div>
+<div class="bd">
+<div class="t">Julie voit son traitement terminé</div>
+<div class="scr">app_patient · dashboard → treatmentProgress</div>
+<div class="p">L'accueil affiche l'avancement du plan de traitement — « 3 / 3 étapes ».</div>
+<div class="gap" style="border-left-color:var(--warnFg);border-color:#FDE68A;background:var(--warnBg)"><span class="ic f" style="color:var(--warnFg)">help</span><div><div class="gt" style="color:var(--warnFg)">Asymétrie — le patient voit ce que le praticien ne voit pas</div><div class="gp" style="color:#78350F"><code>treatmentProgress</code> alimente l'app Patient. Le praticien, qui <em>possède</em> le plan, n'a aucun agrégat équivalent dans son écran de plans de traitement. La donnée existe : elle n'est simplement pas exposée du bon côté.</div></div></div>
+</div>
+</div>
+
+</div>
+
+<h2>Ce que le parcours révèle</h2>
+<p class="sub">Les cinq ruptures ne sont pas cinq problèmes différents. Ce sont cinq manifestations du même défaut de modélisation — celui que le contrat de données recense entité par entité, et que ce parcours donne à voir dans le temps.</p>
+
+<div class="grid3">
+<div class="cd"><div class="n d">3×</div><div class="h3">La même information saisie plusieurs fois</div><div class="p">Un acte de pose met à jour trois objets — <code>ClinicalAct</code>, <code>TreatmentPhase</code>, <code>LabWorkOrder</code> — par trois gestes manuels dans trois écrans. Chaque oubli laisse un plan ouvert, un bon en attente, ou un patient non relancé.</div></div>
+<div class="cd"><div class="n d">2</div><div class="h3">Objets qui perdent leur sujet</div><div class="p"><code>LabWorkOrder</code> perd le patient, <code>PharmacyOrder</code> perd son ordonnance. Dans les deux cas l'écran s'organise autour du <em>prestataire</em> alors que le métier s'organise autour du patient.</div></div>
+<div class="cd"><div class="n d">1 200 €</div><div class="h3">Que personne ne voit</div><div class="p">La phase 3 n'a jamais eu de devis. Ni le praticien ni le secrétariat ne dispose d'un écran où ce trou apparaît — il ne se découvre qu'au moment de facturer.</div></div>
+</div>
+
+<div class="final"><div class="h"><span class="ic f">hub</span>Une recommandation, pas un écran</div>
+<div class="p">Les vingt-six livrables de cette mission corrigent chacun un écran. Ce parcours suggère un chantier d'une autre nature : <strong>un événement clinique devrait produire ses conséquences lui-même</strong>. Poser une couronne, c'est simultanément enregistrer un acte, avancer une phase, clore un bon de travail et mettre à jour un avancement — quatre écritures que le produit demande aujourd'hui à un praticien de faire à la main, entre deux fauteuils.</p>
+<div class="p">Techniquement, cela veut dire des <strong>liens explicites entre entités</strong> — <code>act.phaseId</code>, <code>phase.quoteId</code>, <code>labWork.patientId</code>, <code>labWork.actId</code> — et un back qui propage. C'est la vague 1 du contrat de données, vue sous un autre angle : ces champs ne servent pas seulement à afficher, ils servent à <em>ne pas ressaisir</em>.</p>
+<div class="p">C'est aussi, et c'est le point qui compte pour concurrencer un acteur installé, ce qui distingue un logiciel de gestion d'un logiciel de <em>parcours</em>. Les quatre applications sont bien conçues séparément ; l'avantage se gagnera sur les jonctions.</div>
+</div>
+
+<div class="foot">Cas construit à partir des vingt-six écrans refondus et de la lecture du dépôt <code>jipspaul/nubiadoc@main</code>. Les cinq ruptures renvoient chacune à une entrée du document <em>Contrat de données</em>, et les deux points de friction à des notes d'écran (messagerie Patient, plans de traitement Praticien). Aucun défaut nouveau n'est introduit ici : ce document ne fait que les mettre en séquence.</div>
+
+</div></body></html>

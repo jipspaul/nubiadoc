@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Praticien — Salle d'attente v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1290px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+.tab{width:1290px;background:var(--n900);border-radius:34px;padding:16px;box-shadow:0 34px 74px -26px rgba(28,25,23,.5)}
+.scr{width:1258px;height:834px;background:var(--n50);border-radius:22px;overflow:hidden;display:flex;flex-direction:column}
+.tb{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 20px;display:flex;align-items:center;gap:16px}
+.tb h1{font-size:20px;font-weight:600;letter-spacing:-.35px}
+.tb .sb{font-size:12.5px;color:var(--n500);margin-top:2px}
+.sp2{flex:1}
+.live{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--n500)}
+.live .p{width:7px;height:7px;border-radius:99px;background:var(--brand600)}
+.body{flex:1;min-height:0;display:flex;gap:16px;padding:16px 20px;overflow:hidden}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.c1{flex:1}
+.c2{width:378px;flex:0 0 378px}
+/* hero suivant */
+.hero{background:var(--brand700);border-radius:16px;padding:18px;color:#fff;flex:0 0 auto}
+.hero .lbl{font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;opacity:.78}
+.hero .r1{display:flex;align-items:center;gap:14px;margin-top:10px}
+.hero .av{width:50px;height:50px;flex:0 0 50px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:17px;font-weight:600}
+.hero .nm{font-size:21px;font-weight:600;letter-spacing:-.4px}
+.hero .mo{font-size:13px;opacity:.85;margin-top:2px}
+.hero .wt{margin-left:auto;text-align:right;flex:0 0 auto}
+.hero .wt .v{font-size:24px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.hero .wt .l{font-size:11.5px;opacity:.8;margin-top:1px}
+.hero .al{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.hero .tag{font-size:11px;font-weight:600;background:rgba(255,255,255,.16);border-radius:6px;padding:4px 9px}
+.hero .tag.d{background:#FEE2E2;color:#B91C1C}
+.hero .btns{display:flex;gap:9px;margin-top:13px}
+.hero .b{flex:1;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:14px;font-weight:500}
+.hero .b.s{background:#fff;color:var(--brand700)}
+.hero .b.g{border:1.5px solid rgba(255,255,255,.4);color:#fff}
+.hero .b .ic{font-size:18px}
+/* file */
+.bx{background:var(--n0);border:1px solid var(--n200);border-radius:14px}
+.bx.gr{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.bh{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--n100)}
+.bh .ic{font-size:18px;color:var(--n500)}
+.bh .t{font-size:13.5px;font-weight:600;letter-spacing:-.05px}
+.bh .n{margin-left:auto;font-size:11px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:2px 8px}
+.lst{flex:1;overflow:hidden}
+.er{display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--n100)}
+.er .pos{width:28px;height:28px;flex:0 0 28px;border-radius:50%;background:var(--brand50);display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--brand800);font-variant-numeric:tabular-nums}
+.er .av{width:32px;height:32px;flex:0 0 32px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--brand800)}
+.er .n1{font-size:13.5px;font-weight:500;letter-spacing:-.1px}
+.er .n2{font-size:11.5px;color:var(--n500);margin-top:1px}
+.er .wt{flex:0 0 auto;text-align:right;margin-left:auto;margin-right:10px}
+.er .wt .v{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.er .wt .v.w{color:var(--warnFg)}
+.er .wt .v.d{color:var(--dangFg)}
+.er .wt .l{font-size:10.5px;color:var(--n500)}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:500;border-radius:99px;padding:3px 9px;white-space:nowrap;flex:0 0 auto}
+.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.mut{background:var(--n100);color:var(--n500)}.pill.info{background:var(--infoBg);color:var(--infoFg)}.pill.dang{background:var(--dangBg);color:var(--dangFg)}
+.er .cb{width:32px;height:32px;flex:0 0 32px;border-radius:9px;border:1px solid var(--n200);display:grid;place-items:center;color:var(--n500);margin-left:9px}
+.er .cb .ic{font-size:17px}
+/* colonne droite */
+.kv{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--n100)}
+.kv:last-child{border-bottom:0}
+.kv .l{flex:1;min-width:0}
+.kv .n1{font-size:13px;font-weight:500}
+.kv .n2{font-size:11px;color:var(--n500);margin-top:1px}
+.kv .v{font-size:17px;font-weight:700;letter-spacing:-.3px;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.kv .v.w{color:var(--warnFg)}
+.kv .v.b{color:var(--brand700)}
+.pr{display:flex;align-items:center;gap:11px;padding:10px 14px;border-bottom:1px solid var(--n100)}
+.pr:last-child{border-bottom:0}
+.pr .av{width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:#EDE9FE;display:grid;place-items:center;font-size:11.5px;font-weight:600;color:#6D28D9}
+.pr .n1{font-size:13px;font-weight:500}
+.pr .n2{font-size:11px;color:var(--n500);margin-top:1px}
+.note{display:flex;gap:9px;background:var(--n50);border:1px solid var(--n200);border-radius:10px;padding:10px 11px;margin:12px 14px}
+.note .ic{font-size:16px;color:var(--n400);flex:0 0 16px;margin-top:1px}
+.note .t{font-size:11.5px;line-height:17px;color:var(--n500)}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Praticien · Tablette 1258 × 834 — salle d'attente</div>
+<div class="tab"><div class="scr" data-screen-label="Praticien · Salle d'attente">
+
+<div class="tb"><div><h1>Salle d'attente</h1><div class="sb">Dr Amélie Rousseau · 5 patients présents</div></div>
+<div class="sp2"></div>
+<div class="live"><span class="p"></span>Mise à jour il y a 8 s</div>
+</div>
+
+<div class="body">
+<div class="col c1">
+
+<div class="hero">
+<div class="lbl">Prochain patient à appeler</div>
+<div class="r1"><div class="av">CM</div>
+<div style="min-width:0;flex:1"><div class="nm">Camille Moreau</div><div class="mo">Pose de couronne · RDV de 14:30 · phase 2 sur 3</div></div>
+<div class="wt"><div class="v">32 min</div><div class="l">d'attente</div></div></div>
+<div class="al"><span class="tag d">Allergie pénicilline</span><span class="tag">Arrivée à 14:12</span><span class="tag">Dernière visite 22/07</span></div>
+<div class="btns"><div class="b s"><span class="ic">campaign</span>Appeler Camille Moreau</div><div class="b g"><span class="ic">folder_open</span>Ouvrir le dossier</div></div>
+</div>
+
+<div class="bx gr"><div class="bh"><span class="ic f">groups</span><span class="t">File d'attente</span><span class="n">5 présents · 14 min en moyenne</span></div>
+<div class="lst">
+
+<div class="er"><span class="pos">1</span><div class="av">CM</div>
+<div style="min-width:0;flex:1"><div class="n1">Camille Moreau</div><div class="n2">Pose de couronne · vous</div></div>
+<div class="wt"><div class="v d">32 min</div><div class="l">arrivée 14:12</div></div>
+<span class="pill dang">Attente longue</span>
+<div class="cb"><span class="ic">campaign</span></div></div>
+
+<div class="er"><span class="pos">2</span><div class="av">TG</div>
+<div style="min-width:0;flex:1"><div class="n1">Théo Girard</div><div class="n2">Suivi de traitement · vous</div></div>
+<div class="wt"><div class="v w">18 min</div><div class="l">arrivée 14:26</div></div>
+<span class="pill warn">Patiente</span>
+<div class="cb"><span class="ic">campaign</span></div></div>
+
+<div class="er"><span class="pos">3</span><div class="av">SR</div>
+<div style="min-width:0;flex:1"><div class="n1">Sophie Roux</div><div class="n2">Contrôle annuel · Dr Lefèvre</div></div>
+<div class="wt"><div class="v">11 min</div><div class="l">arrivée 14:33</div></div>
+<span class="pill info">En attente</span>
+<div class="cb" style="opacity:.35"><span class="ic">campaign</span></div></div>
+
+<div class="er"><span class="pos">4</span><div class="av">YD</div>
+<div style="min-width:0;flex:1"><div class="n1">Yanis Diallo</div><div class="n2">Urgence · douleur · non attribué</div></div>
+<div class="wt"><div class="v">6 min</div><div class="l">arrivée 14:38</div></div>
+<span class="pill mut">Sans RDV</span>
+<div class="cb"><span class="ic">person_add</span></div></div>
+
+<div class="er"><span class="pos">5</span><div class="av">LB</div>
+<div style="min-width:0;flex:1"><div class="n1">Léa Bernard</div><div class="n2">Première consultation · vous</div></div>
+<div class="wt"><div class="v">3 min</div><div class="l">arrivée 14:41</div></div>
+<span class="pill info">En attente</span>
+<div class="cb"><span class="ic">campaign</span></div></div>
+
+</div>
+</div>
+
+</div>
+
+<div class="col c2">
+
+<div class="bx"><div class="bh"><span class="ic f">timer</span><span class="t">Rythme de la salle</span></div>
+<div class="kv"><div class="l"><div class="n1">Attente moyenne</div><div class="n2">sur les 5 présents</div></div><span class="v">14 min</span></div>
+<div class="kv"><div class="l"><div class="n1">Attente la plus longue</div><div class="n2">Camille Moreau</div></div><span class="v w">32 min</span></div>
+<div class="kv"><div class="l"><div class="n1">Retard sur le planning</div><div class="n2">RDV de 14:30 appelé à 15:02</div></div><span class="v w">+32 min</span></div>
+</div>
+
+<div class="bx"><div class="bh"><span class="ic f">person</span><span class="t">Mes patients dans la file</span><span class="n">3</span></div>
+<div class="kv"><div class="l"><div class="n1">Pour vous</div><div class="n2">Camille, Théo, Léa</div></div><span class="v b">3</span></div>
+<div class="kv"><div class="l"><div class="n1">Pour Dr Lefèvre</div><div class="n2">Sophie Roux</div></div><span class="v">1</span></div>
+<div class="kv"><div class="l"><div class="n1">Non attribué</div><div class="n2">Yanis Diallo · urgence</div></div><span class="v w">1</span></div>
+</div>
+
+<div class="bx"><div class="bh"><span class="ic f">groups</span><span class="t">Praticiens présents</span></div>
+<div class="pr"><div class="av">AR</div><div style="min-width:0;flex:1"><div class="n1">Dr Amélie Rousseau</div><div class="n2">Vous · en consultation</div></div><span class="pill ok">Présente</span></div>
+<div class="pr"><div class="av">ML</div><div style="min-width:0;flex:1"><div class="n1">Dr Marc Lefèvre</div><div class="n2">Fauteuil 2 · termine à 18h</div></div><span class="pill warn">Départ 18h</span></div>
+<div class="note" style="margin:12px 14px"><span class="ic f">shield</span><span class="t">La file affiche le motif administratif du rendez-vous. Les alertes cliniques ne figurent que sur la carte du prochain appelé.</span></div>
+</div>
+
+</div>
+</div>
+
+</div></div></div>
+
+<div class="notes">
+<div class="nk">App Praticien · Salle d'attente</div>
+<h2>Le même écran pour deux métiers opposés</h2>
+<p class="lede">Cette salle d'attente est <strong>partagée avec l'app Secrétariat</strong> — même <code>WaitingRoomBody</code>, même bloc. Mais les deux métiers n'ont pas la même question : le secrétariat gère <em>toute</em> la file et annonce les appels ; le praticien veut savoir <strong>qui l'attend, lui</strong>, et depuis combien de temps. L'écran actuel ne fait ni l'un ni l'autre : il liste des positions et un unique bouton « Appeler le suivant ».</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">« Le suivant » n'est pas nommé</div><div class="np">Même défaut que côté secrétariat : <code>WaitingRoomCallNextRequested</code> appelle le premier de la file sans que l'écran dise qui. Le bouton porte désormais le nom — « Appeler Camille Moreau » — et chaque ligne garde son propre bouton pour rompre l'ordre.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Le praticien ne sait pas qui est pour lui</div><div class="np"><code>WaitingRoomEntry</code> ne porte pas de praticien attribué : la file est indifférenciée. Sur un cabinet à deux fauteuils, le praticien lit donc les patients de son confrère au même rang que les siens. C'est le manque le plus structurant de cet écran côté praticien.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Le motif du rendez-vous manque</div><div class="np">Une pose de couronne et un contrôle ne se préparent pas de la même façon. Le praticien qui voit sa file veut anticiper l'acte, pas seulement le nom.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Le retard sur planning, absent</div><div class="np">L'écran affiche le temps d'attente de chaque patient, mais jamais l'écart avec l'heure prévue. « RDV de 14:30 appelé à 15:02 » est l'information qui décide de raccourcir une séance ou de prévenir le patient suivant.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Les arrivées sans RDV existent</div><div class="np">Une urgence n'a pas de praticien attribué : sa ligne le dit, et son action est « Attribuer », pas « Appeler ». L'écran actuel l'affiche comme les autres.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Un tirer-pour-rafraîchir sur une tablette murale</div><div class="np"><code>RefreshIndicator</code> et son <code>Completer</code> supposent un geste. Une salle d'attente change sans qu'on la touche : rafraîchissement périodique et indicateur de fraîcheur. Le geste tactile reste, il n'est plus le seul mécanisme.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">La largeur n'est pas utilisée</div><div class="np">Une colonne de cartes sur 1258 px. À droite : rythme de la salle, répartition par praticien, présences — et ce qui vient après la file.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">bug_report</span>« Patiente » : un adjectif accordé au féminin pour tous</div>
+<div class="p">La table de statuts dérive le libellé du temps d'attente :</div>
+<div class="p"><code>&lt; 15 =&gt; ('En attente', info)</code> · <code>&lt; 30 =&gt; ('Patiente', warning)</code> · <code>_ =&gt; ('Attente longue', error)</code></div>
+<div class="p">« Patiente » est ambigu — nom commun ou adjectif ? — et s'affiche tel quel sur la ligne d'un homme. La progression est par ailleurs illogique : « En attente » puis « Patiente » puis « Attente longue » mélange un état, un jugement et une durée. Trois durées suffisent : <strong>« Moins de 15 min » / « Plus de 15 min » / « Plus de 30 min »</strong>, ou simplement la pastille colorée à côté du chiffre déjà affiché.</div>
+<div class="p">Le commentaire du code précise « jamais la couleur seule (label + pill) » — la règle d'accessibilité est juste, c'est le choix des mots qui est à revoir.</div></div>
+
+<div class="box"><div class="h"><span class="ic f">error</span>Un échec d'action efface la liste</div>
+<div class="p">Le <code>listenWhen</code> affiche <code>actionError</code> en snackbar — correct. Mais si le <strong>rechargement</strong> échoue après une action, l'état passe à <code>WaitingRoomError</code> et le <code>NubiaErrorWidget</code> plein écran <strong>remplace la file</strong>. Un praticien perd la vue de ses cinq patients présents parce qu'un appel réseau a échoué.</div>
+<div class="p">C'est le motif corrigé par <code>NubiaInlineError</code> (fondation états d'écran) : un chargement initial qui échoue est bloquant, une action qui échoue ne l'est jamais. Cinquième occurrence relevée dans l'écosystème.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Trois décisions justes, à conserver</div>
+<div class="p"><strong>Le squelette est fidèle.</strong> Six blocs de 72 px, à la hauteur des cartes réelles — pas un spinner centré. C'est le quatrième bon état de chargement du dépôt.</div>
+<div class="p"><strong>Le corps est séparé de la page.</strong> <code>WaitingRoomBody</code> pour l'insertion dans le shell, <code>WaitingRoomPage</code> avec son <code>Scaffold</code> pour l'accès direct par URL. La duplication est évitée proprement, et c'est ce qui permet de partager l'écran entre deux applications.</div>
+<div class="p"><strong>Le statut ne repose pas sur la couleur seule.</strong> Le commentaire l'énonce explicitement : « jamais la couleur seule (label + pill) ». C'est la bonne règle d'accessibilité, appliquée avant qu'on la demande.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span><code>WaitingRoomCallNextRequested</code> conservé : l'ordre de la file reste celui du serveur, le bouton principal appelle toujours le premier.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>actionInProgress</code> continue de désactiver les appels et d'afficher sa barre de progression (<code>waiting_room_action_progress</code>).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>entry.waitSoFar</code> et <code>estimatedWaitMinutes</code> inchangés ; « À l'instant » sous une minute conservé.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Seuils de 15 et 30 minutes conservés — seuls les libellés changent.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>NubiaL10n</code> (<code>waitingRoom</code>, <code>callNext</code>, <code>noWaitingRoom</code>, <code>refresh</code>) réutilisé, aucune chaîne en dur ajoutée.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Les deux points d'entrée restent distincts : <code>WaitingRoomBody</code> (shell) et <code>WaitingRoomPage</code> (URL directe).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>waiting_room_loading</code>, <code>waiting_room_error</code>, <code>waiting_room_empty</code>, <code>waiting_room_refresh</code>, <code>waiting_room_action_progress</code>, <code>call_next_button</code>, <code>entry_&lt;id&gt;</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Initiales par <code>NubiaInitials.of</code> — l'implémentation locale renvoyait une seule lettre pour un nom unique.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Champs à exposer : praticien attribué, motif du RDV, heure prévue (pour le retard) — les trois manquent à <code>WaitingRoomEntry</code>.</span></li>
+</ul></div>
+</div>
+</div></body></html>

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Praticien — Nouvelle ordonnance v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1290px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+.tab{width:1290px;background:var(--n900);border-radius:34px;padding:16px;box-shadow:0 34px 74px -26px rgba(28,25,23,.5)}
+.scr{width:1258px;height:834px;background:var(--n50);border-radius:22px;overflow:hidden;display:flex;flex-direction:column}
+/* header */
+.hd{background:var(--n0);border-bottom:1px solid var(--n200);padding:11px 18px;display:flex;align-items:center;gap:13px}
+.bk{width:36px;height:36px;flex:0 0 36px;border-radius:10px;border:1px solid var(--n200);display:grid;place-items:center;color:var(--n600)}
+.bk .ic{font-size:19px}
+.av{width:40px;height:40px;flex:0 0 40px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:14px;font-weight:600;color:var(--brand800)}
+.hnm{font-size:17px;font-weight:600;letter-spacing:-.25px}
+.hsub{font-size:12px;color:var(--n500);margin-top:1px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.info{background:var(--infoBg);color:var(--infoFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.dang{background:var(--dangBg);color:var(--dangFg)}
+.hsp{flex:1}
+.ttl2{font-size:13px;font-weight:600;color:var(--n600)}
+/* allergy banner */
+.alg{display:flex;align-items:flex-start;gap:11px;background:var(--warnBg);border-bottom:1px solid #FDE68A;padding:11px 18px}
+.alg .ic{font-size:19px;color:var(--warnFg);flex:0 0 19px;margin-top:1px}
+.alg .h{font-size:13px;font-weight:600;color:#78350F}
+.alg .p{font-size:12.5px;color:#92400E;margin-top:2px}
+.alg .nb{margin-left:auto;flex:0 0 auto;font-size:10.5px;color:#92400E;background:rgba(255,255,255,.55);border:1px solid #FCD34D;border-radius:7px;padding:5px 9px;max-width:290px;line-height:15px}
+/* split */
+.split{flex:1;display:flex;min-height:0}
+.lft{flex:1;min-width:0;padding:16px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.rgt{width:458px;flex:0 0 458px;border-left:1px solid var(--n200);background:var(--n50);display:flex;flex-direction:column}
+.pan{background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:14px}
+.ph{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.ph .ic{font-size:18px;color:var(--n500)}
+.ph .t{font-size:13.5px;font-weight:600;letter-spacing:-.1px}
+.ph .n{font-size:11px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:2px 8px}
+/* templates */
+.tpl{display:flex;flex-wrap:wrap;gap:8px}
+.tc{border:1px solid var(--n200);border-radius:10px;padding:9px 12px;background:var(--n0);min-width:0}
+.tc .c1{font-size:13px;font-weight:600;letter-spacing:-.1px}
+.tc .c2{font-size:11px;color:var(--n500);margin-top:2px}
+.tc.on{border-color:var(--brand600);background:var(--brand50)}
+.tc.on .c1{color:var(--brand800)}.tc.on .c2{color:var(--brand700)}
+.orl{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:11.5px;color:var(--n400)}
+.orl i{flex:1;height:1px;background:var(--n200);display:block}
+/* med lines */
+.meds{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.med{flex:0 0 auto;background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:13px}
+.med .m1{display:flex;align-items:center;gap:9px}
+.med .idx{width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:var(--n100);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--n600)}
+.med .dci{font-size:14.5px;font-weight:600;letter-spacing:-.15px}
+.med .frm{font-size:12px;color:var(--n500);margin-left:6px;font-weight:400}
+.med .del{margin-left:auto;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:var(--n400)}
+.med .del .ic{font-size:17px}
+.fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:11px}
+.fl{font-size:10.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--n400);margin-bottom:4px}
+.sel{height:38px;border:1px solid var(--n200);border-radius:9px;background:var(--n0);display:flex;align-items:center;padding:0 10px;font-size:13px;font-weight:500}
+.sel .ic{margin-left:auto;font-size:17px;color:var(--n400)}
+.calc{display:flex;align-items:center;gap:8px;margin-top:11px;background:var(--brand50);border:1px solid var(--brand200);border-radius:9px;padding:9px 11px}
+.calc .ic{font-size:16px;color:var(--brand700)}
+.calc .t{font-size:12.5px;color:var(--brand800)}
+.calc .t b{font-weight:600}
+.calc .ns{margin-left:auto;font-size:11px;font-weight:600;color:var(--brand800);border:1px solid var(--brand200);background:rgba(255,255,255,.6);border-radius:7px;padding:4px 8px}
+/* autocomplete */
+.acp{flex:0 0 auto;border:1px solid var(--n200);border-radius:11px;overflow:hidden}
+.acf{height:40px;display:flex;align-items:center;gap:8px;padding:0 11px;border-bottom:1px solid var(--n200);font-size:13.5px;color:var(--n900)}
+.acf .ic{font-size:18px;color:var(--n400)}
+.acf .cur{width:1px;height:16px;background:var(--brand700);margin-left:1px}
+.aci{display:flex;align-items:center;gap:9px;padding:9px 11px;border-bottom:1px solid var(--n100);font-size:13px}
+.aci:last-child{border-bottom:0}
+.aci.hi{background:var(--brand50)}
+.aci .d{font-weight:600}
+.aci .s{font-size:11.5px;color:var(--n500);margin-top:1px}
+.aci .tg{margin-left:auto;font-size:10px;font-weight:600;border-radius:5px;padding:2px 6px;background:var(--n100);color:var(--n600)}
+.addm{flex:0 0 auto;height:40px;border:1px dashed var(--n300);border-radius:11px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:13px;font-weight:500;color:var(--n500)}
+.addm .ic{font-size:17px}
+/* preview */
+.pvh{padding:13px 16px;border-bottom:1px solid var(--n200);display:flex;align-items:center;gap:9px;background:var(--n0)}
+.pvh .ic{font-size:18px;color:var(--n500)}
+.pvh .t{font-size:13.5px;font-weight:600}
+.pvb{flex:1;min-height:0;padding:16px;overflow:hidden}
+.sheet{background:var(--n0);border:1px solid var(--n200);border-radius:6px;box-shadow:0 8px 24px -14px rgba(28,25,23,.4);padding:20px;height:100%;display:flex;flex-direction:column;font-size:11.5px;line-height:16px;color:var(--n800)}
+.sh1{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--n200);padding-bottom:11px}
+.sh1 .dr{font-size:13px;font-weight:700;letter-spacing:-.1px}
+.sh1 .ln{font-size:10.5px;color:var(--n500);margin-top:1px}
+.sh1 .rt{text-align:right;font-size:10.5px;color:var(--n500)}
+.pt{display:flex;justify-content:space-between;margin-top:12px;font-size:11px;color:var(--n600)}
+.pt b{color:var(--n900);font-weight:600;font-size:12px}
+.rx{margin-top:14px;flex:1}
+.rxl{padding:9px 0;border-bottom:1px dotted var(--n300)}
+.rxl .l1{font-size:12px;font-weight:700;letter-spacing:.1px}
+.rxl .l2{margin-top:2px;color:var(--n600)}
+.rxl .l3{margin-top:2px;font-size:10.5px;color:var(--n500);display:flex;gap:10px}
+.rxl .ns{font-size:9.5px;font-weight:700;color:var(--dangFg);text-transform:uppercase;letter-spacing:.4px}
+.sig{margin-top:12px;border-top:1px solid var(--n200);padding-top:11px;display:flex;justify-content:space-between;align-items:flex-end}
+.sig .ph2{font-size:10.5px;color:var(--n400)}
+.sig .box{width:118px;height:44px;border:1px dashed var(--n300);border-radius:6px;display:grid;place-items:center;font-size:10px;color:var(--n400)}
+.pvf{padding:14px 16px;border-top:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column;gap:9px}
+.cta{height:48px;border-radius:12px;background:var(--brand700);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:500}
+.cta .ic{font-size:19px}
+.cta2{height:40px;border-radius:11px;background:var(--n0);border:1px solid var(--n200);color:var(--n900);display:flex;align-items:center;justify-content:center;gap:7px;font-size:13px;font-weight:500}
+.cta2 .ic{font-size:16px;color:var(--n500)}
+.rs{display:flex;align-items:flex-start;gap:8px;font-size:11.5px;line-height:16px;color:var(--n500)}
+.rs .ic{font-size:15px;color:var(--brand700);flex:0 0 15px;margin-top:1px}
+.rs b{color:var(--n600);font-weight:600}
+/* notes */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:840px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.mdr{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--warnFg);border-radius:10px;padding:16px 18px;max-width:840px}
+.mdr .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.mdr .h .ic{font-size:19px;color:var(--warnFg)}
+.mdr .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.mdr .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Praticien · Tablette 1258 × 834 — composition d'ordonnance</div>
+<div class="tab"><div class="scr" data-screen-label="Praticien · Nouvelle ordonnance">
+
+<div class="hd"><div class="bk"><span class="ic">arrow_back</span></div><div class="av">JM</div>
+<div><div style="display:flex;align-items:center;gap:9px"><span class="hnm">Julie Martin</span><span class="pill info">Brouillon</span></div>
+<div class="hsub">41 ans · née le 07/06/1985 · suivie par Dr A. Rousseau</div></div>
+<div class="hsp"></div><span class="ttl2">Nouvelle ordonnance</span>
+</div>
+
+<div class="alg"><span class="ic f">warning</span>
+<div><div class="h">Allergies connues au dossier</div><div class="p">Pénicilline · Latex</div></div>
+<div class="nb">Affichage informatif. Aucune vérification automatique, aucune alternative suggérée — <b>hors périmètre dispositif médical</b> (ADR-009 §8.6).</div>
+</div>
+
+<div class="split">
+<div class="lft">
+
+<div class="pan">
+<div class="ph"><span class="ic f">description</span><span class="t">Partir d'un modèle</span><span class="n">4</span></div>
+<div class="tpl">
+<div class="tc on"><div class="c1">Post-extraction</div><div class="c2">Cabinet · 3 lignes</div></div>
+<div class="tc"><div class="c1">Post-implant</div><div class="c2">Cabinet · 4 lignes</div></div>
+<div class="tc"><div class="c1">Antibioprophylaxie</div><div class="c2">Standard · 1 ligne</div></div>
+<div class="tc"><div class="c1">Douleur aiguë</div><div class="c2">Standard · 2 lignes</div></div>
+</div>
+</div>
+
+<div class="meds">
+<div class="med">
+<div class="m1"><span class="idx">1</span><span class="dci">PARACÉTAMOL 1 g<span class="frm">comprimé</span></span><span class="del"><span class="ic">delete</span></span></div>
+<div class="fields">
+<div><div class="fl">Dose</div><div class="sel">1 comprimé<span class="ic">expand_more</span></div></div>
+<div><div class="fl">Fréquence</div><div class="sel">3 fois / jour<span class="ic">expand_more</span></div></div>
+<div><div class="fl">Durée</div><div class="sel">5 jours<span class="ic">expand_more</span></div></div>
+</div>
+<div class="calc"><span class="ic f">calculate</span><span class="t">Quantité calculée : <b>15 comprimés</b> — soit 1 boîte de 16</span><span class="ns">Modifier</span></div>
+</div>
+
+<div class="med">
+<div class="m1"><span class="idx">2</span><span class="dci">CHLORHEXIDINE 0,12 %<span class="frm">bain de bouche</span></span><span class="del"><span class="ic">delete</span></span></div>
+<div class="fields">
+<div><div class="fl">Dose</div><div class="sel">1 bain de bouche<span class="ic">expand_more</span></div></div>
+<div><div class="fl">Fréquence</div><div class="sel">2 fois / jour<span class="ic">expand_more</span></div></div>
+<div><div class="fl">Durée</div><div class="sel">10 jours<span class="ic">expand_more</span></div></div>
+</div>
+<div class="calc"><span class="ic f">calculate</span><span class="t">Quantité calculée : <b>1 flacon 300 ml</b></span><span class="ns">Modifier</span></div>
+</div>
+
+<div class="acp">
+<div class="acf"><span class="ic">search</span>amoxi<span class="cur"></span></div>
+<div class="aci hi"><div><div class="d">AMOXICILLINE 1 g</div><div class="s">comprimé dispersible · DCI</div></div><span class="tg">Pénicilline</span></div>
+<div class="aci"><div><div class="d">SPIRAMYCINE 3 M UI</div><div class="s">comprimé · DCI</div></div><span class="tg">Macrolide</span></div>
+</div>
+</div>
+
+</div>
+
+<div class="rgt">
+<div class="pvh"><span class="ic f">preview</span><span class="t">Aperçu de l'ordonnance</span></div>
+<div class="pvb">
+<div class="sheet">
+<div class="sh1"><div><div class="dr">Dr Amélie Rousseau</div><div class="ln">Chirurgien-dentiste · RPPS 10 004 219 887</div><div class="ln">Cabinet Nubia Opéra · 12 rue de la Paix, 75002 Paris</div></div>
+<div class="rt">Paris,<br>le 10/08/2026</div></div>
+<div class="pt"><span><b>Julie Martin</b> · née le 07/06/1985</span><span>41 ans</span></div>
+<div class="rx">
+<div class="rxl"><div class="l1">PARACÉTAMOL 1 g, comprimé</div><div class="l2">1 comprimé, 3 fois par jour, pendant 5 jours</div><div class="l3"><span>Quantité : 15 comprimés</span><span>Non renouvelable</span></div></div>
+<div class="rxl"><div class="l1">CHLORHEXIDINE 0,12 %, bain de bouche</div><div class="l2">1 bain de bouche, 2 fois par jour, pendant 10 jours</div><div class="l3"><span>Quantité : 1 flacon 300 ml</span><span class="ns">Non substituable — MTE</span></div></div>
+</div>
+<div class="sig"><span class="ph2">Ordonnance à signer<br>2 médicaments</span><div class="box">Signature</div></div>
+</div>
+</div>
+<div class="pvf">
+<div class="cta"><span class="ic">draw</span>Signer l'ordonnance</div>
+<div class="cta2"><span class="ic">local_pharmacy</span>Signer et envoyer à la pharmacie</div>
+<div class="rs"><span class="ic f">lock</span><span>Signature électronique <b>eIDAS</b> · l'ordonnance devient un document horodaté et non modifiable</span></div>
+</div>
+</div>
+</div>
+
+</div></div></div>
+
+<div class="notes">
+<div class="nk">App Praticien · Composition d'ordonnance</div>
+<h2>Le modèle arrive après la saisie qu'il devait éviter</h2>
+<p class="lede">Dans <code>ordonnance_new_page.dart</code>, <code>use_template_button</code> n'existe que dans <code>_DraftReview</code> — l'écran <em>d'après</em> la création. Le praticien doit donc taper à la main les quatre champs de chaque médicament, valider, et <strong>seulement là</strong> se voir proposer « Utiliser un modèle ». Un modèle existe pour supprimer cette saisie : il est proposé une étape trop tard.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Le modèle d'abord, la saisie ensuite</div><div class="np">Les modèles ouvrent l'écran, en cibles tactiles avec leur nombre de lignes et leur origine — <code>PrescriptionTemplate</code> expose <code>label</code>, <code>items</code> et <code>isGlobal</code>, ce dernier distinguant les modèles du cabinet du « catalogue dentaire standard » (#4073). La composition ligne à ligne reste juste en dessous : le champ de recherche remplace le bouton « Ajouter un médicament » — il <em>est</em> l'affordance d'ajout, et porte donc la clé <code>add_item_button</code>. <code>OrdonnancesApplyTemplateRequested</code> est simplement émis plus tôt dans le parcours.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Le nom du médicament ne se tape pas</div><div class="np"><code>label: 'Médicament (DCI)'</code> est un <code>NubiaTextField</code> nu : une dénomination commune internationale saisie à la main dans un document légal, faute de frappe comprise. Recherche sur référentiel, forme galénique incluse, et la classe thérapeutique affichée — <strong>dans une teinte neutre identique pour toutes les classes</strong> : c'est une donnée du référentiel, elle ne doit surtout pas se colorer selon les allergies du dossier (voir l'encadré réglementaire).</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Quatre champs libres deviennent trois champs structurés</div><div class="np"><code>_ItemDraft</code> exige <code>label</code>, <code>posology</code>, <code>duration</code> et <code>quantity</code> en texte libre (« ex. 1 comprimé matin et soir »). Dose × fréquence × durée en listes, et <strong>la quantité se calcule</strong> : 1 × 3 × 5 = 15 comprimés. Un champ de moins, une erreur d'arithmétique de moins.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Une posologie structurée, c'est une pharmacie qui peut la lire</div><div class="np">Du texte libre côté praticien oblige la pharmacie à réinterpréter. La refonte de l'app Pharmacie réclamait des lignes exploitables (<code>lines</code> absent de <code>PharmacyOrder</code>) : les deux besoins se rejoignent sur un même modèle de posologie.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">On signe ce qu'on voit</div><div class="np"><code>sign_ordonnance_button</code> engage la responsabilité du praticien sur un document qu'il n'a jamais vu : <code>_DraftReview</code> montre des <code>ListRow</code> avec « posologie — durée » en sous-titre. L'aperçu du document réel — en-tête, RPPS, patient, lignes, zone de signature — occupe le volet droit et se met à jour à chaque frappe.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Prescrire à un identifiant</div><div class="np">L'écran affiche « Médicaments à prescrire » et ne nomme jamais le patient — <code>patientId</code> vient de l'URL. Même défaut que la consultation au fauteuil : l'identité, l'âge et la date de naissance tiennent en en-tête, et se retrouvent sur l'aperçu.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">640 px au centre d'une tablette</div><div class="np">Le formulaire est contraint à <code>maxWidth: 640</code> et centré : sur 1258 px, la moitié de l'écran ne sert à rien alors que l'aperçu du document a tout à y gagner.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">L'envoi en pharmacie n'est pas une félicitation</div><div class="np"><code>_SignedConfirmation</code> ouvre sur une pastille de 88 px et un « Ordonnance signée », puis propose la <code>SendToPharmacyCard</code> plus bas. L'envoi est l'étape utile, d'où la seconde action « Signer et envoyer à la pharmacie ». ⚠️ <strong>Ce n'est pas une simple réutilisation</strong> : <code>SendToPharmacyCubit.send()</code> exige un <code>prescription.id</code>, qui n'existe qu'après signature, et <code>load()</code> part du <code>patientId</code>. L'action groupée demande donc une orchestration — signer, puis enchaîner l'envoi sur la pharmacie déjà préchargée — pas un simple déplacement de widget.</div></div></li>
+<li class="oli"><span class="onum">9</span><div><div class="nh">Le brouillon reste réversible, le signé non</div><div class="np">La mention le dit avant le geste : une fois signée, l'ordonnance est horodatée et non modifiable. C'est ce qui justifie l'aperçu — et ce que l'écran actuel ne dit nulle part.</div></div></li>
+</ol>
+
+<div class="mdr"><div class="h"><span class="ic f">gavel</span>Contrainte réglementaire respectée — et volontairement non « améliorée »</div>
+<div class="p">Le bandeau d'allergies est <strong>passif par conception</strong> : <code>#4076</code> et <code>ADR-009 §8.6</code> imposent un affichage informatif, jamais bloquant, sans suggestion d'alternative — franchir cette ligne ferait basculer le produit dans le périmètre <em>dispositif médical</em> (MDR). La refonte le rend <strong>plus visible</strong> (pleine largeur sous l'en-tête, persistant) sans rien ajouter d'automatique. En particulier : les classes thérapeutiques de la recherche sont toutes rendues dans la <strong>même teinte neutre</strong> — les colorer selon les allergies du dossier reviendrait à effectuer la vérification de contre-indication que l'ADR exclut. Aucun champ n'est désactivé, aucune ligne n'est refusée. La mention à droite du bandeau l'énonce à l'écran, pour qu'aucune itération future ne le « corrige » par erreur. Un échec de <code>GetMedicalRecordUseCase</code> laisse le bandeau absent, comme aujourd'hui — la saisie n'est jamais impactée.</div></div>
+
+<div class="mdr" style="border-left-color:var(--infoFg)"><div class="h"><span class="ic f" style="color:var(--infoFg)">database</span>Champs à exposer côté domaine — non constructible en l'état</div>
+<div class="p"><code>PrescriptionItem</code> est aujourd'hui <strong>quatre chaînes</strong> : <code>label</code>, <code>posology</code>, <code>duration</code>, <code>quantity</code>. La posologie structurée de cette maquette suppose donc trois ajouts au modèle : <strong>(1)</strong> une posologie décomposée (dose, fréquence, durée) pour que la quantité soit <em>calculée</em> plutôt que saisie ; <strong>(2)</strong> une référence produit issue d'un référentiel médicament (DCI, forme galénique, classe) là où <code>label</code> est du texte libre ; <strong>(3)</strong> les mentions légales que l'aperçu affiche — <em>non substituable</em> (avec son motif, ex. MTE) et <em>non renouvelable</em> — qui n'existent sur aucun champ. Sans (1) et (2), l'écran reste quatre champs libres ; sans (3), l'ordonnance imprimée ne porte pas ces mentions. C'est aussi ce modèle structuré qui alimenterait les <code>lines</code> manquantes de <code>PharmacyOrder</code> — la même lacune, vue des deux bouts de la chaîne.</div></div>
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>#4076 / ADR-009 §8.6 — bandeau d'allergies strictement passif ; aucun blocage, aucune alternative suggérée, aucun champ désactivé.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4074 — <code>OrdonnancesApplyingTemplate</code> garde l'écran monté pendant <code>apply-template</code> + re-fetch, au lieu d'un <code>OrdonnancesLoading</code> qui remplacerait tout.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>OrdonnancesError</code> en snackbar, formulaire maintenu monté : la saisie n'est jamais perdue.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Sans <code>patientId</code>, l'écran reste l'<code>EmptyState</code> « Ouvrez une fiche patient pour prescrire ».</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Validation inchangée : création impossible tant qu'une ligne est incomplète (<code>_formValid</code>).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Route gardée par <code>ProConfig.includeClinical</code> — inchangé.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>ordonnance_form</code>, <code>ordonnances_new</code>, <code>allergies_banner</code>, <code>item_card_&lt;i&gt;</code>, <code>item_&lt;i&gt;_label</code>, <code>remove_item_&lt;i&gt;</code>, <code>add_item_button</code>, <code>submit_ordonnance_button</code>, <code>use_template_button</code>, <code>sign_ordonnance_button</code>, <code>ordonnance_draft_review</code>, <code>draft_item_&lt;i&gt;</code>, <code>ordonnance_signed_confirmation</code>, <code>back_to_ordonnances_button</code>, <code>prescription_template_picker</code>, <code>send_to_pharmacy_card</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>⚠️ <code>item_&lt;i&gt;_posology</code>, <code>item_&lt;i&gt;_duration</code> et <code>item_&lt;i&gt;_quantity</code> <strong>changent de nature</strong> : de <code>NubiaTextField</code> libres à des listes, la quantité devenant calculée. Les clés peuvent être reportées, mais les tests qui y saisissent du texte devront être réécrits.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>SendToPharmacyCard</code> conserve ses quatre états (<em>Loading / Ready / Sent / Error</em>), sa pharmacie présélectionnée depuis le dossier patient et ses clés <code>send_to_pharmacy_button</code> / <code>choose_pharmacy_button</code> / <code>send_to_pharmacy_retry</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>StatusPill</code>, <code>NubiaAvatar</code>, <code>NubiaButton</code> selon leurs signatures réelles (<code>isLoading</code>, <code>radius</code>, rayon plein / <code>labelSmall</code> 500).</span></li>
+</ul></div>
+</div>
+</div></body></html>

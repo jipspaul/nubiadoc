@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Patient — Réservation v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:48px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.wrap{display:flex;flex-wrap:wrap;gap:44px;align-items:flex-start;justify-content:flex-start;width:872px;margin:0 auto}
+.col{display:flex;flex-direction:column;gap:14px;align-items:center}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500)}
+.phone{width:414px;flex:0 0 414px;background:var(--n900);border-radius:52px;padding:12px;box-shadow:0 40px 80px -20px rgba(28,25,23,.45)}
+.screen{width:390px;height:844px;background:var(--n50);border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.status{height:52px;flex:0 0 52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px;font-size:14px;font-weight:600}
+.status .rt{display:flex;align-items:center;gap:5px}.status .ic{font-size:16px}
+/* practitioner header */
+.phd{background:var(--n0);border-bottom:1px solid var(--n200);padding:8px 16px 14px}
+.phd .r1{display:flex;align-items:center;gap:12px}
+.back{width:40px;height:40px;flex:0 0 40px;border-radius:12px;display:grid;place-items:center;color:var(--n600);margin-left:-6px}
+.back .ic{font-size:22px}
+.av{width:48px;height:48px;flex:0 0 48px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:18px;font-weight:600;color:var(--brand800)}
+.phd .nm{font-size:17px;font-weight:600;letter-spacing:-.2px;line-height:22px}
+.phd .sp{font-size:13px;color:var(--n500);margin-top:1px}
+.phd .mt{display:flex;gap:14px;margin-top:12px;padding-left:52px}
+.mtx{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--n600)}
+.mtx .ic{font-size:15px;color:var(--n400)}
+/* day rail */
+.days{background:var(--n0);border-bottom:1px solid var(--n200);padding:11px 16px 12px;display:flex;gap:8px}
+.dy{flex:1;border:1px solid var(--n200);border-radius:13px;padding:8px 0 9px;text-align:center;background:var(--n0)}
+.dy .w{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.dy .n{font-family:Fraunces,serif;font-size:19px;font-weight:600;line-height:24px;margin-top:1px}
+.dy .c{font-size:10.5px;font-weight:600;color:var(--brand700);margin-top:2px}
+.dy.on{background:var(--brand700);border-color:var(--brand700)}
+.dy.on .w,.dy.on .n{color:#fff}.dy.on .c{color:rgba(255,255,255,.8)}
+.dy.off .n{color:var(--n300)}.dy.off .c{color:var(--n400);font-weight:400}
+/* slots */
+.body{flex:1;overflow:hidden;padding:16px 16px 0}
+.per{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);display:flex;align-items:center;gap:8px;margin:0 0 10px}
+.per .ic{font-size:16px;color:var(--n400)}
+.per+.grid{margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sl{height:44px;border:1px solid var(--n200);background:var(--n0);border-radius:8px;display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--n600)}
+.sl.on{background:var(--brand50);border-color:transparent;color:var(--brand800)}
+.sl.no{color:var(--n400);background:var(--n0);border-color:var(--n200);text-decoration:line-through}
+/* sticky cta */
+.bar{flex:0 0 auto;background:var(--n0);border-top:1px solid var(--n200);padding:12px 16px 26px;display:flex;align-items:center;gap:12px}
+.bar .lab{flex:1;min-width:0}
+.bar .l1{font-size:13.5px;font-weight:600;letter-spacing:-.1px}
+.bar .l2{font-size:12px;color:var(--n500);margin-top:1px}
+.go{height:48px;padding:0 20px;border-radius:14px;background:var(--brand700);color:#fff;display:flex;align-items:center;gap:7px;font-size:15px;font-weight:600}
+.go .ic{font-size:19px}
+/* sheet */
+.dim{position:absolute;inset:0;background:rgba(28,25,23,.42)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--n0);border-radius:24px 24px 0 0;padding:10px 20px 26px;box-shadow:0 -12px 40px rgba(28,25,23,.2)}
+.hnd{width:36px;height:4px;border-radius:99px;background:var(--n200);margin:0 auto 16px}
+.recap{display:flex;gap:13px;align-items:center;background:var(--brand50);border:1px solid var(--brand100);border-radius:16px;padding:13px}
+.recap .rl{width:46px;flex:0 0 46px;border-radius:12px;background:var(--brand700);color:#fff;text-align:center;padding:7px 0}
+.recap .rl .w{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;opacity:.8}
+.recap .rl .n{font-family:Fraunces,serif;font-size:20px;font-weight:600;line-height:23px}
+.recap .t1{font-size:15px;font-weight:600;letter-spacing:-.15px}
+.recap .t2{font-size:12.5px;color:var(--brand800);opacity:.85;margin-top:2px}
+.recap .ch{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--brand700)}
+.lb{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin:20px 0 9px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.cp{height:32px;display:inline-flex;align-items:center;border:1px solid var(--n300);background:transparent;border-radius:99px;padding:0 12px;font-size:12px;font-weight:500;color:var(--n900)}
+.cp.on{background:var(--brand50);border-color:#A7F3D0;color:var(--brand800)}
+.fld{margin-top:11px;border:1px solid var(--n200);border-radius:13px;background:var(--n0);padding:11px 13px;min-height:64px;font-size:14px;line-height:20px;color:var(--n900)}
+.fld .ph{color:var(--n400)}
+.hint{display:flex;gap:7px;align-items:flex-start;font-size:12px;line-height:17px;color:var(--n500);margin-top:9px}
+.hint .ic{font-size:15px;color:var(--n400);flex:0 0 15px;margin-top:1px}
+.cta{height:52px;border-radius:15px;background:var(--brand700);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15.5px;font-weight:600;margin-top:18px}
+.cta .ic{font-size:20px}
+.reass{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--n500);margin-top:11px}
+.reass .ic{font-size:15px;color:var(--okFg)}
+/* notes */
+.notes{flex:0 0 872px;width:872px;padding-top:6px}
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:720px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:19px 40px;align-items:start}
+.li{display:flex;gap:13px}
+.num{flex:0 0 25px;height:25px;border-radius:8px;background:var(--n900);color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:15px;font-weight:600;line-height:22px;letter-spacing:-.1px}
+.np{font-size:13.5px;line-height:21px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.keep{margin-top:28px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:9px 40px;align-items:start}
+.kli{display:flex;gap:9px;font-size:13px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div class="col"><span class="cap">Étape 2 · Choix du créneau</span>
+<div class="phone"><div class="screen" data-screen-label="Réservation · Créneaux">
+<div class="status"><span>9:41</span><span class="rt"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="phd"><div class="r1"><div class="back"><span class="ic">arrow_back</span></div><div class="av">AR</div>
+<div style="min-width:0;flex:1"><div class="nm">Dr Amélie Rousseau</div><div class="sp">Chirurgien-dentiste</div></div></div>
+<div class="mt"><span class="mtx"><span class="ic f">place</span>1,2 km · Opéra</span><span class="mtx"><span class="ic f">euro</span>Secteur 1</span><span class="mtx"><span class="ic f">credit_card</span>Carte Vitale</span></div></div>
+<div class="days">
+<div class="dy"><div class="w">Mar</div><div class="n">11</div><div class="c">2 dispo</div></div>
+<div class="dy on"><div class="w">Jeu</div><div class="n">13</div><div class="c">9 dispo</div></div>
+<div class="dy"><div class="w">Ven</div><div class="n">14</div><div class="c">6 dispo</div></div>
+<div class="dy off"><div class="w">Sam</div><div class="n">15</div><div class="c">—</div></div>
+</div>
+<div class="body">
+<div class="per"><span class="ic f">wb_twilight</span>Matin</div>
+<div class="grid"><div class="sl">09:00</div><div class="sl no">09:30</div><div class="sl">10:00</div><div class="sl">10:30</div><div class="sl">11:00</div><div class="sl no">11:30</div></div>
+<div class="per"><span class="ic f">wb_sunny</span>Après-midi</div>
+<div class="grid"><div class="sl">14:00</div><div class="sl on">14:30</div><div class="sl">15:00</div><div class="sl no">15:30</div><div class="sl">16:00</div><div class="sl">16:30</div><div class="sl">17:00</div></div>
+</div>
+<div class="bar"><div class="lab"><div class="l1">Jeudi 13 août à 14:30</div><div class="l2">Durée estimée 30 min</div></div><div class="go">Continuer<span class="ic">arrow_forward</span></div></div>
+</div></div></div>
+
+<div class="col"><span class="cap">Étape 3 · Motif et confirmation</span>
+<div class="phone"><div class="screen" data-screen-label="Réservation · Confirmation">
+<div class="status"><span>9:41</span><span class="rt"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="phd"><div class="r1"><div class="back"><span class="ic">arrow_back</span></div><div class="av">AR</div>
+<div style="min-width:0;flex:1"><div class="nm">Dr Amélie Rousseau</div><div class="sp">Chirurgien-dentiste</div></div></div>
+<div class="mt"><span class="mtx"><span class="ic f">place</span>1,2 km · Opéra</span><span class="mtx"><span class="ic f">euro</span>Secteur 1</span><span class="mtx"><span class="ic f">credit_card</span>Carte Vitale</span></div></div>
+<div class="days">
+<div class="dy"><div class="w">Mar</div><div class="n">11</div><div class="c">2 dispo</div></div>
+<div class="dy on"><div class="w">Jeu</div><div class="n">13</div><div class="c">9 dispo</div></div>
+<div class="dy"><div class="w">Ven</div><div class="n">14</div><div class="c">6 dispo</div></div>
+<div class="dy off"><div class="w">Sam</div><div class="n">15</div><div class="c">—</div></div>
+</div>
+<div class="body"><div class="per"><span class="ic f">wb_twilight</span>Matin</div>
+<div class="grid"><div class="sl">09:00</div><div class="sl no">09:30</div><div class="sl">10:00</div><div class="sl">10:30</div></div></div>
+<div class="dim"></div>
+<div class="sheet">
+<div class="hnd"></div>
+<div class="recap"><div class="rl"><div class="w">Jeu</div><div class="n">13</div></div>
+<div style="min-width:0;flex:1"><div class="t1">Jeudi 13 août · 14:30</div><div class="t2">Dr Amélie Rousseau · 30 min</div></div>
+<span class="ch">Modifier</span></div>
+<div class="lb">Motif de consultation</div>
+<div class="chips"><span class="cp on">Contrôle</span><span class="cp">Douleur</span><span class="cp">Détartrage</span><span class="cp">Urgence</span><span class="cp">Suivi de traitement</span></div>
+<div class="fld">Contrôle annuel<span class="ph"> — précisez si besoin…</span></div>
+<div class="hint"><span class="ic f">info</span><span>Un motif clair permet au cabinet de réserver la bonne durée et le bon fauteuil.</span></div>
+<div class="cta"><span class="ic">check</span>Confirmer le rendez-vous</div>
+<div class="reass"><span class="ic f">verified_user</span>Sans engagement — le cabinet confirme sous 24 h</div>
+</div>
+</div></div></div>
+
+<div class="notes">
+<div class="nk">App Patient · Parcours de réservation</div>
+<h2>Le tunnel casse à la dernière marche</h2>
+<p class="lede">La recherche est déjà solide — carte plein écran, clustering, interprétation en langage naturel. Le problème est concentré sur les deux derniers gestes : <code>_BookingPanel</code> désactive « Confirmer » tant que le motif est vide <strong>sans jamais dire pourquoi</strong>, et ne rappelle nulle part <em>quel</em> créneau vient d'être choisi. Le patient confirme à l'aveugle, ou n'y arrive pas.</p>
+<ol class="ol">
+<li class="li"><span class="num">1</span><div><div class="nh">Le bouton mort devient un chemin</div><div class="np">Actuel : <code>onPressed: state.motif.trim().isEmpty ? null : …</code> — un CTA grisé, aucun message. Remplacé par des puces de motif tapables en un geste (Contrôle, Douleur, Détartrage, Urgence, Suivi) qui remplissent le champ ; le clavier devient optionnel. <code>AppointmentsMotifChanged</code> est émis à l'identique.</div></div></li>
+<li class="li"><span class="num">2</span><div><div class="nh">Un récapitulatif avant l'irréversible</div><div class="np">Le panneau gagne en tête la carte du créneau choisi (jour, heure, praticien, durée) et un « Modifier » qui rouvre la grille. Aujourd'hui la puce sélectionnée peut être hors écran quand le panneau apparaît.</div></div></li>
+<li class="li"><span class="num">3</span><div><div class="nh">Le panneau ne pousse plus la grille</div><div class="np"><code>_BookingPanel</code> est un enfant de <code>Column</code> : à la sélection, la liste de créneaux se comprime et la puce tapée saute hors du champ de vision. Il devient un <code>NubiaBottomSheet</code> modal — la grille reste stable derrière.</div></div></li>
+<li class="li"><span class="num">4</span><div><div class="nh">Choisir un jour avant de scroller</div><div class="np">Les créneaux sont empilés jour après jour dans un seul <code>ListView</code> : si la première dispo est dans trois semaines, le patient défile. Un rail de jours avec le nombre de créneaux (et les jours pleins grisés) donne la carte du territoire d'un coup d'œil.</div></div></li>
+<li class="li"><span class="num">5</span><div><div class="nh">Le praticien reste présent</div><div class="np">L'en-tête abandonnait distance, secteur et moyens de paiement — pourtant déjà portés par <code>ProviderResult</code> sur la <code>ProviderCard</code>. Les reperdre à l'étape du choix oblige à revenir en arrière pour vérifier.</div></div></li>
+<li class="li"><span class="num">6</span><div><div class="nh">Ne jamais vider l'écran</div><div class="np"><code>AppointmentsSlotsLoading</code> et <code>AppointmentsBookingLoading</code> rendent un <code>CircularProgressIndicator</code> centré : écran blanc au moment le plus anxiogène. L'en-tête praticien reste monté, seuls les créneaux passent en squelette ; la confirmation garde le récap sous un overlay de progression.</div></div></li>
+<li class="li"><span class="num">7</span><div><div class="nh">Grille au lieu de Wrap</div><div class="np">L'astuce <code>IntrinsicWidth</code> autour de <code>SlotChip</code> contourne un <code>Wrap</code> qui étirait chaque puce sur toute la largeur. Une <code>GridView</code> à 4 colonnes fixes donne des puces alignées et supprime le contournement. L'apparence reste celle du DS — rayon 8, label 13/600, sélection en <code>primarySubtleBg</code> sur <code>primarySubtleFg</code> — la cellule de 44 px servant de cible tactile.</div></div></li>
+<li class="li"><span class="num">8</span><div><div class="nh">Rassurer sur l'engagement</div><div class="np">Le statut réel après <code>POST /v1/bookings</code> est « demande envoyée, à confirmer par le cabinet » — l'écran de créneaux ne le dit jamais. Une ligne sous le CTA l'annonce avant le tap, pas après.</div></div></li>
+</ol>
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>#3856 — <code>toLocal()</code> avant tout groupement : un créneau 13 h Paris (11 h UTC) reste en « Après-midi », un 23 h 30 sur le bon jour.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4534 — écran de confirmation dédié et rappel <code>onViewMyAppointments</code> pour basculer d'onglet.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>PopScope</code> : le retour depuis les créneaux émet <code>AppointmentsBackToSearch</code> au lieu de quitter l'onglet.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>holdToken</code> intact — la sélection passe toujours par <code>AppointmentsSlotSelected</code>, la confirmation par <code>AppointmentsBookingConfirmed</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clustering pixel via <code>MapCamera.project</code> (et non <code>latLngToScreenPoint</code>) — pas de sursaut au pan. Recherche non touchée.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>slots_back</code>, <code>confirm_booking_button</code>, <code>providers_list</code>, <code>provider_&lt;id&gt;</code>, <code>sheet_see_slots</code>, <code>search_field</code>, <code>quick_filters</code>, <code>booking_success</code>.</span></li>
+</ul></div>
+</div>
+</div></body></html>

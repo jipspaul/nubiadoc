@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Arbitrage 2 — Majorité des proches mineurs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.doc{width:1080px;margin:0 auto;background:var(--n0);border-radius:14px;box-shadow:0 30px 70px -24px rgba(28,25,23,.4),0 0 0 1px rgba(28,25,23,.08);padding:52px 56px 56px}
+.kick{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+h1{font-family:Fraunces,serif;font-size:38px;line-height:45px;font-weight:600;letter-spacing:-.8px;margin:11px 0 14px}
+.lede{font-size:15.5px;line-height:26px;color:var(--n600);max-width:840px}
+.lede code,.p code,td code,.qp code,.t code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.meta{display:flex;gap:26px;margin-top:22px;padding:14px 16px;background:var(--n50);border:1px solid var(--n200);border-radius:11px;flex-wrap:wrap}
+.mi .k{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.mi .v{font-size:13.5px;font-weight:500;margin-top:3px}
+h2{font-family:Fraunces,serif;font-size:25px;line-height:32px;font-weight:600;letter-spacing:-.4px;margin:42px 0 12px;padding-top:24px;border-top:1px solid var(--n200)}
+h2:first-of-type{border-top:0;padding-top:0}
+.p{font-size:14.5px;line-height:23px;color:var(--n700);margin-bottom:12px;max-width:900px}
+.p b{font-weight:600;color:var(--n900)}
+.warn,.note,.good{display:flex;gap:12px;border-radius:12px;padding:15px 16px;margin:18px 0}
+.warn{background:var(--warnBg);border:1px solid #FDE68A}
+.warn .ic{font-size:21px;color:var(--warnFg);flex:0 0 21px;margin-top:1px}
+.warn .t{font-size:14px;line-height:22px;color:#78350F}
+.note{background:var(--n50);border:1px solid var(--n200)}
+.note .ic{font-size:20px;color:var(--n400);flex:0 0 20px;margin-top:1px}
+.note .t{font-size:13.5px;line-height:21px;color:var(--n600)}
+.good{background:var(--brand50);border:1px solid var(--brand200)}
+.good .ic{font-size:20px;color:var(--brand700);flex:0 0 20px;margin-top:1px}
+.good .t{font-size:13.5px;line-height:21px;color:var(--brand800)}
+.warn .t b,.note .t b,.good .t b{font-weight:600}
+.note .t b{color:var(--n800)}
+table{width:100%;border-collapse:collapse;margin:16px 0 8px;font-size:13.5px}
+th{text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);padding:0 12px 8px 0;border-bottom:1.5px solid var(--n300);vertical-align:bottom}
+td{padding:11px 12px 11px 0;border-bottom:1px solid var(--n100);vertical-align:top;line-height:20px}
+td .lbl{font-weight:600;font-size:13.5px}
+td .sub{font-size:12px;color:var(--n500);margin-top:2px}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:6px;padding:3px 8px;white-space:nowrap}
+.tag .ic{font-size:13px}
+.tag.d{background:var(--dangBg);color:var(--dangFg)}
+.tag.w{background:var(--warnBg);color:var(--warnFg)}
+.tag.k{background:var(--brand50);color:var(--brand800)}
+.tag.n{background:var(--n100);color:var(--n600)}
+.box{border:1px dashed var(--n300);border-radius:6px;height:26px;width:100%;background:var(--n50)}
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin:16px 0}
+.opt{border:1px solid var(--n200);border-radius:12px;padding:15px;display:flex;flex-direction:column}
+.opt.rec{border-color:var(--brand200);background:var(--brand50)}
+.opt .h{font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.opt .h .ic{font-size:18px;color:var(--n500)}
+.opt.rec .h .ic{color:var(--brand700)}
+.opt .d{font-size:13px;line-height:20px;color:var(--n600);margin-top:8px}
+.opt .pro,.opt .con{display:flex;gap:8px;font-size:12.5px;line-height:18px;margin-top:8px}
+.opt .pro .ic{font-size:15px;color:var(--okFg);flex:0 0 15px;margin-top:1px}
+.opt .con .ic{font-size:15px;color:var(--dangFg);flex:0 0 15px;margin-top:1px}
+.opt .rc{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--brand800);background:var(--brand100);border-radius:6px;padding:3px 8px;margin-top:auto;align-self:flex-start}
+.opt .rc .ic{font-size:13px;color:var(--brand700)}
+ol.q{list-style:none;margin:10px 0 4px;counter-reset:qq}
+ol.q>li{counter-increment:qq;display:flex;gap:13px;padding:11px 0;border-bottom:1px solid var(--n100)}
+ol.q>li::before{content:counter(qq);flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:1px}
+ol.q .qh{font-size:14.5px;font-weight:600;line-height:21px}
+ol.q .qp{font-size:13.5px;line-height:21px;color:var(--n600);margin-top:4px}
+ul.b{list-style:none;margin:10px 0 4px}
+ul.b>li{display:flex;gap:10px;padding:5px 0}
+ul.b>li>.ic{font-size:17px;color:var(--brand700);flex:0 0 17px;margin-top:3px}
+ul.b>li.no>.ic{color:var(--dangFg)}
+ul.b>li>span:last-child{font-size:14px;line-height:22px;color:var(--n700)}
+.sign{margin-top:34px;padding-top:22px;border-top:1px solid var(--n200);display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+.sign .f{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);margin-bottom:8px}
+.sign .l{height:34px;border-bottom:1px solid var(--n300)}
+</style></head>
+<body><div class="doc" data-screen-label="Arbitrage 2 — majorité des proches mineurs">
+
+<div class="kick">Écosystème Nubia · Vague 3 · Arbitrage 2 sur 3</div>
+<h1>Que se passe-t-il quand un enfant devient majeur ?</h1>
+<p class="lede">Un parent gère aujourd'hui le compte de son enfant : ses rendez-vous, ses documents, son dossier. À dix-huit ans, cet accès doit cesser — l'enfant devient seul titulaire de ses données de santé. Aucun mécanisme du produit ne déclenche cette bascule, et l'écran « Mes proches » traite l'enfant, le conjoint et « autre » avec exactement les mêmes droits.</p>
+
+<div class="meta">
+<div class="mi"><div class="k">Destinataire</div><div class="v">DPO · juridique · produit</div></div>
+<div class="mi"><div class="k">Décision attendue</div><div class="v">Mécanisme de bascule à la majorité</div></div>
+<div class="mi"><div class="k">Nature</div><div class="v">Conformité — pas confort</div></div>
+<div class="mi"><div class="k">Source lue</div><div class="v"><code>app_patient/lib/features/dependents/</code></div></div>
+</div>
+
+<h2>Correction : le champ existe déjà</h2>
+<div class="good"><span class="ic f">fact_check</span><div class="t"><b>J'ai écrit dans le contrat de données que <code>Dependent</code> ne portait pas de date de naissance. C'est faux.</b> En lisant <code>dependents_cubit.dart</code> ce tour-ci : <code>AddDependentUseCase</code> accepte bien un paramètre <code>DateTime? birthDate</code>, transmis à l'API. Le domaine sait donc représenter l'âge d'un proche.</div></div>
+<p class="p">Le problème est plus étroit — et moins coûteux à corriger — que je ne l'avais décrit : <b>le formulaire d'ajout ne collecte jamais cette date</b>. Il demande prénom, nom, lien de parenté, et rien d'autre. Le paramètre existe, personne ne le remplit. Deux conséquences :</p>
+<ul class="b">
+<li><span class="ic f">check_circle</span><span>Aucun développement domaine n'est nécessaire pour <i>stocker</i> l'âge — seulement un champ dans le formulaire.</span></li>
+<li class="no"><span class="ic f">cancel</span><span>Mais le champ est <b>optionnel</b>, et tous les proches déjà enregistrés en base ont une date nulle. Une règle de bascule doit donc décider ce qu'elle fait des proches dont l'âge est inconnu — c'est la question la plus concrète de ce document.</span></li>
+</ul>
+
+<h2>Ce que l'écran fait aujourd'hui</h2>
+<p class="p"><code>DependentRelationship</code> distingue trois liens — <b>enfant</b>, <b>conjoint</b>, <b>autre</b> — mais l'écran leur applique la même icône générique, la même corbeille et les mêmes droits. Or ces liens n'ont pas la même nature juridique :</p>
+
+<table>
+<thead><tr>
+<th style="width:150px">Lien</th>
+<th style="width:250px">Fondement de la gestion</th>
+<th>Ce que cela implique</th>
+<th style="width:120px">Fin de l'accès</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><div class="lbl">Enfant mineur</div><div class="sub">relationship: enfant</div></td>
+<td>Autorité parentale — gestion de plein droit</td>
+<td>Le parent agit comme représentant légal. Aucun mandat à recueillir.</td>
+<td><span class="tag d"><span class="ic f">event_busy</span>À 18 ans</span></td>
+</tr>
+<tr>
+<td><div class="lbl">Conjoint</div><div class="sub">relationship: conjoint</div></td>
+<td>Mandat explicite — <b>rien ne l'établit dans le produit</b></td>
+<td>Un adulte ne peut pas être géré par un autre sans son accord. Aujourd'hui, il suffit de saisir son nom.</td>
+<td><span class="tag w"><span class="ic f">help</span>Sur révocation</span></td>
+</tr>
+<tr>
+<td><div class="lbl">Autre</div><div class="sub">relationship: autre</div></td>
+<td>Indéterminé — parent âgé, personne protégée ?</td>
+<td>Le cas le plus flou : selon qui se cache derrière, le régime va de la tutelle au mandat simple.</td>
+<td><span class="tag n"><span class="ic f">help</span>À définir</span></td>
+</tr>
+</tbody>
+</table>
+
+<div class="warn"><span class="ic f">warning</span><div class="t"><b>Un second problème apparaît en écrivant ce tableau :</b> ajouter un <b>conjoint</b> ne requiert aujourd'hui aucune preuve de son accord. Prénom, nom, lien — et l'on gère le dossier de santé d'un adulte. Ce point n'était pas dans mon audit initial ; il me semble au moins aussi sérieux que la question de la majorité, et relève du même arbitrage.</div></div>
+
+<h2>Décision principale — la bascule à 18 ans</h2>
+
+<div class="three">
+<div class="opt">
+<div class="h"><span class="ic f">block</span>A. Coupure automatique</div>
+<div class="d">Le jour de l'anniversaire, le proche disparaît de la liste du parent. Aucune notification.</div>
+<div class="pro"><span class="ic f">check_circle</span>Conformité stricte, effet immédiat, rien à décider au cas par cas.</div>
+<div class="con"><span class="ic f">cancel</span>Un parent qui perd un rendez-vous sans explication appelle le cabinet. Le jeune majeur, lui, n'a aucun accès — il n'a jamais créé de compte.</div>
+</div>
+
+<div class="opt rec">
+<div class="h"><span class="ic f">notifications_active</span>B. Notification, puis coupure</div>
+<div class="d">Un mois avant, les deux parties sont prévenues. Le jeune majeur est invité à activer son propre accès. À la date, la gestion cesse.</div>
+<div class="pro"><span class="ic f">check_circle</span>La coupure est comprise et préparée. Le jeune majeur arrive sur un compte actif, pas sur un vide.</div>
+<div class="con"><span class="ic f">cancel</span>Demande un canal de contact propre au mineur (ou le passage par le parent), et une relance.</div>
+<div class="rc"><span class="ic f">recommend</span>Ma recommandation</div>
+</div>
+
+<div class="opt">
+<div class="h"><span class="ic f">swap_horiz</span>C. Transfert de compte</div>
+<div class="d">Le compte géré devient un compte autonome : l'historique suit, le parent perd l'accès, le jeune majeur reçoit ses identifiants.</div>
+<div class="pro"><span class="ic f">check_circle</span>Aucune perte de données de santé, continuité du suivi chez le même praticien.</div>
+<div class="con"><span class="ic f">cancel</span>Le plus lourd à construire : vérification d'identité, création de compte, migration. À réserver à une V2.</div>
+</div>
+</div>
+
+<div class="note"><span class="ic f">lightbulb</span><div class="t"><b>Pourquoi je recommande B plutôt que A.</b> La coupure silencieuse est correcte juridiquement et mauvaise en pratique : elle produit un appel au cabinet à chaque anniversaire, et le secrétariat n'aura aucune explication à donner. B coûte une notification et un texte ; A coûte des appels, indéfiniment. C reste la bonne cible, mais après.</div></div>
+
+<h2>Cinq questions à trancher</h2>
+
+<ol class="q">
+<li><div>
+<div class="qh">Que fait-on des proches dont la date de naissance est inconnue ?</div>
+<div class="qp">Tous les proches déjà en base, et tous ceux ajoutés tant que le formulaire ne collecte pas la date. Trois options : <b>(a)</b> demander la date au parent à la prochaine ouverture de l'écran, avec un bandeau ; <b>(b)</b> ne rien faire — pas de date, pas de bascule, ce qui laisse le problème entier ; <b>(c)</b> demander la date au cabinet, qui l'a déjà dans le dossier patient. <b>Ma préférence : (c) puis (a)</b> — le cabinet détient l'information exacte, le parent n'est sollicité qu'en dernier recours.</div>
+</div></li>
+<li><div>
+<div class="qh">Faut-il un accord du conjoint avant de gérer son compte ?</div>
+<div class="qp">Question soulevée ci-dessus. Si oui, l'ajout d'un conjoint devient une <b>invitation</b> à accepter, pas une saisie. Cela change l'écran « Mes proches » et le parcours d'ajout — c'est le point le plus structurant de cet arbitrage.</div>
+</div></li>
+<li><div>
+<div class="qh">Que devient l'historique consulté par le parent ?</div>
+<div class="qp">Le parent a légitimement vu les documents de son enfant mineur. Après la bascule, en conserve-t-il une copie (dans <i>ses</i> documents), ou tout accès cesse-t-il, y compris rétroactivement ? Les deux réponses se défendent ; la seconde est plus stricte, la première plus proche de l'usage papier.</div>
+</div></li>
+<li><div>
+<div class="qh">Le seuil est-il 18 ans, sans exception ?</div>
+<div class="qp">Il existe des situations où un majeur reste protégé (tutelle, curatelle), et des situations où un mineur peut s'opposer à ce que ses parents accèdent à certaines informations. Le produit doit-il les représenter, ou les traiter hors application dans un premier temps ?</div>
+</div></li>
+<li><div>
+<div class="qh">Qui exécute la bascule — le back ou le client ?</div>
+<div class="qp">Une règle d'âge calculée côté Flutter serait contournable et divergerait entre plateformes. <b>Recommandation technique :</b> l'API cesse de renvoyer le proche dans <code>ListDependentsUseCase</code>, et l'interface n'a rien à calculer. Le client affiche ce qu'il reçoit.</div>
+</div></li>
+</ol>
+
+<h2>Ce qui est prêt, et ce qui attend</h2>
+<ul class="b">
+<li><span class="ic f">check_circle</span><span>Maquette « Mes proches » avec carte titulaire, prochain rendez-vous par proche et actions contextuelles (<code>Patient Documents et Proches v2.html</code>).</span></li>
+<li><span class="ic f">check_circle</span><span>Mention à l'écran de la fin d'accès à la majorité — <b>rédigée, à faire relire</b> par le DPO.</span></li>
+<li><span class="ic f">check_circle</span><span>Le champ date de naissance existe déjà dans <code>AddDependentUseCase</code> : l'ajouter au formulaire ne dépend d'aucune décision de ce document.</span></li>
+<li class="no"><span class="ic f">cancel</span><span>Le parcours de notification (option B), l'invitation du conjoint et le sort de l'historique attendent les réponses ci-dessus.</span></li>
+</ul>
+
+<div class="sign">
+<div><div class="f">Validé par (DPO / juridique)</div><div class="l"></div></div>
+<div><div class="f">Validé par (produit)</div><div class="l"></div></div>
+<div><div class="f">Date</div><div class="l"></div></div>
+</div>
+
+</div></body></html>

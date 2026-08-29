@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Praticien — Tableau de bord v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+.win{width:1440px;height:900px;background:var(--n0);border-radius:12px;overflow:hidden;box-shadow:0 30px 70px -24px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09);display:flex}
+.rail{width:58px;flex:0 0 58px;background:var(--n900);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px}
+.rail .lg{width:30px;height:30px;border-radius:8px;background:var(--brand600);display:grid;place-items:center;color:#fff;font-size:14px;font-weight:700;margin-bottom:8px}
+.rail .it{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#8A8580}
+.rail .it .ic{font-size:20px}
+.rail .it.on{background:rgba(255,255,255,.11);color:#fff}
+.rail .sp{flex:1}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n50)}
+.tb{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 20px;display:flex;align-items:center;gap:14px}
+.tb h1{font-size:20px;font-weight:600;letter-spacing:-.35px}
+.tb .sub{font-size:12.5px;color:var(--n500);margin-top:2px}
+.sp2{flex:1}
+.kb{display:flex;align-items:center;gap:7px;height:32px;border:1px solid var(--n200);border-radius:9px;padding:0 10px;color:var(--n400);font-size:12.5px}
+.kb .ic{font-size:16px}
+.kb b{font-size:10px;font-weight:600;background:var(--n50);border:1px solid var(--n200);border-radius:4px;padding:1px 5px;color:var(--n500)}
+.body{flex:1;min-height:0;display:flex;gap:16px;padding:16px 20px}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.c1{flex:1}
+.c2{width:430px;flex:0 0 430px}
+.bx{background:var(--n0);border:1px solid var(--n200);border-radius:14px}
+.bh{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--n100)}
+.bh .ic{font-size:18px;color:var(--n500)}
+.bh .t{font-size:13.5px;font-weight:600;letter-spacing:-.05px}
+.bh .n{margin-left:auto;font-size:11px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:2px 8px}
+.bh .go{margin-left:auto;font-size:12px;font-weight:600;color:var(--brand700);display:flex;align-items:center;gap:4px}
+.bh .go .ic{font-size:15px;color:var(--brand700)}
+/* next patient hero */
+.hero{background:var(--brand700);border-radius:14px;padding:18px;color:#fff;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-60px;top:-60px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.06)}
+.hero .lbl{font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;opacity:.75}
+.hero .r1{display:flex;align-items:center;gap:14px;margin-top:10px}
+.hero .av{width:52px;height:52px;flex:0 0 52px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:17px;font-weight:600}
+.hero .nm{font-size:22px;font-weight:600;letter-spacing:-.4px}
+.hero .mo{font-size:13.5px;opacity:.85;margin-top:2px}
+.hero .tm{margin-left:auto;text-align:right}
+.hero .tm .h{font-size:26px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.hero .tm .s{font-size:12px;opacity:.8;margin-top:1px}
+.hero .al{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.hero .tag{font-size:11px;font-weight:600;background:rgba(255,255,255,.16);border-radius:6px;padding:4px 9px}
+.hero .tag.d{background:#FEE2E2;color:#B91C1C}
+.hero .btns{display:flex;gap:9px;margin-top:14px}
+.hero .b{flex:1;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:14px;font-weight:500}
+.hero .b.s{background:#fff;color:var(--brand700)}
+.hero .b.g{border:1.5px solid rgba(255,255,255,.4);color:#fff}
+.hero .b .ic{font-size:18px}
+/* schedule */
+.sch{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.sl{flex:1;overflow:hidden}
+.sr{display:flex;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid var(--n100)}
+.sr.now{background:var(--brand50)}
+.sr.past{opacity:.55}
+.sr .h{width:44px;flex:0 0 44px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.sr .av{width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:11.5px;font-weight:600;color:var(--brand800)}
+.sr .n1{font-size:13.5px;font-weight:500}
+.sr .n2{font-size:11.5px;color:var(--n500);margin-top:1px}
+.sr .st{margin-left:auto;flex:0 0 auto}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.info{background:var(--infoBg);color:var(--infoFg)}.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.mut{background:var(--n100);color:var(--n500)}
+/* actions à traiter */
+.ar{display:flex;align-items:center;gap:11px;padding:10px 14px;border-bottom:1px solid var(--n100)}
+.ar .ico{width:32px;height:32px;flex:0 0 32px;border-radius:9px;display:grid;place-items:center}
+.ar .ico .ic{font-size:17px}
+.ar .ico.w{background:var(--warnBg);color:var(--warnFg)}
+.ar .ico.i{background:var(--infoBg);color:var(--infoFg)}
+.ar .ico.b{background:var(--brand50);color:var(--brand700)}
+.ar .n1{font-size:13px;font-weight:500}
+.ar .n2{font-size:11.5px;color:var(--n500);margin-top:1px}
+.ar .cnt{margin-left:auto;min-width:22px;height:22px;border-radius:99px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;padding:0 7px}
+.ar .cnt.w{background:var(--warnFg)}
+/* notes du jour */
+.nr{display:flex;align-items:center;gap:11px;padding:9px 14px;border-bottom:1px solid var(--n100)}
+.nr .av{width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:11.5px;font-weight:600;color:var(--brand800)}
+.nr .n1{font-size:13px;font-weight:500}
+.nr .n2{font-size:11.5px;color:var(--n500);margin-top:1px;font-variant-numeric:tabular-nums}
+.nr .st{margin-left:auto}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Praticien · PC 1440 × 900 — tableau de bord</div>
+<div class="win" data-screen-label="Praticien · Tableau de bord">
+<div class="rail"><div class="lg">N</div>
+<div class="it on"><span class="ic f">space_dashboard</span></div>
+<div class="it"><span class="ic">calendar_month</span></div><div class="it"><span class="ic">meeting_room</span></div><div class="it"><span class="ic">groups</span></div><div class="it"><span class="ic">dentistry</span></div><div class="it"><span class="ic">medication</span></div><div class="it"><span class="ic">description</span></div><div class="it"><span class="ic">precision_manufacturing</span></div><div class="it"><span class="ic">inventory_2</span></div><div class="it"><span class="ic">chat_bubble</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+
+<div class="main">
+<div class="tb"><div><h1>Ma journée</h1><div class="sub">Mardi 11 août · Dr Amélie Rousseau · Cabinet Nubia Opéra</div></div>
+<div class="sp2"></div>
+<div class="kb"><span class="ic">search</span>Patient, acte, ordonnance…<b>⌘K</b></div>
+</div>
+
+<div class="body">
+<div class="col c1">
+
+<div class="hero">
+<div class="lbl">Patient suivant · en salle d'attente depuis 12 min</div>
+<div class="r1"><div class="av">CM</div>
+<div style="min-width:0;flex:1"><div class="nm">Camille Moreau</div><div class="mo">Pose de couronne · 34 ans · phase 2 sur 3</div></div>
+<div class="tm"><div class="h tnum">14:30</div><div class="s">30 min prévues</div></div></div>
+<div class="al"><span class="tag d">Allergie pénicilline</span><span class="tag">Plan en cours · 1 635,92 €</span><span class="tag">Dernière visite 22/07</span></div>
+<div class="btns"><div class="b s"><span class="ic">dentistry</span>Démarrer la consultation</div><div class="b g"><span class="ic">folder_open</span>Ouvrir le dossier</div></div>
+</div>
+
+<div class="bx sch"><div class="bh"><span class="ic f">calendar_today</span><span class="t">Journée</span><span class="n">9 RDV · 3 restants</span></div>
+<div class="sl">
+<div class="sr past"><span class="h tnum">08:30</span><div class="av">LM</div><div style="min-width:0;flex:1"><div class="n1">Louis Mercier</div><div class="n2">Détartrage</div></div><span class="st"><span class="pill ok">Terminé</span></span></div>
+<div class="sr past"><span class="h tnum">09:15</span><div class="av">NL</div><div style="min-width:0;flex:1"><div class="n1">Nina Lopez</div><div class="n2">Endodontie · 45 min</div></div><span class="st"><span class="pill ok">Terminé</span></span></div>
+<div class="sr past"><span class="h tnum">10:00</span><div class="av">AB</div><div style="min-width:0;flex:1"><div class="n1">Ahmed Belkacem</div><div class="n2">Pose d'implant · 1 h</div></div><span class="st"><span class="pill ok">Terminé</span></span></div>
+<div class="sr past"><span class="h tnum">11:30</span><div class="av">HP</div><div style="min-width:0;flex:1"><div class="n1">Hugo Petit</div><div class="n2">Contrôle</div></div><span class="st"><span class="pill ok">Terminé</span></span></div>
+<div class="sr now"><span class="h tnum">14:30</span><div class="av">CM</div><div style="min-width:0;flex:1"><div class="n1">Camille Moreau</div><div class="n2">Pose de couronne</div></div><span class="st"><span class="pill info">En attente</span></span></div>
+<div class="sr"><span class="h tnum">15:00</span><div class="av">TG</div><div style="min-width:0;flex:1"><div class="n1">Théo Girard</div><div class="n2">Suivi de traitement</div></div><span class="st"><span class="pill mut">À venir</span></span></div>
+<div class="sr"><span class="h tnum">15:30</span><div class="av">SR</div><div style="min-width:0;flex:1"><div class="n1">Sophie Roux</div><div class="n2">Contrôle annuel</div></div><span class="st"><span class="pill warn">À confirmer</span></span></div>
+<div class="sr"><span class="h tnum">16:30</span><div class="av">YD</div><div style="min-width:0;flex:1"><div class="n1">Yanis Diallo</div><div class="n2">Urgence · douleur</div></div><span class="st"><span class="pill mut">À venir</span></span></div>
+</div>
+</div>
+
+</div>
+
+<div class="col c2">
+
+<div class="bx"><div class="bh"><span class="ic f">pending_actions</span><span class="t">À traiter</span><span class="n">4</span></div>
+<div class="ar"><div class="ico w"><span class="ic">event_available</span></div><div style="min-width:0;flex:1"><div class="n1">Confirmations en attente</div><div class="n2">dont 1 pour aujourd'hui 15:30</div></div><span class="cnt w">3</span></div>
+<div class="ar"><div class="ico i"><span class="ic">chat_bubble</span></div><div style="min-width:0;flex:1"><div class="n1">Messages non lus</div><div class="n2">2 patients · 1 équipe</div></div><span class="cnt">3</span></div>
+<div class="ar"><div class="ico b"><span class="ic">edit_note</span></div><div style="min-width:0;flex:1"><div class="n1">Notes de séance à finaliser</div><div class="n2">consultations d'hier</div></div><span class="cnt">2</span></div>
+<div class="ar"><div class="ico b"><span class="ic">precision_manufacturing</span></div><div style="min-width:0;flex:1"><div class="n1">Travaux labo reçus</div><div class="n2">couronne 26 · Julie Martin</div></div><span class="cnt">1</span></div>
+</div>
+
+<div class="bx"><div class="bh"><span class="ic f">notes</span><span class="t">Notes du jour</span><span class="go">Tout voir<span class="ic">arrow_forward</span></span></div>
+<div class="nr"><div class="av">LM</div><div style="min-width:0;flex:1"><div class="n1">Louis Mercier</div><div class="n2">08:30 · détartrage</div></div><span class="st"><span class="pill ok">Signée</span></span></div>
+<div class="nr"><div class="av">NL</div><div style="min-width:0;flex:1"><div class="n1">Nina Lopez</div><div class="n2">09:15 · endodontie</div></div><span class="st"><span class="pill ok">Signée</span></span></div>
+<div class="nr"><div class="av">AB</div><div style="min-width:0;flex:1"><div class="n1">Ahmed Belkacem</div><div class="n2">10:00 · implant</div></div><span class="st"><span class="pill warn">Brouillon</span></span></div>
+<div class="nr"><div class="av">HP</div><div style="min-width:0;flex:1"><div class="n1">Hugo Petit</div><div class="n2">11:30 · contrôle</div></div><span class="st"><span class="pill warn">Non signée</span></span></div>
+</div>
+
+<div class="bx"><div class="bh"><span class="ic f">insights</span><span class="t">Cette semaine</span></div>
+<div class="ar"><div style="min-width:0;flex:1"><div class="n1">Actes réalisés</div><div class="n2">lundi au vendredi</div></div><span class="cnt" style="background:var(--n100);color:var(--n900)">38</span></div>
+<div class="ar"><div style="min-width:0;flex:1"><div class="n1">Honoraires</div><div class="n2">encaissés et engagés</div></div><span class="cnt tnum" style="background:var(--n100);color:var(--n900)">6 420 €</span></div>
+<div class="ar"><div style="min-width:0;flex:1"><div class="n1">Rendez-vous non honorés</div><div class="n2">2 patients concernés</div></div><span class="cnt w">2</span></div>
+</div>
+
+</div>
+</div>
+</div>
+</div></div>
+
+<div class="notes">
+<div class="nk">App Praticien · Tableau de bord</div>
+<h2>Quatre compteurs à la place d'une journée</h2>
+<p class="lede">« Ma journée » affiche quatre <code>MetricTile</code> — RDV aujourd'hui, salle d'attente, messages non lus, confirmations en attente — puis les notes du jour. Aucun de ces chiffres ne dit <strong>qui</strong> est le prochain patient, ni à quelle heure. Un praticien qui ouvre son poste entre deux fauteuils cherche un nom et une heure, pas un décompte : c'est le même défaut que l'accueil Patient, où « Prochain RDV » affichait un compteur au lieu d'une date.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Le patient suivant devient le héros</div><div class="np">Nom, motif, heure, durée, temps d'attente déjà écoulé, alertes du dossier et avancement du plan de traitement — puis deux actions : démarrer la consultation, ouvrir le dossier. Les données existent déjà (<code>waitingRoomCount</code> devient « en salle depuis 12 min »).</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">La journée en clair, pas en compteur</div><div class="np"><code>summary.todayAppointments</code> vaut 9 : la tuile affiche « 9 ». La colonne de gauche déroule les neuf rendez-vous, les passés estompés, le courant teinté — un praticien sait alors ce qui reste, et ce qui l'attend à 16:30.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Les notes du jour ne nomment personne</div><div class="np">Dans <code>_NoteRow</code>, le <strong>titre est l'heure</strong> (<code>'$hour:$min'</code>) et le sous-titre la chaîne littérale « Consultation ». Le nom du patient n'apparaît nulle part — seules ses initiales, dans l'avatar. Relire ses notes de la journée revient donc à lire « 14:30 · Consultation ». Le nom passe en titre, l'heure et le motif en sous-ligne.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">« À traiter » remplace les compteurs isolés</div><div class="np">Messages, confirmations, notes à finaliser, travaux labo reçus : une file unique, ordonnée par urgence, avec la précision qui manque (« dont 1 pour aujourd'hui 15:30 »). Les quatre <code>MetricTile</code> deviennent quatre lignes actionnables, et gardent leurs routes de destination (#3374).</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">L'activité de la semaine, absente</div><div class="np">Le tableau de bord n'agrège rien au-delà du jour. Actes réalisés, honoraires, rendez-vous non honorés : trois chiffres hebdomadaires suffisent à situer l'activité, sans transformer l'écran en outil de pilotage.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Deux colonnes plutôt qu'une pile</div><div class="np">L'écran est un <code>SingleChildScrollView</code> vertical : grille de tuiles, puis notes. Sur 1440 px, le déroulé de la journée tient à gauche et la file de travail à droite — plus rien n'est sous la ligne de flottaison.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">bug_report</span>Un statut deviné par sous-chaîne — et « non signé » vaut « signé »</div>
+<div class="p"><code>_variantFor(String status)</code> déduit la sémantique d'un statut en cherchant des morceaux de mots français :</div>
+<div class="p"><code>if (normalized.contains('signé') || contains('validé') || contains('terminé')) return success;</code></div>
+<div class="p">Or <strong>« non signé » contient « signé »</strong> : une note non signée s'affiche donc en <em>vert succès</em>. Idem pour « annulé » qui contient… « annulé », mais aussi pour tout statut composé que le back introduirait (« signature refusée » contient « signé »… non, mais « validé partiellement » passe en succès). Le défaut de fond : <code>ClinicalNoteSummary.status</code> est une <strong>chaîne libre</strong> que l'interface interprète. Il faut une énumération côté domaine — comme <code>AppointmentStatus</code> ou <code>CabinetQuoteStatus</code> l'ont déjà — et une table de correspondance explicite, à l'image de <code>QuoteStatusStyle</code>.</div>
+<div class="p">En attendant, la maquette n'affiche que des statuts contrôlés (Signée / Brouillon / Non signée) et le mapping reste à écrire côté domaine.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Un point à porter au crédit du code — et son symétrique</div>
+<div class="p">Ici, la route de démonstration est correctement protégée : <code>if (kDebugMode) IconButton(… '/a2ui-demo')</code>, avec un commentaire qui explique pourquoi (#4539 : « vocabulaire interne + faux CTA exposés à un praticien »). C'est exactement la bonne décision.</div>
+<div class="p">Elle rend d'autant plus visible le symétrique relevé côté <strong>Secrétariat</strong> : <code>app_secretariat/lib/router/app_router.dart</code> enregistre la route <strong>sans condition</strong> — le bouton, lui, est correctement gardé. <code>a2uiDemo = '/a2ui-demo'</code> et l'enregistre <strong>sans garde</strong> — atteignable par URL en production. Le correctif existe déjà dans le dépôt, il suffit de l'appliquer à l'autre application.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>#3374 — chaque élément de la file « À traiter » reste un raccourci vers son écran ; les confirmations mènent toujours à l'agenda, faute d'écran dédié.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4539 — la démo A2UI reste réservée aux builds <code>kDebugMode</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>ProShell</code> conservé : c'est lui qui fournit le rail de navigation et le filtrage clinique selon la <code>AuthSession</code> — la refonte ne touche qu'au <code>bodyBuilder</code> du tableau de bord.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>ProDashboardSummary</code> inchangé : <code>todayAppointments</code>, <code>waitingRoomCount</code>, <code>unreadMessages</code>, <code>pendingConfirmations</code> alimentent les mêmes chiffres, autrement présentés.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>TodayNotesBloc</code> et son <code>EmptyState</code> conservés ; seule la composition de la ligne change.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Squelette de chargement conservé (il existait déjà, au bon rythme).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>dashboard_loading</code>, <code>dashboard_error</code>, <code>dashboard_loaded</code>, <code>metric_appointments</code>, <code>metric_waiting_room</code>, <code>metric_messages</code>, <code>metric_confirmations</code>, <code>today_notes_card</code>, <code>today_notes_empty</code>, <code>today_note_&lt;id&gt;</code>, <code>nav_team_messages</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Champs à exposer : nom et motif du prochain RDV, temps d'attente, et le statut de note en énumération (cf. encadré).</span></li>
+</ul></div>
+</div>
+</div></body></html>

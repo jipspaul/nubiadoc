@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Patient — Documents & Proches v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:14px}
+.phones{display:flex;gap:34px;align-items:flex-start}
+.ph{width:390px;flex:0 0 390px}
+.phl{font-size:12.5px;font-weight:600;color:var(--n600);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.phl .n{width:20px;height:20px;border-radius:6px;background:var(--n900);color:#fff;font-size:10.5px;display:grid;place-items:center}
+.screen{width:390px;height:1140px;background:var(--n50);border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 26px 60px -22px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09)}
+.sbar{height:50px;flex:0 0 50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 7px;font-size:14px;font-weight:600;background:var(--n0)}
+.sbar .r{display:flex;gap:5px;align-items:center}
+.sbar .r .ic{font-size:16px}
+.hd{background:var(--n0);padding:6px 20px 14px;border-bottom:1px solid var(--n200)}
+.hd h1{font-size:26px;font-weight:600;letter-spacing:-.5px}
+.hd .sb{font-size:13px;color:var(--n500);margin-top:3px}
+.hd .row{display:flex;align-items:center;gap:12px}
+.hd .bk{width:36px;height:36px;flex:0 0 36px;border-radius:50%;background:var(--n100);display:grid;place-items:center;color:var(--n700)}
+.hd .bk .ic{font-size:20px}
+.body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.tabnav{height:78px;flex:0 0 78px;background:var(--n0);border-top:1px solid var(--n200);display:flex;padding:0 8px}
+.tn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--n400);font-size:10.5px;font-weight:500;padding-bottom:14px}
+.tn .ic{font-size:23px}
+.tn.on{color:var(--brand700)}
+/* search + filters */
+.sf{padding:12px 20px 0}
+.sfi{height:42px;border-radius:12px;background:var(--n100);display:flex;align-items:center;gap:9px;padding:0 13px;color:var(--n500);font-size:14.5px}
+.sfi .ic{font-size:20px;color:var(--n400)}
+.fw{display:flex;flex-wrap:wrap;gap:7px;padding:11px 20px 12px}
+.fchip{height:32px;padding:0 13px;border-radius:99px;border:1px solid var(--n200);background:var(--n0);display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500}
+.fchip.on{background:var(--n900);border-color:var(--n900);color:#fff}
+.fchip .n{font-size:11px;font-weight:600;color:var(--n500);font-variant-numeric:tabular-nums}
+.fchip.on .n{color:rgba(255,255,255,.7)}
+/* doc groups */
+.scroll{flex:1;overflow:hidden;padding:0 20px 16px}
+.gh{font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);padding:12px 2px 8px;display:flex;align-items:center}
+.gh .n{margin-left:auto;font-weight:500;letter-spacing:0;text-transform:none;font-size:11.5px}
+.dc{background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:12px;display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.dc .ico{width:44px;height:44px;flex:0 0 44px;border-radius:12px;background:var(--brand50);display:grid;place-items:center;color:var(--brand700)}
+.dc .ico .ic{font-size:22px}
+.dc .ico.new{position:relative}
+.dc .ico.new::after{content:"";position:absolute;top:-2px;right:-2px;width:11px;height:11px;border-radius:50%;background:var(--brand600);border:2px solid var(--n0)}
+.dc .n1{font-size:15px;font-weight:600;letter-spacing:-.15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc .n2{font-size:12.5px;color:var(--n500);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dc .n2 .tag{font-size:10.5px;font-weight:600;background:var(--n100);border-radius:5px;padding:2px 6px;color:var(--n600)}
+.dc .n2 .tag.b{background:var(--brand50);color:var(--brand800)}
+.dc .go{width:36px;height:36px;flex:0 0 36px;border-radius:10px;border:1px solid var(--n200);display:grid;place-items:center;color:var(--brand700)}
+.dc .go .ic{font-size:19px}
+.upl{height:52px;border:1.5px dashed var(--n300);border-radius:14px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14.5px;font-weight:500;color:var(--n600);margin-top:4px}
+.upl .ic{font-size:20px;color:var(--n500)}
+/* dependents */
+.me{background:var(--n0);border:1px solid var(--n200);border-radius:16px;padding:14px;display:flex;align-items:center;gap:13px;margin-bottom:14px}
+.me .av{width:52px;height:52px;flex:0 0 52px;border-radius:50%;background:var(--brand700);color:#fff;display:grid;place-items:center;font-size:17px;font-weight:600}
+.me .n1{font-size:17px;font-weight:600;letter-spacing:-.25px}
+.me .n2{font-size:12.5px;color:var(--n500);margin-top:2px}
+.me .pill{margin-left:auto;flex:0 0 auto}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:5px 11px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.mut{background:var(--n100);color:var(--n500)}.pill.info{background:var(--infoBg);color:var(--infoFg)}
+.dep{background:var(--n0);border:1px solid var(--n200);border-radius:16px;padding:14px;margin-bottom:11px}
+.dep .r1{display:flex;align-items:center;gap:13px}
+.dep .av{width:46px;height:46px;flex:0 0 46px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:15px;font-weight:600;color:var(--brand800)}
+.dep .n1{font-size:16px;font-weight:600;letter-spacing:-.2px}
+.dep .n2{font-size:12.5px;color:var(--n500);margin-top:2px}
+.dep .mn{width:34px;height:34px;flex:0 0 34px;border-radius:10px;display:grid;place-items:center;color:var(--n400);margin-left:auto}
+.dep .mn .ic{font-size:20px}
+.dep .nx{display:flex;align-items:center;gap:9px;margin-top:12px;padding-top:11px;border-top:1px solid var(--n100);font-size:13px}
+.dep .nx .ic{font-size:17px;color:var(--brand700)}
+.dep .nx b{font-weight:600}
+.dep .nx .go{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--brand700)}
+.dep .qa{display:flex;gap:8px;margin-top:11px}
+.qb{flex:1;height:38px;border-radius:11px;border:1px solid var(--n200);display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:500}
+.qb .ic{font-size:16px;color:var(--n500)}
+.addb{height:52px;border:1.5px dashed var(--n300);border-radius:14px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14.5px;font-weight:500;color:var(--n600);margin-top:3px}
+.addb .ic{font-size:20px;color:var(--n500)}
+.card2{background:var(--n0);border:1px solid var(--n200);border-radius:14px;overflow:hidden;margin-bottom:10px}
+.kvr{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid var(--n100)}
+.kvr:last-child{border-bottom:0}
+.kvr .k{font-size:11px;color:var(--n500)}
+.kvr .v{font-size:14.5px;margin-top:2px}
+.kvr .rt{margin-left:auto;flex:0 0 auto}
+.lockt{font-size:10.5px;font-weight:600;background:var(--n100);color:var(--n500);border-radius:5px;padding:3px 7px}
+.editb{width:34px;height:34px;border-radius:10px;border:1px solid var(--n200);display:grid;place-items:center;color:var(--brand700)}
+.editb .ic{font-size:18px}
+.tgr{display:flex;align-items:center;gap:11px;padding:10px 13px;border-bottom:1px solid var(--n100)}
+.tgr:last-child{border-bottom:0}
+.tgr>.ic{font-size:20px;color:var(--n500)}
+.tgr .l{font-size:14.5px;flex:1;min-width:0}
+.tg{width:44px;height:26px;border-radius:99px;background:var(--n300);position:relative;flex:0 0 44px}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+.tg.on{background:var(--brand600)}
+.tg.on::after{left:21px}
+.trow{display:flex;align-items:center;gap:11px;padding:9px 13px;border-bottom:1px solid var(--n100)}
+.trow:last-child{border-bottom:0}
+.trow>.ic{font-size:20px;color:var(--n500);flex:0 0 20px}
+.trow .l{font-size:14.5px;flex:1;min-width:0}
+.trow .val{font-size:12.5px;color:var(--n500);margin-left:auto;flex:0 0 auto;white-space:nowrap}
+.trow .cv{font-size:19px;color:var(--n300);flex:0 0 auto}
+.ghl{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--brand700);letter-spacing:0;text-transform:none}
+.lgo{height:48px;border-radius:13px;border:1px solid #FECACA;background:var(--n0);display:flex;align-items:center;justify-content:center;gap:8px;font-size:14.5px;font-weight:500;color:var(--dangFg);margin-top:4px}
+.lgo .ic{font-size:19px}
+.avc{position:relative}
+.avc .cam{position:absolute;right:-1px;bottom:-1px;width:22px;height:22px;border-radius:50%;background:var(--brand600);border:2px solid var(--n0);display:grid;place-items:center;color:#fff}
+.avc .cam .ic{font-size:11px}
+.info{display:flex;gap:9px;background:var(--n0);border:1px solid var(--n200);border-radius:12px;padding:11px 12px;margin-top:14px}
+.info .ic{font-size:17px;color:var(--n400);flex:0 0 17px;margin-top:1px}
+.info .t{font-size:12px;line-height:17px;color:var(--n500)}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Patient · Mobile 390 × 844 — coffre-fort documentaire & proches</div>
+<div class="phones">
+
+<div class="ph">
+<div class="phl"><span class="n">1</span>Mes documents</div>
+<div class="screen" data-screen-label="Patient · Documents">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><h1>Mes documents</h1><div class="sb">14 documents · 2 ajoutés cette semaine</div></div>
+<div class="body">
+<div class="sf"><div class="sfi"><span class="ic">search</span>Rechercher un document…</div></div>
+<div class="fw">
+<div class="fchip on">Tous<span class="n">14</span></div>
+<div class="fchip">Ordonnances<span class="n">5</span></div>
+<div class="fchip">Devis<span class="n">3</span></div>
+<div class="fchip">Cartes<span class="n">2</span></div>
+</div>
+<div class="scroll">
+
+<div class="gh">Cette semaine<span class="n">2 documents</span></div>
+<div class="dc"><div class="ico new"><span class="ic f">medication</span></div>
+<div style="min-width:0;flex:1"><div class="n1">Ordonnance du 10 août</div><div class="n2"><span class="tag b">Nouveau</span>Dr A. Rousseau · 96 Ko</div></div>
+<div class="go"><span class="ic">download</span></div></div>
+
+<div class="dc"><div class="ico new"><span class="ic f">request_quote</span></div>
+<div style="min-width:0;flex:1"><div class="n1">Devis DEV-2041 signé</div><div class="n2"><span class="tag b">Nouveau</span>Cabinet Nubia Opéra · 248 Ko</div></div>
+<div class="go"><span class="ic">download</span></div></div>
+
+<div class="gh">Août 2026<span class="n">3 documents</span></div>
+<div class="dc"><div class="ico"><span class="ic f">receipt_long</span></div>
+<div style="min-width:0;flex:1"><div class="n1">Facture du 4 août</div><div class="n2">Cabinet Nubia Opéra · 84 Ko</div></div>
+<div class="go"><span class="ic">download</span></div></div>
+
+<div class="dc"><div class="ico"><span class="ic f">image</span></div>
+<div style="min-width:0;flex:1"><div class="n1">Radio panoramique</div><div class="n2">Dr A. Rousseau · 2,4 Mo</div></div>
+<div class="go"><span class="ic">download</span></div></div>
+
+<div class="dc"><div class="ico"><span class="ic f">badge</span></div>
+<div style="min-width:0;flex:1"><div class="n1">Carte mutuelle Alan</div><div class="n2">Ajoutée par vous · 1,2 Mo</div></div>
+<div class="go"><span class="ic">download</span></div></div>
+
+<div class="upl"><span class="ic">upload_file</span>Ajouter un document</div>
+
+</div>
+</div>
+<div class="tabnav">
+<div class="tn"><span class="ic">home</span>Accueil</div>
+<div class="tn"><span class="ic">event</span>Mes RDV</div>
+<div class="tn on"><span class="ic f">folder</span>Documents</div>
+<div class="tn"><span class="ic">chat_bubble</span>Messages</div>
+<div class="tn"><span class="ic">person</span>Profil</div>
+</div>
+</div>
+</div>
+
+<div class="ph">
+<div class="phl"><span class="n">2</span>Mes proches</div>
+<div class="screen" data-screen-label="Patient · Mes proches">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="row"><div class="bk"><span class="ic">arrow_back</span></div><div><h1 style="font-size:22px">Mes proches</h1><div class="sb">Vous gérez 2 comptes</div></div></div></div>
+<div class="body">
+<div class="scroll" style="padding-top:14px">
+
+<div class="me"><div class="av">JM</div>
+<div style="min-width:0;flex:1"><div class="n1">Julie Martin</div><div class="n2">Vous · 41 ans</div></div>
+<span class="pill mut">Titulaire</span></div>
+
+<div class="gh" style="padding-top:2px">Comptes que vous gérez</div>
+
+<div class="dep">
+<div class="r1"><div class="av">LM</div>
+<div style="min-width:0;flex:1"><div class="n1">Lucas Marchand</div><div class="n2">Enfant · 11 ans</div></div>
+<div class="mn"><span class="ic">more_horiz</span></div></div>
+<div class="nx"><span class="ic f">event</span><span>Prochain RDV <b>jeudi 14 août, 16:30</b></span><span class="go">Voir</span></div>
+<div class="qa"><div class="qb"><span class="ic">event_available</span>Prendre RDV</div><div class="qb"><span class="ic">folder</span>Documents</div></div>
+</div>
+
+<div class="dep">
+<div class="r1"><div class="av">EM</div>
+<div style="min-width:0;flex:1"><div class="n1">Émile Martin</div><div class="n2">Conjoint · 44 ans</div></div>
+<div class="mn"><span class="ic">more_horiz</span></div></div>
+<div class="nx"><span class="ic f">calendar_today</span><span>Aucun rendez-vous à venir</span><span class="go">Planifier</span></div>
+<div class="qa"><div class="qb"><span class="ic">event_available</span>Prendre RDV</div><div class="qb"><span class="ic">folder</span>Documents</div></div>
+</div>
+
+<div class="addb"><span class="ic">person_add</span>Ajouter un proche</div>
+
+<div class="info"><span class="ic f">shield</span><span class="t">Vous gérez les rendez-vous et les documents de ces comptes. À sa majorité, votre enfant recevra son propre accès et vous perdrez ce droit — la loi l'impose.</span></div>
+
+</div>
+</div>
+<div class="tabnav">
+<div class="tn"><span class="ic">home</span>Accueil</div>
+<div class="tn"><span class="ic">event</span>Mes RDV</div>
+<div class="tn"><span class="ic">folder</span>Documents</div>
+<div class="tn"><span class="ic">chat_bubble</span>Messages</div>
+<div class="tn on"><span class="ic f">person</span>Profil</div>
+</div>
+</div>
+</div>
+
+<div class="ph">
+<div class="phl"><span class="n">3</span>Profil</div>
+<div class="screen" data-screen-label="Patient · Profil">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><h1>Profil</h1></div>
+<div class="body">
+<div class="scroll" style="padding-top:14px">
+
+<div class="me" style="padding:16px">
+<div class="av avc" style="width:58px;height:58px;flex:0 0 58px;font-size:19px">JM<span class="cam"><span class="ic f">photo_camera</span></span></div>
+<div style="min-width:0;flex:1"><div class="n1" style="font-size:19px">Julie Martin</div><div class="n2">julie.martin@email.fr</div></div>
+</div>
+
+<div class="gh">Informations personnelles</div>
+<div class="card2">
+<div class="kvr"><div style="min-width:0"><div class="k">Email</div><div class="v">julie.martin@email.fr</div></div><span class="rt lockt">Non modifiable</span></div>
+<div class="kvr"><div style="min-width:0"><div class="k">Téléphone</div><div class="v">06 42 18 07 55</div></div><span class="rt editb"><span class="ic">edit</span></span></div>
+</div>
+
+<div class="gh">Notifications RDV<span class="ghl">Toutes les préférences ›</span></div>
+<div class="card2">
+<div class="tgr"><span class="ic">mail</span><span class="l">Rappels e-mail</span><span class="tg on"></span></div>
+<div class="tgr"><span class="ic">notifications_active</span><span class="l">Notifications push</span><span class="tg on"></span></div>
+</div>
+
+<div class="gh">Sécurité</div>
+<div class="card2">
+<div class="tgr"><span class="ic">fingerprint</span><span class="l">Authentification biométrique</span><span class="tg"></span></div>
+</div>
+
+<div class="gh">Mon compte</div>
+<div class="card2">
+<div class="trow"><span class="ic">receipt_long</span><span class="l">Mes devis &amp; paiements</span><span class="val">1 à signer</span><span class="ic cv">chevron_right</span></div>
+<div class="trow"><span class="ic">health_and_safety</span><span class="l">Couverture santé</span><span class="val">Alan Santé</span><span class="ic cv">chevron_right</span></div>
+<div class="trow"><span class="ic">medical_services</span><span class="l">Médecin traitant</span><span class="val">Dr Ferrand</span><span class="ic cv">chevron_right</span></div>
+<div class="trow"><span class="ic">people</span><span class="l">Mes proches</span><span class="val">2 comptes</span><span class="ic cv">chevron_right</span></div>
+<div class="trow"><span class="ic">verified_user</span><span class="l">Consentements</span><span class="val">3 accordés</span><span class="ic cv">chevron_right</span></div>
+<div class="trow"><span class="ic">medical_information</span><span class="l">Passeport implantaire</span><span class="val">1 implant</span><span class="ic cv">chevron_right</span></div>
+<div class="trow"><span class="ic">local_pharmacy</span><span class="l">Ma pharmacie</span><span class="val">du Théâtre</span><span class="ic cv">chevron_right</span></div>
+</div>
+
+<div class="lgo"><span class="ic">logout</span>Se déconnecter</div>
+
+</div>
+</div>
+<div class="tabnav">
+<div class="tn"><span class="ic">home</span>Accueil</div>
+<div class="tn"><span class="ic">event</span>Mes RDV</div>
+<div class="tn"><span class="ic">folder</span>Documents</div>
+<div class="tn"><span class="ic">chat_bubble</span>Messages</div>
+<div class="tn on"><span class="ic f">person</span>Profil</div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<div class="notes">
+<div class="nk">App Patient · Documents, proches, profil</div>
+<h2>Un coffre-fort sans dates</h2>
+<p class="lede">La carte document affiche le nom du fichier et une méta réduite à <code>'$label · $size'</code> — catégorie et taille. <strong>Ni date, ni émetteur.</strong> Un patient qui cherche « l'ordonnance de la semaine dernière » n'a aucun repère temporel, et rien ne distingue un document déposé par le cabinet d'un document qu'il a lui-même envoyé. Dans un coffre-fort de santé, la provenance est aussi importante que le contenu.</p>
+<p class="lede" style="margin-top:12px">Les trois écrans sont lus dans le dépôt : <code>documents_page.dart</code>, <code>dependents_page.dart</code> et <code>profile_page.dart</code>. Le profil, en particulier, n'est pas ce qu'on suppose : il mélange déjà des bascules de réglage et des tuiles de navigation, et c'est de ce mélange que viennent ses deux défauts.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Grouper par période plutôt qu'empiler</div><div class="np">« Cette semaine », « Août 2026 » : c'est ainsi qu'on cherche un document médical. La liste plate à séparateurs de 12 px ne donne aucun point d'ancrage — et la date n'est même pas affichée sur la carte.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Qui a déposé ce document ?</div><div class="np">Une ordonnance déposée par le Dr Rousseau et une carte mutuelle envoyée par le patient s'affichent à l'identique. L'émetteur passe en sous-ligne, et les nouveautés portent une pastille — un document déposé par le cabinet est une information, pas un fichier.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Cinq filtres pour douze catégories</div><div class="np">Les puces couvrent Ordonnances, Carte mutuelle, Carte vitale, Autre — mais <code>DocumentCategory</code> compte <strong>douze</strong> valeurs, et l'envoi en propose huit. Un devis ou une radio n'est donc atteignable que par « Tous ». Les facettes suivent les catégories réellement présentes, avec leur compte.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Aucune recherche</div><div class="np">Quatorze documents aujourd'hui, cinquante dans deux ans. Le champ manque, et c'est le premier geste sur un coffre-fort.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Un FAB posé sur la dernière carte</div><div class="np">Le <code>FloatingActionButton</code> est en <code>Positioned</code> dans un <code>Stack</code>, compensé par un <code>padding bottom: 96</code>. Sur une app patient, l'ajout est occasionnel : il devient une zone de dépôt en fin de liste, visible sans masquer le contenu.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Mes proches : une liste de contacts</div><div class="np"><code>ListTile</code> avec icône générique, nom, lien de parenté, et une corbeille. Or gérer un proche, c'est prendre ses rendez-vous et lire ses documents : chaque carte porte son prochain RDV et deux actions. La corbeille cesse d'être l'unique geste proposé.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Le titulaire n'apparaît pas</div><div class="np">L'écran liste les proches sans situer le patient lui-même. Une carte « Vous · titulaire » en tête pose le cadre : qui gère qui.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Les notifications vivent à deux endroits</div><div class="np">L'écran porte une section « Notifications RDV » avec deux bascules (<code>email_rdv_toggle</code>, <code>push_rdv_toggle</code>) — <strong>et</strong> une tuile « Préférences notifications » qui pousse vers un autre écran. Deux emplacements pour un même sujet, sans lien énoncé entre eux. Les bascules restent (accès direct au cas courant) et la section porte le renvoi : « Toutes les préférences ».</div></div></li>
+<li class="oli"><span class="onum">9</span><div><div class="nh">Huit tuiles sans une seule valeur</div><div class="np">« Couverture santé », « Médecin traitant », « Ma pharmacie », « Mes proches » sont des <code>ListRow</code> réduites à un titre et un chevron. Le patient doit ouvrir chaque écran pour savoir ce qu'il a déclaré. Chaque ligne affiche donc sa valeur courante — <em>Alan Santé</em>, <em>Dr Ferrand</em>, <em>2 comptes</em> : le profil devient un état, pas une table des matières.</div></div></li>
+<li class="oli"><span class="onum">10</span><div><div class="nh">Chargement</div><div class="np"><code>CircularProgressIndicator</code> centré, alors que l'écran Documents de la <em>même application</em> possède un squelette fidèle. L'incohérence est interne à l'app Patient.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">bug_report</span>Un envoi qui ne dit jamais où il en est</div>
+<div class="p">Le <code>BlocListener</code> traite <strong>cinq états par un snackbar</strong> : « Envoi en cours… », « Document envoyé. », les deux erreurs, plus l'ouverture. Chacun est suivi d'un <code>DocumentsLoadRequested()</code> qui repasse l'écran en squelette.</div>
+<div class="p">Conséquence : envoyer une carte mutuelle affiche un snackbar « Envoi en cours… » qui disparaît après quatre secondes, pendant que toute la liste clignote — puis un second snackbar. Aucune progression, aucune trace du fichier en cours d'envoi dans la liste. Sur une connexion mobile et un fichier de 2 Mo, le patient ne sait pas si son envoi a démarré. Il faut une ligne optimiste dans la liste, avec sa progression, et un rechargement partiel plutôt qu'un <code>LoadRequested</code> global.</div></div>
+
+<div class="box"><div class="h"><span class="ic f">gavel</span>Un mineur devient majeur — et personne ne l'a prévu</div>
+<div class="p"><code>DependentRelationship</code> distingue <code>enfant</code>, <code>conjoint</code> et <code>autre</code>, mais l'écran traite les trois de façon identique : même icône, même suppression, mêmes droits. Or ces liens n'ont pas la même nature juridique. Un <strong>enfant mineur</strong> est géré de plein droit par son représentant légal ; un <strong>conjoint</strong> ne peut l'être que par mandat explicite ; et à 18 ans, l'accès du parent au dossier de son enfant <strong>doit cesser</strong>.</div>
+<div class="p">Rien dans le modèle ne porte de date de naissance côté proche, donc rien ne peut déclencher cette bascule. C'est une question de conformité avant d'être une question de design — la maquette l'énonce à l'écran, mais le mécanisme relève du domaine.</div></div>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Deux décisions du code à conserver</div>
+<div class="p"><strong>La taille masquée plutôt qu'affichée à zéro.</strong> <code>_formatSize</code> renvoie <code>null</code> quand <code>fileSizeBytes</code> vaut 0, avec un commentaire expliquant que le contrat de liste ne renvoie pas encore ce champ — « 0 Ko » aurait été un mensonge silencieux. C'est exactement le bon réflexe, et je l'ai repris pour la colonne solde du secrétariat.</div>
+<div class="p"><strong>#4544 — l'email en texte, pas en champ désactivé.</strong> Le commentaire est explicite : <code>PATCH /v1/account</code> renvoie 422 si l'email est présent, donc un champ grisé « ressemble à un formulaire cassé ». C'est un raisonnement de conception écrit dans le code, et il est juste. Le même ticket a ajouté l'édition du téléphone, <em>qui</em> est modifiable et n'était offerte nulle part.</div>
+<div class="p"><strong>Le type MIME déduit des octets magiques.</strong> <code>_detectImageMime</code> lit la signature du fichier plutôt que son extension, parce que <code>file_picker</code> renvoie souvent un type générique sur le web et fait échouer l'envoi en 422. Avec la limite de 300 Ko et la tolérance aux <em>use cases</em> non enregistrés en test, c'est le widget le plus soigneusement écrit que j'aie lu dans ce dépôt.</div>
+<div class="p"><strong>Le squelette de chargement est fidèle.</strong> <code>_DocumentsSkeleton</code> reproduit la forme réelle de l'écran — trois puces de filtre, puis trois cartes avec pastille et deux lignes de texte. Avec la file des commandes pharmacie, c'est le meilleur état de chargement du dépôt.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>Téléchargement en deux temps conservé : <code>DocumentsDownloadRequested</code> → <code>DocumentsDownloadReady(url)</code> → <code>openDocumentUrl</code>, avec le message d'échec si l'ouverture échoue.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Les huit catégories d'envoi restent celles acceptées par l'API (<code>api/src/documents.rs</code>) — distinctes des douze de <code>DocumentCategory</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>DocumentsFilterChanged</code> et le filtrage client sur <code>state.filtered</code> inchangés.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>_formatSize</code> conservé tel quel, y compris son retour <code>null</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Table <code>_categoryMeta</code> (icône + libellé français) reprise pour les douze catégories.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Suppression d'un proche : confirmation par dialogue conservée, avec le nom dans le message.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>DependentsCubit.add()</code> : prénom et nom obligatoires, lien par défaut « Enfant ».</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>documents_loading</code>, <code>documents_error</code>, <code>documents_empty</code>, <code>documents_refresh</code>, <code>document_&lt;id&gt;</code>, <code>filter_all</code>, <code>filter_&lt;cat&gt;</code>, <code>upload_fab</code>, <code>upload_cat_&lt;cat&gt;</code>, <code>dependents_list</code>, <code>dependents_empty</code>, <code>dependent_&lt;id&gt;</code>, <code>delete_dependent_&lt;id&gt;</code>, <code>add_dependent_fab</code>, <code>dependent_first_name</code>, <code>dependent_last_name</code>, <code>dependent_relationship</code>, <code>save_dependent_button</code>, <code>profile_content</code>, <code>profile_email_value</code>, <code>profile_phone_value</code>, <code>edit_phone_button</code>, <code>edit_phone_field</code>, <code>save_phone_button</code>, <code>cancel_phone_edit_button</code>, <code>email_rdv_toggle</code>, <code>push_rdv_toggle</code>, <code>biometric_toggle</code>, <code>avatar_picker</code>, <code>logout_tile</code>, <code>tile_financial</code>, <code>tile_coverage</code>, <code>tile_referring_doctor</code>, <code>tile_dependents</code>, <code>tile_consents</code>, <code>tile_implant_passport</code>, <code>tile_notifications</code>, <code>tile_pharmacy</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#4544 respecté : email en affichage seul, téléphone éditable par dialogue, <code>phoneUpdating</code> pilotant l'indicateur.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Champs à exposer : date et émetteur du document, date de naissance du proche (cf. encadré majorité).</span></li>
+</ul></div>
+</div>
+</div></body></html>

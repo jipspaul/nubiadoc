@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia — Mesure de protection : dépôt et vérification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.wrap{width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:36px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:13px}
+.row2{display:flex;gap:36px;align-items:flex-start}
+/* phone */
+.ph{width:390px;flex:0 0 390px}
+.phl{font-size:12.5px;font-weight:600;color:var(--n600);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.phl .n{width:20px;height:20px;border-radius:6px;background:var(--n900);color:#fff;font-size:10.5px;display:grid;place-items:center}
+.screen{width:390px;height:846px;background:var(--n50);border-radius:42px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 26px 60px -22px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09)}
+.sbar{height:50px;flex:0 0 50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 7px;font-size:14px;font-weight:600;background:var(--n0)}
+.sbar .r{display:flex;gap:5px;align-items:center}
+.sbar .r .ic{font-size:16px}
+.hd{background:var(--n0);padding:6px 20px 13px;border-bottom:1px solid var(--n200)}
+.hd .rw{display:flex;align-items:center;gap:12px}
+.hd .bk{width:36px;height:36px;flex:0 0 36px;border-radius:50%;background:var(--n100);display:grid;place-items:center;color:var(--n700)}
+.hd .bk .ic{font-size:20px}
+.hd h1{font-size:20px;font-weight:600;letter-spacing:-.35px}
+.hd .sb{font-size:12.5px;color:var(--n500);margin-top:2px}
+.scroll{flex:1;overflow:hidden;padding:14px 20px 18px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.mut{background:var(--n100);color:var(--n500)}.pill.dang{background:var(--dangBg);color:var(--dangFg)}
+.card{background:var(--n0);border:1px solid var(--n200);border-radius:15px;padding:14px;margin-bottom:12px}
+.card .h{font-size:15px;font-weight:600;letter-spacing:-.15px;display:flex;align-items:center;gap:9px}
+.card .h .ic{font-size:19px;color:var(--brand700)}
+.card .t{font-size:13px;line-height:19px;color:var(--n600);margin-top:7px}
+.card .t b{font-weight:600;color:var(--n900)}
+.seg{display:flex;gap:8px;margin:11px 0 0}
+.sc{flex:1;height:40px;border:1px solid var(--n300);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:500;color:var(--n700);background:var(--n0)}
+.sc.on{background:var(--n900);border-color:var(--n900);color:#fff}
+.drop{height:96px;border:1.5px dashed var(--n300);border-radius:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--n500);margin-top:11px;background:var(--n50)}
+.drop .ic{font-size:26px;color:var(--n400)}
+.drop .t1{font-size:13.5px;font-weight:500}
+.drop .t2{font-size:11.5px;color:var(--n400)}
+.file{display:flex;align-items:center;gap:11px;background:var(--n50);border:1px solid var(--n200);border-radius:12px;padding:11px;margin-top:11px}
+.file .ic{font-size:20px;color:var(--brand700)}
+.file .f1{font-size:13.5px;font-weight:500}
+.file .f2{font-size:11.5px;color:var(--n500);margin-top:1px}
+.file .x{margin-left:auto;color:var(--n400)}
+.file .x .ic{font-size:17px}
+.cta{height:52px;border-radius:13px;background:var(--brand700);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:500;margin-top:13px}
+.cta .ic{font-size:19px}
+.info{display:flex;gap:9px;background:var(--n0);border:1px solid var(--n200);border-radius:12px;padding:11px 12px;margin-top:12px}
+.info .ic{font-size:17px;color:var(--n400);flex:0 0 17px;margin-top:1px}
+.info .t{font-size:11.5px;line-height:17px;color:var(--n500)}
+.warnb{display:flex;gap:10px;background:var(--warnBg);border:1px solid #FDE68A;border-radius:13px;padding:13px;margin-bottom:12px}
+.warnb .ic{font-size:20px;color:var(--warnFg);flex:0 0 20px;margin-top:1px}
+.warnb .t{font-size:13px;line-height:19px;color:#78350F}
+.warnb .t b{font-weight:600}
+/* desktop */
+.dk{flex:1;min-width:0}
+.win{background:var(--n0);border-radius:14px;overflow:hidden;box-shadow:0 30px 70px -24px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09);display:flex;height:846px}
+.rail{width:56px;flex:0 0 56px;background:var(--n900);display:flex;flex-direction:column;align-items:center;padding:13px 0;gap:4px}
+.rail .lg{width:30px;height:30px;border-radius:8px;background:var(--brand600);display:grid;place-items:center;color:#fff;font-size:14px;font-weight:700;margin-bottom:8px}
+.rail .it{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#8A8580}
+.rail .it .ic{font-size:20px}
+.rail .it.on{background:rgba(255,255,255,.11);color:#fff}
+.rail .sp{flex:1}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n50)}
+.tb{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 18px;display:flex;align-items:center;gap:13px}
+.tb h2{font-size:18px;font-weight:600;letter-spacing:-.3px}
+.tb .sb{font-size:12px;color:var(--n500);margin-top:2px}
+.sp2{flex:1}
+.split{flex:1;display:flex;min-height:0}
+.lst{width:234px;flex:0 0 234px;border-right:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column}
+.lh{padding:11px 14px;border-bottom:1px solid var(--n200);display:flex;align-items:center;gap:8px}
+.lh .ic{font-size:17px;color:var(--n500)}
+.lh .t{font-size:12.5px;font-weight:600}
+.lh .n{margin-left:auto;font-size:10.5px;font-weight:600;background:var(--warnBg);color:var(--warnFg);border-radius:99px;padding:2px 7px}
+.li{padding:11px 14px;border-bottom:1px solid var(--n100);border-left:3px solid transparent}
+.li.on{background:var(--brand50);border-left-color:var(--brand700)}
+.li .n1{font-size:13.5px;font-weight:600}
+.li .n2{font-size:11.5px;color:var(--n500);margin-top:3px}
+.li .n3{display:flex;align-items:center;gap:6px;margin-top:7px}
+.det{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.dv{flex:1;overflow:hidden;padding:16px 18px;display:flex;gap:16px}
+.doc{width:238px;flex:0 0 238px;background:var(--n0);border:1px solid var(--n200);border-radius:13px;overflow:hidden;display:flex;flex-direction:column}
+.doc .dh{padding:10px 12px;border-bottom:1px solid var(--n100);font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px}
+.doc .dh .ic{font-size:16px;color:var(--n500)}
+.doc .pg{flex:1;background:var(--n100);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--n400)}
+.doc .pg .ic{font-size:34px}
+.doc .pg .t{font-size:12px}
+.fld{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.bx{background:var(--n0);border:1px solid var(--n200);border-radius:13px}
+.bh{padding:11px 13px;border-bottom:1px solid var(--n100);font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.bh .ic{font-size:17px;color:var(--n500)}
+.kv{display:flex;align-items:baseline;gap:10px;padding:9px 13px;border-bottom:1px solid var(--n100);font-size:13px}
+.kv:last-child{border-bottom:0}
+.kv .k{width:104px;flex:0 0 104px;color:var(--n500)}
+.kv .v{flex:1;min-width:0;font-weight:500}
+.chk{display:flex;align-items:flex-start;gap:10px;padding:10px 13px;border-bottom:1px solid var(--n100);font-size:13px}
+.chk:last-child{border-bottom:0}
+.chk .cb{width:20px;height:20px;flex:0 0 20px;border-radius:5px;border:1.5px solid var(--n300);display:grid;place-items:center;color:transparent;margin-top:1px}
+.chk .cb.on{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.chk .cb .ic{font-size:14px}
+.chk .t{line-height:19px;color:var(--n700)}
+.acts{padding:11px 18px 13px;border-top:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column;gap:8px}
+.acts .rw2{display:flex;gap:9px;align-items:center;width:100%}
+.ab{flex:0 0 auto;white-space:nowrap;height:42px;padding:0 15px;border-radius:11px;display:flex;align-items:center;gap:7px;font-size:14px;font-weight:500}
+.ab .ic{font-size:18px}
+.ab.p{background:var(--brand700);color:#fff}
+.ab.s{background:var(--n0);border:1px solid var(--n300);color:var(--n900)}
+.ab.s .ic{color:var(--n500)}
+.ab.d{background:var(--n0);border:1px solid #FECACA;color:var(--dangFg)}
+.ab.d .ic{color:var(--dangFg)}
+.trace{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--n500)}
+.trace .ic{font-size:15px;color:var(--n400)}
+.side{flex:1;min-width:0;background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:22px 24px}
+.side h3{font-family:Fraunces,serif;font-size:21px;line-height:28px;font-weight:600;letter-spacing:-.3px}
+.side .lead{font-size:14px;line-height:22px;color:var(--n600);margin-top:9px}
+.side .lead b{font-weight:600;color:var(--n900)}
+.cmp2{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:18px}
+.cc2{border:1px solid var(--n200);border-radius:12px;padding:14px}
+.cc2.tu{border-color:#FDE68A;background:var(--warnBg)}
+.cc2 .t1{font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:7px}
+.cc2 .t1 .ic{font-size:17px}
+.cc2.tu .t1{color:#78350F}
+.cc2 .t2{font-size:13px;line-height:20px;color:var(--n600);margin-top:8px}
+.cc2.tu .t2{color:#78350F}
+.cc2 .eff{font-size:12px;line-height:18px;margin-top:10px;padding-top:9px;border-top:1px solid rgba(0,0,0,.08);color:var(--n500)}
+.cc2.tu .eff{color:#92400E}
+.side .warn2{display:flex;gap:11px;background:var(--n50);border:1px solid var(--n200);border-radius:12px;padding:13px;margin-top:16px}
+.side .warn2 .ic{font-size:19px;color:var(--n400);flex:0 0 19px;margin-top:1px}
+.side .warn2 .t{font-size:13px;line-height:20px;color:var(--n600)}
+.side .warn2 .t b{font-weight:600;color:var(--n900)}
+/* notes */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--warnFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--warnFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">Décision Q10 · « 18 ans, sauf tutelle ou curatelle prouvée » — le parcours de preuve</div>
+<div class="row2">
+
+<div class="ph">
+<div class="phl"><span class="n">1</span>Côté patient · déposer la preuve</div>
+<div class="screen" data-screen-label="Patient · Déposer une mesure de protection">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="rw"><div class="bk"><span class="ic">arrow_back</span></div><div><h1>Mesure de protection</h1><div class="sb">Pour Lucas Marchand</div></div></div></div>
+<div class="scroll">
+
+<div class="warnb"><span class="ic f">event_busy</span><div class="t"><b>Votre accès prend fin le 3 septembre 2026</b>, aux 18 ans de Lucas. Si une mesure de protection le concerne, déposez le justificatif : le cabinet le vérifiera avant cette date.</div></div>
+
+<div class="card">
+<div class="h"><span class="ic f">gavel</span>Nature de la mesure</div>
+<div class="seg"><div class="sc on">Tutelle</div><div class="sc">Curatelle</div></div>
+</div>
+
+<div class="card">
+<div class="h"><span class="ic f">upload_file</span>Justificatif</div>
+<div class="t">Jugement du juge des contentieux de la protection, ou extrait mentionnant la mesure et sa durée.</div>
+<div class="file"><span class="ic f">picture_as_pdf</span><div style="min-width:0;flex:1"><div class="f1">Jugement tutelle 2026.pdf</div><div class="f2">1,4 Mo · ajouté à l'instant</div></div><span class="x"><span class="ic">close</span></span></div>
+<div class="drop"><span class="ic">add_circle</span><div class="t1">Ajouter une autre pièce</div><div class="t2">PDF ou photo</div></div>
+</div>
+
+<div class="cta"><span class="ic">send</span>Envoyer au cabinet</div>
+
+<div class="info"><span class="ic f">shield</span><span class="t">Seul le cabinet peut valider une mesure de protection. Nous ne prolongeons pas votre accès sur simple déclaration — c'est ce qui protège Lucas.</span></div>
+
+</div>
+</div>
+</div>
+
+<div class="dk">
+<div class="phl"><span class="n">2</span>Côté secrétariat · vérifier et tracer</div>
+<div class="win" data-screen-label="Secrétariat · Vérification d'une mesure de protection">
+<div class="rail"><div class="lg">N</div>
+<div class="it"><span class="ic">space_dashboard</span></div><div class="it"><span class="ic">calendar_month</span></div><div class="it"><span class="ic">meeting_room</span></div><div class="it on"><span class="ic f">groups</span></div><div class="it"><span class="ic">hourglass_top</span></div><div class="it"><span class="ic">description</span></div><div class="it"><span class="ic">payments</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+<div class="main">
+<div class="tb"><div><h2>Mesures de protection</h2><div class="sb">Vérification des justificatifs déposés par les patients</div></div><div class="sp2"></div></div>
+
+<div class="split">
+<div class="lst">
+<div class="lh"><span class="ic f">pending_actions</span><span class="t">À vérifier</span><span class="n">2</span></div>
+<div class="li on"><div class="n1">Lucas Marchand</div><div class="n2">Déposé par Julie Martin · aujourd'hui</div><div class="n3"><span class="pill warn">Tutelle</span><span class="pill mut">18 ans le 03/09</span></div></div>
+<div class="li"><div class="n1">Robert Aubert</div><div class="n2">Déposé par Claire Aubert · 8 août</div><div class="n3"><span class="pill warn">Curatelle</span></div></div>
+<div class="lh" style="border-top:1px solid var(--n200)"><span class="ic f">verified</span><span class="t">Vérifiées</span><span class="n" style="background:var(--okBg);color:var(--okFg)">7</span></div>
+<div class="li"><div class="n1">Simone Vasseur</div><div class="n2">Validée le 2 juillet · S. Lemoine</div><div class="n3"><span class="pill ok">Tutelle</span></div></div>
+</div>
+
+<div class="det">
+<div class="dv">
+<div class="doc">
+<div class="dh"><span class="ic f">picture_as_pdf</span>Jugement tutelle 2026.pdf</div>
+<div class="pg"><span class="ic f">description</span><div class="t">Aperçu du justificatif</div></div>
+</div>
+
+<div class="fld">
+<div class="bx">
+<div class="bh"><span class="ic f">person</span>Personne concernée</div>
+<div class="kv"><span class="k">Patient</span><span class="v">Lucas Marchand</span></div>
+<div class="kv"><span class="k">Date de naissance</span><span class="v">3 septembre 2008 · 18 ans dans 22 jours</span></div>
+<div class="kv"><span class="k">Déposé par</span><span class="v">Julie Martin (parent)</span></div>
+<div class="kv"><span class="k">Mesure déclarée</span><span class="v">Tutelle</span></div>
+</div>
+
+<div class="bx">
+<div class="bh"><span class="ic f">checklist</span>Contrôles à effectuer</div>
+<div class="chk"><span class="cb on"><span class="ic f">check</span></span><span class="t">Le nom du majeur protégé correspond au patient.</span></div>
+<div class="chk"><span class="cb on"><span class="ic f">check</span></span><span class="t">La personne qui dépose est bien désignée comme tuteur ou curateur.</span></div>
+<div class="chk"><span class="cb"><span class="ic f">check</span></span><span class="t">La mesure est en cours de validité à la date du jour.</span></div>
+<div class="chk"><span class="cb"><span class="ic f">check</span></span><span class="t">La pièce est un document officiel, lisible et complet.</span></div>
+</div>
+
+<div class="bx">
+<div class="bh"><span class="ic f">event</span>Durée de l'exception</div>
+<div class="kv"><span class="k">Mesure valable jusqu'au</span><span class="v">14 mars 2031</span></div>
+<div class="kv"><span class="k">Nouvelle vérification</span><span class="v">à cette date · rappel automatique</span></div>
+</div>
+</div>
+</div>
+
+<div class="acts">
+<div class="rw2">
+<div class="ab p"><span class="ic">verified</span>Valider</div>
+<div class="ab d"><span class="ic">close</span>Refuser</div>
+<div class="ab s"><span class="ic">chat_bubble</span>Demander une pièce</div>
+</div>
+<div class="trace"><span class="ic f">forum</span><span style="color:var(--brand700);font-weight:600;white-space:nowrap">Un doute ? En parler au praticien</span><span style="margin-left:auto;display:flex;align-items:center;gap:7px;white-space:nowrap"><span class="ic f">history</span>Enregistré au journal d'audit</span></div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<div><div class="cap">Décision · le majeur protégé accepte, une fois le document transmis</div>
+<div class="row2">
+
+<div class="ph">
+<div class="phl"><span class="n">3</span>Côté majeur protégé</div>
+<div class="screen" data-screen-label="Patient · Accepter une mesure de protection">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="rw"><div><h1>Une demande vous concerne</h1><div class="sb">Vérifiée par votre cabinet</div></div></div></div>
+<div class="scroll">
+
+<div class="card">
+<div class="h"><span class="ic f">verified_user</span>Claire Aubert souhaite vous accompagner</div>
+<div class="t">Elle a transmis à votre cabinet un jugement vous plaçant sous <b>curatelle</b>, avec elle comme curatrice. Le cabinet l'a vérifié le 11 août.</div>
+</div>
+
+<div class="card">
+<div class="h"><span class="ic f">description</span>Le document vérifié</div>
+<div class="file"><span class="ic f">picture_as_pdf</span><div style="min-width:0;flex:1"><div class="f1">Jugement curatelle 2026.pdf</div><div class="f2">Vérifié par le cabinet · valable jusqu'au 14/03/2031</div></div></div>
+<div class="t">Si ce document vous semble erroné, ne l'acceptez pas et parlez-en à votre cabinet.</div>
+</div>
+
+<div class="card">
+<div class="h"><span class="ic f">visibility</span>Ce qu'elle pourrait voir</div>
+<div class="seg" style="margin-top:9px"><div class="sc on">Rendez-vous</div><div class="sc on">Documents</div></div>
+</div>
+
+<div class="cta"><span class="ic">check</span>J'accepte</div>
+<div class="cta" style="background:var(--n0);border:1px solid var(--n300);color:var(--n900);height:46px;font-size:14px;margin-top:9px"><span class="ic" style="color:var(--n500)">close</span>Je n'accepte pas</div>
+
+<div class="info"><span class="ic f">shield</span><span class="t">Vous pouvez revenir sur ce choix à tout moment depuis votre profil, et en parler à votre cabinet.</span></div>
+
+</div>
+</div>
+</div>
+
+<div class="side">
+<h3>Accepter n'a pas le même sens sous curatelle et sous tutelle</h3>
+<p class="lead">Vous demandez qu'un majeur protégé puisse <b>accepter</b> l'accompagnement d'un proche, une fois le document transmis. C'est juste — mais l'écran ne doit pas promettre le même pouvoir dans les deux cas, sans quoi il ment à la personne qu'il prétend protéger.</p>
+
+<div class="cmp2">
+<div class="cc2"><div class="t1"><span class="ic f" style="color:var(--brand700)">handshake</span>Curatelle</div>
+<div class="t2">La personne agit elle-même, assistée. Son accord a une portée réelle : elle peut accepter, refuser, et ajuster le périmètre.</div>
+<div class="eff">Refus = l'accès n'est pas ouvert.</div></div>
+
+<div class="cc2 tu"><div class="t1"><span class="ic f" style="color:var(--warnFg)">gavel</span>Tutelle</div>
+<div class="t2">Le tuteur représente la personne : son autorité vient du jugement, pas de l'accord. Un bouton « refuser » qui ne bloque rien serait un mensonge d'interface.</div>
+<div class="eff">Refus = l'accès s'ouvre, mais le cabinet est alerté.</div></div>
+</div>
+
+<div class="warn2"><span class="ic f">campaign</span><div class="t"><b>Le refus sous tutelle n'est pas sans effet — il devient un signal.</b> Une personne protégée qui s'oppose est une information que le cabinet doit recevoir, pas un clic ignoré. C'est le seul moyen de respecter votre demande sans inventer un veto que le droit ne donne pas.</div></div>
+
+<div class="warn2"><span class="ic f">route</span><div class="t"><b>L'ordre compte.</b> Le document d'abord, l'acceptation ensuite : la personne voit une mesure <em>déjà vérifiée par son cabinet</em>, pas une déclaration sur parole. C'est ce qui distingue ce parcours de l'invitation d'un conjoint — et ce qui empêche qu'on se déclare tuteur pour obtenir un accès.</div></div>
+</div>
+
+</div>
+</div>
+
+<div class="notes">
+<div class="nk">Décision Q10 · Parcours de preuve</div>
+<h2>« Prouvée » demande quelqu'un qui vérifie</h2>
+<p class="lede">Votre réponse — « 18 ans, sauf tutelle ou curatelle prouvée » — ne se code pas comme une exception dans une règle d'âge. Une case cochée par le parent ne prouve rien : n'importe qui prolongerait son accès en la cochant. Il faut une pièce, un contrôle humain, et une trace. Ce parcours les organise en trois écrans, dont deux seulement sont nouveaux.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Le préavis devient le point d'entrée</div><div class="np">Le parent découvre l'échéance par le préavis d'un mois (décision Q6). C'est là que doit s'ouvrir le dépôt de justificatif — pas dans un réglage enfoui. Un parcours de conformité qu'on ne trouve pas n'est pas emprunté.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">L'application dit qu'elle ne décide pas</div><div class="np">« Nous ne prolongeons pas votre accès sur simple déclaration — c'est ce qui protège Lucas. » Formuler le refus comme une protection du majeur, et non comme une défiance envers le parent, évite l'incompréhension au comptoir.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Quatre contrôles explicites, pas un jugement global</div><div class="np">Le nom, la qualité du déposant, la validité à ce jour, la lisibilité de la pièce. Une liste nommée sécurise la personne qui vérifie : elle sait ce qu'on attend d'elle, et sa décision devient reproductible d'un membre de l'équipe à l'autre.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Une exception a une fin</div><div class="np">Une tutelle est prononcée pour une durée. L'exception hérite de cette durée et une nouvelle vérification est programmée — sinon un accès accordé une fois devient permanent, ce qui reproduit exactement le problème qu'on corrige.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">La décision entre au journal d'audit</div><div class="np">Qui a validé, quand, sur quelle pièce. Le journal d'accès (#4155) porte déjà exactement la forme requise — <code>action</code>, <code>entity</code>, <code>actorRole</code>, <code>occurredAt</code> — et son filtre « Entité » accepte une valeur libre : une entrée <code>protection_measure</code> s'y insère sans changer le modèle. Il est de plus réservé aux rôles admin/manager (403 → <code>AuditLogForbidden</code>), ce qui convient à une décision de cette nature.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Refuser exige un motif</div><div class="np">Comme le refus d'une commande en pharmacie, seul endroit du dépôt où le motif est réellement exigé aujourd'hui. Un parent dont le justificatif est écarté sans explication rappellera — et le secrétariat n'aura rien à lui dire.</div></div></li>
+</ol>
+
+<div class="box" style="border-left-color:var(--okFg)"><div class="h"><span class="ic f" style="color:var(--okFg)">task_alt</span>Les quatre points, tranchés</div>
+<div class="p"><strong>1. Qui vérifie → le secrétariat, toujours.</strong> Il garde le contrôle et, s'il manque d'éléments, il en parle au praticien. Conséquence de conception : ce recours devient une <em>action de l'écran</em> (« Un doute ? En parler au praticien »), pas un contournement hors outil — sinon il se fait par oral et ne laisse aucune trace. Reste un écart préexistant à lever : <code>audit_log_page.dart</code> annonce deux fois « réservé admin/<strong>manager</strong> » alors que <code>ProRole</code> ne comporte aucune valeur <code>manager</code>.</div>
+
+<div class="p"><strong>2. Vérification non aboutie → l'accès se coupe.</strong> Un accès prolongé par défaut, faute d'avoir traité un dossier, est exactement ce que la règle interdit. Conséquence à assumer : un dossier oublié coupe un accès légitime. D'où deux garde-fous — le dossier remonte en tête de file à l'approche de l'échéance, et une validation tardive <b>rouvre</b> l'accès sans nouveau dépôt.</div>
+<div class="p"><strong>3. Majeurs déjà protégés → acceptation après transmission du document.</strong> Le proche transmet d'abord le jugement, le cabinet le vérifie, <em>puis</em> la personne accepte. L'ordre est ce qui distingue ce parcours de l'invitation d'un conjoint : on ne peut pas se déclarer tuteur pour obtenir un accès. Voir le troisième écran et son analyse — l'acceptation n'a pas la même portée sous curatelle et sous tutelle, et l'interface ne doit pas promettre le même pouvoir dans les deux cas.</div></div>
+
+<div class="box" style="border-left-color:var(--warnFg)"><div class="h"><span class="ic f" style="color:var(--warnFg)">warning</span>4. Pièce de santé — et la conséquence qu'il faut trancher tout de suite</div>
+<div class="p"><strong>Décision : le justificatif de protection est une pièce de santé.</strong> Il rejoint donc le dossier médical, avec son régime de conservation et son cloisonnement. Cette réponse est cohérente — mais elle entre en tension avec les deux autres décisions du parcours, et la tension est structurelle, pas cosmétique.</div>
+<div class="p"><strong>Tension 1 — le secrétariat garde le contrôle, mais il est administratif.</strong> <code>AuthSession.canAccessClinical</code> exclut explicitement les secrétaires (« Secretaries are administrative-only »). Une pièce de santé ne devrait donc pas s'afficher sur leur poste — or c'est là que vous placez la vérification.</div>
+<div class="p"><strong>Tension 2 — personne ne peut relire le document.</strong> La route de lecture d'un document est réservée au patient lui-même (#4286) : aucun professionnel du cabinet ne peut ouvrir une pièce de la GED aujourd'hui, praticien compris.</div>
+<div class="p"><strong>Ma proposition pour tenir les trois décisions ensemble :</strong> une <em>vue de vérification</em> distincte de la GED — accès au seul document en cours d'examen, pour la seule durée de l'examen, systématiquement journalisée. Le secrétariat garde la décision ; il ne gagne pas un droit de lecture sur le dossier médical, il obtient une fenêtre nommée et tracée sur une pièce précise. C'est aussi le seul montage qui n'oblige pas à ouvrir #4286 en grand.</div></div>
+
+<div class="keep"><div class="kh">Cohérence avec le reste de l'écosystème</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>Le refus avec motif obligatoire reprend le seul précédent réellement en place : le refus de commande en pharmacie (<code>OrderDetailRejectRequested</code>, non émis si le motif est vide). Sur les <strong>demandes de stock</strong>, la note est aujourd'hui « optionnelle » et un refus muet part — défaut relevé sur <code>Pharmacie Devis et Stock v2</code> : ce parcours est le second endroit où le motif obligatoire doit être introduit, pas un alignement sur l'existant.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>La liste « à vérifier / vérifiées » suit le modèle des files de travail des autres écrans professionnels, compteurs compris.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>⚠️ En lisant le journal d'accès : il utilise lui aussi un <code>CircularProgressIndicator</code> centré — <strong>dixième occurrence</strong> du motif relevé dans <code>STATES.md</code> — dont le tableau est recompté au passage : il en annonçait huit pour neuf lignes.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Le cloisonnement est respecté : aucune donnée clinique n'apparaît, ni côté dépôt ni côté vérification.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>L'aperçu du justificatif reste côté cabinet — la GED patient ne sert pas de canal de transmission.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Nouvelles clés proposées : <code>protection_measure_kind</code>, <code>protection_measure_upload</code>, <code>protection_measure_submit</code>, <code>protection_review_&lt;id&gt;</code>, <code>protection_review_validate</code>, <code>protection_review_reject</code>, <code>protection_review_ask_practitioner</code>, <code>protection_accept</code>, <code>protection_decline</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Champs à exposer : nature, pièces jointes, état, date de fin de mesure, vérificateur et horodatage de décision.</span></li>
+</ul></div>
+</div>
+</div></body></html>

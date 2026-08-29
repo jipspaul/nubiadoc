@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia — Backlog UI/UX & fondations partagées</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:48px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.doc{width:1020px;margin:0 auto;background:var(--n0);border-radius:6px;box-shadow:0 24px 60px -24px rgba(28,25,23,.4),0 0 0 1px rgba(28,25,23,.07);padding:56px 60px 60px}
+.kick{font-size:12px;font-weight:600;letter-spacing:.9px;text-transform:uppercase;color:var(--brand700)}
+h1{font-family:Fraunces,serif;font-size:38px;line-height:45px;font-weight:600;letter-spacing:-.8px;margin:12px 0 14px}
+.lede{font-size:15.5px;line-height:26px;color:var(--n600)}
+.lede code,.p code,td code,.fn code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.meta{display:flex;gap:26px;margin-top:22px;padding:14px 0;border-top:1px solid var(--n200);border-bottom:1px solid var(--n200)}
+.mi .v{font-size:22px;font-weight:700;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.mi .l{font-size:11px;color:var(--n500);margin-top:1px}
+h2{font-family:Fraunces,serif;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-.4px;margin:38px 0 6px}
+h2 .num{font-family:Inter,sans-serif;font-size:12px;font-weight:700;color:var(--n400);letter-spacing:.5px;display:block;margin-bottom:5px}
+.p{font-size:14px;line-height:22px;color:var(--n600);margin-top:6px;max-width:860px}
+table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}
+th{text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);padding:0 10px 7px 0;border-bottom:1px solid var(--n200);vertical-align:bottom}
+td{padding:11px 10px 11px 0;border-bottom:1px solid var(--n100);vertical-align:top;line-height:19px}
+tr:last-child td{border-bottom:0}
+th:last-child,td:last-child{padding-right:0}
+.sev{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;border-radius:5px;padding:3px 7px;white-space:nowrap}
+.sev.p1{background:var(--dangBg);color:var(--dangFg)}
+.sev.p2{background:var(--warnBg);color:var(--warnFg)}
+.sev.p3{background:var(--infoBg);color:var(--infoFg)}
+.sev.p4{background:var(--n100);color:var(--n600)}
+.app{display:inline-block;font-size:10.5px;font-weight:600;border-radius:5px;padding:3px 7px;white-space:nowrap}
+.app.pt{background:var(--brand50);color:var(--brand800)}
+.app.se{background:#EEF2FF;color:#3730A3}
+.app.pr{background:#FDF8EF;color:#8A6A3B}
+.app.ph{background:#F5F3FF;color:#5B21B6}
+.app.all{background:var(--n900);color:#fff}
+.wh{font-weight:600}
+.fn{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--n500);display:block;margin-top:3px;line-height:16px}
+.tick{color:var(--okFg);font-weight:600}
+.box{margin-top:18px;border:1px solid var(--n200);border-left:4px solid var(--brand600);border-radius:8px;padding:16px 18px;background:var(--n50)}
+.box .h{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.box .h .ic{font-size:18px;color:var(--brand700)}
+.box .p{margin-top:6px}
+.box.warn{border-left-color:var(--warnFg)}
+.box.warn .h .ic{color:var(--warnFg)}
+.code{margin-top:12px;background:var(--n900);border-radius:8px;padding:14px 16px;overflow-x:auto}
+.code pre{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:19px;color:#E7E5E4;white-space:pre}
+.code .c{color:#78716C}.code .k{color:#34D399}.code .s{color:#FCD34D}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px 28px;margin-top:14px}
+.card{border:1px solid var(--n200);border-radius:9px;padding:13px 15px}
+.card .t{font-size:13.5px;font-weight:600;letter-spacing:-.1px}
+.card .d{font-size:12.5px;line-height:19px;color:var(--n600);margin-top:4px}
+.card .d code{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--n100);border:1px solid var(--n200);border-radius:4px;padding:1px 4px}
+.foot{margin-top:44px;padding-top:18px;border-top:1px solid var(--n200);font-size:12px;line-height:19px;color:var(--n500)}
+.foot b{color:var(--n700)}
+</style></head>
+<body><div class="doc" data-screen-label="Backlog UI/UX Nubia">
+
+<div class="kick">Écosystème Nubia · Synthèse de la phase d'audit design</div>
+<h1>Backlog UI/UX et fondations partagées</h1>
+<p class="lede">Neuf écrans refondus sur les quatre applications. Ce document rassemble les défauts constatés <strong>en lisant le code</strong>, classés par gravité, et les cinq fondations transverses à poser avant d'aller plus loin. Chaque ligne renvoie à la maquette qui la documente et au fichier concerné.</p>
+
+<div class="meta">
+<div class="mi"><div class="v">9</div><div class="l">écrans refondus</div></div>
+<div class="mi"><div class="v">4</div><div class="l">applications</div></div>
+<div class="mi"><div class="v">38</div><div class="l">fichiers Dart proposés</div></div>
+<div class="mi"><div class="v">27</div><div class="l">défauts identifiés</div></div>
+<div class="mi"><div class="v">5</div><div class="l">fondations à poser</div></div>
+</div>
+
+<h2><span class="num">01</span>Sécurité et perte de données</h2>
+<p class="p">Quatre défauts qui peuvent produire un acte incorrect ou faire disparaître de l'information à l'écran. À traiter avant tout travail esthétique.</p>
+<table>
+<thead><tr><th style="width:74px">Gravité</th><th style="width:96px">App</th><th>Constat</th><th style="width:196px">Correction</th></tr></thead>
+<tbody>
+<tr><td><span class="sev p1">P1</span></td><td><span class="app ph">Pharmacie</span></td><td><span class="wh">Le retrait ne compare pas deux identités.</span> La confirmation se fait par token ; <code>orderId</code> n'est passé que « pour le retour ». Scanner le QR d'un autre patient avec le sachet en main réussit — le back valide — et l'écran de succès affiche le nom du porteur du QR.<span class="fn">pickup_scan_page.dart · pickup_scan_cubit.dart</span></td><td><code>PickupIdentityGuard</code> : comparaison après l'appel, avant l'écran de succès.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p1">P1</span></td><td><span class="app se">Secrétariat</span></td><td><span class="wh">Un échec d'appel efface la salle d'attente.</span> <code>_onCallNext</code> émet <code>WaitingRoomError</code>, rendu en pleine page : la liste des patients présents disparaît. <code>WaitingRoomLoading</code> fait clignoter la liste à vide à chaque actualisation.<span class="fn">waiting_room_bloc.dart · waiting_room_state.dart</span></td><td>Ajouter <code>actionError</code> et <code>actionInProgress</code> à l'état, comme <code>AgendaLoaded</code>.<span class="fn">correction d'état</span></td></tr>
+<tr><td><span class="sev p1">P1</span></td><td><span class="app ph">Pharmacie</span></td><td><span class="wh">L'écran de délivrance ne montre pas ce qu'il faut délivrer.</span> Nom, trois horodatages, et un bouton PDF qui appelle <code>openDocumentUrl</code> — donc quitte l'application. Lire les lignes est le métier du pharmacien.<span class="fn">order_detail_page.dart</span></td><td><code>PrescriptionLinesCard</code>, PDF en recours.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app ph">Pharmacie</span></td><td><code>PickupScanCubit.reset()</code> existe mais n'est appelé par aucune vue : après un échec de scan, aucun bouton ne relance. Et 404 / 409 / 410 s'affichent en un même texte rouge.<span class="fn">pickup_scan_page.dart</span></td><td>Bouton de reprise + messages distincts.<span class="fn tick">livré</span></td></tr>
+</tbody>
+</table>
+
+<h2><span class="num">02</span>La donnée existe, l'écran ne la montre pas</h2>
+<p class="p">Le motif le plus fréquent de cet audit : l'information est dans l'état ou le domaine, et l'interface affiche autre chose — un compteur, un identifiant, une chaîne littérale.</p>
+<table>
+<thead><tr><th style="width:74px">Gravité</th><th style="width:96px">App</th><th>Constat</th><th style="width:196px">Correction</th></tr></thead>
+<tbody>
+<tr><td><span class="sev p1">P1</span></td><td><span class="app pr">Praticien</span></td><td><span class="wh">Le nom du patient n'apparaît nulle part dans la séance.</span> L'en-tête affiche la chaîne « Consultation au fauteuil » alors que <code>ClinicalSession.patientName</code> existe et est utilisé par l'historique (#3371). Aucune allergie rappelée.<span class="fn">consultation_clinique_page.dart</span></td><td><code>PatientIdentityBar</code> : identité, âge, alertes, praticien.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p1">P1</span></td><td><span class="app se">Secrétariat</span></td><td><span class="wh">Une semaine entière affichée sans une seule date.</span> <code>_EntryCard</code> ne rend que <code>time</code> et <code>endTime</code> : lundi 9 h et vendredi 9 h sont deux cartes identiques.<span class="fn">agenda_page.dart</span></td><td>Grille semaine : la date devient une position.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app pt">Patient</span></td><td>« Prochain RDV » affiche un <em>compteur</em>, pas une date. Les trois tuiles de l'accueil sont des métriques abstraites là où le patient cherche quand, où, et quoi faire.<span class="fn">home/home_page.dart</span></td><td>Carte héros du prochain RDV.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app pt">Patient</span></td><td>Total et reste à charge affichés sans le chemin entre les deux. Les parts AMO/AMC existent, en gris 12 px, ligne par ligne — <strong>jamais additionnées</strong>.<span class="fn">financial/widgets/quote_detail_view.dart</span></td><td>Barre de ventilation + légende soustractive.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p3">P3</span></td><td><span class="app pt">Patient</span></td><td><code>HomePage</code> n'est monté sur <strong>aucun onglet</strong> : le shell ouvre sur l'annuaire de recherche. Un patient fidèle atterrit sur un moteur de recherche.<span class="fn">dashboard/dashboard_page.dart</span></td><td>Accueil en onglet 0, annuaire derrière la loupe.<span class="fn tick">livré</span></td></tr>
+</tbody>
+</table>
+
+<h2><span class="num">03</span>Hiérarchie des actions</h2>
+<p class="p">Partout, l'action destructive ou secondaire occupe la même surface que l'action principale. Un patient ou un praticien pressé n'a alors aucun guide.</p>
+<table>
+<thead><tr><th style="width:74px">Gravité</th><th style="width:96px">App</th><th>Constat</th><th style="width:196px">Correction</th></tr></thead>
+<tbody>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app pt">Patient</span></td><td>Jusqu'à <strong>4 boutons de poids égal par carte</strong> de RDV, dont « Annuler » en destructif — 12 boutons pour trois rendez-vous.<span class="fn">mes_rdv/mes_rdv_page.dart</span></td><td>Une action primaire + menu ⋯, annulation isolée.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app pt">Patient</span></td><td>CTA « Confirmer » <strong>désactivé sans explication</strong> tant que le motif est vide, et le créneau retenu n'est rappelé nulle part.<span class="fn">appointments/appointments_page.dart</span></td><td>Puces de motif + récapitulatif + message d'aide.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p3">P3</span></td><td><span class="app pt">Patient</span></td><td>Trois CTA <code>lg</code> pleine largeur empilés, dont un « Retour à la liste » tertiaire aussi large que l'action principale : plus de 20 % du viewport pour de la navigation.<span class="fn">financial/widgets/quote_detail_view.dart</span></td><td>Retour dans la barre de titre.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p3">P3</span></td><td><span class="app ph">Pharmacie</span></td><td>« Refuser la commande » en secondaire pleine largeur juste sous l'action principale, pour une action exigeant un motif et menant à un état terminal.<span class="fn">order_detail_page.dart</span></td><td>Lien discret, à distance du geste principal.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p3">P3</span></td><td><span class="app se">Secrétariat</span></td><td><code>FloatingActionButton.extended</code> sur un poste clavier-souris : il flotte au-dessus de la file et masque une ligne.<span class="fn">waiting_room_page.dart</span></td><td>Action dans la barre d'outils, nommée.<span class="fn tick">livré</span></td></tr>
+</tbody>
+</table>
+
+<h2><span class="num">04</span>Ergonomie de saisie</h2>
+<p class="p">Cinq écrans imposent au professionnel une saisie que le produit pourrait éviter — ou que le contexte a déjà renseignée.</p>
+<table>
+<thead><tr><th style="width:74px">Gravité</th><th style="width:96px">App</th><th>Constat</th><th style="width:196px">Correction</th></tr></thead>
+<tbody>
+<tr><td><span class="sev p1">P1</span></td><td><span class="app pr">Praticien</span></td><td><span class="wh">Le modèle d'ordonnance est proposé après la saisie qu'il devait éviter.</span> <code>use_template_button</code> n'existe que dans <code>_DraftReview</code>, l'écran d'après la création.<span class="fn">ordonnances/ordonnance_new_page.dart</span></td><td>Modèles en tête d'écran.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app pr">Praticien</span></td><td>La DCI se tape dans un <code>NubiaTextField</code> nu : une dénomination internationale saisie à la main dans un document légal.<span class="fn">ordonnances/ordonnance_new_page.dart</span></td><td>Recherche sur référentiel médicament.<span class="fn">dépend de la fondation 2</span></td></tr>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app pr">Praticien</span></td><td>La note de séance exige un bouton « Enregistrer ». Gants, interruptions, patient suivant : la note se perd.<span class="fn">consultation_clinique_page.dart</span></td><td>Autosave débattu + état visible.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app se">Secrétariat</span></td><td>Le créneau d'un nouveau RDV se choisit dans un <code>DropdownButton</code> listant <strong>tous</strong> les créneaux réservables de la semaine en texte plat.<span class="fn">agenda_page.dart</span></td><td>Créneau cliquable dans la grille.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p3">P3</span></td><td><span class="app pr">Praticien</span></td><td>La dent se choisit dans un <code>showModalBottomSheet</code> derrière un bouton, puis on cherche l'acte. Sur tablette, le schéma peut rester à l'écran.<span class="fn">consultation_clinique_page.dart</span></td><td>Arcade permanente, sélection contextuelle.<span class="fn tick">livré</span></td></tr>
+</tbody>
+</table>
+
+<h2><span class="num">05</span>Cohérence et dette</h2>
+<table>
+<thead><tr><th style="width:74px">Gravité</th><th style="width:96px">App</th><th>Constat</th><th style="width:196px">Correction</th></tr></thead>
+<tbody>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app all">Transverse</span></td><td><span class="wh">Deux formats monétaires.</span> <code>formatQuoteCents()</code> (Patient) est correct ; <code>_euros()</code> (Praticien) produit <code>1460.00 €</code> — point décimal, aucun séparateur de milliers, sur une interface française.<span class="fn">financial_format_utils.dart · consultation_clinique_page.dart</span></td><td>Fondation 1.</td></tr>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app se">Secrétariat</span></td><td><code>/salle-attente</code> et <code>/liste-attente</code> : deux écrans sans rapport — qui est présent dans la pièce, contre qui cherche un créneau — aux noms qui diffèrent d'un mot.<span class="fn">router/app_router.dart</span></td><td>Renommer « Demandes de créneau ».</td></tr>
+<tr><td><span class="sev p2">P2</span></td><td><span class="app se">Secrétariat</span></td><td><code>/a2ui-demo</code> : route de démonstration <strong>livrée en production</strong>, atteignable par URL.<span class="fn">router/app_router.dart</span></td><td>Drapeau de build.</td></tr>
+<tr><td><span class="sev p3">P3</span></td><td><span class="app se">Secrétariat</span></td><td>17 destinations de premier niveau, sans hiérarchie : <code>/admin-secretariats</code> (une fois à l'installation) au même rang que <code>/agenda</code>.<span class="fn">router/app_router.dart</span></td><td>5 groupes par fréquence d'usage.<span class="fn tick">livré</span></td></tr>
+<tr><td><span class="sev p3">P3</span></td><td><span class="app se">Secrétariat</span></td><td><code>_initials()</code> retourne <code>trimmed[0]</code> — <strong>une seule lettre</strong>. Dans une salle de six, les avatars se répètent, alors que le reste du dépôt calcule deux lettres sans civilité.<span class="fn">waiting_room_page.dart</span></td><td>Fondation 3.</td></tr>
+<tr><td><span class="sev p3">P3</span></td><td><span class="app pr">Praticien</span></td><td><code>ToothGrid</code> empile <strong>quatre rangées</strong> au lieu de deux arcades, sans ligne médiane, avec des cibles de 32 px. Partagé avec <code>DentalChartPage</code>.<span class="fn">dental_chart/tooth_grid.dart</span></td><td>Fondation 4.</td></tr>
+<tr><td><span class="sev p4">P4</span></td><td><span class="app pt">Patient</span></td><td><code>NubiaBottomNav</code> (design system) et la <code>NavigationBar</code> inline de <code>DashboardPage</code> divergent sur l'ordre et les libellés.<span class="fn">nubia_bottom_nav.dart · dashboard_page.dart</span></td><td>Une seule source.</td></tr>
+<tr><td><span class="sev p4">P4</span></td><td><span class="app se">Secrétariat</span></td><td>Coquille propagée à chaque import : <code>AdminSecretiariatsPage</code> / <code>AdminSecretiariatsBloc</code>.<span class="fn">admin_secretariats/</span></td><td>Renommage mécanique.</td></tr>
+</tbody>
+</table>
+
+<h2><span class="num">06</span>Les cinq fondations à poser</h2>
+<p class="p">Chacune débloque plusieurs écrans à la fois. Ce sont elles, et non de nouvelles maquettes, qui conditionnent la suite.</p>
+
+<div class="box"><div class="h"><span class="ic f">payments</span>Fondation 1 — Un seul format monétaire, dans <code>nubia_core</code></div>
+<p class="p">Deux implémentations coexistent, dont une fautive. Dupliquer un format d'argent finit toujours par produire deux formats : c'est déjà le cas. La bonne version existe côté Patient — il s'agit de la remonter, pas de l'écrire.</p>
+<div class="code"><pre><span class="c">// nubia_core/lib/src/format/money.dart</span>
+<span class="k">String</span> formatCents(<span class="k">int</span> cents, {<span class="k">bool</span> exact = <span class="k">false</span>});
+<span class="c">// 206000 → « 2 060 € »   ·   8050 → « 80,50 € »   ·   -1450 → « −14,50 € »</span>
+<span class="c">// virgule décimale · espace fine insécable · « − » typographique</span></pre></div>
+<p class="p">Consommateurs : Patient (devis, accueil), Praticien (consultation, ordonnance), Pharmacie (encaissement), Secrétariat (devis, encaissements).</p>
+</div>
+
+<div class="box"><div class="h"><span class="ic f">database</span>Fondation 2 — Cinq champs à exposer côté domaine</div>
+<p class="p">Cinq écrans butent sur la même cause : l'interface ne peut pas montrer ce que le modèle ne porte pas. Aucun n'est un travail de design.</p>
+<div class="two">
+<div class="card"><div class="t">Patient · accueil</div><div class="d"><code>DashboardSummary.nextAppointment</code> (date, praticien, motif, adresse) et <code>treatmentProgress</code>. Sans eux, l'accueil ne peut afficher que des compteurs — le défaut d'origine.</div></div>
+<div class="card"><div class="t">Secrétariat · agenda</div><div class="d"><code>AgendaLoaded.weekStart</code>. L'écran passe la semaine à l'event mais l'état ne la conserve pas : ni titre, ni colonne pour un jour vide, ni navigation.</div></div>
+<div class="card"><div class="t">Secrétariat · salle d'attente</div><div class="d"><code>WaitingRoomLoaded.actionError</code> et <code>actionInProgress</code>. Sans eux, un échec d'appel continuera d'effacer la liste (P1).</div></div>
+<div class="card"><div class="t">Pharmacie · délivrance</div><div class="d"><code>PharmacyOrder.lines</code> et <code>billing</code>. Sans les lignes, l'écran ne peut que renvoyer vers un PDF externe (P1).</div></div>
+<div class="card" style="grid-column:1/-1"><div class="t">Praticien · ordonnance</div><div class="d"><code>PrescriptionItem</code> est quatre chaînes. Il manque une posologie décomposée (dose, fréquence, durée → quantité <em>calculée</em>), une référence produit issue d'un référentiel médicament, et les mentions légales <em>non substituable</em> / <em>non renouvelable</em>. <strong>C'est le même modèle qui alimenterait les <code>lines</code> manquantes de <code>PharmacyOrder</code></strong> — une seule lacune, vue des deux bouts de la chaîne.</div></div>
+</div>
+</div>
+
+<div class="box"><div class="h"><span class="ic f">badge</span>Fondation 3 — Initiales et identité, une fois pour toutes</div>
+<p class="p">Quatre implémentations d'initiales coexistent : deux lettres avec civilité retirée (Patient, agenda, consultation), et une seule lettre côté salle d'attente. À placer dans le design system, à côté de <code>NubiaAvatar</code> qui les consomme.</p>
+</div>
+
+<div class="box"><div class="h"><span class="ic f">dentistry</span>Fondation 4 — <code>ToothGrid</code> : deux arcades, cibles de 44 px</div>
+<p class="p">Quatre rangées empilées deviennent deux arcades avec ligne médiane ; <code>colorFor → Color</code> devient <code>stateFor → ToothState</code> pour porter sélection et état ; <code>ToothButton</code> passe de 32 à 44 px de haut. Correction partagée avec <code>DentalChartPage</code> (#4047) — donc à arbitrer ensemble.</p>
+</div>
+
+<div class="box warn"><div class="h"><span class="ic f">gavel</span>Fondation 5 — Ce qui ne doit pas être « amélioré »</div>
+<p class="p">Deux comportements ressemblent à des défauts et n'en sont pas. À documenter dans le design system pour qu'aucune itération future ne les corrige par erreur :</p>
+<p class="p"><strong>Le bandeau d'allergies est passif par conception</strong> (#4076, ADR-009 §8.6) : informatif, jamais bloquant, sans suggestion d'alternative — franchir cette ligne fait basculer le produit en périmètre dispositif médical. Corollaire découvert en maquettant : les classes thérapeutiques doivent être rendues dans une teinte <em>identique</em>, car les colorer selon les allergies du dossier revient à effectuer la vérification exclue.</p>
+<p class="p"><strong>Le cloisonnement secrétariat</strong> : aucune donnée clinique côté comptoir, motif administratif uniquement. Le code le documente en commentaire ; l'interface doit le dire à l'écran.</p>
+</div>
+
+<div class="foot">
+<b>Méthode.</b> Chaque constat provient de la lecture du code, jamais d'une capture. Les correctifs métier existants — numéros d'issue, contraintes réglementaires, gardes anti-régression — ont été préservés à l'identique et tracés dans un README par application. Les maquettes portent leurs propres notes de conception : <b>Patient</b> (accueil, mes RDV, réservation, devis) · <b>Secrétariat</b> (agenda, salle d'attente, navigation) · <b>Praticien</b> (consultation, ordonnance) · <b>Pharmacie</b> (délivrance et retrait).<br><br>
+<b>Réserves assumées.</b> Le shell <code>ProShell</code> et le tableau de bord Secrétariat n'ont pas été lus — les propositions de navigation partent des routes. Les rôles réels de <code>ProAuthCubit</code> restent à confirmer pour filtrer le groupe « Réglages ».
+</div>
+
+</div></body></html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Patient — Invitation d'un proche adulte</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.wrap{width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:14px}
+.phones{display:flex;gap:34px;align-items:flex-start}
+.ph{width:390px;flex:0 0 390px}
+.phl{font-size:12.5px;font-weight:600;color:var(--n600);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.phl .n{width:20px;height:20px;border-radius:6px;background:var(--n900);color:#fff;font-size:10.5px;display:grid;place-items:center}
+.phl .who{margin-left:auto;font-size:11px;font-weight:600;border-radius:5px;padding:2px 7px}
+.phl .who.a{background:var(--brand50);color:var(--brand800)}
+.phl .who.b{background:var(--infoBg);color:var(--infoFg)}
+.screen{width:390px;height:1014px;flex:0 0 auto;background:var(--n50);border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 26px 60px -22px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09)}
+.sbar{height:50px;flex:0 0 50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 7px;font-size:14px;font-weight:600;background:var(--n0)}
+.sbar .r{display:flex;gap:5px;align-items:center}
+.sbar .r .ic{font-size:16px}
+.hd{background:var(--n0);padding:6px 20px 14px;border-bottom:1px solid var(--n200)}
+.hd .row{display:flex;align-items:center;gap:12px}
+.hd .bk{width:36px;height:36px;flex:0 0 36px;border-radius:50%;background:var(--n100);display:grid;place-items:center;color:var(--n700)}
+.hd .bk .ic{font-size:20px}
+.hd h1{font-size:21px;font-weight:600;letter-spacing:-.4px}
+.hd .sb{font-size:12.5px;color:var(--n500);margin-top:2px}
+.body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.scroll{flex:1;overflow:hidden;padding:14px 20px 18px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.mut{background:var(--n100);color:var(--n500)}.pill.ok{background:var(--okBg);color:var(--okFg)}
+/* form */
+.fl{font-size:12.5px;font-weight:500;color:var(--n600);margin-bottom:6px}
+.fi{height:52px;border:1px solid var(--n300);border-radius:12px;background:var(--n0);display:flex;align-items:center;padding:0 14px;font-size:15px;margin-bottom:13px}
+.fi.ph2{color:var(--n400)}
+.fi .ic{font-size:19px;color:var(--n400);margin-right:10px}
+.seg{display:flex;gap:8px;margin-bottom:13px}
+.sc{flex:1;height:38px;border:1px solid var(--n300);border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:500;color:var(--n700);background:var(--n0)}
+.sc.on{background:var(--n900);border-color:var(--n900);color:#fff}
+.expl{background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:14px;margin-bottom:13px}
+.expl .h{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.expl .h .ic{font-size:18px;color:var(--brand700)}
+.expl .t{font-size:13px;line-height:19px;color:var(--n600);margin-top:7px}
+.scope{background:var(--n0);border:1px solid var(--n200);border-radius:14px;overflow:hidden;margin-bottom:13px}
+.sh{padding:11px 13px;border-bottom:1px solid var(--n100);font-size:11.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--n400)}
+.sr{display:flex;align-items:center;gap:11px;padding:11px 13px;border-bottom:1px solid var(--n100)}
+.sr:last-child{border-bottom:0}
+.sr>.ic{font-size:19px;color:var(--n500);flex:0 0 19px}
+.sr .l{flex:1;min-width:0}
+.sr .l1{font-size:14px;font-weight:500}
+.sr .l2{font-size:11.5px;color:var(--n500);margin-top:2px}
+.tg{width:46px;height:27px;border-radius:99px;background:var(--n300);position:relative;flex:0 0 46px}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tg.on{background:var(--brand600)}
+.tg.on::after{left:22px}
+.cta{height:52px;border-radius:13px;background:var(--brand700);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:500}
+.cta .ic{font-size:19px}
+.cta.s{background:var(--n0);border:1px solid var(--n300);color:var(--n900);height:46px;font-size:14px}
+.cta.s .ic{color:var(--n500)}
+.cta.d{background:var(--dangFg)}
+.info{display:flex;gap:9px;background:var(--n0);border:1px solid var(--n200);border-radius:12px;padding:11px 12px;margin-top:12px}
+.info .ic{font-size:17px;color:var(--n400);flex:0 0 17px;margin-top:1px}
+.info .t{font-size:11.5px;line-height:17px;color:var(--n500)}
+/* liste proches */
+.gh{font-size:11.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);padding:4px 2px 9px;display:flex;align-items:center}
+.dep{background:var(--n0);border:1px solid var(--n200);border-radius:16px;padding:14px;margin-bottom:11px}
+.dep.pend{border-style:dashed;background:var(--n50)}
+.dep .r1{display:flex;align-items:center;gap:13px}
+.dep .av{width:46px;height:46px;flex:0 0 46px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:15px;font-weight:600;color:var(--brand800)}
+.dep.pend .av{background:var(--n100);color:var(--n500)}
+.dep .n1{font-size:16px;font-weight:600;letter-spacing:-.2px}
+.dep .n2{font-size:12.5px;color:var(--n500);margin-top:2px}
+.dep .st{margin-top:12px;padding-top:11px;border-top:1px solid var(--n100);display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--n600)}
+.dep .st .ic{font-size:16px;color:var(--n400)}
+.dep .qa{display:flex;gap:8px;margin-top:11px}
+.qb{flex:1;height:38px;border-radius:11px;border:1px solid var(--n200);display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:500}
+.qb .ic{font-size:16px;color:var(--n500)}
+/* écran invité */
+.hero{background:var(--n0);border:1px solid var(--n200);border-radius:18px;padding:20px;text-align:center;margin-bottom:14px}
+.hero .av2{width:62px;height:62px;margin:0 auto;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:20px;font-weight:600;color:var(--brand800)}
+.hero .t1{font-size:19px;font-weight:600;letter-spacing:-.3px;margin-top:12px;line-height:26px}
+.hero .t2{font-size:13.5px;line-height:20px;color:var(--n600);margin-top:8px}
+.ask{background:var(--n0);border:1px solid var(--n200);border-radius:14px;overflow:hidden;margin-bottom:13px}
+.ar{display:flex;align-items:flex-start;gap:11px;padding:12px 13px;border-bottom:1px solid var(--n100)}
+.ar:last-child{border-bottom:0}
+.ar .ic{font-size:18px;flex:0 0 18px;margin-top:1px}
+.ar.y .ic{color:var(--brand700)}
+.ar.n .ic{color:var(--dangFg)}
+.ar .t{font-size:13.5px;line-height:20px;color:var(--n700)}
+.acts{display:flex;flex-direction:column;gap:9px}
+/* notes */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--warnFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--warnFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Patient · Mobile 390 × 1000 — inviter un proche adulte (décision Q7)</div>
+<div class="phones">
+
+<div class="ph">
+<div class="phl"><span class="n">1</span>Inviter<span class="who a">Côté demandeur</span></div>
+<div class="screen" data-screen-label="Patient · Inviter un proche adulte">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="row"><div class="bk"><span class="ic">arrow_back</span></div><div><h1>Ajouter un proche</h1><div class="sb">Un adulte doit accepter votre demande</div></div></div></div>
+<div class="body"><div class="scroll">
+
+<div class="seg"><div class="sc">Enfant</div><div class="sc on">Conjoint</div><div class="sc">Autre</div></div>
+
+<div class="expl"><div class="h"><span class="ic f">handshake</span>Pourquoi une demande ?</div>
+<div class="t">Vous gérez un enfant mineur de plein droit. Pour un adulte, la loi exige <b>son accord</b> : nous lui envoyons une demande qu'il peut accepter ou refuser.</div></div>
+
+<div class="fl">Prénom</div><div class="fi">Émile</div>
+<div class="fl">Nom</div><div class="fi">Martin</div>
+<div class="fl">Où lui envoyer la demande</div>
+<div class="fi"><span class="ic">mail</span>emile.martin@email.fr</div>
+
+<div class="scope"><div class="sh">Ce que vous pourrez faire</div>
+<div class="sr"><span class="ic">event_available</span><div class="l"><div class="l1">Ses rendez-vous</div><div class="l2">Voir, prendre, annuler</div></div><span class="tg on"></span></div>
+<div class="sr"><span class="ic">folder</span><div class="l"><div class="l1">Ses documents</div><div class="l2">Ordonnances, devis, factures</div></div><span class="tg on"></span></div>
+<div class="sr"><span class="ic">chat_bubble</span><div class="l"><div class="l1">Ses messages avec le cabinet</div></div><span class="tg"></span></div>
+</div>
+
+<div class="cta"><span class="ic">send</span>Envoyer la demande</div>
+<div class="info"><span class="ic f">shield</span><span class="t">Émile choisira ce qu'il vous autorise, et pourra retirer cet accès à tout moment depuis son profil. Vous en serez informé.</span></div>
+
+</div></div>
+</div>
+</div>
+
+<div class="ph">
+<div class="phl"><span class="n">2</span>En attente<span class="who a">Côté demandeur</span></div>
+<div class="screen" data-screen-label="Patient · Demande en attente">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="row"><div class="bk"><span class="ic">arrow_back</span></div><div><h1>Mes proches</h1><div class="sb">1 compte géré · 1 demande en attente</div></div></div></div>
+<div class="body"><div class="scroll">
+
+<div class="gh">Comptes que vous gérez</div>
+
+<div class="dep">
+<div class="r1"><div class="av">LM</div>
+<div style="min-width:0;flex:1"><div class="n1">Lucas Marchand</div><div class="n2">Enfant · 11 ans</div></div></div>
+<div class="st"><span class="ic f">event</span>Prochain RDV jeudi 14 août, 16:30</div>
+<div class="qa"><div class="qb"><span class="ic">event_available</span>Prendre RDV</div><div class="qb"><span class="ic">folder</span>Documents</div></div>
+</div>
+
+<div class="gh">Demandes envoyées</div>
+
+<div class="dep pend">
+<div class="r1"><div class="av">EM</div>
+<div style="min-width:0;flex:1"><div class="n1">Émile Martin</div><div class="n2">Conjoint</div></div>
+<span class="pill warn"><span class="ic f">schedule</span>En attente</span></div>
+<div class="st"><span class="ic">mail</span>Envoyée hier à emile.martin@email.fr</div>
+<div class="qa"><div class="qb"><span class="ic">send</span>Relancer</div><div class="qb"><span class="ic">close</span>Annuler</div></div>
+</div>
+
+<div class="info"><span class="ic f">schedule</span><span class="t">Une demande sans réponse expire au bout de 30 jours. Vous pourrez en envoyer une nouvelle.</span></div>
+
+</div></div>
+</div>
+</div>
+
+<div class="ph">
+<div class="phl"><span class="n">3</span>Décider<span class="who b">Côté invité</span></div>
+<div class="screen" data-screen-label="Patient · Accepter ou refuser une demande">
+<div class="sbar"><span>9:41</span><span class="r"><span class="ic f">signal_cellular_alt</span><span class="ic f">wifi</span><span class="ic f">battery_full</span></span></div>
+<div class="hd"><div class="row"><div><h1>Une demande d'accès</h1><div class="sb">Vous décidez de ce que vous autorisez</div></div></div></div>
+<div class="body"><div class="scroll">
+
+<div class="hero"><div class="av2">JM</div>
+<div class="t1">Julie Martin souhaite gérer votre dossier</div>
+<div class="t2">Elle s'est déclarée comme votre conjointe. Si vous ne la reconnaissez pas, refusez cette demande.</div></div>
+
+<div class="ask"><div class="sh" style="border-bottom:1px solid var(--n100)">Ce qu'elle pourrait faire</div>
+<div class="ar y"><span class="ic f">check_circle</span><div class="t">Voir, prendre et annuler <b>vos rendez-vous</b></div></div>
+<div class="ar y"><span class="ic f">check_circle</span><div class="t">Consulter <b>vos documents</b> — ordonnances, devis, factures</div></div>
+<div class="ar n"><span class="ic f">cancel</span><div class="t">Elle n'aura <b>pas</b> accès à vos messages avec le cabinet</div></div>
+<div class="ar n"><span class="ic f">cancel</span><div class="t">Elle ne pourra <b>pas</b> modifier vos consentements</div></div>
+</div>
+
+<div class="scope"><div class="sh">Ajuster avant d'accepter</div>
+<div class="sr"><span class="ic">event_available</span><div class="l"><div class="l1">Mes rendez-vous</div></div><span class="tg on"></span></div>
+<div class="sr"><span class="ic">folder</span><div class="l"><div class="l1">Mes documents</div></div><span class="tg on"></span></div>
+</div>
+
+<div class="acts">
+<div class="cta"><span class="ic">check</span>Accepter</div>
+<div class="cta s"><span class="ic">close</span>Refuser</div>
+</div>
+
+<div class="info"><span class="ic f">lock</span><span class="t">Vous pourrez retirer cet accès à tout moment, depuis Profil → Mes proches. Julie en sera informée.</span></div>
+
+</div></div>
+</div>
+</div>
+
+</div>
+</div>
+
+<div class="notes">
+<div class="nk">App Patient · Invitation d'un proche adulte</div>
+<h2>Aujourd'hui, un nom suffit pour ouvrir le dossier d'un adulte</h2>
+<p class="lede">L'écran « Mes proches » demande un prénom, un nom, un lien — et l'on gère le dossier de santé de quelqu'un d'autre. Pour un enfant mineur, c'est légitime : l'autorité parentale s'exerce de plein droit. Pour un <strong>conjoint</strong>, rien n'établit son accord. Ce parcours le recueille.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Le lien détermine le parcours, pas seulement l'étiquette</div><div class="np">Choisir « Enfant » garde la saisie directe ; choisir « Conjoint » ou « Autre » la transforme en <strong>demande</strong>. Un seul formulaire, deux régimes — parce que <code>DependentRelationship</code> porte déjà cette distinction, sans que rien n'en découle aujourd'hui.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">L'invité décide de l'étendue, pas le demandeur</div><div class="np">Le demandeur propose un périmètre ; l'invité l'ajuste avant d'accepter. C'est la différence entre un accord et une notification : si l'invité ne peut rien modifier, son « accord » se réduit à un bouton.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Dire ce qui restera hors d'atteinte</div><div class="np">Deux lignes en négatif — les messages avec le cabinet, les consentements. Un accès partagé sans limite énoncée se refuse par prudence ; les mêmes bornes affichées, il s'accepte.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">« Si vous ne la reconnaissez pas, refusez »</div><div class="np">Le cas d'usage hostile existe : une personne qui déclare un lien qu'elle n'a pas. L'écran nomme le doute au lieu de supposer la bonne foi — c'est la phrase la plus importante du parcours.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Une révocation symétrique et notifiée</div><div class="np">L'invité retire l'accès depuis son propre profil, à tout moment, et le gestionnaire en est informé. Sans notification, un gestionnaire découvrirait la révocation en tombant sur un écran vide.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Une demande expire</div><div class="np">Trente jours. Une invitation qui reste ouverte indéfiniment est une porte laissée entrouverte — et pour l'invité, une sollicitation qui ne s'éteint jamais.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">help</span>Trois points que ce parcours ne tranche pas</div>
+<div class="p"><strong>1. L'invité n'a pas de compte Nubia.</strong> Le cas le plus courant, probablement : un conjoint qui n'est pas patient du cabinet. L'invitation doit alors amorcer une création de compte — donc croiser le parcours d'inscription. À spécifier avant développement, sinon le parcours ne fonctionne que pour les couples déjà tous deux clients.</div>
+<div class="p"><strong>2. Le lien « Autre » reste flou.</strong> Parent âgé, personne accompagnée, aidant : le même parcours d'invitation s'applique tant qu'il s'agit d'un adulte capable. Mais si « Autre » recouvre en pratique des personnes protégées, il relève de la vérification de mesure de protection (décision Q10) — pas d'une invitation.</div>
+<div class="p"><strong>3. Le cabinet doit-il voir ces liens ?</strong> Un secrétariat qui reçoit un appel de Julie pour un rendez-vous d'Émile a besoin de savoir qu'elle est habilitée. La fiche patient côté Secrétariat affiche déjà « À charge » ; il faudra y refléter l'étendue réelle et l'état de la demande.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>Les trois valeurs de <code>DependentRelationship</code> sont conservées : c'est leur <em>traitement</em> qui diffère, pas le modèle.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Le parcours enfant reste inchangé — saisie directe, aucune demande, plus le champ date de naissance déjà livré.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>DeleteDependentUseCase</code> reste la révocation côté gestionnaire ; la révocation côté invité est un nouveau cas d'usage.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Confirmation par dialogue avant suppression conservée, avec le nom dans le message.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Clés conservées : <code>dependents_list</code>, <code>dependent_&lt;id&gt;</code>, <code>dependent_first_name</code>, <code>dependent_last_name</code>, <code>dependent_relationship</code>, <code>save_dependent_button</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Champs à exposer : état de la demande (envoyée / acceptée / refusée / expirée), canal d'envoi, périmètre accordé, et date de révocation.</span></li>
+</ul></div>
+</div>
+</div></body></html>

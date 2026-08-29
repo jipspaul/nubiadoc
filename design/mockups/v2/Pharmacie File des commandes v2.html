@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Pharmacie — File des commandes v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.cap{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:12px}
+.win{width:1440px;height:900px;background:var(--n0);border-radius:12px;overflow:hidden;box-shadow:0 30px 70px -24px rgba(28,25,23,.45),0 0 0 1px rgba(28,25,23,.09);display:flex}
+.rail{width:58px;flex:0 0 58px;background:var(--n900);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px}
+.rail .lg{width:30px;height:30px;border-radius:8px;background:var(--brand600);display:grid;place-items:center;color:#fff;font-size:14px;font-weight:700;margin-bottom:8px}
+.rail .it{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#8A8580}
+.rail .it .ic{font-size:20px}
+.rail .it.on{background:rgba(255,255,255,.11);color:#fff}
+.rail .sp{flex:1}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n50)}
+.tb{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 20px}
+.tb .r1{display:flex;align-items:center;gap:16px}
+.tb h1{font-size:20px;font-weight:600;letter-spacing:-.35px}
+.kpis{display:flex;align-items:flex-end;gap:22px;margin-left:8px}
+.kpi .v{font-size:18px;font-weight:700;letter-spacing:-.3px;line-height:21px;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:10.5px;color:var(--n500);margin-top:1px}
+.kpi.d .v{color:var(--dangFg)}
+.kpi.w .v{color:var(--warnFg)}
+.sp2{flex:1}
+.srch{width:250px;height:34px;border:1px solid var(--n200);border-radius:9px;display:flex;align-items:center;gap:8px;padding:0 11px;font-size:13px;color:var(--n400)}
+.srch .ic{font-size:18px}
+.srch .kbd{margin-left:auto;font-size:10px;font-weight:600;border:1px solid var(--n200);border-radius:4px;padding:1px 5px;background:var(--n50)}
+.hb{height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--n200);display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;background:var(--n0)}
+.hb .ic{font-size:17px;color:var(--n500)}
+.hb.p{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.hb.p .ic{color:#fff}
+.tb .r2{display:flex;align-items:center;gap:8px;margin-top:11px}
+.fc{height:30px;padding:0 11px;border:1px solid var(--n200);border-radius:99px;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--n800);background:var(--n0)}
+.fc.on{background:var(--n900);border-color:var(--n900);color:#fff}
+.fc.on .n{background:rgba(255,255,255,.2);color:#fff}
+.fc .n{font-size:11px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:1px 6px;font-variant-numeric:tabular-nums}
+.fc .dt{width:8px;height:8px;border-radius:99px}
+.live{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--n500)}
+.live .p{width:7px;height:7px;border-radius:99px;background:var(--brand600)}
+/* table */
+.split{flex:1;display:flex;min-height:0}
+.tbl{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--n0)}
+.thead,.row{display:grid;grid-template-columns:96px minmax(0,1fr) 168px 84px 124px 126px;gap:12px;align-items:center}
+.thead{padding:8px 20px;border-bottom:1px solid var(--n200);font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400)}
+.thead .r2{text-align:right}
+.tbody{flex:1;overflow:hidden}
+.row{padding:11px 20px;border-bottom:1px solid var(--n100);border-left:3px solid transparent}
+.row.on{background:var(--brand50);border-left-color:var(--brand700)}
+.row.urgent{background:#FFFBFA}
+.tm{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.tm .s{font-size:10.5px;color:var(--n500);margin-top:2px;font-weight:400}
+.tm .s.late{color:var(--dangFg);font-weight:600}
+.tm .s.soon{color:var(--warnFg);font-weight:600}
+.who{display:flex;align-items:center;gap:10px;min-width:0}
+.av{width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:var(--brand100);display:grid;place-items:center;font-size:11.5px;font-weight:600;color:var(--brand800)}
+.who .n1{font-size:13.5px;font-weight:600;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who .n2{font-size:11px;color:var(--n500);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oid{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--n500)}
+.presc{font-size:12px;color:var(--n700);min-width:0}
+.presc .s{font-size:10.5px;color:var(--n500);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ln{text-align:right;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.ln .s{font-size:10.5px;color:var(--n500);font-weight:400}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.pill .ic{font-size:13px}
+.pill.info{background:var(--infoBg);color:var(--infoFg)}.pill.ok{background:var(--okBg);color:var(--okFg)}.pill.warn{background:var(--warnBg);color:var(--warnFg)}.pill.dang{background:var(--dangBg);color:var(--dangFg)}.pill.mut{background:var(--n100);color:var(--n500)}
+.act{display:flex;justify-content:flex-end}
+.ab{height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--n200);display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;background:var(--n0);white-space:nowrap}
+.ab .ic{font-size:15px;color:var(--n500)}
+.ab.p{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.ab.p .ic{color:#fff}
+.foot{border-top:1px solid var(--n200);background:var(--n0);padding:9px 20px;display:flex;align-items:center;gap:16px;font-size:11.5px;color:var(--n500)}
+.foot b{color:var(--n900);font-weight:600}
+.foot .kb{margin-left:auto;display:flex;gap:12px}
+.foot .kb span{display:flex;align-items:center;gap:4px}
+.foot .kb b{font-size:10px;font-weight:600;border:1px solid var(--n200);border-radius:4px;padding:1px 5px;background:var(--n50);color:var(--n600)}
+/* aside */
+.aside{width:326px;flex:0 0 326px;border-left:1px solid var(--n200);background:var(--n0);display:flex;flex-direction:column}
+.ah{padding:11px 14px;border-bottom:1px solid var(--n200);display:flex;align-items:center;gap:8px}
+.ah .ic{font-size:17px;color:var(--n500)}
+.ah .t{font-size:13px;font-weight:600}
+.ah .n{margin-left:auto;font-size:10.5px;font-weight:600;background:var(--n100);color:var(--n600);border-radius:99px;padding:2px 7px}
+.sr{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--n100)}
+.sr .ico{width:30px;height:30px;flex:0 0 30px;border-radius:8px;display:grid;place-items:center}
+.sr .ico .ic{font-size:16px}
+.sr .ico.w{background:var(--warnBg);color:var(--warnFg)}
+.sr .ico.d{background:var(--dangBg);color:var(--dangFg)}
+.sr .ico.i{background:var(--infoBg);color:var(--infoFg)}
+.sr .ico.b{background:var(--brand50);color:var(--brand700)}
+.sr .n1{font-size:12.5px;font-weight:500}
+.sr .n2{font-size:11px;color:var(--n500);margin-top:1px}
+.sr .cnt{margin-left:auto;min-width:21px;height:21px;border-radius:99px;background:var(--n900);color:#fff;font-size:11px;font-weight:600;display:grid;place-items:center;padding:0 6px}
+.sr .cnt.w{background:var(--warnFg)}
+.sr .cnt.d{background:var(--dangFg)}
+.hrs{padding:12px 14px;border-bottom:1px solid var(--n200)}
+.hb2{display:flex;align-items:flex-end;gap:4px;height:64px;margin-top:9px}
+.hb2 i{flex:1;background:var(--brand200);border-radius:3px 3px 0 0}
+.hb2 i.now{background:var(--brand700)}
+.hl{display:flex;justify-content:space-between;font-size:10px;color:var(--n400);margin-top:5px;font-variant-numeric:tabular-nums}
+.note{display:flex;gap:8px;background:var(--n50);border:1px solid var(--n200);border-radius:9px;padding:9px 10px;margin:12px 14px}
+.note .ic{font-size:15px;color:var(--n400);flex:0 0 15px;margin-top:1px}
+.note .t{font-size:11px;line-height:16px;color:var(--n500)}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--dangFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--dangFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.ok2{border-left-color:var(--okFg)}
+.box.ok2 .h .ic{color:var(--okFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<div><div class="cap">App Pharmacie · PC 1440 × 900 — file des commandes</div>
+<div class="win" data-screen-label="Pharmacie · File des commandes">
+<div class="rail"><div class="lg">N</div>
+<div class="it"><span class="ic">space_dashboard</span></div><div class="it on"><span class="ic f">receipt_long</span></div><div class="it"><span class="ic">qr_code_scanner</span></div><div class="it"><span class="ic">description</span></div><div class="it"><span class="ic">inventory_2</span></div><div class="it"><span class="ic">chat_bubble</span></div><div class="sp"></div><div class="it"><span class="ic">settings</span></div></div>
+
+<div class="main">
+<div class="tb">
+<div class="r1"><h1>Commandes</h1>
+<div class="kpis">
+<div class="kpi d"><div class="v">2</div><div class="l">à préparer d'urgence</div></div>
+<div class="kpi w"><div class="v">5</div><div class="l">en préparation</div></div>
+<div class="kpi"><div class="v">4</div><div class="l">prêtes à retirer</div></div>
+<div class="kpi"><div class="v">23</div><div class="l">délivrées aujourd'hui</div></div>
+</div>
+<div class="sp2"></div>
+<div class="srch"><span class="ic">search</span>Patient, n° commande…<span class="kbd">/</span></div>
+<div class="hb p"><span class="ic">qr_code_scanner</span>Scanner un retrait</div>
+</div>
+<div class="r2">
+<div class="fc on">Toutes<span class="n">14</span></div>
+<div class="fc"><span class="dt" style="background:var(--infoFg)"></span>Reçues<span class="n">5</span></div>
+<div class="fc"><span class="dt" style="background:var(--warnFg)"></span>En préparation<span class="n">5</span></div>
+<div class="fc"><span class="dt" style="background:var(--okFg)"></span>Prêtes<span class="n">4</span></div>
+<div class="live"><span class="p"></span>Mise à jour il y a 12 s</div>
+</div>
+</div>
+
+<div class="split">
+<div class="tbl">
+<div class="thead"><span>Reçue</span><span>Patient</span><span>Prescripteur</span><span class="r2">Lignes</span><span>Statut</span><span class="r2">Action</span></div>
+<div class="tbody">
+
+<div class="row urgent">
+<div class="tm">08:12<div class="s late">Attend 3 h 20</div></div>
+<div class="who"><div class="av">SR</div><div style="min-width:0"><div class="n1">Sophie Roux</div><div class="n2 oid">CMD-4842</div></div></div>
+<div class="presc">Dr A. Rousseau<div class="s">Cabinet Nubia Opéra</div></div>
+<div class="ln">2<div class="s">lignes</div></div>
+<div><span class="pill info"><span class="ic f">inbox</span>Reçue</span></div>
+<div class="act"><div class="ab p"><span class="ic">play_arrow</span>Préparer</div></div>
+</div>
+
+<div class="row urgent">
+<div class="tm">08:47<div class="s late">Attend 2 h 45</div></div>
+<div class="who"><div class="av">AB</div><div style="min-width:0"><div class="n1">Ahmed Belkacem</div><div class="n2 oid">CMD-4845</div></div></div>
+<div class="presc">Dr M. Lefèvre<div class="s">Cabinet Nubia Opéra</div></div>
+<div class="ln">4<div class="s">lignes</div></div>
+<div><span class="pill info"><span class="ic f">inbox</span>Reçue</span></div>
+<div class="act"><div class="ab p"><span class="ic">play_arrow</span>Préparer</div></div>
+</div>
+
+<div class="row on">
+<div class="tm">09:12<div class="s">Attend 2 h 20</div></div>
+<div class="who"><div class="av">JM</div><div style="min-width:0"><div class="n1">Julie Martin</div><div class="n2 oid">CMD-4821</div></div></div>
+<div class="presc">Dr A. Rousseau<div class="s">Cabinet Nubia Opéra</div></div>
+<div class="ln">3<div class="s">lignes</div></div>
+<div><span class="pill ok"><span class="ic f">check_circle</span>Prête</span></div>
+<div class="act"><div class="ab"><span class="ic">qr_code_scanner</span>Délivrer</div></div>
+</div>
+
+<div class="row">
+<div class="tm">09:30<div class="s">Attend 2 h 02</div></div>
+<div class="who"><div class="av">MD</div><div style="min-width:0"><div class="n1">Marc Dubois</div><div class="n2 oid">CMD-4839</div></div></div>
+<div class="presc">Dr M. Lefèvre<div class="s">Cabinet Nubia Opéra</div></div>
+<div class="ln">1<div class="s">ligne</div></div>
+<div><span class="pill ok"><span class="ic f">check_circle</span>Prête</span></div>
+<div class="act"><div class="ab"><span class="ic">qr_code_scanner</span>Délivrer</div></div>
+</div>
+
+<div class="row">
+<div class="tm">09:58<div class="s soon">Attend 1 h 34</div></div>
+<div class="who"><div class="av">CM</div><div style="min-width:0"><div class="n1">Camille Moreau</div><div class="n2 oid">CMD-4848</div></div></div>
+<div class="presc">Dr A. Rousseau<div class="s">Cabinet Nubia Opéra</div></div>
+<div class="ln">2<div class="s">lignes</div></div>
+<div><span class="pill warn"><span class="ic f">inventory</span>En préparation</span></div>
+<div class="act"><div class="ab"><span class="ic">done_all</span>Marquer prête</div></div>
+</div>
+
+<div class="row">
+<div class="tm">10:15<div class="s">Attend 1 h 17</div></div>
+<div class="who"><div class="av">LB</div><div style="min-width:0"><div class="n1">Léa Bernard</div><div class="n2 oid">CMD-4851</div></div></div>
+<div class="presc">Dr M. Lefèvre<div class="s">Cabinet Nubia Opéra</div></div>
+<div class="ln">2<div class="s">lignes</div></div>
+<div><span class="pill warn"><span class="ic f">inventory</span>En préparation</span></div>
+<div class="act"><div class="ab"><span class="ic">done_all</span>Marquer prête</div></div>
+</div>
+
+<div class="row">
+<div class="tm">10:34<div class="s">Attend 58 min</div></div>
+<div class="who"><div class="av">TG</div><div style="min-width:0"><div class="n1">Théo Girard</div><div class="n2 oid">CMD-4852</div></div></div>
+<div class="presc">Dr A. Rousseau<div class="s">Cabinet Nubia Opéra</div></div>
+<div class="ln">1<div class="s">ligne</div></div>
+<div><span class="pill info"><span class="ic f">inbox</span>Reçue</span></div>
+<div class="act"><div class="ab"><span class="ic">play_arrow</span>Préparer</div></div>
+</div>
+
+<div class="row">
+<div class="tm">10:52<div class="s">Attend 40 min</div></div>
+<div class="who"><div class="av">YD</div><div style="min-width:0"><div class="n1">Yanis Diallo</div><div class="n2 oid">CMD-4854</div></div></div>
+<div class="presc">Dr M. Lefèvre<div class="s">Cabinet Nubia Opéra</div></div>
+<div class="ln">3<div class="s">lignes</div></div>
+<div><span class="pill warn"><span class="ic f">inventory</span>En préparation</span></div>
+<div class="act"><div class="ab"><span class="ic">done_all</span>Marquer prête</div></div>
+</div>
+
+<div class="row">
+<div class="tm">11:08<div class="s">Attend 24 min</div></div>
+<div class="who"><div class="av">NL</div><div style="min-width:0"><div class="n1">Nina Lopez</div><div class="n2 oid">CMD-4856</div></div></div>
+<div class="presc">Dr A. Rousseau<div class="s">Cabinet Nubia Opéra</div></div>
+<div class="ln">2<div class="s">lignes</div></div>
+<div><span class="pill ok"><span class="ic f">check_circle</span>Prête</span></div>
+<div class="act"><div class="ab"><span class="ic">qr_code_scanner</span>Délivrer</div></div>
+</div>
+
+<div class="row">
+<div class="tm">11:21<div class="s">Attend 11 min</div></div>
+<div class="who"><div class="av">HP</div><div style="min-width:0"><div class="n1">Hugo Petit</div><div class="n2 oid">CMD-4858</div></div></div>
+<div class="presc">Dr M. Lefèvre<div class="s">Cabinet Nubia Opéra</div></div>
+<div class="ln">1<div class="s">ligne</div></div>
+<div><span class="pill info"><span class="ic f">inbox</span>Reçue</span></div>
+<div class="act"><div class="ab"><span class="ic">play_arrow</span>Préparer</div></div>
+</div>
+
+</div>
+<div class="foot"><span><b>10</b> commandes affichées sur 14</span><span>Délai moyen de préparation : <b>34 min</b></span>
+<span class="kb"><span><b>↑</b><b>↓</b>naviguer</span><span><b>⏎</b>ouvrir</span><span><b>S</b>scanner</span><span><b>/</b>rechercher</span></span></div>
+</div>
+
+<div class="aside">
+<div class="ah"><span class="ic f">pending_actions</span><span class="t">À traiter</span><span class="n">4</span></div>
+<div class="sr"><div class="ico d"><span class="ic">schedule</span></div><div style="min-width:0;flex:1"><div class="n1">Commandes en attente &gt; 2 h</div><div class="n2">2 patients concernés</div></div><span class="cnt d">2</span></div>
+<div class="sr"><div class="ico w"><span class="ic">warning</span></div><div style="min-width:0;flex:1"><div class="n1">Lignes en rupture</div><div class="n2">Chlorhexidine 0,12 %</div></div><span class="cnt w">1</span></div>
+<div class="sr"><div class="ico i"><span class="ic">chat_bubble</span></div><div style="min-width:0;flex:1"><div class="n1">Messages du cabinet</div><div class="n2">Nubia Opéra · non lus</div></div><span class="cnt">3</span></div>
+<div class="sr"><div class="ico b"><span class="ic">inventory_2</span></div><div style="min-width:0;flex:1"><div class="n1">Demandes de stock</div><div class="n2">reçues du cabinet</div></div><span class="cnt">1</span></div>
+
+<div class="hrs"><div class="ah" style="padding:0;border:0"><span class="ic f">insights</span><span class="t">Flux de la journée</span></div>
+<div class="hb2"><i style="height:22%"></i><i style="height:40%"></i><i style="height:64%"></i><i style="height:52%"></i><i class="now" style="height:78%"></i><i style="height:30%"></i><i style="height:18%"></i><i style="height:44%"></i><i style="height:56%"></i></div>
+<div class="hl"><span>08h</span><span>12h</span><span>16h</span><span>19h</span></div>
+</div>
+
+<div class="ah"><span class="ic f">local_pharmacy</span><span class="t">Cabinets partenaires</span></div>
+<div class="sr"><div style="min-width:0;flex:1"><div class="n1">Cabinet Nubia Opéra</div><div class="n2">14 commandes aujourd'hui</div></div></div>
+<div class="sr"><div style="min-width:0;flex:1"><div class="n1">Cabinet Saint-Lazare</div><div class="n2">aucune commande</div></div></div>
+
+<div class="note"><span class="ic f">shield</span><span class="t">La file n'affiche aucune donnée clinique au-delà de l'ordonnance à délivrer : ni antécédents, ni motif de consultation.</span></div>
+</div>
+
+</div>
+</div>
+</div></div>
+
+<div class="notes">
+<div class="nk">App Pharmacie · File des commandes</div>
+<h2>Une file d'attente sans temps d'attente</h2>
+<p class="lede">La file affiche des <code>OrderRow</code> empilées, filtrables par statut. Elle ne dit ni <strong>depuis quand</strong> chaque commande attend, ni combien il y en a par statut : les <code>NubiaChip</code> de filtre portent un libellé, jamais un compteur. Un comptoir de pharmacie se pilote pourtant au délai — c'est ce qui décide de l'ordre de préparation, et ce qui fait qu'un patient repart mécontent ou non.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Le temps d'attente devient la première colonne</div><div class="np">Heure de réception, puis durée écoulée avec escalade (« attend 3 h 20 » en rouge). C'est la donnée qui ordonne le travail, et elle n'existait nulle part — alors que <code>PharmacyOrder</code> porte déjà ses horodatages, utilisés par l'écran de détail.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Des filtres qui ne comptent rien</div><div class="np">Quatre puces — Toutes, Reçues, En préparation, Prêtes — sans un chiffre. Or <code>OrdersLoaded.orders</code> contient <strong>la file complète non filtrée</strong> : les compteurs sont calculables côté client, immédiatement, sans un appel de plus. Un cas rare où le correctif ne demande rien au back.</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Une ligne, une action</div><div class="np">Ouvrir le détail pour cliquer « Préparer » puis revenir, quinze fois par heure : l'action de transition passe sur la ligne, contextuelle au statut (<em>Préparer</em>, <em>Marquer prête</em>, <em>Délivrer</em>). Le détail reste pour l'ordonnance elle-même.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Le prescripteur n'apparaît pas</div><div class="np">Une pharmacie sert plusieurs cabinets. Savoir de qui vient l'ordonnance conditionne les questions à poser en cas de doute — et la colonne rend visible qu'un seul cabinet alimente réellement la file aujourd'hui.</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Un tirer-pour-rafraîchir sur un poste fixe</div><div class="np"><code>RefreshIndicator</code> et son <code>Completer</code> supposent un geste tactile. Au comptoir, la file doit se mettre à jour seule : indicateur de fraîcheur (« il y a 12 s ») et rafraîchissement périodique. Le <code>Completer</code> reste utile pour le tactile — mais il ne peut pas être le seul mécanisme.</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Quatre compteurs et une file de travail</div><div class="np">À préparer d'urgence, en préparation, prêtes, délivrées aujourd'hui. Et une colonne latérale qui agrège ce qui ne tient pas dans le tableau : ruptures, messages du cabinet, demandes de stock.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Le flux horaire, pour armer le comptoir</div><div class="np">Une pharmacie connaît ses pics. Neuf barres suffisent à montrer où l'on en est de la journée — information de pilotage, pas de décoration.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Aucune recherche</div><div class="np">Un patient se présente au comptoir sans son QR : il faut retrouver sa commande par son nom. La recherche manque, et c'est le cas d'usage le plus banal du métier.</div></div></li>
+</ol>
+
+<div class="box ok2"><div class="h"><span class="ic f">verified</span>Deux décisions du code à conserver</div>
+<div class="p"><strong>Le filtre est côté affichage, pas côté requête.</strong> <code>OrdersLoaded.visible</code> filtre une liste complète déjà chargée : changer de facette est instantané et ne déclenche aucun appel. C'est le bon choix pour une file de quelques dizaines d'éléments — et c'est ce qui rend les compteurs gratuits.</div>
+<div class="p"><strong>Le squelette de chargement est au bon rythme.</strong> Trois <code>NubiaSkeletonLoader</code> de 64 px, à la hauteur des lignes réelles, au lieu du <code>CircularProgressIndicator</code> centré qu'on retrouve sur six autres écrans du dépôt. C'est le modèle à généraliser.</div></div>
+
+<div class="box"><div class="h"><span class="ic f">database</span>Ce que la refonte suppose</div>
+<div class="p">Trois champs, dont deux sont probablement déjà là : <strong>(1)</strong> l'horodatage de réception exposé sur la ligne de liste (l'écran de détail affiche « reçue à 09:12 », donc la donnée existe) ; <strong>(2)</strong> le <strong>prescripteur</strong> (nom et cabinet) — sans lui, la colonne disparaît ; <strong>(3)</strong> le <strong>nombre de lignes</strong> de l'ordonnance, qui relève de la même lacune que celle relevée sur l'écran de délivrance : <code>PharmacyOrder</code> ne porte pas ses <code>lines</code>.</div>
+<div class="p">Le compteur de ruptures suppose en outre un état par ligne (« disponible / en rupture »), qui n'existe pas non plus. Sans lui, la colonne latérale perd son premier bloc — mais la file, elle, reste complète.</div></div>
+
+<div class="keep"><div class="kh">Logique métier préservée à l'identique</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>Filtrage client sur <code>OrdersLoaded.visible</code> conservé — aucun appel supplémentaire, y compris pour les compteurs.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>OrdersFilterChanged</code>, <code>OrdersRefreshRequested</code> et le <code>Completer</code> du tirer-pour-rafraîchir conservés (le rafraîchissement périodique s'y ajoute, ne s'y substitue pas).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Les quatre facettes gardent leurs valeurs et leurs clés : <code>orders_filter_all</code>, <code>orders_filter_received</code>, <code>orders_filter_preparing</code>, <code>orders_filter_ready</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Navigation <code>context.go('/orders/&lt;id&gt;')</code> conservée sur la ligne ; l'action de transition ne la remplace pas.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>NubiaEmptyState</code> et son sous-titre conservés mot pour mot.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Corps consommable dans le <code>bodyBuilder</code> du <code>ProShell</code>, sans <code>Scaffold</code> propre.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Le serveur reste l'autorité sur les transitions (<code>canTransitionTo</code>) : l'action de ligne émet le même événement que le détail.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Cloisonnement : aucune donnée clinique au-delà de l'ordonnance à délivrer.</span></li>
+</ul></div>
+</div>
+</div></body></html>

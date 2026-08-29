@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia Web — Tunnel de recherche et réservation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:44px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.cap{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+.cap .n{width:24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center}
+.cap .t{font-size:13px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--n500)}
+.cap .u{margin-left:auto;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--n500);background:var(--n0);border:1px solid var(--n200);border-radius:6px;padding:4px 9px}
+.sec{margin-top:26px}
+/* browser chrome */
+.bw{width:1280px;border-radius:12px;overflow:hidden;box-shadow:0 26px 62px -22px rgba(28,25,23,.42),0 0 0 1px rgba(28,25,23,.09);background:var(--n0)}
+.chrome{height:42px;background:#E9E7E4;border-bottom:1px solid var(--n200);display:flex;align-items:center;gap:12px;padding:0 14px}
+.dots{display:flex;gap:6px}
+.dots i{width:11px;height:11px;border-radius:50%;background:#D6D3D1}
+.urlb{flex:1;height:26px;background:var(--n0);border-radius:99px;display:flex;align-items:center;gap:7px;padding:0 12px;font-size:11.5px;color:var(--n600);font-family:ui-monospace,Menlo,monospace}
+.urlb .ic{font-size:13px;color:var(--okFg)}
+.urlb b{color:var(--n900);font-weight:600}
+.pg{height:818px;overflow:hidden;display:flex;flex-direction:column;background:var(--n50)}
+/* site header */
+.sh{background:var(--n0);border-bottom:1px solid var(--n200);height:62px;flex:0 0 62px;display:flex;align-items:center;gap:26px;padding:0 28px}
+.logo{display:flex;align-items:center;gap:9px}
+.logo .m{width:30px;height:30px;border-radius:9px;background:var(--brand600);display:grid;place-items:center;color:#fff;font-size:15px;font-weight:700}
+.logo .w{font-size:17px;font-weight:600;letter-spacing:-.3px}
+.nav{display:flex;gap:22px;font-size:13.5px;color:var(--n600)}
+.shr{margin-left:auto;display:flex;align-items:center;gap:10px}
+.lnk{font-size:13.5px;font-weight:500;color:var(--n700)}
+.btn{height:36px;padding:0 14px;border-radius:10px;display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:500;border:1px solid var(--n200);background:var(--n0)}
+.btn .ic{font-size:17px;color:var(--n500)}
+.btn.p{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.btn.p .ic{color:#fff}
+/* search bar */
+.sb{background:var(--n0);border-bottom:1px solid var(--n200);padding:12px 28px;display:flex;align-items:center;gap:10px}
+.fld{height:44px;border:1px solid var(--n200);border-radius:11px;display:flex;align-items:center;gap:9px;padding:0 13px;background:var(--n0)}
+.fld .ic{font-size:19px;color:var(--n400)}
+.fld .k{font-size:10px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--n400)}
+.fld .v{font-size:14px;font-weight:500}
+.fld.q{flex:1.4}
+.fld.l{flex:1}
+.fld.d{width:186px;flex:0 0 186px}
+.sbtn{height:44px;padding:0 20px;border-radius:11px;background:var(--brand700);color:#fff;display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:500}
+.sbtn .ic{font-size:19px}
+/* body split */
+.split{flex:1;min-height:0;display:flex}
+.aside{width:238px;flex:0 0 238px;border-right:1px solid var(--n200);background:var(--n0);padding:16px;overflow:hidden}
+.fg{margin-bottom:18px}
+.fgt{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--n400);margin-bottom:9px}
+.fo{display:flex;align-items:center;gap:9px;padding:5px 0;font-size:13px}
+.cb{width:17px;height:17px;flex:0 0 17px;border-radius:5px;border:1.5px solid var(--n300);display:grid;place-items:center;color:transparent}
+.cb .ic{font-size:12px}
+.cb.on{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.fo .n{margin-left:auto;font-size:11.5px;color:var(--n400);font-variant-numeric:tabular-nums}
+.res{flex:1;min-width:0;overflow:hidden;padding:16px 20px}
+.rh{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.rh h1{font-size:20px;font-weight:600;letter-spacing:-.35px}
+.rh .c{font-size:13px;color:var(--n500)}
+.rh .srt{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--n600);border:1px solid var(--n200);border-radius:99px;padding:5px 11px;background:var(--n0)}
+.rh .srt .ic{font-size:15px}
+/* practitioner card */
+.pc{background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:16px;margin-bottom:12px;display:flex;gap:16px}
+.pc .ph{width:70px;height:70px;flex:0 0 70px;border-radius:14px;background:var(--brand100);display:grid;place-items:center;font-size:21px;font-weight:600;color:var(--brand800)}
+.pc .mid{flex:1;min-width:0}
+.pc .nm{font-size:17px;font-weight:600;letter-spacing:-.25px}
+.pc .sp{font-size:13.5px;color:var(--n600);margin-top:2px}
+.pc .mt{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;align-items:center}
+.tag{font-size:11px;font-weight:600;border-radius:6px;padding:3px 8px;background:var(--n100);color:var(--n600)}
+.tag.b{background:var(--brand50);color:var(--brand800)}
+.tag.w{background:var(--warnBg);color:var(--warnFg)}
+.pc .adr{font-size:12.5px;color:var(--n500);margin-top:8px;display:flex;align-items:center;gap:6px}
+.pc .adr .ic{font-size:15px;color:var(--n400)}
+.pc .slots{width:330px;flex:0 0 330px;border-left:1px solid var(--n100);padding-left:16px}
+.sday{display:flex;gap:8px}
+.sd{flex:1;min-width:0}
+.sd .h{font-size:11px;font-weight:600;text-align:center;color:var(--n600);padding-bottom:7px;border-bottom:1px solid var(--n100);margin-bottom:7px}
+.sd .h .d{display:block;font-size:10.5px;font-weight:400;color:var(--n400);margin-top:1px}
+.chip{height:30px;border-radius:8px;border:1px solid var(--brand200);background:var(--brand50);color:var(--brand800);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;margin-bottom:6px;font-variant-numeric:tabular-nums}
+.chip.off{border-color:var(--n200);background:var(--n50);color:var(--n300);font-weight:400}
+.chip.sel{background:var(--brand700);border-color:var(--brand700);color:#fff}
+.more{font-size:12px;font-weight:600;color:var(--brand700);text-align:center;margin-top:4px}
+.nosl{background:var(--n50);border:1px dashed var(--n300);border-radius:10px;padding:14px;text-align:center}
+.nosl .t{font-size:12.5px;color:var(--n500)}
+.nosl .a{font-size:12.5px;font-weight:600;color:var(--brand700);margin-top:5px}
+/* SEO block */
+.seo{background:var(--n0);border-top:1px solid var(--n200);padding:14px 20px}
+.seo h2{font-size:14px;font-weight:600;margin-bottom:6px}
+.seo p{font-size:12.5px;line-height:19px;color:var(--n600);max-width:820px}
+.seo .lks{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.seo .lk{font-size:12px;color:var(--brand700);background:var(--brand50);border-radius:6px;padding:4px 9px}
+/* ── page 2 : fiche ── */
+.hero2{background:var(--n0);border-bottom:1px solid var(--n200);padding:20px 28px;display:flex;gap:20px;align-items:flex-start}
+.hero2 .ph{width:96px;height:96px;flex:0 0 96px;border-radius:18px;background:var(--brand100);display:grid;place-items:center;font-size:28px;font-weight:600;color:var(--brand800)}
+.hero2 h1{font-size:26px;font-weight:600;letter-spacing:-.5px}
+.hero2 .sp{font-size:15px;color:var(--n600);margin-top:3px}
+.hero2 .mt{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.hero2 .rt{margin-left:auto;text-align:right;flex:0 0 auto}
+.hero2 .rt .lb{font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--n400)}
+.hero2 .rt .vv{font-size:19px;font-weight:600;margin-top:3px}
+.tabs2{background:var(--n0);border-bottom:1px solid var(--n200);padding:0 28px;display:flex;gap:24px}
+.tb2{padding:11px 0;font-size:13.5px;font-weight:500;color:var(--n500);border-bottom:2px solid transparent}
+.tb2.on{color:var(--n900);font-weight:600;border-bottom-color:var(--n900)}
+.split2{flex:1;min-height:0;display:flex;gap:20px;padding:18px 28px}
+.agen{flex:1;min-width:0;background:var(--n0);border:1px solid var(--n200);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+.agh{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--n200)}
+.agh .t{font-size:14px;font-weight:600}
+.agh .nav2{margin-left:auto;display:flex;align-items:center;gap:2px;border:1px solid var(--n200);border-radius:9px;overflow:hidden}
+.agh .nav2 .b{width:30px;height:30px;display:grid;place-items:center;color:var(--n600)}
+.agh .nav2 .b .ic{font-size:18px}
+.agh .nav2 .l{padding:0 12px;height:30px;display:flex;align-items:center;font-size:12.5px;font-weight:500;border-left:1px solid var(--n200);border-right:1px solid var(--n200)}
+.wk{flex:1;display:flex;padding:12px 16px 16px;gap:8px;overflow:hidden}
+.wd{flex:1;min-width:0;display:flex;flex-direction:column}
+.wd .h{text-align:center;padding-bottom:9px;border-bottom:1px solid var(--n100);margin-bottom:9px}
+.wd .h .a{font-size:12px;font-weight:600}
+.wd .h .b{font-size:11px;color:var(--n500);margin-top:1px}
+.wd .h.tod .a{color:var(--brand700)}
+.wd .lst{flex:1;overflow:hidden}
+.side2{width:326px;flex:0 0 326px;display:flex;flex-direction:column;gap:14px}
+.card3{background:var(--n0);border:1px solid var(--n200);border-radius:14px;overflow:hidden}
+.c3h{padding:11px 14px;border-bottom:1px solid var(--n100);font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.c3h .ic{font-size:17px;color:var(--n500)}
+.c3b{padding:12px 14px}
+.kv2{display:flex;align-items:baseline;gap:10px;padding:6px 0;font-size:12.5px;border-bottom:1px solid var(--n100)}
+.kv2:last-child{border-bottom:0}
+.kv2 .k{width:92px;flex:0 0 92px;color:var(--n500)}
+.kv2 .v{flex:1;min-width:0;font-weight:500}
+.map{height:118px;background:linear-gradient(135deg,#E7E5E4 0%,#D6D3D1 100%);position:relative;display:grid;place-items:center}
+.map .pin{width:30px;height:30px;border-radius:50%;background:var(--brand700);display:grid;place-items:center;color:#fff;box-shadow:0 4px 12px -3px rgba(4,120,87,.6)}
+.map .pin .ic{font-size:17px}
+/* ── page 3 : confirmation ── */
+.conf{flex:1;min-height:0;display:flex;justify-content:center;padding:26px 28px;gap:24px;overflow:hidden}
+.form{width:600px;flex:0 0 600px}
+.steps{display:flex;align-items:center;margin-bottom:20px}
+.stp{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:500;color:var(--n400)}
+.stp .b{width:22px;height:22px;border-radius:99px;border:1.5px solid var(--n300);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--n400)}
+.stp.dn{color:var(--brand800)}
+.stp.dn .b{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.stp.now{color:var(--n900)}
+.stp.now .b{border-color:var(--n900);color:var(--n900)}
+.stl{flex:1;height:1.5px;background:var(--n200);margin:0 11px}
+.stl.dn{background:var(--brand200)}
+.fh2{font-size:22px;font-weight:600;letter-spacing:-.4px;margin-bottom:5px}
+.fs2{font-size:13.5px;color:var(--n600);margin-bottom:18px}
+.grp2{background:var(--n0);border:1px solid var(--n200);border-radius:14px;padding:16px;margin-bottom:14px}
+.gt2{font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.gt2 .ic{font-size:17px;color:var(--n500)}
+.ff{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.fi{display:flex;flex-direction:column}
+.fi .lb{font-size:11.5px;font-weight:500;color:var(--n600);margin-bottom:5px}
+.fi .in{height:42px;border:1px solid var(--n200);border-radius:10px;padding:0 12px;display:flex;align-items:center;font-size:14px;background:var(--n0)}
+.fi .in.ph{color:var(--n400)}
+.fi.full{grid-column:1 / -1}
+.opt{display:flex;gap:10px;padding:11px 0;border-top:1px solid var(--n100)}
+.opt:first-child{border-top:0;padding-top:0}
+.opt .cb2{width:19px;height:19px;flex:0 0 19px;border-radius:5px;border:1.5px solid var(--n300);display:grid;place-items:center;color:transparent;margin-top:1px}
+.opt .cb2 .ic{font-size:13px}
+.opt .cb2.on{background:var(--brand600);border-color:var(--brand600);color:#fff}
+.opt .t{font-size:12.5px;line-height:18px;color:var(--n700)}
+.opt .t b{font-weight:600}
+.opt .t .s{color:var(--n500);font-size:11.5px;display:block;margin-top:2px}
+.cta2{height:50px;border-radius:12px;background:var(--brand700);color:#fff;display:flex;align-items:center;justify-content:center;gap:9px;font-size:15.5px;font-weight:500}
+.cta2 .ic{font-size:20px}
+.rsr2{display:flex;align-items:flex-start;gap:8px;font-size:11.5px;line-height:16px;color:var(--n500);margin-top:11px}
+.rsr2 .ic{font-size:15px;color:var(--brand700);flex:0 0 15px;margin-top:1px}
+.recap{width:326px;flex:0 0 326px}
+.rcd{background:var(--n0);border:1px solid var(--n200);border-radius:14px;overflow:hidden;position:sticky;top:0}
+.rch{padding:14px;border-bottom:1px solid var(--n100);display:flex;gap:12px;align-items:center}
+.rch .ph{width:48px;height:48px;flex:0 0 48px;border-radius:12px;background:var(--brand100);display:grid;place-items:center;font-size:15px;font-weight:600;color:var(--brand800)}
+.rch .nm{font-size:15px;font-weight:600;letter-spacing:-.2px}
+.rch .sp{font-size:12px;color:var(--n500);margin-top:2px}
+.rcb{padding:13px 14px}
+.big2{background:var(--brand50);border:1px solid var(--brand200);border-radius:11px;padding:12px;text-align:center;margin-bottom:12px}
+.big2 .d{font-size:16px;font-weight:600;color:var(--brand800)}
+.big2 .h{font-size:24px;font-weight:700;color:var(--brand800);letter-spacing:-.5px;margin-top:2px;font-variant-numeric:tabular-nums}
+.big2 .m{font-size:11.5px;color:var(--brand700);margin-top:3px}
+.note2{display:flex;gap:8px;background:var(--n50);border:1px solid var(--n200);border-radius:10px;padding:10px;margin-top:11px}
+.note2 .ic{font-size:15px;color:var(--n400);flex:0 0 15px;margin-top:1px}
+.note2 .t{font-size:11.5px;line-height:16px;color:var(--n500)}
+/* notes doc */
+.nk{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+.notes{margin-top:34px}
+.notes h2{font-family:Fraunces,serif;font-size:32px;line-height:39px;font-weight:600;letter-spacing:-.6px;margin:10px 0 12px}
+.lede{font-size:15px;line-height:25px;color:var(--n600);max-width:880px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.ol{list-style:none;margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 36px;align-items:start}
+.oli{display:flex;gap:12px}
+.onum{flex:0 0 24px;height:24px;border-radius:7px;background:var(--n900);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;margin-top:2px}
+.nh{font-size:14.5px;font-weight:600;line-height:21px;letter-spacing:-.1px}
+.np{font-size:13px;line-height:20px;color:var(--n600);margin-top:3px}
+.np code,.kli code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box{margin-top:26px;background:var(--n0);border:1px solid var(--n300);border-left:4px solid var(--infoFg);border-radius:10px;padding:16px 18px;max-width:880px}
+.box .h{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}
+.box .h .ic{font-size:19px;color:var(--infoFg)}
+.box .p{font-size:13px;line-height:20px;color:var(--n600);margin-top:7px}
+.box .p code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.box.dg{border-left-color:var(--dangFg)}
+.box.dg .h .ic{color:var(--dangFg)}
+.keep{margin-top:26px;border-top:1px solid var(--n300);padding-top:20px}
+.kh{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--n500);margin-bottom:11px}
+.kul{list-style:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 36px;align-items:start}
+.kli{display:flex;gap:9px;font-size:12.5px;line-height:19px;color:var(--n600)}
+.kli .ic{font-size:16px;color:var(--okFg);flex:0 0 16px;margin-top:2px}
+</style></head>
+<body><div class="wrap">
+
+<!-- ═══════ 1. RECHERCHE ═══════ -->
+<div>
+<div class="cap"><span class="n">1</span><span class="t">Recherche — la page qui doit être indexée</span><span class="u">nubia.fr/dentiste/paris-2e</span></div>
+<div class="bw" data-screen-label="Web · Recherche">
+<div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlb"><span class="ic f">lock</span>nubia.fr/<b>dentiste/paris-2e</b></div></div>
+<div class="pg">
+
+<div class="sh"><div class="logo"><div class="m">N</div><div class="w">Nubia</div></div>
+<div class="nav"><span>Trouver un praticien</span><span>Pour les cabinets</span><span>Aide</span></div>
+<div class="shr"><span class="lnk">Se connecter</span><div class="btn p"><span class="ic">smartphone</span>Télécharger l'app</div></div></div>
+
+<div class="sb">
+<div class="fld q"><span class="ic">search</span><div><div class="k">Spécialité ou nom</div><div class="v">Chirurgien-dentiste</div></div></div>
+<div class="fld l"><span class="ic">location_on</span><div><div class="k">Où</div><div class="v">Paris 2<sup>e</sup> — 75002</div></div></div>
+<div class="fld d"><span class="ic">event</span><div><div class="k">Quand</div><div class="v">Dès que possible</div></div></div>
+<div class="sbtn"><span class="ic">search</span>Rechercher</div>
+</div>
+
+<div class="split">
+<div class="aside">
+<div class="fg"><div class="fgt">Disponibilité</div>
+<div class="fo"><span class="cb on"><span class="ic f">check</span></span>Sous 48 h<span class="n">12</span></div>
+<div class="fo"><span class="cb"></span>Cette semaine<span class="n">28</span></div>
+<div class="fo"><span class="cb"></span>Samedi<span class="n">7</span></div>
+</div>
+<div class="fg"><div class="fgt">Consultation</div>
+<div class="fo"><span class="cb"></span>Nouveaux patients<span class="n">19</span></div>
+<div class="fo"><span class="cb"></span>Urgences dentaires<span class="n">6</span></div>
+<div class="fo"><span class="cb"></span>Enfants<span class="n">14</span></div>
+</div>
+<div class="fg"><div class="fgt">Tarifs</div>
+<div class="fo"><span class="cb on"><span class="ic f">check</span></span>Secteur 1<span class="n">22</span></div>
+<div class="fo"><span class="cb"></span>Secteur 2<span class="n">9</span></div>
+<div class="fo"><span class="cb"></span>Tiers payant<span class="n">24</span></div>
+</div>
+<div class="fg"><div class="fgt">Accessibilité</div>
+<div class="fo"><span class="cb"></span>Accès PMR<span class="n">17</span></div>
+<div class="fo"><span class="cb"></span>Parking<span class="n">5</span></div>
+</div>
+</div>
+
+<div class="res">
+<div class="rh"><h1>Chirurgiens-dentistes à Paris 2<sup>e</sup></h1><span class="c">31 praticiens</span>
+<div class="srt"><span class="ic">swap_vert</span>Disponibilité la plus proche</div></div>
+
+<div class="pc">
+<div class="ph">AR</div>
+<div class="mid">
+<div class="nm">Dr Amélie Rousseau</div>
+<div class="sp">Chirurgien-dentiste · Cabinet Nubia Opéra</div>
+<div class="mt"><span class="tag b">Secteur 1</span><span class="tag">Tiers payant</span><span class="tag">Nouveaux patients</span><span class="tag">Accès PMR</span></div>
+<div class="adr"><span class="ic f">location_on</span>12 rue de la Paix, 75002 Paris · 400 m</div>
+</div>
+<div class="slots">
+<div class="sday">
+<div class="sd"><div class="h">Mar.<span class="d">11 août</span></div><div class="chip">14:30</div><div class="chip">15:00</div><div class="chip off">—</div></div>
+<div class="sd"><div class="h">Mer.<span class="d">12 août</span></div><div class="chip">09:00</div><div class="chip">11:30</div><div class="chip">16:00</div></div>
+<div class="sd"><div class="h">Jeu.<span class="d">13 août</span></div><div class="chip off">—</div><div class="chip off">—</div><div class="chip off">—</div></div>
+</div>
+<div class="more">Voir plus de créneaux</div>
+</div>
+</div>
+
+<div class="pc">
+<div class="ph">ML</div>
+<div class="mid">
+<div class="nm">Dr Marc Lefèvre</div>
+<div class="sp">Chirurgien-dentiste, orthodontie · Cabinet Nubia Opéra</div>
+<div class="mt"><span class="tag b">Secteur 1</span><span class="tag">Tiers payant</span><span class="tag w">Urgences</span></div>
+<div class="adr"><span class="ic f">location_on</span>12 rue de la Paix, 75002 Paris · 400 m</div>
+</div>
+<div class="slots">
+<div class="sday">
+<div class="sd"><div class="h">Mar.<span class="d">11 août</span></div><div class="chip off">—</div><div class="chip off">—</div><div class="chip off">—</div></div>
+<div class="sd"><div class="h">Mer.<span class="d">12 août</span></div><div class="chip">08:30</div><div class="chip">10:00</div><div class="chip off">—</div></div>
+<div class="sd"><div class="h">Jeu.<span class="d">13 août</span></div><div class="chip">09:30</div><div class="chip">14:00</div><div class="chip">17:30</div></div>
+</div>
+<div class="more">Voir plus de créneaux</div>
+</div>
+</div>
+
+<div class="pc">
+<div class="ph">SN</div>
+<div class="mid">
+<div class="nm">Dr Sarah Nguyen</div>
+<div class="sp">Chirurgien-dentiste · Cabinet Saint-Lazare</div>
+<div class="mt"><span class="tag">Secteur 2</span><span class="tag">Enfants</span></div>
+<div class="adr"><span class="ic f">location_on</span>8 rue de Rome, 75008 Paris · 1,2 km</div>
+</div>
+<div class="slots">
+<div class="nosl"><div class="t">Aucun créneau en ligne pour ce praticien</div><div class="a">Voir sa fiche et ses coordonnées</div></div>
+</div>
+</div>
+
+</div>
+</div>
+
+<div class="seo">
+<h2>Prendre rendez-vous chez un dentiste à Paris 2<sup>e</sup></h2>
+<p>31 chirurgiens-dentistes acceptent des rendez-vous en ligne dans le 2<sup>e</sup> arrondissement, dont 12 avec une disponibilité sous 48 heures. La majorité pratique le tiers payant et les tarifs conventionnés du secteur 1.</p>
+<div class="lks"><span class="lk">Dentiste Paris 1er</span><span class="lk">Dentiste Paris 9e</span><span class="lk">Orthodontiste Paris 2e</span><span class="lk">Urgence dentaire Paris</span><span class="lk">Détartrage Paris 2e</span><span class="lk">Implant dentaire Paris</span></div>
+</div>
+
+</div>
+</div>
+</div>
+
+<!-- ═══════ 2. FICHE PRATICIEN ═══════ -->
+<div class="sec">
+<div class="cap"><span class="n">2</span><span class="t">Fiche praticien — l'agenda est le contenu principal</span><span class="u">nubia.fr/dr-amelie-rousseau-dentiste-paris</span></div>
+<div class="bw" data-screen-label="Web · Fiche praticien">
+<div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlb"><span class="ic f">lock</span>nubia.fr/<b>dr-amelie-rousseau-dentiste-paris</b></div></div>
+<div class="pg">
+
+<div class="sh"><div class="logo"><div class="m">N</div><div class="w">Nubia</div></div>
+<div class="nav"><span>Trouver un praticien</span><span>Pour les cabinets</span><span>Aide</span></div>
+<div class="shr"><span class="lnk">Se connecter</span><div class="btn p"><span class="ic">smartphone</span>Télécharger l'app</div></div></div>
+
+<div class="hero2">
+<div class="ph">AR</div>
+<div style="min-width:0;flex:1">
+<h1>Dr Amélie Rousseau</h1>
+<div class="sp">Chirurgien-dentiste · Cabinet Nubia Opéra</div>
+<div class="mt"><span class="tag b">Secteur 1 — tarifs conventionnés</span><span class="tag">Tiers payant</span><span class="tag">Nouveaux patients acceptés</span><span class="tag">Accès PMR</span><span class="tag">Carte bancaire</span></div>
+</div>
+<div class="rt"><div class="lb">Prochaine disponibilité</div><div class="vv">Aujourd'hui, 14:30</div></div>
+</div>
+
+<div class="tabs2">
+<div class="tb2 on">Prendre rendez-vous</div>
+<div class="tb2">Présentation</div>
+<div class="tb2">Tarifs</div>
+<div class="tb2">Horaires &amp; accès</div>
+</div>
+
+<div class="split2">
+<div class="agen">
+<div class="agh"><span class="t">Choisissez un créneau</span>
+<div class="nav2"><div class="b"><span class="ic">chevron_left</span></div><div class="l">11 – 16 août</div><div class="b"><span class="ic">chevron_right</span></div></div>
+</div>
+<div class="wk">
+<div class="wd"><div class="h tod"><div class="a">Mar. 11</div><div class="b">aujourd'hui</div></div><div class="lst">
+<div class="chip sel">14:30</div><div class="chip">15:00</div><div class="chip off">—</div><div class="chip off">—</div><div class="chip off">—</div><div class="chip off">—</div></div></div>
+<div class="wd"><div class="h"><div class="a">Mer. 12</div><div class="b">août</div></div><div class="lst">
+<div class="chip">09:00</div><div class="chip">09:30</div><div class="chip">11:30</div><div class="chip">14:00</div><div class="chip">16:00</div><div class="chip off">—</div></div></div>
+<div class="wd"><div class="h"><div class="a">Jeu. 13</div><div class="b">août</div></div><div class="lst">
+<div class="chip off">—</div><div class="chip off">—</div><div class="chip off">—</div><div class="chip off">—</div><div class="chip off">—</div><div class="chip off">—</div></div></div>
+<div class="wd"><div class="h"><div class="a">Ven. 14</div><div class="b">août</div></div><div class="lst">
+<div class="chip">08:30</div><div class="chip">10:00</div><div class="chip">10:30</div><div class="chip">15:30</div><div class="chip">17:00</div><div class="chip off">—</div></div></div>
+<div class="wd"><div class="h"><div class="a">Sam. 15</div><div class="b">août</div></div><div class="lst">
+<div class="chip">09:00</div><div class="chip">10:30</div><div class="chip off">—</div><div class="chip off">—</div><div class="chip off">—</div><div class="chip off">—</div></div></div>
+<div class="wd"><div class="h"><div class="a">Lun. 17</div><div class="b">août</div></div><div class="lst">
+<div class="chip">08:30</div><div class="chip">11:00</div><div class="chip">14:30</div><div class="chip">16:00</div><div class="chip">17:30</div><div class="chip off">—</div></div></div>
+</div>
+</div>
+
+<div class="side2">
+<div class="card3"><div class="c3h"><span class="ic f">place</span>Cabinet Nubia Opéra</div>
+<div class="map"><div class="pin"><span class="ic f">location_on</span></div></div>
+<div class="c3b">
+<div class="kv2"><span class="k">Adresse</span><span class="v">12 rue de la Paix<br>75002 Paris</span></div>
+<div class="kv2"><span class="k">Métro</span><span class="v">Opéra (3, 7, 8) — 200 m</span></div>
+<div class="kv2"><span class="k">Téléphone</span><span class="v tnum">01 42 61 08 90</span></div>
+</div></div>
+
+<div class="card3"><div class="c3h"><span class="ic f">payments</span>Tarifs indicatifs</div>
+<div class="c3b">
+<div class="kv2"><span class="k">Consultation</span><span class="v tnum">23 €</span></div>
+<div class="kv2"><span class="k">Détartrage</span><span class="v tnum">28,92 €</span></div>
+<div class="kv2"><span class="k">Carie 1 face</span><span class="v tnum">26,97 €</span></div>
+<div class="kv2"><span class="k">Couronne</span><span class="v tnum">à partir de 500 €</span></div>
+</div></div>
+
+<div class="card3"><div class="c3h"><span class="ic f">schedule</span>Horaires</div>
+<div class="c3b">
+<div class="kv2"><span class="k">Lun – Ven</span><span class="v tnum">08:30 – 19:00</span></div>
+<div class="kv2"><span class="k">Samedi</span><span class="v tnum">09:00 – 13:00</span></div>
+<div class="kv2"><span class="k">Dimanche</span><span class="v">Fermé</span></div>
+</div></div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+
+<!-- ═══════ 3. CONFIRMATION ═══════ -->
+<div class="sec">
+<div class="cap"><span class="n">3</span><span class="t">Confirmation — le compte se crée avec le rendez-vous</span><span class="u">nubia.fr/reservation/confirmer</span></div>
+<div class="bw" data-screen-label="Web · Confirmation de réservation">
+<div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlb"><span class="ic f">lock</span>nubia.fr/<b>reservation/confirmer</b></div></div>
+<div class="pg">
+
+<div class="sh"><div class="logo"><div class="m">N</div><div class="w">Nubia</div></div>
+<div class="shr"><span class="lnk">Vous avez déjà un compte ? <b style="color:var(--brand700)">Se connecter</b></span></div></div>
+
+<div class="conf">
+<div class="form">
+<div class="steps">
+<div class="stp dn"><span class="b"><span class="ic" style="font-size:12px">check</span></span>Praticien</div><span class="stl dn"></span>
+<div class="stp dn"><span class="b"><span class="ic" style="font-size:12px">check</span></span>Créneau</div><span class="stl dn"></span>
+<div class="stp now"><span class="b">3</span>Vos informations</div><span class="stl"></span>
+<div class="stp"><span class="b">4</span>Confirmé</div>
+</div>
+
+<div class="fh2">Il ne reste qu'une étape</div>
+<div class="fs2">Votre rendez-vous est retenu pendant 10 minutes. Créez votre compte pour le confirmer — il vous servira ensuite à gérer vos rendez-vous, vos documents et vos devis.</div>
+
+<div class="grp2">
+<div class="gt2"><span class="ic f">person</span>Pour qui est ce rendez-vous ?</div>
+<div class="ff">
+<div class="fi"><span class="lb">Prénom</span><div class="in">Julie</div></div>
+<div class="fi"><span class="lb">Nom</span><div class="in">Martin</div></div>
+<div class="fi"><span class="lb">Date de naissance</span><div class="in ph">JJ / MM / AAAA</div></div>
+<div class="fi"><span class="lb">Téléphone mobile</span><div class="in ph">06 12 34 56 78</div></div>
+<div class="fi full"><span class="lb">Email</span><div class="in">julie.martin@email.fr</div></div>
+</div>
+</div>
+
+<div class="grp2">
+<div class="gt2"><span class="ic f">edit_note</span>Motif de la consultation</div>
+<div class="ff">
+<div class="fi full"><span class="lb">Motif</span><div class="in">Contrôle annuel</div></div>
+<div class="fi full"><span class="lb">Précisions pour le praticien <span style="color:var(--n400);font-weight:400">(facultatif)</span></span><div class="in ph" style="height:64px;align-items:flex-start;padding-top:11px">Une gêne côté droit depuis deux semaines…</div></div>
+</div>
+</div>
+
+<div class="grp2">
+<div class="opt"><span class="cb2 on"><span class="ic f">check</span></span><span class="t"><b>Je crée mon compte Nubia</b><span class="s">Un mot de passe vous sera demandé après confirmation. Vous pourrez ensuite annuler ou déplacer ce rendez-vous vous-même.</span></span></div>
+<div class="opt"><span class="cb2 on"><span class="ic f">check</span></span><span class="t"><b>Rappels de rendez-vous</b><span class="s">Par e-mail et SMS, 48 h puis 2 h avant. Modifiable à tout moment.</span></span></div>
+<div class="opt"><span class="cb2 on"><span class="ic f">check</span></span><span class="t">J'accepte les <a href="#">conditions d'utilisation</a> et la <a href="#">politique de confidentialité</a>.<span class="s">Vos données de santé sont hébergées en France chez un hébergeur agréé HDS.</span></span></div>
+</div>
+
+<div class="cta2"><span class="ic">check_circle</span>Confirmer le rendez-vous</div>
+<div class="rsr2"><span class="ic f">shield</span><span>Aucune carte bancaire n'est demandée. Le rendez-vous est gratuit et annulable en ligne jusqu'à 24 h avant.</span></div>
+</div>
+
+<div class="recap">
+<div class="rcd">
+<div class="rch"><div class="ph">AR</div><div style="min-width:0;flex:1"><div class="nm">Dr Amélie Rousseau</div><div class="sp">Chirurgien-dentiste</div></div></div>
+<div class="rcb">
+<div class="big2"><div class="d">Mardi 11 août 2026</div><div class="h">14:30</div><div class="m">durée estimée 30 min</div></div>
+<div class="kv2"><span class="k">Où</span><span class="v">Cabinet Nubia Opéra<br>12 rue de la Paix, 75002</span></div>
+<div class="kv2"><span class="k">Motif</span><span class="v">Contrôle annuel</span></div>
+<div class="kv2"><span class="k">Tarif indicatif</span><span class="v tnum">23 €</span></div>
+<div class="kv2"><span class="k">Remboursement</span><span class="v">70 % Assurance Maladie</span></div>
+<div class="note2"><span class="ic f">timer</span><span class="t">Ce créneau vous est réservé pendant <b>9 min 24 s</b>. Passé ce délai, il redevient disponible.</span></div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+
+<div class="notes">
+<div class="nk">Écosystème Nubia · Chantier web patient</div>
+<h2>Le seul écran que l'app ne peut pas remplacer</h2>
+<p class="lede">Les vingt-deux écrans précédents refondaient un produit existant. Celui-ci n'existe pas : c'est un <strong>tunnel d'acquisition</strong>, la seule surface du produit qu'un patient rencontre <em>avant</em> d'avoir installé quoi que ce soit. Il ne s'adresse pas au même utilisateur que l'app — celui-ci ne vous connaît pas, cherche un praticien depuis un moteur de recherche, et abandonnera à la première friction. Trois pages suffisent : trouver, choisir un créneau, confirmer.</p>
+<ol class="ol">
+<li class="oli"><span class="onum">1</span><div><div class="nh">Les créneaux sont dans les résultats</div><div class="np">C'est la décision structurante du tunnel. Une liste de praticiens sans horaires oblige à ouvrir chaque fiche pour découvrir qu'aucun n'est disponible. Ici, trois jours de créneaux réels par résultat : le patient compare des <em>disponibilités</em>, pas des noms. Réserver devient un clic depuis la page de recherche.</div></div></li>
+<li class="oli"><span class="onum">2</span><div><div class="nh">Des URL qui décrivent leur contenu</div><div class="np"><code>/dentiste/paris-2e</code>, <code>/dr-amelie-rousseau-dentiste-paris</code>. Un tunnel d'acquisition vit de la recherche organique : ces pages doivent être servies côté serveur, avec un <code>h1</code> réel, un texte de contexte et un maillage vers les spécialités et arrondissements voisins. C'est la contrainte technique dominante — et elle décide de l'architecture, pas l'inverse (voir l'encadré Flutter web).</div></div></li>
+<li class="oli"><span class="onum">3</span><div><div class="nh">Le compte se crée avec le rendez-vous, jamais avant</div><div class="np">Exiger une inscription pour voir des créneaux est le plus sûr moyen de perdre un patient. Le compte se crée à la confirmation, une fois que la valeur est acquise — même formulaire, même moment, sans étape supplémentaire ressentie.</div></div></li>
+<li class="oli"><span class="onum">4</span><div><div class="nh">Le créneau est retenu, et on le dit</div><div class="np">Entre le clic et la confirmation, deux patients peuvent viser le même créneau. Un verrou de dix minutes, avec son décompte visible, transforme une course en réservation — et évite l'échec le plus décourageant du parcours : « ce créneau vient d'être pris ».</div></div></li>
+<li class="oli"><span class="onum">5</span><div><div class="nh">Une absence de créneaux reste une réponse</div><div class="np">Le troisième résultat n'a aucune disponibilité en ligne. Plutôt que de le masquer ou de le laisser vide, sa carte propose ses coordonnées : un praticien sans agenda connecté reste une réponse utile à « dentiste près de chez moi ».</div></div></li>
+<li class="oli"><span class="onum">6</span><div><div class="nh">Les filtres qui comptent pour un patient</div><div class="np">Disponibilité, secteur conventionnel, tiers payant, nouveaux patients, accès PMR. Chacun porte son nombre de résultats — un filtre qui mène à une page vide est une impasse, et le compteur l'évite avant le clic.</div></div></li>
+<li class="oli"><span class="onum">7</span><div><div class="nh">Le tarif et le remboursement, avant de réserver</div><div class="np">La question que se pose tout patient — « combien ça va me coûter ? » — trouve sa réponse sur la fiche et dans le récapitulatif. C'est aussi la continuité naturelle avec l'app, où le devis affiche déjà part AMO, part AMC et reste à charge.</div></div></li>
+<li class="oli"><span class="onum">8</span><div><div class="nh">Un seul appel à l'action par page</div><div class="np">Recherche → créneau → confirmation. Pas de bandeau d'installation d'application interposé, pas d'inscription à une lettre d'information : la seule sortie du tunnel est le rendez-vous. Le téléchargement de l'app est proposé <em>après</em> la confirmation, quand il devient utile.</div></div></li>
+</ol>
+
+<div class="box"><div class="h"><span class="ic f">code</span>Le vocabulaire des créneaux est déjà celui de l'app</div>
+<div class="p">Rien n'est inventé côté domaine : <code>modify_rdv_page.dart</code> montre le modèle exact que cette page web réutilise — un <code>Slot</code> avec <code>id</code>, <code>startsAt</code> (UTC) et <code>isAvailable</code>, un groupement par jour local, et trois états de créneau (<code>available</code>, <code>selected</code>, <code>unavailable</code>) portés par <code>SlotChip</code>. Les puces de la maquette web sont ces trois états, rien de plus.</div>
+<div class="p">Deux détails valent d'être repris tels quels : la conversion <code>toLocal()</code> systématique avant l'affichage — l'API renvoie de l'UTC, et un créneau affiché avec une heure de décalage est un patient qui manque son rendez-vous ; et <strong>#3825</strong>, qui supprime le séparateur « · » quand la spécialité est vide. La fiche web hérite de cette règle.</div></div>
+
+<div class="box dg"><div class="h"><span class="ic f">warning</span>Flutter web ne convient pas à ce tunnel</div>
+<div class="p">Le reste de l'écosystème est en Flutter, et il faut résister à la tentation de faire de même ici. Une application Flutter web est un <strong>canevas rendu côté client</strong> : le contenu n'existe qu'après l'exécution du moteur, le premier affichage coûte plusieurs mégaoctets, et le texte n'est pas du HTML — l'indexation par les moteurs de recherche est au mieux partielle, souvent inexistante. Or ce tunnel n'a <em>qu'une</em> raison d'exister : être trouvé.</p>
+<div class="p">Recommandation : ces trois pages en HTML rendu côté serveur, alimentées par les <strong>mêmes API</strong> que les quatre applications. Le design system se transpose sans peine — les jetons de couleur, l'échelle typographique et les composants de cette maquette sont ceux de <code>nubia_design_system</code>, exprimés en CSS. C'est une décision d'architecture à prendre avant la première ligne de code, pas après.</div></div>
+
+<div class="keep"><div class="kh">Continuité avec l'écosystème existant</div>
+<ul class="kul">
+<li class="kli"><span class="ic">check_circle</span><span>Modèle <code>Slot</code> réutilisé tel quel : <code>id</code>, <code>startsAt</code> en UTC, <code>isAvailable</code> ; groupement par jour local ; trois états de <code>SlotChip</code>.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span><code>toLocal()</code> avant tout affichage d'heure — règle appliquée sans exception, comme dans l'app.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>#3825 — pas de séparateur « · » quand la spécialité du praticien est vide.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Vocabulaire de remboursement identique à l'app Patient (Assurance Maladie, mutuelle, reste à charge).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Le rendez-vous créé rejoint <code>Mes RDV</code> dans l'app, avec les mêmes états et les mêmes règles d'annulation (24 h).</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Jetons, échelle typographique et rayons repris de <code>nubia_design_system</code> — la marque est la même des deux côtés.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>Aucune donnée de santé exposée publiquement : la fiche praticien ne porte que des informations professionnelles et tarifaires.</span></li>
+<li class="kli"><span class="ic">check_circle</span><span>À trancher avec vous : le verrou de dix minutes suppose une réservation temporaire côté API — elle n'existe pas aujourd'hui.</span></li>
+</ul></div>
+</div>
+</div></body></html>

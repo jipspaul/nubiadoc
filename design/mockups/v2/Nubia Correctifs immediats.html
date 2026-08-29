@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Nubia — Correctifs immédiats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=swap" rel="stylesheet">
+<style>
+:root{--brand50:#ECFDF5;--brand100:#D1FAE5;--brand200:#A7F3D0;--brand600:#059669;--brand700:#047857;--brand800:#065F46;--n0:#fff;--n50:#FAFAF9;--n100:#F5F5F4;--n200:#E7E5E4;--n300:#D6D3D1;--n400:#A8A29E;--n500:#78716C;--n600:#57534E;--n700:#44403C;--n800:#292524;--n900:#1C1917;--okFg:#15803D;--okBg:#DCFCE7;--warnFg:#B45309;--warnBg:#FEF3C7;--dangFg:#B91C1C;--dangBg:#FEE2E2;--infoFg:#0E7490;--infoBg:#CFFAFE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#EDECEA;font-family:Inter,sans-serif;color:var(--n900);-webkit-font-smoothing:antialiased;padding:48px 40px}
+a{color:var(--brand700);text-decoration:none}a:hover{color:var(--brand800)}
+.ic{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24}
+.ic.f{font-variation-settings:'FILL' 1,'wght' 400,'opsz' 24}
+.pg{width:1120px;margin:0 auto;background:var(--n0);border-radius:14px;padding:52px 56px 56px;box-shadow:0 30px 70px -24px rgba(28,25,23,.35),0 0 0 1px rgba(28,25,23,.07)}
+.kick{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--brand700)}
+h1{font-family:Fraunces,serif;font-size:40px;line-height:47px;font-weight:600;letter-spacing:-.9px;margin:11px 0 16px}
+.lede{font-size:16px;line-height:27px;color:var(--n600);max-width:800px}
+.lede code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.lede strong{color:var(--n900);font-weight:600}
+.meta{display:flex;gap:34px;margin-top:26px;padding-top:22px;border-top:1px solid var(--n200)}
+.mi .v{font-size:26px;font-weight:700;letter-spacing:-.6px;line-height:30px}
+.mi .l{font-size:12px;color:var(--n500);margin-top:3px}
+.mi.d .v{color:var(--dangFg)}
+.fx{margin-top:34px;padding-top:26px;border-top:1px solid var(--n200)}
+.fx:first-of-type{border-top:0}
+.fh{display:flex;align-items:baseline;gap:12px;margin-bottom:5px}
+.fn{font-family:Inter,sans-serif;font-size:11px;font-weight:700;letter-spacing:.5px;color:#fff;background:var(--n900);border-radius:6px;padding:4px 9px;position:relative;top:-2px;flex:0 0 auto}
+.ft{font-size:20px;font-weight:600;letter-spacing:-.35px}
+.fsev{margin-left:auto;flex:0 0 auto;font-size:10.5px;font-weight:700;border-radius:5px;padding:3px 9px;white-space:nowrap}
+.fsev.p1{background:var(--dangBg);color:var(--dangFg)}
+.fsev.p2{background:var(--warnBg);color:var(--warnFg)}
+.fsev.p3{background:var(--n100);color:var(--n600)}
+.floc{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--n500);margin-bottom:11px}
+.fd{font-size:13.5px;line-height:21px;color:var(--n600);max-width:800px;margin-bottom:13px}
+.fd code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+.fd strong{color:var(--n900);font-weight:600}
+.diff{border:1px solid var(--n200);border-radius:10px;overflow:hidden;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:20px}
+.dl{display:flex;padding:0 12px}
+.dl .g{width:16px;flex:0 0 16px;color:var(--n400);user-select:none}
+.dl .c{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
+.dl.rm{background:#FEF2F2;color:#7F1D1D}
+.dl.rm .g{color:#DC2626}
+.dl.ad{background:#F0FDF4;color:#14532D}
+.dl.ad .g{color:#16A34A}
+.dl.ct{background:var(--n50);color:var(--n600)}
+.dl.hd{background:var(--n100);color:var(--n500);font-size:11px;padding-top:5px;padding-bottom:5px;border-bottom:1px solid var(--n200)}
+.note{display:flex;gap:9px;background:var(--n50);border:1px solid var(--n200);border-radius:9px;padding:10px 12px;margin-top:11px}
+.note .ic{font-size:16px;color:var(--n400);flex:0 0 16px;margin-top:2px}
+.note .t{font-size:12.5px;line-height:19px;color:var(--n600)}
+.note .t code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n0);border:1px solid var(--n200);border-radius:4px;padding:1px 4px}
+.note .t strong{color:var(--n900);font-weight:600}
+.sites{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+.site{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--n50);border:1px solid var(--n200);border-radius:6px;padding:4px 9px;color:var(--n600)}
+h2{font-family:Fraunces,serif;font-size:25px;font-weight:600;letter-spacing:-.4px;margin:46px 0 8px}
+.sub{font-size:14px;line-height:22px;color:var(--n600);max-width:800px;margin-bottom:4px}
+.foot{margin-top:42px;padding-top:22px;border-top:1px solid var(--n200);font-size:12.5px;line-height:20px;color:var(--n500)}
+.foot code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--n100);border:1px solid var(--n200);border-radius:5px;padding:1px 5px}
+</style></head>
+<body><div class="pg" data-screen-label="Correctifs immédiats">
+
+<div class="kick">Écosystème Nubia · Sortie de l'audit UI/UX</div>
+<h1>Neuf correctifs qui ne demandent<br>aucune décision produit</h1>
+<p class="lede">Tout ce qui précède — vingt-trois écrans, un contrat de données, un paquet de fondations — suppose des arbitrages et du temps d'équipe. Ces neuf correctifs, non : ce sont des <strong>défauts objectifs</strong>, tous localisés à une ligne ou à une table de correspondance, tous vérifiables en lisant le fichier. Ils peuvent partir en une revue.</p>
+<p class="lede" style="margin-top:14px">Deux d'entre eux sont des <strong>bugs visibles en production aujourd'hui</strong> : une note non signée qui s'affiche en vert succès, et une route de démonstration atteignable par URL.</p>
+
+<div class="meta">
+<div class="mi d"><div class="v">2</div><div class="l">bugs en production</div></div>
+<div class="mi"><div class="v">9</div><div class="l">correctifs</div></div>
+<div class="mi"><div class="v">7</div><div class="l">sites de formatage monétaire</div></div>
+<div class="mi"><div class="v">4</div><div class="l">applications</div></div>
+</div>
+
+<h2>Bugs</h2>
+<p class="sub">Les deux seuls défauts de cette liste qui produisent un comportement faux, pas seulement une gêne.</p>
+
+<div class="fx">
+<div class="fh"><span class="fn">01</span><span class="ft">« Non signé » s'affiche en vert succès</span><span class="fsev p1">Bug</span></div>
+<div class="floc">app_practicien/lib/features/dashboard/today_notes_card.dart</div>
+<div class="fd"><code>_variantFor()</code> déduit la sémantique d'un statut en cherchant des morceaux de mots français dans une chaîne libre. Or <strong>« non signé » contient « signé »</strong> : la condition passe, et une note qu'il reste à signer est présentée au praticien comme terminée. Le correctif ci-dessous est un pansement — la vraie correction est une énumération côté domaine (vague 3 du contrat de données).</div>
+<div class="diff">
+<div class="dl hd"><span class="c">_variantFor(String status)</span></div>
+<div class="dl ct"><span class="g"> </span><span class="c">final normalized = status.toLowerCase();</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">if (normalized.contains('signé') ||</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">    normalized.contains('validé') ||</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">    normalized.contains('terminé')) {</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">  return StatusPillVariant.success;</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">}</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">// Les formes négatives contiennent la forme positive : tester d'abord.</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">if (normalized.startsWith('non ') || normalized.startsWith('à ')) {</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  return StatusPillVariant.warning;</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">}</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">if (normalized == 'signé' ||</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">    normalized == 'validé' ||</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">    normalized == 'terminé') {</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  return StatusPillVariant.success;</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">}</span></div>
+</div>
+<div class="note"><span class="ic f">warning</span><span class="t">Le test d'égalité stricte est volontaire : toute valeur inattendue retombe désormais sur le défaut neutre plutôt que d'être devinée. <strong>Un statut inconnu affiché en gris vaut mieux qu'un statut faux affiché en vert.</strong></span></div>
+</div>
+
+<div class="fx">
+<div class="fh"><span class="fn">02</span><span class="ft">Route de démonstration en production</span><span class="fsev p1">Bug</span></div>
+<div class="floc">app_secretariat/lib/router/app_router.dart</div>
+<div class="fd"><code>/a2ui-demo</code> est enregistrée <strong>sans condition</strong> dans la table de routes : le bouton d'accès est bien gardé par <code>kDebugMode</code> (comme côté Praticien), mais l'URL répond en production. Le correctif porte sur l'enregistrement, pas sur le bouton. Le dépôt — l'app Praticien protège la même route par <code>kDebugMode</code>, avec un commentaire qui explique pourquoi (#4539 : « vocabulaire interne + faux CTA exposés à un praticien »). Il suffit d'appliquer la même décision à l'autre application.</div>
+<div class="diff">
+<div class="dl hd"><span class="c">routes: [ … ]</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">GoRoute(</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">  path: AppRouter.a2uiDemo,</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">  builder: (_, __) =&gt; const A2uiDemoPage(),</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">),</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">// #4539 — écran de démonstration : jamais exposé en production.</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">if (kDebugMode)</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  GoRoute(</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">    path: AppRouter.a2uiDemo,</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">    builder: (_, __) =&gt; const A2uiDemoPage(),</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  ),</span></div>
+</div>
+</div>
+
+<h2>Sémantique inversée</h2>
+<p class="sub">Trois tables de correspondance qui disent le contraire de ce qu'elles décrivent. Coût : une ligne chacune, effet immédiat sur la lecture des files de travail.</p>
+
+<div class="fx">
+<div class="fh"><span class="fn">03</span><span class="ft">« Acceptée » en orange, « Annulée » en rouge</span><span class="fsev p2">Sémantique</span></div>
+<div class="floc">app_secretariat/lib/features/stock/stock_page.dart · app_pharmacie/lib/features/stock/stock_page.dart</div>
+<div class="fd">Une demande <strong>acceptée</strong> est un bon résultat, présenté comme un avertissement ; une demande <strong>annulée</strong> — souvent par le cabinet lui-même — est présentée au même rang qu'un refus du fournisseur. Les deux tables sont dupliquées à l'identique dans les deux applications.</div>
+<div class="diff">
+<div class="dl hd"><span class="c">static const _variants = &#123; … &#125;</span></div>
+<div class="dl ct"><span class="g"> </span><span class="c">StockRequestStatus.sent: StatusPillVariant.info,</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">StockRequestStatus.accepted: StatusPillVariant.warning,</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">// Acceptée = étape en cours (à livrer), pas un avertissement.</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">StockRequestStatus.accepted: StatusPillVariant.success,</span></div>
+<div class="dl ct"><span class="g"> </span><span class="c">StockRequestStatus.rejected: StatusPillVariant.error,</span></div>
+<div class="dl ct"><span class="g"> </span><span class="c">StockRequestStatus.fulfilled: StatusPillVariant.success,</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">StockRequestStatus.cancelled: StatusPillVariant.error,</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">// Annulée par le cabinet ≠ refusée par le fournisseur.</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">StockRequestStatus.cancelled: StatusPillVariant.info,</span></div>
+</div>
+</div>
+
+<div class="fx">
+<div class="fh"><span class="fn">04</span><span class="ft">Le bouton de tri se contredit lui-même</span><span class="fsev p2">Sémantique</span></div>
+<div class="floc">app_secretariat/lib/features/devis/devis_page.dart</div>
+<div class="fd">L'icône affiche <strong>l'état courant</strong> (<code>_sortAsc ? arrow_upward : arrow_downward</code>) tandis que le <code>tooltip</code> annonce <strong>l'action suivante</strong>. Deux sémantiques opposées sur le même contrôle — et une info-bulle inatteignable au clavier. Le libellé doit énoncer l'ordre en cours.</div>
+<div class="diff">
+<div class="dl rm"><span class="g">−</span><span class="c">IconButton(</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">  key: const Key('sort_button'),</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">  icon: Icon(_sortAsc ? Icons.arrow_upward : Icons.arrow_downward),</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">  tooltip: _sortAsc ? 'Trier du plus récent' : 'Trier du plus ancien',</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">  onPressed: _toggleSort,</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">),</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">// Le contrôle énonce l'ordre EN COURS, jamais l'action suivante.</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">NubiaChip(</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  key: const Key('sort_button'),</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  label: _sortAsc ? 'Plus ancien d\'abord' : 'Plus récent d\'abord',</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  icon: Icons.swap_vert,</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  onTap: _toggleSort,</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">),</span></div>
+</div>
+</div>
+
+<div class="fx">
+<div class="fh"><span class="fn">05</span><span class="ft">« Lapins : 3 »</span><span class="fsev p3">Rédaction</span></div>
+<div class="floc">app_secretariat/lib/features/patients/patients_page.dart</div>
+<div class="fd">Le libellé argotique s'affiche tel quel dans un outil professionnel, à côté d'un solde impayé. L'alerte associée doit en outre dire <strong>quoi faire</strong>.</div>
+<div class="diff">
+<div class="dl rm"><span class="g">−</span><span class="c">Text('Lapins : ${patient.noShowCount}')</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">Text('Rendez-vous non honorés : ${patient.noShowCount}')</span></div>
+</div>
+</div>
+
+<h2>Silences</h2>
+<p class="sub">Deux endroits où l'application décide sans le dire — et où l'utilisateur découvre le problème trop tard.</p>
+
+<div class="fx">
+<div class="fh"><span class="fn">06</span><span class="ft">Le formulaire perd des lignes sans un mot</span><span class="fsev p1">Perte de saisie</span></div>
+<div class="floc">app_secretariat/lib/features/stock/create_stock_request_dialog.dart</div>
+<div class="fd">Dans <code>_onConfirm</code>, une ligne dont le libellé est vide ou dont <code>int.tryParse</code> échoue est <code>continue</code>-ée <strong>silencieusement</strong>. Saisir « douze » au lieu de « 12 » supprime la ligne, et le message d'erreur n'apparaît que si <em>toutes</em> les lignes sont invalides. Le champ « Qté » est par ailleurs un <code>NubiaTextField</code> par défaut — clavier alphabétique sur tablette, aucune borne.</div>
+<div class="diff">
+<div class="dl hd"><span class="c">_onConfirm()</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">if (label.isEmpty) continue;</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">final qty = int.tryParse(draft.qtyController.text.trim()) ?? 0;</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">if (qty &lt;= 0) continue;</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">// Une ligne invalide se signale AU CHAMP, elle ne disparaît pas.</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">final qty = int.tryParse(draft.qtyController.text.trim()) ?? 0;</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">if (label.isEmpty || qty &lt;= 0) {</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  setState(() =&gt; draft.error = label.isEmpty</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">      ? 'Indiquez un article'</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">      : 'Quantité invalide');</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  hasError = true;</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  continue;</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">}</span></div>
+</div>
+<div class="note"><span class="ic f">keyboard</span><span class="t">À corriger dans le même passage : <code>NubiaTextField(variant: NubiaTextFieldVariant.number)</code> sur le champ Qté, avec un minimum à 1 — la validation devient impossible à contourner plutôt que silencieuse.</span></div>
+</div>
+
+<div class="fx">
+<div class="fh"><span class="fn">07</span><span class="ft">Un refus de demande sans motif</span><span class="fsev p2">Relation cabinet</span></div>
+<div class="floc">app_pharmacie/lib/features/stock/stock_page.dart</div>
+<div class="fd"><code>_askRejectNote</code> ouvre un champ « Note (<strong>optionnelle</strong>) », et <code>note.isEmpty ? null : note</code> envoie donc un refus muet. Un cabinet qui voit sa demande refusée sans explication rappelle au téléphone — alors que le refus de commande, côté secrétariat, exige déjà un motif.</div>
+<div class="diff">
+<div class="dl rm"><span class="g">−</span><span class="c">NubiaTextField(controller: controller, label: 'Note (optionnelle)'),</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">NubiaTextField(controller: controller, label: 'Motif du refus'),</span></div>
+<div class="dl ct"><span class="g"> </span><span class="c">…</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">if (note != null) {</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">  bloc.add(StockRespondRequested(request.id,</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">      StockRequestResponse.reject,</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">      note: note.isEmpty ? null : note));</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">}</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">// Symétrie avec le refus de commande côté secrétariat : motif requis.</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">if (note != null &amp;&amp; note.isNotEmpty) {</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  bloc.add(StockRespondRequested(request.id,</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">      StockRequestResponse.reject, note: note));</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">}</span></div>
+</div>
+</div>
+
+<h2>Cohérence</h2>
+<p class="sub">Deux passages mécaniques, sans arbitrage, mais qui touchent plusieurs fichiers.</p>
+
+<div class="fx">
+<div class="fh"><span class="fn">08</span><span class="ft">Huit formats monétaires</span><span class="fsev p2">Crédibilité</span></div>
+<div class="floc">4 applications · 8 fichiers</div>
+<div class="fd">Le seul point du backlog qui s'est <strong>aggravé à chaque écran ouvert</strong>. Six implémentations sur huit ont un défaut : point décimal anglo-saxon, ou séparateur de milliers absent. Sur un produit de facturation, un montant mal formaté est un défaut de crédibilité — et le devis est l'écran où l'incohérence est la plus visible, puisque le patient reçoit le même montant correctement formaté dans son application.</div>
+<div class="diff">
+<div class="dl rm"><span class="g">−</span><span class="c">'${(cents / 100).toStringAsFixed(2)} €'          // → « 12450.67 € »</span></div>
+<div class="dl rm"><span class="g">−</span><span class="c">…toStringAsFixed(2).replaceAll('.', ',')         // → « 12450,67 € »</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">NubiaMoney.formatCents(cents)                    // → « 12 450,67 € »</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">NubiaMoney.formatCents(cents, exact: true)       // colonnes alignées</span></div>
+</div>
+<div class="sites">
+<span class="site">patient · financial_format_utils <em style="color:var(--okFg);font-style:normal">déjà correct</em></span>
+<span class="site">secretariat · patients_page</span>
+<span class="site">secretariat · devis_page</span>
+<span class="site">secretariat · cabinet_payouts_page</span>
+<span class="site">practicien · consultation_clinique</span>
+<span class="site">practicien · lab_work_orders_page</span>
+<span class="site">pharmacie · devis_page</span>
+</div>
+<div class="note"><span class="ic f">check_circle</span><span class="t"><code>NubiaMoney</code> est déjà écrit — <code>flutter/packages/nubia_core/money.dart</code>. Le paramètre <code>exact: true</code> force les deux décimales pour les colonnes de montants alignés (« 0,00 € » plutôt que « 0 € »).</span></div>
+</div>
+
+<div class="fx">
+<div class="fh"><span class="fn">09</span><span class="ft">Un spinner centré à la place de la liste</span><span class="fsev p3">Perception</span></div>
+<div class="floc">6 écrans · 4 applications</div>
+<div class="fd">À chaque rechargement, <code>CircularProgressIndicator</code> remplace tout le contenu — y compris après une simple action, comme un ajout de phase qui appelle <code>load()</code> et repasse par <code>Loading</code>. L'incohérence est <strong>interne à chaque application</strong> : la file des commandes pharmacie et le coffre-fort documentaire patient possèdent déjà des squelettes fidèles, au rythme exact des lignes réelles.</div>
+<div class="diff">
+<div class="dl rm"><span class="g">−</span><span class="c">return const Center(child: CircularProgressIndicator());</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">// Modèle : _DocumentsSkeleton (app_patient) — même forme que le contenu.</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">return const Column(children: [</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  NubiaSkeletonLoader(height: 64),</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  SizedBox(height: 8),</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  NubiaSkeletonLoader(height: 64),</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  SizedBox(height: 8),</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">  NubiaSkeletonLoader(height: 64),</span></div>
+<div class="dl ad"><span class="g">+</span><span class="c">]);</span></div>
+</div>
+<div class="note"><span class="ic f">lightbulb</span><span class="t">Corollaire à traiter en même temps sur les plans de traitement : <code>createPlan</code> et <code>createPhase</code> appellent <code>load()</code>, qui émet <code>Loading</code> — <strong>tout l'écran clignote après chaque ajout</strong>. Un rechargement partiel évite le squelette entièrement.</span></div>
+</div>
+
+<div class="foot">Chaque correctif renvoie au fichier et à la ligne d'origine lus dans <code>jipspaul/nubiadoc@main</code>. Les diffs sont indicatifs sur la forme — noms de variables locales, style de <code>switch</code> — mais exacts sur le fond : la condition, la valeur ou la table à changer. Les correctifs 01, 02, 03 et 07 sont sans effet sur les tests existants ; le 04 conserve la clé <code>sort_button</code> mais change le type du widget ; le 08 modifie des chaînes affichées et cassera les assertions de texte portant sur des montants.</div>
+
+</div></body></html>
