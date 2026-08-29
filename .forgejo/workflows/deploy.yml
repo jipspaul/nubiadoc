@@ -44,6 +44,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: "Garde-fou : collision de numérotation des migrations (récidive #4854/#5485, cf. #6128)"
+        run: bash db/scripts/check_migration_numbering.sh db/migrations
+
       - name: Pre-flight LXC reachability (retries, then FAIL loud if down)
         id: preflight
         env:
