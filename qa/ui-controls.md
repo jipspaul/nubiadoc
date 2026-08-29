@@ -74,3 +74,4 @@ réseau, aucun nouvel onglet) + confirmé par le code `hero_appointment_card.dar
 | pharmacie | /devis (filtres Tous/Brouillons/Envoyés/Acceptés/Refusés) | 5 | 0 (comptages vérifiés par lecture, pas cliqués ce run) | - | - | - | 2026-08-29T12:24:00Z |
 | patient | /pharmacy/orders/:id (timeline suivi commande) | 2 (Itinéraire, Appeler) | 0 (timeline vérifiée par lecture d'état, pas cliquée) | - | - | - | 2026-08-29T12:24:00Z |
 
+| praticien | / (login page, semantics inventory only) | 4 (champ email implicite, champ password implicite, Afficher le mot de passe, Se connecter, Créer mon compte praticien) | 0 (inventaire semantics confirmé fonctionnel, login réel non complété ce run — budget concentré sur curl API) | - | - | - | 2026-08-29T18:14:00Z |
