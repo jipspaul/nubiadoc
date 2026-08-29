@@ -521,6 +521,25 @@ class _QuickAccessGrid extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _QuickAccessTile(
+                  key: const Key('quick_access_home_care'),
+                  icon: Icons.medical_services_outlined,
+                  iconBg: tokens.primarySubtleBg,
+                  iconColor: cs.primary,
+                  title: 'Soins à domicile',
+                  subtitle: 'Demander une infirmière',
+                  onTap: () => context.push(AppRouter.homeCare),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

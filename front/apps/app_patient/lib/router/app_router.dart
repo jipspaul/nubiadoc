@@ -18,6 +18,9 @@ import '../features/financial/financial_page.dart';
 import '../features/financial/financial_state.dart';
 import '../features/financial/widgets/financial_format_utils.dart';
 import '../features/documents/documents_page.dart';
+import '../features/home_care/home_care_request_page.dart';
+import '../features/home_care/home_care_requests_page.dart';
+import '../features/home_care/home_care_tracking_page.dart';
 import '../features/treatment_plans/treatment_plan_detail_page.dart';
 import '../features/treatment_plans/treatment_plans_page.dart';
 import '../features/account_setup/account_setup_cubit.dart';
@@ -92,6 +95,8 @@ class AppRouter {
   static const reviews = '/reviews';
   static const notifications = '/notifications';
   static const oubliettes = '/oubliettes';
+  static const homeCare = '/home-care';
+  static const homeCareNew = '/home-care/new';
   static const prepareRdv = '/rdv/:id/prepare';
   static const medicalQuestionnaire = '/questionnaire-medical/:cabinetId';
   static const modifyRdv = '/rdv/:id/modifier';
@@ -405,6 +410,23 @@ class AppRouter {
               appBar: AppBar(title: const Text('Oubliettes')),
               body: const OubliettesPage(),
             ),
+          ),
+        ),
+        GoRoute(
+          path: homeCare,
+          builder: (_, __) => const HomeCareRequestsPage(),
+        ),
+        // Route littérale déclarée avant `$homeCare/:id` : go_router essaie
+        // les routes dans l'ordre de déclaration, un `GoRoute` paramétré
+        // capturerait sinon "new" comme valeur de `:id`.
+        GoRoute(
+          path: homeCareNew,
+          builder: (_, __) => const HomeCareRequestPage(),
+        ),
+        GoRoute(
+          path: '$homeCare/:id',
+          builder: (_, state) => HomeCareTrackingPage(
+            visitId: state.pathParameters['id']!,
           ),
         ),
         GoRoute(

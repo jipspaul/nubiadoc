@@ -21,6 +21,9 @@ import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/mes_rdv/modify_rdv_bloc.dart';
 import '../features/messaging/messaging_bloc.dart';
 import '../features/home/home_bloc.dart';
+import '../features/home_care/home_care_list_cubit.dart';
+import '../features/home_care/home_care_request_cubit.dart';
+import '../features/home_care/home_care_tracking_cubit.dart';
 import '../features/notifications/notifications_bloc.dart';
 import '../features/oubliettes/oubliettes_bloc.dart';
 import '../features/pharmacy/my_pharmacy_cubit.dart';
@@ -272,5 +275,17 @@ void registerPatient(GetIt gi) {
 
   gi.registerFactory<OubliettesBloc>(
     () => OubliettesBloc(getDocuments: gi<GetDocumentsUseCase>()),
+  );
+
+  gi.registerFactory<HomeCareRequestCubit>(
+    () => HomeCareRequestCubit(gi<ApiClient>()),
+  );
+
+  gi.registerFactory<HomeCareListCubit>(
+    () => HomeCareListCubit(gi<ApiClient>()),
+  );
+
+  gi.registerFactory<HomeCareTrackingCubit>(
+    () => HomeCareTrackingCubit(gi<ApiClient>()),
   );
 }
