@@ -29,6 +29,15 @@ pharmacie.nubia.example.com {
     reverse_proxy 192.168.1.100:8084
 }
 
+# App infirmiere (soins à domicile) — ex. réel : infirmiere.doc.nubia-link.com
+# #6115 : bloc absent -> déploiement (build-and-deploy.sh) ne construisait/
+# poussait jamais le bundle web de cette app -> aucun backend origin sur
+# 8085 derrière ce host -> 502 Caddy constant malgré un cert TLS déjà
+# provisionné pour le domaine.
+infirmiere.nubia.example.com {
+    reverse_proxy 192.168.1.100:8085
+}
+
 # Back-office Astro (SSR)
 console.nubia.example.com {
     reverse_proxy 192.168.1.100:4321
