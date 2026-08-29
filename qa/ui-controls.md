@@ -62,3 +62,15 @@ la home) ne renvoie JAMAIS de champ `cabinet`/`cabinet.address` (struct `Appoint
 (`AppointmentDetail`, `appointments_response.rs`). Vérifié par clic direct (aucun effet, aucune requête
 réseau, aucun nouvel onglet) + confirmé par le code `hero_appointment_card.dart:201-203`
 (`onPressed: address == null ? null : ...`). Issue #6130 (P1) streamée.
+
+**RE-VÉRIFIÉ 2026-08-29T12:26Z : toujours DÉSACTIVÉ en live malgré le fix #6130 mergé** (deploy-lag
+#6128, non refilé — cf. explored-paths.md).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| praticien | /consultation?id=... (fauteuil, dent+acte+montant) | 3 (case-test : dent 16, acte "Avulsion", champ montant+Ajouter) | 3 | 3 | 0 | 0 | 2026-08-29T12:15:00Z |
+| secretariat | /devis (bouton Envoyer sur brouillon) | 1 | 1 | 1 | 0 | 0 | 2026-08-29T12:20:00Z |
+| pharmacie | /orders/:id/pickup (saisie manuelle code + Valider) | 2 | 2 | 2 | 0 | 0 | 2026-08-29T12:23:00Z |
+| pharmacie | /devis (filtres Tous/Brouillons/Envoyés/Acceptés/Refusés) | 5 | 0 (comptages vérifiés par lecture, pas cliqués ce run) | - | - | - | 2026-08-29T12:24:00Z |
+| patient | /pharmacy/orders/:id (timeline suivi commande) | 2 (Itinéraire, Appeler) | 0 (timeline vérifiée par lecture d'état, pas cliquée) | - | - | - | 2026-08-29T12:24:00Z |
+
