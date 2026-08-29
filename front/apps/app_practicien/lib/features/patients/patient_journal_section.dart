@@ -9,9 +9,19 @@ import 'package:nubia_domain/nubia_domain.dart';
 /// place, côté client (#4972) — à ne pas confondre avec le filtre Documents
 /// de l'onglet Documents (#4042), qui recharge depuis le serveur.
 class PatientJournalSection extends StatefulWidget {
-  const PatientJournalSection({super.key, required this.patientId});
+  const PatientJournalSection({
+    super.key,
+    required this.patientId,
+    this.showClinical = true,
+  });
 
   final String patientId;
+
+  /// Bascule `toggle_clinical` (#4976, maquette design-v2 point 4) : masque
+  /// les entrées réellement cliniques (actes, ordonnances) quand `false` —
+  /// devis, documents et rendez-vous restent visibles, ce sont des entrées
+  /// administratives du même journal unifié (#4971).
+  final bool showClinical;
 
   @override
   State<PatientJournalSection> createState() => _PatientJournalSectionState();
@@ -77,7 +87,14 @@ class _PatientJournalSectionState extends State<PatientJournalSection> {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final allEntries = _entries;
-    final entries = allEntries
+    final clinicalVisibleEntries = widget.showClinical
+        ? allEntries
+        : allEntries
+            ?.where((entry) =>
+                entry.kind != PatientJournalKind.acte &&
+                entry.kind != PatientJournalKind.ordonnance)
+            .toList(growable: false);
+    final entries = clinicalVisibleEntries
         ?.where((entry) => _filter.matches(entry.kind))
         .toList(growable: false);
 

@@ -239,18 +239,25 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                                   style: textTheme.titleMedium
                                       ?.copyWith(fontWeight: FontWeight.w600),
                                 ),
-                                for (final alert in _medicalAlerts)
-                                  StatusPill(
-                                    key: Key(
-                                        'patient_fiche_alert_pill_${alert.kind}_${alert.label}'),
-                                    label: _clinicalAlertLabel(alert),
-                                    variant: alert.kind == 'allergie'
-                                        ? StatusPillVariant.error
-                                        : StatusPillVariant.warning,
-                                    icon: alert.kind == 'allergie'
-                                        ? Icons.warning
-                                        : null,
-                                  ),
+                                // #4976, maquette design-v2 point 4 — les
+                                // alertes cliniques (allergies, traitements à
+                                // risque) sont réellement cliniques : gérées
+                                // par `toggle_clinical` comme le journal des
+                                // actes/ordonnances, pas seulement naissance
+                                // + dernière visite.
+                                if (state.showClinical)
+                                  for (final alert in _medicalAlerts)
+                                    StatusPill(
+                                      key: Key(
+                                          'patient_fiche_alert_pill_${alert.kind}_${alert.label}'),
+                                      label: _clinicalAlertLabel(alert),
+                                      variant: alert.kind == 'allergie'
+                                          ? StatusPillVariant.error
+                                          : StatusPillVariant.warning,
+                                      icon: alert.kind == 'allergie'
+                                          ? Icons.warning
+                                          : null,
+                                    ),
                               ],
                             ),
                             const SizedBox(height: 2),
@@ -398,7 +405,10 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
               // sous elle plutôt que de la comprimer jusqu'à débordement.
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final journal = PatientJournalSection(patientId: patient.id);
+                  final journal = PatientJournalSection(
+                    patientId: patient.id,
+                    showClinical: state.showClinical,
+                  );
                   final currentPlan = PatientCurrentPlanSection(
                     key: const Key('patient_fiche_current_plan_section'),
                     patientId: patient.id,
