@@ -68,11 +68,18 @@ class AuthCubit extends Cubit<AuthState> with SafeEmitMixin<AuthState> {
     emit(const AuthLoading());
     try {
       final result = await _login(email: email, password: password);
-      result.fold(
-        (failure) => safeEmit(AuthUnauthenticated(failure.message)),
-        (account) {
+      await result.fold(
+        (failure) async => safeEmit(AuthUnauthenticated(failure.message)),
+        (account) async {
           _deviceRegistration.registerOnLogin('patient');
-          safeEmit(AuthAuthenticated(_sessionFrom(account)));
+          // /auth/login ne renvoie pas le nom du compte : on le récupère via
+          // /account pour que la session ait un displayName correct dès le
+          // login (sans ça, patientDisplayName reste vide jusqu'au prochain
+          // restore() au redémarrage de l'app).
+          final me = await _getMe();
+          safeEmit(
+            AuthAuthenticated(_sessionFrom(me.fold((_) => account, (a) => a))),
+          );
         },
       );
     } catch (_) {

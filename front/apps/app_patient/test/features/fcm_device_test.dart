@@ -72,6 +72,7 @@ void main() {
             password: any(named: 'password'),
           ),
         ).thenAnswer((_) async => const Right(_account));
+        when(() => mockGetMe()).thenAnswer((_) async => const Right(_account));
         return buildCubit();
       },
       act: (cubit) =>
