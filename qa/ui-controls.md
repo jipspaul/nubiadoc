@@ -75,3 +75,15 @@ réseau, aucun nouvel onglet) + confirmé par le code `hero_appointment_card.dar
 | patient | /pharmacy/orders/:id (timeline suivi commande) | 2 (Itinéraire, Appeler) | 0 (timeline vérifiée par lecture d'état, pas cliquée) | - | - | - | 2026-08-29T12:24:00Z |
 
 | praticien | / (login page, semantics inventory only) | 4 (champ email implicite, champ password implicite, Afficher le mot de passe, Se connecter, Créer mon compte praticien) | 0 (inventaire semantics confirmé fonctionnel, login réel non complété ce run — budget concentré sur curl API) | - | - | - | 2026-08-29T18:14:00Z |
+
+
+## Note run 2026-08-30T00h15Z
+
+DNS de l'environnement d'exécution résolvait mal *.nubia-link.com (CoreDNS tailscale
+100.100.100.100 renvoyait NXDOMAIN/rcode 2 pour tous les sous-domaines) — contourné via
+/etc/hosts (IP 92.141.131.96, la même que celle déjà utilisée par curl --resolve dans les
+runs précédents). Run concentré sur API live (curl) + PRIO1/PRIO2/B13/X7 ; aucune UI
+Playwright pilotée ce run (budget consommé sur la découverte + preuve du deploy-lag
+#6136 P0, jugé plus prioritaire qu'un nouveau passage UI sur des écrans déjà couverts
+récemment par le run du 2026-08-29). Prochain run : reprendre l'audit contrôle-par-contrôle
+sur les écrans jamais couverts ou les plus anciens du ledger ci-dessus.
