@@ -59,8 +59,17 @@ api.nubia.example.com {
 # est reservation.doc.nubia-link.com (distinct de api.doc.nubia-link.com),
 # déjà résolu côté DNS vers cet hôte. Sans bloc à son nom, Caddy n'a ni
 # site-block ni certificat pour ce SNI et rejette le handshake TLS avec une
-# alerte "internal error" (#6116) — même s'il sert déjà les mêmes routes que
-# le bloc `api` ci-dessus sur le même port.
-reservation.nubia.example.com {
+# alerte "internal error" (#6116, récidive #6139) — même s'il sert déjà les
+# mêmes routes que le bloc `api` ci-dessus sur le même port.
+#
+# #6139 : contrairement aux autres blocs de ce fichier (qui restent en
+# placeholder *.nubia.example.com, à adapter à la main), CE bloc utilise le
+# domaine réel EN DUR ci-dessous. Deux récidives (#6116 puis #6139) montrent
+# que l'étape manuelle "renommer le placeholder pour ce domaine précis" est
+# celle qui saute lors de l'application côté hôte Caddy — un domaine partagé
+# avec l'API sur le même port n'a pas de checklist de déploiement dédiée
+# (pas de nouveau conteneur/port à qui associer la substitution) contrairement
+# aux fronts Flutter. Coller tel quel, sans substitution, pour ce bloc.
+reservation.doc.nubia-link.com {
     reverse_proxy 192.168.1.100:3000
 }
