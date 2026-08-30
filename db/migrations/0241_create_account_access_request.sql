@@ -1,4 +1,4 @@
--- 0239_create_account_access_request.sql
+-- 0241_create_account_access_request.sql
 -- Invitation d'un proche ADULTE (#6119) — distinct de account_guardianship (0010/0025)
 -- qui gère les dépendants MINEURS via un compte géré sans mot de passe. Ici les deux
 -- comptes existent déjà séparément : le titulaire invite un proche à consulter ses
@@ -11,6 +11,16 @@
 -- basé sur un GUC — un GET sur `app.current_account_id` ne suffirait pas à
 -- l'invité tant que le lien n'est pas établi.
 -- Issue : #6119
+--
+-- Renuméroté 0239 -> 0241 (#6136) : cette migration partageait le numéro 0239
+-- avec `0240_visit_request_estimated_price.sql` (avant son propre renumérotage
+-- en #6128/dedc207d). `infra/deploy/migrate.sh` suit les migrations appliquées
+-- par NUMÉRO DE VERSION seul (pas par nom de fichier) : sur le LXC de prod, la
+-- version 239 a déjà été enregistrée comme appliquée (pour l'AUTRE migration,
+-- avant son renumérotage) — cette migration-ci restait donc silencieusement
+-- sautée à chaque déploiement (table jamais créée, `GET /account/access-requests`
+-- -> 500 en continu) sans jamais faire échouer le pipeline. Un numéro encore
+-- libre (0241) lui permet enfin de s'appliquer.
 
 CREATE TABLE account_access_request (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
