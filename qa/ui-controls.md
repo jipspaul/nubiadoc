@@ -87,3 +87,33 @@ Playwright pilotée ce run (budget consommé sur la découverte + preuve du depl
 #6136 P0, jugé plus prioritaire qu'un nouveau passage UI sur des écrans déjà couverts
 récemment par le run du 2026-08-29). Prochain run : reprendre l'audit contrôle-par-contrôle
 sur les écrans jamais couverts ou les plus anciens du ledger ci-dessus.
+
+## Sweep 2026-08-31 — app infirmière (JAMAIS auditée avant ce run) + pharmacie devis filtres
+
+**App infirmière, 1ère fois auditée en Playwright réel (login réel, semantics)** : écran Connexion
+(4 contrôles : champ email, champ mdp, "Afficher le mot de passe", "Se connecter" — tous OK, login
+réussi). Écran Disponibilité (switch "En ligne" : OK au clic, MAIS **CASSÉ à l'affichage initial**
+— #6143 P1, l'écran ment systématiquement "hors ligne" au premier rendu quel que soit l'état serveur
+réel, faute d'appel à `GET /nurse/profile` au montage). Onglet Offres (carte d'offre : "Accepter" OK
+(201 confirmé, transition vers Ma visite), "Passer" non activé ce run (destructif pour l'unique
+offre de test disponible) ; **pull-to-refresh CASSÉ sur l'état vide** — #6144 P1, RefreshIndicator
+absent de la branche `NubiaEmptyState`). Onglet Ma visite (bouton transition "Je pars"/en-route puis
+suivants : OK au clic API-side, confirmé par re-GET serveur — le test Playwright a perdu la session
+par expiration de token (900s) en cours de script, pas un bug produit, complété via curl direct pour
+preuve). **Libellés d'actes bruts non traduits (prise_de_sang au lieu de Prise de sang) sur les
+2 écrans qui les affichent** — #6145 P2, la table de labels existe déjà dans app_patient mais n'est
+pas partagée avec app_infirmiere.
+
+**Pharmacie — Devis, 5 filtres (Tous/Brouillons/Envoyés/Acceptés/Refusés) réellement CLIQUÉS
+(jamais fait avant, ledger précédent notait "comptages vérifiés par lecture, pas cliqués")** :
+tous OK, chaque filtre affiche bien le sous-ensemble attendu (Brouillons→"Envoyer au patient" boutons
++1 item Brouillon ; Envoyés→2 items statut Envoyé ; Acceptés→6 items statut Accepté ; Refusés→2 boutons
+"Voir"), 0 défaut. Filtres Commandes (Toutes/Reçues/En préparation/Prêtes) re-cliqués et re-confirmés
+OK (listes différentes par filtre, cohérentes avec les compteurs).
+
+| infirmiere | / (Connexion) | 4 (champ email, champ mdp, afficher mdp, Se connecter) | 4 | 4 | 0 | 0 | 2026-08-31T00:15:00Z |
+| infirmiere | / (Disponibilité, switch En ligne) | 1 | 1 | 0 | 0 | 1 (affichage initial faux, #6143 — le toggle lui-même fonctionne) | 2026-08-31T00:15:00Z |
+| infirmiere | / (Offres, carte offre) | 2 (Accepter, Passer) + pull-to-refresh implicite | 1 (Accepter, OK 201) | 1 | 0 | 1 (pull-to-refresh mort sur liste vide, #6144) | 2026-08-31T00:15:00Z |
+| infirmiere | / (Ma visite, boutons transition) | 3 (Je pars/en-route, Arrivé, Terminé) | 3 (via API après perte de session Playwright, transitions confirmées serveur) | 3 | 0 | 0 | 2026-08-31T00:15:00Z |
+| pharmacie | /devis (5 filtres Tous/Brouillons/Envoyés/Acceptés/Refusés) | 5 | 5 (réellement cliqués cette fois, listes filtrées différentes et cohérentes) | 5 | 0 | 0 | 2026-08-31T00:15:00Z |
+| pharmacie | / (Commandes, 4 filtres) re-check | 4 | 4 | 4 | 0 | 0 | 2026-08-31T00:15:00Z |
