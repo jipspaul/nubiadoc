@@ -117,3 +117,22 @@ OK (listes différentes par filtre, cohérentes avec les compteurs).
 | infirmiere | / (Ma visite, boutons transition) | 3 (Je pars/en-route, Arrivé, Terminé) | 3 (via API après perte de session Playwright, transitions confirmées serveur) | 3 | 0 | 0 | 2026-08-31T00:15:00Z |
 | pharmacie | /devis (5 filtres Tous/Brouillons/Envoyés/Acceptés/Refusés) | 5 | 5 (réellement cliqués cette fois, listes filtrées différentes et cohérentes) | 5 | 0 | 0 | 2026-08-31T00:15:00Z |
 | pharmacie | / (Commandes, 4 filtres) re-check | 4 | 4 | 4 | 0 | 0 | 2026-08-31T00:15:00Z |
+
+## Note run 2026-08-31T06h16Z
+
+Re-audit app_infirmiere (switch Disponibilité + mécanique autoload Offres via
+trace réseau Playwright, `page.on('request')`) : le switch "En ligne" reflète
+maintenant correctement l'état serveur au montage dans les DEUX sens
+(`aria-checked=true` ET `false` confirmés selon `is_online` réel — #6143 fixé,
+déployé, tenu). **NOUVEAU défaut identifié au niveau MÉCANIQUE (pas juste
+contrôle) : `GET /nurse/offers` n'est jamais appelé automatiquement au montage
+de l'app**, seul `GET /nurse/profile` part (trace réseau capturée). Une nurse
+déjà en ligne avec une offre serveur active voit l'état vide "Aucune offre" et
+doit deviner qu'il faut tirer pour rafraîchir. Issue #6150 (P1) streamée —
+distinct de #6144 (pull-to-refresh mort, fixé, geste manuel) : ici c'est
+l'ABSENCE totale d'auto-chargement, pas le refresh manuel qui est cassé.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| infirmiere | / (Disponibilité, switch En ligne, re-vérif bidirectionnelle) | 1 | 1 | 1 | 0 | 0 (fix #6143 confirmé tenir dans les 2 sens) | 2026-08-31T06:16:00Z |
+| infirmiere | / (Offres, mécanique autoload au montage) | 1 (chargement implicite attendu) | 0 (jamais déclenché, confirmé par trace réseau) | 0 | 1 (mort — #6150 nouveau) | 0 | 2026-08-31T06:16:00Z |
