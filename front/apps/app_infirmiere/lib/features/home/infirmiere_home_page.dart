@@ -118,10 +118,19 @@ class _OffersTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.offers.isEmpty) {
-      return const NubiaEmptyState(
-        icon: Icons.inbox_outlined,
-        title: 'Aucune offre',
-        subtitle: 'Les demandes de visite proches apparaîtront ici.',
+      return RefreshIndicator(
+        onRefresh: () => context.read<NurseCubit>().loadOffers(),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 120),
+            NubiaEmptyState(
+              icon: Icons.inbox_outlined,
+              title: 'Aucune offre',
+              subtitle: 'Les demandes de visite proches apparaîtront ici.',
+            ),
+          ],
+        ),
       );
     }
     return RefreshIndicator(
