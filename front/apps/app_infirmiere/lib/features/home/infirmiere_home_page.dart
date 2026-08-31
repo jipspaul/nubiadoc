@@ -5,6 +5,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../infirmiere_config.dart';
 import '../../session/infirmiere_auth_cubit.dart';
+import '../nurse/home_care_acts.dart';
 import '../nurse/nurse_cubit.dart';
 
 /// Accueil infirmière : 3 onglets (Disponibilité, Offres, Ma visite).
@@ -140,7 +141,7 @@ class _OffersTab extends StatelessWidget {
                   Text(o.patientDisplayName,
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 4),
-                  Text(o.requestedActs.join(' · ')),
+                  Text(o.requestedActs.map(homeCareActLabel).join(' · ')),
                   Text('${o.address['city'] ?? ''} ${o.address['postal_code'] ?? ''}',
                       style: Theme.of(context).textTheme.bodySmall),
                   const SizedBox(height: 12),
@@ -200,7 +201,7 @@ class _VisitTab extends StatelessWidget {
           Text(v.patientDisplayName,
               style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 4),
-          Text(v.requestedActs.join(' · ')),
+          Text(v.requestedActs.map(homeCareActLabel).join(' · ')),
           Text('${v.address['line1'] ?? ''}, ${v.address['city'] ?? ''}'),
           const SizedBox(height: 8),
           Chip(label: Text('Statut : ${v.status}')),
