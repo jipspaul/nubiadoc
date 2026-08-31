@@ -15,7 +15,7 @@ class InfirmiereHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<NurseCubit>(
-      create: (_) => GetIt.instance<NurseCubit>(),
+      create: (_) => GetIt.instance<NurseCubit>()..loadProfile(),
       child: const _HomeScaffold(),
     );
   }

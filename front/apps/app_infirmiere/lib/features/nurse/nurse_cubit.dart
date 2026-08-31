@@ -81,6 +81,21 @@ class NurseCubit extends Cubit<NurseState> {
   final ApiClient _api;
   Dio get _dio => _api.dio;
 
+  /// Charge l'état réel de disponibilité depuis le serveur (`GET
+  /// /nurse/profile`). À appeler au montage de l'écran : `online` vaut
+  /// `false` par défaut dans [NurseState] tant que ce chargement n'a pas
+  /// abouti, ce qui ne reflète pas forcément `nurse.is_online` en base
+  /// (mise à jour lors d'une session précédente, autre appareil, etc.).
+  Future<void> loadProfile() async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>('/nurse/profile');
+      final isOnline = res.data?['is_online'] as bool? ?? false;
+      emit(state.copyWith(online: isOnline, clearError: true));
+    } on DioException catch (e) {
+      emit(state.copyWith(error: _msg(e)));
+    }
+  }
+
   Future<void> loadOffers() async {
     emit(state.copyWith(loading: true, clearError: true));
     try {
