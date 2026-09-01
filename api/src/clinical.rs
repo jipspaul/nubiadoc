@@ -94,7 +94,7 @@ fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 /// `cabinet_id` extrait du JWT, jamais du query string (invariant tenancy).
 /// RLS scopé via `app.current_cabinet_id`. Cloisonnement R.4127-72 : fiche admin uniquement
 /// (données cliniques chiffrées non exposées ici).
-/// Query : `q` (ILIKE nom/prénom), `filter=in_treatment|to_review`, `limit`, `cursor`.
+/// Query : `q` (ILIKE nom/prénom, y compris nom complet "prénom nom" — #6155), `filter=in_treatment|to_review`, `limit`, `cursor`.
 pub async fn list_cabinet_patients(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -236,7 +236,9 @@ pub async fn list_cabinet_patients(
          FROM patient p \
          WHERE p.deleted_at IS NULL\
          {filter_clause}{sec_clause} \
-         AND ($2::text IS NULL OR p.first_name ILIKE $2 OR p.last_name ILIKE $2) \
+         AND ($2::text IS NULL OR p.first_name ILIKE $2 OR p.last_name ILIKE $2 \
+              OR (p.first_name || ' ' || p.last_name) ILIKE $2 \
+              OR (p.last_name || ' ' || p.first_name) ILIKE $2) \
          AND ($3::timestamptz IS NULL \
               OR p.created_at < $3 \
               OR (p.created_at = $3 AND p.id < $4)) \
