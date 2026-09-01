@@ -143,3 +143,9 @@ l'ABSENCE totale d'auto-chargement, pas le refresh manuel qui est cassé.
 | praticien | /patients (champ recherche) | 1 | 1 | 0 | 0 | 1 (recherche nom complet avec espace retourne 0 résultat, cf #6155 — le champ lui-même répond, mais le résultat serveur est faux) | 2026-09-01T00:20:00Z |
 | praticien | /patients/:id (fiche, section Journal du patient) | 1 section (timeline) | 1 (chargement observé) | 0 | 0 | 1 (affiche "Erreur de décodage de la réponse", cf #6156) | 2026-09-01T00:22:00Z |
 | infirmiere | / (3 onglets Disponibilité/Offres/Ma visite, re-check) | 3 tabs | 3 | 3 | 0 | 0 (tous corrects : online affiché juste, offre visible sans refresh manuel, état vide correct) | 2026-09-01T00:15:00Z |
+
+## Sweep 2026-09-01T06h30Z — infirmière cycle complet (Accepter + transitions), billing patient sign
+
+| infirmiere | / (Offres, carte offre réelle + bouton Accepter) | 2 (Accepter, Passer) | 1 (Accepter cliqué, offre migre vers Ma visite, 0 req≥400) | 1 | 0 | 0 (aucun bug — un faux-négatif initial du script de test venait d'un mauvais ciblage de coordonnées de clic sur le tab, pas un défaut applicatif ; re-testé propre) | 2026-09-01T06:25:00Z |
+| infirmiere | / (Ma visite, bouton Je pars après Accepter) | 1 | 1 (cliqué, transition en_route confirmée par API après perte de session Playwright par expiration token) | 1 | 0 | 0 | 2026-09-01T06:25:00Z |
+| secretariat | /cabinet/quotes (create→send, flux frais) | N/A (API pur, pas de nav UI ce run) | - | - | - | - | 2026-09-01T06:20:00Z |
