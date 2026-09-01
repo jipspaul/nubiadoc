@@ -120,13 +120,26 @@ class PrescriptionItemDto {
         posology: json['posology'] as String,
         duration: json['duration'] as String,
         quantity: json['quantity'] as String? ?? '',
-        structuredPosology: json['structured_posology'] != null
-            ? StructuredPosologyDto.fromJson(
-                json['structured_posology'] as Map<String, dynamic>)
-            : null,
+        // #6156 : des lignes historiques (avant validation serveur) peuvent
+        // porter un `structured_posology` qui ne respecte pas le schéma
+        // attendu (champ renommé, `dose` en string, etc.). On dégrade en
+        // `null` (texte libre) plutôt que de laisser un `TypeError` remonter
+        // et faire échouer le décodage de TOUTE la liste (Journal du
+        // patient — #4970).
+        structuredPosology: _tryParseStructuredPosology(
+            json['structured_posology']),
         nonSubstitutionReason: json['non_substitution_reason'] as String?,
         nonRenouvelable: json['non_renouvelable'] as bool? ?? false,
       );
+
+  static StructuredPosologyDto? _tryParseStructuredPosology(dynamic raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    try {
+      return StructuredPosologyDto.fromJson(raw);
+    } on TypeError {
+      return null;
+    }
+  }
 
   Map<String, dynamic> toJson() => {
         'label': label,
