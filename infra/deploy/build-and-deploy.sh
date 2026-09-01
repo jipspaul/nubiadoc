@@ -124,8 +124,17 @@ for d in patient praticien secretary pharmacie infirmiere; do
   tar czf - -C "$OUT/www-$d" . | SSH "tar xzf - -C /opt/nubia/www/$d"
 done
 
-say "6/6 déploiement distant"
+say "6/7 déploiement distant"
 SSH "PUBLIC_API_BASE='$API_BASE' YOUSIGN_API_KEY='$YOUSIGN_API_KEY' sh /opt/nubia/deploy.sh"
+
+say "7/7 health-check TLS des domaines publics (Caddy hôte, best-effort)"
+# #6116/#6139/#6160 : le bloc Caddy dédié à reservation.doc.nubia-link.com est
+# un template collé à la main sur l'hôte Caddy (hors LXC, hors périmètre de ce
+# script) et a disparu 3 fois sans que personne ne s'en aperçoive avant un
+# sweep QA, parfois >24h plus tard. `|| true` : un souci DNS/réseau côté
+# runner ne doit pas faire échouer un déploiement par ailleurs réussi — le but
+# ici est la VISIBILITÉ immédiate (log CI), pas de bloquer le déploiement.
+bash "$ROOT/infra/deploy/verify-public-tls.sh" || true
 
 cat <<EOF
 

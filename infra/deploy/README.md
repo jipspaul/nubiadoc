@@ -58,6 +58,7 @@ Pré-requis une fois :
 | `api.Dockerfile`                | Image API COPY-only (binaire musl)                   |
 | `nginx.conf`                    | Sert les 5 bundles Flutter (8081→8085)               |
 | `Caddyfile.snippet`             | Bloc à coller dans le Caddy de l'hôte                |
+| `verify-public-tls.sh`          | Health-check TLS post-deploy des domaines publics (best-effort, cf. récidive #6116/#6139/#6160) |
 
 ## Comptes démo (seed)
 
