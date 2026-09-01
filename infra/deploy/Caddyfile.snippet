@@ -70,6 +70,12 @@ api.nubia.example.com {
 # avec l'API sur le même port n'a pas de checklist de déploiement dédiée
 # (pas de nouveau conteneur/port à qui associer la substitution) contrairement
 # aux fronts Flutter. Coller tel quel, sans substitution, pour ce bloc.
+#
+# #6160 (3e récidive) : `infra/deploy/verify-public-tls.sh`, lancé en fin de
+# `build-and-deploy.sh`, teste désormais ce domaine (entre autres) à CHAQUE
+# déploiement et logue un ::warning:: CI s'il ne répond pas — ne répare pas
+# ce bloc côté hôte Caddy (hors périmètre du repo), mais rend sa disparition
+# visible immédiatement au lieu d'attendre un sweep QA.
 reservation.doc.nubia-link.com {
     reverse_proxy 192.168.1.100:3000
 }
