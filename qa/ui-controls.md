@@ -149,3 +149,21 @@ l'ABSENCE totale d'auto-chargement, pas le refresh manuel qui est cassé.
 | infirmiere | / (Offres, carte offre réelle + bouton Accepter) | 2 (Accepter, Passer) | 1 (Accepter cliqué, offre migre vers Ma visite, 0 req≥400) | 1 | 0 | 0 (aucun bug — un faux-négatif initial du script de test venait d'un mauvais ciblage de coordonnées de clic sur le tab, pas un défaut applicatif ; re-testé propre) | 2026-09-01T06:25:00Z |
 | infirmiere | / (Ma visite, bouton Je pars après Accepter) | 1 | 1 (cliqué, transition en_route confirmée par API après perte de session Playwright par expiration token) | 1 | 0 | 0 | 2026-09-01T06:25:00Z |
 | secretariat | /cabinet/quotes (create→send, flux frais) | N/A (API pur, pas de nav UI ce run) | - | - | - | - | 2026-09-01T06:20:00Z |
+
+## Sweep 2026-09-01T12h20Z — login réel 5 apps (fix Playwright shadow-DOM + saisie Flutter)
+
+| patient | / (dashboard post-login, tuiles) | 6 tuiles + Annuaire/Notifications/Itinéraire | 0 (inventaire seul, ce run — pas d'activation click-par-click) | - | - | - | 2026-09-01T12:20:00Z |
+| praticien | / (nav + badges) | 15 (nav 12 + badges 2 + déconnexion) | 0 (inventaire seul) | - | - | - | 2026-09-01T12:20:00Z |
+| secretariat | / (dashboard agenda) | 6 (Ouvrir l'agenda, Appeler×2, Relancer, Ouvrir×2) | 0 (inventaire seul) | - | - | - | 2026-09-01T12:20:00Z |
+| pharmacie | / (Commandes liste + nav) | 28 (nav 4 + déconnexion + 23 contrôles de la liste commandes) | 0 (inventaire seul) | - | - | - | 2026-09-01T12:20:00Z |
+| infirmiere | / (Disponibilité, switch + 3 tabs) | 5 (déconnexion, switch, 3 tabs) | 0 (inventaire seul, activation déjà prouvée lors du sweep 06h30Z précédent) | - | - | - | 2026-09-01T12:20:00Z |
+
+Note méthode : ce sweep a d'abord dû résoudre un environnement CI sans DNS public (résolution manuelle
+via requêtes DNS UDP + /etc/hosts) et des faux-négatifs Playwright/Flutter web (canvas et semantics-host
+dans le shadow DOM de `flt-glass-pane`, jamais vus par un `querySelectorAll` direct ; `locator.fill()`
+perd le 1er caractère du mot de passe sans délai post-clic ; `mouse.click()` instantané n'est pas reconnu
+par le gesture recognizer Flutter, nécessite `mouse.down()`+wait 100-150ms+`mouse.up()`). Une fois ces
+correctifs de script appliqués, les 5 logins réels ont tous réussi sans erreur console/réseau bloquante ;
+l'activation exhaustive contrôle-par-contrôle (clic + verdict OK/MORT/CASSÉ) reste à faire sur les écrans
+listés ci-dessus lors d'un prochain sweep (budget de ce run concentré sur la remise en état de l'outillage
+Playwright + PRIO1 API).
