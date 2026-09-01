@@ -13,6 +13,9 @@
 #   4. provisionne le LXC (podman) si besoin
 #   5. pousse binaire/image, migrations, seed, bundles web
 #   6. lance deploy.sh sur le LXC (run de la stack)
+#   7. applique (opt-in, cf. CADDY_HOST) le bloc Caddy reservation.doc.nubia-link.com
+#      sur l'hôte Caddy hors LXC
+#   8. health-check TLS best-effort des domaines publics
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -39,7 +42,7 @@ if command -v puro >/dev/null 2>&1; then FLUTTER="puro flutter"; else FLUTTER="f
 
 mkdir -p "$OUT/api-ctx"
 
-say "1/6 cross-compile API ($TARGET, statique)"
+say "1/8 cross-compile API ($TARGET, statique)"
 # `cargo clean -p nubia-api` force la recompilation de NOTRE crate (les deps
 # restent en cache → build rapide). Sans ça, le cache CI (restore-keys
 # `deploy-rust-`) peut rejouer un `target/` où nubia-api est jugé à jour et
@@ -48,11 +51,11 @@ say "1/6 cross-compile API ($TARGET, statique)"
 ( cd "$ROOT/api" && SQLX_OFFLINE=true cargo zigbuild --target "$TARGET" --release --bin nubia-api )
 cp "$ROOT/api/target/$TARGET/release/nubia-api" "$OUT/api-ctx/nubia-api"
 
-say "2/6 préparation du contexte image API (assemblée sur le LXC, amd64 natif)"
+say "2/8 préparation du contexte image API (assemblée sur le LXC, amd64 natif)"
 # Binaire déjà copié à l'étape 1 ; on ajoute le Dockerfile COPY-only.
 cp "$ROOT/infra/deploy/api.Dockerfile" "$OUT/api-ctx/api.Dockerfile"
 
-say "3/6 flutter build web x3"
+say "3/8 flutter build web x3"
 # Asset Drift web : sqlite3 compilé en WASM (cache offline côté web).
 SQLITE3_WASM_VER="${SQLITE3_WASM_VER:-3.3.3}"
 if [ ! -f "$OUT/sqlite3.wasm" ]; then
@@ -103,10 +106,10 @@ build_front app_secretariat secretary
 build_front app_pharmacie   pharmacie
 build_front app_infirmiere  infirmiere
 
-say "4/6 provision LXC (idempotent)"
+say "4/8 provision LXC (idempotent)"
 SSH 'sh -s' < "$ROOT/infra/deploy/provision.sh"
 
-say "5/6 envoi des artefacts"
+say "5/8 envoi des artefacts"
 # scripts + nginx.conf
 SCP "$ROOT/infra/deploy/deploy.sh" "$ROOT/infra/deploy/bootstrap-db.sh" \
     "$ROOT/infra/deploy/migrate.sh" "$ROOT/infra/deploy/seed.sh" \
@@ -124,10 +127,22 @@ for d in patient praticien secretary pharmacie infirmiere; do
   tar czf - -C "$OUT/www-$d" . | SSH "tar xzf - -C /opt/nubia/www/$d"
 done
 
-say "6/7 déploiement distant"
+say "6/8 déploiement distant"
 SSH "PUBLIC_API_BASE='$API_BASE' YOUSIGN_API_KEY='$YOUSIGN_API_KEY' sh /opt/nubia/deploy.sh"
 
-say "7/7 health-check TLS des domaines publics (Caddy hôte, best-effort)"
+say "7/8 application auto du bloc Caddy reservation.doc.nubia-link.com (hôte Caddy, opt-in)"
+# #6116/#6139/#6160/#6162 : ce bloc est un template à coller à la main sur
+# l'hôte Caddy (hors LXC, hors périmètre du reste de ce script) — récidive x4
+# faute d'un mécanisme d'application automatique. Si CADDY_HOST/CADDY_USER/
+# CADDY_PASSWORD sont renseignés (secrets optionnels, cf. README), ce script
+# pousse + recharge la config réellement servie ; sinon il no-op (secret non
+# provisionné). PAS de `|| true` ici une fois CADDY_HOST configuré : un échec
+# doit être visible (badge rouge), pas noyé dans un warning best-effort — cf.
+# postmortem #3493 (faux vert pire qu'un rouge honnête).
+CADDY_HOST="${CADDY_HOST:-}" CADDY_USER="${CADDY_USER:-}" CADDY_PASSWORD="${CADDY_PASSWORD:-}" \
+  bash "$ROOT/infra/deploy/apply-reservation-caddy.sh"
+
+say "8/8 health-check TLS des domaines publics (Caddy hôte, best-effort)"
 # #6116/#6139/#6160 : le bloc Caddy dédié à reservation.doc.nubia-link.com est
 # un template collé à la main sur l'hôte Caddy (hors LXC, hors périmètre de ce
 # script) et a disparu 3 fois sans que personne ne s'en aperçoive avant un
