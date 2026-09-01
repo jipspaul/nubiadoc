@@ -76,6 +76,15 @@ api.nubia.example.com {
 # déploiement et logue un ::warning:: CI s'il ne répond pas — ne répare pas
 # ce bloc côté hôte Caddy (hors périmètre du repo), mais rend sa disparition
 # visible immédiatement au lieu d'attendre un sweep QA.
+#
+# #6162 (4e récidive, immédiatement après la clôture de #6160 sur la seule
+# preuve du script de vérif ci-dessus, sans re-check live) : la vérif seule ne
+# suffit pas, il manquait un moyen de RÉPARER ce bloc depuis ce repo. Ce bloc
+# EXACT (lu depuis ce fichier, pas dupliqué) peut désormais être poussé +
+# rechargé automatiquement sur l'hôte Caddy par
+# `infra/deploy/apply-reservation-caddy.sh`, appelé depuis `build-and-deploy.sh`
+# si les secrets CADDY_HOST/CADDY_USER/CADDY_PASSWORD sont renseignés (cf.
+# README). Sans ces secrets, le collage manuel décrit ci-dessus reste requis.
 reservation.doc.nubia-link.com {
     reverse_proxy 192.168.1.100:3000
 }

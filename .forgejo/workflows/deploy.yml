@@ -15,6 +15,9 @@
 # Secret optionnel : YOUSIGN_API_KEY (#5688 — absent tant qu'aucun compte
 # Yousign n'est provisionné : `POST /v1/quotes/:id/signature` répond alors
 # 502 upstream_unavailable, cf. `yousign_client.rs`).
+# Secrets optionnels CADDY_HOST/CADDY_USER/CADDY_PASSWORD (#6162) : sans eux,
+# l'application auto du bloc Caddy reservation.doc.nubia-link.com sur l'hôte
+# Caddy (hors LXC) est sautée — le collage manuel du snippet reste requis.
 # Variable optionnelle : NUBIA_API_BASE (défaut http://<DEPLOY_HOST>:3000).
 on:
   push:
@@ -129,6 +132,9 @@ jobs:
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
           API_BASE: ${{ vars.NUBIA_API_BASE }}
           YOUSIGN_API_KEY: ${{ secrets.YOUSIGN_API_KEY }}
+          CADDY_HOST: ${{ secrets.CADDY_HOST }}
+          CADDY_USER: ${{ secrets.CADDY_USER }}
+          CADDY_PASSWORD: ${{ secrets.CADDY_PASSWORD }}
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env" || true

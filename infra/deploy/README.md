@@ -37,6 +37,14 @@ Variables : `DEPLOY_HOST` (192.168.1.100) · `DEPLOY_USER` (root) · `DEPLOY_PAS
 `502 upstream_unavailable`, cf. #5688 ; `/v1/quotes/:id/sign`, le chemin utilisé par
 `app_patient`, n'en dépend pas).
 
+Variables optionnelles `CADDY_HOST` / `CADDY_USER` (défaut `root`) / `CADDY_PASSWORD` /
+`CADDY_SSH_PORT` (défaut `22`) / `CADDY_CONFIG_PATH` (défaut `/etc/caddy/Caddyfile`) :
+si `CADDY_HOST` est renseigné, le bloc Caddy `reservation.doc.nubia-link.com` (cf.
+`Caddyfile.snippet`) est poussé et rechargé automatiquement sur l'hôte Caddy en fin de
+déploiement (`apply-reservation-caddy.sh`, #6162). Sans `CADDY_HOST`, cette étape est
+sautée (no-op) — le collage manuel du snippet complet reste alors nécessaire, cf.
+section suivante.
+
 ## Déploiement automatique (CI)
 
 `.forgejo/workflows/deploy.yml` (`on: push` → `main`) lance le même script.
@@ -44,6 +52,9 @@ Pré-requis une fois :
 1. Construire l'image de job : `./ci/deploy/load-into-runner.sh` (dépend de `flutter-ci:stable`).
 2. Renseigner les secrets Forgejo : `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PASSWORD`
    (option : variable `NUBIA_API_BASE`, secret optionnel `YOUSIGN_API_KEY`).
+   Secrets optionnels `CADDY_HOST` / `CADDY_USER` / `CADDY_PASSWORD` (#6162) :
+   sans eux, l'application auto du bloc Caddy `reservation.doc.nubia-link.com`
+   est sautée et le collage manuel reste requis (cf. section précédente).
 
 ## Fichiers
 
@@ -58,7 +69,8 @@ Pré-requis une fois :
 | `api.Dockerfile`                | Image API COPY-only (binaire musl)                   |
 | `nginx.conf`                    | Sert les 5 bundles Flutter (8081→8085)               |
 | `Caddyfile.snippet`             | Bloc à coller dans le Caddy de l'hôte                |
-| `verify-public-tls.sh`          | Health-check TLS post-deploy des domaines publics (best-effort, cf. récidive #6116/#6139/#6160) |
+| `apply-reservation-caddy.sh`    | Application auto (opt-in via `CADDY_HOST`) du bloc `reservation.doc.nubia-link.com` sur l'hôte Caddy (#6162) |
+| `verify-public-tls.sh`          | Health-check TLS post-deploy des domaines publics (best-effort, cf. récidive #6116/#6139/#6160/#6162) |
 
 ## Comptes démo (seed)
 
