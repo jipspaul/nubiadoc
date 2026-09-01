@@ -172,9 +172,9 @@ async fn create_series_creates_three_linked_appointments() {
                         "patient_id": f.patient_id,
                         "motif": "Parodontologie",
                         "occurrences": [
-                            {"starts_at": "2026-09-01T09:00:00Z", "ends_at": "2026-09-01T09:30:00Z"},
-                            {"starts_at": "2026-09-08T09:00:00Z", "ends_at": "2026-09-08T09:30:00Z"},
-                            {"starts_at": "2026-09-15T09:00:00Z", "ends_at": "2026-09-15T09:30:00Z"}
+                            {"starts_at": "2027-09-01T09:00:00Z", "ends_at": "2027-09-01T09:30:00Z"},
+                            {"starts_at": "2027-09-08T09:00:00Z", "ends_at": "2027-09-08T09:30:00Z"},
+                            {"starts_at": "2027-09-15T09:00:00Z", "ends_at": "2027-09-15T09:30:00Z"}
                         ]
                     })
                     .to_string(),

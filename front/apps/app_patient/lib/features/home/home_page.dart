@@ -158,7 +158,7 @@ class _HomeContentState extends State<_HomeContent>
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Bonjour $name', style: textTheme.headlineSmall),
+              Text('Bonjour $name', style: textTheme.displayLarge),
               const SizedBox(height: 4),
               Text(
                 _todayLabel(),
