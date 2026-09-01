@@ -17,6 +17,29 @@ use crate::{
     AppState, ObjectStorage, SignatureClient,
 };
 
+/// Valide la forme de `structured_posology` : `{dose: number,
+/// frequency_per_day: number, duration_in_days: integer}` (design-v2,
+/// #4991-#4999 ; cf. décodeur strict Flutter `StructuredPosologyDto.fromJson`,
+/// `prescription_dto.dart:60-65`). Accepté tel quel côté serveur avant #6156,
+/// un champ manquant ou d'un mauvais type était persisté en JSONB opaque et
+/// faisait échouer le décodage strict côté client (`TypeError` -> tout le
+/// Journal du patient disparaissait).
+fn validate_structured_posology(value: &serde_json::Value) -> Result<(), AppError> {
+    let obj = value.as_object().ok_or(AppError::ValidationError)?;
+
+    obj.get("dose")
+        .and_then(serde_json::Value::as_f64)
+        .ok_or(AppError::ValidationError)?;
+    obj.get("frequency_per_day")
+        .and_then(serde_json::Value::as_f64)
+        .ok_or(AppError::ValidationError)?;
+    obj.get("duration_in_days")
+        .and_then(serde_json::Value::as_i64)
+        .ok_or(AppError::ValidationError)?;
+
+    Ok(())
+}
+
 // ── POST /v1/cabinet/prescriptions ───────────────────────────────────────────
 
 /// Un item de médicament dans le body de création.
@@ -94,6 +117,9 @@ pub async fn create_prescription(
         }
         if let Some(reason) = &item.non_substitution_reason {
             crate::text_validation::reject_nul_byte(reason)?;
+        }
+        if let Some(structured_posology) = &item.structured_posology {
+            validate_structured_posology(structured_posology)?;
         }
     }
 

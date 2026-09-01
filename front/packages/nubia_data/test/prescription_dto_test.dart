@@ -43,6 +43,40 @@ void main() {
       });
     });
 
+    test(
+        '#6156 : ligne historique divergente (champs renommés, dose string) '
+        '→ null, pas de TypeError', () {
+      final item = PrescriptionItemDto.fromJson({
+        'label': 'Amoxicilline 1g',
+        'posology': '1 cp matin et soir',
+        'duration': '7 jours',
+        'quantity': '1 boîte',
+        'structured_posology': {
+          'dose': '1g',
+          'duration_days': 7,
+          'frequency': '2x/jour',
+        },
+      }).toDomain();
+
+      expect(item.structuredPosology, isNull);
+    });
+
+    test('#6156 : dose non numérique dans le schéma attendu → null', () {
+      final item = PrescriptionItemDto.fromJson({
+        'label': 'Amoxicilline 1g',
+        'posology': '1 cp matin et soir',
+        'duration': '7 jours',
+        'quantity': '1 boîte',
+        'structured_posology': {
+          'dose': 'totally-not-a-number',
+          'frequency_per_day': 2,
+          'duration_in_days': 7,
+        },
+      }).toDomain();
+
+      expect(item.structuredPosology, isNull);
+    });
+
     test('fromDomain sans posologie structurée → clé absente du JSON', () {
       const item = PrescriptionItem(
         label: 'Doliprane',

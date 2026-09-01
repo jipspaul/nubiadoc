@@ -445,6 +445,67 @@ async fn create_prescription_nul_byte_in_item_returns_422() {
     cleanup_fixture(&db, cabinet_id, prac_user_id, prac_id, patient_id).await;
 }
 
+// ── Test 2ter (#6156) : structured_posology malformé → 422 (pas persisté) ───
+
+#[tokio::test]
+async fn create_prescription_malformed_structured_posology_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_user_id, prac_id, patient_id) = insert_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": patient_id,
+        "items": [{
+            "label": "TestMalformed",
+            "posology": "x",
+            "duration": "y",
+            "structured_posology": {
+                "dose": "totally-not-a-number",
+                "frequency": "???",
+                "garbage_field": true
+            }
+        }]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/prescriptions")
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let item_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM prescription_item WHERE label = 'TestMalformed'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(item_count, 0);
+
+    cleanup_fixture(&db, cabinet_id, prac_user_id, prac_id, patient_id).await;
+}
+
 // ── Test 3 : token secrétaire → 403 ──────────────────────────────────────────
 
 #[tokio::test]
