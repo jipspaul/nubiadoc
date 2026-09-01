@@ -136,3 +136,10 @@ l'ABSENCE totale d'auto-chargement, pas le refresh manuel qui est cassé.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | infirmiere | / (Disponibilité, switch En ligne, re-vérif bidirectionnelle) | 1 | 1 | 1 | 0 | 0 (fix #6143 confirmé tenir dans les 2 sens) | 2026-08-31T06:16:00Z |
 | infirmiere | / (Offres, mécanique autoload au montage) | 1 (chargement implicite attendu) | 0 (jamais déclenché, confirmé par trace réseau) | 0 | 1 (mort — #6150 nouveau) | 0 | 2026-08-31T06:16:00Z |
+
+## Sweep 2026-09-01T00h35Z — secrétariat agenda (mécanique semaine), praticien recherche patient, infirmière 3 onglets re-check
+
+| secretariat | /agenda (grille semaine + Nouveau RDV) | 4 (nav semaine préc/suiv/aujourd'hui + Nouveau RDV) + modale (Créneau/Patient/Annuler/Créer) | 5 | 5 | 0 | 0 | 2026-09-01T00:30:00Z |
+| praticien | /patients (champ recherche) | 1 | 1 | 0 | 0 | 1 (recherche nom complet avec espace retourne 0 résultat, cf #6155 — le champ lui-même répond, mais le résultat serveur est faux) | 2026-09-01T00:20:00Z |
+| praticien | /patients/:id (fiche, section Journal du patient) | 1 section (timeline) | 1 (chargement observé) | 0 | 0 | 1 (affiche "Erreur de décodage de la réponse", cf #6156) | 2026-09-01T00:22:00Z |
+| infirmiere | / (3 onglets Disponibilité/Offres/Ma visite, re-check) | 3 tabs | 3 | 3 | 0 | 0 (tous corrects : online affiché juste, offre visible sans refresh manuel, état vide correct) | 2026-09-01T00:15:00Z |
