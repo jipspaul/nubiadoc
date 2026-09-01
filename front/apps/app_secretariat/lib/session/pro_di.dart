@@ -35,6 +35,7 @@ void registerPro(GetIt gi) {
         register: gi<RegisterUseCase>(),
         tokenStorage: gi<TokenStorage>(),
         deviceRegistration: gi<DeviceRegistrationService>(),
+        api: gi<ApiClient>(),
         app: 'secretariat',
       ),
     )

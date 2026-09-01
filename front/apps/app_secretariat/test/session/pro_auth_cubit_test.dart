@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_core/nubia_core.dart';
@@ -18,6 +19,10 @@ class _MockTokenStorage extends Mock implements TokenStorage {}
 class _MockDeviceRegistrationService extends Mock
     implements DeviceRegistrationService {}
 
+class _MockApiClient extends Mock implements ApiClient {}
+
+class _MockDio extends Mock implements Dio {}
+
 const _account = PatientAccount(
   id: 'user-1',
   firstName: 'Alice',
@@ -31,6 +36,8 @@ void main() {
   late _MockRegisterUseCase mockRegister;
   late _MockTokenStorage mockStorage;
   late _MockDeviceRegistrationService mockDeviceReg;
+  late _MockApiClient mockApi;
+  late _MockDio mockDio;
 
   setUp(() {
     mockLogin = _MockLoginUseCase();
@@ -38,8 +45,15 @@ void main() {
     mockRegister = _MockRegisterUseCase();
     mockStorage = _MockTokenStorage();
     mockDeviceReg = _MockDeviceRegistrationService();
+    mockApi = _MockApiClient();
+    mockDio = _MockDio();
 
     when(() => mockDeviceReg.registerOnLogin(any())).thenAnswer((_) async {});
+    when(() => mockApi.dio).thenReturn(mockDio);
+    // #6170 : ProAuthCubit._session() interroge /me pour l'identité réelle en
+    // best-effort — un échec ne doit jamais empêcher l'authentification.
+    when(() => mockDio.get<Map<String, dynamic>>('/me'))
+        .thenThrow(Exception('network'));
   });
 
   ProAuthCubit buildCubit() => ProAuthCubit(
@@ -48,6 +62,7 @@ void main() {
         register: mockRegister,
         tokenStorage: mockStorage,
         deviceRegistration: mockDeviceReg,
+        api: mockApi,
         app: 'secretariat',
       );
 

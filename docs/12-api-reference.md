@@ -127,7 +127,7 @@
 
 `POST /v1/auth/login` — body : `email`, `password`, `mfa_code?`. → `200 { access_token, refresh_token, token_type:"Bearer", expires_in }`. Si pro avec MFA : `401 mfa_required` puis renvoyer avec `mfa_code`. Rate-limited.
 
-`GET /v1/me` → `{ user_id, email, kind:"patient"|"pro", account_id?, memberships:[{ cabinet_id, role }], pharmacy_memberships:[{ pharmacy_id, role }] }`. Pour un pro multi-cabinets, le **choix du cabinet actif** se fait à la connexion (le token porte un seul `cabinet_id`). Les memberships pharmacie (tenant dédié, §22) partagent le même login ; le contexte pharmacie s'active via `POST /v1/auth/select-pharmacy-context`.
+`GET /v1/me` → `{ user_id, email, kind:"patient"|"pro", account_id?, display_name?, memberships:[{ cabinet_id, role, cabinet_name }], pharmacy_memberships:[{ pharmacy_id, role, pharmacy_name }] }`. `display_name` (#6170) : `"{first_name} {last_name}"` (`app_user`), absent si les deux sont vides. Pour un pro multi-cabinets, le **choix du cabinet actif** se fait à la connexion (le token porte un seul `cabinet_id`). Les memberships pharmacie (tenant dédié, §22) partagent le même login ; le contexte pharmacie s'active via `POST /v1/auth/select-pharmacy-context`.
 
 `POST /v1/auth/select-pharmacy-context` — body : `pharmacy_id`. Porteur : token pro de login. → `200 { access_token, token_type, expires_in, context:{ pharmacy_id, role } }` avec claims `{ kind:"pharma", pharmacy_id, role }`. Erreurs : `404` (pharmacie inconnue ou non listée pour un non-membre, anti-énumération), `403 no_membership`.
 

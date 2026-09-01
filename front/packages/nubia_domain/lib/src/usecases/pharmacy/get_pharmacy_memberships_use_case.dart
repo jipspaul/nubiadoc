@@ -7,6 +7,6 @@ class GetPharmacyMembershipsUseCase {
   final PharmacySessionRepository _repository;
   const GetPharmacyMembershipsUseCase(this._repository);
 
-  Future<Either<Failure, List<PharmacyMembership>>> call() =>
-      _repository.myMemberships();
+  Future<Either<Failure, ({String? displayName, List<PharmacyMembership> memberships})>>
+      call() => _repository.myMemberships();
 }

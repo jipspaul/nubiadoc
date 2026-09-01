@@ -4,8 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
-import '../pharma_config.dart';
-
 sealed class AuthState {
   const AuthState();
 }
@@ -84,7 +82,8 @@ class PharmaAuthCubit extends Cubit<AuthState> {
         final membershipsResult = await _memberships();
         membershipsResult.fold(
           (failure) => emit(const AuthUnauthenticated()),
-          (memberships) {
+          (result) {
+            final memberships = result.memberships;
             if (memberships.isEmpty) {
               emit(const AuthUnauthenticated());
               return;
@@ -95,7 +94,8 @@ class PharmaAuthCubit extends Cubit<AuthState> {
                   kind: UserKind.pro,
                   userId: 'me',
                   role: proRoleFromString(memberships.first.role),
-                  contextLabel: PharmaConfig.spaceLabel,
+                  displayName: result.displayName,
+                  contextLabel: memberships.first.name,
                 ),
               ),
             );
@@ -161,7 +161,8 @@ class PharmaAuthCubit extends Cubit<AuthState> {
         emit(AuthUnauthenticated(silent ? null : failure.message));
         return false;
       },
-      (memberships) async {
+      (result) async {
+        final memberships = result.memberships;
         if (memberships.isEmpty) {
           await _logout();
           emit(AuthUnauthenticated(silent ? null : _noMembershipMessage));
@@ -182,7 +183,8 @@ class PharmaAuthCubit extends Cubit<AuthState> {
                   kind: UserKind.pro,
                   userId: 'me',
                   role: proRoleFromString(context.role),
-                  contextLabel: PharmaConfig.spaceLabel,
+                  displayName: result.displayName,
+                  contextLabel: context.name,
                 ),
               ),
             );

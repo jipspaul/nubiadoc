@@ -51,12 +51,14 @@ class ProAuthCubit extends Cubit<AuthState> {
     required RegisterUseCase register,
     required TokenStorage tokenStorage,
     required DeviceRegistrationService deviceRegistration,
+    required ApiClient api,
     required String app,
   })  : _login = login,
         _logout = logout,
         _register = register,
         _tokenStorage = tokenStorage,
         _deviceRegistration = deviceRegistration,
+        _api = api,
         _app = app,
         super(const AuthUnknown());
 
@@ -65,6 +67,7 @@ class ProAuthCubit extends Cubit<AuthState> {
   final RegisterUseCase _register;
   final TokenStorage _tokenStorage;
   final DeviceRegistrationService _deviceRegistration;
+  final ApiClient _api;
   final String _app;
 
   Future<void> restore() async {
@@ -74,7 +77,7 @@ class ProAuthCubit extends Cubit<AuthState> {
         emit(const AuthUnauthenticated());
         return;
       }
-      emit(AuthAuthenticated(_session()));
+      emit(AuthAuthenticated(await _session()));
     } catch (_) {
       emit(const AuthUnauthenticated());
     }
@@ -84,11 +87,11 @@ class ProAuthCubit extends Cubit<AuthState> {
     emit(const AuthLoading());
     try {
       final result = await _login(email: email, password: password);
-      result.fold(
-        (failure) => emit(AuthUnauthenticated(failure.message)),
-        (_) {
+      await result.fold(
+        (failure) async => emit(AuthUnauthenticated(failure.message)),
+        (_) async {
           _deviceRegistration.registerOnLogin(_app);
-          emit(AuthAuthenticated(_session()));
+          emit(AuthAuthenticated(await _session()));
         },
       );
     } catch (_) {
@@ -112,14 +115,14 @@ class ProAuthCubit extends Cubit<AuthState> {
         cguVersion: cguVersion,
         inviteToken: inviteToken,
       );
-      result.fold(
-        (failure) => emit(AuthUnauthenticated(
+      await result.fold(
+        (failure) async => emit(AuthUnauthenticated(
           failure.message,
           failure is InvalidInviteFailure,
         )),
-        (_) {
+        (_) async {
           _deviceRegistration.registerOnLogin(_app);
-          emit(AuthAuthenticated(_session()));
+          emit(AuthAuthenticated(await _session()));
         },
       );
     } catch (_) {
@@ -132,9 +135,36 @@ class ProAuthCubit extends Cubit<AuthState> {
     emit(const AuthUnauthenticated());
   }
 
-  AuthSession _session() => const AuthSession(
-        kind: UserKind.pro,
-        userId: 'me',
-        role: ProConfig.role,
+  /// Identité réelle du shell pro (#6170) : `display_name` et le nom du
+  /// cabinet courant viennent de `GET /v1/me`, jamais du JWT (qui ne porte
+  /// que `sub`/`kind`). Best-effort — un `/me` en échec ne bloque jamais la
+  /// session, il retombe silencieusement sur les libellés génériques
+  /// existants ([ProConfig.role]/[ProConfig.appTitle]).
+  Future<AuthSession> _session() async {
+    String? displayName;
+    String? cabinetName;
+    try {
+      final response = await _api.dio.get<Map<String, dynamic>>('/me');
+      displayName = response.data?['display_name'] as String?;
+      final memberships = (response.data?['memberships'] as List<dynamic>? ??
+              const [])
+          .cast<Map<String, dynamic>>();
+      final ownRoleMatches = memberships.where(
+        (m) => proRoleFromString(m['role'] as String?) == ProConfig.role,
       );
+      final match = ownRoleMatches.isNotEmpty
+          ? ownRoleMatches.first
+          : (memberships.isNotEmpty ? memberships.first : null);
+      cabinetName = match?['cabinet_name'] as String?;
+    } catch (_) {
+      // Non bloquant : voir doc ci-dessus.
+    }
+    return AuthSession(
+      kind: UserKind.pro,
+      userId: 'me',
+      role: ProConfig.role,
+      displayName: displayName,
+      contextLabel: cabinetName,
+    );
+  }
 }
