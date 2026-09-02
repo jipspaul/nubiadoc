@@ -32,7 +32,8 @@ class OrderRow extends StatelessWidget {
         .formatTimeOfDay(TimeOfDay.fromDateTime(order.createdAt.toLocal()));
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final wait = orderWaitOf(order);
-    final waitColor = switch (wait.tone) {
+    final waitColor = switch (wait?.tone) {
+      null => null,
       OrderWaitTone.neutral => tokens.textTertiary,
       OrderWaitTone.warning => tokens.warningFg,
       OrderWaitTone.danger => tokens.dangerFg,
@@ -41,29 +42,36 @@ class OrderRow extends StatelessWidget {
     return DecoratedBox(
       key: Key('order_row_${order.id}'),
       decoration: BoxDecoration(
-        color: wait.isUrgent ? tokens.dangerBg : null,
+        color: (wait?.isUrgent ?? false) ? tokens.dangerBg : null,
       ),
       child: ListRow(
         title: order.patientDisplayName ?? 'Patient',
-        subtitleWidget: Text.rich(
-          TextSpan(
-            text: 'Reçue à $time\n',
-            children: [
-              TextSpan(
-                text: wait.label,
-                style: TextStyle(
-                  color: waitColor,
-                  fontWeight: wait.tone == OrderWaitTone.neutral
-                      ? FontWeight.w400
-                      : FontWeight.w700,
+        subtitleWidget: wait == null
+            ? Text(
+                'Reçue à $time',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: tokens.textTertiary,
+                    ),
+              )
+            : Text.rich(
+                TextSpan(
+                  text: 'Reçue à $time\n',
+                  children: [
+                    TextSpan(
+                      text: wait.label,
+                      style: TextStyle(
+                        color: waitColor,
+                        fontWeight: wait.tone == OrderWaitTone.neutral
+                            ? FontWeight.w400
+                            : FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: tokens.textTertiary,
+                    ),
               ),
-            ],
-          ),
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: tokens.textTertiary,
-              ),
-        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

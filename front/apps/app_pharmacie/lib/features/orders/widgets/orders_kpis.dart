@@ -31,7 +31,9 @@ class OrdersKpis {
     for (final order in orders) {
       switch (order.status) {
         case PharmacyOrderStatus.received:
-          if (orderWaitOf(order, now: reference).isUrgent) urgentCount++;
+          if (orderWaitOf(order, now: reference)?.isUrgent ?? false) {
+            urgentCount++;
+          }
           break;
         case PharmacyOrderStatus.preparing:
           preparingCount++;

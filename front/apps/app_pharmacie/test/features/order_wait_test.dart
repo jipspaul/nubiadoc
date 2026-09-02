@@ -27,7 +27,7 @@ void main() {
         createdAt: DateTime(2026, 8, 13, 8, 1),
       );
 
-      final wait = orderWaitOf(order, now: now);
+      final wait = orderWaitOf(order, now: now)!;
 
       expect(wait.label, 'Attend 3 h 20');
       expect(wait.tone, OrderWaitTone.danger);
@@ -40,7 +40,7 @@ void main() {
         createdAt: DateTime(2026, 8, 13, 9, 47),
       );
 
-      final wait = orderWaitOf(order, now: now);
+      final wait = orderWaitOf(order, now: now)!;
 
       expect(wait.label, 'Attend 1 h 34');
       expect(wait.tone, OrderWaitTone.warning);
@@ -52,7 +52,7 @@ void main() {
         createdAt: DateTime(2026, 8, 13, 10, 4),
       );
 
-      expect(orderWaitOf(order, now: now).tone, OrderWaitTone.neutral);
+      expect(orderWaitOf(order, now: now)!.tone, OrderWaitTone.neutral);
     });
 
     test('preparing depuis moins d\'1 h → « Attend N min »', () {
@@ -61,23 +61,28 @@ void main() {
         createdAt: DateTime(2026, 8, 13, 10, 23),
       );
 
-      final wait = orderWaitOf(order, now: now);
+      final wait = orderWaitOf(order, now: now)!;
 
       expect(wait.label, 'Attend 58 min');
       expect(wait.tone, OrderWaitTone.neutral);
     });
 
-    test('ready depuis 2 h 20 → pas d\'escalade même au-delà du seuil', () {
+    test('ready → aucune attente affichée (commande non active)', () {
       final order = _order(
         status: PharmacyOrderStatus.ready,
         createdAt: DateTime(2026, 8, 13, 9, 1),
       );
 
-      final wait = orderWaitOf(order, now: now);
+      expect(orderWaitOf(order, now: now), isNull);
+    });
 
-      expect(wait.label, 'Attend 2 h 20');
-      expect(wait.tone, OrderWaitTone.neutral);
-      expect(wait.isUrgent, isFalse);
+    test('pickedUp → aucune attente affichée (commande retirée)', () {
+      final order = _order(
+        status: PharmacyOrderStatus.pickedUp,
+        createdAt: DateTime(2026, 8, 13, 8, 1),
+      );
+
+      expect(orderWaitOf(order, now: now), isNull);
     });
 
     test('minutes paddées à 2 chiffres quand des heures sont affichées', () {
@@ -86,7 +91,7 @@ void main() {
         createdAt: DateTime(2026, 8, 13, 9, 19),
       );
 
-      expect(orderWaitOf(order, now: now).label, 'Attend 2 h 02');
+      expect(orderWaitOf(order, now: now)!.label, 'Attend 2 h 02');
     });
   });
 }

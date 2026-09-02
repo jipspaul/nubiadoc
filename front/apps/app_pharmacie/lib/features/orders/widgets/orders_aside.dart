@@ -110,8 +110,9 @@ class _AsideEntry {
 /// « Commandes en attente > 2 h » — même seuil que l'escalade de la file
 /// (`dangerThresholdMinutes`, `order_wait.dart`), recalculé côté client.
 _AsideEntry? _waitingEntry(List<PharmacyOrder> orders, NubiaTokens tokens) {
-  final count =
-      orders.where((o) => orderWaitOf(o).tone == OrderWaitTone.danger).length;
+  final count = orders
+      .where((o) => orderWaitOf(o)?.tone == OrderWaitTone.danger)
+      .length;
   if (count == 0) return null;
   return _AsideEntry(
     icon: Icons.schedule,
