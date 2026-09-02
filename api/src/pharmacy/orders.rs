@@ -59,6 +59,15 @@ pub struct OrderDto {
     /// pharmacie » sur un refus, #5351) — mêmes réserves que `pharmacy_address`.
     pub pharmacy_phone: Option<String>,
     pub patient_display_name: String,
+    /// Référence courte affichable (`CMD-0042`), dérivée de `order_seq`
+    /// (#6253) — colonne structurante de la maquette file pharmacie.
+    pub order_ref: String,
+    /// Prescripteur (Dr + cabinet), snapshotés à la création (#6253) — la
+    /// pharmacie ne lit jamais `practitioner`/`cabinet` en direct (RLS
+    /// bornées au GUC cabinet). `None` pour les commandes créées avant
+    /// #6253 dont le backfill n'a pas trouvé de profil `provider`.
+    pub prescriber_name: Option<String>,
+    pub prescriber_practice: Option<String>,
     pub prescription_id: Uuid,
     pub status: String,
     pub rejection_reason: Option<String>,
@@ -66,6 +75,9 @@ pub struct OrderDto {
     pub updated_at: String,
     pub ready_at: Option<String>,
     pub picked_up_at: Option<String>,
+    /// Nombre de lignes de l'ordonnance (#6253) — recalculé à la lecture,
+    /// jamais stocké (source unique : `prescription_item`).
+    pub line_count: i64,
     pub billing_total_cents: Option<i64>,
     pub billing_amo_share_cents: Option<i64>,
     pub billing_amc_share_cents: Option<i64>,
@@ -74,6 +86,10 @@ pub struct OrderDto {
 
 pub(crate) const ORDER_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_display_name, \
      prescription_id, status, rejection_reason, received_at, updated_at, ready_at, picked_up_at, \
+     prescriber_name, prescriber_practice, \
+     ('CMD-' || lpad(order_seq::text, 4, '0')) AS order_ref, \
+     (SELECT count(*) FROM prescription_item pi \
+        WHERE pi.prescription_id = pharmacy_order.prescription_id) AS line_count, \
      (SELECT pq.total_cents FROM pharmacy_quote pq WHERE pq.order_id = pharmacy_order.id \
         AND pq.status = 'accepted' ORDER BY pq.decided_at DESC LIMIT 1) AS billing_total_cents, \
      (SELECT ph.address FROM pharmacy ph WHERE ph.id = pharmacy_order.pharmacy_id) AS pharmacy_address, \
@@ -99,6 +115,13 @@ pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
         patient_display_name: row
             .try_get("patient_display_name")
             .map_err(|_| AppError::Internal)?,
+        order_ref: row.try_get("order_ref").map_err(|_| AppError::Internal)?,
+        prescriber_name: row
+            .try_get("prescriber_name")
+            .map_err(|_| AppError::Internal)?,
+        prescriber_practice: row
+            .try_get("prescriber_practice")
+            .map_err(|_| AppError::Internal)?,
         prescription_id: row
             .try_get("prescription_id")
             .map_err(|_| AppError::Internal)?,
@@ -116,6 +139,7 @@ pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
             .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("picked_up_at")
             .map_err(|_| AppError::Internal)?
             .map(to_rfc3339),
+        line_count: row.try_get("line_count").map_err(|_| AppError::Internal)?,
         billing_total_cents,
         billing_amo_share_cents: billing_total_cents.map(|_| 0),
         billing_amc_share_cents: billing_total_cents.map(|_| 0),
@@ -438,7 +462,7 @@ pub async fn create_account_order(
 
     // Ordonnance visible par ce compte (policy 0109) — 404 sinon.
     let presc = sqlx::query(
-        "SELECT cabinet_id, patient_id, status, document_id \
+        "SELECT cabinet_id, patient_id, practitioner_id, status, document_id \
          FROM prescription WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(prescription_id)
@@ -453,9 +477,22 @@ pub async fn create_account_order(
     let patient_id: Uuid = presc
         .try_get("patient_id")
         .map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = presc
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
     let status: String = presc.try_get("status").map_err(|_| AppError::Internal)?;
     let document_id: Option<Uuid> = presc
         .try_get("document_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // GUC cabinet posé dès maintenant (pas seulement pour la transition
+    // prescription plus bas) : nécessaire pour résoudre le prescripteur
+    // (#6253, cf. prescriber_identity) sous les policies `tenant_isolation`
+    // (cabinet) / `provider_cabinet_manage`.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
         .map_err(|_| AppError::Internal)?;
 
     // Seule une ordonnance signée (PDF généré) peut partir en pharmacie.
@@ -498,6 +535,11 @@ pub async fn create_account_order(
     // Nom minimisé pour le comptoir : « Prénom N. » (policy 0029).
     let patient_display_name = minimized_patient_name(&mut tx, patient_id).await?;
 
+    // Prescripteur (Dr + cabinet), snapshoté maintenant — la pharmacie ne
+    // pourra plus jamais le résoudre elle-même (#6253).
+    let (prescriber_name, prescriber_practice) =
+        prescriber_identity(&mut tx, cabinet_id, practitioner_id).await?;
+
     // Consentement au partage (upsert : re-commande = renouvellement).
     let consent_row = sqlx::query(
         "INSERT INTO consent_record \
@@ -519,8 +561,9 @@ pub async fn create_account_order(
     let order_row = sqlx::query(&format!(
         "INSERT INTO pharmacy_order \
          (pharmacy_id, cabinet_id, patient_account_id, prescription_id, document_id, \
-          created_by_kind, created_by, consent_record_id, pharmacy_name, patient_display_name) \
-         VALUES ($1, $2, $3, $4, $5, 'patient', $6, $7, $8, $9) \
+          created_by_kind, created_by, consent_record_id, pharmacy_name, patient_display_name, \
+          prescriber_name, prescriber_practice) \
+         VALUES ($1, $2, $3, $4, $5, 'patient', $6, $7, $8, $9, $10, $11) \
          RETURNING {ORDER_COLUMNS}",
     ))
     .bind(body.pharmacy_id)
@@ -532,6 +575,8 @@ pub async fn create_account_order(
     .bind(consent_record_id)
     .bind(&pharmacy_name)
     .bind(&patient_display_name)
+    .bind(&prescriber_name)
+    .bind(&prescriber_practice)
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| match &e {
@@ -935,6 +980,38 @@ pub(crate) async fn minimized_patient_name(
         .map(|c| format!(" {}.", c.to_uppercase()))
         .unwrap_or_default();
     Ok(format!("{first_name}{initial}"))
+}
+
+/// Résout le prescripteur (Dr + cabinet) à snapshoter sur la commande
+/// (#6253) — `cabinet` (`tenant_isolation`) et `provider`
+/// (`provider_cabinet_manage`) ne sont visibles que sous le GUC
+/// `app.current_cabinet_id` du cabinet prescripteur, déjà posé par
+/// l'appelant. `prescriber_name` reste `None` si le praticien n'a pas de
+/// profil `provider` (`practitioner_id` optionnel côté `provider`).
+pub(crate) async fn prescriber_identity(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    cabinet_id: Uuid,
+    practitioner_id: Uuid,
+) -> Result<(Option<String>, Option<String>), AppError> {
+    let row = sqlx::query(
+        "SELECT c.raison_sociale AS prescriber_practice, prov.display_name AS prescriber_name \
+         FROM cabinet c \
+         LEFT JOIN provider prov ON prov.practitioner_id = $2 \
+         WHERE c.id = $1",
+    )
+    .bind(cabinet_id)
+    .bind(practitioner_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    match row {
+        Some(row) => Ok((
+            row.try_get("prescriber_name").map_err(|_| AppError::Internal)?,
+            row.try_get("prescriber_practice")
+                .map_err(|_| AppError::Internal)?,
+        )),
+        None => Ok((None, None)),
+    }
 }
 
 // ── Machine à états (lot B3) ──────────────────────────────────────────────────

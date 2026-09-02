@@ -245,6 +245,18 @@ async fn patient_creates_order_and_prescription_becomes_sent() {
     assert_eq!(order["pharmacy_name"], "Pharmacie PO");
     assert_eq!(order["patient_display_name"], "Jean D.");
 
+    // #6253 : colonnes structurantes de la file pharmacie — prescripteur
+    // (snapshoté à la création, la fixture n'a pas de profil `provider` donc
+    // seul le cabinet est renseigné), n° de commande, nombre de lignes.
+    assert_eq!(order["prescriber_practice"], "Cabinet PO");
+    assert!(order["prescriber_name"].is_null());
+    assert!(
+        order["order_ref"].as_str().unwrap().starts_with("CMD-"),
+        "order_ref: {}",
+        order["order_ref"]
+    );
+    assert_eq!(order["line_count"], 0);
+
     // La prescription passe à `sent` et le consentement est tracé.
     let presc_status: String = sqlx::query("SELECT status FROM prescription WHERE id = $1")
         .bind(fx.prescription_id)
@@ -487,6 +499,10 @@ async fn pharmacy_and_patient_see_the_order_other_pharmacy_does_not() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(detail["patient_display_name"], "Jean D.");
+    // #6253 : la vue pharmacie voit désormais le prescripteur (snapshot,
+    // stocké sur la ligne — aucune lecture cabinet/practitioner nécessaire).
+    assert_eq!(detail["prescriber_practice"], "Cabinet PO");
+    assert!(detail["order_ref"].as_str().unwrap().starts_with("CMD-"));
 
     // Une autre pharmacie → 404 (RLS).
     let other_pharmacy = Uuid::new_v4();
@@ -546,6 +562,9 @@ async fn account_order_detail_includes_prescription_lines() {
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
+    // #6253 : line_count reflète prescription_item dès la création (compté à
+    // la lecture, pas de risque de désynchronisation avec `lines`).
+    assert_eq!(order["line_count"], 1);
     let order_id = order["id"].as_str().unwrap().to_string();
 
     let (status, detail) = request(
@@ -556,6 +575,7 @@ async fn account_order_detail_includes_prescription_lines() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["line_count"], 1);
     let lines = detail["lines"].as_array().unwrap();
     assert_eq!(lines.len(), 1);
     assert_eq!(lines[0]["label"], "Paracétamol 1 g");

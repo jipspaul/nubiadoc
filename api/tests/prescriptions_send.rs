@@ -206,6 +206,9 @@ async fn send_happy_path_creates_order_and_consent() {
     assert_eq!(status, StatusCode::CREATED, "body: {order}");
     assert_eq!(order["status"], "received");
     assert_eq!(order["patient_display_name"], "Alice M.");
+    // #6253 : envoyée par le praticien lui-même, la commande porte aussi le
+    // snapshot prescripteur (le cabinet GUC est déjà celui du prescripteur).
+    assert_eq!(order["prescriber_practice"], "Cabinet PS");
 
     let presc_status: String = sqlx::query("SELECT status FROM prescription WHERE id = $1")
         .bind(fx.prescription_id)

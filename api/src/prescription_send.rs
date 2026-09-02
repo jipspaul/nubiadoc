@@ -140,6 +140,13 @@ pub async fn send_prescription(
     let patient_display_name =
         crate::pharmacy::orders::minimized_patient_name(&mut tx, patient_id).await?;
 
+    // Prescripteur (Dr + cabinet), snapshoté maintenant (#6253) — le GUC
+    // cabinet est déjà posé (ligne 54), le praticien envoie sa propre
+    // ordonnance depuis son propre cabinet.
+    let (prescriber_name, prescriber_practice) =
+        crate::pharmacy::orders::prescriber_identity(&mut tx, claims.cabinet_id, practitioner_id)
+            .await?;
+
     // Consentement (recueilli au cabinet). GUC compte requis pour l'upsert
     // (policy consent_account_update 0048) — valeur DB, jamais client.
     sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
@@ -175,8 +182,9 @@ pub async fn send_prescription(
     let order_row = sqlx::query(&format!(
         "INSERT INTO pharmacy_order \
          (pharmacy_id, cabinet_id, patient_account_id, prescription_id, document_id, \
-          created_by_kind, created_by, consent_record_id, pharmacy_name, patient_display_name) \
-         VALUES ($1, $2, $3, $4, $5, 'practitioner', $6, $7, $8, $9) \
+          created_by_kind, created_by, consent_record_id, pharmacy_name, patient_display_name, \
+          prescriber_name, prescriber_practice) \
+         VALUES ($1, $2, $3, $4, $5, 'practitioner', $6, $7, $8, $9, $10, $11) \
          RETURNING {}",
         crate::pharmacy::orders::ORDER_COLUMNS,
     ))
@@ -189,6 +197,8 @@ pub async fn send_prescription(
     .bind(consent_record_id)
     .bind(&pharmacy_name)
     .bind(&patient_display_name)
+    .bind(&prescriber_name)
+    .bind(&prescriber_practice)
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| match &e {
