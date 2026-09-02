@@ -1224,3 +1224,142 @@ async fn treatment_plans_list_current_step_is_current_phase_position() {
         .await
         .ok();
 }
+
+// ── Test L7 : `current_step` = le RANG (1-based) de la phase courante
+//    parmi les phases du plan, pas sa `position` brute — `position` est une
+//    clé de tri, ni 1-based ni contiguë, parfois dupliquée (#6268 — suite de
+//    #6233). Repro exacte de « Plan QA B4 » : positions 0 (`in_progress`)
+//    et 5 (`requested`) → `current_step` doit valoir 1, pas 0 ─────────────
+
+#[tokio::test]
+async fn treatment_plans_list_current_step_is_rank_not_raw_position() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("tp-list-rank+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Rank', 'Patient')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("tp-list-rank-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Fixture de base : plan avec une seule phase (position 1, `requested`).
+    let (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id) =
+        insert_treatment_plan_fixture(&db, prac_user_id, account_id).await;
+
+    // Reproduit « Plan QA B4 » : phase de base ramenée en position 0, plus
+    // une seconde phase en position 5 — `position` n'est ni 1-based ni
+    // contiguë, mais il n'y a que 2 phases (step_count = 2).
+    let phase2_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE treatment_phase SET position = 0 WHERE id = $1")
+        .bind(phase_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO treatment_phase \
+         (id, cabinet_id, plan_id, position, title, status) \
+         VALUES ($1, $2, $3, 5, 'LeakTest', 'requested')",
+    )
+    .bind(phase2_id)
+    .bind(cabinet_id)
+    .bind(plan_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/treatment-plans")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().expect("data doit être un tableau");
+    let plan = data
+        .iter()
+        .find(|p| p["id"] == plan_id.to_string())
+        .expect("le plan inséré doit apparaître dans la liste");
+
+    assert_eq!(plan["step_count"], 2, "2 phases au total");
+    assert_eq!(
+        plan["current_phase_title"], "Phase 1 · Bilan",
+        "phase courante = première phase non `done` par position (0)"
+    );
+    assert_eq!(
+        plan["current_step"], 1,
+        "current_step doit être le RANG (1) de la phase courante, \
+         pas sa position brute (0)"
+    );
+
+    sqlx::query("DELETE FROM treatment_phase WHERE id = $1")
+        .bind(phase2_id)
+        .execute(&db)
+        .await
+        .ok();
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
