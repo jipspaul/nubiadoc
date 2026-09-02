@@ -10,14 +10,17 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
   final GetCabinetAgendaUseCase _getAgenda;
   final ConfirmAppointmentUseCase _confirmAppointment;
   final StartConsultationUseCase _startConsultation;
+  final CreateAppointmentSeriesUseCase _createAppointmentSeries;
 
   AgendaBloc({
     required GetCabinetAgendaUseCase getAgenda,
     required ConfirmAppointmentUseCase confirmAppointment,
     required StartConsultationUseCase startConsultation,
+    required CreateAppointmentSeriesUseCase createAppointmentSeries,
   })  : _getAgenda = getAgenda,
         _confirmAppointment = confirmAppointment,
         _startConsultation = startConsultation,
+        _createAppointmentSeries = createAppointmentSeries,
         super(const AgendaInitial()) {
     on<AgendaLoadRequested>(_onLoad);
     on<AgendaWeekChanged>(_onWeekChanged);
@@ -30,6 +33,13 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
       }
     });
     on<TogglePastIncluded>(_onTogglePast);
+    on<AgendaSeriesCreateRequested>(_onCreateSeries);
+    on<AgendaSeriesCreatedConsumed>((event, emit) {
+      final current = state;
+      if (current is AgendaLoaded) {
+        emit(current.copyWith(clearSeriesAppointmentsCreated: true));
+      }
+    });
   }
 
   Future<void> _fetchAndEmit(
@@ -37,6 +47,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     Emitter<AgendaState> emit, {
     required bool includePast,
     String? startedConsultationId,
+    int? seriesAppointmentsCreated,
   }) async {
     emit(const AgendaLoading());
     try {
@@ -48,6 +59,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
           weekStart: weekStart,
           includePast: includePast,
           startedConsultationId: startedConsultationId,
+          seriesAppointmentsCreated: seriesAppointmentsCreated,
         )),
       );
     } catch (_) {
@@ -132,6 +144,38 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
           emit,
           includePast: current.includePast,
           startedConsultationId: session.id,
+        ),
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(
+          actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
+  }
+
+  Future<void> _onCreateSeries(
+    AgendaSeriesCreateRequested event,
+    Emitter<AgendaState> emit,
+  ) async {
+    final current = state;
+    if (current is! AgendaLoaded) return;
+    emit(current.copyWith(actionInProgress: true, clearActionError: true));
+    try {
+      final result = await _createAppointmentSeries(
+        practitionerId: event.practitionerId,
+        patientId: event.patientId,
+        motif: event.motif,
+        occurrences: event.occurrences,
+      );
+      await result.fold(
+        (failure) async => safeEmit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (series) async => _fetchAndEmit(
+          current.weekStart,
+          emit,
+          includePast: current.includePast,
+          seriesAppointmentsCreated: series.appointments.length,
         ),
       );
     } catch (_) {

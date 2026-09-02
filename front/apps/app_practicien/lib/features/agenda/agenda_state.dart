@@ -27,6 +27,11 @@ class AgendaLoaded extends AgendaState {
   /// naviguer vers /consultation (#3367), puis remis à null.
   final String? startedConsultationId;
 
+  /// Nombre de RDV créés par la dernière série (#4088) — consommé par la
+  /// page pour afficher un snackbar, puis remis à null (même pattern que
+  /// [startedConsultationId]).
+  final int? seriesAppointmentsCreated;
+
   const AgendaLoaded({
     required this.entries,
     required this.weekStart,
@@ -34,6 +39,7 @@ class AgendaLoaded extends AgendaState {
     this.actionError,
     this.includePast = false,
     this.startedConsultationId,
+    this.seriesAppointmentsCreated,
   });
 
   AgendaLoaded copyWith({
@@ -45,6 +51,8 @@ class AgendaLoaded extends AgendaState {
     bool? includePast,
     String? startedConsultationId,
     bool clearStartedConsultation = false,
+    int? seriesAppointmentsCreated,
+    bool clearSeriesAppointmentsCreated = false,
   }) =>
       AgendaLoaded(
         entries: entries ?? this.entries,
@@ -56,6 +64,9 @@ class AgendaLoaded extends AgendaState {
         startedConsultationId: clearStartedConsultation
             ? null
             : (startedConsultationId ?? this.startedConsultationId),
+        seriesAppointmentsCreated: clearSeriesAppointmentsCreated
+            ? null
+            : (seriesAppointmentsCreated ?? this.seriesAppointmentsCreated),
       );
 
   @override
@@ -66,6 +77,7 @@ class AgendaLoaded extends AgendaState {
         actionError,
         includePast,
         startedConsultationId,
+        seriesAppointmentsCreated,
       ];
 }
 

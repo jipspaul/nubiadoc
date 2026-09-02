@@ -9,9 +9,11 @@ import '../patients/patients_bloc.dart';
 import '../patients/patients_event.dart';
 import '../patients/patients_state.dart';
 import '../../router/app_router.dart';
+import '../../session/pro_auth_cubit.dart';
 import 'agenda_bloc.dart';
 import 'agenda_event.dart';
 import 'agenda_state.dart';
+import 'create_appointment_series_dialog.dart';
 
 class AgendaPage extends StatelessWidget {
   const AgendaPage({super.key});
@@ -49,6 +51,12 @@ class _AgendaView extends StatelessWidget {
             title: const Text('Agenda'),
             actions: [
               IconButton(
+                key: const Key('agenda_create_series'),
+                icon: const Icon(Icons.event_repeat),
+                tooltip: 'Série de RDV',
+                onPressed: () => _showCreateSeriesFlow(context),
+              ),
+              IconButton(
                 key: const Key('agenda_toggle_past'),
                 icon: const Icon(Icons.history),
                 tooltip: 'Inclure passés',
@@ -83,11 +91,48 @@ void _showPatientPicker(BuildContext context) {
   );
 }
 
+/// #4088 — sélectionne un patient puis ouvre le formulaire de série de RDV
+/// (ortho, parodonto, chirurgie multi-séances) ; à la validation, dispatche
+/// `AgendaSeriesCreateRequested` avec le praticien courant (rôle qui
+/// prescrit les plans de soins multi-séances).
+Future<void> _showCreateSeriesFlow(BuildContext context) async {
+  final patient = await showModalBottomSheet<CabinetPatient>(
+    context: context,
+    builder: (sheetContext) => _PatientPickerSheet(
+      onPatientSelected: (selected) =>
+          Navigator.of(sheetContext).pop(selected),
+    ),
+  );
+  if (patient == null || !context.mounted) return;
+
+  final session = switch (context.read<ProAuthCubit>().state) {
+    AuthAuthenticated(:final session) => session,
+    _ => null,
+  };
+  if (session == null) return;
+
+  final agendaBloc = context.read<AgendaBloc>();
+  final result = await showDialog<CreateAppointmentSeriesResult>(
+    context: context,
+    builder: (_) => CreateAppointmentSeriesDialog(patient: patient),
+  );
+  if (result == null) return;
+
+  agendaBloc.add(
+    AgendaSeriesCreateRequested(
+      practitionerId: session.userId,
+      patientId: patient.id,
+      motif: result.motif,
+      occurrences: result.occurrences,
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
 
 class _PatientPickerSheet extends StatelessWidget {
   const _PatientPickerSheet({required this.onPatientSelected});
-  final void Function(String patientId) onPatientSelected;
+  final void Function(CabinetPatient patient) onPatientSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +163,7 @@ class _PatientPickerSheet extends StatelessWidget {
 
 class _PatientPickerBody extends StatelessWidget {
   const _PatientPickerBody({required this.onPatientSelected});
-  final void Function(String patientId) onPatientSelected;
+  final void Function(CabinetPatient patient) onPatientSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +200,7 @@ class _PatientPickerBody extends StatelessWidget {
                 title: p.fullName,
                 subtitle: p.email ?? p.phone,
                 trailing: const Icon(Icons.chevron_right, size: 20),
-                onTap: () => onPatientSelected(p.id),
+                onTap: () => onPatientSelected(p),
               );
             },
           );
@@ -177,7 +222,8 @@ class AgendaBody extends StatelessWidget {
       listenWhen: (_, current) =>
           current is AgendaLoaded &&
           (current.actionError != null ||
-              current.startedConsultationId != null),
+              current.startedConsultationId != null ||
+              current.seriesAppointmentsCreated != null),
       listener: (context, state) {
         if (state is AgendaLoaded && state.actionError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -191,6 +237,13 @@ class AgendaBody extends StatelessWidget {
               .read<AgendaBloc>()
               .add(const AgendaStartedConsultationConsumed());
           GoRouter.of(context).go('${AppRouter.consultation}?id=$id');
+        }
+        if (state is AgendaLoaded && state.seriesAppointmentsCreated != null) {
+          final count = state.seriesAppointmentsCreated!;
+          context.read<AgendaBloc>().add(const AgendaSeriesCreatedConsumed());
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$count rendez-vous créés.')),
+          );
         }
       },
       child: BlocBuilder<AgendaBloc, AgendaState>(

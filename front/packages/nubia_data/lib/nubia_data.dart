@@ -63,6 +63,7 @@ export 'src/remote/cabinet_messaging/cabinet_messaging_dto.dart';
 export 'src/remote/cabinet_agenda/cabinet_agenda_dto.dart';
 export 'src/remote/cabinet_appointments/cabinet_appointments_api.dart';
 export 'src/remote/cabinet_appointments/cabinet_appointments_dto.dart';
+export 'src/remote/cabinet_appointments/appointment_series_dto.dart';
 export 'src/remote/cabinet_patients/cabinet_patients_api.dart';
 export 'src/remote/cabinet_patients/cabinet_patients_dto.dart';
 export 'src/remote/cabinet_payouts/cabinet_payouts_api.dart';
