@@ -9,11 +9,13 @@ import 'package:nubia_data/src/repositories/clinical_session_repository_impl.dar
 
 class MockClinicalSessionApi extends Mock implements ClinicalSessionApi {}
 
-DioException _dioError(int status) => DioException(
+DioException _dioError(int status, {Map<String, dynamic>? data}) =>
+    DioException(
       requestOptions: RequestOptions(path: '/x'),
       response: Response(
         requestOptions: RequestOptions(path: '/x'),
         statusCode: status,
+        data: data,
       ),
     );
 
@@ -66,6 +68,65 @@ void main() {
           expect((failure as ServerFailure).statusCode, 409);
         },
         (_) => fail('attendu Left'),
+      );
+    });
+  });
+
+  group('startSession — 409 too_early/out_of_window distincts (#6254)', () {
+    test('409 {code: too_early} → ValidationFailure dédiée, pas de reprise',
+        () async {
+      when(() => api.startSession('appt-1'))
+          .thenThrow(_dioError(409, data: {'code': 'too_early'}));
+
+      final result = await repo.startSession('appt-1');
+
+      verifyNever(() => api.listSessions(status: any(named: 'status')));
+      expect(result.isLeft(), isTrue);
+      result.fold(
+        (failure) {
+          expect(failure, isA<ValidationFailure>());
+          expect(
+            failure.message,
+            'Il est trop tôt pour démarrer cette séance. Réessayez plus près de l\'heure du rendez-vous.',
+          );
+        },
+        (_) => fail('attendu Left'),
+      );
+    });
+
+    test('409 {code: out_of_window} → ValidationFailure dédiée, pas de reprise',
+        () async {
+      when(() => api.startSession('appt-1'))
+          .thenThrow(_dioError(409, data: {'code': 'out_of_window'}));
+
+      final result = await repo.startSession('appt-1');
+
+      verifyNever(() => api.listSessions(status: any(named: 'status')));
+      expect(result.isLeft(), isTrue);
+      result.fold(
+        (failure) {
+          expect(failure, isA<ValidationFailure>());
+          expect(
+            failure.message,
+            'Ce rendez-vous est passé, il ne peut plus être démarré.',
+          );
+        },
+        (_) => fail('attendu Left'),
+      );
+    });
+
+    test('409 {code: invalid_status} → reprise inchangée (#3400)', () async {
+      when(() => api.startSession('appt-1'))
+          .thenThrow(_dioError(409, data: {'code': 'invalid_status'}));
+      when(() => api.listSessions(status: 'in_progress'))
+          .thenAnswer((_) async => [_existing]);
+
+      final result = await repo.startSession('appt-1');
+
+      expect(result.isRight(), isTrue);
+      result.fold(
+        (_) => fail('attendu Right'),
+        (session) => expect(session.id, 's-existing'),
       );
     });
   });

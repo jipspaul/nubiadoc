@@ -20,10 +20,31 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
       }
-      // #3400 — La séance est déjà démarrée (409 invalid_status). Ce n'est pas
-      // une erreur fatale : on récupère la séance `in_progress` liée à ce RDV
-      // pour permettre la reprise (navigation vers la consultation existante).
+      // #6254 — Le 409 recouvre trois codes distincts (api/src/scheduling.rs:
+      // 1877-1942) : `too_early`/`out_of_window` (fenêtre de démarrage ±60min
+      // ratée) n'ont rien à voir avec `invalid_status` (séance déjà ouverte)
+      // et doivent afficher un message différent, sans passer par le repli
+      // `_resumeExistingSession`.
       if (e.response?.statusCode == 409) {
+        final apiCode = e.response?.data is Map
+            ? (e.response!.data as Map)['code'] as String?
+            : null;
+        if (apiCode == 'too_early') {
+          return const Left(ValidationFailure(
+            message:
+                'Il est trop tôt pour démarrer cette séance. Réessayez plus près de l\'heure du rendez-vous.',
+          ));
+        }
+        if (apiCode == 'out_of_window') {
+          return const Left(ValidationFailure(
+            message:
+                'Ce rendez-vous est passé, il ne peut plus être démarré.',
+          ));
+        }
+        // #3400 — La séance est déjà démarrée (409 invalid_status). Ce n'est
+        // pas une erreur fatale : on récupère la séance `in_progress` liée à
+        // ce RDV pour permettre la reprise (navigation vers la consultation
+        // existante).
         final resumed = await _resumeExistingSession(appointmentId);
         if (resumed != null) return Right(resumed);
         return const Left(ServerFailure(
