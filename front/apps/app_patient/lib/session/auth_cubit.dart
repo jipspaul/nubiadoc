@@ -25,23 +25,23 @@ class AuthLoading extends AuthState {
   const AuthLoading();
 }
 
-/// Drives patient login/logout using the shared [LoginUseCase] + [GetMeUseCase].
+/// Drives patient login/logout using the shared [LoginUseCase] + [GetAccountUseCase].
 class AuthCubit extends Cubit<AuthState> with SafeEmitMixin<AuthState> {
   AuthCubit({
     required LoginUseCase login,
-    required GetMeUseCase getMe,
+    required GetAccountUseCase getAccount,
     required LogoutUseCase logout,
     required TokenStorage tokenStorage,
     required DeviceRegistrationService deviceRegistration,
   })  : _login = login,
-        _getMe = getMe,
+        _getAccount = getAccount,
         _logout = logout,
         _tokenStorage = tokenStorage,
         _deviceRegistration = deviceRegistration,
         super(const AuthUnknown());
 
   final LoginUseCase _login;
-  final GetMeUseCase _getMe;
+  final GetAccountUseCase _getAccount;
   final LogoutUseCase _logout;
   final TokenStorage _tokenStorage;
   final DeviceRegistrationService _deviceRegistration;
@@ -54,7 +54,7 @@ class AuthCubit extends Cubit<AuthState> with SafeEmitMixin<AuthState> {
         safeEmit(const AuthUnauthenticated());
         return;
       }
-      final result = await _getMe();
+      final result = await _getAccount();
       result.fold(
         (_) => safeEmit(const AuthUnauthenticated()),
         (account) => safeEmit(AuthAuthenticated(_sessionFrom(account))),
@@ -73,10 +73,11 @@ class AuthCubit extends Cubit<AuthState> with SafeEmitMixin<AuthState> {
         (account) async {
           _deviceRegistration.registerOnLogin('patient');
           // /auth/login ne renvoie pas le nom du compte : on le récupère via
-          // /account pour que la session ait un displayName correct dès le
+          // /account (pas /me, qui ne renvoie jamais first_name/last_name —
+          // cf. #6178) pour que la session ait un displayName correct dès le
           // login (sans ça, patientDisplayName reste vide jusqu'au prochain
           // restore() au redémarrage de l'app).
-          final me = await _getMe();
+          final me = await _getAccount();
           safeEmit(
             AuthAuthenticated(_sessionFrom(me.fold((_) => account, (a) => a))),
           );

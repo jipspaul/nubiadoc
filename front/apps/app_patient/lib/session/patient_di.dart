@@ -97,7 +97,7 @@ void registerPatient(GetIt gi) {
   gi.registerLazySingleton<AuthCubit>(
     () => AuthCubit(
       login: gi<LoginUseCase>(),
-      getMe: gi<GetMeUseCase>(),
+      getAccount: gi<GetAccountUseCase>(),
       logout: gi<LogoutUseCase>(),
       tokenStorage: gi<TokenStorage>(),
       deviceRegistration: gi<DeviceRegistrationService>(),

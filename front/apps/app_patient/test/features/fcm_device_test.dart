@@ -13,7 +13,7 @@ import 'package:app_patient/session/auth_cubit.dart';
 
 class MockLoginUseCase extends Mock implements LoginUseCase {}
 
-class MockGetMeUseCase extends Mock implements GetMeUseCase {}
+class MockGetAccountUseCase extends Mock implements GetAccountUseCase {}
 
 class MockLogoutUseCase extends Mock implements LogoutUseCase {}
 
@@ -39,14 +39,14 @@ const _account = PatientAccount(
 
 void main() {
   late MockLoginUseCase mockLogin;
-  late MockGetMeUseCase mockGetMe;
+  late MockGetAccountUseCase mockGetAccount;
   late MockLogoutUseCase mockLogout;
   late MockTokenStorage mockStorage;
   late MockDeviceRegistrationService mockDeviceReg;
 
   setUp(() {
     mockLogin = MockLoginUseCase();
-    mockGetMe = MockGetMeUseCase();
+    mockGetAccount = MockGetAccountUseCase();
     mockLogout = MockLogoutUseCase();
     mockStorage = MockTokenStorage();
     mockDeviceReg = MockDeviceRegistrationService();
@@ -56,7 +56,7 @@ void main() {
 
   AuthCubit buildCubit() => AuthCubit(
         login: mockLogin,
-        getMe: mockGetMe,
+        getAccount: mockGetAccount,
         logout: mockLogout,
         tokenStorage: mockStorage,
         deviceRegistration: mockDeviceReg,
@@ -72,7 +72,8 @@ void main() {
             password: any(named: 'password'),
           ),
         ).thenAnswer((_) async => const Right(_account));
-        when(() => mockGetMe()).thenAnswer((_) async => const Right(_account));
+        when(() => mockGetAccount())
+            .thenAnswer((_) async => const Right(_account));
         return buildCubit();
       },
       act: (cubit) =>
