@@ -19,6 +19,7 @@ import '../features/documents/documents_bloc.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/mes_rdv/modify_rdv_bloc.dart';
+import '../features/mes_rdv/prepare_rdv_page.dart';
 import '../features/messaging/messaging_bloc.dart';
 import '../features/home/home_bloc.dart';
 import '../features/home_care/home_care_list_cubit.dart';
@@ -39,6 +40,10 @@ import 'auth_cubit.dart';
 
 /// Registers patient-app blocs/cubits on top of registerCore + registerData.
 void registerPatient(GetIt gi) {
+  gi.registerLazySingleton<PrepareRdvPrefsService>(
+    () => KvStorePrepareRdvPrefsService(gi<KvStore>()),
+  );
+
   gi.registerFactory<MyPharmacyCubit>(
     () => MyPharmacyCubit(
       getMyPharmacy: gi<GetMyPharmacyUseCase>(),

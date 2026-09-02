@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'widgets/prepare_rdv_info_card.dart';
@@ -11,16 +14,26 @@ abstract class PrepareRdvPrefsService {
   Future<void> saveChecked(String rdvId, Set<String> ids);
 }
 
-class InMemoryPrepareRdvPrefsService implements PrepareRdvPrefsService {
-  final Map<String, Set<String>> _store = {};
+/// Persiste la check-list « à apporter » dans le [KvStore] de l'appareil
+/// (keychain/keystore sécurisé sur mobile/desktop, localStorage sur web —
+/// cf. [KvStore]), pour qu'elle survive à la fermeture de l'écran.
+class KvStorePrepareRdvPrefsService implements PrepareRdvPrefsService {
+  KvStorePrepareRdvPrefsService(this._store);
+
+  final KvStore _store;
+
+  String _keyFor(String rdvId) => 'prepare_rdv_checked_$rdvId';
 
   @override
-  Future<Set<String>> loadChecked(String rdvId) async =>
-      Set<String>.from(_store[rdvId] ?? <String>{});
+  Future<Set<String>> loadChecked(String rdvId) async {
+    final raw = await _store.read(_keyFor(rdvId));
+    if (raw == null || raw.isEmpty) return <String>{};
+    return (jsonDecode(raw) as List).cast<String>().toSet();
+  }
 
   @override
   Future<void> saveChecked(String rdvId, Set<String> ids) async =>
-      _store[rdvId] = Set<String>.from(ids);
+      _store.write(_keyFor(rdvId), jsonEncode(ids.toList()));
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,7 +72,7 @@ class _PrepareRdvPageState extends State<PrepareRdvPage> {
   @override
   void initState() {
     super.initState();
-    _prefs = widget.prefsService ?? InMemoryPrepareRdvPrefsService();
+    _prefs = widget.prefsService ?? GetIt.instance<PrepareRdvPrefsService>();
     _useCase =
         widget.useCase ?? GetIt.instance<GetAppointmentPreparationUseCase>();
     _load();

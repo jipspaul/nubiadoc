@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -9,6 +10,21 @@ import 'package:app_patient/features/mes_rdv/appointment_formatting.dart';
 import 'package:app_patient/features/mes_rdv/prepare_rdv_page.dart';
 
 import 'helpers/mock_repositories.dart';
+
+// ── Fake KvStore (magasin en mémoire, simule le stockage persistant réel) ────
+
+class _FakeKvStore implements KvStore {
+  final Map<String, String> _values = {};
+
+  @override
+  Future<String?> read(String key) async => _values[key];
+
+  @override
+  Future<void> write(String key, String value) async => _values[key] = value;
+
+  @override
+  Future<void> delete(String key) async => _values.remove(key);
+}
 
 // ── Fake prefs service ───────────────────────────────────────────────────────
 
@@ -145,6 +161,53 @@ void main() {
 
       // État persisté dans le service
       expect(prefs.checked, contains('carte_vitale'));
+    });
+  });
+
+  group('KvStorePrepareRdvPrefsService — persistance réelle (#6202)', () {
+    test('saveChecked puis loadChecked (même instance) restitue les ids',
+        () async {
+      final service = KvStorePrepareRdvPrefsService(_FakeKvStore());
+
+      await service.saveChecked('rdv-1', {'carte_vitale', 'carte_mutuelle'});
+
+      expect(
+        await service.loadChecked('rdv-1'),
+        {'carte_vitale', 'carte_mutuelle'},
+      );
+    });
+
+    test(
+        'la coche survit à la fermeture de l\'écran : une nouvelle instance '
+        'du service, sur le même magasin, retrouve l\'état sauvegardé',
+        () async {
+      final store = _FakeKvStore();
+
+      // Écran ouvert une 1ère fois : on coche puis on ferme (nouvelle
+      // instance du service au prochain initState, comme dans la vraie page).
+      await KvStorePrepareRdvPrefsService(store)
+          .saveChecked('rdv-1', {'carte_vitale'});
+
+      // Ré-ouverture de l'écran : nouvelle instance du service, même store.
+      final reopened = KvStorePrepareRdvPrefsService(store);
+      expect(await reopened.loadChecked('rdv-1'), {'carte_vitale'});
+    });
+
+    test('rdv différents ne partagent pas leur check-list', () async {
+      final store = _FakeKvStore();
+      final service = KvStorePrepareRdvPrefsService(store);
+
+      await service.saveChecked('rdv-1', {'carte_vitale'});
+      await service.saveChecked('rdv-2', {'ordonnance'});
+
+      expect(await service.loadChecked('rdv-1'), {'carte_vitale'});
+      expect(await service.loadChecked('rdv-2'), {'ordonnance'});
+    });
+
+    test('aucune écriture préalable => liste vide', () async {
+      final service = KvStorePrepareRdvPrefsService(_FakeKvStore());
+
+      expect(await service.loadChecked('rdv-inconnu'), isEmpty);
     });
   });
 
