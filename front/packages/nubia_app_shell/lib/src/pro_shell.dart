@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'config.dart';
+import 'notifications/pro_notifications_bell.dart';
+import 'notifications/pro_notifications_cubit.dart';
 
 /// Largeur fixe de la barre latérale desktop (#5138, maquette design-v2
 /// secrétariat, colonne « Proposé ») — remplace le rail d'icônes à largeur
@@ -43,6 +46,7 @@ class ProShell extends StatefulWidget {
     this.onNavigate,
     this.searchHint,
     this.onSearchTap,
+    this.notificationRepository,
   });
 
   final ProConfig config;
@@ -94,6 +98,12 @@ class ProShell extends StatefulWidget {
   /// Ignoré si [searchHint] est `null`.
   final VoidCallback? onSearchTap;
 
+  /// Alimente la cloche de notifications de la topbar (#6263, badge non-lus
+  /// + panneau liste, `GET /v1/notifications`). `null` (défaut) : aucune
+  /// cloche affichée — comportement inchangé pour les apps/tests qui ne la
+  /// fournissent pas (voir aussi [searchHint]).
+  final NotificationRepository? notificationRepository;
+
   @override
   State<ProShell> createState() => _ProShellState();
 }
@@ -114,9 +124,41 @@ class _NavRow {
   final bool collapsed;
 }
 
-class _ProShellState extends State<ProShell> {
+class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
   int _index = 0;
   late final Set<String> _collapsedGroups = {...widget.config.collapsedGroups};
+
+  /// `null` quand [ProShell.notificationRepository] n'est pas fourni (#6263)
+  /// — pas de cloche dans ce cas (voir [ProShell.notificationRepository]).
+  ProNotificationsCubit? _notificationsCubit;
+
+  @override
+  void initState() {
+    super.initState();
+    final repository = widget.notificationRepository;
+    if (repository != null) {
+      _notificationsCubit = ProNotificationsCubit(repository: repository);
+      WidgetsBinding.instance.addObserver(this);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_notificationsCubit != null) {
+      WidgetsBinding.instance.removeObserver(this);
+      _notificationsCubit!.close();
+    }
+    super.dispose();
+  }
+
+  /// Rafraîchit le badge non-lus au retour au premier plan (#6263, ex.
+  /// bascule d'onglet/fenêtre puis retour) — en complément du polling 60s.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _notificationsCubit?.refreshUnreadCount();
+    }
+  }
 
   List<ProNavDestination> get _destinations => widget.config.destinations
       .where((d) => !d.requiresClinical || widget.session.canAccessClinical)
@@ -460,27 +502,46 @@ class _ProShellState extends State<ProShell> {
     int rowIndex,
     ProNavDestination current,
   ) {
+    // #6263 — cloche partagée par les 3 apps pro, `null` quand l'appelant ne
+    // fournit pas de [ProShell.notificationRepository] (voir sa doc).
+    final bell = _notificationsCubit == null
+        ? null
+        : ProNotificationsBell(cubit: _notificationsCubit!);
+
     // En mode [body] (StatefulShellRoute), la page routée porte déjà son
     // propre Scaffold/AppBar le cas échéant (ex. bouton actualiser, FAB) —
     // un second NubiaAppBar ici le dupliquerait. On ne fournit le
-    // NubiaAppBar générique (titre + recherche) que dans le mode
+    // NubiaAppBar générique (titre + recherche + cloche) que dans le mode
     // [bodyBuilder] legacy, où aucune chrome par destination n'existe.
     final content = widget.body ??
         Scaffold(
           appBar: NubiaAppBar(
             title: current.label,
             centerTitle: false,
-            actions: widget.searchHint != null && widget.onSearchTap != null
-                ? [
-                    _SearchTrigger(
-                      hint: widget.searchHint!,
-                      onTap: widget.onSearchTap!,
-                    ),
-                  ]
-                : null,
+            actions: [
+              if (widget.searchHint != null && widget.onSearchTap != null)
+                _SearchTrigger(
+                  hint: widget.searchHint!,
+                  onTap: widget.onSearchTap!,
+                ),
+              if (bell != null) bell,
+              const SizedBox(width: 8),
+            ],
           ),
           body: _content(context, current),
         );
+
+    // Mode [body] : aucune AppBar ne porte la cloche (chrome de la page
+    // routée, cf. commentaire ci-dessus) — une fine barre dédiée l'ajoute
+    // au-dessus, pour que la cloche reste partagée sans dupliquer le titre.
+    final contentWithBell = widget.body != null && bell != null
+        ? Column(
+            children: [
+              _DesktopNotificationsBar(bell: bell),
+              Expanded(child: content),
+            ],
+          )
+        : content;
 
     return Scaffold(
       body: Row(
@@ -541,7 +602,7 @@ class _ProShellState extends State<ProShell> {
             ),
           ),
           const VerticalDivider(width: 1),
-          Expanded(child: content),
+          Expanded(child: contentWithBell),
         ],
       ),
     );
@@ -554,8 +615,16 @@ class _ProShellState extends State<ProShell> {
     int rowIndex,
     ProNavDestination current,
   ) {
+    // #6263 — même cloche partagée que le rail desktop (voir _buildDesktop).
+    final bell = _notificationsCubit == null
+        ? null
+        : ProNotificationsBell(cubit: _notificationsCubit!);
+
     return Scaffold(
-      appBar: AppBar(title: Text(widget.config.appTitle)),
+      appBar: AppBar(
+        title: Text(widget.config.appTitle),
+        actions: bell == null ? null : [bell, const SizedBox(width: 8)],
+      ),
       drawer: Drawer(
         child: SafeArea(
           child: Column(
@@ -592,6 +661,31 @@ class _ProShellState extends State<ProShell> {
         ),
       ),
       body: widget.body ?? _content(context, current),
+    );
+  }
+}
+
+/// Fine barre au-dessus du contenu routé, seule à porter la cloche (#6263)
+/// quand [ProShell.body] est fourni (StatefulShellRoute) — ce mode-là ne
+/// passe jamais par le [NubiaAppBar] de `_buildDesktop` (voir son
+/// commentaire), qui est le seul autre point où la cloche s'affiche.
+class _DesktopNotificationsBar extends StatelessWidget {
+  const _DesktopNotificationsBar({required this.bell});
+
+  final Widget bell;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      height: 48,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(bottom: BorderSide(color: tokens.borderSubtle)),
+      ),
+      child: bell,
     );
   }
 }
@@ -679,7 +773,8 @@ class _SearchShortcutBadge extends StatelessWidget {
 /// `null` si [value] est absent OU vide (#6170, même défaut que #6165) :
 /// `??` seul ne couvre pas le cas où [AuthSession] expose une chaîne vide
 /// plutôt que `null` (bootstrap de session best-effort, cf. `pro_auth_cubit.dart`).
-String? _orNull(String? value) => (value == null || value.isEmpty) ? null : value;
+String? _orNull(String? value) =>
+    (value == null || value.isEmpty) ? null : value;
 
 /// Libellé FR d'un [ProRole], pour le pied utilisateur du rail (#5140) — pas
 /// de mapping partagé existant, [MemberRole._roleLabel] (admin_membres_page)

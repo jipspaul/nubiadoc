@@ -170,6 +170,7 @@ class ConsultationCliniquePage extends StatelessWidget {
       session: session,
       currentRoute: AppRouter.consultation,
       onNavigate: (destination) => context.go(destination.route),
+      notificationRepository: GetIt.instance<NotificationRepository>(),
       bodyBuilder: (ctx, destination) {
         if (destination.route == AppRouter.consultation) {
           // #6190 — go_router réutilise le même State en naviguant de
