@@ -67,6 +67,19 @@ final _planWithProgress = PatientTreatmentPlan(
   totalCostCents: 163592,
 );
 
+/// Plan « En cours » sans `currentStep` (l'API ne l'émet pas toujours) —
+/// le fallback ne doit pas afficher « dernière étape » (#6233).
+final _planWithProgressNoCurrentStep = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Réhabilitation implantaire',
+  status: 'in_progress',
+  practitionerName: 'Amélie Rousseau',
+  proposedAt: DateTime.utc(2026, 7, 22),
+  stepCount: 3,
+  currentPhaseTitle: 'endodontie',
+  totalCostCents: 163592,
+);
+
 /// Plan « Terminé » avec sous-titre et progression — toutes les étapes
 /// affichées comme faites, sans étape courante (#5288).
 final _donePlanWithProgress = PatientTreatmentPlan(
@@ -625,6 +638,29 @@ void main() {
       expect(
         find.descendant(of: progressBar, matching: find.byType(Expanded)),
         findsNWidgets(3),
+      );
+    });
+
+    testWidgets(
+        'carte de plan sans currentStep — affiche « Étape 1 sur N », pas '
+        '« Étape N sur N » (#6233)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state).thenReturn(
+          PatientTreatmentPlansLoaded([_planWithProgressNoCurrentStep]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      final card = find.byKey(const Key('treatment_plan_plan-1'));
+      expect(card, findsOneWidget);
+      expect(
+        find.descendant(
+            of: card, matching: find.text('Étape 1 sur 3 · endodontie')),
+        findsOneWidget,
       );
     });
 

@@ -622,7 +622,10 @@ class _TreatmentProgressCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final total = plan.stepCount!;
-    final completed = ((plan.currentStep ?? total) - 1).clamp(0, total).toInt();
+    // `currentStep ?? 1` : sans info serveur, on suppose qu'on est à la
+    // première étape plutôt que la dernière (#6233 — l'ancien `?? total`
+    // affichait « tout est fait » alors qu'on ne sait rien).
+    final completed = ((plan.currentStep ?? 1) - 1).clamp(0, total).toInt();
 
     return Material(
       key: const Key('treatment_progress_card'),
