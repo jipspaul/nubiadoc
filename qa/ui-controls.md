@@ -311,7 +311,13 @@ secrétariat /cabinet-payouts, /team-messages, /messages, /rappels.
 | pharmacie | /messages | 23 (4 nav + 3 facettes + 4 conversations + 3 réponses rapides + composeur + recherche) | 1 (ouverture de conversation) | 1 | 0 | 0 | 2026-09-02T19:25:00Z |
 | infirmiere | / (3 onglets : Disponibilité / Offres / Ma visite) | 9 (3 onglets + interrupteur En ligne + Accepter + Passer + Je pars + déconnexion) | 5 (3 onglets + Accepter en double-clic + navigation Ma visite) | 5 | 0 | 0 | 2026-09-02T19:00:00Z |
 
-**Totaux de la ronde** : ~275 contrôles inventoriés, **90 activés**, 70 OK, **1 mort réel** (#6232), **14 cassés** (13 « Télécharger » → 502, #6250 ; 2 actions du hero praticien, #6241 ; « Démarrer » agenda au message faux, #6254), 4 morts légitimes (page ou facette déjà active), 10 non activés (effet métier irréversible côté pharmacie), 2 verdicts initialement erronés corrigés après re-test.
+| praticien | /devis | 9 (cartes de devis) | 1 (les suivantes disparaissent de l'inventaire après la navigation — à reprendre) | 1 | 0 | 0 | 2026-09-02T20:25:00Z |
+| praticien | /stock-inventory | 12 (Actualiser + 11 lignes/Mouvement) | 2 (Actualiser, Mouvement) | 2 | 0 | 0 | 2026-09-02T20:26:00Z |
+| pharmacie | / (File des commandes) | 21 (4 nav + 4 facettes AVEC compteurs + 12 actions de ligne + déconnexion) | 8 | **8** | 0 | 0 (8 actions « Délivrer »/« Préparer » non activées : transition irréversible sur une vraie commande) | 2026-09-02T20:27:00Z |
+| patient | /appointments (Réservation) | 26 (recherche + 5 facettes + rangée praticiens + puces de créneaux + « Voir plus de créneaux » + « Voir sa fiche ») | 1 (puce de créneau `09:00`) | 1 (ouvre l'écran de disponibilité 4 jours avec récap et « Continuer ») | 0 | 0 | 2026-09-02T20:20:00Z |
+| patient | /pharmacy/orders et /pharmacy/orders/:id (Suivi de commande) | 21 (16 commandes + Itinéraire + Appeler + Annuler la commande) | 0 (inventaire + vérification du rendu ; « Annuler la commande » non activé, irréversible) | - | - | - | 2026-09-02T20:20:00Z |
+
+**Totaux de la ronde** : ~344 contrôles inventoriés, **102 activés**, 82 OK, **1 mort réel** (#6232), **14 cassés** (13 « Télécharger » → 502, #6250 ; 2 actions du hero praticien, #6241 ; « Démarrer » agenda au message faux, #6254), 4 morts légitimes (page ou facette déjà active), 10 non activés (effet métier irréversible côté pharmacie), 2 verdicts initialement erronés corrigés après re-test.
 
 **Leçons méthodo de la ronde (à réutiliser — elles ont évité DEUX faux findings P1)** :
 1. **Ré-inventorier juste avant chaque clic**, et relire le texte **après réactivation des Semantics**. Un premier passage sur le tableau de bord secrétariat avait conclu à 7 boutons morts ; le re-test rigoureux a montré que les 7 fonctionnent (navigation + requêtes réelles) — les coordonnées étaient périmées après la première navigation.
