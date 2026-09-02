@@ -98,6 +98,7 @@ import '../repositories/patient_treatment_plans_repository_impl.dart';
 import '../repositories/members_repository_impl.dart';
 import '../repositories/message_repository_impl.dart';
 import '../repositories/notification_repository_impl.dart';
+import '../repositories/pro_notification_preferences_repository_impl.dart';
 import '../repositories/patient_pharmacy_repository_impl.dart';
 import '../repositories/pharmacy_directory_repository_impl.dart';
 import '../repositories/pharmacy_orders_repository_impl.dart';
@@ -214,6 +215,9 @@ void registerData(
     )
     ..registerLazySingleton<NotificationRepository>(
       () => NotificationRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<ProNotificationPreferencesRepository>(
+      () => ProNotificationPreferencesRepositoryImpl(gi()),
     )
     ..registerLazySingleton<ReviewRepository>(
       () => ReviewRepositoryImpl(gi()),
@@ -406,6 +410,8 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetMedicalQuestionnaireUseCase(gi()))
     ..registerFactory(() => PatchMedicalQuestionnaireUseCase(gi()))
     ..registerFactory(() => GetNotificationPreferencesUseCase(gi()))
+    ..registerFactory(() => GetProNotificationPreferencesUseCase(gi()))
+    ..registerFactory(() => UpdateProNotificationPreferencesUseCase(gi()))
     ..registerFactory(() => ListConsentsUseCase(gi()))
     ..registerFactory(() => ListDependentsUseCase(gi()))
     ..registerFactory(() => ListAccessRequestsUseCase(gi()))
