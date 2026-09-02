@@ -279,36 +279,50 @@ class _ProShellState extends State<ProShell> {
   /// exact recherché par les tests existants (#5139). Le tap (toute la
   /// ligne) est intercepté par [_selectRow] pour replier/déplier au lieu de
   /// naviguer.
+  ///
+  /// [Semantics] explicite (#6192) : la sémantique auto-générée d'`InkWell`
+  /// ne remonte pas jusqu'à l'arbre d'accessibilité une fois imbriquée dans
+  /// le `ListView` scrollable de la barre latérale (`_buildDesktop`) — un
+  /// lecteur d'écran ne voyait aucun des en-têtes de groupe malgré un rendu
+  /// et un clic fonctionnels.
   Widget _sidebarGroupHeader(
     BuildContext context,
     _NavRow row, {
     required VoidCallback onTap,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
-          child: Row(
-            children: [
-              _groupHeaderIcon(context, row.collapsed,
-                  color: _sidebarGroupLabel),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  row.group!,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: _sidebarGroupLabel,
+    return Semantics(
+      container: true,
+      excludeSemantics: true,
+      button: true,
+      label: row.group!,
+      expanded: !row.collapsed,
+      onTap: onTap,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
+            child: Row(
+              children: [
+                _groupHeaderIcon(context, row.collapsed,
+                    color: _sidebarGroupLabel),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    row.group!,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                      color: _sidebarGroupLabel,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -321,6 +335,12 @@ class _ProShellState extends State<ProShell> {
   /// (FILL 1 — sans effet visuel tant que la police d'icônes du projet
   /// (`MaterialIcons`, glyphes fixes) ne supporte pas l'axe variable `fill`,
   /// mais correct et prêt pour une police d'icônes variable future).
+  ///
+  /// [Semantics] explicite (#6192) : la sémantique auto-générée d'`InkWell`
+  /// ne remonte pas jusqu'à l'arbre d'accessibilité une fois imbriquée dans
+  /// le `ListView` scrollable de la barre latérale (`_buildDesktop`) — un
+  /// lecteur d'écran ne voyait aucune des ~13 entrées malgré un rendu et un
+  /// clic fonctionnels.
   Widget _sidebarEntry(
     BuildContext context, {
     required Widget icon,
@@ -329,41 +349,49 @@ class _ProShellState extends State<ProShell> {
     required VoidCallback onTap,
   }) {
     final color = selected ? Colors.white : _sidebarText;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: selected ? _sidebarActiveBg : null,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              IconTheme.merge(
-                data: IconThemeData(
-                  size: 18,
-                  color: color,
-                  fill: selected ? 1 : 0,
-                ),
-                child: icon,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+    return Semantics(
+      container: true,
+      excludeSemantics: true,
+      button: true,
+      label: label,
+      selected: selected,
+      onTap: onTap,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: selected ? _sidebarActiveBg : null,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                IconTheme.merge(
+                  data: IconThemeData(
+                    size: 18,
                     color: color,
+                    fill: selected ? 1 : 0,
+                  ),
+                  child: icon,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: color,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

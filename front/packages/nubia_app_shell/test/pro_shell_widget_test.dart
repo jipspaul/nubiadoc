@@ -349,5 +349,37 @@ void main() {
         expect(find.text('Statistiques'), findsWidgets);
       },
     );
+
+    // #6192 — entrées et en-têtes de groupe absents de l'arbre Semantics
+    // (uniquement quand des groupes sont déclarés, cf. app_secretariat).
+    testWidgets(
+      'entrées et en-tête de groupe exposent un bouton Semantics libellé '
+      '(rail desktop)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(
+              config: groupedConfig,
+              session: session,
+              currentRoute: '/cabinet-stats',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final agenda = tester.getSemantics(find.text('Agenda'));
+        expect(agenda.flagsCollection.isButton, isTrue);
+        expect(agenda.label, 'Agenda');
+
+        final header = tester.getSemantics(find.text(groupName));
+        expect(header.flagsCollection.isButton, isTrue);
+        expect(header.label, groupName);
+
+        handle.dispose();
+      },
+    );
   });
 }
