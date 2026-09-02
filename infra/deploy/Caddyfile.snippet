@@ -85,6 +85,14 @@ api.nubia.example.com {
 # `infra/deploy/apply-reservation-caddy.sh`, appelé depuis `build-and-deploy.sh`
 # si les secrets CADDY_HOST/CADDY_USER/CADDY_PASSWORD sont renseignés (cf.
 # README). Sans ces secrets, le collage manuel décrit ci-dessus reste requis.
+#
+# #6188 (5e récidive, >24h après la clôture de #6162 sur la seule preuve de ce
+# script — jamais réellement invoqué faute de secrets CADDY_HOST côté CI) :
+# tant que ces secrets ne sont pas provisionnés, `build-and-deploy.sh` vérifie
+# désormais en direct que ce domaine répond en TLS et FAIT ÉCHOUER le
+# déploiement sinon (contrairement au health-check général de
+# `verify-public-tls.sh`, resté best-effort) — pour que le collage manuel
+# requis ci-dessus soit forcé plutôt qu'oublié à chaque fois.
 reservation.doc.nubia-link.com {
     reverse_proxy 192.168.1.100:3000
 }
