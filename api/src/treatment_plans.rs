@@ -57,6 +57,8 @@ pub struct TreatmentPlanItem {
     pub title: String,
     pub status: String,
     pub created_at: String,
+    pub step_count: i64,
+    pub current_phase_title: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -111,7 +113,7 @@ pub async fn list_treatment_plans(
     };
 
     let sql = format!(
-        "SELECT tp.id, tp.title, tp.status, tp.created_at \
+        "SELECT tp.id, tp.cabinet_id, tp.title, tp.status, tp.created_at \
          FROM treatment_plan tp \
          WHERE tp.deleted_at IS NULL AND tp.status <> 'draft'\
          {cursor_clause} \
@@ -151,8 +153,6 @@ pub async fn list_treatment_plans(
             .map_err(|_| AppError::Internal)?,
     };
 
-    tx.commit().await.map_err(|_| AppError::Internal)?;
-
     let has_more = rows.len() > limit as usize;
     let visible = if has_more {
         &rows[..limit as usize]
@@ -166,6 +166,7 @@ pub async fn list_treatment_plans(
 
     for row in visible {
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
         let title: String = row.try_get("title").map_err(|_| AppError::Internal)?;
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
@@ -174,13 +175,47 @@ pub async fn list_treatment_plans(
         last_created_at = Some(created_at);
         last_id = Some(id);
 
+        // Progression (n / N étapes + prochaine phase) : même convention que
+        // `sync_plan_status_from_phases` (treatment_phases.rs) et
+        // `PatientCurrentPlanSection` (app_practicien) — "étape" = `treatment_phase`,
+        // la phase courante est la première non `done` par `position` (#6209).
+        // Scope cabinet — RLS treatment_phase utilise app.current_cabinet_id.
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let phase_progress = sqlx::query(
+            "SELECT count(*) AS step_count, \
+                    (SELECT title FROM treatment_phase \
+                     WHERE plan_id = $1 AND status <> 'done' \
+                     ORDER BY position ASC LIMIT 1) AS current_phase_title \
+             FROM treatment_phase WHERE plan_id = $1",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        let step_count: i64 = phase_progress
+            .try_get("step_count")
+            .map_err(|_| AppError::Internal)?;
+        let current_phase_title: Option<String> = phase_progress
+            .try_get("current_phase_title")
+            .map_err(|_| AppError::Internal)?;
+
         data.push(TreatmentPlanItem {
             id,
             title,
             status,
             created_at: created_at.to_rfc3339(),
+            step_count,
+            current_phase_title,
         });
     }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let next_cursor = if has_more {
         last_created_at
