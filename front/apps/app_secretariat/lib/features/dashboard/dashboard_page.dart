@@ -97,6 +97,7 @@ class SecretariatShell extends StatelessWidget {
       // `onNavigate` bascule de branche quand l'utilisateur clique une
       // destination dans le rail/drawer.
       currentRoute: currentRoute,
+      notificationRepository: GetIt.instance<NotificationRepository>(),
       onNavigate: (destination) {
         final index = ProConfig.shellConfig.destinations
             .indexWhere((d) => d.route == destination.route);

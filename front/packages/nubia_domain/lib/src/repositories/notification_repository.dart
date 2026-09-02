@@ -5,7 +5,13 @@ import 'package:nubia_domain/src/entities/notification_preferences.dart';
 
 abstract class NotificationRepository {
   /// Returns notifications sorted by [AppNotification.createdAt] descending.
-  Future<Either<Failure, List<AppNotification>>> getNotifications();
+  ///
+  /// [unreadOnly] maps to `GET /v1/notifications?unread_only=true` — used by
+  /// the pro shell's bell badge (#6263) to poll the unread count without
+  /// fetching the (heavier) full list.
+  Future<Either<Failure, List<AppNotification>>> getNotifications({
+    bool unreadOnly = false,
+  });
 
   /// Marks a single notification as read.
   Future<Either<Failure, void>> markRead(String notificationId);

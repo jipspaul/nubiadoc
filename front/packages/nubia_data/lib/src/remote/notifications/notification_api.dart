@@ -9,9 +9,14 @@ class NotificationApi {
 
   NotificationApi(ApiClient client) : _dio = client.dio;
 
-  Future<List<NotificationDto>> getNotifications() async {
+  Future<List<NotificationDto>> getNotifications({
+    bool unreadOnly = false,
+  }) async {
     // GET /v1/notifications → { data: [...], page }
-    final response = await _dio.get<Map<String, dynamic>>('/notifications');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/notifications',
+      queryParameters: unreadOnly ? {'unread_only': true} : null,
+    );
     final data = (response.data?['data'] as List<dynamic>? ?? []);
     return data
         .map((e) => NotificationDto.fromJson(e as Map<String, dynamic>))

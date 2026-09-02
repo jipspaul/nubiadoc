@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../pharma_config.dart';
 import '../../router/app_router.dart';
@@ -50,6 +51,7 @@ class PharmaHomePage extends StatelessWidget {
       // clique une destination dans le rail/drawer.
       currentRoute: GoRouterState.of(context).uri.path,
       onNavigate: (destination) => context.go(destination.route),
+      notificationRepository: GetIt.instance<NotificationRepository>(),
       trailingActions: [
         IconButton(
           key: const Key('pharma_notification_prefs_button'),
@@ -63,8 +65,8 @@ class PharmaHomePage extends StatelessWidget {
           return MultiBlocProvider(
             providers: [
               BlocProvider<OrdersBloc>(
-                create: (_) => GetIt.instance<OrdersBloc>()
-                  ..add(const OrdersSubscribed()),
+                create: (_) =>
+                    GetIt.instance<OrdersBloc>()..add(const OrdersSubscribed()),
               ),
               // L'aside « À traiter » agrège aussi les demandes de stock et
               // les messages du cabinet non lus (#4916) — chargés ici pour

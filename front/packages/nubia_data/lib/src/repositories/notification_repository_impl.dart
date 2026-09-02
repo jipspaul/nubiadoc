@@ -13,9 +13,11 @@ class NotificationRepositoryImpl implements NotificationRepository {
   const NotificationRepositoryImpl(this._api);
 
   @override
-  Future<Either<Failure, List<AppNotification>>> getNotifications() async {
+  Future<Either<Failure, List<AppNotification>>> getNotifications({
+    bool unreadOnly = false,
+  }) async {
     try {
-      final dtos = await _api.getNotifications();
+      final dtos = await _api.getNotifications(unreadOnly: unreadOnly);
       final notifications = dtos.map((d) => d.toDomain()).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return Right(notifications);

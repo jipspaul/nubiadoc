@@ -1,10 +1,13 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_bloc.dart';
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_event.dart';
@@ -21,6 +24,9 @@ class MockConsultationCliniqueBloc
     implements ConsultationCliniqueBloc {}
 
 class MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
+
+class MockNotificationRepository extends Mock
+    implements NotificationRepository {}
 
 // ---------------------------------------------------------------------------
 // Tests — #6190 : cliquer une carte de l'historique doit rouvrir la
@@ -47,6 +53,15 @@ void main() {
         ),
       ),
     );
+
+    // #6263 — ConsultationCliniquePage résout la cloche de notifications de
+    // ProShell via GetIt.
+    final notificationRepository = MockNotificationRepository();
+    when(() => notificationRepository.getNotifications(unreadOnly: true))
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance
+        .registerFactory<NotificationRepository>(() => notificationRepository);
+    addTearDown(GetIt.instance.reset);
 
     Widget buildPage(String? consultationId) => MaterialApp(
           theme: NubiaTheme.light,

@@ -66,6 +66,7 @@ class DashboardPage extends StatelessWidget {
       // destination dans le rail/drawer (#5691, cf. #4813 pour app_pharmacie).
       currentRoute: GoRouterState.of(context).uri.path,
       onNavigate: (destination) => context.go(destination.route),
+      notificationRepository: GetIt.instance<NotificationRepository>(),
       bodyBuilder: (ctx, destination) {
         if (destination.route == ProConfig.dashboardRoute) {
           return BlocProvider(
