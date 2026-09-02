@@ -172,4 +172,40 @@ void main() {
 
     expect(find.byType(StatusPill), findsNothing);
   });
+
+  // #6210 — un 403 sur `medical-record` (pas de relation de soin, RLS §14)
+  // doit être distinguable d'un dossier réellement sans alerte : l'en-tête
+  // doit afficher un indicateur dédié plutôt que de rester muet.
+  testWidgets(
+      'affiche un indicateur dédié quand le dossier médical renvoie 403',
+      (tester) async {
+    final getMedicalRecord = _MockGetMedicalRecord();
+    when(() => getMedicalRecord(any())).thenAnswer(
+      (_) async => const Left(
+        ServerFailure(
+          message: 'Erreur lors du chargement du dossier médical.',
+          statusCode: 403,
+          code: 'forbidden',
+        ),
+      ),
+    );
+    GetIt.instance.registerFactory<GetMedicalRecordUseCase>(
+      () => getMedicalRecord,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+          theme: NubiaTheme.light, home: PatientFiche(patient: _patient)),
+    );
+    await tester.pumpAndSettle();
+
+    final deniedPill = find.byKey(
+      const Key('patient_fiche_medical_record_access_denied_pill'),
+    );
+    expect(deniedPill, findsOneWidget);
+    expect(
+      tester.widget<StatusPill>(deniedPill).variant,
+      StatusPillVariant.neutral,
+    );
+  });
 }
