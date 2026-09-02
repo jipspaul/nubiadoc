@@ -28,10 +28,18 @@ use crate::{
 // ── DTO ───────────────────────────────────────────────────────────────────────
 
 /// Une demande de stock dans les réponses API (mêmes clés des deux bords).
+///
+/// `pharmacy_name`/`pharmacy_address`/`pharmacy_phone` (#6195, suite #5192) :
+/// résolus en direct depuis `pharmacy` (pas de snapshot stocké, contrairement
+/// à `cabinet_name`) — `None` si la pharmacie n'est plus listée (RLS
+/// `pharmacy_public_read`), même réserve que `OrderDto::pharmacy_address`.
 #[derive(Serialize)]
 pub struct StockRequestDto {
     pub id: Uuid,
     pub pharmacy_id: Uuid,
+    pub pharmacy_name: Option<String>,
+    pub pharmacy_address: Option<serde_json::Value>,
+    pub pharmacy_phone: Option<String>,
     pub cabinet_name: String,
     pub items: serde_json::Value,
     pub status: String,
@@ -40,13 +48,25 @@ pub struct StockRequestDto {
     pub fulfilled_at: Option<String>,
 }
 
-const STOCK_COLUMNS: &str =
-    "id, pharmacy_id, cabinet_name, items, status, response_note, created_at, fulfilled_at";
+const STOCK_COLUMNS: &str = "id, pharmacy_id, cabinet_name, items, status, response_note, \
+     created_at, fulfilled_at, \
+     (SELECT p.raison_sociale FROM pharmacy p WHERE p.id = stock_request.pharmacy_id) AS pharmacy_name, \
+     (SELECT p.address FROM pharmacy p WHERE p.id = stock_request.pharmacy_id) AS pharmacy_address, \
+     (SELECT p.phone FROM pharmacy p WHERE p.id = stock_request.pharmacy_id) AS pharmacy_phone";
 
 fn stock_from_row(row: &PgRow) -> Result<StockRequestDto, AppError> {
     Ok(StockRequestDto {
         id: row.try_get("id").map_err(|_| AppError::Internal)?,
         pharmacy_id: row.try_get("pharmacy_id").map_err(|_| AppError::Internal)?,
+        pharmacy_name: row
+            .try_get("pharmacy_name")
+            .map_err(|_| AppError::Internal)?,
+        pharmacy_address: row
+            .try_get("pharmacy_address")
+            .map_err(|_| AppError::Internal)?,
+        pharmacy_phone: row
+            .try_get("pharmacy_phone")
+            .map_err(|_| AppError::Internal)?,
         cabinet_name: row
             .try_get("cabinet_name")
             .map_err(|_| AppError::Internal)?,
