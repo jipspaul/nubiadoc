@@ -177,7 +177,11 @@ class _ProfileContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       key: const Key('profile_content'),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      // #6199 : marge basse >= hauteur de la barre d'onglets (80, NavigationBar
+      // M3) pour que les dernières tuiles ("Mon compte") se rendent
+      // entièrement au-dessus du bottom nav bar du shell patient, et ne
+      // soient jamais tronquées/interceptées par lui en fin de scroll.
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       children: [
         _ProfileHeaderCard(account: account),
         const SizedBox(height: 24),

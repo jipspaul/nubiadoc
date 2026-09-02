@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -11,6 +12,7 @@ import 'package:app_patient/features/profile/profile_bloc.dart';
 import 'package:app_patient/features/profile/profile_event.dart';
 import 'package:app_patient/features/profile/profile_page.dart';
 import 'package:app_patient/features/profile/profile_state.dart';
+import 'package:app_patient/router/app_router.dart';
 import 'package:app_patient/session/auth_cubit.dart';
 
 // ---------------------------------------------------------------------------
@@ -246,6 +248,95 @@ void main() {
       );
       expect(find.byKey(const Key('tile_financial')), findsOneWidget);
       expect(find.text('Mes devis & paiements'), findsOneWidget);
+    });
+
+    testWidgets(
+        'Mon compte : tuile Couverture santé cliquable au-dessus du bottom '
+        'nav bar une fois scrollée, sans être interceptée par un onglet '
+        '(#6199)', (tester) async {
+      final originalSize = tester.view.physicalSize;
+      final originalRatio = tester.view.devicePixelRatio;
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.physicalSize = originalSize;
+        tester.view.devicePixelRatio = originalRatio;
+      });
+
+      when(() => mockGetAccount())
+          .thenAnswer((_) async => const Right(_account));
+
+      final bloc = _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
+      bloc.add(const ProfileLoadRequested());
+
+      var messagesTabTapped = false;
+
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: GoRouter(
+          initialLocation: '/',
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, __) => MultiBlocProvider(
+                providers: [
+                  BlocProvider.value(value: bloc),
+                  BlocProvider<AuthCubit>(create: (_) => MockAuthCubit()),
+                ],
+                child: Scaffold(
+                  body: const ProfilePage(),
+                  // Reproduit le shell du patient (DashboardPage) : bottom
+                  // nav persistant de même hauteur (NavigationBar M3 = 80).
+                  bottomNavigationBar: NavigationBar(
+                    selectedIndex: 4,
+                    onDestinationSelected: (i) {
+                      if (i == 2) messagesTabTapped = true;
+                    },
+                    destinations: const [
+                      NavigationDestination(
+                          icon: Icon(Icons.home), label: 'Accueil'),
+                      NavigationDestination(
+                          icon: Icon(Icons.event), label: 'RDV'),
+                      NavigationDestination(
+                          icon: Icon(Icons.chat_bubble), label: 'Messages'),
+                      NavigationDestination(
+                          icon: Icon(Icons.folder), label: 'Documents'),
+                      NavigationDestination(
+                          icon: Icon(Icons.person), label: 'Profil'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            GoRoute(
+              path: AppRouter.coverageSetup,
+              builder: (_, __) =>
+                  const Scaffold(body: Text('Couverture santé')),
+            ),
+          ],
+        ),
+      ));
+      await tester.pumpAndSettle();
+      // Overflow horizontal préexistant et sans rapport (#6199 ne concerne
+      // que le chevauchement vertical) sur `_SectionLabel` à cette largeur
+      // étroite (390) — ignoré ici pour ne pas faire échouer ce test.
+      tester.takeException();
+
+      await tester.ensureVisible(find.byKey(const Key('tile_coverage')));
+      await tester.pumpAndSettle();
+      tester.takeException();
+
+      final tileRect =
+          tester.getRect(find.byKey(const Key('tile_coverage')));
+      final navRect = tester.getRect(find.byType(NavigationBar));
+      expect(tileRect.overlaps(navRect), isFalse);
+
+      await tester.tap(find.byKey(const Key('tile_coverage')));
+      await tester.pumpAndSettle();
+      tester.takeException();
+
+      expect(messagesTabTapped, isFalse);
+      expect(find.text('Couverture santé'), findsOneWidget);
     });
 
     testWidgets(
