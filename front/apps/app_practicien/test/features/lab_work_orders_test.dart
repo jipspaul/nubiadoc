@@ -52,6 +52,19 @@ const _sentOrder = LabWorkOrder(
   sentAt: '2026-01-01T09:00:00Z',
 );
 
+// #6174 : `toothFdi`/`workNature` sont `null` quand le bon n'est pas
+// rattaché à une ligne de devis (`quote_item_id` absent côté API) — cas
+// normal documenté serveur, pas une anomalie.
+const _unlinkedOrder = LabWorkOrder(
+  id: 'order-5',
+  patientId: 'patient-5',
+  patientDisplayName: 'Nadia Cohen',
+  labName: 'Labo Dentaire Epsilon',
+  purchasePriceCents: 18000,
+  status: 'sent',
+  sentAt: '2026-01-05T09:00:00Z',
+);
+
 const _fittedOrder = LabWorkOrder(
   id: 'order-2',
   patientId: 'patient-2',
@@ -173,6 +186,19 @@ void main() {
         find.byKey(const Key('lab_work_order_advance_order-2')),
         findsNothing,
       );
+    });
+
+    testWidgets(
+        'un bon non rattaché à une ligne de devis (tooth_fdi/work_nature '
+        'absents) s\'affiche sans planter (#6174)', (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(const LabWorkOrdersLoaded([_unlinkedOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('lab_work_order_order-5')), findsOneWidget);
+      expect(find.text('Non rattaché à un devis'), findsOneWidget);
     });
 
     testWidgets(
