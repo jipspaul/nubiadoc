@@ -1146,7 +1146,7 @@ class _ContextKeyValueRow extends StatelessWidget {
   }
 }
 
-/// Section « Patiente » : nom, téléphone (tabular-nums), officine.
+/// Section « Patient » : nom, téléphone (tabular-nums), officine.
 class _PatientSection extends StatelessWidget {
   const _PatientSection({required this.conversation});
 
@@ -1158,7 +1158,7 @@ class _PatientSection extends StatelessWidget {
       key: const Key('pharma_messaging_ctx_patient'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _ContextSectionHeader(icon: Icons.person, title: 'Patiente'),
+        const _ContextSectionHeader(icon: Icons.person, title: 'Patient'),
         _ContextKeyValueRow(label: 'Nom', value: conversation.patientName),
         _ContextKeyValueRow(
           label: 'Téléphone',
