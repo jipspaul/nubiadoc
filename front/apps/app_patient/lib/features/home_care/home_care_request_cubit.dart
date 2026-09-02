@@ -146,21 +146,31 @@ class HomeCareRequestCubit extends Cubit<HomeCareRequestState>
 
   /// Position courante (permission à la volée) — même stratégie que
   /// `NurseCubit._currentPosition` côté infirmière.
+  ///
+  /// `.timeout` couvre le cas où le navigateur ne rappelle jamais le callback
+  /// (permission refusée sans dialogue, capteur indisponible) : sans borne,
+  /// `estimate`/`submit` restaient bloqués en `Estimating`/`Submitting` pour
+  /// toujours, sans jamais atteindre la branche `position == null`.
   static Future<Position?> _defaultCurrentPosition() async {
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) return null;
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
-        return null;
-      }
-      return await Geolocator.getCurrentPosition();
+      return await _requestCurrentPosition()
+          .timeout(const Duration(seconds: 10), onTimeout: () => null);
     } catch (_) {
       return null;
     }
+  }
+
+  static Future<Position?> _requestCurrentPosition() async {
+    if (!await Geolocator.isLocationServiceEnabled()) return null;
+    var perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) {
+      return null;
+    }
+    return await Geolocator.getCurrentPosition();
   }
 
   String _msg(DioException e) {
