@@ -251,15 +251,13 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .execute(db)
         .await
         .ok();
-    sqlx::query(
-        "DELETE FROM app_user WHERE id IN ($1, $2, $3)",
-    )
-    .bind(f.practitioner_user_id)
-    .bind(f.secretary_user_id)
-    .bind(f.patient_account_user_id)
-    .execute(db)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM app_user WHERE id IN ($1, $2, $3)")
+        .bind(f.practitioner_user_id)
+        .bind(f.secretary_user_id)
+        .bind(f.patient_account_user_id)
+        .execute(db)
+        .await
+        .ok();
 }
 
 fn state_with(db: PgPool) -> AppState {
@@ -319,14 +317,12 @@ async fn sign_quote(
 }
 
 async fn count_notifications(db: &PgPool, app_user_id: Uuid, kind: &str) -> i64 {
-    sqlx::query_scalar(
-        "SELECT count(*) FROM notification WHERE app_user_id = $1 AND kind = $2",
-    )
-    .bind(app_user_id)
-    .bind(kind)
-    .fetch_one(db)
-    .await
-    .unwrap()
+    sqlx::query_scalar("SELECT count(*) FROM notification WHERE app_user_id = $1 AND kind = $2")
+        .bind(app_user_id)
+        .bind(kind)
+        .fetch_one(db)
+        .await
+        .unwrap()
 }
 
 // ── Test 1 : envoi d'un devis brouillon → le patient reçoit quote_received ──
