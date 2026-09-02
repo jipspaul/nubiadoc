@@ -67,6 +67,17 @@ PharmacyOrder orderWithLineCount(
       lineCount: lineCount,
     );
 
+PharmacyOrder orderWithRef(String id, String? orderRef) => PharmacyOrder(
+      id: id,
+      pharmacyId: 'p1',
+      patientDisplayName: 'Jean D.',
+      orderRef: orderRef,
+      prescriptionId: 'rx1',
+      status: PharmacyOrderStatus.received,
+      createdAt: DateTime(2026, 7, 1, 10),
+      updatedAt: DateTime(2026, 7, 1, 10),
+    );
+
 void main() {
   late MockPharmacyOrdersRepository repo;
   late MockPharmacyOrderEventsPort events;
@@ -245,6 +256,46 @@ void main() {
         isA<OrdersError>(),
       ],
     );
+  });
+
+  group('OrdersLoaded.visible', () {
+    test('sans filtre : trie par réception croissante, la plus ancienne '
+        '(donc la plus urgente) en tête', () {
+      final state = OrdersLoaded(orders: [
+        orderAt('o1', PharmacyOrderStatus.received, DateTime(2026, 7, 1, 11)),
+        orderAt('o2', PharmacyOrderStatus.preparing, DateTime(2026, 7, 1, 8)),
+        orderAt('o3', PharmacyOrderStatus.ready, DateTime(2026, 7, 1, 9)),
+      ]);
+
+      expect(state.visible.map((o) => o.id), ['o2', 'o3', 'o1']);
+    });
+
+    test('sans filtre : les commandes terminales (retirée, refusée, '
+        'annulée) sont exclues — pas de facette pour les revoir ici', () {
+      final state = OrdersLoaded(orders: [
+        orderAt('o1', PharmacyOrderStatus.received, DateTime(2026, 7, 1, 9)),
+        orderAt('o2', PharmacyOrderStatus.pickedUp, DateTime(2026, 7, 1, 8)),
+        orderAt('o3', PharmacyOrderStatus.rejected, DateTime(2026, 7, 1, 8)),
+        orderAt('o4', PharmacyOrderStatus.cancelled, DateTime(2026, 7, 1, 8)),
+      ]);
+
+      expect(state.visible.map((o) => o.id), ['o1']);
+      expect(state.orders, hasLength(4), reason: 'file complète conservée');
+    });
+
+    test('avec filtre explicite : trie aussi par réception croissante', () {
+      final state = OrdersLoaded(
+        orders: [
+          orderAt(
+              'o1', PharmacyOrderStatus.ready, DateTime(2026, 7, 1, 11)),
+          orderAt(
+              'o2', PharmacyOrderStatus.ready, DateTime(2026, 7, 1, 9)),
+        ],
+        filter: PharmacyOrderStatus.ready,
+      );
+
+      expect(state.visible.map((o) => o.id), ['o2', 'o1']);
+    });
   });
 
   group('OrdersView (widget)', () {
@@ -768,6 +819,50 @@ void main() {
 
       expect(find.text('ligne'), findsNothing);
       expect(find.text('lignes'), findsNothing);
+    });
+  });
+
+  group('Colonne « N° commande »', () {
+    testWidgets('affiche la référence de commande sous le nom du patient',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [orderWithRef('o1', 'CMD-4842')]),
+      );
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('order_row_o1')),
+          matching: find.text('CMD-4842'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('orderRef == null → aucune référence affichée',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [orderWithRef('o1', null)]),
+      );
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(find.textContaining('CMD-'), findsNothing);
     });
   });
 
