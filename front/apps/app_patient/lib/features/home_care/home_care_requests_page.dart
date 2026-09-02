@@ -35,6 +35,7 @@ class HomeCareRequestsBody extends StatelessWidget {
     'arrived': StatusPillVariant.progress,
     'done': StatusPillVariant.success,
     'cancelled': StatusPillVariant.error,
+    'expired': StatusPillVariant.error,
   };
 
   @override
@@ -75,7 +76,8 @@ class HomeCareRequestsBody extends StatelessWidget {
                     title: visit.requestedActs
                         .map((a) => homeCareActs[a] ?? a)
                         .join(' · '),
-                    subtitle: visitStatusLabels[visit.status] ?? visit.status,
+                    subtitle: '${visit.addressLine} · '
+                        '${NubiaMoney.formatCents(visit.estimatedPriceCents)}',
                     trailing: StatusPill(
                       label: visitStatusLabels[visit.status] ?? visit.status,
                       variant:
