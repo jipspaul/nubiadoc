@@ -69,6 +69,7 @@ void registerPro(GetIt gi) {
       getAgenda: gi<GetCabinetAgendaUseCase>(),
       confirmAppointment: gi<ConfirmAppointmentUseCase>(),
       startConsultation: gi<StartConsultationUseCase>(),
+      createAppointmentSeries: gi<CreateAppointmentSeriesUseCase>(),
     ),
   );
 

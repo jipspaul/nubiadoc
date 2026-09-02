@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/cabinet_appointments/cabinet_appointments_api.dart';
+import 'package:nubia_domain/src/entities/appointment_series.dart';
 import 'package:nubia_domain/src/entities/cabinet_appointment.dart';
 import 'package:nubia_domain/src/repositories/cabinet_appointments_repository.dart';
 
@@ -151,6 +152,53 @@ class CabinetAppointmentsRepositoryImpl
       }
       return Left(ServerFailure(
         message: 'Impossible de reprogrammer le rendez-vous.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, CreatedAppointmentSeries>> createSeries({
+    required String practitionerId,
+    required String patientId,
+    String? motif,
+    required List<AppointmentSeriesOccurrence> occurrences,
+  }) async {
+    try {
+      final dto = await _api.createSeries(
+        practitionerId: practitionerId,
+        patientId: patientId,
+        motif: motif,
+        occurrences: occurrences,
+      );
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      if (e.response?.statusCode == 404) {
+        return const Left(
+            NotFoundFailure('Patient ou praticien introuvable.'));
+      }
+      // 409 slot_taken : une occurrence chevauche un créneau déjà pris ou
+      // une indisponibilité praticien — la série entière est rejetée
+      // (rollback transactionnel côté back, aucun RDV créé).
+      if (e.response?.statusCode == 409) {
+        return const Left(ServerFailure(
+          message:
+              "Une des séances chevauche un créneau déjà pris — aucun rendez-vous n'a été créé.",
+          statusCode: 409,
+        ));
+      }
+      if (e.response?.statusCode == 422) {
+        return const Left(ValidationFailure(
+          message: 'Séances invalides (dates incohérentes ou passées).',
+        ));
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de créer la série de rendez-vous.',
         statusCode: e.response?.statusCode,
       ));
     } catch (e) {

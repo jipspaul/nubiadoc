@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -15,6 +16,7 @@ import 'package:app_practicien/features/agenda/agenda_state.dart';
 import 'package:app_practicien/features/patients/patients_bloc.dart';
 import 'package:app_practicien/features/patients/patients_event.dart';
 import 'package:app_practicien/features/patients/patients_state.dart';
+import 'package:app_practicien/session/pro_auth_cubit.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -29,11 +31,16 @@ class MockConfirmAppointmentUseCase extends Mock
 class MockStartConsultationUseCase extends Mock
     implements StartConsultationUseCase {}
 
+class MockCreateAppointmentSeriesUseCase extends Mock
+    implements CreateAppointmentSeriesUseCase {}
+
 class MockAgendaBloc extends MockBloc<AgendaEvent, AgendaState>
     implements AgendaBloc {}
 
 class MockPatientsBloc extends MockBloc<PatientsEvent, PatientsState>
     implements PatientsBloc {}
+
+class MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,15 +81,21 @@ const _session = ClinicalSession(
   acts: [],
 );
 
+final _seriesOccurrenceStart = DateTime(2026, 7, 1, 9, 0);
+final _seriesOccurrenceEnd = DateTime(2026, 7, 1, 9, 30);
+
 AgendaBloc _makeBloc({
   required MockGetCabinetAgendaUseCase getAgenda,
   required MockConfirmAppointmentUseCase confirm,
   required MockStartConsultationUseCase start,
+  MockCreateAppointmentSeriesUseCase? createSeries,
 }) =>
     AgendaBloc(
       getAgenda: getAgenda,
       confirmAppointment: confirm,
       startConsultation: start,
+      createAppointmentSeries:
+          createSeries ?? MockCreateAppointmentSeriesUseCase(),
     );
 
 Widget _wrap(AgendaBloc bloc) => MaterialApp(
@@ -309,6 +322,117 @@ void main() {
         AgendaLoaded(entries: [_entry], weekStart: _weekStart),
       ],
     );
+
+    blocTest<AgendaBloc, AgendaState>(
+      'SeriesCreateRequested recharge l\'agenda et expose le nombre créé (#4088)',
+      build: () {
+        final mockCreateSeries = MockCreateAppointmentSeriesUseCase();
+        when(() => mockGetAgenda(any()))
+            .thenAnswer((_) async => Right([_entry]));
+        when(() => mockCreateSeries(
+              practitionerId: any(named: 'practitionerId'),
+              patientId: any(named: 'patientId'),
+              motif: any(named: 'motif'),
+              occurrences: any(named: 'occurrences'),
+            )).thenAnswer((_) async => Right(CreatedAppointmentSeries(
+              recurrenceId: 'rec-1',
+              appointments: [
+                CreatedAppointmentSeriesItem(
+                  id: 'app-1',
+                  recurrenceIndex: 1,
+                  startsAt: _seriesOccurrenceStart,
+                  endsAt: _seriesOccurrenceEnd,
+                ),
+              ],
+            )));
+        return _makeBloc(
+          getAgenda: mockGetAgenda,
+          confirm: mockConfirm,
+          start: mockStart,
+          createSeries: mockCreateSeries,
+        );
+      },
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      act: (bloc) => bloc.add(AgendaSeriesCreateRequested(
+        practitionerId: 'prac-1',
+        patientId: 'pat-1',
+        motif: 'Parodontologie',
+        occurrences: [
+          AppointmentSeriesOccurrence(
+            startsAt: DateTime(2026, 7, 1, 9, 0),
+            endsAt: DateTime(2026, 7, 1, 9, 30),
+          ),
+        ],
+      )),
+      expect: () => [
+        AgendaLoaded(
+            entries: [_entry], weekStart: _weekStart, actionInProgress: true),
+        const AgendaLoading(),
+        AgendaLoaded(
+          entries: [_entry],
+          weekStart: _weekStart,
+          seriesAppointmentsCreated: 1,
+        ),
+      ],
+    );
+
+    blocTest<AgendaBloc, AgendaState>(
+      'SeriesCreateRequested conserve l\'état courant avec erreur en cas d\'échec',
+      build: () {
+        final mockCreateSeries = MockCreateAppointmentSeriesUseCase();
+        when(() => mockCreateSeries(
+              practitionerId: any(named: 'practitionerId'),
+              patientId: any(named: 'patientId'),
+              motif: any(named: 'motif'),
+              occurrences: any(named: 'occurrences'),
+            )).thenAnswer((_) async => const Left(
+              ServerFailure(message: 'Ce créneau vient d\'être pris.'),
+            ));
+        return _makeBloc(
+          getAgenda: mockGetAgenda,
+          confirm: mockConfirm,
+          start: mockStart,
+          createSeries: mockCreateSeries,
+        );
+      },
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      act: (bloc) => bloc.add(AgendaSeriesCreateRequested(
+        practitionerId: 'prac-1',
+        patientId: 'pat-1',
+        motif: 'Parodontologie',
+        occurrences: [
+          AppointmentSeriesOccurrence(
+            startsAt: DateTime(2026, 7, 1, 9, 0),
+            endsAt: DateTime(2026, 7, 1, 9, 30),
+          ),
+        ],
+      )),
+      expect: () => [
+        AgendaLoaded(
+            entries: [_entry], weekStart: _weekStart, actionInProgress: true),
+        AgendaLoaded(
+          entries: [_entry],
+          weekStart: _weekStart,
+          actionInProgress: false,
+          actionError: 'Ce créneau vient d\'être pris.',
+        ),
+      ],
+    );
+
+    blocTest<AgendaBloc, AgendaState>(
+      'SeriesCreatedConsumed remet seriesAppointmentsCreated à null',
+      build: () => _makeBloc(
+          getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart),
+      seed: () => AgendaLoaded(
+        entries: [_entry],
+        weekStart: _weekStart,
+        seriesAppointmentsCreated: 3,
+      ),
+      act: (bloc) => bloc.add(const AgendaSeriesCreatedConsumed()),
+      expect: () => [
+        AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      ],
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -394,6 +518,70 @@ void main() {
 
       expect(find.byKey(const Key('patient_picker_title')), findsOneWidget);
       expect(find.byKey(const Key('patient_pick_pat-1')), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // AppBar "Série de RDV" widget tests (#4088)
+  // ---------------------------------------------------------------------------
+
+  group('AgendaPage — AppBar Série de RDV (widget)', () {
+    testWidgets(
+        'tap ouvre le sélecteur patient puis le formulaire de série',
+        (tester) async {
+      final mockBloc = MockAgendaBloc();
+      when(() => mockBloc.state).thenReturn(
+        AgendaLoaded(entries: const [], weekStart: _weekStart),
+      );
+
+      final patient = CabinetPatient(
+        id: 'pat-1',
+        cabinetId: 'cab-1',
+        firstName: 'Marc',
+        lastName: 'Dubois',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      final mockPatientsBloc = MockPatientsBloc();
+      when(() => mockPatientsBloc.state).thenReturn(PatientsLoaded([patient]));
+
+      final mockAuthCubit = MockProAuthCubit();
+      when(() => mockAuthCubit.state).thenReturn(
+        const AuthAuthenticated(
+          AuthSession(
+            kind: UserKind.pro,
+            userId: 'prac-1',
+            role: ProRole.practitioner,
+          ),
+        ),
+      );
+
+      GetIt.instance.registerFactory<AgendaBloc>(() => mockBloc);
+      GetIt.instance.registerFactory<PatientsBloc>(() => mockPatientsBloc);
+      addTearDown(GetIt.instance.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<ProAuthCubit>.value(
+            value: mockAuthCubit,
+            child: const AgendaPage(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('agenda_create_series')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('agenda_create_series')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('patient_picker_title')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('patient_pick_pat-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('create_series_dialog')), findsOneWidget);
+      expect(find.text('Série de RDV — Marc Dubois'), findsOneWidget);
     });
   });
 

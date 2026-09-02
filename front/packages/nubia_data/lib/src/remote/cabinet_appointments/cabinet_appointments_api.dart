@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
+import 'package:nubia_data/src/remote/cabinet_appointments/appointment_series_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_appointments/cabinet_appointments_dto.dart';
+import 'package:nubia_domain/src/entities/appointment_series.dart';
 import 'package:nubia_domain/src/entities/cabinet_appointment.dart';
 
 class CabinetAppointmentsApi {
@@ -78,5 +80,32 @@ class CabinetAppointmentsApi {
       data: {'starts_at': newStartsAt.toIso8601String()},
     );
     return CabinetAppointmentDto.fromJson(response.data!);
+  }
+
+  /// `POST /v1/cabinet/appointments/series` (#4088) — contrat back
+  /// (`CreateAppointmentSeriesBody`) : { practitioner_id, patient_id,
+  /// motif?, occurrences: [{ starts_at, ends_at }] }.
+  Future<AppointmentSeriesDto> createSeries({
+    required String practitionerId,
+    required String patientId,
+    String? motif,
+    required List<AppointmentSeriesOccurrence> occurrences,
+  }) async {
+    final data = <String, dynamic>{
+      'practitioner_id': practitionerId,
+      'patient_id': patientId,
+      if (motif != null && motif.trim().isNotEmpty) 'motif': motif,
+      'occurrences': occurrences
+          .map((o) => {
+                'starts_at': o.startsAt.toIso8601String(),
+                'ends_at': o.endsAt.toIso8601String(),
+              })
+          .toList(),
+    };
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/cabinet/appointments/series',
+      data: data,
+    );
+    return AppointmentSeriesDto.fromJson(response.data!);
   }
 }

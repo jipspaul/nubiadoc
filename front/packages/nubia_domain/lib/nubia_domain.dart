@@ -34,6 +34,7 @@ export 'src/entities/stock_request.dart';
 export 'src/entities/review.dart';
 export 'src/entities/agenda_entry.dart';
 export 'src/entities/cabinet_appointment.dart';
+export 'src/entities/appointment_series.dart';
 export 'src/entities/cabinet_patient.dart';
 export 'src/entities/cabinet_practitioner.dart';
 export 'src/entities/cabinet_quote.dart';
@@ -231,6 +232,7 @@ export 'src/usecases/agenda/start_consultation_use_case.dart';
 export 'src/usecases/cabinet_appointments/list_cabinet_appointments_use_case.dart';
 export 'src/usecases/cabinet_appointments/create_cabinet_appointment_use_case.dart';
 export 'src/usecases/cabinet_appointments/reschedule_appointment_use_case.dart';
+export 'src/usecases/cabinet_appointments/create_appointment_series_use_case.dart';
 // cabinet patients pro
 export 'src/usecases/cabinet_patients/create_cabinet_patient_use_case.dart';
 export 'src/usecases/patient_tags/list_patient_tags_use_case.dart';
