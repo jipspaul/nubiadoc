@@ -167,3 +167,35 @@ correctifs de script appliqués, les 5 logins réels ont tous réussi sans erreu
 l'activation exhaustive contrôle-par-contrôle (clic + verdict OK/MORT/CASSÉ) reste à faire sur les écrans
 listés ci-dessus lors d'un prochain sweep (budget de ce run concentré sur la remise en état de l'outillage
 Playwright + PRIO1 API).
+
+## Sweep 2026-09-02T00h00-01h00Z — praticien travaux labo/messages/devis, secrétariat stock/patients/payouts/team-messages/bookable-slots, pharmacie devis send, patient consents/dependents/documents/treatment-plans/implant-passport/home-care
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| praticien | /devis (10 fiches devis) | 10 | 0 (inventaire, cliqué au sweep précédent) | - | - | - | 2026-09-02T00:15:00Z |
+| praticien | /stock + /stock-inventory | 3 (Actualiser, Nouvelle demande) + 22 (11 lignes + Mouvement) | 0 (inventaire seul) | - | - | - | 2026-09-02T00:15:00Z |
+| praticien | /lab-work-orders | 3 (Actualiser, Nouveau bon cliqué->snackbar OK, Réessayer) | 1 (Nouveau bon, snackbar "à venir" confirmé) | 1 | 0 | 0 (mécanique DIVERGENTE : liste sous-jacente CASSÉE par #6174, cf design-v2.md) | 2026-09-02T00:20:00Z |
+| praticien | /messages (thread + envoi réel) | 5 (liste conv, "Créer un RDV", champ saisie, envoi) | 3 (ouverture thread OK, envoi réel 201, double-clic->1 seul POST) | 3 | 0 | 0 | 2026-09-02T00:40:00Z |
+| praticien | /ordonnances ("Choisir un patient" + recherche) | 1 + 17 (patients listés après clic) | 1 | 1 | 0 | 0 | 2026-09-02T00:50:00Z |
+| secretariat | /cabinet-stats | 1 (Actualiser) | 0 (inventaire, 403 audit-log/members intentionnel re-confirmé) | - | - | - | 2026-09-02T00:10:00Z |
+| secretariat | /bookable-slots ("Créer un créneau" + formulaire) | 4 (Actualiser, 2 filtres, Créer un créneau) + 6 (formulaire modal) | 1 (Créer un créneau -> ouvre formulaire complet) | 1 | 0 | 0 | 2026-09-02T00:52:00Z |
+| secretariat | /appointment-motifs | 1 (Actualiser) | 0 (inventaire seul) | - | - | - | 2026-09-02T00:10:00Z |
+| secretariat | /stock (5 filtres + Nouvelle demande) | 4 | 0 (inventaire, filtres déjà cliqués au sweep précédent) | - | - | - | 2026-09-02T00:10:00Z |
+| secretariat | /liste-attente | 1 (Actualiser) | 0 | - | - | - | 2026-09-02T00:10:00Z |
+| secretariat | /team-messages (Joindre/Épingler/Mentionner/envoi réel) | 8 | 5 (Mentionner OK insère @, envoi réel via mouse.click+keyboard.type 201 confirmé — mouse.down/up séquence échoue silencieusement sur ce widget précis, leçon méthodo) | 5 | 0 | 0 | 2026-09-02T00:35:00Z |
+| secretariat | /devis (bouton Envoyer déjà testé sweep précédent) | 10 | 0 (inventaire seul ce run) | - | - | - | 2026-09-02T00:10:00Z |
+| secretariat | /cabinet-payouts | 5 | 0 (inventaire seul, Connecter Stripe/Exporter déjà testés sweep précédent) | - | - | - | 2026-09-02T00:10:00Z |
+| secretariat | /patients (3 facettes + ⌘N + 20 fiches) | 24 | 0 (inventaire seul, facettes déjà cliquées sweep précédent) | - | - | - | 2026-09-02T00:10:00Z |
+| pharmacie | /devis (5 filtres + Envoyer au patient) | 4 filtres + N boutons Envoyer | 2 (Brouillons filtre + Envoyer au patient, 200 confirmé — 1ère tentative avait ciblé le GROUPE parent par erreur de script, corrigé et re-testé propre) | 2 | 0 | 0 | 2026-09-02T00:55:00Z |
+| pharmacie | / (Commandes, bouton Préparer sur ligne) | 1 | 1 (Préparer -> accept 200 confirmé) | 1 | 0 | 0 | 2026-09-02T00:33:00Z |
+| infirmiere | / (switch Disponibilité, re-vérif bidirectionnelle) | 1 | 1 (aria-checked=true confirmé cohérent avec is_online:true serveur) | 1 | 0 | 0 | 2026-09-02T00:22:00Z |
+| infirmiere | / (Offres, carte réelle + Accepter, auto-load confirmé) | 2 | 1 (Accepter -> 201 accept confirmé, offre créée juste avant apparaît sans refresh manuel — #6150 toujours fixé) | 1 | 0 | 0 | 2026-09-02T00:24:00Z |
+| patient | /profile/consents (3 switches + 3 Détails) | 1 groupe verrouillé + 6 | 1 (switch marketing toggle -> PUT confirmé 200, reverti après test — 1ère tentative avait ciblé un switch hors-viewport à cause d'un défaut de scroll du script, corrigé) | 1 | 0 | 0 | 2026-09-02T00:38:00Z |
+| patient | /treatment-plans (11 plans) | 11 | 1 (clic "Réhabilitation 26" -> détail chargé, étape 2/3 affichée) | 1 | 0 | 0 | 2026-09-02T00:15:00Z |
+| patient | /implant-passport (4 implants + Exporter en PDF) | 5 | 1 (Exporter en PDF -> requête déclenchée mais 502 upstream_unavailable, même famille env-limitation que téléchargement documents, non filé) | 0 | 0 | 1 (échec réseau documenté comme limitation d'env, pas un bug produit) | 2026-09-02T00:16:00Z |
+| patient | /home-care (17 demandes listées) | 17 + Nouvelle demande | 0 (inventaire — défaut trouvé par LECTURE : statut "expired" non traduit, #6176) | - | - | - | 2026-09-02T00:12:00Z |
+| patient | /home-care/new (formulaire nouvelle demande) | 8 (6 actes + adresse + boutons) | 0 (inventaire seul, formulaire déjà testé bout-en-bout aux sweeps précédents) | - | - | - | 2026-09-02T00:44:00Z |
+| patient | /documents (recherche + 9 filtres + liste + Télécharger) | 11 + N | 1 (clic 1er document -> download déclenché, 502 upstream_unavailable même limitation d'env, feedback snackbar correct) | 0 | 0 | 1 (échec réseau env, pas produit) | 2026-09-02T00:56:00Z |
+| patient | / (dashboard, re-check post-login FRAIS) | 20 | 0 (inventaire — défaut trouvé : "Bonjour  " prénom vide, #6178 régression #6141) | - | - | - | 2026-09-02T00:37:00Z |
+
+Note méthode (leçons apprises ce run) : (1) un clic sur un match `.find()` ambigu (ex. "Envoyer au patient" présent N fois) peut accidentellement cibler le GROUPE PARENT englobant au lieu du bouton individuel — toujours filtrer par label EXACT (`===`) et vérifier le rect avant de cliquer quand plusieurs contrôles partagent un label. (2) Un switch/bouton situé hors du viewport initial (`rect.y > viewport height`) ne réagit à AUCUN clic tant qu'on n'a pas scrollé — un faux-négatif "bouton mort" doit TOUJOURS être revérifié après scroll avant d'être qualifié de bug. (3) Pour certains champs de texte Flutter (ex. team-messages "Écrire à l'équipe…"), la séquence `mouse.down()+wait+mouse.up()` échoue silencieusement (le texte n'est jamais réellement entré) alors qu'un `mouse.click()` simple suivi de `keyboard.type()` fonctionne — pas de règle universelle, tester les deux si un envoi semble ne rien faire.
