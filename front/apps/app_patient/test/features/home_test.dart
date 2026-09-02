@@ -186,6 +186,41 @@ void main() {
       expect(find.text('Bonjour Camille'), findsOneWidget);
     });
 
+    testWidgets(
+        'affiche « Bonjour Patient » quand authentifié avec un displayName '
+        'vide (bootstrap de session pas encore peuplé)', (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      final authCubit = MockAuthCubit();
+      when(() => authCubit.state).thenReturn(
+        const AuthAuthenticated(
+          AuthSession(
+            kind: UserKind.patient,
+            userId: 'user-1',
+            displayName: '',
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider.value(value: bloc),
+            BlocProvider<AuthCubit>(create: (_) => authCubit),
+          ],
+          child: const Scaffold(body: HomePage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bonjour Patient'), findsOneWidget);
+    });
+
     testWidgets('affiche les cartes de résumé en état loaded', (tester) async {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_summary));
