@@ -29,15 +29,15 @@ const CREDENTIALS: Record<Role, { email: string; password: string }> = {
 };
 
 /**
- * Stratégie d'URL par app : app_practicien appelle usePathUrlStrategy()
- * (bootstrap.dart) → URLs "propres" (/login). patient et secretariat gardent
- * la stratégie hash par défaut de Flutter web → routes dans le fragment
- * (/#/login). Toute navigation/assertion d'URL DOIT passer par ces helpers.
+ * Stratégie d'URL par app : les 3 apps appellent usePathUrlStrategy()
+ * (bootstrap.dart) → URLs "propres" (/login), depuis #4697 (2026-08-09) qui a
+ * ajouté la stratégie path à patient et secretariat (déjà présente côté
+ * practicien). Toute navigation/assertion d'URL DOIT passer par ces helpers.
  */
 const USES_PATH_URLS: Record<Role, boolean> = {
-  patient: false,
+  patient: true,
   practicien: true,
-  secretariat: false,
+  secretariat: true,
 };
 
 /** Libellé du champ e-mail des pages de login (diffère entre apps). */
