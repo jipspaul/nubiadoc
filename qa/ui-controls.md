@@ -282,3 +282,40 @@ traitement / Créer une ordonnance / Exporter PDF / Enregistrer les notes /
 Ajouter une étiquette / Envoyer un document + 13 facettes de type de document) ;
 patient /profile et ses sous-écrans ; pharmacie /messages et /devis ;
 secrétariat /cabinet-payouts, /team-messages, /messages, /rappels.
+
+### Ronde 2026-09-02 ~18h00-21h00 UTC (audit de commandes)
+
+| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | / (Accueil) | 22 (2 header + 5 tuiles Accès rapide + 3 lignes « À faire » + carte plan + 5 onglets + hero) | 5 (Préparer, Mes ordonnances, Mes documents, onglet Mes RDV, onglet Accueil) | 4 | **1** (« Mes ordonnances » — `onTap: null`, absente de l'arbre Semantics, #6232) | 0 | 2026-09-02T18:20:00Z |
+| patient | /treatment-plans | 11 (10 cartes de plan + retour) | 1 | 1 | 0 | 0 | 2026-09-02T18:35:00Z |
+| patient | /notifications | 21 (Tout marquer lu + 4 facettes + 8 items + 7 actions) | 0 (inventaire seul ; fixes #6197/#6211 vérifiés au rendu : « Voir le rendez-vous » sur `appointment_confirmed`, « Afficher mon code » sur `order_status_changed`, en-tête « Notifications 14 non lues » non tronqué) | - | - | - | 2026-09-02T18:25:00Z |
+| patient | /rdv/:id/prepare (Préparer mon RDV) | 4 (Retour + 2 items de check-list + carte info) | 3 | 3 | 0 | 0 | 2026-09-02T18:30:00Z |
+| patient | /home-care/new | 13 (6 actes + 4 champs + 2 actions + groupe) | 6 (1 acte, 3 champs, « Obtenir un devis » ×2) | 5 | 0 | 0 | 2026-09-02T19:20:00Z |
+| patient | /financial (Mes devis) | 10 | 2 | 2 | 0 | 0 | 2026-09-02T19:35:00Z |
+| praticien | / (Tableau de bord, hero « Patient suivant ») | 17 (12 nav + 2 actions hero + 2 tuiles « À traiter ») | 3 (Démarrer la consultation, Ouvrir le dossier, Confirmations en attente) | 1 | 0 | **2** (les 2 actions du hero naviguent mais perdent le patient — #6241) | 2026-09-02T18:55:00Z |
+| praticien | /waiting-room | 7 (Actualiser, 2× « Appeler MD », Ouvrir le dossier, Appeler par ligne, groupes) | 2 (Appeler MD ×2 dont un double-clic rapide) | 2 | 0 | 0 | 2026-09-02T19:00:00Z |
+| praticien | /agenda | 10 (Série de RDV, Inclure passés, 2 flèches SANS libellé, Filtrer par date, Démarrer, Confirmer, Consultation) | 6 (audit rigoureux : défilement vertical pour ramener chaque contrôle dans le viewport avant clic) | 5 (« Confirmer » → `POST …/confirm` 200 + rechargement ; « Consultation » et « Série de RDV » → sélecteur de patient ; « Inclure passés » → `GET /cabinet/agenda` ; « Filtrer par date » → sélecteur de plage) | 0 | **1** (« Démarrer » sur un RDV passé : `POST …/start` → 409 `out_of_window`, mais l'écran affiche « Séance déjà démarrée. » — #6254) | 2026-09-02T20:00:00Z |
+| patient | /documents (coffre-fort) | 23 (recherche + 10 facettes de type + 13 « Télécharger ») | 23 | 10 (les 10 facettes filtrent RÉELLEMENT : « Radio 7 » → 7 docs, « CBCT 2 » → 2, « Carte mutuelle 20 » → 20, `aria-checked` bascule) | 0 | **13** (les 13 boutons « Télécharger » → `GET /v1/documents/:id` **502 upstream_unavailable**, aucun message à l'écran — #6250 **P0**) | 2026-09-02T19:50:00Z |
+| patient | /profile/consents | 7 (1 interrupteur non modifiable + 3 interrupteurs + 3 « Détails ») | 1 | 1 | 0 | 0 (1 désactivé légitimement : « Nécessaire au service · Non modifiable ») | 2026-09-02T19:38:00Z |
+| patient | /profile/referring-doctor | 1 | 1 | 1 | 0 | 0 | 2026-09-02T19:39:00Z |
+| patient | /implant-passport | 5 (4 fiches implant + Exporter en PDF) | 1 | 1 | 0 | 0 | 2026-09-02T19:40:00Z |
+| patient | /messaging | 8 (conversations) | 1 | 1 | 0 | 0 | 2026-09-02T19:36:00Z |
+| praticien | /consultation (Historique des séances) | 32 (3 filtres de statut + 29 cartes) | 1 (onglet « En cours ») | 1 | 0 | 0 | 2026-09-02T18:58:00Z |
+| praticien | /patients (annuaire) | 17 (fiches patients) | 1 | 0 | 0 | 1 — **verdict corrigé** : le 4xx observé est le comportement ATTENDU. Ouvrir la fiche d'un patient sans relation de soin déclenche un 403 sur l'historique des ordonnances, désormais **affiché** (« Impossible de charger l'historique des ordonnances. » en rouge dans « Journal du patient ») → fix **#6210 vérifié tenir**, pas un bug | 2026-09-02T19:45:00Z |
+| secretariat | / (Tableau de bord) | 9 (Ouvrir l'agenda + 4 « Appeler » + « Relancer » + 2 « Ouvrir ») | 4 (ré-inventaire avant CHAQUE clic) | 4 | 0 | 0 (mais destinations non contextuelles → #6246) | 2026-09-02T19:12:00Z |
+| secretariat | / (palette ⌘K) | 14 (dialog + champ + 12 résultats de navigation) | 1 (Meta+K) | 1 | 0 | 0 | 2026-09-02T19:08:00Z |
+| secretariat | /salle-attente | 7 (Actualiser, Appeler MD ⌘⏎, Prévenir le praticien, Appeler par ligne) | 1 (Appeler MD → `POST /cabinet/waiting-room/call-next` 200) | 1 | 0 | 0 | 2026-09-02T19:10:00Z |
+| pharmacie | /devis | 10 (4 nav + 5 facettes + déconnexion) | 9 | 7 | 2 — **légitimes** (« Devis » = page courante, « Tous (67) » = facette déjà active : un no-op attendu, pas un contrôle mort) | 0 | 2026-09-02T19:40:00Z |
+| pharmacie | /stock | 19 (4 nav + 4 facettes + 5× Accepter + 5× Refuser + déconnexion) | 8 | 6 | 2 — **légitimes** (« Stock » = page courante, « À répondre (7) » = facette active) | 0 (10 contrôles Accepter/Refuser non activés : effet métier irréversible sur une demande de cabinet réelle) | 2026-09-02T19:42:00Z |
+| pharmacie | /messages | 23 (4 nav + 3 facettes + 4 conversations + 3 réponses rapides + composeur + recherche) | 1 (ouverture de conversation) | 1 | 0 | 0 | 2026-09-02T19:25:00Z |
+| infirmiere | / (3 onglets : Disponibilité / Offres / Ma visite) | 9 (3 onglets + interrupteur En ligne + Accepter + Passer + Je pars + déconnexion) | 5 (3 onglets + Accepter en double-clic + navigation Ma visite) | 5 | 0 | 0 | 2026-09-02T19:00:00Z |
+
+**Totaux de la ronde** : ~275 contrôles inventoriés, **90 activés**, 70 OK, **1 mort réel** (#6232), **14 cassés** (13 « Télécharger » → 502, #6250 ; 2 actions du hero praticien, #6241 ; « Démarrer » agenda au message faux, #6254), 4 morts légitimes (page ou facette déjà active), 10 non activés (effet métier irréversible côté pharmacie), 2 verdicts initialement erronés corrigés après re-test.
+
+**Leçons méthodo de la ronde (à réutiliser — elles ont évité DEUX faux findings P1)** :
+1. **Ré-inventorier juste avant chaque clic**, et relire le texte **après réactivation des Semantics**. Un premier passage sur le tableau de bord secrétariat avait conclu à 7 boutons morts ; le re-test rigoureux a montré que les 7 fonctionnent (navigation + requêtes réelles) — les coordonnées étaient périmées après la première navigation.
+2. **Vérifier que le rect du contrôle est DANS le viewport avant de conclure « MORT »**. L'arbre Semantics de Flutter expose les enfants hors écran d'une zone défilante avec leurs coordonnées réelles : sur `/documents` (390 px de large), 7 facettes de type sont annoncées à x=450…1194, donc hors écran. Cliquer à ces coordonnées ne fait rien — ce qui ressemble à 7 puces mortes. Après un défilement horizontal de la rangée, les 7 filtrent parfaitement (« Radio 7 » → 7 documents, « CBCT 2 » → 2, « Carte mutuelle 20 » → 20).
+3. **Échantillonner le texte toutes les ~700 ms sur 15-20 s** après une action asynchrone : un `SnackBar` dure 4 s et une géolocalisation expire à 10 s. Une lecture unique à +4 s aurait fait conclure à tort que « Obtenir un devis » (soins à domicile) ne dit rien — le message « Position indisponible : activez la géolocalisation. » arrive à t+10,5 s (#6218 confirmé corrigé). Le même échantillonnage a révélé, à l'inverse, que l'agenda praticien affiche bien un message… mais le mauvais (#6254).
+
+**À faire au prochain round** (écrans inventoriés mais NON activés) : patient /notifications (21 contrôles, dont les 4 facettes et les actions par item), patient /treatment-plans (10 cartes), praticien /consultation (29 cartes), praticien /lab-work-orders (26 contrôles), praticien fiche patient (onglets Schéma dentaire / Bilan parodontal / Plan de traitement / Exporter PDF), secrétariat /agenda (grille semaine : navigation + création de RDV), patient /messaging et /documents.
