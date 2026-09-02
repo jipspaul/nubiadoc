@@ -82,6 +82,13 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
   /// que de bloquer l'affichage de la fiche.
   List<MedicalAlert> _medicalAlerts = const [];
 
+  /// #6210 — l'API renvoie 403 sur `medical-record` quand ce praticien n'a
+  /// aucune relation de soin (rendez-vous) avec ce patient (RLS §14),
+  /// distinct d'un dossier sans alerte : sans indicateur dédié, l'en-tête se
+  /// rendait sans pastille dans les deux cas, rendant les deux situations
+  /// indiscernables pour le praticien.
+  bool _medicalRecordAccessDenied = false;
+
   /// Comptes des badges d'onglet (#4982, maquette design-v2 point 8 —
   /// badges « Plans de traitement »/« Documents » affichés une fois les
   /// données chargées). Chargés à part du contenu de chaque onglet, même
@@ -104,7 +111,11 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
         await GetIt.instance<GetMedicalRecordUseCase>()(widget.patient.id);
     if (!mounted) return;
     result.fold(
-      (_) {},
+      (failure) {
+        if (failure is ServerFailure && failure.statusCode == 403) {
+          setState(() => _medicalRecordAccessDenied = true);
+        }
+      },
       (record) => setState(() => _medicalAlerts = record.medicalAlerts),
     );
   }
@@ -259,6 +270,26 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                                           ? Icons.warning
                                           : null,
                                     ),
+                                // #6210 — distingue « aucune alerte connue »
+                                // (absence de pastille) de « dossier médical
+                                // inaccessible » (403, pas de relation de
+                                // soin) : sans cet indicateur les deux cas
+                                // sont visuellement identiques.
+                                if (state.showClinical &&
+                                    _medicalRecordAccessDenied)
+                                  Tooltip(
+                                    message: 'Dossier médical non '
+                                        'accessible : aucune relation de '
+                                        'soin avec ce patient.',
+                                    child: StatusPill(
+                                      key: const Key(
+                                          'patient_fiche_medical_record_access_denied_pill'),
+                                      label: 'Dossier non accessible',
+                                      variant: StatusPillVariant.neutral,
+                                      icon: Icons.lock_outline,
+                                      flexibleLabel: true,
+                                    ),
+                                  ),
                               ],
                             ),
                             const SizedBox(height: 2),
