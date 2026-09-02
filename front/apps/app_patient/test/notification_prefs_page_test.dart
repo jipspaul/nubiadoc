@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
@@ -94,6 +95,37 @@ void main() {
     ).captured;
     final updated = captured.last as NotificationPreferences;
     expect(updated.pushEnabled, isFalse);
+    expect(updated.appointments, isTrue);
+  });
+
+  testWidgets('le canal e-mail reste actionnable indépendamment',
+      (tester) async {
+    await tester.pumpWidget(wrap());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('notif_email')));
+    await tester.pumpAndSettle();
+
+    final captured = verify(
+      () => mockUpdate.call(captureAny()),
+    ).captured;
+    final updated = captured.last as NotificationPreferences;
+    expect(updated.emailEnabled, isFalse);
+    expect(updated.appointments, isTrue);
+  });
+
+  testWidgets('le canal SMS reste actionnable indépendamment', (tester) async {
+    await tester.pumpWidget(wrap());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('notif_sms')));
+    await tester.pumpAndSettle();
+
+    final captured = verify(
+      () => mockUpdate.call(captureAny()),
+    ).captured;
+    final updated = captured.last as NotificationPreferences;
+    expect(updated.smsEnabled, isFalse);
     expect(updated.appointments, isTrue);
   });
 
@@ -220,5 +252,35 @@ void main() {
     }
 
     verifyNever(() => mockUpdate.call(any()));
+  });
+
+  testWidgets(
+      "l'état d'une bascule persiste après un rechargement de l'écran "
+      '(re-GET reflétant le PATCH précédent)', (tester) async {
+    await tester.pumpWidget(wrap());
+    await tester.pumpAndSettle();
+
+    await scrollTo(tester, find.byKey(const Key('notif_documents')));
+    await tester.tap(find.byKey(const Key('notif_documents')));
+    await tester.pumpAndSettle();
+
+    final saved = verify(() => mockUpdate.call(captureAny())).captured.last
+        as NotificationPreferences;
+    expect(saved.documents, isFalse);
+
+    // Simule le serveur ayant persisté le PATCH : le prochain GET renvoie
+    // désormais `documents: false` au lieu du `_prefs` initial (true).
+    when(() => mockGet()).thenAnswer((_) async => Right(saved));
+
+    final cubit = tester
+        .element(find.byKey(const Key('notif_prefs_list')))
+        .read<NotificationPrefsCubit>();
+    await cubit.load();
+    await tester.pumpAndSettle();
+
+    final toggleFinder = find.byKey(const Key('notif_documents'));
+    await scrollTo(tester, toggleFinder);
+    final toggle = tester.widget<NubiaToggle>(toggleFinder);
+    expect(toggle.value, isFalse);
   });
 }
