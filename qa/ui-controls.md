@@ -208,3 +208,52 @@ Playwright + PRIO1 API).
 | patient | / (dashboard, re-check post-login FRAIS) | 20 | 0 (inventaire — défaut trouvé : "Bonjour  " prénom vide, #6178 régression #6141) | - | - | - | 2026-09-02T00:37:00Z |
 
 Note méthode (leçons apprises ce run) : (1) un clic sur un match `.find()` ambigu (ex. "Envoyer au patient" présent N fois) peut accidentellement cibler le GROUPE PARENT englobant au lieu du bouton individuel — toujours filtrer par label EXACT (`===`) et vérifier le rect avant de cliquer quand plusieurs contrôles partagent un label. (2) Un switch/bouton situé hors du viewport initial (`rect.y > viewport height`) ne réagit à AUCUN clic tant qu'on n'a pas scrollé — un faux-négatif "bouton mort" doit TOUJOURS être revérifié après scroll avant d'être qualifié de bug. (3) Pour certains champs de texte Flutter (ex. team-messages "Écrire à l'équipe…"), la séquence `mouse.down()+wait+mouse.up()` échoue silencieusement (le texte n'est jamais réellement entré) alors qu'un `mouse.click()` simple suivi de `keyboard.type()` fonctionne — pas de règle universelle, tester les deux si un envoi semble ne rien faire.
+
+## Ronde 2026-09-02 (12:28-16:00 UTC) — audit d'activation
+
+> **Correctif de méthode important pour les rondes suivantes.** Trois sources de
+> FAUX « MORT » ont été identifiées et neutralisées ce run ; les rondes
+> précédentes les comptaient comme des bugs :
+> 1. **Contrôle hors viewport** — un rect Semantics à `y > hauteur du viewport`
+>    n'est pas cliquable par coordonnées ; le clic tombe dans le vide. Il faut
+>    scroller PUIS RE-lire le rect (le harness le fait désormais, sinon le
+>    contrôle est marqué « non jugé » plutôt que « mort »).
+> 2. **Vue détail en place** — praticien `/patients` et `/consultation`,
+>    secrétariat dashboard : ouvrir un élément REMPLACE le contenu **sans changer
+>    la route**. Les clics suivants, faits aux coordonnées de la liste, ne
+>    touchent plus rien. Il faut re-naviguer vers l'écran entre deux contrôles.
+> 3. **Filtre déjà actif** — re-cliquer le filtre sélectionné (« À répondre (7) »,
+>    « Toutes ») est un no-op légitime, pas un bouton mort.
+> Après correction, **aucun contrôle réellement MORT n'a été confirmé ce run**.
+
+| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | / (Accueil) | 20 | 10 | 10 | 0 | 0 | 2026-09-02T13:20:00Z |
+| patient | / -> Mes RDV (À venir + Historique) | 24 | 3 | 3 | 0 | 0 | 2026-09-02T13:10:00Z |
+| patient | Préparer mon RDV (PrepareRdvPage) | 4 | 3 | 3 (coche visuelle OK) | 0 | 0 | 2026-09-02T12:55:00Z |
+| infirmiere | onglet Disponibilité | 6 | 2 | 2 | 0 | 0 | 2026-09-02T13:00:00Z |
+| infirmiere | onglet Offres | 6 | 1 | 1 | 0 | 0 | 2026-09-02T13:00:00Z |
+| infirmiere | onglet Ma visite | 5 | 1 | 1 (re-clic onglet actif = no-op légitime) | 0 | 0 | 2026-09-02T13:00:00Z |
+| praticien | / (Tableau de bord) | 17 | 2 | 2 | 0 | 0 | 2026-09-02T14:10:00Z |
+| praticien | /agenda | 10 | 5 | 5 | 0 | 0 | 2026-09-02T14:10:00Z |
+| praticien | /salle-attente | 2 | 1 | 1 | 0 | 0 (file vide côté Hugo, cf. #6213) | 2026-09-02T14:10:00Z |
+| praticien | /patients (liste) | 19 | 1 | 0 | 0 | 1 (403 medical-record/documents/prescriptions -> #6210) | 2026-09-02T14:40:00Z |
+| praticien | /patients -> fiche patient (vue détail) | 25 | 0 (inventoriés seulement) | - | - | - | 2026-09-02T14:40:00Z |
+| praticien | /consultation | 32 | 3 | 3 | 0 | 0 | 2026-09-02T14:10:00Z |
+| praticien | /ordonnances | 1 | 1 | 1 | 0 | 0 | 2026-09-02T14:10:00Z |
+| secretariat | /agenda | 10 | 6 | 6 | 0 | 0 | 2026-09-02T15:00:00Z |
+| secretariat | /salle-attente | 7 | 4 | 2 | 0 | 2 (« Appeler MD » + « Appeler » -> 403 silencieux, #6214) | 2026-09-02T15:40:00Z |
+| secretariat | /patients | 21 | 8 | 8 | 0 | 0 | 2026-09-02T15:00:00Z |
+| secretariat | /devis | 33 | 8 | 8 | 0 | 0 | 2026-09-02T15:00:00Z |
+| secretariat | /stock | 16 | 8 | 8 | 0 | 0 | 2026-09-02T15:00:00Z |
+| pharmacie | / (Commandes) | 35 | 13 | 12 | 0 (1 faux positif : coordonnées périmées après changement de filtre) | 0 | 2026-09-02T15:30:00Z |
+| pharmacie | /stock | 28 | 8 | 3 | 0 (5 faux positifs, même cause) | 0 | 2026-09-02T15:30:00Z |
+
+**TOTAL ronde : 321 contrôles inventoriés, 88 activés, 79 OK, 0 mort confirmé, 3 cassés.**
+
+**À faire au prochain round** (écrans inventoriés mais NON activés) : praticien
+fiche patient (25 contrôles — Schéma dentaire / Bilan parodontal / Plan de
+traitement / Créer une ordonnance / Exporter PDF / Enregistrer les notes /
+Ajouter une étiquette / Envoyer un document + 13 facettes de type de document) ;
+patient /profile et ses sous-écrans ; pharmacie /messages et /devis ;
+secrétariat /cabinet-payouts, /team-messages, /messages, /rappels.

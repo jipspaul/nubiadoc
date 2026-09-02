@@ -984,3 +984,52 @@ RE-VERIFIE CLEAN (0 finding, prouve live) : implant-passport patient (list sans 
 | auth-b10-spotchecks-20260902 | 2026-09-02T01:00:00.000Z | OK | anti-enum login/forgot, rate-limit 429, refresh rotation, MFA patient 403/prat 200, code invalide 422 |
 | adversarial-doubleclick-networkabort-20260902 | 2026-09-02T01:00:00.000Z | OK | Double-clic 1 seul POST, network abort -> erreur propre + Réessayer, pas de spinner infini |
 | documents-download-502-nonbug-env-limitation | 2026-09-02T01:00:00.000Z | OK | 502 upstream_unavailable systémique (signer non configuré), déjà tracké famille #4626, non refilé |
+
+## Ronde cross-rôle 2026-09-02 (12:28-16:00 UTC) — Opus, 5 apps + API live
+
+**Étape 1bis (diff-driven).** Dernier commit de registre `c618c16d`. Deux merges depuis :
+`ec94911d` (#6200 → fix #6199, `profile_page.dart` padding bas 16→96) et `a4ee622a`
+(#6201 → fix #6193, dispatch `MesRdvHistoryRequested` au clic sur l'onglet Historique).
+**Les DEUX fixes VÉRIFIÉS EN PROD, ils tiennent** :
+- #6199 : patient `/profile` à 390x844, scroll jusqu'en butée → « Se déconnecter » a son bas à y=668, la barre d'onglets commence à y=764 ; **aucun contrôle recouvert** (liste des rects avant/après scroll capturée). Les 4 tuiles « Mon compte » (Couverture santé / Médecin traitant / Mes proches / Consentements / Passeport implantaire / Ma pharmacie) sont toutes entièrement rendues.
+- #6193 : clic sur « Historique » → `GET /v1/appointments?filter=history` part réellement, le compteur passe de « Historique (0) » à « Historique (732) », 1511 ms.
+
+**Findings streamés (9 nouveaux, 2 doublons skippés)** — #6202 → #6214.
+
+**Fixes antérieurs re-vérifiés OK, non refilés** : #6197 (mapping des kinds de notification — `appointment_confirmed` rend « Voir le rendez-vous », `order_status_changed` « Afficher mon code »), #6037 (« Cette semaine » praticien porte des valeurs réelles : 2 actes / 690 € / 6 non honorés), #6176 (`'expired': 'Demande expirée'` présent dans `visitStatusLabels`), #5730 (decline de la seule offre infirmière → `expired` propre, pas de cul-de-sac).
+
+**Doublons skippés (2)** :
+- `reservation.doc.nubia-link.com` — toujours `TLSv1.3 (IN), TLS alert, internal error (592) / error:0A000438:SSL routines::tlsv1 alert internal error` (curl verbatim). Symptôme identique à **#6188, fermée 2026-09-02T06:37:07Z (< 24 h)** → skip.
+- Barre latérale secrétariat absente de l'arbre Semantics (0 nœud avec `role` dans la colonne 0-250 px, alors que la nav praticien en expose 13 via le même `pro_shell.dart`). Symptôme identique à **#6192, fermée 2026-09-02T07:21:28Z (< 24 h)** → skip. Contournement pour ce run : navigation par URL/coordonnées, comme le contrôle positif de #6192.
+
+**Écarts observés, NON filés (aucun chemin utilisateur réel affecté — même doctrine que `cabinet-slots-online-booking-field-ignored-nonbug`)** :
+- `POST /v1/account/visit-requests/estimate` : `requested_acts` porte `#[serde(default)]` (`api/src/nurse/pricing.rs:46-48`), donc un payload sans ce champ renvoie 200 + 2500 c (frais de déplacement seuls) au lieu d'un 422, alors que la création (`CreateVisitBody`, pas de default) refuse. Non filé : le client Flutter garde `if (acts.isEmpty) return` avant l'appel et envoie toujours le bon nom de champ (`home_care_request_cubit.dart:85-101`).
+- Corps de notification (`body`) toujours `null` : câblé en dur dans `api/src/notifications.rs:191-192` avec le commentaire « Déchiffrement KMS (core/crypto NUB-T3) — non implémenté → body null ». Gap de roadmap documenté dans le code, pas une régression.
+- `filter=history` inclut les RDV ANNULÉS à venir (les 4 premières cartes de l'Historique patient sont datées JANVIER 2028 / DÉCEMBRE 2027). Comportement volontaire et cohérent : `api/src/appointments_read.rs:146-148` classe `cancelled` en `past` quelle que soit la date, et le tri « Plus récent d'abord » est respecté. Déroutant mais conforme au code ; à arbitrer côté produit, pas un bug.
+- `scheduling_api.dart:72-91` (`getHistory`) boucle sur `next_cursor` **sans passer `limit`** → 37 allers-retours séquentiels pour 732 RDV (mesuré). Fonctionnellement correct et rapide ici (1511 ms) ; l'API accepte `limit` jusqu'à 100, ce qui diviserait le nombre d'appels par 5. Noté, non filé (aucun impact observable).
+
+**X11 (dispo infirmière) — COUVERT EN ENTIER, CLEAN.** Bascule faite **depuis l'UI** (switch « En ligne » de l'app infirmière) puis constatée en API :
+`GET /v1/nurse/profile` → `is_online:false` ; `GET /v1/search/nurses?lat=45.7602&lng=4.8322&radius_km=30` → Camille présente mais `is_online:false` ; avec `online_only=true` → `n=0`. Puis `POST /v1/account/visit-requests` créée **pendant qu'elle est hors ligne** → `201 {status:"requested", nurse_id:null}` et `GET /v1/nurse/offers` → `[]` : **aucune offre fan-outée à une infirmière hors ligne**. Remise en ligne (`PATCH /v1/nurse/availability {is_online:true}` → 200), nouvelle demande → `201 {status:"offered"}` et l'offre apparaît immédiatement dans `/v1/nurse/offers`. Parité tarifaire vérifiée : `estimate {requested_acts:["prise_de_sang"]}` → 4500 c == `estimated_price_cents` de la demande créée.
+
+**X10 (partiel) / B13 decline — CLEAN.** `POST /v1/nurse/offers/:id/decline` (seule infirmière offerte) → `200 {"status":"declined"}` ; côté patient la demande passe à `expired` (fonction de règlement TTL), `/v1/nurse/offers` revient à `[]`, et `POST .../cancel` sur une demande `expired` → `409 invalid_status` (état terminal, **pas de cul-de-sac**). Demande inexistante → `404 not_found`. Le fix #5730 tient.
+
+**Cloisonnement par kind de token — RE-CONFIRMÉ.** Token `pro` NON scopé sur `/v1/nurse/offers` → **403** ; token `nurse` sur `/v1/pharmacy/orders` → **403** ; token `nurse` sur `/v1/cabinet/patients` → **403**. JWT décodés et vérifiés (`kind`/`role`/`nurse_id`/`pharmacy_id`).
+
+**Découverte majeure — relation de soin vs portée cabinet (→ #6210).** `GET /v1/cabinet/patients` est **cabinet-scopé** (37 patients pour Hugo Marin) alors que `/cabinet/patients/:id/medical-record` est **relation-de-soin-scopé** (`api/src/medical_record.rs:136-153`, « RLS strict E.2.16.c […] §14 »). Balayage exhaustif des 37 : **200 = 13, 403 = 24**. Le serveur est correct ; c'est l'UI qui avale le 403 en silence.
+
+| prio1-x5-secretariat-call-next-403 | 2026-09-02T15:40:00Z | bug | #6214 P1 : « Appeler <patient> » (action primaire + par ligne) 403 pour un secrétaire ET échec silencieux ; maquette v2 prescrit pourtant l'action au comptoir |
+| praticien-fiche-403-medical-record-silencieux | 2026-09-02T14:40:00Z | bug | #6210 P1 : 24/37 patients listés renvoient 403 sur le dossier ; l'en-tête se rend sans pastille d'allergie, indiscernable de « aucune allergie » (fold à closure vide) |
+| praticien-dashboard-ma-journee-cabinet-scoped | 2026-09-02T15:05:00Z | bug | #6213 P1 : « Ma journée » liste 11 RDV appartenant à 100 % à Dr Claire Lefèvre, sans afficher practitioner_name pourtant renvoyé |
+| patient-home-designv2-metrictile-et-mon-suivi | 2026-09-02T13:20:00Z | bug | #6208 P2 (MetricTile non fusionnées, données dupliquées) + #6209 P2 (« Mon suivi » jamais rendu, step_count/current_phase_title absents du backend) |
+| patient-mes-rdv-history-chips-designv2 | 2026-09-02T13:10:00Z | bug | #6204 P2 : chips Facture/Compte-rendu/ordonnance impossibles, 3 champs absents de GET /v1/appointments |
+| patient-prepare-rdv-checklist-et-donnees | 2026-09-02T12:55:00Z | bug | #6202 P2 (check-list jamais persistée, InMemoryPrepareRdvPrefsService ré-instancié) + #6203 P2 (access/parking/PMR/praticien/rappel jetés par le DTO, titre = adresse tronquée) |
+| patient-notifications-header-designv2 | 2026-09-02T14:25:00Z | bug | #6211 P2 : titre ellipsé « Notificatio… » à 390 px + « 1 non lues » |
+| nurse-create-visit-offered-at-null | 2026-09-02T13:10:00Z | bug | #6205 P3 : 201 renvoie status:"offered" avec offered_at:null (statut patché à la main au lieu de relire la ligne) |
+| fix-6199-profile-padding-verified | 2026-09-02T13:25:00Z | OK | Fix vérifié en prod : plus aucun contrôle sous la barre d'onglets, « Se déconnecter » bas=668 < nav 764 |
+| fix-6193-mes-rdv-history-dispatch-verified | 2026-09-02T13:10:00Z | OK | Fix vérifié en prod : clic Historique déclenche filter=history, compteur (0) -> (732) en 1511 ms |
+| x11-nurse-availability-full-both-halves | 2026-09-02T13:15:00Z | OK | UI toggle -> disparition de search/nurses online_only ET aucun fan-out d'offre pendant hors ligne ; retour en ligne -> offre immédiate |
+| b13-nurse-decline-settlement-no-deadend | 2026-09-02T13:10:00Z | OK | decline seule offre -> expired, cancel sur expired -> 409, 404 sur id inconnu ; #5730 tient |
+| token-kind-isolation-nurse-pharma-cabinet | 2026-09-02T12:45:00Z | OK | pro non scopé -> /nurse 403 ; nurse -> /pharmacy 403 ; nurse -> /cabinet 403 |
+| praticien-medical-record-care-relationship-sweep | 2026-09-02T14:35:00Z | OK | 37 patients balayés : 13x200 / 24x403 ; garde serveur conforme à §14 (le bug est côté UI, #6210) |
+| pharmacie-commandes-designv2-recheck | 2026-09-02T15:30:00Z | OK | 4 KPIs, 4 filtres avec compteurs fonctionnels, Préparer/Délivrer mènent réellement à /orders/:id et /orders/:id/pickup |
+| harness-faux-morts-neutralises | 2026-09-02T15:50:00Z | OK | 3 causes de faux « bouton mort » identifiées et corrigées (hors viewport / vue détail en place / filtre déjà actif) — 0 mort confirmé ce run |
