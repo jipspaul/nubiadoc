@@ -232,7 +232,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('home_content')), findsOneWidget);
-      expect(find.byKey(const Key('card_documents')), findsOneWidget);
+      expect(find.byKey(const Key('card_devis')), findsOneWidget);
       expect(find.byKey(const Key('card_messages')), findsOneWidget);
     });
 
@@ -254,7 +254,7 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
 
-      expect(find.text(NubiaMoney.formatCents(102443472)), findsNWidgets(2));
+      expect(find.text(NubiaMoney.formatCents(102443472)), findsOneWidget);
       expect(find.textContaining('1024434'), findsNothing);
     });
 
