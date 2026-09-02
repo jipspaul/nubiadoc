@@ -25,23 +25,25 @@ class OrderWait {
 /// Calcule le libellé d'attente d'une commande à partir de `order.createdAt`,
 /// recalculé à chaque appel (jamais figé au chargement de la file).
 ///
-/// L'escalade (orange dès [warningThresholdMinutes], rouge dès
-/// [dangerThresholdMinutes]) ne s'applique qu'aux commandes encore en
-/// attente de préparation (`received`/`preparing`) — une fois prête ou
-/// retirée, l'attente n'est plus qu'informative.
-OrderWait orderWaitOf(PharmacyOrder order, {DateTime? now}) {
+/// Ne s'applique qu'aux commandes encore en attente de préparation
+/// (`received`/`preparing`) — une fois prête, retirée, refusée ou annulée,
+/// le chrono n'a plus de sens métier et le libellé est masqué (`null`,
+/// cf. maquette : aucun « Attend » sur les commandes non actives).
+OrderWait? orderWaitOf(PharmacyOrder order, {DateTime? now}) {
+  final isActive = order.status == PharmacyOrderStatus.received ||
+      order.status == PharmacyOrderStatus.preparing;
+  if (!isActive) return null;
+
   final reference = now ?? DateTime.now();
   final minutes = reference.difference(order.createdAt).inMinutes;
   final label = minutes >= 60
       ? 'Attend ${minutes ~/ 60} h ${(minutes % 60).toString().padLeft(2, '0')}'
       : 'Attend $minutes min';
 
-  final escalates = order.status == PharmacyOrderStatus.received ||
-      order.status == PharmacyOrderStatus.preparing;
-  if (escalates && minutes >= dangerThresholdMinutes) {
+  if (minutes >= dangerThresholdMinutes) {
     return OrderWait(label, OrderWaitTone.danger);
   }
-  if (escalates && minutes >= warningThresholdMinutes) {
+  if (minutes >= warningThresholdMinutes) {
     return OrderWait(label, OrderWaitTone.warning);
   }
   return OrderWait(label, OrderWaitTone.neutral);
