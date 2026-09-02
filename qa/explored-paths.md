@@ -1033,3 +1033,33 @@ RE-VERIFIE CLEAN (0 finding, prouve live) : implant-passport patient (list sans 
 | praticien-medical-record-care-relationship-sweep | 2026-09-02T14:35:00Z | OK | 37 patients balayés : 13x200 / 24x403 ; garde serveur conforme à §14 (le bug est côté UI, #6210) |
 | pharmacie-commandes-designv2-recheck | 2026-09-02T15:30:00Z | OK | 4 KPIs, 4 filtres avec compteurs fonctionnels, Préparer/Délivrer mènent réellement à /orders/:id et /orders/:id/pickup |
 | harness-faux-morts-neutralises | 2026-09-02T15:50:00Z | OK | 3 causes de faux « bouton mort » identifiées et corrigées (hors viewport / vue détail en place / filtre déjà actif) — 0 mort confirmé ce run |
+
+### Suite de la ronde 2026-09-02 (14:00-16:00 UTC) — 4 findings de plus (#6215, #6216, #6218) et PRIORITÉ 2 rejouée
+
+**PRIORITÉ 2 — ordonnance praticien → patient → pharmacie : chaîne 2a→2e REJOUÉE FRAÎCHE, 100 % CLEAN** (c'est la re-vérification de scénario déjà propre autorisée pour cette ronde) :
+- **2a** `POST /v1/cabinet/prescriptions` → `201 {"prescription_id":"d6b721d8-…"}` ; **RE-GET** `/v1/cabinet/prescriptions/:id` → `200`, `status:"draft"`, items bien persistés (`Amoxicilline 500mg / 1 gélule x3/j / 7 jours`) — écriture réelle confirmée.
+- **2c-avant** `GET /v1/account/prescriptions` (token patient) : le brouillon **n'apparaît PAS** (filtre `status <> 'draft'` correct ; statuts observés : `sent`, `signed` uniquement).
+- **2b** `POST /:id/sign` → `200 {"signed_at":"2026-09-02T13:53:02Z","document_id":"80e69699-…"}` ; re-GET → `status:"signed"`.
+- **2c-après** la signée **apparaît** côté patient. Les deux sens du filtre sont donc prouvés.
+- **2d** `POST /v1/account/prescriptions/:id/order {pharmacy_id}` → `201`, `status:"received"`, PII minimisée (`patient_display_name:"Jade D."`). **Gardes toutes correctes** : ordonnance non signée → `409 invalid_status` ; double commande → `409 already_ordered` ; id inconnu → `404 not_found`.
+- **2e** la commande arrive dans `GET /v1/pharmacy/orders` (bon patient, bon statut). **Cloisonnement** : token patient → `403`, token pro non-pharma → `403`.
+
+**Asymétrie relevée sur ce parcours (candidate au catalogue, non filée faute de temps de qualification produit)** : la **pharmacie** peut lire les lignes de l'ordonnance (`GET /v1/pharmacy/orders/:id/items` → `200 {"data":[{"label":"Amoxicilline 500mg","posology":"1 gélule x3/j","duration":"7 jours"}]}`), mais le **patient** n'a **aucune route de détail** : `GET /v1/account/prescriptions/:id` → **404**, `/items` → **404** ; sa liste ne renvoie que `['created_at','document_id','id','signed_at','status']`. Marc a **100 ordonnances** dans cette liste, sans nom de médicament, sans prescripteur, sans bénéficiaire — donc indistinguables entre elles et entre ses proches. Le seul accès au contenu est le PDF `document_id`, dont le téléchargement est systématiquement `502` dans cet environnement (signer non configuré, déjà tracké #4626). À arbitrer : c'est un manque de contrat côté `/v1/account/prescriptions`, pas une régression.
+
+**Adversariaux joués (nouveaux)** :
+- **Saisie invalide / champs requis vides** (formulaire Soins à domicile) : « Obtenir un devis » et « Confirmer la demande » sont **correctement DÉSACTIVÉS** tant qu'aucun acte n'est coché — aucun submit silencieux, aucun 500. Garde légitime prouvée par le code (`home_care_request_page.dart:144`, `:163-165`).
+- **Texte très long (251 caractères)** dans le champ Adresse : accepté intégralement (251/251), **aucun débordement** — zéro contrôle hors des bornes du viewport 390 px après saisie.
+- **Coupure de géolocalisation** : voir **#6218** (spinner infini).
+- **422 sur champ vide** (« Enregistrer les notes », fiche patient praticien) : garde serveur correcte (`clinical.rs:927-929`) **et** SnackBar « Impossible de mettre à jour les notes. » bien affichée à ~1200 ms — vérifié par ré-échantillonnage à 300 ms (une première lecture à 4,5 s l'avait manquée et faisait croire à un échec silencieux). **Non filé.**
+- **Rate-limit login** : `429 too_many_requests` déclenché par mes propres reconnexions répétées — limiteur anti-abus **fonctionnel**.
+
+**B3 documents — partiellement couvert** : la liste patient et les accès croisés n'ont pas pu être rejoués en fin de ronde (fenêtre de rate-limit sur `/auth/login`). À reprendre en priorité au prochain round.
+
+| prio2-prescription-patient-chain-2a-2e-fresh | 2026-09-02T13:55:00Z | OK | Chaîne complète rejouée : create+persist, draft invisible, sign, visible patient, order, 3 gardes (409/409/404), réception pharmacie, cloisonnement 403/403 |
+| account-prescriptions-no-detail-route-asymetrie | 2026-09-02T14:00:00Z | bug | Le patient n'a ni détail ni items (404/404) là où la pharmacie lit les lignes ; 100 ordonnances indistinguables — à arbitrer, non filé |
+| patient-home-quickaccess-hardcoded | 2026-09-02T15:15:00Z | bug | #6215 P1 : 4 sous-titres codés en dur, dont « Pharmacie du Théâtre » au lieu de « Pharmacie du Rhône » ; tuile Mes ordonnances onTap:null et absente des Semantics |
+| patient-home-care-status-duplique | 2026-09-02T15:20:00Z | bug | #6216 P2 : statut rendu 2x par carte (sous-titre + pastille), et 'expired' absent de _statusVariants (fix #6176 à moitié appliqué) |
+| patient-home-care-estimate-spinner-infini | 2026-09-02T15:35:00Z | bug | #6218 P1 : sans géoloc, « Obtenir un devis » = spinner permanent >60 s, 0 requête, 0 message, formulaire figé ; _defaultCurrentPosition sans timeout |
+| adversarial-formulaire-homecare-20260902 | 2026-09-02T15:30:00Z | OK | Champs requis vides -> boutons désactivés ; 251 caractères -> aucun débordement ; garde 422 notes + SnackBar affichée |
+| coverage-setup-prefill-verified-nonbug | 2026-09-02T15:50:00Z | OK | L'écran Couverture santé EST pré-rempli (Régime général / AmcB / N2) — l'arbre Semantics ne porte que les labels, faux positif écarté par screenshot |
+| praticien-fiche-patient-controls-audit | 2026-09-02T15:20:00Z | OK | 24 contrôles activés (filtres de journal, étiquettes, 13 facettes de documents, notes) — 20 OK, 0 mort, 2 « cassés » écartés (401 token expiré + 422 légitime) |

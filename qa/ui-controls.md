@@ -249,7 +249,22 @@ Note méthode (leçons apprises ce run) : (1) un clic sur un match `.find()` amb
 | pharmacie | / (Commandes) | 35 | 13 | 12 | 0 (1 faux positif : coordonnées périmées après changement de filtre) | 0 | 2026-09-02T15:30:00Z |
 | pharmacie | /stock | 28 | 8 | 3 | 0 (5 faux positifs, même cause) | 0 | 2026-09-02T15:30:00Z |
 
-**TOTAL ronde : 321 contrôles inventoriés, 88 activés, 79 OK, 0 mort confirmé, 3 cassés.**
+| praticien | /patients -> fiche patient (vue détail, Marc Dubois) | 29 | 24 | 20 | 0 | 2 | 2026-09-02T15:20:00Z |
+| patient | Soins à domicile (liste + formulaire Nouvelle demande) | 31 | 12 | 11 | 0 | 1 (« Obtenir un devis » sans géoloc -> spinner infini, #6218) | 2026-09-02T15:35:00Z |
+| patient | Profil -> Couverture santé | 9 | 0 (inventaire + vérification de pré-remplissage) | - | - | - | 2026-09-02T15:50:00Z |
+
+**TOTAL ronde : 390 contrôles inventoriés, 124 activés, 110 OK, 0 mort confirmé, 6 cassés.**
+
+### Détail des 2 « CASSÉ » de la fiche patient
+- **« Photo »** (facette de type de document) : `401 unauthorized` — **artefact de test**, le JWT (15 min) avait expiré pendant l'audit ; rejoué avec un token frais, la facette répond 200. **Non filé.**
+- **« Enregistrer les notes » champ vide** : `POST /v1/cabinet/patients/:id/notes` → `422 validation_error` (garde serveur légitime, `api/src/clinical.rs:927-929`, `body.text.trim().is_empty()`). **Non filé** : un premier passage l'avait pris pour un échec *silencieux*, mais un ré-échantillonnage à 300 ms d'intervalle montre que la SnackBar « Impossible de mettre à jour les notes. » **s'affiche bien à ~1200 ms** (`patients_page.dart:160-163`) — elle avait simplement disparu avant la lecture à 4,5 s. Le seul reproche résiduel est un message générique et un bouton actif sur champ vide : trop mineur pour un ticket.
+
+### Faux positifs évités ce run (méthode)
+Trois « bugs » ont été **écartés après vérification**, alors qu'ils auraient été filés sur la seule foi du premier signal :
+- praticien « Ma journée » sans hero « Patient suivant » → masquage **légitime** (`/cabinet/waiting-room` vide pour ce praticien, cf. `next_patient_hero.dart:12-13`).
+- praticien tableau de bord en une colonne → **conforme** : la 2ᵉ colonne apparaît bien au viewport 1440x900 de la maquette (vérifié aux deux tailles).
+- patient Profil → Couverture santé « formulaire vierge » → **faux** : l'arbre Semantics ne porte que les *labels* des champs ; le screenshot montre le formulaire correctement pré-rempli (Régime général / AmcB / N2).
+**Leçon** : ne jamais conclure « vide » ou « absent » depuis l'arbre Semantics seul — recouper avec le screenshot et/ou `inputValue()`.
 
 **À faire au prochain round** (écrans inventoriés mais NON activés) : praticien
 fiche patient (25 contrôles — Schéma dentaire / Bilan parodontal / Plan de
