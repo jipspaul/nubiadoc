@@ -303,13 +303,17 @@ pub struct CallNextResponse {
 
 /// `POST /v1/cabinet/waiting-room/call-next` — appelle le prochain patient checked-in.
 ///
-/// Token pro practitioner+ requis (secretary → 403, patient → 403).
+/// Token pro secretary+ requis (`ProSecretaryPlusClaims` — secretary, practitioner,
+/// admin ; patient → 403). Poste comptoir secrétariat, maquette design-v2 (#6214) :
+/// l'action primaire de l'écran salle d'attente doit rester utilisable par le
+/// secrétariat, au même périmètre R10 que `get_waiting_room` (scope secretariat_id).
 /// RLS scopé via `app.current_cabinet_id`. Passe le statut `checked_in` → `in_progress`.
-/// Aucun patient en file → `{ called: false }`. Notification stub (NUB-T3).
+/// Aucun patient en file (ou secrétaire sans secretariat_id actif) → `{ called: false }`.
+/// Notification stub (NUB-T3).
 pub async fn call_next_patient(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<crate::realtime::WsHub>>,
-    claims: ProPractitionerClaims,
+    claims: ProSecretaryPlusClaims,
 ) -> Result<Json<CallNextResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -351,6 +355,37 @@ pub async fn call_next_patient(
              FOR UPDATE SKIP LOCKED",
         )
         .bind(practitioner_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    } else if claims.role == "secretary" {
+        // R10 : secrétaire scopée au secrétariat actif — ne peut appeler que les
+        // patients des praticiens assignés (même EXISTS que `get_waiting_room`).
+        let Some(secretariat_id) = claims.secretariat_id else {
+            tx.commit().await.map_err(|_| AppError::Internal)?;
+            return Ok(Json(CallNextResponse {
+                called: false,
+                appointment_id: None,
+                patient_display_name: None,
+            }));
+        };
+        sqlx::query(
+            "SELECT a.id, a.patient_id FROM appointment a \
+             WHERE a.status = 'checked_in' AND a.deleted_at IS NULL \
+               AND a.starts_at >= now() - interval '1 day' \
+               AND a.starts_at < now() + interval '1 day' \
+               AND EXISTS ( \
+                   SELECT 1 FROM provider pr \
+                   JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                   WHERE pr.practitioner_id = a.practitioner_id \
+                     AND ps.secretariat_id = $1 \
+                     AND ps.active = true \
+               ) \
+             ORDER BY a.checkin_at ASC NULLS LAST, a.starts_at ASC \
+             LIMIT 1 \
+             FOR UPDATE SKIP LOCKED",
+        )
+        .bind(secretariat_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?
