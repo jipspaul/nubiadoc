@@ -180,10 +180,13 @@ pub async fn list_treatment_plans(
         // `sync_plan_status_from_phases` (treatment_phases.rs) et
         // `PatientCurrentPlanSection` (app_practicien) — "étape" = `treatment_phase`,
         // la phase courante est la première non `done` par `position` (#6209).
-        // `current_step` = `position` de cette phase courante (pas un compteur de
-        // phases `done`, qui désynchroniserait le numéro affiché du titre de phase
-        // si les phases ne sont pas terminées dans l'ordre) — clamp à `step_count`
-        // si toutes les phases sont `done` (#6233).
+        // `current_step` = le RANG (1-based, `row_number()` sur `position ASC, id ASC`)
+        // de cette phase courante parmi les phases du plan — pas sa `position` brute,
+        // qui n'est qu'une clé de tri (ni 1-based, ni contiguë, parfois dupliquée) et
+        // pouvait dépasser `step_count` ou valoir 0 (#6268). `row_number()` clamp
+        // naturellement le résultat à `[1, step_count]` et départage les positions
+        // dupliquées par `id`. Clamp à `step_count` si toutes les phases sont `done`
+        // (#6233).
         // Scope cabinet — RLS treatment_phase utilise app.current_cabinet_id.
         sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
             .bind(cabinet_id.to_string())
@@ -195,11 +198,15 @@ pub async fn list_treatment_plans(
             "SELECT count(*) AS step_count, \
                     (SELECT title FROM treatment_phase \
                      WHERE plan_id = $1 AND status <> 'done' \
-                     ORDER BY position ASC LIMIT 1) AS current_phase_title, \
+                     ORDER BY position ASC, id ASC LIMIT 1) AS current_phase_title, \
                     COALESCE( \
-                        (SELECT position FROM treatment_phase \
-                         WHERE plan_id = $1 AND status <> 'done' \
-                         ORDER BY position ASC LIMIT 1), \
+                        (SELECT rn FROM ( \
+                            SELECT id, status, \
+                                   row_number() OVER (ORDER BY position ASC, id ASC) AS rn \
+                            FROM treatment_phase WHERE plan_id = $1 \
+                         ) ranked \
+                         WHERE ranked.status <> 'done' \
+                         ORDER BY rn ASC LIMIT 1), \
                         count(*) \
                     ) AS current_step \
              FROM treatment_phase WHERE plan_id = $1",
