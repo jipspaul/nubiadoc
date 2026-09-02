@@ -75,7 +75,8 @@ pub async fn complete_consultation(
 
     // Récupère la séance + appointment_id + practitioner_id, vérifie tenant et statut.
     let session_row = sqlx::query(
-        "SELECT cs.id, cs.appointment_id, cs.practitioner_id, cs.status \
+        "SELECT cs.id, cs.appointment_id, cs.practitioner_id, cs.status, \
+                cs.note_ciphertext, cs.note_key_ref \
          FROM consultation_session cs \
          WHERE cs.id = $1 AND cs.cabinet_id = $2",
     )
@@ -94,6 +95,12 @@ pub async fn complete_consultation(
         .map_err(|_| AppError::Internal)?;
     let practitioner_id: Uuid = session_row
         .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+    let note_ciphertext: Option<Vec<u8>> = session_row
+        .try_get("note_ciphertext")
+        .map_err(|_| AppError::Internal)?;
+    let note_key_ref: Option<String> = session_row
+        .try_get("note_key_ref")
         .map_err(|_| AppError::Internal)?;
 
     // Seul le praticien propriétaire de la séance peut la clôturer.
@@ -135,6 +142,37 @@ pub async fn complete_consultation(
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    // #6234 : finalise le compte-rendu clinique (`consultation_clinique`,
+    // migration 0113) à partir de la note de séance, pour la chip
+    // « Compte-rendu » patient (`has_report`, #6204) — jusqu'ici aucun
+    // handler n'écrivait dans cette table, la rendant structurellement
+    // inatteignable. Seule une séance avec une note rédigée (`note_ciphertext`,
+    // via `set_consultation_note`, bloqué une fois `completed`) produit un
+    // compte-rendu ; sans note, rien à montrer au patient. `ON CONFLICT` sur
+    // `appointment_id` (contrainte UNIQUE) : idempotent si la séance est déjà
+    // pourvue d'un brouillon.
+    if let Some(ciphertext) = note_ciphertext {
+        sqlx::query(
+            "INSERT INTO consultation_clinique \
+             (cabinet_id, appointment_id, practitioner_id, content_ciphertext, \
+              content_key_ref, status) \
+             VALUES ($1, $2, $3, $4, $5, 'finalized') \
+             ON CONFLICT (appointment_id) DO UPDATE \
+             SET content_ciphertext = EXCLUDED.content_ciphertext, \
+                 content_key_ref = EXCLUDED.content_key_ref, \
+                 status = 'finalized', \
+                 updated_at = now()",
+        )
+        .bind(claims.cabinet_id)
+        .bind(appointment_id)
+        .bind(practitioner_id)
+        .bind(&ciphertext)
+        .bind(&note_key_ref)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
 
     // Demande d'avis (#4152) : RDV honoré → notification in-app au patient,
     // deeplink vers POST /v1/reviews. Via app_user_id direct sinon via le
