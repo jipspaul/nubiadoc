@@ -158,6 +158,15 @@ l'ABSENCE totale d'auto-chargement, pas le refresh manuel qui est cassé.
 | pharmacie | / (Commandes liste + nav) | 28 (nav 4 + déconnexion + 23 contrôles de la liste commandes) | 0 (inventaire seul) | - | - | - | 2026-09-01T12:20:00Z |
 | infirmiere | / (Disponibilité, switch + 3 tabs) | 5 (déconnexion, switch, 3 tabs) | 0 (inventaire seul, activation déjà prouvée lors du sweep 06h30Z précédent) | - | - | - | 2026-09-01T12:20:00Z |
 
+| secretariat | / (dashboard, nav sidebar semantics audit) | 7 (contenu) + ~13 (nav, invisibles Semantics) | 9 (Ouvrir l'agenda OK nav, 3x Appeler OK, Relancer OK, 2x Ouvrir OK ; nav sidebar cliquee par coordonnees brutes hors-Semantics -> navigue /agenda /salle-attente /cabinet-stats confirme, mais absente de l'inventaire Semantics -> #6192 P2 accessibilite) | 9 | 0 | 0 | 2026-09-02T06:00:00Z |
+| secretariat | /cabinet-stats (Pilotage du cabinet) | 2 (Actualiser + panneau billing) | 1 (Actualiser -> re-fetch confirme, 403 stats/activity intentionnel RBAC #4592 documente code) | 1 | 0 | 0 | 2026-09-02T06:00:00Z |
+| praticien | /consultation (Historique + detail) | 15 cartes historique + 3 filtres statut | 2 (clic carte historique -> URL change MAIS contenu reste bloque sur la liste = #6190 P1 bouton mort ; clic filtre statut non teste plus avant) | 0 | 1 (carte historique) | 0 | 2026-09-02T06:00:00Z |
+| praticien | /ordonnances/new (composition + templates + Dose/Frequence/Duree) | ~30 (modeles + recherche DCI x2 + 3 selects + submit) | 6 (template applique OK, Dose/Frequence/Duree selectionnes via bottom-sheet OK, submit -> 201 confirme ; recherche DCI libre confirmee NON cablee -- feature-gap documente #6101, pas un bug de clic) | 6 | 0 | 0 | 2026-09-02T06:00:00Z |
+| praticien | /patients/:id (Dossier patient, filtres Journal) | 6 filtres + ~10 actions | 2 (filtre "Actes" bascule reellement le contenu vers actes CCAM dates/tarifes, confirme par diff texte avant/apres -- corrige un faux-negatif de mon 1er scan Semantics-only) | 2 | 0 | 0 | 2026-09-02T06:00:00Z |
+| pharmacie | /orders (tri chronologique + Preparer/Marquer prete, fix #6168/#6169 re-verifies) | 3 filtres + N boutons Preparer/Delivrer | 2 (Preparer -> accept 200 confirme chrono fige "En preparation", Marquer prete -> ready 200 confirme chrono disparu, fixes tenus) | 2 | 0 | 0 | 2026-09-02T06:00:00Z |
+| pharmacie | /orders/:id (Delivrance, commande Prete) | 3 (Voir l'original, Creer un devis, Scanner le retrait) | 0 (inventaire -- lignes ordonnance confirmees visibles par lecture texte complet, conforme maquette) | - | - | - | 2026-09-02T06:00:00Z |
+| infirmiere | (API only, cycle complet B13/X10) | - | - (cycle API complet accept/en-route/arrived/done + double-accept 409 confirme re-teste) | - | - | - | 2026-09-02T06:03:00Z |
+
 Note méthode : ce sweep a d'abord dû résoudre un environnement CI sans DNS public (résolution manuelle
 via requêtes DNS UDP + /etc/hosts) et des faux-négatifs Playwright/Flutter web (canvas et semantics-host
 dans le shadow DOM de `flt-glass-pane`, jamais vus par un `querySelectorAll` direct ; `locator.fill()`
