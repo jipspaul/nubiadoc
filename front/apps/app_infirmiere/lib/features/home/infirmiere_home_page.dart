@@ -5,8 +5,16 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../infirmiere_config.dart';
 import '../../session/infirmiere_auth_cubit.dart';
+import '../notifications/notifications_bloc.dart';
+import '../notifications/notifications_event.dart';
+import '../notifications/notifications_panel.dart';
+import '../notifications/notifications_state.dart';
 import '../nurse/home_care_acts.dart';
 import '../nurse/nurse_cubit.dart';
+
+/// Index de l'onglet Offres dans [_HomeScaffoldState._tab] — cible du
+/// deep-link local depuis une notification (#6266).
+const _offersTabIndex = 1;
 
 /// Accueil infirmière : 3 onglets (Disponibilité, Offres, Ma visite).
 class InfirmiereHomePage extends StatelessWidget {
@@ -14,10 +22,18 @@ class InfirmiereHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<NurseCubit>(
-      create: (_) => GetIt.instance<NurseCubit>()
-        ..loadProfile()
-        ..loadOffers(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<NurseCubit>(
+          create: (_) => GetIt.instance<NurseCubit>()
+            ..loadProfile()
+            ..loadOffers(),
+        ),
+        BlocProvider<NotificationsBloc>(
+          create: (_) => GetIt.instance<NotificationsBloc>()
+            ..add(const NotificationsLoadRequested()),
+        ),
+      ],
       child: const _HomeScaffold(),
     );
   }
@@ -33,12 +49,42 @@ class _HomeScaffold extends StatefulWidget {
 class _HomeScaffoldState extends State<_HomeScaffold> {
   int _tab = 0;
 
+  Future<void> _openNotifications(BuildContext context) async {
+    final notificationsBloc = context.read<NotificationsBloc>();
+    final goToOffers = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => BlocProvider.value(
+        value: notificationsBloc,
+        child: NurseNotificationsPanel(
+          onNotificationTap: () => Navigator.of(sheetContext).pop(true),
+        ),
+      ),
+    );
+    if (goToOffers == true && mounted) {
+      setState(() => _tab = _offersTabIndex);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(InfirmiereConfig.appTitle),
         actions: [
+          BlocSelector<NotificationsBloc, NotificationsState, bool>(
+            selector: (s) => s is NotificationsLoaded && s.unreadCount > 0,
+            builder: (context, hasUnread) => IconButton(
+              key: const Key('header_action_notifications'),
+              tooltip: 'Notifications',
+              icon: Badge(
+                key: const Key('header_notification_badge'),
+                isLabelVisible: hasUnread,
+                child: const Icon(Icons.notifications_outlined),
+              ),
+              onPressed: () => _openNotifications(context),
+            ),
+          ),
           IconButton(
             tooltip: 'Se déconnecter',
             icon: const Icon(Icons.logout),
