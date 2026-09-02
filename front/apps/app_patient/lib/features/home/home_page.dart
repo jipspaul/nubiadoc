@@ -125,9 +125,11 @@ class _HomeContentState extends State<_HomeContent>
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final authState = context.watch<AuthCubit>().state;
-    final name = authState is AuthAuthenticated
-        ? (authState.session.displayName ?? 'Patient')
-        : 'Patient';
+    final sessionDisplayName =
+        authState is AuthAuthenticated ? authState.session.displayName : null;
+    final name = (sessionDisplayName == null || sessionDisplayName.trim().isEmpty)
+        ? 'Patient'
+        : sessionDisplayName;
 
     final s = widget.state.summary;
     final plan = widget.state.treatmentPlan;
