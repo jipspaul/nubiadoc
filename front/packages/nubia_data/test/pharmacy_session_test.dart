@@ -64,16 +64,43 @@ void main() {
           const PharmacyMembership(pharmacyId: 'f1', role: 'pharmacist'));
     });
 
+    // #6170 : le nom de la pharmacie sélectionnée doit atteindre le shell pro.
+    test('PharmacyMembershipDto.fromJson parse pharmacy_name', () {
+      final dto = PharmacyMembershipDto.fromJson(const {
+        'pharmacy_id': 'f1',
+        'role': 'pharmacist',
+        'pharmacy_name': 'Pharmacie du Rhône',
+      });
+      expect(
+        dto.toDomain(),
+        const PharmacyMembership(
+          pharmacyId: 'f1',
+          role: 'pharmacist',
+          name: 'Pharmacie du Rhône',
+        ),
+      );
+    });
+
     test('SelectPharmacyContextDto.fromJson parse token + context', () {
       final dto = SelectPharmacyContextDto.fromJson(const {
         'access_token': 'jwt-pharma',
         'token_type': 'Bearer',
         'expires_in': 900,
-        'context': {'pharmacy_id': 'f1', 'role': 'admin'},
+        'context': {
+          'pharmacy_id': 'f1',
+          'role': 'admin',
+          'pharmacy_name': 'Pharmacie du Rhône',
+        },
       });
       expect(dto.accessToken, 'jwt-pharma');
-      expect(dto.toDomain(),
-          const PharmacyContext(pharmacyId: 'f1', role: 'admin'));
+      expect(
+        dto.toDomain(),
+        const PharmacyContext(
+          pharmacyId: 'f1',
+          role: 'admin',
+          name: 'Pharmacie du Rhône',
+        ),
+      );
     });
 
     test('SelectPharmacyContextDto défensif sur payload incomplet', () {

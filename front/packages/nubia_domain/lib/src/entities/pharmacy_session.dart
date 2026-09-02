@@ -8,10 +8,17 @@ class PharmacyMembership extends Equatable {
   /// `pharmacist` | `preparator` | `admin`.
   final String role;
 
-  const PharmacyMembership({required this.pharmacyId, required this.role});
+  /// Raison sociale de la pharmacie (#6170) — vide si non renseignée côté API.
+  final String name;
+
+  const PharmacyMembership({
+    required this.pharmacyId,
+    required this.role,
+    this.name = '',
+  });
 
   @override
-  List<Object?> get props => [pharmacyId, role];
+  List<Object?> get props => [pharmacyId, role, name];
 }
 
 /// Contexte pharmacie actif après `POST /v1/auth/select-pharmacy-context`
@@ -20,8 +27,15 @@ class PharmacyContext extends Equatable {
   final String pharmacyId;
   final String role;
 
-  const PharmacyContext({required this.pharmacyId, required this.role});
+  /// Raison sociale de la pharmacie (#6170) — vide si non renseignée côté API.
+  final String name;
+
+  const PharmacyContext({
+    required this.pharmacyId,
+    required this.role,
+    this.name = '',
+  });
 
   @override
-  List<Object?> get props => [pharmacyId, role];
+  List<Object?> get props => [pharmacyId, role, name];
 }

@@ -601,6 +601,7 @@ pub struct CabinetMembership {
     role: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     secretariat_id: Option<Uuid>,
+    cabinet_name: String,
 }
 
 /// Appartenance à une pharmacie.
@@ -608,6 +609,7 @@ pub struct CabinetMembership {
 pub struct PharmacyMembership {
     pharmacy_id: Uuid,
     role: String,
+    pharmacy_name: String,
 }
 
 /// Réponse de `GET /v1/me`.
@@ -617,6 +619,10 @@ pub struct MeResponse {
     email: String,
     kind: String,
     account_id: Option<Uuid>,
+    /// Nom affichable de l'utilisateur (#6170, même cause que #6165) —
+    /// `"{first_name} {last_name}"` (`app_user`), `None` si les deux sont
+    /// vides (compte pro seedé sans identité, cf. `db/seed/seed.sql`).
+    display_name: Option<String>,
     memberships: Vec<CabinetMembership>,
     pharmacy_memberships: Vec<PharmacyMembership>,
 }
@@ -642,7 +648,7 @@ pub async fn me(
         .execute(&mut *etx)
         .await
         .map_err(|_| AppError::Internal)?;
-    let row = sqlx::query("SELECT email FROM app_user WHERE id = $1")
+    let row = sqlx::query("SELECT email, first_name, last_name FROM app_user WHERE id = $1")
         .bind(claims.sub)
         .fetch_one(&mut *etx)
         .await
@@ -650,6 +656,23 @@ pub async fn me(
     etx.commit().await.map_err(|_| AppError::Internal)?;
 
     let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
+    let first_name: Option<String> = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+    let last_name: Option<String> = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+    // #6170 (même cause que #6165) : le shell pro n'affiche jamais l'identité
+    // réelle faute de display_name exposé par /me — first_name/last_name
+    // existent déjà sur app_user (migration 0021) mais n'étaient jamais lus ici.
+    let display_name = [first_name, last_name]
+        .into_iter()
+        .flatten()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let display_name = if display_name.is_empty() {
+        None
+    } else {
+        Some(display_name)
+    };
 
     // Pour les tokens pro (login ou register), retourne tous les memberships actifs
     // via user_all_memberships() (SECURITY DEFINER — contourne la RLS cabinet-scoped).
@@ -660,12 +683,14 @@ pub async fn me(
             .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
-        let rows =
-            sqlx::query("SELECT cabinet_id, role, secretariat_id FROM user_all_memberships($1)")
-                .bind(claims.sub)
-                .fetch_all(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
+        let rows = sqlx::query(
+            "SELECT cabinet_id, role, secretariat_id, cabinet_name \
+             FROM user_all_memberships($1)",
+        )
+        .bind(claims.sub)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
         tx.commit().await.map_err(|_| AppError::Internal)?;
         rows.into_iter()
             .map(|r| {
@@ -674,10 +699,13 @@ pub async fn me(
                 let secretariat_id: Option<Uuid> = r
                     .try_get("secretariat_id")
                     .map_err(|_| AppError::Internal)?;
+                let cabinet_name: String =
+                    r.try_get("cabinet_name").map_err(|_| AppError::Internal)?;
                 Ok(CabinetMembership {
                     cabinet_id: cid,
                     role,
                     secretariat_id,
+                    cabinet_name,
                 })
             })
             .collect::<Result<Vec<_>, AppError>>()?
@@ -698,21 +726,51 @@ pub async fn me(
     // relit `/me`, obtient `pharmacy_memberships:[]`, et déconnecte
     // silencieusement le pharmacien en effaçant son token pourtant valide.
     let pharmacy_memberships = if claims.kind == "pro" {
-        let rows = sqlx::query("SELECT pharmacy_id, role FROM user_pharmacy_memberships($1)")
-            .bind(claims.sub)
-            .fetch_all(&state.db)
-            .await
-            .map_err(|_| AppError::Internal)?;
+        let rows = sqlx::query(
+            "SELECT pharmacy_id, role, pharmacy_name FROM user_pharmacy_memberships($1)",
+        )
+        .bind(claims.sub)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| AppError::Internal)?;
         rows.into_iter()
             .map(|r| {
                 let pharmacy_id: Uuid = r.try_get("pharmacy_id").map_err(|_| AppError::Internal)?;
                 let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
-                Ok(PharmacyMembership { pharmacy_id, role })
+                let pharmacy_name: String =
+                    r.try_get("pharmacy_name").map_err(|_| AppError::Internal)?;
+                Ok(PharmacyMembership {
+                    pharmacy_id,
+                    role,
+                    pharmacy_name,
+                })
             })
             .collect::<Result<Vec<_>, AppError>>()?
     } else if claims.kind == "pharma" {
         match (claims.pharmacy_id, claims.role.clone()) {
-            (Some(pharmacy_id), Some(role)) => vec![PharmacyMembership { pharmacy_id, role }],
+            (Some(pharmacy_id), Some(role)) => {
+                // Token déjà scopé (#3853) : pharmacy_id/role viennent des
+                // claims, mais leur nom n'y est pas porté — on le redérive
+                // via la même fonction SECURITY DEFINER (contourne la RLS
+                // pharmacy-scoped, cf. select_pharmacy_context.rs).
+                let row = sqlx::query(
+                    "SELECT pharmacy_name FROM user_pharmacy_memberships($1) \
+                     WHERE pharmacy_id = $2",
+                )
+                .bind(claims.sub)
+                .bind(pharmacy_id)
+                .fetch_optional(&state.db)
+                .await
+                .map_err(|_| AppError::Internal)?;
+                let pharmacy_name = row
+                    .and_then(|r| r.try_get::<String, _>("pharmacy_name").ok())
+                    .unwrap_or_default();
+                vec![PharmacyMembership {
+                    pharmacy_id,
+                    role,
+                    pharmacy_name,
+                }]
+            }
             _ => vec![],
         }
     } else {
@@ -752,6 +810,7 @@ pub async fn me(
         email,
         kind: claims.kind,
         account_id: claims.account_id,
+        display_name,
         memberships,
         pharmacy_memberships,
     }))

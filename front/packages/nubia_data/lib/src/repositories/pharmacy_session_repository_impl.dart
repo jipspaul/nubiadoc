@@ -19,14 +19,18 @@ class PharmacySessionRepositoryImpl implements PharmacySessionRepository {
   String? _selectedPharmacyId;
 
   @override
-  Future<Either<Failure, List<PharmacyMembership>>> myMemberships() =>
-      guardPharmacyCall(
-        () async {
-          final dtos = await _api.myMemberships();
-          return dtos.map((dto) => dto.toDomain()).toList();
-        },
-        errorMessage: 'Impossible de charger vos accès pharmacie.',
-      );
+  Future<Either<Failure, ({String? displayName, List<PharmacyMembership> memberships})>>
+      myMemberships() => guardPharmacyCall(
+            () async {
+              final result = await _api.myMemberships();
+              return (
+                displayName: result.displayName,
+                memberships:
+                    result.memberships.map((dto) => dto.toDomain()).toList(),
+              );
+            },
+            errorMessage: 'Impossible de charger vos accès pharmacie.',
+          );
 
   @override
   Future<Either<Failure, PharmacyContext>> selectContext(

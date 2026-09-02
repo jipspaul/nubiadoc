@@ -9,14 +9,19 @@ class PharmacySessionApi {
 
   PharmacySessionApi(ApiClient client) : _dio = client.dio;
 
-  /// GET /v1/me → `pharmacy_memberships` (vide pour un token patient).
-  Future<List<PharmacyMembershipDto>> myMemberships() async {
+  /// GET /v1/me → nom affichable de l'utilisateur (#6170) + `pharmacy_memberships`
+  /// (vide pour un token patient).
+  Future<({String? displayName, List<PharmacyMembershipDto> memberships})>
+      myMemberships() async {
     final response = await _dio.get<Map<String, dynamic>>('/me');
     final raw =
         response.data?['pharmacy_memberships'] as List<dynamic>? ?? const [];
-    return raw
-        .map((e) => PharmacyMembershipDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return (
+      displayName: response.data?['display_name'] as String?,
+      memberships: raw
+          .map((e) => PharmacyMembershipDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
   }
 
   /// POST /v1/auth/select-pharmacy-context

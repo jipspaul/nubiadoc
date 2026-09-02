@@ -43,10 +43,12 @@ void main() {
   const membership = PharmacyMembership(
     pharmacyId: 'f0000000-0000-0000-0000-0000000000f1',
     role: 'pharmacist',
+    name: 'Pharmacie du Rhône',
   );
   const context = PharmacyContext(
     pharmacyId: 'f0000000-0000-0000-0000-0000000000f1',
     role: 'pharmacist',
+    name: 'Pharmacie du Rhône',
   );
   final account =
       PatientAccount(id: '', firstName: '', lastName: '', email: 'p@o.fr');
@@ -75,8 +77,11 @@ void main() {
     when(() => logout()).thenAnswer((_) async => const Right(null));
     when(() => deviceRegistration.registerOnLogin(any()))
         .thenAnswer((_) async {});
-    when(() => memberships())
-        .thenAnswer((_) async => const Right([membership]));
+    when(() => memberships()).thenAnswer(
+      (_) async => const Right(
+        (displayName: 'Jean Officine', memberships: [membership]),
+      ),
+    );
     when(() => selectContext(any()))
         .thenAnswer((_) async => const Right(context));
   });
@@ -104,7 +109,11 @@ void main() {
       'aucune appartenance pharmacie → déconnexion + message explicite',
       build: buildCubit,
       setUp: () {
-        when(() => memberships()).thenAnswer((_) async => const Right([]));
+        when(() => memberships()).thenAnswer(
+          (_) async => const Right(
+            (displayName: null, memberships: <PharmacyMembership>[]),
+          ),
+        );
       },
       act: (cubit) => cubit.signIn(email: 'patient@x.fr', password: 'x'),
       expect: () => [
@@ -236,7 +245,11 @@ void main() {
         when(() => tokenStorage.getAccessToken()).thenAnswer(
           (_) async => _fakeJwt({'sub': 'u1', 'kind': 'pharma', 'exp': 0}),
         );
-        when(() => memberships()).thenAnswer((_) async => const Right([]));
+        when(() => memberships()).thenAnswer(
+          (_) async => const Right(
+            (displayName: null, memberships: <PharmacyMembership>[]),
+          ),
+        );
       },
       act: (cubit) => cubit.restore(),
       expect: () => [

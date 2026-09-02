@@ -36,19 +36,21 @@ ON CONFLICT (id) DO NOTHING;
 -- Membres du cabinet (kind='pro') — rôles : practitioner, practitioner, secretary, admin.
 -- Mot de passe démo commun : "Nubia2026!" (argon2id, cf. seed/README.md).
 -- Hashes déterministes (salt fixe par utilisateur, cf. README.md §Hashes).
-INSERT INTO app_user (id, email, password_hash, kind, rpps, status) VALUES
+-- first_name/last_name (#6170) : identité réelle affichée par le shell pro
+-- (sidebar) au lieu des libellés génériques (rôle seul).
+INSERT INTO app_user (id, email, password_hash, kind, rpps, status, first_name, last_name) VALUES
   ('a0000000-0000-0000-0000-0000000000a1', 'hugo.marin@cabinet-lyon.test',
    '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwMQ$9sU+0grAVmhtI2LnUhePBkmBaodHJzHAz9ar4u1XJPU',
-   'pro', '10100000001', 'active'),
+   'pro', '10100000001', 'active', 'Hugo', 'Marin'),
   ('a0000000-0000-0000-0000-0000000000a2', 'claire.lefevre@cabinet-lyon.test',
    '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwMg$CYHTiXIAmWDKHVDjjodFPRHuJ7OY++96myhsRwqxXm0',
-   'pro', '10100000002', 'active'),
+   'pro', '10100000002', 'active', 'Claire', 'Lefèvre'),
   ('a0000000-0000-0000-0000-0000000000a3', 'sonia.accueil@cabinet-lyon.test',
    '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwMw$B32pRAN6Pa5e3R7AvtK4qP6PovusdNY8njh+CvoJGFA',
-   'pro', NULL, 'active'),
+   'pro', NULL, 'active', 'Sonia', 'Accueil'),
   ('a0000000-0000-0000-0000-0000000000a4', 'admin@cabinet-lyon.test',
    '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwNA$39TllpW9C+KxsdPWXUJBGkl20Tl/uAULBnTnMjyqx3M',
-   'pro', NULL, 'active')
+   'pro', NULL, 'active', 'Admin', '')
 ON CONFLICT (id) DO NOTHING;
 
 -- Comptes patient (portail patient, kind='patient') — 1 par patient_account.
@@ -442,10 +444,11 @@ ON CONFLICT (id) DO NOTHING;
 -- =====================================================================
 -- Compte pharmacien (login commun kind='pro' puis select-pharmacy-context).
 -- Mot de passe démo commun "Nubia2026!" (salt fixe demoSeedaPharma1).
-INSERT INTO app_user (id, email, password_hash, kind, status) VALUES
+-- first_name/last_name (#6170) : identité réelle affichée par le shell pro.
+INSERT INTO app_user (id, email, password_hash, kind, status, first_name, last_name) VALUES
   ('a0000000-0000-0000-0000-0000000000b1', 'jean.officine@pharmacie-lyon.test',
    '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhUGhhcm1hMQ$fCY0xLKIcDQUEAFmRDhDnMzN+us/DWOgRb/KigP5x1w',
-   'pro', 'active')
+   'pro', 'active', 'Jean', 'Officine')
 ON CONFLICT (id) DO NOTHING;
 
 -- Deux pharmacies lyonnaises listées (annuaire public + tests de proximité).

@@ -398,8 +398,8 @@ class _ProShellState extends State<ProShell> {
   /// (défaut) conserve le rendu clair existant du drawer mobile.
   Widget _trailing(BuildContext context, {bool dark = false}) {
     final session = widget.session;
-    final cabinetName = session.contextLabel ?? widget.config.appTitle;
-    final name = session.displayName ?? _proRoleLabel(session.role);
+    final cabinetName = _orNull(session.contextLabel) ?? widget.config.appTitle;
+    final name = _orNull(session.displayName) ?? _proRoleLabel(session.role);
     final column = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -472,8 +472,8 @@ class _ProShellState extends State<ProShell> {
                   // En-tête cabinet (#5140, maquette design-v2 secrétariat) —
                   // remplace le monogramme nu introduit par #3363/#3375.
                   _BrandHeader(
-                    cabinetName:
-                        widget.session.contextLabel ?? widget.config.appTitle,
+                    cabinetName: _orNull(widget.session.contextLabel) ??
+                        widget.config.appTitle,
                     subtitle: widget.config.spaceLabel,
                     dark: true,
                   ),
@@ -648,6 +648,11 @@ class _SearchShortcutBadge extends StatelessWidget {
   }
 }
 
+/// `null` si [value] est absent OU vide (#6170, même défaut que #6165) :
+/// `??` seul ne couvre pas le cas où [AuthSession] expose une chaîne vide
+/// plutôt que `null` (bootstrap de session best-effort, cf. `pro_auth_cubit.dart`).
+String? _orNull(String? value) => (value == null || value.isEmpty) ? null : value;
+
 /// Libellé FR d'un [ProRole], pour le pied utilisateur du rail (#5140) — pas
 /// de mapping partagé existant, [MemberRole._roleLabel] (admin_membres_page)
 /// couvre un enum métier distinct.
@@ -670,9 +675,10 @@ String _proRoleLabel(ProRole role) {
 
 /// En-tête d'identité du cabinet en haut du rail (#5140, maquette design-v2
 /// secrétariat) — monogramme + nom du cabinet + sous-titre d'espace.
-/// [cabinetName] vient de [AuthSession.contextLabel] ; tant que
-/// `GET /v1/me` n'alimente pas ce champ pour les sessions pro (cf.
-/// `pro_auth_cubit.dart`), l'appelant retombe sur [ProConfig.appTitle].
+/// [cabinetName] vient de [AuthSession.contextLabel] (peuplé au bootstrap de
+/// session depuis `GET /v1/me`, #6170) ; l'appelant retombe sur
+/// [ProConfig.appTitle] tant que ce champ n'est pas disponible (`/me` en échec,
+/// ou aucun cabinet/pharmacie rattaché).
 class _BrandHeader extends StatelessWidget {
   const _BrandHeader({
     required this.cabinetName,

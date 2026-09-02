@@ -23,6 +23,7 @@ pub struct SelectPharmacyContextBody {
 pub struct SelectPharmacyContextContext {
     pharmacy_id: Uuid,
     role: String,
+    pharmacy_name: String,
 }
 
 /// Réponse de `POST /v1/auth/select-pharmacy-context`.
@@ -53,7 +54,8 @@ pub async fn select_pharmacy_context(
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT pharmacy_id, role FROM user_pharmacy_memberships($1) WHERE pharmacy_id = $2",
+        "SELECT pharmacy_id, role, pharmacy_name FROM user_pharmacy_memberships($1) \
+         WHERE pharmacy_id = $2",
     )
     .bind(claims.sub)
     .bind(body.pharmacy_id)
@@ -83,6 +85,9 @@ pub async fn select_pharmacy_context(
 
     let pharmacy_id: Uuid = row.try_get("pharmacy_id").map_err(|_| AppError::Internal)?;
     let role: String = row.try_get("role").map_err(|_| AppError::Internal)?;
+    let pharmacy_name: String = row
+        .try_get("pharmacy_name")
+        .map_err(|_| AppError::Internal)?;
 
     const EXPIRES_IN: u64 = 900;
     let exp = SystemTime::now()
@@ -128,7 +133,11 @@ pub async fn select_pharmacy_context(
             access_token,
             token_type: "Bearer".to_string(),
             expires_in: EXPIRES_IN,
-            context: SelectPharmacyContextContext { pharmacy_id, role },
+            context: SelectPharmacyContextContext {
+                pharmacy_id,
+                role,
+                pharmacy_name,
+            },
         }),
     ))
 }
