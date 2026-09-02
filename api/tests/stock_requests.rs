@@ -141,6 +141,7 @@ async fn full_cycle_sent_accepted_fulfilled() {
     assert_eq!(status, StatusCode::CREATED, "body: {request}");
     assert_eq!(request["status"], "sent");
     assert_eq!(request["cabinet_name"], "Cabinet Stock");
+    assert_eq!(request["pharmacy_name"], "Pharmacie Stock");
     let id = request["id"].as_str().unwrap().to_string();
 
     // Visible des deux bords.
