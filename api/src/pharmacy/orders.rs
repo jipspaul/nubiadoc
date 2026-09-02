@@ -1006,7 +1006,8 @@ pub(crate) async fn prescriber_identity(
     .map_err(|_| AppError::Internal)?;
     match row {
         Some(row) => Ok((
-            row.try_get("prescriber_name").map_err(|_| AppError::Internal)?,
+            row.try_get("prescriber_name")
+                .map_err(|_| AppError::Internal)?,
             row.try_get("prescriber_practice")
                 .map_err(|_| AppError::Internal)?,
         )),
