@@ -79,4 +79,31 @@ void main() {
       verify(() => dio.post<void>('/appointments/appt-1/checkin')).called(1);
     });
   });
+
+  group('PreparationDto.fromJson (#6203)', () {
+    test(
+        'décode provider.name, establishment.access (door_code/parking/pmr) '
+        'et reminder_at — jetés jusque-là par le DTO', () {
+      final dto = PreparationDto.fromJson({
+        'provider': {'name': 'Dr Claire Lefèvre'},
+        'establishment': {
+          'address': '12 rue de la République, 69002 Lyon',
+          'geo': {'lat': 45.7602, 'lon': 4.8322},
+          'access': {'door_code': null, 'parking': true, 'pmr': true},
+        },
+        'bring': [
+          {'label': 'Carte Vitale', 'required': true},
+          {'label': 'Carte mutuelle', 'required': true},
+        ],
+        'reminder_at': '2026-09-02T07:00:00+00:00',
+      });
+
+      expect(dto.providerName, 'Dr Claire Lefèvre');
+      expect(dto.address, '12 rue de la République, 69002 Lyon');
+      expect(dto.access?.doorCode, isNull);
+      expect(dto.access?.parking, isTrue);
+      expect(dto.access?.pmr, isTrue);
+      expect(dto.reminderAt, DateTime.parse('2026-09-02T07:00:00+00:00'));
+    });
+  });
 }

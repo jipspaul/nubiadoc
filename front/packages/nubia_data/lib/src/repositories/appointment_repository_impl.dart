@@ -254,8 +254,18 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
   ) async {
     try {
       final dto = await _api.getPreparation(id);
+      final access = dto.access;
       return Right(AppointmentPreparation(
         address: dto.address,
+        providerName: dto.providerName,
+        access: access != null
+            ? PreparationAccess(
+                doorCode: access.doorCode,
+                parking: access.parking,
+                pmr: access.pmr,
+              )
+            : null,
+        reminderAt: dto.reminderAt,
         items: dto.items
             .map((e) => PreparationItem(label: e.label, required: e.required))
             .toList(),
