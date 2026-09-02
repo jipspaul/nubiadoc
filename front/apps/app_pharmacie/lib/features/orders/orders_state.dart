@@ -32,9 +32,19 @@ class OrdersLoaded extends OrdersState {
   /// de fraîcheur (« Mise à jour il y a N s »).
   final DateTime updatedAt;
 
-  List<PharmacyOrder> get visible => filter == null
-      ? orders
-      : orders.where((order) => order.status == filter).toList();
+  /// Sans filtre explicite, la file de travail exclut les commandes
+  /// terminales (retirées/refusées/annulées, déjà soldées) — la maquette
+  /// ne prévoit aucune facette pour les revoir depuis cet écran. Triée par
+  /// réception croissante : la commande la plus ancienne (donc la plus
+  /// urgente) est toujours en tête, jamais enfouie sous des lignes plus
+  /// récentes.
+  List<PharmacyOrder> get visible {
+    final matching = filter == null
+        ? orders.where((order) => !order.status.isTerminal)
+        : orders.where((order) => order.status == filter);
+    return matching.toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
 
   // updatedAt est un horodatage d'affichage (indicateur de fraîcheur), pas
   // une donnée métier : exclu des props pour ne pas casser l'égalité entre

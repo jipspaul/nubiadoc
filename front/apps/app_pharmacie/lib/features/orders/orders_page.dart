@@ -172,7 +172,10 @@ class _OrdersViewState extends State<OrdersView> {
                                 count: allOrders == null
                                     ? null
                                     : value == null
-                                        ? allOrders.length
+                                        ? allOrders
+                                            .where((order) =>
+                                                !order.status.isTerminal)
+                                            .length
                                         : allOrders
                                             .where((order) =>
                                                 order.status == value)

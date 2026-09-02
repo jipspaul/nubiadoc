@@ -46,32 +46,46 @@ class OrderRow extends StatelessWidget {
       ),
       child: ListRow(
         title: order.patientDisplayName ?? 'Patient',
-        subtitleWidget: wait == null
-            ? Text(
-                'Reçue à $time',
+        subtitleWidget: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (order.orderRef != null && order.orderRef!.isNotEmpty)
+              Text(
+                order.orderRef!,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: tokens.textTertiary,
-                    ),
-              )
-            : Text.rich(
-                TextSpan(
-                  text: 'Reçue à $time\n',
-                  children: [
-                    TextSpan(
-                      text: wait.label,
-                      style: TextStyle(
-                        color: waitColor,
-                        fontWeight: wait.tone == OrderWaitTone.neutral
-                            ? FontWeight.w400
-                            : FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: tokens.textTertiary,
+                      fontFamily: 'monospace',
                     ),
               ),
+            wait == null
+                ? Text(
+                    'Reçue à $time',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: tokens.textTertiary,
+                        ),
+                  )
+                : Text.rich(
+                    TextSpan(
+                      text: 'Reçue à $time\n',
+                      children: [
+                        TextSpan(
+                          text: wait.label,
+                          style: TextStyle(
+                            color: waitColor,
+                            fontWeight: wait.tone == OrderWaitTone.neutral
+                                ? FontWeight.w400
+                                : FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: tokens.textTertiary,
+                        ),
+                  ),
+          ],
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
