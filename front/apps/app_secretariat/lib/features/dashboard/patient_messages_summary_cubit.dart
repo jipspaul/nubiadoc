@@ -28,14 +28,21 @@ class PatientMessagesSummaryLoaded extends PatientMessagesSummaryState {
     required this.unreadCount,
     required this.urgentUnreadCount,
     this.urgentPatientName,
+    this.urgentConversationId,
   });
 
   final int unreadCount;
   final int urgentUnreadCount;
   final String? urgentPatientName;
 
+  /// Id de la conversation marquée urgente citée par [urgentPatientName] —
+  /// permet à l'action « Ouvrir » du tableau de bord (#6246) d'ouvrir cette
+  /// conversation précise plutôt que la liste complète.
+  final String? urgentConversationId;
+
   @override
-  List<Object?> get props => [unreadCount, urgentUnreadCount, urgentPatientName];
+  List<Object?> get props =>
+      [unreadCount, urgentUnreadCount, urgentPatientName, urgentConversationId];
 }
 
 /// Ligne « messages patients non lus » du panneau « À traiter maintenant »
@@ -70,6 +77,8 @@ class PatientMessagesSummaryCubit extends Cubit<PatientMessagesSummaryState>
             urgentUnreadCount: urgentUnread.length,
             urgentPatientName:
                 urgentUnread.isEmpty ? null : urgentUnread.first.patientName,
+            urgentConversationId:
+                urgentUnread.isEmpty ? null : urgentUnread.first.id,
           ),
         );
       },

@@ -82,6 +82,10 @@ class WorkQueueCard extends StatelessWidget {
         messagesState is PatientMessagesSummaryLoaded
             ? messagesState.urgentPatientName
             : null;
+    final String? urgentConversationId =
+        messagesState is PatientMessagesSummaryLoaded
+            ? messagesState.urgentConversationId
+            : null;
 
     // Une section encore en chargement/erreur affiche son propre widget
     // sous les lignes — la dernière ligne garde alors son séparateur.
@@ -99,7 +103,9 @@ class WorkQueueCard extends StatelessWidget {
               actionIcon: Icons.call,
               actionVariant: NubiaButtonVariant.primary,
               variant: WorkQueueItemVariant.danger,
-              onAction: () => context.push('/agenda'),
+              // #6246 : cible le RDV du ticket (volet latéral déjà ouvert
+              // dessus) plutôt que la grille hebdomadaire complète.
+              onAction: () => context.push('/agenda', extra: entry.id),
               showDivider: showDivider,
             ),
       if (showWaitingRow)
@@ -130,7 +136,10 @@ class WorkQueueCard extends StatelessWidget {
                   .join(', '),
               actionLabel: 'Relancer',
               actionIcon: Icons.send,
-              onAction: () => context.push('/devis'),
+              // #6246 : ouvre le volet du devis le plus urgent (liste triée
+              // par expiration croissante) plutôt que les 200 devis du cabinet.
+              onAction: () =>
+                  context.push('/devis', extra: expiringQuotes.first.id),
               variant: WorkQueueItemVariant.warning,
               showDivider: showDivider,
             ),
@@ -145,7 +154,11 @@ class WorkQueueCard extends StatelessWidget {
                   : null,
               actionLabel: 'Ouvrir',
               actionIcon: Icons.arrow_forward,
-              onAction: () => context.push('/messages'),
+              // #6246 : ouvre directement la conversation urgente nommée par
+              // le sous-titre quand elle est connue, plutôt que la liste
+              // complète sur l'onglet « Tous ».
+              onAction: () =>
+                  context.push('/messages', extra: urgentConversationId),
               showDivider: showDivider,
             ),
     ];

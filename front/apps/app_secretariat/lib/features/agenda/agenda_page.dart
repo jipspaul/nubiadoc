@@ -59,14 +59,20 @@ String _dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
 /// surface unique (#5154) ») ; [AgendaPage] ne doit PAS le redessiner ni le
 /// dupliquer — elle reste uniquement le contenu de la branche « agenda ».
 class AgendaPage extends StatelessWidget {
-  const AgendaPage({super.key});
+  const AgendaPage({super.key, this.openAppointmentId});
+
+  /// RDV à sélectionner à l'ouverture (volet latéral déjà ouvert dessus,
+  /// #5079) — passé en `extra` depuis le ticket « Appeler » du tableau de
+  /// bord secrétariat (#6246), pour cibler directement le RDV du ticket
+  /// plutôt que la grille hebdomadaire complète.
+  final String? openAppointmentId;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => GetIt.instance<AgendaBloc>()
         ..add(AgendaLoadRequested(weekStart: _currentWeekStart())),
-      child: const _AgendaBody(),
+      child: _AgendaBody(openAppointmentId: openAppointmentId),
     );
   }
 }
@@ -74,7 +80,9 @@ class AgendaPage extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _AgendaBody extends StatefulWidget {
-  const _AgendaBody();
+  const _AgendaBody({this.openAppointmentId});
+
+  final String? openAppointmentId;
 
   @override
   State<_AgendaBody> createState() => _AgendaBodyState();
@@ -120,6 +128,7 @@ class _AgendaBodyState extends State<_AgendaBody> {
                   );
               return _refreshCompleter!.future;
             },
+            initialSelectedEntryId: widget.openAppointmentId,
           );
         }
         return const SizedBox.shrink();
@@ -131,9 +140,14 @@ class _AgendaBodyState extends State<_AgendaBody> {
 // ---------------------------------------------------------------------------
 
 class _LoadedView extends StatefulWidget {
-  const _LoadedView({required this.state, required this.onRefresh});
+  const _LoadedView({
+    required this.state,
+    required this.onRefresh,
+    this.initialSelectedEntryId,
+  });
   final AgendaLoaded state;
   final Future<void> Function() onRefresh;
+  final String? initialSelectedEntryId;
 
   @override
   State<_LoadedView> createState() => _LoadedViewState();
@@ -154,6 +168,7 @@ class _LoadedViewState extends State<_LoadedView> {
   @override
   void initState() {
     super.initState();
+    _selectedEntryId = widget.initialSelectedEntryId;
     // `autofocus` seul ne suffit pas ici : la route hôte (ModalRoute) prend
     // le focus initial en premier — demande explicite pour que
     // ←/→/↑/↓/⏎/T fonctionnent dès l'affichage de la grille, sans clic

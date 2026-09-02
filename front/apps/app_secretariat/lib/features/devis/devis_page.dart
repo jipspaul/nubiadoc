@@ -14,7 +14,12 @@ import 'widgets/devis_table.dart';
 /// Écran "Devis" côté secrétariat — liste des devis du cabinet.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
 class DevisPage extends StatefulWidget {
-  const DevisPage({super.key});
+  const DevisPage({super.key, this.openQuoteId});
+
+  /// Devis à afficher dans le volet latéral à l'ouverture — passé en `extra`
+  /// depuis le ticket « Relancer » du tableau de bord secrétariat (#6246),
+  /// pour cibler le devis le plus urgent plutôt que la liste complète.
+  final String? openQuoteId;
 
   @override
   State<DevisPage> createState() => _DevisPageState();
@@ -48,6 +53,7 @@ class _DevisPageState extends State<DevisPage> {
   @override
   void initState() {
     super.initState();
+    _selectedQuoteId = widget.openQuoteId;
     context.read<DevisBloc>().add(const DevisLoadRequested());
   }
 

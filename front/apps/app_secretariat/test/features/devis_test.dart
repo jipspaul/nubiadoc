@@ -1365,11 +1365,11 @@ void main() {
       addTearDown(GetIt.instance.reset);
     });
 
-    Widget buildPage() => MaterialApp(
+    Widget buildPage({String? openQuoteId}) => MaterialApp(
           theme: NubiaTheme.light,
           home: BlocProvider<DevisBloc>.value(
             value: bloc,
-            child: const DevisPage(),
+            child: DevisPage(openQuoteId: openQuoteId),
           ),
         );
 
@@ -1467,6 +1467,26 @@ void main() {
         ),
       );
       expect(callButton.onPressed, isNull);
+    });
+
+    testWidgets(
+        '#6246 : openQuoteId ouvre le volet du devis visé dès l\'affichage, '
+        'sans clic sur la liste', (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage(openQuoteId: 'q1'));
+      await tester.pumpAndSettle();
+
+      final sheet = find.byKey(const Key('devis_sheet_q1'));
+      expect(sheet, findsOneWidget);
+      expect(
+        find.descendant(of: sheet, matching: find.text('Julie Martin')),
+        findsOneWidget,
+      );
     });
   });
 }

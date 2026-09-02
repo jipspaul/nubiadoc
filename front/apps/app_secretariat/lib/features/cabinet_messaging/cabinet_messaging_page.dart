@@ -10,14 +10,42 @@ import 'widgets/appointment_slot_picker.dart';
 
 /// Écran "Messages" côté secrétariat — liste des conversations patient + thread.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
-class CabinetMessagingPage extends StatelessWidget {
-  const CabinetMessagingPage({super.key});
+class CabinetMessagingPage extends StatefulWidget {
+  const CabinetMessagingPage({super.key, this.openConversationId});
+
+  /// Conversation à ouvrir dès que la liste est chargée — passée en `extra`
+  /// depuis le ticket « Ouvrir » du tableau de bord secrétariat (#6246), pour
+  /// cibler la conversation urgente plutôt que l'onglet « Tous » sans filtre.
+  final String? openConversationId;
+
+  @override
+  State<CabinetMessagingPage> createState() => _CabinetMessagingPageState();
+}
+
+class _CabinetMessagingPageState extends State<CabinetMessagingPage> {
+  bool _openConversationHandled = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Messages')),
-      body: BlocBuilder<CabinetMessagingBloc, CabinetMessagingState>(
+      body: BlocConsumer<CabinetMessagingBloc, CabinetMessagingState>(
+        listener: (context, state) {
+          final targetId = widget.openConversationId;
+          if (targetId == null ||
+              _openConversationHandled ||
+              state is! CabinetMessagingConversationsLoaded) {
+            return;
+          }
+          _openConversationHandled = true;
+          final matches =
+              state.conversations.where((c) => c.id == targetId);
+          if (matches.isNotEmpty) {
+            context
+                .read<CabinetMessagingBloc>()
+                .add(CabinetMessagingThreadOpened(matches.first));
+          }
+        },
         builder: (context, state) => switch (state) {
           CabinetMessagingInitial() ||
           CabinetMessagingConversationsLoading() =>
