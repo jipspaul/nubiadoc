@@ -29,21 +29,24 @@ class NotificationsAppBar extends StatelessWidget
             ? state.unreadCount
             : null;
         return AppBar(
+          titleSpacing: 0,
           title: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
                 'Notifications',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
               ),
               if (unreadCount != null)
                 Text(
-                  '$unreadCount non lues',
+                  '$unreadCount ${unreadCount == 1 ? 'non lue' : 'non lues'}',
                   style: const TextStyle(
                     fontSize: 12.5,
                     color: NubiaColors.n500,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
             ],
           ),

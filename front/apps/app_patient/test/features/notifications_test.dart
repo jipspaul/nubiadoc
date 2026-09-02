@@ -430,6 +430,18 @@ void main() {
       expect(find.byIcon(Icons.done_all), findsOneWidget);
     });
 
+    testWidgets('accorde le sous-titre au singulier pour une seule '
+        'notification non lue', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(NotificationsLoaded([_notif('1')]));
+
+      await tester.pumpWidget(wrapAppBar(bloc));
+      await tester.pump();
+
+      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.text('1 non lue'), findsOneWidget);
+    });
+
     testWidgets('masque l\'action quand il n\'y a aucune notification non '
         'lue', (tester) async {
       final bloc = MockNotificationsBloc();
