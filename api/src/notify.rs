@@ -128,6 +128,43 @@ pub(crate) async fn notify_nurse_staff(
     Ok(out)
 }
 
+/// Notifie les membres actifs d'un cabinet dont le `role` figure dans
+/// `roles` (#6262 : devis signé → praticien + secrétariat uniquement, pas
+/// tout le staff comme `notify_pharmacy_staff`/`notify_nurse_staff`). Le GUC
+/// cabinet est posé sur la valeur passée (déjà validée par l'appelant :
+/// tenant du JWT ou cabinet résolu en DB).
+pub(crate) async fn notify_cabinet_staff(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    cabinet_id: Uuid,
+    roles: &[&str],
+    kind: &str,
+    title: &str,
+    data: serde_json::Value,
+) -> Result<Vec<(Uuid, Uuid)>, AppError> {
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let rows = sqlx::query(
+        "SELECT user_id FROM cabinet_membership \
+         WHERE cabinet_id = $1 AND active AND role = ANY($2)",
+    )
+    .bind(cabinet_id)
+    .bind(roles)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let user_id: Uuid = row.try_get("user_id").map_err(|_| AppError::Internal)?;
+        let notification_id = notify_user(tx, user_id, kind, title, data.clone()).await?;
+        out.push((user_id, notification_id));
+    }
+    Ok(out)
+}
+
 /// Enveloppe WS `order_status_changed` — zéro PII. Générique (réutilisée par le
 /// domaine infirmier avec l'id de la demande de visite comme `order_id`).
 pub(crate) fn order_event(channel: &str, order_id: Uuid, status: &str) -> String {

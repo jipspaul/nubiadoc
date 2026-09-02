@@ -134,7 +134,7 @@ pub async fn yousign_webhook(
     // `sent` est l'étape obligatoire entre `draft` et `signed` (même contrainte que
     // le parcours patient `sign_quote`, billing.rs) : un devis draft/refusé/expiré
     // ne doit pas pouvoir sauter directement à `signed`.
-    sqlx::query(
+    let update_result = sqlx::query(
         "UPDATE quote \
          SET signed_at = now(), status = 'signed', updated_at = now() \
          WHERE id = $1 AND cabinet_id = $2 AND status = 'sent' AND signed_at IS NULL",
@@ -144,6 +144,22 @@ pub async fn yousign_webhook(
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    // Notifie le cabinet (#6262), uniquement si la transition a réellement eu
+    // lieu (idempotence : un second appel du webhook pour le même devis
+    // n'affecte aucune ligne et ne doit pas re-notifier). Titre sans montant
+    // (anti-PII), même politique que `billing::sign_quote`.
+    if update_result.rows_affected() > 0 {
+        crate::notify::notify_cabinet_staff(
+            &mut tx,
+            cabinet_id,
+            &["practitioner", "secretary"],
+            "quote_signed",
+            "Un devis a été signé",
+            serde_json::json!({ "quote_id": quote_id }),
+        )
+        .await?;
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 

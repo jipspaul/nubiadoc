@@ -19,8 +19,13 @@ use uuid::Uuid;
 use crate::{
     auth::{AppError, PatientAccountClaims},
     billing_payments::{create_payment_intent, PaymentIntentBody, PaymentIntentResponse},
-    AppState,
+    notify, AppState,
 };
+
+/// Rôles cabinet notifiés à la signature d'un devis (#6262) : praticien +
+/// secrétariat, pas tout le staff (admin/manager/doctor exclus — hors
+/// périmètre de l'issue).
+const QUOTE_SIGNED_NOTIFY_ROLES: [&str; 2] = ["practitioner", "secretary"];
 
 #[derive(Deserialize)]
 pub struct ListQuotesQuery {
@@ -504,6 +509,17 @@ pub async fn sign_quote(
     let signed_at: chrono::DateTime<chrono::Utc> = update_row
         .try_get("signed_at")
         .map_err(|_| AppError::Internal)?;
+
+    // Notifie le cabinet (#6262). Titre sans montant (anti-PII).
+    notify::notify_cabinet_staff(
+        &mut tx,
+        cabinet_id,
+        &QUOTE_SIGNED_NOTIFY_ROLES,
+        "quote_signed",
+        "Un devis a été signé",
+        serde_json::json!({ "quote_id": id }),
+    )
+    .await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
