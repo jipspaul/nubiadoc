@@ -158,7 +158,12 @@ class AppRouter {
             // `SecretariatShell`/`ProShell` ci-dessus : `AgendaPage` reste le
             // contenu de cette branche, rien à reproduire ici.
             StatefulShellBranch(routes: [
-              GoRoute(path: agenda, builder: (_, __) => const AgendaPage()),
+              GoRoute(
+                path: agenda,
+                builder: (_, state) => AgendaPage(
+                  openAppointmentId: state.extra as String?,
+                ),
+              ),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
@@ -199,9 +204,9 @@ class AppRouter {
             StatefulShellBranch(routes: [
               GoRoute(
                 path: devis,
-                builder: (_, __) => BlocProvider(
+                builder: (_, state) => BlocProvider(
                   create: (_) => GetIt.instance<DevisBloc>(),
-                  child: const DevisPage(),
+                  child: DevisPage(openQuoteId: state.extra as String?),
                 ),
                 routes: [
                   GoRoute(
@@ -229,10 +234,12 @@ class AppRouter {
             StatefulShellBranch(routes: [
               GoRoute(
                 path: messages,
-                builder: (_, __) => BlocProvider(
+                builder: (_, state) => BlocProvider(
                   create: (_) => GetIt.instance<CabinetMessagingBloc>()
                     ..add(const CabinetMessagingConversationsLoadRequested()),
-                  child: const CabinetMessagingPage(),
+                  child: CabinetMessagingPage(
+                    openConversationId: state.extra as String?,
+                  ),
                 ),
               ),
             ]),

@@ -85,7 +85,9 @@ Widget _wrap(
       ),
       GoRoute(
         path: '/messages',
-        builder: (context, state) => const Scaffold(body: Text('Messagerie')),
+        builder: (context, state) => Scaffold(
+          body: Text('Messagerie extra=${state.extra}'),
+        ),
       ),
       GoRoute(
         path: '/liste-attente',
@@ -94,11 +96,15 @@ Widget _wrap(
       ),
       GoRoute(
         path: '/devis',
-        builder: (context, state) => const Scaffold(body: Text('Devis')),
+        builder: (context, state) => Scaffold(
+          body: Text('Devis extra=${state.extra}'),
+        ),
       ),
       GoRoute(
         path: '/agenda',
-        builder: (context, state) => const Scaffold(body: Text('Agenda')),
+        builder: (context, state) => Scaffold(
+          body: Text('Agenda extra=${state.extra}'),
+        ),
       ),
     ],
   );
@@ -135,13 +141,15 @@ void main() {
     });
 
     testWidgets(
-        '#5379 : titre = messages non lus, sous-titre = urgent, Ouvrir → /messages',
+        '#5379/#6246 : titre = messages non lus, sous-titre = urgent, '
+        'Ouvrir → /messages ciblé sur la conversation urgente',
         (tester) async {
       when(() => cubit.state).thenReturn(
         const PatientMessagesSummaryLoaded(
           unreadCount: 4,
           urgentUnreadCount: 1,
           urgentPatientName: 'Ahmed Belkacem',
+          urgentConversationId: 'conv-urgent',
         ),
       );
       await tester.pumpWidget(_wrap(cubit, quotesCubit));
@@ -163,7 +171,7 @@ void main() {
 
       await tester.tap(openMessagesButton);
       await tester.pumpAndSettle();
-      expect(find.text('Messagerie'), findsOneWidget);
+      expect(find.text('Messagerie extra=conv-urgent'), findsOneWidget);
     });
 
     testWidgets(
@@ -306,8 +314,9 @@ void main() {
     });
 
     testWidgets(
-        '#5377 : titre = devis qui expirent, sous-titre = patients (JJ/MM), '
-        'Relancer → /devis', (tester) async {
+        '#5377/#6246 : titre = devis qui expirent, sous-titre = patients '
+        '(JJ/MM), Relancer → /devis ciblé sur le devis le plus urgent',
+        (tester) async {
       when(() => cubit.state).thenReturn(
         const PatientMessagesSummaryLoaded(
           unreadCount: 0,
@@ -349,12 +358,14 @@ void main() {
       await tester.ensureVisible(relanceButton);
       await tester.tap(relanceButton);
       await tester.pumpAndSettle();
-      expect(find.text('Devis'), findsOneWidget);
+      // q1 expire le premier (13/08) : c'est le devis le plus urgent, en
+      // tête de la liste triée par expiration croissante.
+      expect(find.text('Devis extra=q1'), findsOneWidget);
     });
 
     testWidgets(
-        '#5376 : titre = RDV non confirmé, bouton primaire Appeler → /agenda',
-        (tester) async {
+        '#5376/#6246 : titre = RDV non confirmé, bouton primaire Appeler → '
+        '/agenda ciblé sur le RDV', (tester) async {
       when(() => cubit.state).thenReturn(
         const PatientMessagesSummaryLoaded(
           unreadCount: 0,
@@ -401,7 +412,7 @@ void main() {
       await tester.ensureVisible(callButton);
       await tester.tap(callButton);
       await tester.pumpAndSettle();
-      expect(find.text('Agenda'), findsOneWidget);
+      expect(find.text('Agenda extra=rdv1'), findsOneWidget);
     });
 
     testWidgets('#5376 : aucun RDV non confirmé → pas de ligne', (

@@ -288,11 +288,13 @@ void main() {
       bloc = _MockCabinetMessagingBloc();
     });
 
-    Widget buildPage() => MaterialApp(
+    Widget buildPage({String? openConversationId}) => MaterialApp(
           theme: NubiaTheme.light,
           home: BlocProvider<CabinetMessagingBloc>.value(
             value: bloc,
-            child: const CabinetMessagingPage(),
+            child: CabinetMessagingPage(
+              openConversationId: openConversationId,
+            ),
           ),
         );
 
@@ -400,6 +402,44 @@ void main() {
 
         verify(
           () => bloc.add(const CabinetMessagingConversationsLoadRequested()),
+        ).called(1);
+      },
+    );
+
+    testWidgets(
+      '#6246 : openConversationId ouvre automatiquement le thread visé une '
+      'fois les conversations chargées',
+      (tester) async {
+        const target = CabinetConversation(
+          id: 'conv2',
+          patientId: 'p2',
+          patientName: 'Albert Einstein',
+          unreadCount: 1,
+        );
+        const loaded = CabinetMessagingConversationsLoaded([
+          CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+          target,
+        ]);
+
+        whenListen(
+          bloc,
+          Stream<CabinetMessagingState>.fromIterable([
+            const CabinetMessagingConversationsLoading(),
+            loaded,
+          ]),
+          initialState: const CabinetMessagingConversationsLoading(),
+        );
+
+        await tester.pumpWidget(buildPage(openConversationId: 'conv2'));
+        await tester.pumpAndSettle();
+
+        verify(
+          () => bloc.add(const CabinetMessagingThreadOpened(target)),
         ).called(1);
       },
     );

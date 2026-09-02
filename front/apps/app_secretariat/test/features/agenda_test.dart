@@ -599,6 +599,55 @@ void main() {
 
       await GetIt.instance.reset();
     });
+
+    testWidgets(
+        '#6246 : openAppointmentId ouvre le volet du RDV visé dès l\'affichage, '
+        'sans sélection manuelle', (tester) async {
+      final entry = AgendaEntry(
+        id: 'p-3',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Amélie Rousseau',
+        startsAt: DateTime(2026, 8, 11, 4, 6),
+        endsAt: DateTime(2026, 8, 11, 4, 36),
+        patientId: 'pat-1',
+        patientName: 'Marc Dubois',
+        isFree: false,
+        status: 'requested',
+      );
+
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage(openAppointmentId: 'p-3')),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final panel = find.byKey(const Key('agenda_detail_panel_p-3'));
+      expect(panel, findsOneWidget);
+      expect(
+        find.descendant(of: panel, matching: find.text('Marc Dubois')),
+        findsOneWidget,
+      );
+
+      await GetIt.instance.reset();
+    });
   });
 
   // -------------------------------------------------------------------------
