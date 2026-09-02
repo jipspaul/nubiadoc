@@ -17,8 +17,12 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
-    AppState, JobDispatcher,
+    notify, AppState, JobDispatcher,
 };
+
+/// Rôles cabinet notifiés à une demande de rappel (#6261) : secrétariat
+/// uniquement, cf. `APPOINTMENT_REQUESTED_NOTIFY_ROLES` (appointments_create.rs).
+const CALLBACK_REQUESTED_NOTIFY_ROLES: [&str; 1] = ["secretary"];
 
 // ── Check-in ────────────────────────────────────────────────────────────────
 
@@ -295,6 +299,18 @@ pub async fn callback_appointment(
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    // Notifie le secrétariat du cabinet (#6261) : sans ça, la demande de
+    // rappel n'apparaît que si quelqu'un rafraîchit l'agenda manuellement.
+    notify::notify_cabinet_staff(
+        &mut tx,
+        cabinet_id,
+        &CALLBACK_REQUESTED_NOTIFY_ROLES,
+        "callback_requested",
+        "Demande de rappel",
+        serde_json::json!({ "appointment_id": id }),
+    )
+    .await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 

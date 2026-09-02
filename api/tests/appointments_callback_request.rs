@@ -632,3 +632,138 @@ async fn post_callback_request_idempotent_returns_200() {
         .await
         .ok();
 }
+
+// ── Test 5 : demande de rappel notifie le secrétariat du cabinet (#6261) ────
+
+#[tokio::test]
+async fn post_callback_request_notifies_secretariat() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let secretary_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("callback-notifysec+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Callback', 'NotifySec')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!(
+        "callback-notifysec-prac+{}@nubia.test",
+        prac_user_id
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(secretary_user_id)
+    .bind(format!(
+        "callback-notifysec-sec+{}@nubia.test",
+        secretary_user_id
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let (cabinet_id, prac_id, patient_id, appt_id) =
+        insert_fixture(&db, prac_user_id, patient_account_id, "confirmed").await;
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
+         VALUES ($1, $2, 'secretary', true)",
+    )
+    .bind(cabinet_id)
+    .bind(secretary_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/appointments/{}/callback-request", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM notification \
+         WHERE app_user_id = $1 AND kind = 'callback_requested'",
+    )
+    .bind(secretary_user_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        count, 1,
+        "le secrétariat doit recevoir une notification callback_requested"
+    );
+
+    cleanup(&db, cabinet_id, patient_id, prac_id).await;
+    sqlx::query("DELETE FROM notification WHERE app_user_id = $1")
+        .bind(secretary_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2 OR id = $3")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .bind(secretary_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
