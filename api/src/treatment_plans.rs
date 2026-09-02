@@ -59,6 +59,7 @@ pub struct TreatmentPlanItem {
     pub created_at: String,
     pub step_count: i64,
     pub current_phase_title: Option<String>,
+    pub current_step: i64,
 }
 
 #[derive(Serialize)]
@@ -179,6 +180,10 @@ pub async fn list_treatment_plans(
         // `sync_plan_status_from_phases` (treatment_phases.rs) et
         // `PatientCurrentPlanSection` (app_practicien) — "étape" = `treatment_phase`,
         // la phase courante est la première non `done` par `position` (#6209).
+        // `current_step` = `position` de cette phase courante (pas un compteur de
+        // phases `done`, qui désynchroniserait le numéro affiché du titre de phase
+        // si les phases ne sont pas terminées dans l'ordre) — clamp à `step_count`
+        // si toutes les phases sont `done` (#6233).
         // Scope cabinet — RLS treatment_phase utilise app.current_cabinet_id.
         sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
             .bind(cabinet_id.to_string())
@@ -190,7 +195,13 @@ pub async fn list_treatment_plans(
             "SELECT count(*) AS step_count, \
                     (SELECT title FROM treatment_phase \
                      WHERE plan_id = $1 AND status <> 'done' \
-                     ORDER BY position ASC LIMIT 1) AS current_phase_title \
+                     ORDER BY position ASC LIMIT 1) AS current_phase_title, \
+                    COALESCE( \
+                        (SELECT position FROM treatment_phase \
+                         WHERE plan_id = $1 AND status <> 'done' \
+                         ORDER BY position ASC LIMIT 1), \
+                        count(*) \
+                    ) AS current_step \
              FROM treatment_phase WHERE plan_id = $1",
         )
         .bind(id)
@@ -204,6 +215,9 @@ pub async fn list_treatment_plans(
         let current_phase_title: Option<String> = phase_progress
             .try_get("current_phase_title")
             .map_err(|_| AppError::Internal)?;
+        let current_step: i64 = phase_progress
+            .try_get("current_step")
+            .map_err(|_| AppError::Internal)?;
 
         data.push(TreatmentPlanItem {
             id,
@@ -212,6 +226,7 @@ pub async fn list_treatment_plans(
             created_at: created_at.to_rfc3339(),
             step_count,
             current_phase_title,
+            current_step,
         });
     }
 

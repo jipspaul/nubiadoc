@@ -78,7 +78,14 @@ class PlanCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       [
-                        'Étape ${plan.currentStep ?? stepCount} sur $stepCount',
+                        // Un plan `done` n'a jamais de `currentStep` (pas de phase
+                        // courante) : toutes ses étapes sont faites, `stepCount` est
+                        // donc le bon repli. Un plan encore en cours sans
+                        // `currentStep` (info serveur absente) ne doit en revanche
+                        // pas afficher « dernière étape » à tort — repli sur la
+                        // première étape (#6233).
+                        'Étape ${plan.currentStep ?? (plan.status == 'done' ? stepCount : 1)} '
+                            'sur $stepCount',
                         if (plan.currentPhaseTitle != null)
                           plan.currentPhaseTitle!,
                       ].join(' · '),

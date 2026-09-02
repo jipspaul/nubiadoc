@@ -672,6 +672,10 @@ async fn treatment_plans_list_returns_200() {
         plan["current_phase_title"], "Phase 1 · Bilan",
         "phase courante = première phase non `done`"
     );
+    assert_eq!(
+        plan["current_step"], 1,
+        "current_step = position de la phase courante (#6233)"
+    );
 
     let page = &v["page"];
     assert!(page["limit"].is_number(), "page.limit présent");
@@ -1068,6 +1072,153 @@ async fn treatment_plans_list_rls_own_only() {
     sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2 OR id = $3")
         .bind(user_a_id)
         .bind(user_b_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test L6 : `current_step` = position de la phase courante, pas un
+//    compteur de phases `done` (#6233 — régression : une phase tardive
+//    terminée avant les précédentes ne doit pas faire croire que le plan
+//    est à sa dernière étape) ──────────────────────────────────────────────
+
+#[tokio::test]
+async fn treatment_plans_list_current_step_is_current_phase_position() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("tp-list-step+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Step', 'Patient')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("tp-list-step-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Fixture de base : plan avec une seule phase (position 1, `requested`).
+    let (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id) =
+        insert_treatment_plan_fixture(&db, prac_user_id, account_id).await;
+
+    // Ajoute 2 phases : position 2 `requested`, position 3 `done` — la
+    // dernière phase (par position) est terminée en premier, ce qui aurait
+    // fait remonter `current_step` à `step_count` avec l'ancien fallback
+    // front, ou à `done_count + 1` avec un calcul naïf côté API.
+    let phase2_id = Uuid::new_v4();
+    let phase3_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO treatment_phase \
+         (id, cabinet_id, plan_id, position, title, status) \
+         VALUES ($1, $2, $3, 2, 'Phase 2', 'requested')",
+    )
+    .bind(phase2_id)
+    .bind(cabinet_id)
+    .bind(plan_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO treatment_phase \
+         (id, cabinet_id, plan_id, position, title, status) \
+         VALUES ($1, $2, $3, 3, 'Phase 3', 'done')",
+    )
+    .bind(phase3_id)
+    .bind(cabinet_id)
+    .bind(plan_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/treatment-plans")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().expect("data doit être un tableau");
+    let plan = data
+        .iter()
+        .find(|p| p["id"] == plan_id.to_string())
+        .expect("le plan inséré doit apparaître dans la liste");
+
+    assert_eq!(plan["step_count"], 3, "3 phases au total");
+    assert_eq!(
+        plan["current_phase_title"], "Phase 1 · Bilan",
+        "phase courante = première phase non `done` par position"
+    );
+    assert_eq!(
+        plan["current_step"], 1,
+        "current_step doit rester la position de la phase courante (1), \
+         pas step_count (3) ni done_count + 1 (2)"
+    );
+
+    sqlx::query("DELETE FROM treatment_phase WHERE id = $1 OR id = $2")
+        .bind(phase2_id)
+        .bind(phase3_id)
+        .execute(&db)
+        .await
+        .ok();
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
         .bind(prac_user_id)
         .execute(&db)
         .await

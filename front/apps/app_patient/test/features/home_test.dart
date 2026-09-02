@@ -61,6 +61,16 @@ const _activePlan = PatientTreatmentPlan(
   currentPhaseTitle: 'Pose de la couronne',
 );
 
+/// Plan actif sans `currentStep` (l'API ne l'émet pas toujours) — le
+/// fallback ne doit pas afficher « tout est fait » (#6233).
+const _activePlanNoCurrentStep = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Plan orthodontique',
+  status: 'in_progress',
+  stepCount: 3,
+  currentPhaseTitle: 'Phase 1',
+);
+
 final _nextAppointment = Appointment(
   id: 'appt-1',
   cabinetId: 'cabinet-1',
@@ -347,6 +357,29 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('treatment_progress_card')), findsNothing);
+    });
+
+    testWidgets(
+        'carte « Mon suivi » sans currentStep — affiche « 0 / N étapes », '
+        'pas « N-1 / N étapes » (#6233)', (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+      when(() => mockListPlans())
+          .thenAnswer((_) async => const Right([_activePlanNoCurrentStep]));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+        find.byKey(const Key('treatment_progress_card'), skipOffstage: false),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('treatment_progress_card')), findsOneWidget);
+      expect(find.text('0 / 3 étapes'), findsOneWidget);
     });
 
     testWidgets(
