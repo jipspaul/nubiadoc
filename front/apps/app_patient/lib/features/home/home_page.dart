@@ -437,8 +437,10 @@ class _TodoLeadingIcon extends StatelessWidget {
 /// Section « Accès rapide » : grille 2×2 de raccourcis vers les wedges
 /// aujourd'hui enterrés dans le routeur (ordonnances, documents, pharmacie,
 /// proches — maquette `patient-accueil.png`, note #3). Les sous-titres
-/// d'état sont statiques : ils ne sont pas dans [DashboardSummary], leur
-/// câblage sur les données réelles est un ticket data séparé (#5201).
+/// d'état ne sont pas dans [DashboardSummary] ; leur câblage sur les
+/// données réelles est un ticket data séparé (#5201). En attendant, on
+/// n'affiche PAS les valeurs d'exemple de la maquette (elles mentent —
+/// #6215) : le sous-titre est omis quand on n'a pas la vraie donnée.
 class _QuickAccessGrid extends StatelessWidget {
   const _QuickAccessGrid();
 
@@ -463,7 +465,7 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconBg: tokens.primarySubtleBg,
                   iconColor: cs.primary,
                   title: 'Mes ordonnances',
-                  subtitle: '1 active',
+                  subtitle: null,
                   // Pas de route ordonnances dédiée aujourd'hui (#5201) —
                   // cible à confirmer avec le PO, on n'invente pas d'écran.
                   onTap: null,
@@ -477,7 +479,7 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconBg: tokens.infoBg,
                   iconColor: tokens.infoFg,
                   title: 'Mes documents',
-                  subtitle: '12 fichiers',
+                  subtitle: null,
                   onTap: () => context.push(AppRouter.documents),
                 ),
               ),
@@ -496,7 +498,7 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconBg: tokens.primarySubtleBg,
                   iconColor: cs.primary,
                   title: 'Ma pharmacie',
-                  subtitle: 'Pharmacie du Théâtre',
+                  subtitle: null,
                   onTap: () => context.push('/pharmacy'),
                 ),
               ),
@@ -508,7 +510,7 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconBg: tokens.primarySubtleBg,
                   iconColor: cs.primary,
                   title: 'Mes proches',
-                  subtitle: '2 comptes liés',
+                  subtitle: null,
                   onTap: () => context.push(AppRouter.profileDependents),
                 ),
               ),
@@ -552,7 +554,7 @@ class _QuickAccessTile extends StatelessWidget {
     required this.iconBg,
     required this.iconColor,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     required this.onTap,
   });
 
@@ -560,7 +562,7 @@ class _QuickAccessTile extends StatelessWidget {
   final Color iconBg;
   final Color iconColor;
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final VoidCallback? onTap;
 
   @override
@@ -596,14 +598,16 @@ class _QuickAccessTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(title, style: textTheme.titleSmall),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ],
               ],
             ),
           ),
