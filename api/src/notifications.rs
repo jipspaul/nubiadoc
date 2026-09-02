@@ -335,3 +335,186 @@ pub async fn mark_all_notifications_read(
 
     Ok((StatusCode::OK, Json(MarkAllReadResponse { updated })))
 }
+
+/// Corps de la requête `PATCH /v1/me/notification-preferences`.
+///
+/// `deny_unknown_fields` : même garde-fou que
+/// `PatchNotificationPreferencesBody` (auth/mod.rs) — une clé inconnue ne
+/// doit jamais être acceptée silencieusement (opt-out perdu sans le savoir).
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PatchMeNotificationPreferencesBody {
+    inapp_rdv: Option<bool>,
+    inapp_messagerie: Option<bool>,
+    inapp_devis: Option<bool>,
+    inapp_stock: Option<bool>,
+    inapp_labo: Option<bool>,
+    inapp_visites: Option<bool>,
+    email_rdv: Option<bool>,
+    email_messagerie: Option<bool>,
+    email_devis: Option<bool>,
+}
+
+/// Réponse de `GET/PATCH /v1/me/notification-preferences`.
+#[derive(Serialize)]
+pub struct MeNotificationPreferencesResponse {
+    inapp_rdv: bool,
+    inapp_messagerie: bool,
+    inapp_devis: bool,
+    inapp_stock: bool,
+    inapp_labo: bool,
+    inapp_visites: bool,
+    email_rdv: bool,
+    email_messagerie: bool,
+    email_devis: bool,
+}
+
+impl MeNotificationPreferencesResponse {
+    /// Défauts avant la première ligne en base : in-app ON, email OFF (#6257).
+    const fn defaults() -> Self {
+        Self {
+            inapp_rdv: true,
+            inapp_messagerie: true,
+            inapp_devis: true,
+            inapp_stock: true,
+            inapp_labo: true,
+            inapp_visites: true,
+            email_rdv: false,
+            email_messagerie: false,
+            email_devis: false,
+        }
+    }
+
+    fn from_row(row: &sqlx::postgres::PgRow) -> Result<Self, AppError> {
+        Ok(Self {
+            inapp_rdv: row.try_get("inapp_rdv").map_err(|_| AppError::Internal)?,
+            inapp_messagerie: row
+                .try_get("inapp_messagerie")
+                .map_err(|_| AppError::Internal)?,
+            inapp_devis: row.try_get("inapp_devis").map_err(|_| AppError::Internal)?,
+            inapp_stock: row.try_get("inapp_stock").map_err(|_| AppError::Internal)?,
+            inapp_labo: row.try_get("inapp_labo").map_err(|_| AppError::Internal)?,
+            inapp_visites: row
+                .try_get("inapp_visites")
+                .map_err(|_| AppError::Internal)?,
+            email_rdv: row.try_get("email_rdv").map_err(|_| AppError::Internal)?,
+            email_messagerie: row
+                .try_get("email_messagerie")
+                .map_err(|_| AppError::Internal)?,
+            email_devis: row.try_get("email_devis").map_err(|_| AppError::Internal)?,
+        })
+    }
+}
+
+/// `GET /v1/me/notification-preferences` — retourne les préférences de notification
+/// du porteur du token (patient, pro, pharma ou nurse).
+///
+/// Si aucune ligne dans `user_notification_preference` → défauts (in-app `true`, email `false`).
+/// RLS scoped par `app.current_user_id` (migration 0246).
+pub async fn get_me_notification_preferences(
+    State(state): State<AppState>,
+    claims: MeClaims,
+) -> Result<Json<MeNotificationPreferencesResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT inapp_rdv, inapp_messagerie, inapp_devis, inapp_stock, inapp_labo, inapp_visites, \
+                email_rdv, email_messagerie, email_devis \
+         FROM user_notification_preference \
+         WHERE app_user_id = $1",
+    )
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let prefs = match &row {
+        None => MeNotificationPreferencesResponse::defaults(),
+        Some(r) => MeNotificationPreferencesResponse::from_row(r)?,
+    };
+
+    tracing::info!(user_id = %claims.sub, "me notification preferences queried");
+
+    Ok(Json(prefs))
+}
+
+/// `PATCH /v1/me/notification-preferences` — met à jour partiellement les opt-in.
+///
+/// Upsert idempotent : seuls les champs présents dans le body sont modifiés,
+/// les autres conservent leur valeur existante (ou le défaut à la création).
+/// RLS scoped par `app.current_user_id` (migration 0246).
+pub async fn patch_me_notification_preferences(
+    State(state): State<AppState>,
+    claims: MeClaims,
+    Json(body): Json<PatchMeNotificationPreferencesBody>,
+) -> Result<Json<MeNotificationPreferencesResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "INSERT INTO user_notification_preference \
+           (app_user_id, inapp_rdv, inapp_messagerie, inapp_devis, inapp_stock, inapp_labo, inapp_visites, \
+            email_rdv, email_messagerie, email_devis) \
+         VALUES ($1, \
+           COALESCE($2, true), COALESCE($3, true), COALESCE($4, true), COALESCE($5, true), \
+           COALESCE($6, true), COALESCE($7, true), \
+           COALESCE($8, false), COALESCE($9, false), COALESCE($10, false)) \
+         ON CONFLICT (app_user_id) \
+         DO UPDATE SET \
+           inapp_rdv        = CASE WHEN $2 IS NOT NULL THEN $2 \
+                                   ELSE user_notification_preference.inapp_rdv END, \
+           inapp_messagerie = CASE WHEN $3 IS NOT NULL THEN $3 \
+                                   ELSE user_notification_preference.inapp_messagerie END, \
+           inapp_devis      = CASE WHEN $4 IS NOT NULL THEN $4 \
+                                   ELSE user_notification_preference.inapp_devis END, \
+           inapp_stock      = CASE WHEN $5 IS NOT NULL THEN $5 \
+                                   ELSE user_notification_preference.inapp_stock END, \
+           inapp_labo       = CASE WHEN $6 IS NOT NULL THEN $6 \
+                                   ELSE user_notification_preference.inapp_labo END, \
+           inapp_visites    = CASE WHEN $7 IS NOT NULL THEN $7 \
+                                   ELSE user_notification_preference.inapp_visites END, \
+           email_rdv        = CASE WHEN $8 IS NOT NULL THEN $8 \
+                                   ELSE user_notification_preference.email_rdv END, \
+           email_messagerie = CASE WHEN $9 IS NOT NULL THEN $9 \
+                                   ELSE user_notification_preference.email_messagerie END, \
+           email_devis      = CASE WHEN $10 IS NOT NULL THEN $10 \
+                                   ELSE user_notification_preference.email_devis END, \
+           updated_at       = now() \
+         RETURNING inapp_rdv, inapp_messagerie, inapp_devis, inapp_stock, inapp_labo, inapp_visites, \
+                   email_rdv, email_messagerie, email_devis",
+    )
+    .bind(claims.sub)
+    .bind(body.inapp_rdv)
+    .bind(body.inapp_messagerie)
+    .bind(body.inapp_devis)
+    .bind(body.inapp_stock)
+    .bind(body.inapp_labo)
+    .bind(body.inapp_visites)
+    .bind(body.email_rdv)
+    .bind(body.email_messagerie)
+    .bind(body.email_devis)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let prefs = MeNotificationPreferencesResponse::from_row(&row)?;
+
+    tracing::info!(user_id = %claims.sub, "me notification preferences updated");
+
+    Ok(Json(prefs))
+}

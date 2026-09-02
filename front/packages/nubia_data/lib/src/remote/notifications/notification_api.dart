@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/notifications/notification_dto.dart';
 import 'package:nubia_data/src/remote/notifications/notification_preferences_dto.dart';
+import 'package:nubia_data/src/remote/notifications/pro_notification_preferences_dto.dart';
 
 class NotificationApi {
   final Dio _dio;
@@ -50,5 +51,21 @@ class NotificationApi {
       '/account/notification-preferences',
       data: dto.toJson(),
     );
+  }
+
+  Future<ProNotificationPreferencesDto> getMePreferences() async {
+    final response =
+        await _dio.get<Map<String, dynamic>>('/me/notification-preferences');
+    return ProNotificationPreferencesDto.fromJson(response.data!);
+  }
+
+  Future<ProNotificationPreferencesDto> updateMePreferences(
+    ProNotificationPreferencesDto dto,
+  ) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/me/notification-preferences',
+      data: dto.toJson(),
+    );
+    return ProNotificationPreferencesDto.fromJson(response.data!);
   }
 }

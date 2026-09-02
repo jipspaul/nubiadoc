@@ -4,6 +4,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/order_detail/order_detail_bloc.dart';
 import '../features/devis/devis_bloc.dart';
+import '../features/notification_prefs/pharma_notification_prefs_cubit.dart';
 import '../features/pharma_messaging/pharma_messaging_bloc.dart';
 import '../features/pickup_scan/pickup_scan_cubit.dart';
 import '../features/stock/stock_bloc.dart';
@@ -59,6 +60,13 @@ void registerPharma(GetIt gi) {
 
   gi.registerFactory<PickupScanCubit>(
     () => PickupScanCubit(confirmPickup: gi<ConfirmPharmacyPickupUseCase>()),
+  );
+
+  gi.registerFactory<PharmaNotificationPrefsCubit>(
+    () => PharmaNotificationPrefsCubit(
+      get: gi<GetProNotificationPreferencesUseCase>(),
+      update: gi<UpdateProNotificationPreferencesUseCase>(),
+    ),
   );
 
   gi.registerFactory<OrderDetailBloc>(

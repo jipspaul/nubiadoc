@@ -5,6 +5,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../features/home/pharma_home_page.dart';
 import '../features/login/login_page.dart';
+import '../features/notification_prefs/pharma_notification_prefs_page.dart';
 import '../features/order_detail/order_detail_page.dart';
 import '../features/pickup_scan/pickup_scan_page.dart';
 
@@ -17,6 +18,7 @@ class AppRouter {
   static const stock = '/stock';
   static const messages = '/messages';
   static const devis = '/devis';
+  static const notificationPreferences = '/notification-preferences';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -63,6 +65,10 @@ class AppRouter {
           path: '/orders/:id/pickup',
           builder: (_, state) =>
               PickupScanPage(orderId: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: notificationPreferences,
+          builder: (_, __) => const PharmaNotificationPrefsPage(),
         ),
         GoRoute(path: stock, builder: (_, __) => const PharmaHomePage()),
         GoRoute(path: messages, builder: (_, __) => const PharmaHomePage()),

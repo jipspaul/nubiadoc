@@ -38,6 +38,11 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         .route("/v1/notifications", get(notifications::list_notifications))
         .route(
+            "/v1/me/notification-preferences",
+            get(notifications::get_me_notification_preferences)
+                .patch(notifications::patch_me_notification_preferences),
+        )
+        .route(
             "/v1/notifications/read-all",
             axum::routing::post(notifications::mark_all_notifications_read),
         )

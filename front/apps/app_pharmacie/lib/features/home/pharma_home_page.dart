@@ -7,6 +7,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pharma_config.dart';
+import '../../router/app_router.dart';
 import '../../session/pharma_auth_cubit.dart';
 import '../devis/devis_bloc.dart';
 import '../devis/devis_page.dart';
@@ -49,6 +50,14 @@ class PharmaHomePage extends StatelessWidget {
       // clique une destination dans le rail/drawer.
       currentRoute: GoRouterState.of(context).uri.path,
       onNavigate: (destination) => context.go(destination.route),
+      trailingActions: [
+        IconButton(
+          key: const Key('pharma_notification_prefs_button'),
+          tooltip: 'Préférences de notifications',
+          icon: const Icon(Icons.settings_outlined),
+          onPressed: () => context.push(AppRouter.notificationPreferences),
+        ),
+      ],
       bodyBuilder: (ctx, destination) {
         if (destination.route == PharmaConfig.ordersRoute) {
           return MultiBlocProvider(
