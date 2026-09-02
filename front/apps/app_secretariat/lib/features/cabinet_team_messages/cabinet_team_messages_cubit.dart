@@ -31,11 +31,17 @@ class CabinetTeamMessagesError extends CabinetTeamMessagesState {
 class CabinetTeamMessagesLoaded extends CabinetTeamMessagesState {
   const CabinetTeamMessagesLoaded({
     required this.messages,
+    this.practitioners = const [],
     this.sending = false,
     this.sendError,
   });
 
   final List<CabinetTeamMessage> messages;
+
+  /// Roster réel du cabinet (#6245) : remplace les identités de maquette
+  /// figées du panneau « Équipe » — même source que l'agenda secrétariat,
+  /// déjà accessible sans restriction admin.
+  final List<CabinetPractitioner> practitioners;
   final bool sending;
   final String? sendError;
 
@@ -46,39 +52,53 @@ class CabinetTeamMessagesLoaded extends CabinetTeamMessagesState {
 
   CabinetTeamMessagesLoaded copyWith({
     List<CabinetTeamMessage>? messages,
+    List<CabinetPractitioner>? practitioners,
     bool? sending,
     String? sendError,
     bool clearSendError = false,
   }) =>
       CabinetTeamMessagesLoaded(
         messages: messages ?? this.messages,
+        practitioners: practitioners ?? this.practitioners,
         sending: sending ?? this.sending,
         sendError: clearSendError ? null : (sendError ?? this.sendError),
       );
 
   @override
-  List<Object?> get props => [messages, sending, sendError];
+  List<Object?> get props => [messages, practitioners, sending, sendError];
 }
 
 class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
   CabinetTeamMessagesCubit({
     required ListCabinetTeamMessagesUseCase listMessages,
     required SendCabinetTeamMessageUseCase sendMessage,
+    required ListCabinetPractitionersUseCase listPractitioners,
   })  : _list = listMessages,
         _send = sendMessage,
+        _listPractitioners = listPractitioners,
         super(const CabinetTeamMessagesLoading()) {
     load();
   }
 
   final ListCabinetTeamMessagesUseCase _list;
   final SendCabinetTeamMessageUseCase _send;
+  final ListCabinetPractitionersUseCase _listPractitioners;
 
   Future<void> load() async {
     emit(const CabinetTeamMessagesLoading());
-    final result = await _list();
+    final messagesFuture = _list();
+    final practitionersFuture = _listPractitioners();
+    final result = await messagesFuture;
+    final practitioners = (await practitionersFuture).fold(
+      (_) => const <CabinetPractitioner>[],
+      (p) => p,
+    );
     result.fold(
       (failure) => emit(CabinetTeamMessagesError(failure.message)),
-      (messages) => emit(CabinetTeamMessagesLoaded(messages: messages)),
+      (messages) => emit(CabinetTeamMessagesLoaded(
+        messages: messages,
+        practitioners: practitioners,
+      )),
     );
   }
 
