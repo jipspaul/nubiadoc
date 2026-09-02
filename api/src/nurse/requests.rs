@@ -223,6 +223,22 @@ pub async fn create_visit_request(
         }
     }
 
+    // Re-lit la ligne réellement persistée : `offer_visit_to_nurses` (SECURITY
+    // DEFINER) pose `status` ET `offered_at` côté SQL, donc `visit` (issu du
+    // RETURNING de l'INSERT, avant fan-out) est périmé sur ces deux colonnes.
+    let out = if nurse_ids.is_empty() {
+        visit
+    } else {
+        let row = sqlx::query(&format!(
+            "SELECT {VISIT_COLUMNS} FROM visit_request WHERE id = $1",
+        ))
+        .bind(request_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        visit_from_row(&row)?
+    };
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     // Push + WS après commit (fire-and-forget).
@@ -236,15 +252,7 @@ pub async fn create_visit_request(
         );
     }
 
-    // Re-lit le statut réel (offered si des offres ont été posées, sinon requested).
-    let status = if nurse_ids.is_empty() {
-        "requested"
-    } else {
-        "offered"
-    };
     tracing::info!(visit_request_id = %request_id, offers = nurse_ids.len(), "visit request created");
-    let mut out = visit;
-    out.status = status.to_string();
     Ok((StatusCode::CREATED, Json(out)))
 }
 
