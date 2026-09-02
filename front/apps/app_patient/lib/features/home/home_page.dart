@@ -79,7 +79,7 @@ class _HomeContentState extends State<_HomeContent>
     with SingleTickerProviderStateMixin {
   static const _staggerMs = 60;
   static const _sectionDurationMs = 320;
-  static const _sectionCount = 7;
+  static const _sectionCount = 6;
   static const _totalMs = _sectionDurationMs + (_sectionCount - 1) * _staggerMs;
 
   late final AnimationController _controller = AnimationController(
@@ -180,21 +180,19 @@ class _HomeContentState extends State<_HomeContent>
           ),
         ),
         if (heroVisible) const SizedBox(height: 20),
-        _staggered(context, 2, _MetricsRow(summary: s)),
-        const SizedBox(height: 28),
         if (hasShortcuts)
           _staggered(
             context,
-            3,
+            2,
             _TodoSection(summary: s),
           ),
         if (hasShortcuts) const SizedBox(height: 28),
-        _staggered(context, 4, const _QuickAccessGrid()),
+        _staggered(context, 3, const _QuickAccessGrid()),
         if (plan != null) ...[
           const SizedBox(height: 28),
           _staggered(
             context,
-            5,
+            4,
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -208,7 +206,7 @@ class _HomeContentState extends State<_HomeContent>
         if (allClear)
           _staggered(
             context,
-            6,
+            5,
             const Padding(
               padding: EdgeInsets.only(top: 24),
               child: NubiaEmptyState(
@@ -220,64 +218,6 @@ class _HomeContentState extends State<_HomeContent>
             ),
           ),
       ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-/// Deux tuiles de métriques : à signer / à régler. Le prochain RDV vit
-/// désormais dans la carte héros (`HeroAppointmentCard`, #5198).
-class _MetricsRow extends StatelessWidget {
-  const _MetricsRow({required this.summary});
-
-  final DashboardSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = summary;
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: _PressableScale(
-              pressable: s.documentsToSign > 0,
-              child: MetricTile(
-                key: const Key('card_documents'),
-                icon: Icons.edit_document,
-                value: '${s.documentsToSign}',
-                label: 'À signer',
-                variant: s.documentsToSign > 0
-                    ? MetricTileVariant.warning
-                    : MetricTileVariant.neutral,
-                // Les devis à signer vivent dans le wedge financier.
-                onTap: s.documentsToSign > 0
-                    ? () => context.push('/financial')
-                    : null,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _PressableScale(
-              pressable: s.pendingPaymentsCents > 0,
-              child: MetricTile(
-                key: const Key('card_financial'),
-                icon: Icons.receipt_long_outlined,
-                value: NubiaMoney.formatCents(s.pendingPaymentsCents),
-                label: 'À régler',
-                variant: s.pendingPaymentsCents > 0
-                    ? MetricTileVariant.danger
-                    : MetricTileVariant.neutral,
-                onTap: s.pendingPaymentsCents > 0
-                    ? () => context.push('/financial')
-                    : null,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -784,42 +724,3 @@ class _TreatmentProgressTrack extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-
-/// Retour tactile discret : réduit [child] à 0.97 pendant l'appui.
-///
-/// N'utilise pas [GestureDetector] pour ne pas entrer en concurrence avec le
-/// geste de tap propre à [child] (ex. l'[InkWell] interne d'un [MetricTile])
-/// dans l'arène de gestes ; [Listener] observe le pointeur sans l'intercepter.
-class _PressableScale extends StatefulWidget {
-  const _PressableScale({required this.child, this.pressable = true});
-
-  final Widget child;
-  final bool pressable;
-
-  @override
-  State<_PressableScale> createState() => _PressableScaleState();
-}
-
-class _PressableScaleState extends State<_PressableScale> {
-  bool _pressed = false;
-
-  void _setPressed(bool value) {
-    if (_pressed != value) setState(() => _pressed = value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: widget.pressable ? (_) => _setPressed(true) : null,
-      onPointerUp: widget.pressable ? (_) => _setPressed(false) : null,
-      onPointerCancel: widget.pressable ? (_) => _setPressed(false) : null,
-      child: AnimatedScale(
-        scale: _pressed && widget.pressable ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        curve: Curves.easeOut,
-        child: widget.child,
-      ),
-    );
-  }
-}
