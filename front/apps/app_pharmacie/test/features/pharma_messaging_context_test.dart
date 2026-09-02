@@ -91,7 +91,7 @@ void main() {
 
       expect(find.byKey(const Key('pharma_messaging_context_panel')),
           findsOneWidget);
-      expect(find.text('Patiente'), findsOneWidget);
+      expect(find.text('Patient'), findsOneWidget);
       expect(find.text('Commandes'), findsOneWidget);
       expect(find.text("Horaires aujourd'hui"), findsOneWidget);
       expect(find.byKey(const Key('pharma_messaging_ctx_note')),
