@@ -129,9 +129,7 @@ async fn patch_partial_persists_and_leaves_other_keys_untouched() {
                 .uri("/v1/me/notification-preferences")
                 .header("Authorization", format!("Bearer {}", token))
                 .header("content-type", "application/json")
-                .body(Body::from(
-                    json!({"inapp_labo": false}).to_string(),
-                ))
+                .body(Body::from(json!({"inapp_labo": false}).to_string()))
                 .unwrap(),
         )
         .await
@@ -188,9 +186,7 @@ async fn patch_unknown_key_rejected() {
                 .uri("/v1/me/notification-preferences")
                 .header("Authorization", format!("Bearer {}", token))
                 .header("content-type", "application/json")
-                .body(Body::from(
-                    json!({"inapp_prevention": false}).to_string(),
-                ))
+                .body(Body::from(json!({"inapp_prevention": false}).to_string()))
                 .unwrap(),
         )
         .await
