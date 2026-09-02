@@ -60,6 +60,27 @@ fn make_patient_token(sub: Uuid, account_id: Uuid) -> String {
     .unwrap()
 }
 
+fn make_secretary_token(sub: Uuid, cabinet_id: Uuid, secretariat_id: Option<Uuid>) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    encode(
+        &Header::default(),
+        &json!({
+            "sub": sub,
+            "kind": "pro",
+            "cabinet_id": cabinet_id,
+            "role": "secretary",
+            "secretariat_id": secretariat_id,
+            "exp": exp
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 /// Insère cabinet + praticien + patient + appointment `checked_in`.
 /// Retourne `(cabinet_id, prac_user_id, patient_id, appt_id)`.
 async fn insert_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid) {
@@ -544,6 +565,271 @@ async fn call_next_calls_head_of_visible_waiting_room() {
         .ok();
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+}
+
+// ── Test 5 : secrétaire scopée sur le praticien du patient → 200 + called:true
+// (#6214 — l'action primaire de l'écran salle d'attente secrétariat doit
+// fonctionner, au même périmètre R10 que `get_waiting_room`) ─────────────────
+
+#[tokio::test]
+async fn call_next_secretary_in_scope_happy_path() {
+    if !db_available() {
+        return;
+    }
+
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let secretary_user_id = Uuid::new_v4();
+    let secretariat_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let appt_id = Uuid::new_v4();
+
+    {
+        let mut tx = owner_db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(prac_user_id)
+        .bind(format!("callnext-sec-prac+{}@nubia.test", prac_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(secretary_user_id)
+        .bind(format!("callnext-sec+{}@nubia.test", secretary_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, 'Cabinet CallNext Sec', 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed) \
+             VALUES ($1, $2, $3, $4, 'Dr CallNext Sec', 'dentaire', false)",
+        )
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(prac_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec CallNext')",
+        )
+        .bind(secretariat_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
+             VALUES ($1, $2, true)",
+        )
+        .bind(provider_id)
+        .bind(secretariat_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+             VALUES ($1, $2, 'Marc', 'Dubois')",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO appointment \
+             (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, checkin_at) \
+             VALUES ($1, $2, $3, $4, now() - interval '30 minutes', now() + interval '30 minutes', \
+                     'checked_in', 'détartrage', now() - interval '10 minutes')",
+        )
+        .bind(appt_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let server = app(state);
+
+    let token = make_secretary_token(secretary_user_id, cabinet_id, Some(secretariat_id));
+    let response = server
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/waiting-room/call-next")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["called"], true);
+    assert_eq!(body["appointment_id"], appt_id.to_string());
+
+    // Cleanup.
+    let mut tx = owner_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider_secretariat WHERE secretariat_id = $1")
+        .bind(secretariat_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM secretariat WHERE id = $1")
+        .bind(secretariat_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(secretary_user_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+}
+
+// ── Test 6 : secrétaire sans secretariat_id (JWT incomplet) → 200 + called:false,
+// jamais 403 — pas d'appel hors périmètre plutôt qu'une erreur ─────────────────
+
+#[tokio::test]
+async fn call_next_secretary_without_scope_returns_called_false() {
+    if !db_available() {
+        return;
+    }
+
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+
+    let (cabinet_id, prac_user_id, patient_id, appt_id) = insert_fixture(&owner_db).await;
+    let secretary_user_id = Uuid::new_v4();
+
+    {
+        let mut tx = owner_db.begin().await.unwrap();
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(secretary_user_id)
+        .bind(format!(
+            "callnext-sec-noscope+{}@nubia.test",
+            secretary_user_id
+        ))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let server = app(state);
+
+    let token = make_secretary_token(secretary_user_id, cabinet_id, None);
+    let response = server
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/waiting-room/call-next")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["called"], false);
+
+    cleanup_fixture(&owner_db, cabinet_id, prac_user_id, patient_id, appt_id).await;
+    let mut tx = owner_db.begin().await.unwrap();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(secretary_user_id)
         .execute(&mut *tx)
         .await
         .ok();
