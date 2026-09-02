@@ -656,8 +656,7 @@ pub async fn me(
     etx.commit().await.map_err(|_| AppError::Internal)?;
 
     let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
-    let first_name: Option<String> =
-        row.try_get("first_name").map_err(|_| AppError::Internal)?;
+    let first_name: Option<String> = row.try_get("first_name").map_err(|_| AppError::Internal)?;
     let last_name: Option<String> = row.try_get("last_name").map_err(|_| AppError::Internal)?;
     // #6170 (même cause que #6165) : le shell pro n'affiche jamais l'identité
     // réelle faute de display_name exposé par /me — first_name/last_name
@@ -738,9 +737,8 @@ pub async fn me(
             .map(|r| {
                 let pharmacy_id: Uuid = r.try_get("pharmacy_id").map_err(|_| AppError::Internal)?;
                 let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
-                let pharmacy_name: String = r
-                    .try_get("pharmacy_name")
-                    .map_err(|_| AppError::Internal)?;
+                let pharmacy_name: String =
+                    r.try_get("pharmacy_name").map_err(|_| AppError::Internal)?;
                 Ok(PharmacyMembership {
                     pharmacy_id,
                     role,
