@@ -569,10 +569,10 @@ fn build_router(
         .layer(Extension(InteropSigningKey(
             std::env::var("INTEROP_SIGNING_KEY").unwrap_or_default(),
         )))
-        .layer(dev_cors_layer())
         .layer(axum::middleware::map_response(
             normalize_extractor_rejections,
         ))
+        .layer(dev_cors_layer())
         .with_state(state)
 }
 
