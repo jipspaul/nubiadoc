@@ -172,7 +172,15 @@ class ConsultationCliniquePage extends StatelessWidget {
       onNavigate: (destination) => context.go(destination.route),
       bodyBuilder: (ctx, destination) {
         if (destination.route == AppRouter.consultation) {
-          return ConsultationCliniqueBody(consultationId: consultationId);
+          // #6190 — go_router réutilise le même State en naviguant de
+          // /consultation vers /consultation?id=X (même route, param de
+          // query qui change) : sans Key dérivée de consultationId,
+          // initState() (qui déclenche le chargement) ne se rejoue jamais et
+          // le clic sur une carte de l'historique reste sans effet visible.
+          return ConsultationCliniqueBody(
+            key: ValueKey(consultationId),
+            consultationId: consultationId,
+          );
         }
         return Center(
           child: NubiaEmptyState(
