@@ -41,18 +41,36 @@ class NotificationDto {
         deepLink: deepLink,
       );
 
+  // Le backend émet des kinds préfixés/composés (ex: appointment_confirmed,
+  // order_status_changed, visit_status_changed — cf. api/src/notifications.rs
+  // `derive_deep_link` et les appels `notify::notify_*`), jamais les
+  // chaînes bare 'appointment'/'message'/'document'/'payment'. On matche
+  // donc par préfixe/famille plutôt que par égalité stricte.
   static NotificationType _parseType(String raw) {
-    switch (raw) {
-      case 'appointment':
-        return NotificationType.appointment;
-      case 'message':
-        return NotificationType.message;
-      case 'document':
-        return NotificationType.document;
-      case 'payment':
-        return NotificationType.payment;
-      default:
-        return NotificationType.other;
+    if (raw.startsWith('appointment') ||
+        raw.startsWith('visit') ||
+        raw.startsWith('waiting_room') ||
+        raw.startsWith('waiting_list') ||
+        raw.startsWith('rdv_') ||
+        raw.startsWith('recall_')) {
+      return NotificationType.appointment;
     }
+    if (raw == 'message' || raw.startsWith('review_request')) {
+      return NotificationType.message;
+    }
+    if (raw.startsWith('document') || raw.startsWith('lab_work')) {
+      return NotificationType.document;
+    }
+    if (raw.startsWith('payment') ||
+        raw == 'quote_relance' ||
+        raw.startsWith('pharmacy_quote')) {
+      return NotificationType.payment;
+    }
+    // Commandes pharmacie (click-and-collect) : bucket 'other' volontaire,
+    // c'est lui qui porte l'action "Afficher mon code" côté UI.
+    if (raw.startsWith('order') || raw.startsWith('pharmacy_order')) {
+      return NotificationType.other;
+    }
+    return NotificationType.other;
   }
 }
