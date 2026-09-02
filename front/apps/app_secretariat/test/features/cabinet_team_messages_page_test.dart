@@ -21,9 +21,6 @@ class _MockListMessages extends Mock
 
 class _MockSendMessage extends Mock implements SendCabinetTeamMessageUseCase {}
 
-class _MockListPractitioners extends Mock
-    implements ListCabinetPractitionersUseCase {}
-
 final _message1 = CabinetTeamMessage(
   id: 'm1',
   senderId: 'u1',
@@ -67,20 +64,14 @@ final _messageWithPatientReference = CabinetTeamMessage(
 void main() {
   late _MockListMessages listMessages;
   late _MockSendMessage sendMessage;
-  late _MockListPractitioners listPractitioners;
 
   setUp(() {
     listMessages = _MockListMessages();
     sendMessage = _MockSendMessage();
-    listPractitioners = _MockListPractitioners();
-    when(() => listPractitioners())
-        .thenAnswer((_) async => const Right(<CabinetPractitioner>[]));
     GetIt.instance
         .registerFactory<ListCabinetTeamMessagesUseCase>(() => listMessages);
     GetIt.instance
         .registerFactory<SendCabinetTeamMessageUseCase>(() => sendMessage);
-    GetIt.instance.registerFactory<ListCabinetPractitionersUseCase>(
-        () => listPractitioners);
     addTearDown(GetIt.instance.reset);
   });
 
@@ -285,22 +276,11 @@ void main() {
     });
   });
 
-  group('panneau « Équipe » (#5133, #6245)', () {
-    testWidgets('desktop → liste le vrai roster praticiens du cabinet',
+  group('panneau « Équipe » (#5133)', () {
+    testWidgets('desktop → liste les 4 membres avec pastille de présence',
         (tester) async {
       when(() => listMessages())
           .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
-      when(() => listPractitioners()).thenAnswer((_) async => const Right([
-            CabinetPractitioner(
-              id: 'prac-lefevre',
-              displayName: 'Dr Claire Lefèvre',
-              specialite: 'Praticienne',
-            ),
-            CabinetPractitioner(
-              id: 'prac-marin',
-              displayName: 'Dr Hugo Marin',
-            ),
-          ]));
 
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -315,47 +295,39 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const Key('team_aside_count_badge')),
-          matching: find.text('2'),
+          matching: find.text('4'),
         ),
         findsOneWidget,
       );
 
-      expect(find.byKey(const Key('team_member_prac-lefevre')), findsOneWidget);
-      expect(find.text('Dr Claire Lefèvre'), findsOneWidget);
-      expect(find.text('Praticienne'), findsOneWidget);
+      expect(find.byKey(const Key('team_member_SL')), findsOneWidget);
+      expect(find.text('Sarah Lemoine'), findsOneWidget);
+      expect(find.text('Secrétaire · vous'), findsOneWidget);
 
-      expect(find.byKey(const Key('team_member_prac-marin')), findsOneWidget);
-      expect(find.text('Dr Hugo Marin'), findsOneWidget);
-      expect(find.text('Praticien'), findsOneWidget);
+      expect(find.byKey(const Key('team_member_AR')), findsOneWidget);
+      expect(find.text('Dr Amélie Rousseau'), findsOneWidget);
+      expect(find.text('Praticienne · en consultation'), findsOneWidget);
 
-      // #6245 : plus aucune identité de maquette (Sarah Lemoine, Dr Amélie
-      // Rousseau, Dr Marc Lefèvre, Claire Béranger) ni statut de présence
-      // inventé.
-      expect(find.text('Sarah Lemoine'), findsNothing);
-      expect(find.text('Dr Amélie Rousseau'), findsNothing);
-      expect(find.text('Dr Marc Lefèvre'), findsNothing);
-      expect(find.text('Claire Béranger'), findsNothing);
-    });
+      expect(find.byKey(const Key('team_member_ML')), findsOneWidget);
+      expect(find.text('Dr Marc Lefèvre'), findsOneWidget);
+      expect(find.text('Praticien · absent'), findsOneWidget);
 
-    testWidgets(
-        'desktop → roster praticiens indisponible → panneau « Équipe » masqué '
-        '(pas de donnée inventée)', (tester) async {
-      when(() => listMessages())
-          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
-      when(() => listPractitioners()).thenAnswer(
-        (_) async => const Left(ServerFailure(message: 'Erreur serveur.')),
+      expect(find.byKey(const Key('team_member_CB')), findsOneWidget);
+      expect(find.text('Claire Béranger'), findsOneWidget);
+      expect(find.text('Assistante'), findsOneWidget);
+
+      final presentPastille = tester.widget<Container>(
+        find.byKey(const Key('team_member_status_SL')),
       );
+      final presentDecoration =
+          presentPastille.decoration! as BoxDecoration;
+      expect(presentDecoration.color, NubiaColors.successFg);
 
-      tester.view.physicalSize = const Size(1400, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(buildPage());
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('team_aside')), findsOneWidget);
-      expect(find.text('Équipe'), findsNothing);
+      final absentPastille = tester.widget<Container>(
+        find.byKey(const Key('team_member_status_ML')),
+      );
+      final absentDecoration = absentPastille.decoration! as BoxDecoration;
+      expect(absentDecoration.color, NubiaColors.n300);
     });
 
     testWidgets('étroit (mobile) → panneau « Équipe » masqué', (tester) async {
@@ -912,43 +884,10 @@ void main() {
     });
 
     testWidgets(
-        'desktop → aucune référence citée aujourd\'hui → récap masqué '
-        '(#6245, pas de donnée inventée)', (tester) async {
+        'desktop → récap « Éléments cités aujourd\'hui » dans le panneau Équipe',
+        (tester) async {
       when(() => listMessages())
           .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
-
-      tester.view.physicalSize = const Size(1400, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(buildPage());
-      await tester.pumpAndSettle();
-
-      expect(
-        find.byKey(const Key('team_aside_cited_references')),
-        findsNothing,
-      );
-      expect(find.text('Pharmacie du Théâtre'), findsNothing);
-    });
-
-    testWidgets(
-        'desktop → récap « Éléments cités aujourd\'hui » dérivé des vraies '
-        'références du fil (#6245)', (tester) async {
-      final citedToday = CabinetTeamMessage(
-        id: 'm9',
-        senderId: 'u1',
-        senderName: 'Dr Martin',
-        body: 'On envoie une demande au labo.',
-        createdAt: DateTime.now(),
-        reference: const CabinetTeamMessageReference(
-          type: CabinetTeamMessageReferenceType.labWorkOrder,
-          targetId: 'lab1',
-          title: 'Couronne · dent 26',
-          subtitle: 'Travaux labo',
-        ),
-      );
-      when(() => listMessages()).thenAnswer((_) async => Right([citedToday]));
 
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -973,6 +912,17 @@ void main() {
       );
       expect(
         find.descendant(of: recap, matching: find.text('Travaux labo')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: recap, matching: find.text('Demande de stock')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: recap,
+          matching: find.text('Pharmacie du Théâtre'),
+        ),
         findsOneWidget,
       );
     });

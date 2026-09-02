@@ -23,7 +23,6 @@ class CabinetTeamMessagesPage extends StatelessWidget {
       create: (_) => CabinetTeamMessagesCubit(
         listMessages: GetIt.instance<ListCabinetTeamMessagesUseCase>(),
         sendMessage: GetIt.instance<SendCabinetTeamMessageUseCase>(),
-        listPractitioners: GetIt.instance<ListCabinetPractitionersUseCase>(),
       ),
       child: const _TeamMessagesScaffold(),
     );
@@ -123,12 +122,6 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
         final pinnedMessages = state is CabinetTeamMessagesLoaded
             ? state.pinnedMessages
             : const <CabinetTeamMessage>[];
-        final practitioners = state is CabinetTeamMessagesLoaded
-            ? state.practitioners
-            : const <CabinetPractitioner>[];
-        final loadedMessages = state is CabinetTeamMessagesLoaded
-            ? state.messages
-            : const <CabinetTeamMessage>[];
         final thread = Column(
           children: [
             Expanded(
@@ -161,11 +154,7 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(child: thread),
-                _TeamAside(
-                  pinnedMessages: pinnedMessages,
-                  teamMembers: _teamMembersFrom(practitioners),
-                  citedReferences: _citedReferencesToday(loadedMessages),
-                ),
+                _TeamAside(pinnedMessages: pinnedMessages),
               ],
             );
           },
@@ -175,38 +164,29 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
   }
 }
 
-/// Membre du panneau « Équipe » (#5133) : roster du cabinet, visible en
-/// colonne latérale sur desktop. #6245 : plus de données de maquette figées
-/// (identités inventées, statut de présence fictif) — construit depuis le
-/// vrai roster praticiens (`ListCabinetPractitionersUseCase`, même source
-/// que l'agenda, accessible sans restriction admin). Le staff (secrétariat,
-/// assistanat) n'a pas d'équivalent non admin-gated aujourd'hui (cf.
-/// `MembersAccessCubit`) : on ne l'affiche pas plutôt que d'inventer des
-/// identités.
+/// Membre du panneau « Équipe » (#5133) : roster + présence du cabinet,
+/// visible en colonne latérale sur desktop pour savoir depuis le comptoir
+/// qui est disponible. Données fictives verbatim de la maquette design-v2 en
+/// attendant une API de présence dédiée (aucune ne réunit aujourd'hui tous
+/// les rôles du cabinet sans restriction admin, cf. `MembersAccessCubit`).
 class _TeamMember {
   const _TeamMember({
-    required this.id,
     required this.name,
     required this.subtitle,
+    required this.initials,
+    required this.present,
   });
 
-  final String id;
   final String name;
   final String subtitle;
+  final String initials;
+  final bool present;
 }
 
-List<_TeamMember> _teamMembersFrom(List<CabinetPractitioner> practitioners) => [
-      for (final practitioner in practitioners)
-        _TeamMember(
-          id: practitioner.id,
-          name: practitioner.displayName,
-          subtitle: practitioner.specialite ?? 'Praticien',
-        ),
-    ];
-
 /// Ligne du récap « Éléments cités aujourd'hui » (#5131) : objets produit
-/// référencés dans le fil du jour. #6245 : dérivé des vraies références
-/// portées par [CabinetTeamMessage.reference] (plus de données de maquette).
+/// référencés dans le fil du jour, verbatim de la maquette design-v2.
+/// Données fictives en attendant que le fil expose vraiment `reference`
+/// (même limite que [_TeamMember] ci-dessus : pas d'agrégat serveur dédié).
 class _CitedReference {
   const _CitedReference({
     required this.icon,
@@ -219,34 +199,50 @@ class _CitedReference {
   final String subtitle;
 }
 
-List<_CitedReference> _citedReferencesToday(List<CabinetTeamMessage> messages) {
-  final now = DateTime.now();
-  final seenTargetIds = <String>{};
-  final result = <_CitedReference>[];
-  for (final message in messages) {
-    final reference = message.reference;
-    if (reference == null) continue;
-    if (!NubiaDate.isSameDay(message.createdAt, now)) continue;
-    if (!seenTargetIds.add(reference.targetId)) continue;
-    result.add(_CitedReference(
-      icon: _referenceIcon(reference.type),
-      title: reference.title,
-      subtitle: reference.subtitle,
-    ));
-  }
-  return result;
-}
+const _citedReferencesToday = [
+  _CitedReference(
+    icon: Icons.precision_manufacturing,
+    title: 'Couronne · dent 26',
+    subtitle: 'Travaux labo',
+  ),
+  _CitedReference(
+    icon: Icons.inventory_2,
+    title: 'Demande de stock',
+    subtitle: 'Pharmacie du Théâtre',
+  ),
+];
+
+const _teamMembers = [
+  _TeamMember(
+    name: 'Sarah Lemoine',
+    subtitle: 'Secrétaire · vous',
+    initials: 'SL',
+    present: true,
+  ),
+  _TeamMember(
+    name: 'Dr Amélie Rousseau',
+    subtitle: 'Praticienne · en consultation',
+    initials: 'AR',
+    present: true,
+  ),
+  _TeamMember(
+    name: 'Dr Marc Lefèvre',
+    subtitle: 'Praticien · absent',
+    initials: 'ML',
+    present: false,
+  ),
+  _TeamMember(
+    name: 'Claire Béranger',
+    subtitle: 'Assistante',
+    initials: 'CB',
+    present: true,
+  ),
+];
 
 class _TeamAside extends StatelessWidget {
-  const _TeamAside({
-    required this.pinnedMessages,
-    required this.teamMembers,
-    required this.citedReferences,
-  });
+  const _TeamAside({required this.pinnedMessages});
 
   final List<CabinetTeamMessage> pinnedMessages;
-  final List<_TeamMember> teamMembers;
-  final List<_CitedReference> citedReferences;
 
   @override
   Widget build(BuildContext context) {
@@ -272,26 +268,24 @@ class _TeamAside extends StatelessWidget {
                     _PinnedNotice(message: pinnedMessages.first),
                     const SizedBox(height: 20),
                   ],
-                  if (teamMembers.isNotEmpty) ...[
-                    Row(
-                      children: [
-                        Icon(Icons.groups, size: 20, color: cs.onSurfaceVariant),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Équipe',
-                          style: textTheme.titleMedium
-                              ?.copyWith(color: cs.onSurface),
-                        ),
-                        const SizedBox(width: 8),
-                        _TeamCountBadge(count: teamMembers.length),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    for (final member in teamMembers)
-                      _TeamMemberRow(member: member),
-                    const SizedBox(height: 20),
-                  ],
-                  _CitedReferencesRecap(citedReferences: citedReferences),
+                  Row(
+                    children: [
+                      Icon(Icons.groups, size: 20, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Équipe',
+                        style: textTheme.titleMedium
+                            ?.copyWith(color: cs.onSurface),
+                      ),
+                      const SizedBox(width: 8),
+                      _TeamCountBadge(count: _teamMembers.length),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  for (final member in _teamMembers)
+                    _TeamMemberRow(member: member),
+                  const SizedBox(height: 20),
+                  const _CitedReferencesRecap(),
                 ],
               ),
             ),
@@ -341,12 +335,33 @@ class _TeamMemberRow extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Padding(
-      key: Key('team_member_${member.id}'),
+      key: Key('team_member_${member.initials}'),
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          NubiaAvatar(initials: initialsFrom(member.name), radius: 18),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              NubiaAvatar(initials: member.initials, radius: 18),
+              Positioned(
+                right: -1,
+                bottom: -1,
+                child: Container(
+                  key: Key('team_member_status_${member.initials}'),
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: member.present
+                        ? NubiaColors.successFg
+                        : NubiaColors.n300,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: cs.surface, width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -450,14 +465,10 @@ class _PinnedNotice extends StatelessWidget {
 /// Récap « Éléments cités aujourd'hui » (#5131) : objets produit référencés
 /// dans le fil, en-tête + icône `link` puis une ligne par objet.
 class _CitedReferencesRecap extends StatelessWidget {
-  const _CitedReferencesRecap({required this.citedReferences});
-
-  final List<_CitedReference> citedReferences;
+  const _CitedReferencesRecap();
 
   @override
   Widget build(BuildContext context) {
-    if (citedReferences.isEmpty) return const SizedBox.shrink();
-
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -479,7 +490,8 @@ class _CitedReferencesRecap extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        for (final cited in citedReferences) _CitedReferenceRow(cited: cited),
+        for (final cited in _citedReferencesToday)
+          _CitedReferenceRow(cited: cited),
       ],
     );
   }
