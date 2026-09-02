@@ -194,7 +194,14 @@ class _LoadedViewState extends State<_LoadedView> {
                   segments: const ['À venir', 'Historique'],
                   counts: [upcoming.length, history.length],
                   selectedIndex: _selectedIndex,
-                  onChanged: (i) => setState(() => _selectedIndex = i),
+                  onChanged: (i) {
+                    setState(() => _selectedIndex = i);
+                    if (i == 1) {
+                      context
+                          .read<MesRdvBloc>()
+                          .add(const MesRdvHistoryRequested());
+                    }
+                  },
                 ),
               ),
               _SortChip(
