@@ -12,15 +12,23 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
   final StartConsultationUseCase _startConsultation;
   final CreateAppointmentSeriesUseCase _createAppointmentSeries;
 
+  /// Id du praticien connecté (cf. `AuthSession.userId`) — restreint
+  /// systématiquement l'agenda chargé à ses propres RDV (#6213 : sans ce
+  /// filtre, un praticien voyait la journée complète du cabinet, RDV d'un
+  /// confrère inclus, sous un titre « Ma journée »).
+  final String? _practitionerId;
+
   AgendaBloc({
     required GetCabinetAgendaUseCase getAgenda,
     required ConfirmAppointmentUseCase confirmAppointment,
     required StartConsultationUseCase startConsultation,
     required CreateAppointmentSeriesUseCase createAppointmentSeries,
+    String? practitionerId,
   })  : _getAgenda = getAgenda,
         _confirmAppointment = confirmAppointment,
         _startConsultation = startConsultation,
         _createAppointmentSeries = createAppointmentSeries,
+        _practitionerId = practitionerId,
         super(const AgendaInitial()) {
     on<AgendaLoadRequested>(_onLoad);
     on<AgendaWeekChanged>(_onWeekChanged);
@@ -51,7 +59,11 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
   }) async {
     emit(const AgendaLoading());
     try {
-      final result = await _getAgenda(weekStart, includePast: includePast);
+      final result = await _getAgenda(
+        weekStart,
+        includePast: includePast,
+        practitionerId: _practitionerId,
+      );
       result.fold(
         (failure) => safeEmit(AgendaError(failure.message)),
         (entries) => safeEmit(AgendaLoaded(

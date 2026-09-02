@@ -6,9 +6,13 @@ import 'dashboard_state.dart';
 
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final GetProDashboardSummaryUseCase _getSummary;
+  final String? _practitionerId;
 
-  DashboardBloc({required GetProDashboardSummaryUseCase getSummary})
-      : _getSummary = getSummary,
+  DashboardBloc({
+    required GetProDashboardSummaryUseCase getSummary,
+    String? practitionerId,
+  })  : _getSummary = getSummary,
+        _practitionerId = practitionerId,
         super(const DashboardInitial()) {
     on<DashboardLoadRequested>(_onLoad);
   }
@@ -19,7 +23,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   ) async {
     emit(const DashboardLoading());
     try {
-      final result = await _getSummary();
+      final result = await _getSummary(practitionerId: _practitionerId);
       result.fold(
         (failure) => emit(DashboardError(failure.message)),
         (summary) => emit(DashboardLoaded(summary)),

@@ -54,5 +54,7 @@ class ProDashboardSummary {
 }
 
 abstract class CabinetDashboardRepository {
-  Future<Either<Failure, ProDashboardSummary>> getSummary();
+  Future<Either<Failure, ProDashboardSummary>> getSummary({
+    String? practitionerId,
+  });
 }

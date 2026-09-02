@@ -11,11 +11,16 @@ class GetCabinetAgendaUseCase {
   Future<Either<Failure, List<AgendaEntry>>> call(
     DateTime weekStart, {
     bool includePast = false,
+    String? practitionerId,
   }) {
     if (includePast) {
-      return _repository.list();
+      return _repository.list(practitionerId: practitionerId);
     }
     final weekEnd = weekStart.add(const Duration(days: 7));
-    return _repository.list(from: weekStart, to: weekEnd);
+    return _repository.list(
+      from: weekStart,
+      to: weekEnd,
+      practitionerId: practitionerId,
+    );
   }
 }
