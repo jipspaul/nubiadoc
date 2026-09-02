@@ -166,6 +166,11 @@ async fn cleanup_fixture(
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM consultation_clinique WHERE appointment_id = $1")
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM consultation_session WHERE id = $1")
         .bind(session_id)
         .execute(&mut *tx)
@@ -970,6 +975,162 @@ async fn complete_consultation_without_ccam_match_leaves_amo_part_null() {
     assert_eq!(
         amo_part, None,
         "sans ccam_code, amo_part ne doit jamais être fabriqué"
+    );
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
+// ── Test : séance avec note → compte-rendu finalisé (#6234) ─────────────────
+
+#[tokio::test]
+async fn complete_consultation_with_note_finalizes_consultation_clinique() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    // Simule une note déjà rédigée via PUT .../note pendant la séance.
+    let plain = b"RAS, controle dans 6 mois.";
+    let mut ciphertext = b"STUB_ENC:".to_vec();
+    ciphertext.extend(plain.iter().map(|b| b ^ 0xFF));
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "UPDATE consultation_session \
+             SET note_ciphertext = $1, note_key_ref = 'stub-key-ref' \
+             WHERE id = $2",
+        )
+        .bind(&ciphertext)
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/complete", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let cc_row = sqlx::query(
+        "SELECT cabinet_id, practitioner_id, status, content_ciphertext \
+         FROM consultation_clinique WHERE appointment_id = $1",
+    )
+    .bind(appt_id)
+    .fetch_one(&db)
+    .await
+    .expect("un compte-rendu doit être finalisé à la clôture");
+
+    let cc_cabinet_id: Uuid = cc_row.try_get("cabinet_id").unwrap();
+    let cc_practitioner_id: Uuid = cc_row.try_get("practitioner_id").unwrap();
+    let cc_status: String = cc_row.try_get("status").unwrap();
+    let cc_ciphertext: Vec<u8> = cc_row.try_get("content_ciphertext").unwrap();
+
+    assert_eq!(cc_cabinet_id, cabinet_id);
+    assert_eq!(cc_practitioner_id, prac_id);
+    assert_eq!(cc_status, "finalized");
+    assert_eq!(cc_ciphertext, ciphertext);
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
+// ── Test : séance sans note → aucun compte-rendu créé (#6234) ────────────────
+
+#[tokio::test]
+async fn complete_consultation_without_note_creates_no_consultation_clinique() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/complete", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let cc_count: i64 =
+        sqlx::query("SELECT count(*) AS n FROM consultation_clinique WHERE appointment_id = $1")
+            .bind(appt_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("n")
+            .unwrap();
+    assert_eq!(
+        cc_count, 0,
+        "sans note rédigée, aucun compte-rendu ne doit être fabriqué"
     );
 
     cleanup_fixture(
