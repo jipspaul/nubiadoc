@@ -663,6 +663,15 @@ async fn treatment_plans_list_returns_200() {
         plan["created_at"].is_string(),
         "created_at doit être une chaîne ISO 8601"
     );
+    // #6209 : progression exposée dans la liste (carte « Mon suivi » accueil patient).
+    assert_eq!(
+        plan["step_count"], 1,
+        "une phase (`requested`) attendue pour ce plan"
+    );
+    assert_eq!(
+        plan["current_phase_title"], "Phase 1 · Bilan",
+        "phase courante = première phase non `done`"
+    );
 
     let page = &v["page"];
     assert!(page["limit"].is_number(), "page.limit présent");
