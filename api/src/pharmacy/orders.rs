@@ -704,7 +704,15 @@ pub async fn get_account_order(
     Path(id): Path<Uuid>,
 ) -> Result<Json<AccountOrderDetailDto>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    // GUC patient : lecture pharmacy_order/prescription_item (policies 0108, 0109).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    // GUC compte : traversée tutelle via account_guardianship (policy 0025,
+    // requise par prescription_line_patient_read étendue en 0243).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
@@ -721,9 +729,11 @@ pub async fn get_account_order(
 
     let order = order_from_row(&row)?;
 
-    // RLS `prescription_line_patient_read` (0108) borne déjà aux lignes des
-    // ordonnances du patient courant via `app.patient_account_id` (posé
-    // ci-dessus) — même requête que `get_pharmacy_order_items`.
+    // RLS `prescription_line_patient_read` (0108, étendue par 0243) borne
+    // déjà aux lignes des ordonnances du patient courant OU d'un dépendant
+    // sous tutelle active, via `app.patient_account_id` et
+    // `app.current_account_id` (posés ci-dessus) — même requête que
+    // `get_pharmacy_order_items`.
     let item_rows = sqlx::query(
         "SELECT label, form, posology, duration, quantity \
          FROM prescription_item WHERE prescription_id = $1",
