@@ -29,12 +29,18 @@
 
 ## Stratégie d'URL par app (piège n°1)
 
+> Les 5 apps sont en stratégie `path` (`usePathUrlStrategy()` dans chaque
+> `bootstrap.dart`) depuis #4697 (2026-08-09, commit `5af3ea8c`) — il n'y a
+> plus d'app en stratégie hash. Naviguer via le pathname (`page.goto(base +
+> route)`), pas via `location.hash`.
+
 | App | Stratégie | Login form label e-mail |
 |---|---|---|
-| **app_patient** | `hash` (`/#/...`) | `E-mail` |
-| **app_secretariat** | `hash` (`/#/...`) | `E-mail professionnel` |
+| **app_patient** | `path` (`/...`, `usePathUrlStrategy`) | `E-mail` |
+| **app_secretariat** | `path` (`/...`, `usePathUrlStrategy`) | `E-mail professionnel` |
 | **app_practicien** | `path` (`/...`, `usePathUrlStrategy`) | `E-mail professionnel` |
 | **app_pharmacie** | `path` (`/...`, `usePathUrlStrategy`) | `E-mail professionnel` |
+| **app_infirmiere** | `path` (`/...`, `usePathUrlStrategy`) | `E-mail professionnel` |
 
 ## Comptes de test (seed démo — `db/seed/`)
 
@@ -47,7 +53,7 @@
 
 ---
 
-## app_patient (hash)
+## app_patient (path)
 
 | route | auth | attendu | notes |
 |---|---|---|---|
@@ -96,7 +102,7 @@
 | `/consultation` | authed | séance clinique | gated clinique ; picker CCAM réel (`/v1/ccam/acts`) |
 | `/ordonnances` | authed | ordonnances | `/ordonnances/new?patientId=` = formulaire de prescription |
 
-## app_secretariat (hash)
+## app_secretariat (path)
 
 | route | auth | attendu | notes |
 |---|---|---|---|
@@ -158,10 +164,11 @@ signal qui correspond à l'un d'eux **n'est pas un bug**.
    connecter** (comptes ci-dessus) avant de tester une route `authed`. Vérifier
    `/v1/me`, `/v1/dashboard` → 200 avant de conclure à un bug backend.
 
-3. **Mauvaise stratégie d'URL → canvas blanc.** app_practicien route par
-   pathname, patient/secretariat par `#hash`. Naviguer via `page.goto` sur une
-   app hash (ou via `location.hash` sur l'app path) laisse la page inchangée →
-   faux « blank-canvas ». Utiliser la colonne **url** ci-dessus.
+3. **Mauvaise stratégie d'URL → canvas blanc.** Les 5 apps routent par
+   pathname (`usePathUrlStrategy()`, depuis #4697) — il n'y a plus d'app en
+   stratégie hash. Naviguer via `location.hash` (au lieu de `page.goto`)
+   laisse la page inchangée → faux « blank-canvas ». Utiliser la colonne
+   **url** ci-dessus.
 
 4. **Env déployé en retard sur `main`.** Le front déployé peut être derrière
    `main` (fixes mergés non redéployés). Avant d'ouvrir une issue front,
