@@ -253,7 +253,17 @@ Note méthode (leçons apprises ce run) : (1) un clic sur un match `.find()` amb
 | patient | Soins à domicile (liste + formulaire Nouvelle demande) | 31 | 12 | 11 | 0 | 1 (« Obtenir un devis » sans géoloc -> spinner infini, #6218) | 2026-09-02T15:35:00Z |
 | patient | Profil -> Couverture santé | 9 | 0 (inventaire + vérification de pré-remplissage) | - | - | - | 2026-09-02T15:50:00Z |
 
-**TOTAL ronde : 390 contrôles inventoriés, 124 activés, 110 OK, 0 mort confirmé, 6 cassés.**
+| pharmacie | /messages | 15 | 9 | 9 | 0 | 0 | 2026-09-02T16:35:00Z |
+| pharmacie | /devis | 15 | 5 | 4 | 0 | 0 | 2026-09-02T16:30:00Z |
+| pharmacie | /stock | 28 | 10 | 3 | 0 | 0 | 2026-09-02T16:30:00Z |
+
+**TOTAL ronde : 448 contrôles inventoriés, 148 activés, 126 OK, 0 mort confirmé, 6 cassés.**
+
+> Sur `/messages`, les 6 « MORT » du passage automatisé ont été **rejoués un par un sur écran frais** et sont tous OK :
+> ouvrir la conversation « Marc D. » émet bien `GET /v1/pharmacy/conversations/:id/messages` et affiche le fil
+> complet + le composeur + les réponses rapides ; le filtre « Urgentes » modifie bien la liste. La cause des faux
+> positifs est encore l'enchaînement des clics : le filtre « Non lues (0) » activé juste avant vidait la liste,
+> donc les lignes de conversation n'existaient plus aux coordonnées mémorisées.
 
 ### Détail des 2 « CASSÉ » de la fiche patient
 - **« Photo »** (facette de type de document) : `401 unauthorized` — **artefact de test**, le JWT (15 min) avait expiré pendant l'audit ; rejoué avec un token frais, la facette répond 200. **Non filé.**

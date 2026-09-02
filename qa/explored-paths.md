@@ -1063,3 +1063,31 @@ RE-VERIFIE CLEAN (0 finding, prouve live) : implant-passport patient (list sans 
 | adversarial-formulaire-homecare-20260902 | 2026-09-02T15:30:00Z | OK | Champs requis vides -> boutons désactivés ; 251 caractères -> aucun débordement ; garde 422 notes + SnackBar affichée |
 | coverage-setup-prefill-verified-nonbug | 2026-09-02T15:50:00Z | OK | L'écran Couverture santé EST pré-rempli (Régime général / AmcB / N2) — l'arbre Semantics ne porte que les labels, faux positif écarté par screenshot |
 | praticien-fiche-patient-controls-audit | 2026-09-02T15:20:00Z | OK | 24 contrôles activés (filtres de journal, étiquettes, 13 facettes de documents, notes) — 20 OK, 0 mort, 2 « cassés » écartés (401 token expiré + 422 légitime) |
+
+### Fin de ronde (16:00-16:40 UTC) — 2 findings de plus (#6220, #6222)
+
+**B3 DOCUMENTS — cloisonnement CLEAN** (sur le PDF d'ordonnance généré par la signature de ce run,
+`80e69699-…`, `issuer:"Dr Hugo Marin"` — ce qui reconfirme au passage le fix #6005 sur la provenance) :
+`GET /v1/documents/:id` → **403** avec les tokens praticien, secrétariat, pharma ET nurse ;
+**404** sur un id inconnu (anti-énumération) ; **401** sans token ; **502** pour le propriétaire
+(gap signer de stockage déjà tracké #4626, non refilé).
+
+**X3 — pharmacie → patient : CLEAN.** `POST /pharmacy/orders/:id/accept` puis `/ready` → 200 ; côté patient
+`GET /v1/account/orders/:id` reflète immédiatement `status:"ready"` avec `ready_at` renseigné (timeline
+alimentée). La route de détail patient est `/v1/account/orders/:id` (et non `/account/pharmacy-orders/:id`,
+qui n'existe pas → 404).
+
+**Découverte sur ce parcours → #6220** : test A/B strict, même token tuteur, même praticien, même pharmacie —
+ordonnance de **Marc lui-même** → `lines:[{Ibuprofene 400mg,…}]` ; ordonnance de sa **proche Jade** →
+`lines:[]`, alors que la pharmacie lit la ligne (`/v1/pharmacy/orders/:id/items` → 200). Cause : la policy RLS
+`prescription_line_patient_read` (`db/migrations/0108_prescription_line_rls.sql:34-42`) ne suit que le chemin
+**direct** `prescription_item → prescription → patient.patient_account_id`, sans le chemin de tutelle.
+
+**#6222 (P3)** : le panneau de contexte de la messagerie pharmacie est intitulé « Patiente » en dur pour tous
+(`pharma_messaging_page.dart:1161`, verrouillé par un test `:94`).
+
+| b3-documents-cloisonnement-20260902 | 2026-09-02T16:20:00Z | OK | 403 x4 rôles, 404 id inconnu, 401 sans token, 502 propriétaire (#4626 connu) ; issuer présent (#6005 tient) |
+| x3-pharmacy-timeline-accept-ready-fresh | 2026-09-02T16:25:00Z | OK | accept+ready 200, patient voit status ready + ready_at immédiatement via /v1/account/orders/:id |
+| account-order-lines-vides-proche | 2026-09-02T16:30:00Z | bug | #6220 P2 : test A/B, lines:[] pour l'ordonnance d'un proche vs remplie pour la sienne ; RLS 0108 ne traverse pas la tutelle |
+| pharmacie-messagerie-libelle-patiente | 2026-09-02T16:35:00Z | bug | #6222 P3 : en-tête « Patiente » en dur pour tout patient |
+| pharmacie-messages-conversations-rejouees | 2026-09-02T16:35:00Z | OK | 6 faux « morts » invalidés : ouvrir une conversation charge bien le fil ; filtre Urgentes fonctionnel |
