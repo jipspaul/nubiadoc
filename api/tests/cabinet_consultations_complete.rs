@@ -1120,15 +1120,14 @@ async fn complete_consultation_without_note_creates_no_consultation_clinique() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let cc_count: i64 = sqlx::query(
-        "SELECT count(*) AS n FROM consultation_clinique WHERE appointment_id = $1",
-    )
-    .bind(appt_id)
-    .fetch_one(&db)
-    .await
-    .unwrap()
-    .try_get("n")
-    .unwrap();
+    let cc_count: i64 =
+        sqlx::query("SELECT count(*) AS n FROM consultation_clinique WHERE appointment_id = $1")
+            .bind(appt_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("n")
+            .unwrap();
     assert_eq!(
         cc_count, 0,
         "sans note rédigée, aucun compte-rendu ne doit être fabriqué"
