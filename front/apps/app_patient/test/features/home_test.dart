@@ -201,6 +201,28 @@ void main() {
       expect(find.byKey(const Key('card_messages')), findsOneWidget);
     });
 
+    testWidgets(
+        'formate un gros montant avec séparateur de milliers (#6166)',
+        (tester) async {
+      const bigSummary = DashboardSummary(
+        upcomingAppointments: 0,
+        documentsToSign: 0,
+        pendingPaymentsCents: 102443472,
+        unreadMessages: 0,
+      );
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(bigSummary));
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.text(NubiaMoney.formatCents(102443472)), findsNWidgets(2));
+      expect(find.textContaining('1024434'), findsNothing);
+    });
+
     testWidgets('la tuile-compteur « Prochain RDV » a disparu', (tester) async {
       when(() => mockGetSummary())
           .thenAnswer((_) async => const Right(_summary));

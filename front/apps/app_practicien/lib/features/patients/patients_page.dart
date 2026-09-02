@@ -463,8 +463,7 @@ class _DetailViewState extends State<_DetailView> {
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   /// Centimes → "12,34 €" (#4045).
-  String _formatBalance(int cents) =>
-      '${(cents / 100).toStringAsFixed(2).replaceAll('.', ',')} €';
+  String _formatBalance(int cents) => NubiaMoney.formatCents(cents);
 }
 
 // ---------------------------------------------------------------------------
