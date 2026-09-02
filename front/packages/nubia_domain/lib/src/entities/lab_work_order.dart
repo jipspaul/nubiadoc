@@ -7,8 +7,8 @@ class LabWorkOrder extends Equatable {
   final String patientId;
   final String patientDisplayName;
   final String? quoteItemId;
-  final String toothFdi;
-  final String workNature;
+  final String? toothFdi;
+  final String? workNature;
   final String? appointmentId;
   final String labName;
   final int purchasePriceCents;
@@ -21,8 +21,8 @@ class LabWorkOrder extends Equatable {
     required this.patientId,
     required this.patientDisplayName,
     this.quoteItemId,
-    required this.toothFdi,
-    required this.workNature,
+    this.toothFdi,
+    this.workNature,
     this.appointmentId,
     required this.labName,
     required this.purchasePriceCents,

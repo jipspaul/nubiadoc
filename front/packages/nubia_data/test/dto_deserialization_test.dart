@@ -12,8 +12,32 @@ import 'package:nubia_data/src/remote/notifications/notification_dto.dart';
 import 'package:nubia_data/src/remote/messaging/messaging_dto.dart';
 import 'package:nubia_data/src/remote/documents/document_dto.dart';
 import 'package:nubia_data/src/remote/billing/billing_dto.dart';
+import 'package:nubia_data/src/remote/lab_work_orders/lab_work_order_dto.dart';
 
 void main() {
+  group('LabWorkOrderDto (GET /v1/cabinet/lab-work-orders response)', () {
+    // #6174 : `tooth_fdi`/`work_nature` sont omis du JSON (pas `null`) par
+    // `#[serde(skip_serializing_if = "Option::is_none")]` côté API quand le
+    // bon n'est pas rattaché à une ligne de devis (`quote_item_id` absent) —
+    // un cast non-nullable ici faisait planter la désérialisation de TOUTE
+    // la liste dès qu'un seul bon était dans ce cas.
+    test('fromJson n\'échoue pas quand tooth_fdi/work_nature sont absents',
+        () {
+      final dto = LabWorkOrderDto.fromJson({
+        'id': 'lwo-1',
+        'patient_id': 'patient-1',
+        'patient_display_name': 'Julie Martin',
+        'lab_name': 'Labo Dentaire Alpha',
+        'purchase_price_cents': 15000,
+        'status': 'sent',
+        'sent_at': '2026-01-01T09:00:00Z',
+      });
+
+      expect(dto.id, 'lwo-1');
+      expect(dto.toothFdi, isNull);
+      expect(dto.workNature, isNull);
+    });
+  });
   group('AppointmentDto (POST /v1/appointments/:id/cancel response)', () {
     test('fromJson désérialise un RDV annulé', () {
       final json = {
