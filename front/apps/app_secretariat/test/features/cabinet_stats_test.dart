@@ -80,8 +80,8 @@ void main() {
     await tester.pumpWidget(_wrap(bloc));
 
     expect(find.byKey(const Key('stat_revenue_collected')), findsOneWidget);
-    expect(find.text('4500.00 €'), findsOneWidget);
-    expect(find.text('120.00 €'), findsOneWidget);
+    expect(find.text('4 500,00 €'), findsOneWidget);
+    expect(find.text('120,00 €'), findsOneWidget);
     expect(find.text('75 %'), findsOneWidget);
     expect(find.text('15 / 20'), findsOneWidget);
 
@@ -90,12 +90,12 @@ void main() {
       find.byKey(const Key('practitioner_activity_prac-1')),
       findsOneWidget,
     );
-    expect(find.text('12 actes · 950.00 €'), findsOneWidget);
+    expect(find.text('12 actes · 950,00 €'), findsOneWidget);
     expect(
       find.byKey(const Key('practitioner_activity_prac-2')),
       findsOneWidget,
     );
-    expect(find.text('5 actes · 375.00 €'), findsOneWidget);
+    expect(find.text('5 actes · 375,00 €'), findsOneWidget);
   });
 
   testWidgets('taux de transformation absent (aucun devis envoyé) → tiret',

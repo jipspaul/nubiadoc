@@ -263,7 +263,7 @@ class _MetricsRow extends StatelessWidget {
               child: MetricTile(
                 key: const Key('card_financial'),
                 icon: Icons.receipt_long_outlined,
-                value: _formatEuros(s.pendingPaymentsCents),
+                value: NubiaMoney.formatCents(s.pendingPaymentsCents),
                 label: 'À régler',
                 variant: s.pendingPaymentsCents > 0
                     ? MetricTileVariant.danger
@@ -277,14 +277,6 @@ class _MetricsRow extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static String _formatEuros(int cents) {
-    final value = cents / 100;
-    final text = value == value.roundToDouble()
-        ? value.toStringAsFixed(0)
-        : value.toStringAsFixed(2);
-    return '${text.replaceAll('.', ',')} €';
   }
 }
 
@@ -345,7 +337,7 @@ class _TodoSection extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                _MetricsRow._formatEuros(s.pendingPaymentsCents),
+                NubiaMoney.formatCents(s.pendingPaymentsCents),
                 style: textTheme.titleSmall?.copyWith(
                   color: tokens.dangerFg,
                   fontWeight: FontWeight.w600,

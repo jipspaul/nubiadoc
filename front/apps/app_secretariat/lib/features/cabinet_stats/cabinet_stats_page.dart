@@ -35,7 +35,7 @@ class CabinetStatsPage extends StatelessWidget {
 
 const double _kContentMaxWidth = 1120;
 
-String _euros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
+String _euros(int cents) => NubiaMoney.formatCents(cents);
 
 /// Une ligne d'activité agrégée par praticien (somme des actes CCAM).
 class _PractitionerActivity {
