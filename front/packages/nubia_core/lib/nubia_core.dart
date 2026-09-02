@@ -6,6 +6,7 @@ export 'src/network/api_constants.dart';
 export 'src/network/auth_interceptor.dart';
 
 // Storage
+export 'src/storage/kv_store.dart';
 export 'src/storage/token_storage.dart';
 
 // Dependency injection
