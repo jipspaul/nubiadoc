@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
+    notify,
     patient_guardianship::aggregate_guardianship,
     AppState,
 };
@@ -727,8 +728,10 @@ pub async fn send_cabinet_quote(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT status FROM quote \
-         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+        "SELECT q.status, p.patient_account_id \
+         FROM quote q \
+         LEFT JOIN patient p ON p.id = q.patient_id \
+         WHERE q.id = $1 AND q.cabinet_id = $2 AND q.deleted_at IS NULL",
     )
     .bind(id)
     .bind(claims.cabinet_id)
@@ -738,6 +741,9 @@ pub async fn send_cabinet_quote(
     .ok_or(AppError::NotFound)?;
 
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let patient_account_id: Option<Uuid> = row
+        .try_get("patient_account_id")
+        .map_err(|_| AppError::Internal)?;
 
     // Idempotence : déjà envoyé → 200 sans nouvelle écriture.
     if status == "sent" {
@@ -769,6 +775,20 @@ pub async fn send_cabinet_quote(
     .map_err(|_| AppError::Internal)?;
 
     let status: String = updated.try_get("status").map_err(|_| AppError::Internal)?;
+
+    // Notifie le patient (#6262). Titre sans montant (anti-PII). Patient sans
+    // compte app (walk-in) : notification silencieusement absente, même choix
+    // que `quote_relance_dispatch::maybe_send_milestone`.
+    if let Some(account_id) = patient_account_id {
+        notify::notify_patient_account(
+            &mut tx,
+            account_id,
+            "quote_received",
+            "Un devis vous a été envoyé",
+            serde_json::json!({ "quote_id": id }),
+        )
+        .await?;
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
