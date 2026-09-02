@@ -12,8 +12,8 @@ const Map<String, String> homeCareActs = {
 };
 
 /// Libellés des statuts du cycle de visite (`requested→offered→accepted→
-/// en_route→arrived→done`, + `cancelled`) — miroir de `VisitDto.status` côté
-/// back (`api/src/nurse/requests.rs`).
+/// en_route→arrived→done`, + `cancelled`/`expired`) — miroir de
+/// `VisitDto.status` côté back (`api/src/nurse/requests.rs`).
 const Map<String, String> visitStatusLabels = {
   'requested': 'Demande envoyée',
   'offered': 'Recherche d\'une infirmière',
@@ -22,6 +22,7 @@ const Map<String, String> visitStatusLabels = {
   'arrived': 'Infirmière sur place',
   'done': 'Visite terminée',
   'cancelled': 'Demande annulée',
+  'expired': 'Demande expirée',
 };
 
 /// Statuts depuis lesquels le patient peut encore annuler sa demande —
