@@ -22,6 +22,15 @@ import '../features/stock/stock_inventory_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
 
+/// Id du praticien connecté (`AuthSession.userId`), `null` tant que la
+/// session n'est pas authentifiée (#6213 : ces blocs sont factory-créés, la
+/// session est donc lue au moment de l'instanciation plutôt qu'injectée une
+/// fois pour toutes).
+String? _currentPractitionerId(GetIt gi) => switch (gi<ProAuthCubit>().state) {
+      AuthAuthenticated(:final session) => session.userId,
+      _ => null,
+    };
+
 void registerPro(GetIt gi) {
   gi.registerLazySingleton<ProAuthCubit>(
     () => ProAuthCubit(
@@ -50,7 +59,10 @@ void registerPro(GetIt gi) {
   );
 
   gi.registerFactory<DashboardBloc>(
-    () => DashboardBloc(getSummary: gi<GetProDashboardSummaryUseCase>()),
+    () => DashboardBloc(
+      getSummary: gi<GetProDashboardSummaryUseCase>(),
+      practitionerId: _currentPractitionerId(gi),
+    ),
   );
 
   gi.registerFactory<TodayNotesBloc>(
@@ -70,6 +82,7 @@ void registerPro(GetIt gi) {
       confirmAppointment: gi<ConfirmAppointmentUseCase>(),
       startConsultation: gi<StartConsultationUseCase>(),
       createAppointmentSeries: gi<CreateAppointmentSeriesUseCase>(),
+      practitionerId: _currentPractitionerId(gi),
     ),
   );
 

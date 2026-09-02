@@ -9,9 +9,11 @@ class CabinetDashboardRepositoryImpl implements CabinetDashboardRepository {
   const CabinetDashboardRepositoryImpl(this._api);
 
   @override
-  Future<Either<Failure, ProDashboardSummary>> getSummary() async {
+  Future<Either<Failure, ProDashboardSummary>> getSummary({
+    String? practitionerId,
+  }) async {
     try {
-      final dto = await _api.getSummary();
+      final dto = await _api.getSummary(practitionerId: practitionerId);
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {

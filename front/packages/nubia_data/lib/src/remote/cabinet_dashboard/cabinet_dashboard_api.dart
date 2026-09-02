@@ -22,7 +22,12 @@ class CabinetDashboardApi {
   /// existants (`/cabinet/stats/activity`, #4079) et `/cabinet/appointments`
   /// (déjà utilisé ci-dessus pour les compteurs du jour) permettent de les
   /// dériver honnêtement, même principe que le reste de cette classe.
-  Future<CabinetDashboardDto> getSummary() async {
+  /// `practitionerId` restreint les compteurs/lignes du jour au praticien
+  /// connecté (#6213 : `GET /cabinet/appointments` ne supporte pas de filtre
+  /// `practitioner_id` côté serveur — contrairement à `/cabinet/agenda` — le
+  /// champ étant tout de même renvoyé par item, on filtre côté client plutôt
+  /// que d'agréger tout le cabinet sous « Ma journée »).
+  Future<CabinetDashboardDto> getSummary({String? practitionerId}) async {
     final today = DateTime.now();
     final todayIso = _dateIso(today);
 
@@ -67,6 +72,11 @@ class CabinetDashboardApi {
         ),
     ]);
 
+    final todayAppointments =
+        _filterByPractitioner(results[0], practitionerId);
+    final pendingConfirmations =
+        _filterByPractitioner(results[3], practitionerId);
+
     final convs = results[2];
     final unread = convs.fold<int>(
       0,
@@ -86,9 +96,11 @@ class CabinetDashboardApi {
           (((item as Map<String, dynamic>)['total_amount_cents'] as num?) ?? 0)
               .toInt(),
     );
-    final weeklyNoShowCount = results
-        .skip(5)
-        .fold<int>(0, (s, dayResults) => s + dayResults.length);
+    final weeklyNoShowCount = results.skip(5).fold<int>(
+          0,
+          (s, dayResults) =>
+              s + _filterByPractitioner(dayResults, practitionerId).length,
+        );
 
     // #5045 : hero « Patient suivant » — celui qui attend depuis le plus
     // longtemps dans la salle d'attente déjà chargée ci-dessus (results[1]).
@@ -101,11 +113,11 @@ class CabinetDashboardApi {
       ..sort((a, b) => a.arrivedAt.compareTo(b.arrivedAt));
     final nextPatient = waitingRoom.isEmpty ? null : waitingRoom.first;
 
-    // Durée prévue : jointure sur le RDV du jour correspondant (results[0]),
-    // seul endroit où `duration_minutes` est exposé.
+    // Durée prévue : jointure sur le RDV du jour correspondant
+    // (todayAppointments), seul endroit où `duration_minutes` est exposé.
     int? nextPatientDurationMinutes;
     if (nextPatient?.appointmentId != null) {
-      for (final raw in results[0]) {
+      for (final raw in todayAppointments) {
         final appointment =
             CabinetAppointmentDto.fromJson(raw as Map<String, dynamic>);
         if (appointment.id == nextPatient!.appointmentId) {
@@ -116,10 +128,10 @@ class CabinetDashboardApi {
     }
 
     return CabinetDashboardDto(
-      todayAppointments: results[0].length,
+      todayAppointments: todayAppointments.length,
       waitingRoomCount: results[1].length,
       unreadMessages: unread,
-      pendingConfirmations: results[3].length,
+      pendingConfirmations: pendingConfirmations.length,
       weeklyCompletedActs: weeklyCompletedActs,
       weeklyFeesCents: weeklyFeesCents,
       weeklyNoShowCount: weeklyNoShowCount,
@@ -139,6 +151,17 @@ class CabinetDashboardApi {
   String _dateIso(DateTime date) => '${date.year.toString().padLeft(4, '0')}-'
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
+
+  List<dynamic> _filterByPractitioner(
+    List<dynamic> items,
+    String? practitionerId,
+  ) {
+    if (practitionerId == null) return items;
+    return items
+        .where((e) =>
+            (e as Map<String, dynamic>)['practitioner_id'] == practitionerId)
+        .toList();
+  }
 
   Future<List<dynamic>> _fetchList(
     String path, {

@@ -7,6 +7,8 @@ class GetProDashboardSummaryUseCase {
 
   const GetProDashboardSummaryUseCase(this._repository);
 
-  Future<Either<Failure, ProDashboardSummary>> call() =>
-      _repository.getSummary();
+  Future<Either<Failure, ProDashboardSummary>> call({
+    String? practitionerId,
+  }) =>
+      _repository.getSummary(practitionerId: practitionerId);
 }
