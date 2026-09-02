@@ -33,17 +33,51 @@ class PreparationItemDto {
       );
 }
 
+class PreparationAccessDto {
+  final String? doorCode;
+  final bool parking;
+  final bool pmr;
+
+  const PreparationAccessDto({
+    this.doorCode,
+    required this.parking,
+    required this.pmr,
+  });
+
+  factory PreparationAccessDto.fromJson(Map<String, dynamic> json) =>
+      PreparationAccessDto(
+        doorCode: json['door_code'] as String?,
+        parking: json['parking'] as bool? ?? false,
+        pmr: json['pmr'] as bool? ?? false,
+      );
+}
+
 class PreparationDto {
   final String? address;
+  final String? providerName;
+  final PreparationAccessDto? access;
+  final DateTime? reminderAt;
   final List<PreparationItemDto> items;
 
-  const PreparationDto({this.address, required this.items});
+  const PreparationDto({
+    this.address,
+    this.providerName,
+    this.access,
+    this.reminderAt,
+    required this.items,
+  });
 
   factory PreparationDto.fromJson(Map<String, dynamic> json) {
     final establishment = json['establishment'] as Map<String, dynamic>?;
+    final provider = json['provider'] as Map<String, dynamic>?;
+    final access = establishment?['access'] as Map<String, dynamic>?;
     final bring = json['bring'] as List<dynamic>? ?? const [];
+    final reminderAt = json['reminder_at'] as String?;
     return PreparationDto(
       address: establishment?['address'] as String?,
+      providerName: provider?['name'] as String?,
+      access: access != null ? PreparationAccessDto.fromJson(access) : null,
+      reminderAt: reminderAt != null ? DateTime.tryParse(reminderAt) : null,
       items: bring
           .map((e) => PreparationItemDto.fromJson(e as Map<String, dynamic>))
           .toList(),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'widgets/prepare_rdv_info_card.dart';
+
 // ── Prefs service (mock-able) ────────────────────────────────────────────────
 
 abstract class PrepareRdvPrefsService {
@@ -114,29 +116,28 @@ class _PrepareRdvPageState extends State<PrepareRdvPage> {
     }
     final prep = _prep!;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          prep.address ?? 'Préparer mon RDV',
-          key: const Key('prepare_rdv_address'),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Préparer mon RDV')),
       body: ListView(
         key: const Key('prepare_rdv_list'),
         padding: const EdgeInsets.all(16),
-        children: prep.items.map((item) {
-          final itemId = itemIdFromLabel(item.label);
-          final isChecked = _checked.contains(itemId);
-          return Card(
-            key: Key('item_$itemId'),
-            child: ListTile(
-              leading: Icon(
-                isChecked ? Icons.check_box : Icons.check_box_outline_blank,
+        children: [
+          PrepareRdvInfoCard(preparation: prep),
+          const SizedBox(height: 16),
+          ...prep.items.map((item) {
+            final itemId = itemIdFromLabel(item.label);
+            final isChecked = _checked.contains(itemId);
+            return Card(
+              key: Key('item_$itemId'),
+              child: ListTile(
+                leading: Icon(
+                  isChecked ? Icons.check_box : Icons.check_box_outline_blank,
+                ),
+                title: Text(item.label),
+                onTap: () => _toggle(itemId),
               ),
-              title: Text(item.label),
-              onTap: () => _toggle(itemId),
-            ),
-          );
-        }).toList(),
+            );
+          }),
+        ],
       ),
     );
   }
