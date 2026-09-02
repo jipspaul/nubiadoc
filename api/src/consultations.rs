@@ -231,16 +231,19 @@ pub async fn complete_consultation(
         let quote_row = sqlx::query(
             // #4126 : sent_at posé dès la création (déjà 'sent'), départ du
             // calendrier de relance J+3/J+7.
+            // #6204 : appointment_id posé dès la création — restitue la
+            // facture du RDV dans GET /v1/appointments (chip « Facture »).
             "INSERT INTO quote \
              (cabinet_id, patient_id, status, total_amount, currency, sent_at, \
-              billed_to_account_id) \
-             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR', now(), $4) \
+              billed_to_account_id, appointment_id) \
+             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR', now(), $4, $5) \
              RETURNING id",
         )
         .bind(claims.cabinet_id)
         .bind(patient_id)
         .bind(total_cents)
         .bind(billed_to_account_id)
+        .bind(appointment_id)
         .fetch_one(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;

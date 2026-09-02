@@ -1190,3 +1190,269 @@ async fn appointments_no_jwt_returns_401() {
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+// ── Test 9 : has_report/prescription_count/invoice_amount_cents (#6204) ──────
+// Root cause de #6204 : GET /v1/appointments n'exposait aucun des 3 champs
+// lus par le front (chips « Facture »/« Compte-rendu »/« N ordonnance(s) »
+// de l'historique, design-v2) — vérifie qu'un RDV terminé avec compte-rendu
+// finalisé, une ordonnance signée et un devis envoyé (tous les 3 rattachés
+// via appointment_id, migration 0244) les restitue, et qu'un brouillon de
+// chacun (compte-rendu draft n'existe pas ici mais prescription/quote draft)
+// reste exclu.
+
+#[tokio::test]
+async fn appointments_expose_report_prescription_invoice_summary() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let appt_id = Uuid::new_v4();
+    let draft_prescription_id = Uuid::new_v4();
+    let draft_quote_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("appts-docs+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Dana', 'Documents')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("appts-docs-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Docs Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient \
+             (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Dana', 'Documents', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO appointment \
+             (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, \
+                     now() - interval '2 days', now() - interval '2 days' + interval '1 hour', \
+                     'done')",
+        )
+        .bind(appt_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Compte-rendu clinique finalisé -> has_report doit être true.
+        sqlx::query(
+            "INSERT INTO consultation_clinique (cabinet_id, appointment_id, practitioner_id, status) \
+             VALUES ($1, $2, $3, 'finalized')",
+        )
+        .bind(cabinet_id)
+        .bind(appt_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Ordonnance signée rattachée au RDV -> prescription_count = 1.
+        sqlx::query(
+            "INSERT INTO prescription (cabinet_id, patient_id, practitioner_id, appointment_id, status) \
+             VALUES ($1, $2, $3, $4, 'signed')",
+        )
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Ordonnance brouillon (même RDV) -> ne doit PAS compter.
+        sqlx::query(
+            "INSERT INTO prescription (id, cabinet_id, patient_id, practitioner_id, appointment_id, status) \
+             VALUES ($1, $2, $3, $4, $5, 'draft')",
+        )
+        .bind(draft_prescription_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Devis envoyé rattaché au RDV, 148,50 € -> invoice_amount_cents = 14850.
+        sqlx::query(
+            "INSERT INTO quote (cabinet_id, patient_id, appointment_id, status, total_amount) \
+             VALUES ($1, $2, $3, 'sent', 148.50)",
+        )
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Devis brouillon (même RDV) -> ne doit PAS être restitué.
+        sqlx::query(
+            "INSERT INTO quote (id, cabinet_id, patient_id, appointment_id, status, total_amount) \
+             VALUES ($1, $2, $3, $4, 'draft', 999.00)",
+        )
+        .bind(draft_quote_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/appointments?status=past")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().unwrap();
+    let item = data
+        .iter()
+        .find(|a| a["id"].as_str() == Some(appt_id.to_string().as_str()))
+        .expect("le RDV terminé doit être présent dans l'historique");
+
+    assert_eq!(item["has_report"], serde_json::json!(true));
+    assert_eq!(item["prescription_count"], serde_json::json!(1));
+    assert_eq!(item["invoice_amount_cents"], serde_json::json!(14850));
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote WHERE id = $1 OR appointment_id = $2")
+            .bind(draft_quote_id)
+            .bind(appt_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM prescription WHERE id = $1 OR appointment_id = $2")
+            .bind(draft_prescription_id)
+            .bind(appt_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM consultation_clinique WHERE appointment_id = $1")
+            .bind(appt_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM appointment WHERE id = $1")
+            .bind(appt_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
