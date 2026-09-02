@@ -181,9 +181,13 @@ pub async fn create_prescription(
 
     // Vérifie que la consultation (si fournie) existe, appartient au cabinet
     // et concerne bien ce patient — sinon FK 23503 remontée en 500 (#3790).
+    // #6204 : capture aussi l'appointment_id de la séance, dénormalisé sur
+    // la prescription pour restituer « N ordonnance(s) » dans
+    // GET /v1/appointments (chip historique patient).
+    let mut appointment_id: Option<Uuid> = None;
     if let Some(consultation_id) = body.consultation_id {
-        let consultation_exists = sqlx::query(
-            "SELECT 1 FROM consultation_session cs \
+        let consultation_row = sqlx::query(
+            "SELECT a.id AS appointment_id FROM consultation_session cs \
              JOIN appointment a ON a.id = cs.appointment_id \
              WHERE cs.id = $1 AND cs.cabinet_id = $2 AND a.patient_id = $3",
         )
@@ -194,21 +198,26 @@ pub async fn create_prescription(
         .await
         .map_err(|_| AppError::Internal)?;
 
-        if consultation_exists.is_none() {
-            return Err(AppError::NotFound);
-        }
+        let consultation_row = consultation_row.ok_or(AppError::NotFound)?;
+        appointment_id = Some(
+            consultation_row
+                .try_get("appointment_id")
+                .map_err(|_| AppError::Internal)?,
+        );
     }
 
     // Insère la prescription (statut draft).
     let presc_row = sqlx::query(
-        "INSERT INTO prescription (cabinet_id, patient_id, practitioner_id, consultation_id, status) \
-         VALUES ($1, $2, $3, $4, 'draft') \
+        "INSERT INTO prescription \
+         (cabinet_id, patient_id, practitioner_id, consultation_id, appointment_id, status) \
+         VALUES ($1, $2, $3, $4, $5, 'draft') \
          RETURNING id",
     )
     .bind(claims.cabinet_id)
     .bind(body.patient_id)
     .bind(practitioner_id)
     .bind(body.consultation_id)
+    .bind(appointment_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

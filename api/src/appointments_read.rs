@@ -70,6 +70,23 @@ pub struct AppointmentItem {
     /// laissait le bouton "Itinéraire" de la carte héros accueil toujours
     /// désactivé (`cabinetAddress` systématiquement `null` côté front).
     pub cabinet: CabinetInfo,
+    /// #6204 : compte-rendu clinique finalisé (`consultation_clinique`,
+    /// migration 0113) rattaché à ce RDV — jusqu'ici absent, alors que le
+    /// front (`AppointmentDto.hasReport`) le lit depuis #5271 pour la chip
+    /// « Compte-rendu » de l'historique (design-v2).
+    pub has_report: bool,
+    /// #6204 : nombre d'ordonnances non-brouillon (`prescription.appointment_id`,
+    /// migration 0244) rattachées à ce RDV — jusqu'ici absent, alors que le
+    /// front (`AppointmentDto.prescriptionCount`) le lit depuis #5271 pour la
+    /// chip « N ordonnance(s) » de l'historique (design-v2).
+    pub prescription_count: i64,
+    /// #6204 : montant en centimes du devis/facture (`quote.appointment_id`,
+    /// migration 0244) généré à la clôture de consultation pour ce RDV —
+    /// jusqu'ici absent, alors que le front (`AppointmentDto.invoiceAmountCents`)
+    /// le lit depuis #5270 pour la chip « Facture · X € » de l'historique
+    /// (design-v2). `None` tant qu'aucun devis non-brouillon n'existe.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invoice_amount_cents: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -189,7 +206,17 @@ pub async fn list_appointments(
              (SELECT e.address FROM provider p \
               LEFT JOIN establishment e ON e.id = p.establishment_id \
               WHERE p.practitioner_id = a.practitioner_id LIMIT 1) \
-              AS establishment_address \
+              AS establishment_address, \
+             EXISTS ( \
+                 SELECT 1 FROM consultation_clinique cc \
+                 WHERE cc.appointment_id = a.id AND cc.status = 'finalized' \
+             ) AS has_report, \
+             (SELECT COUNT(*) FROM prescription pr \
+              WHERE pr.appointment_id = a.id AND pr.deleted_at IS NULL \
+                AND pr.status <> 'draft') AS prescription_count, \
+             (SELECT (q.total_amount * 100)::bigint FROM quote q \
+              WHERE q.appointment_id = a.id AND q.status <> 'draft' \
+              ORDER BY q.created_at DESC LIMIT 1) AS invoice_amount_cents \
          FROM appointment a \
          LEFT JOIN patient pt ON pt.id = a.patient_id \
          LEFT JOIN cabinet c ON c.id = a.cabinet_id \
@@ -288,6 +315,13 @@ pub async fn list_appointments(
                 .as_ref()
                 .and_then(format_establishment_address)
         });
+        let has_report: bool = row.try_get("has_report").map_err(|_| AppError::Internal)?;
+        let prescription_count: i64 = row
+            .try_get("prescription_count")
+            .map_err(|_| AppError::Internal)?;
+        let invoice_amount_cents: Option<i64> = row
+            .try_get("invoice_amount_cents")
+            .map_err(|_| AppError::Internal)?;
 
         last_starts_at = Some(starts_at);
         last_id = Some(id);
@@ -317,6 +351,9 @@ pub async fn list_appointments(
                 last_name: if is_self { None } else { beneficiary_last_name },
             },
             callback_requested_at: callback_requested_at.map(|dt| dt.to_rfc3339()),
+            has_report,
+            prescription_count,
+            invoice_amount_cents,
         });
     }
 

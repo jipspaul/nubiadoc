@@ -211,6 +211,12 @@ SELECT fk_ok('checkin_event', ARRAY['appointment_id', 'cabinet_id'], 'appointmen
 SELECT fk_ok('consultation_act', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('reminder', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('consultation_clinique', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0244 (#6204) : quote/prescription.appointment_id
+-- (nullable — restitution de la facture/des ordonnances d'un RDV côté
+-- GET /v1/appointments), même pattern anti-RLS-bypass que ci-dessus.
+-- Cf. tests/92_quote_prescription_appointment_composite_fk.sql.
+SELECT fk_ok('quote', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('prescription', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
 -- FK composite tenant-scopée depuis 0216 (#4291) : conversation/secretariat/provider,
 -- cf. tests/91_conversation_secretariat_provider_composite_fk.sql.
 SELECT fk_ok('message', ARRAY['conversation_id', 'cabinet_id'], 'conversation', ARRAY['id', 'cabinet_id']);
