@@ -18,9 +18,13 @@ final class ImplantPassportLoaded extends ImplantPassportState {
 
   /// URL signée résolue par un export en cours (déclenche l'ouverture externe).
   final String? exportUrl;
-  const ImplantPassportLoaded(this.implants, {this.exportUrl});
+
+  /// Message d'échec du dernier export : transitoire, la liste reste affichée.
+  final String? exportError;
+  const ImplantPassportLoaded(this.implants,
+      {this.exportUrl, this.exportError});
   @override
-  List<Object?> get props => [implants, exportUrl];
+  List<Object?> get props => [implants, exportUrl, exportError];
 }
 
 final class ImplantPassportError extends ImplantPassportState {
@@ -54,11 +58,19 @@ class ImplantPassportCubit extends Cubit<ImplantPassportState>
   Future<void> export() async {
     final current = state;
     if (current is! ImplantPassportLoaded) return;
+    // Efface tout signal transitoire d'un essai précédent, pour garantir que
+    // le résultat de ce nouvel essai (même message d'erreur) déclenche bien
+    // le listener plutôt que d'être ignoré comme un état identique.
+    if (current.exportUrl != null || current.exportError != null) {
+      safeEmit(ImplantPassportLoaded(current.implants));
+    }
     final result = await _export();
+    final base = state;
+    if (base is! ImplantPassportLoaded) return;
     result.fold(
-      (f) => safeEmit(ImplantPassportError(f.message)),
-      (url) =>
-          safeEmit(ImplantPassportLoaded(current.implants, exportUrl: url)),
+      (f) => safeEmit(
+          ImplantPassportLoaded(base.implants, exportError: f.message)),
+      (url) => safeEmit(ImplantPassportLoaded(base.implants, exportUrl: url)),
     );
   }
 }

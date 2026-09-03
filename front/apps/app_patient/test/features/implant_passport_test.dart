@@ -219,6 +219,44 @@ void main() {
       );
     });
 
+    testWidgets(
+        'échec export → la liste reste affichée, SnackBar avec Réessayer '
+        'qui relance l\'export, pas la liste (#6345)', (tester) async {
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant]));
+      when(() => exportUseCase()).thenAnswer(
+        (_) async => const Left(ServerFailure(
+          message: "Impossible d'exporter le passeport implantaire.",
+          statusCode: 502,
+        )),
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final exportButton =
+          find.byKey(const Key('implant_passport_export_button'));
+      await tester.ensureVisible(exportButton);
+      await tester.tap(exportButton);
+      await tester.pumpAndSettle();
+
+      // Toujours 12... ici 1 implant : la liste n'a pas été détruite.
+      expect(find.byKey(const Key('implant_passport_list')), findsOneWidget);
+      expect(find.byKey(const Key('implant_implant-1')), findsOneWidget);
+      expect(
+        find.text("Impossible d'exporter le passeport implantaire."),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Réessayer'));
+      await tester.pumpAndSettle();
+
+      // Réessayer relance l'export (2 appels), jamais un rechargement de la
+      // liste (toujours 1 seul appel, celui du chargement initial).
+      verify(() => exportUseCase()).called(2);
+      verify(() => listUseCase()).called(1);
+    });
+
     testWidgets('aucun implant → état vide dédié', (tester) async {
       when(() => listUseCase()).thenAnswer((_) async => const Right([]));
 
@@ -306,7 +344,9 @@ void main() {
       await cubit.close();
     });
 
-    test('échec export → état d\'erreur avec le message du repository',
+    test(
+        'échec export → la liste reste affichée, avec le message du '
+        'repository en exportError (#6345 : ne détruit plus l\'écran)',
         () async {
       when(() => listUseCase())
           .thenAnswer((_) async => const Right([_implant]));
@@ -321,8 +361,9 @@ void main() {
       await cubit.load();
       await cubit.export();
 
-      final state = cubit.state as ImplantPassportError;
-      expect(state.message, "Le lien d'export a expiré, réessayez.");
+      final state = cubit.state as ImplantPassportLoaded;
+      expect(state.implants, [_implant]);
+      expect(state.exportError, "Le lien d'export a expiré, réessayez.");
       await cubit.close();
     });
   });
