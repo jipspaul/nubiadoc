@@ -13,6 +13,11 @@ abstract class NotificationRepository {
     bool unreadOnly = false,
   });
 
+  /// Returns the total count of unread notifications for the token holder —
+  /// independent of any page size, unlike deriving it from [getNotifications]'s
+  /// result length (#6279).
+  Future<Either<Failure, int>> getUnreadCount();
+
   /// Marks a single notification as read.
   Future<Either<Failure, void>> markRead(String notificationId);
 

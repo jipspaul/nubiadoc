@@ -40,8 +40,7 @@ void main() {
 
   setUp(() {
     repo = MockNotificationRepository();
-    when(() => repo.getNotifications(unreadOnly: true))
-        .thenAnswer((_) async => const Right([]));
+    when(() => repo.getUnreadCount()).thenAnswer((_) async => const Right(0));
   });
 
   Widget buildShell() => MaterialApp(
@@ -67,8 +66,7 @@ void main() {
 
   testWidgets('badge affiche le compteur non-lus (poll initial)',
       (tester) async {
-    when(() => repo.getNotifications(unreadOnly: true))
-        .thenAnswer((_) async => Right([_notif('1'), _notif('2')]));
+    when(() => repo.getUnreadCount()).thenAnswer((_) async => const Right(2));
 
     await tester.pumpWidget(buildShell());
     await tester.pumpAndSettle();
@@ -135,6 +133,8 @@ void main() {
       when(() => repo.getNotifications()).thenAnswer(
         (_) async => Right([_notif('1'), _notif('2')]),
       );
+      when(() => repo.getUnreadCount())
+          .thenAnswer((_) async => const Right(2));
       when(() => repo.markAllRead()).thenAnswer((_) async => const Right(null));
 
       await tester.pumpWidget(buildShell());

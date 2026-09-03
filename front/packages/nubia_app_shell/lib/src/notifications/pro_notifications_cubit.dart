@@ -10,9 +10,10 @@ import 'pro_notifications_state.dart';
 /// [ProShell].
 ///
 /// Le badge se rafraîchit tout seul (60s + retour au premier plan, cf.
-/// [ProShell]'s `WidgetsBindingObserver`) via `?unread_only=true` — bien
-/// moins coûteux que de recharger la liste complète en continu. La liste
-/// complète, elle, n'est chargée qu'à l'ouverture du panneau ([loadList]).
+/// [ProShell]'s `WidgetsBindingObserver`) via le total serveur
+/// `page.unread_count` (#6279) — bien moins coûteux que de recharger la
+/// liste complète en continu. La liste complète, elle, n'est chargée qu'à
+/// l'ouverture du panneau ([loadList]).
 class ProNotificationsCubit extends Cubit<ProNotificationsState> {
   ProNotificationsCubit({required NotificationRepository repository})
       : _repository = repository,
@@ -28,34 +29,41 @@ class ProNotificationsCubit extends Cubit<ProNotificationsState> {
   Timer? _pollTimer;
 
   Future<void> refreshUnreadCount() async {
-    final result = await _repository.getNotifications(unreadOnly: true);
+    // Total serveur (#6279), pas la taille d'une page : `getNotifications`
+    // plafonne à `limit` (20 par défaut), ce qui plafonnait le badge au lieu
+    // de refléter le total réel de non-lus.
+    final result = await _repository.getUnreadCount();
     result.fold(
       (_) {}, // échec silencieux : le badge garde son dernier compte connu.
-      (notifications) =>
-          emit(state.copyWith(unreadCount: notifications.length)),
+      (count) => emit(state.copyWith(unreadCount: count)),
     );
   }
 
   Future<void> loadList() async {
     emit(state.copyWith(isLoadingList: true, error: null));
     final result = await _repository.getNotifications();
-    result.fold(
-      (failure) => emit(
+    await result.fold(
+      (failure) async => emit(
         state.copyWith(isLoadingList: false, error: failure.message),
       ),
-      (notifications) => emit(
-        state.copyWith(
-          isLoadingList: false,
-          notifications: notifications,
-          unreadCount: notifications.where((n) => !n.read).length,
-        ),
-      ),
+      (notifications) async {
+        emit(
+          state.copyWith(isLoadingList: false, notifications: notifications),
+        );
+        await refreshUnreadCount();
+      },
     );
   }
 
   Future<void> markRead(String notificationId) async {
     final current = state.notifications;
     if (current != null) {
+      // `state.unreadCount` est le total serveur (#6279), pas la taille de
+      // `current` (qui peut être une simple page) : on le décrémente plutôt
+      // que de le recalculer depuis `current`, sous peine de le faire
+      // rechuter à la taille de la page affichée.
+      final target = current.where((n) => n.id == notificationId);
+      final wasUnread = target.isNotEmpty && !target.first.read;
       final updated = [
         for (final n in current)
           n.id == notificationId ? n.copyWith(read: true) : n,
@@ -63,7 +71,9 @@ class ProNotificationsCubit extends Cubit<ProNotificationsState> {
       emit(
         state.copyWith(
           notifications: updated,
-          unreadCount: updated.where((n) => !n.read).length,
+          unreadCount: wasUnread
+              ? (state.unreadCount > 0 ? state.unreadCount - 1 : 0)
+              : state.unreadCount,
         ),
       );
     }

@@ -30,6 +30,19 @@ class NotificationRepositoryImpl implements NotificationRepository {
   }
 
   @override
+  Future<Either<Failure, int>> getUnreadCount() async {
+    try {
+      final count = await _api.getUnreadCount();
+      return Right(count);
+    } on DioException catch (e) {
+      return Left(
+          _mapDioError(e, 'Erreur lors du chargement du compteur non-lus.'));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, void>> markRead(String notificationId) async {
     try {
       await _api.markRead(notificationId);

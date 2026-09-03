@@ -70,6 +70,12 @@ fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<String> {
 #[derive(Serialize)]
 pub struct NotificationsPage {
     pub next_cursor: Option<String>,
+    /// Total des notifications non lues du porteur du token — indépendant de
+    /// `limit`/`cursor`/`unread_only` (#6279 : avant ce champ, les clients
+    /// dérivaient le badge de la cloche de `data.len()`, plafonné à `limit`
+    /// (20 par défaut, 100 au max), ce qui plafonnait le badge au lieu de
+    /// refléter le total réel).
+    pub unread_count: i64,
 }
 
 /// Réponse de `GET /v1/notifications`.
@@ -96,6 +102,9 @@ fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 /// RLS `notification_owner_select` (migration 0053) : filtre sur `app.current_user_id`.
 /// Pagination cursor-based (`?cursor=`, `?limit=` défaut 20, max 100).
 /// Filtre optionnel `?unread_only=true`.
+/// `page.unread_count` (#6279) : total réel des non-lus du porteur du token,
+/// indépendant de `limit`/`cursor`/`unread_only` — à utiliser pour tout badge
+/// de compteur plutôt que `data.len()`, qui plafonne à `limit`.
 /// `body` déchiffré côté serveur (core/crypto KMS) ; `null` tant que NUB-T3 n'est pas livré.
 /// `data` (JSONB non-PII) et `deep_link` dérivé sont eux toujours restitués (#3863) —
 /// `data` n'a jamais été chiffrée, aucune raison de la filtrer en attendant NUB-T3.
@@ -166,6 +175,14 @@ pub async fn list_notifications(
             .map_err(|_| AppError::Internal)?,
     };
 
+    let unread_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notification WHERE app_user_id = $1 AND is_read = false",
+    )
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let has_more = rows.len() > limit as usize;
@@ -223,7 +240,10 @@ pub async fn list_notifications(
 
     Ok(Json(NotificationsResponse {
         data,
-        page: NotificationsPage { next_cursor },
+        page: NotificationsPage {
+            next_cursor,
+            unread_count,
+        },
     }))
 }
 

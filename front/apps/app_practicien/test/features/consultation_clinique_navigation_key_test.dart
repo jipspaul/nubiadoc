@@ -57,8 +57,8 @@ void main() {
     // #6263 — ConsultationCliniquePage résout la cloche de notifications de
     // ProShell via GetIt.
     final notificationRepository = MockNotificationRepository();
-    when(() => notificationRepository.getNotifications(unreadOnly: true))
-        .thenAnswer((_) async => const Right([]));
+    when(() => notificationRepository.getUnreadCount())
+        .thenAnswer((_) async => const Right(0));
     GetIt.instance
         .registerFactory<NotificationRepository>(() => notificationRepository);
     addTearDown(GetIt.instance.reset);

@@ -23,6 +23,17 @@ class NotificationApi {
         .toList();
   }
 
+  /// Total des notifications non lues du porteur du token — `page.unread_count`,
+  /// indépendant de `limit`/pagination (#6279). `limit: 1` : seul le total
+  /// (dans `page`) nous intéresse ici, pas les items.
+  Future<int> getUnreadCount() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/notifications',
+      queryParameters: {'unread_only': true, 'limit': 1},
+    );
+    return response.data?['page']?['unread_count'] as int? ?? 0;
+  }
+
   Future<void> markRead(String notificationId) async {
     await _dio.post<void>('/notifications/$notificationId/read');
   }

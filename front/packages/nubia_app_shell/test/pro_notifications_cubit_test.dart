@@ -26,28 +26,27 @@ void main() {
     repo = MockNotificationRepository();
   });
 
-  // Le constructeur poll immédiatement (unreadOnly: true) — stub systématique
-  // pour tous les tests, sauf ceux qui vérifient explicitement ce comptage.
-  void stubUnreadPoll(List<AppNotification> unread) {
-    when(() => repo.getNotifications(unreadOnly: true))
-        .thenAnswer((_) async => Right(unread));
+  // Le constructeur poll immédiatement le total serveur (#6279) — stub
+  // systématique pour tous les tests, sauf ceux qui vérifient explicitement
+  // ce comptage.
+  void stubUnreadCount(int count) {
+    when(() => repo.getUnreadCount()).thenAnswer((_) async => Right(count));
   }
 
   group('refreshUnreadCount', () {
     blocTest<ProNotificationsCubit, ProNotificationsState>(
-      'poll initial (constructeur) : unreadCount reflète unread_only=true',
-      setUp: () => stubUnreadPoll([_notif('1'), _notif('2')]),
+      'poll initial (constructeur) : unreadCount reflète le total serveur',
+      setUp: () => stubUnreadCount(2),
       build: () => ProNotificationsCubit(repository: repo),
       expect: () => [
         const ProNotificationsState(unreadCount: 2),
       ],
-      verify: (_) =>
-          verify(() => repo.getNotifications(unreadOnly: true)).called(1),
+      verify: (_) => verify(() => repo.getUnreadCount()).called(1),
     );
 
     blocTest<ProNotificationsCubit, ProNotificationsState>(
       'échec silencieux : le compteur précédent est conservé',
-      setUp: () => when(() => repo.getNotifications(unreadOnly: true))
+      setUp: () => when(() => repo.getUnreadCount())
           .thenAnswer((_) async => const Left(_serverFailure)),
       build: () => ProNotificationsCubit(repository: repo),
       expect: () => <ProNotificationsState>[],
@@ -56,30 +55,40 @@ void main() {
 
   group('loadList', () {
     blocTest<ProNotificationsCubit, ProNotificationsState>(
-      'charge la liste complète et recalcule unreadCount depuis les items',
+      'charge la liste et rafraîchit unreadCount depuis le total serveur, '
+      'pas depuis la page chargée (#6279)',
       setUp: () {
-        stubUnreadPoll([]);
-        when(() => repo.getNotifications()).thenAnswer(
-            (_) async => Right([_notif('1'), _notif('2', read: true)]));
+        // Les 2 items de la page chargée sont déjà lus, mais le total
+        // serveur (5) reste le total réel : avant #6279, unreadCount aurait
+        // été recalculé à 0 depuis cette page.
+        stubUnreadCount(5);
+        when(() => repo.getNotifications()).thenAnswer((_) async =>
+            Right([_notif('1', read: true), _notif('2', read: true)]));
       },
       build: () => ProNotificationsCubit(repository: repo),
-      // Le poll initial du constructeur (`unread_only=true` → []) ne change
-      // pas unreadCount (déjà 0) : Bloc dédoublonne, aucun état émis pour
-      // lui — pas de `skip` à prévoir ici.
-      act: (cubit) => cubit.loadList(),
+      // Laisse le poll initial du constructeur se résoudre avant d'agir,
+      // sinon sa résolution tardive pourrait s'intercaler entre les états
+      // attendus ci-dessous.
+      act: (cubit) async {
+        await Future<void>.delayed(Duration.zero);
+        await cubit.loadList();
+      },
       expect: () => [
-        const ProNotificationsState(isLoadingList: true),
+        const ProNotificationsState(unreadCount: 5),
+        const ProNotificationsState(unreadCount: 5, isLoadingList: true),
         ProNotificationsState(
-          notifications: [_notif('1'), _notif('2', read: true)],
-          unreadCount: 1,
+          unreadCount: 5,
+          notifications: [_notif('1', read: true), _notif('2', read: true)],
         ),
+        // refreshUnreadCount() re-appelé en fin de loadList : même total
+        // (5) → Bloc dédoublonne, aucun état supplémentaire émis.
       ],
     );
 
     blocTest<ProNotificationsCubit, ProNotificationsState>(
       'émet une erreur exploitable par le panneau en cas de Left(Failure)',
       setUp: () {
-        stubUnreadPoll([]);
+        stubUnreadCount(0);
         when(() => repo.getNotifications())
             .thenAnswer((_) async => const Left(_serverFailure));
       },
@@ -99,7 +108,7 @@ void main() {
         // Aligné sur le unreadCount du `seed` : que le poll initial du
         // constructeur se résolve avant ou après `act`, il reste un
         // no-op (même valeur) et ne pollue pas les états attendus.
-        stubUnreadPoll([_notif('1'), _notif('2')]);
+        stubUnreadCount(2);
         when(() => repo.markRead('1'))
             .thenAnswer((_) async => const Right(null));
       },
@@ -131,7 +140,7 @@ void main() {
       setUp: () {
         // Même alignement que markRead ci-dessus — évite la course avec le
         // poll initial du constructeur.
-        stubUnreadPoll([_notif('1'), _notif('2')]);
+        stubUnreadCount(2);
         when(() => repo.markAllRead())
             .thenAnswer((_) async => const Right(null));
       },
