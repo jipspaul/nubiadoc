@@ -610,6 +610,7 @@ fn triage(body: &str) -> (&'static str, Option<String>) {
 pub async fn send_message(
     State(state): State<AppState>,
     axum::Extension(hub): axum::Extension<std::sync::Arc<crate::realtime::WsHub>>,
+    axum::Extension(dispatcher): axum::Extension<std::sync::Arc<dyn crate::JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(conversation_id): Path<Uuid>,
     Json(body): Json<SendMessageBody>,
@@ -690,29 +691,40 @@ pub async fn send_message(
 
     // Notifie le destinataire (#6259). Titre sans contenu du message
     // (anti-PII). Jamais de notif à l'émetteur (patient).
+    let mut push_targets: Vec<(uuid::Uuid, uuid::Uuid)> = Vec::new();
     if let Some(cabinet_id) = cabinet_id {
-        notify::notify_cabinet_staff(
-            &mut tx,
-            cabinet_id,
-            &MESSAGE_RECEIVED_NOTIFY_ROLES,
-            "message_received",
-            "Nouveau message reçu",
-            serde_json::json!({ "conversation_id": conversation_id, "type": "cabinet" }),
-        )
-        .await?;
+        push_targets.extend(
+            notify::notify_cabinet_staff(
+                &mut tx,
+                cabinet_id,
+                &MESSAGE_RECEIVED_NOTIFY_ROLES,
+                "message_received",
+                "Nouveau message reçu",
+                serde_json::json!({ "conversation_id": conversation_id, "type": "cabinet" }),
+            )
+            .await?,
+        );
     }
     if let Some(pharmacy_id) = pharmacy_id {
-        notify::notify_pharmacy_staff(
-            &mut tx,
-            pharmacy_id,
-            "message_received",
-            "Nouveau message reçu",
-            serde_json::json!({ "conversation_id": conversation_id, "type": "pharmacy" }),
-        )
-        .await?;
+        push_targets.extend(
+            notify::notify_pharmacy_staff(
+                &mut tx,
+                pharmacy_id,
+                "message_received",
+                "Nouveau message reçu",
+                serde_json::json!({ "conversation_id": conversation_id, "type": "pharmacy" }),
+            )
+            .await?,
+        );
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs) — le
+    // retour des notify_* était jeté, aucun push ne partait (#6259 incomplet).
+    for (app_user_id, notification_id) in push_targets {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     // Temps réel : notifie les abonnés du fil (secrétariat/praticien) — #3238.
     let channel = format!("conversation:{conversation_id}");

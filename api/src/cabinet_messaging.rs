@@ -482,6 +482,7 @@ pub async fn get_cabinet_conversation_messages(
 pub async fn send_cabinet_message(
     State(state): State<AppState>,
     axum::Extension(hub): axum::Extension<std::sync::Arc<crate::realtime::WsHub>>,
+    axum::Extension(dispatcher): axum::Extension<std::sync::Arc<dyn crate::JobDispatcher>>,
     claims: ProSecretaryPlusClaims,
     Path(conversation_id): Path<Uuid>,
     Json(body): Json<SendCabinetMessageBody>,
@@ -558,8 +559,9 @@ pub async fn send_cabinet_message(
     // Notifie le patient (#6259). Titre sans contenu du message (anti-PII).
     // Patient sans compte app (walk-in) : notification silencieusement
     // absente, même choix que `cabinet_quotes::send_cabinet_quote`.
+    let mut push_target: Option<(uuid::Uuid, uuid::Uuid)> = None;
     if let Some(account_id) = patient_account_id {
-        notify::notify_patient_account(
+        push_target = notify::notify_patient_account(
             &mut tx,
             account_id,
             "message_received",
@@ -570,6 +572,12 @@ pub async fn send_cabinet_message(
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs) — le
+    // retour du notify était jeté, aucun push ne partait (#6259 incomplet).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     // Temps réel : notifie le patient abonné au fil — #3238.
     let channel = format!("conversation:{conversation_id}");
