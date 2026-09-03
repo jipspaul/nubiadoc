@@ -18,6 +18,9 @@ abstract class PharmacyQuotesRepository {
   /// POST /v1/pharmacy/quotes/{id}/send — draft → sent.
   Future<Either<Failure, PharmacyQuote>> send(String id);
 
+  /// POST /v1/pharmacy/quotes/{id}/remind — relance d'un devis `sent`.
+  Future<Either<Failure, PharmacyQuote>> remind(String id);
+
   /// POST /v1/account/pharmacy-quotes/{id}/accept|refuse (patient).
   Future<Either<Failure, PharmacyQuote>> decide(String id,
       {required bool accept});

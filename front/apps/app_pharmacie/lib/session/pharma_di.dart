@@ -55,6 +55,7 @@ void registerPharma(GetIt gi) {
     () => PharmacyDevisBloc(
       list: gi<ListPharmacyQuotesUseCase>(),
       send: gi<SendPharmacyQuoteUseCase>(),
+      remind: gi<RemindPharmacyQuoteUseCase>(),
     ),
   );
 

@@ -1,9 +1,9 @@
 //! Devis d'officine (lot B7) — produits + prix TTC en centimes, distinct du
 //! devis dentaire (`quote` : CCAM/AMO/AMC, eIDAS).
 //!
-//! Espace pharmacie : `GET|POST /v1/pharmacy/quotes`, `POST …/{id}/send`
-//! (pharmacist/admin). Espace patient : `GET /v1/account/pharmacy-quotes`,
-//! `POST …/{id}/accept|refuse`.
+//! Espace pharmacie : `GET|POST /v1/pharmacy/quotes`, `POST …/{id}/send`,
+//! `POST …/{id}/remind` (pharmacist/admin). Espace patient :
+//! `GET /v1/account/pharmacy-quotes`, `POST …/{id}/accept|refuse`.
 
 use std::sync::Arc;
 
@@ -299,6 +299,86 @@ pub async fn send_pharmacy_quote(
         serde_json::json!({
             "channel": format!("account_orders:{patient_account_id}"),
             "event": "pharmacy_quote_sent",
+            "data": { "pharmacy_quote_id": id, "status": "sent" }
+        })
+        .to_string(),
+    );
+
+    Ok(Json(quote))
+}
+
+/// `POST /v1/pharmacy/quotes/{id}/remind` — relance d'un devis déjà `sent`
+/// sans réponse du patient (pharmacist/admin). Ne touche ni `status` ni
+/// `sent_at` (le délai affiché côté pharmacie reste celui de l'envoi
+/// d'origine) : ré-notifie seulement le patient, contrairement à
+/// `send_pharmacy_quote` qui, lui, fait la transition `draft` → `sent`.
+pub async fn remind_pharmacy_quote(
+    State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
+    claims: PharmaPharmacistClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<QuoteDto>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(claims.pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(&format!(
+        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote WHERE id = $1 AND status = 'sent'",
+    ))
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        let exists = sqlx::query("SELECT 1 FROM pharmacy_quote WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx.rollback().await.ok();
+        return Err(if exists.is_none() {
+            AppError::NotFound
+        } else {
+            AppError::InvalidStatus
+        });
+    };
+
+    let quote = quote_from_row(&row)?;
+
+    let patient_account_id: Uuid =
+        sqlx::query("SELECT patient_account_id FROM pharmacy_quote WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .try_get("patient_account_id")
+            .map_err(|_| AppError::Internal)?;
+
+    // Notification patient (zéro PII — même contrat que l'envoi initial).
+    let pushed = notify::notify_patient_account(
+        &mut tx,
+        patient_account_id,
+        "pharmacy_quote_reminder",
+        "Un devis vous attend toujours",
+        serde_json::json!({ "pharmacy_quote_id": id, "status": "sent" }),
+    )
+    .await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    if let Some((app_user_id, notification_id)) = pushed {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    hub.publish_named(
+        &format!("account_orders:{patient_account_id}"),
+        serde_json::json!({
+            "channel": format!("account_orders:{patient_account_id}"),
+            "event": "pharmacy_quote_reminder",
             "data": { "pharmacy_quote_id": id, "status": "sent" }
         })
         .to_string(),
