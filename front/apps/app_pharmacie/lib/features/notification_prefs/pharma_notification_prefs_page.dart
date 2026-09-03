@@ -160,6 +160,7 @@ class _CategoryCard extends StatelessWidget {
           const SizedBox(height: 12),
           _PrefRow(
             rowKey: inAppKey,
+            categoryTitle: title,
             title: 'Dans l\'application',
             subtitle: inAppSubtitle,
             value: inAppValue,
@@ -169,6 +170,7 @@ class _CategoryCard extends StatelessWidget {
             const Divider(height: 20),
             _PrefRow(
               rowKey: emailKey!,
+              categoryTitle: title,
               title: 'Par e-mail',
               subtitle: 'En plus de la notification dans l\'application',
               value: emailValue ?? false,
@@ -184,6 +186,7 @@ class _CategoryCard extends StatelessWidget {
 class _PrefRow extends StatelessWidget {
   const _PrefRow({
     required this.rowKey,
+    required this.categoryTitle,
     required this.title,
     required this.subtitle,
     required this.value,
@@ -191,6 +194,7 @@ class _PrefRow extends StatelessWidget {
   });
 
   final Key rowKey;
+  final String categoryTitle;
   final String title;
   final String subtitle;
   final bool value;
@@ -218,7 +222,11 @@ class _PrefRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        NubiaToggle(key: rowKey, value: value, onChanged: onChanged),
+        Semantics(
+          container: true,
+          label: '$categoryTitle — $title',
+          child: NubiaToggle(key: rowKey, value: value, onChanged: onChanged),
+        ),
       ],
     );
   }

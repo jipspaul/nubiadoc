@@ -166,4 +166,42 @@ void main() {
     );
     expect(after.value, isTrue);
   });
+
+  testWidgets(
+      'chaque interrupteur porte un libellé accessible distinct catégorie + canal (#6282)',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+
+    await tester.pumpWidget(wrap());
+    await tester.pumpAndSettle();
+
+    Future<String> labelOf(Key key) async {
+      final finder = find.byKey(key);
+      await scrollTo(tester, finder);
+      return tester.getSemantics(finder).label;
+    }
+
+    expect(
+      await labelOf(const Key('pharma_notif_inapp_messagerie')),
+      'Messagerie — Dans l\'application',
+    );
+    expect(
+      await labelOf(const Key('pharma_notif_email_messagerie')),
+      'Messagerie — Par e-mail',
+    );
+    expect(
+      await labelOf(const Key('pharma_notif_inapp_devis')),
+      'Devis — Dans l\'application',
+    );
+    expect(
+      await labelOf(const Key('pharma_notif_email_devis')),
+      'Devis — Par e-mail',
+    );
+    expect(
+      await labelOf(const Key('pharma_notif_inapp_stock')),
+      'Demandes de stock — Dans l\'application',
+    );
+
+    handle.dispose();
+  });
 }
