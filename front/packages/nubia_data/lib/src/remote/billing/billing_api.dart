@@ -7,14 +7,30 @@ class BillingApi {
 
   BillingApi(ApiClient client) : _dio = client.dio;
 
-  /// GET /v1/billing/quotes
+  /// GET /v1/billing/quotes — pagine jusqu'à épuisement (`page.next_cursor`,
+  /// cf. api/src/billing.rs::list_quotes) : sans ça, les callers (ex. compteur
+  /// « à signer » du profil, #6288) ne voient que la 1re page de 20 devis au
+  /// lieu du total, contrairement à `SchedulingApi.getHistory()`.
   Future<List<QuoteDto>> getQuotes() async {
-    // GET /v1/billing/quotes → { data: [résumés] }
-    final response = await _dio.get<Map<String, dynamic>>('/billing/quotes');
-    final data = (response.data?['data'] as List<dynamic>? ?? []);
-    return data
-        .map((e) => QuoteDto.fromSummaryJson(e as Map<String, dynamic>))
-        .toList();
+    final result = <QuoteDto>[];
+    String? cursor;
+    do {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/billing/quotes',
+        queryParameters: {
+          'limit': 100,
+          if (cursor != null) 'cursor': cursor,
+        },
+      );
+      final data = (response.data?['data'] as List<dynamic>? ?? []);
+      result.addAll(
+        data.map((e) => QuoteDto.fromSummaryJson(e as Map<String, dynamic>)),
+      );
+      cursor =
+          (response.data?['page'] as Map<String, dynamic>?)?['next_cursor']
+              as String?;
+    } while (cursor != null);
+    return result;
   }
 
   /// GET /v1/billing/quotes/:id
