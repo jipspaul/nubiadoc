@@ -588,6 +588,35 @@ void main() {
       expect(find.text('Jean Dupont'), findsNothing);
     });
 
+    testWidgets(
+        'recherche par n° de commande affiché (orderRef) filtre la liste, '
+        'pas par l\'UUID technique', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [
+          orderWithRef('uuid-aaa', 'CMD-0031'),
+          orderWithRef('uuid-bbb', 'CMD-0174'),
+        ]),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      final field = find.descendant(
+        of: find.byKey(const Key('orders_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, 'CMD-0031');
+      await tester.pump();
+
+      expect(find.byKey(const Key('order_row_uuid-aaa')), findsOneWidget);
+      expect(find.byKey(const Key('order_row_uuid-bbb')), findsNothing);
+    });
+
     testWidgets('la recherche se combine au filtre de statut sélectionné',
         (tester) async {
       final bloc = MockOrdersBloc();
