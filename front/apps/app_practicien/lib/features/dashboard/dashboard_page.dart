@@ -1,34 +1,11 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
-import 'package:go_router/go_router.dart';
-import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
-import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
-import '../../pro_config.dart';
-import '../../session/pro_auth_cubit.dart';
 import '../agenda/agenda_bloc.dart';
 import '../agenda/agenda_event.dart';
-import '../../router/app_router.dart';
-import '../agenda/agenda_page.dart';
-import '../cabinet_messaging/cabinet_messaging_page.dart';
-import '../consultation_clinique/consultation_clinique_bloc.dart';
-import '../consultation_clinique/consultation_clinique_page.dart';
-import '../devis/devis_page.dart';
-import '../ordonnances/ordonnances_bloc.dart';
-import '../ordonnances/ordonnances_page.dart';
-import '../patients/patients_page.dart';
-import '../stock/stock_bloc.dart';
-import '../lab_work/lab_work_orders_bloc.dart';
-import '../lab_work/lab_work_orders_page.dart';
-import '../stock/stock_inventory_bloc.dart';
-import '../stock/stock_inventory_page.dart';
-import '../stock/stock_page.dart';
-import '../waiting_room/waiting_room_bloc.dart';
-import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
@@ -39,128 +16,19 @@ import 'today_notes_card.dart';
 import 'today_schedule_card.dart';
 import 'week_summary_card.dart';
 
-/// Entry point for the authenticated praticien home. Delegates layout to
-/// [ProShell] (NavigationRail on desktop, Drawer on mobile) with clinical
-/// filtering applied via the live [AuthSession].
-class DashboardPage extends StatelessWidget {
-  const DashboardPage({super.key});
+/// Contenu de la branche « Tableau de bord » du `StatefulShellRoute`
+/// (`app_router.dart`) — construit son propre `DashboardBloc`,
+/// indépendamment de `PracticienShell` qui l'héberge (#6286, même approche
+/// que `DashboardBody`/`SecretariatShell` côté app_secretariat).
+class DashboardBody extends StatelessWidget {
+  const DashboardBody({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final session = switch (context.watch<ProAuthCubit>().state) {
-      AuthAuthenticated(:final session) => session,
-      _ => const AuthSession(
-          kind: UserKind.pro,
-          userId: 'me',
-          role: ProConfig.role,
-        ),
-    };
-
-    return ProShell(
-      config: ProConfig.shellConfig,
-      session: session,
-      // Synchronise l'onglet sélectionné avec l'URL go_router dans les 2
-      // sens : `currentRoute` pilote la sélection depuis `state.uri.path`
-      // (navigation directe / reload / retour navigateur), et `onNavigate`
-      // pousse l'URL via `context.go` quand l'utilisateur clique une
-      // destination dans le rail/drawer (#5691, cf. #4813 pour app_pharmacie).
-      currentRoute: GoRouterState.of(context).uri.path,
-      onNavigate: (destination) => context.go(destination.route),
-      notificationRepository: GetIt.instance<NotificationRepository>(),
-      bodyBuilder: (ctx, destination) {
-        if (destination.route == ProConfig.dashboardRoute) {
-          return BlocProvider(
-            create: (_) => GetIt.instance<DashboardBloc>()
-              ..add(const DashboardLoadRequested()),
-            child: const _DashboardContent(),
-          );
-        }
-        if (destination.route == '/agenda') {
-          return BlocProvider(
-            create: (_) {
-              final now = DateTime.now();
-              final weekStart = DateTime(
-                now.year,
-                now.month,
-                now.day - (now.weekday - 1),
-              );
-              return GetIt.instance<AgendaBloc>()
-                ..add(AgendaLoadRequested(weekStart: weekStart));
-            },
-            child: const AgendaBody(),
-          );
-        }
-        if (destination.route == '/waiting-room') {
-          return BlocProvider(
-            create: (_) => GetIt.instance<WaitingRoomBloc>(),
-            child: const WaitingRoomBody(),
-          );
-        }
-        if (destination.route == '/patients') {
-          return const PatientsPage();
-        }
-        if (destination.route == '/consultation') {
-          return BlocProvider(
-            create: (_) => GetIt.instance<ConsultationCliniqueBloc>(),
-            child: const ConsultationCliniqueBody(),
-          );
-        }
-        if (destination.route == '/ordonnances') {
-          return BlocProvider(
-            create: (_) => GetIt.instance<OrdonnancesBloc>(),
-            child: const OrdonnancesBody(),
-          );
-        }
-        if (destination.route == '/devis') {
-          // DevisPage fournit son propre BlocProvider<DevisBloc>.
-          return const DevisPage();
-        }
-        if (destination.route == '/stock') {
-          return BlocProvider(
-            create: (_) => GetIt.instance<StockBloc>(),
-            child: const StockPage(),
-          );
-        }
-        if (destination.route == '/stock-inventory') {
-          return BlocProvider(
-            create: (_) => GetIt.instance<StockInventoryBloc>(),
-            child: const StockInventoryPage(),
-          );
-        }
-        if (destination.route == '/lab-work-orders') {
-          return BlocProvider(
-            create: (_) => GetIt.instance<LabWorkOrdersBloc>(),
-            child: const LabWorkOrdersPage(),
-          );
-        }
-        if (destination.route == '/messages') {
-          return const CabinetMessagingPage();
-        }
-        return Center(
-          child: NubiaEmptyState(
-            icon: Icons.construction_outlined,
-            title: destination.label,
-          ),
-        );
-      },
-      trailingActions: [
-        IconButton(
-          key: const Key('nav_team_messages'),
-          tooltip: 'Messagerie interne',
-          icon: const Icon(Icons.forum_outlined),
-          onPressed: () => context.push(AppRouter.teamMessages),
-        ),
-        // #4539 : banc de test du framework A2UI, jamais eu sa place dans
-        // la nav en production (vocabulaire interne + faux CTA « demo.cta »
-        // exposés à un praticien). Réservé aux builds debug.
-        if (kDebugMode)
-          IconButton(
-            tooltip: 'Démo A2UI',
-            icon: const Icon(Icons.auto_awesome_outlined),
-            onPressed: () => context.push('/a2ui-demo'),
-          ),
-      ],
-      onSignOut: () => context.read<ProAuthCubit>().signOut(),
+    return BlocProvider(
+      create: (_) => GetIt.instance<DashboardBloc>()
+        ..add(const DashboardLoadRequested()),
+      child: const _DashboardContent(),
     );
   }
 }
