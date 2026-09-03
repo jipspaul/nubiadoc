@@ -114,6 +114,9 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
   -e APP_PORT=3000 -e JWT_SECRET=dev-only-not-for-prod -e LOGIN_RATE_MAX_ATTEMPTS=10000 \
   -e MLLP_PORT=2575 \
   -e YOUSIGN_API_KEY="${YOUSIGN_API_KEY:-}" \
+  -e SCW_ACCESS_KEY="${SCW_ACCESS_KEY:-}" \
+  -e SCW_SECRET_KEY="${SCW_SECRET_KEY:-}" \
+  -e SCW_BUCKET="${SCW_BUCKET:-}" \
   localhost/nubia-api:latest >/dev/null
 # #5688 : avant ce -e, YOUSIGN_API_KEY n'était jamais transmise au conteneur
 # (aucune plomberie CI -> LXC), donc POST /v1/quotes/:id/signature répondait
@@ -122,6 +125,13 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
 # n'est pas renseigné : `yousign_client.rs` court-circuite alors proprement
 # en erreur explicite ("clé vide") plutôt que d'émettre un appel voué à
 # l'échec — comportement inchangé, seule la plomberie manquait.
+# #6250 : même trou de plomberie pour SCW_ACCESS_KEY/SCW_SECRET_KEY/SCW_BUCKET
+# (`ScalewayStorageSigner::from_env`) — jamais transmises au conteneur, donc
+# `signer.sign()` renvoyait toujours `None` et GET /v1/documents/:id et
+# /download répondaient 502 upstream_unavailable pour 100% des documents.
+# Tant que les secrets Forgejo ne sont pas renseignés, ces `-e` restent vides
+# et `scaleway_storage_signer.rs` court-circuite proprement (fail-closed,
+# `sign() -> None`) plutôt que de tenter un appel voué à l'échec.
 # Tunnel web de réservation SSR public (ADR-013, #5356) : plus de port dédié
 # séparé depuis #5628 (un `WEB_TUNNEL_PORT`/3001 distinct n'était raccordé à
 # aucun nom de domaine en production — cf. commentaire de main.rs) ; ces

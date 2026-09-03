@@ -37,6 +37,11 @@ Variables : `DEPLOY_HOST` (192.168.1.100) · `DEPLOY_USER` (root) · `DEPLOY_PAS
 `502 upstream_unavailable`, cf. #5688 ; `/v1/quotes/:id/sign`, le chemin utilisé par
 `app_patient`, n'en dépend pas).
 
+Variables optionnelles `SCW_ACCESS_KEY` / `SCW_SECRET_KEY` / `SCW_BUCKET` (Object
+Storage Scaleway, `ScalewayStorageSigner`) : sans elles, `GET /v1/documents/:id`
+et `/download` répondent `502 upstream_unavailable` pour 100% des documents
+(coffre-fort patient illisible), cf. #6250.
+
 Variables optionnelles `CADDY_HOST` / `CADDY_USER` (défaut `root`) / `CADDY_PASSWORD` /
 `CADDY_SSH_PORT` (défaut `22`) / `CADDY_CONFIG_PATH` (défaut `/etc/caddy/Caddyfile`) :
 si `CADDY_HOST` est renseigné, le bloc Caddy `reservation.doc.nubia-link.com` (cf.
@@ -54,7 +59,8 @@ contrairement au health-check général de la section suivante, best-effort.
 Pré-requis une fois :
 1. Construire l'image de job : `./ci/deploy/load-into-runner.sh` (dépend de `flutter-ci:stable`).
 2. Renseigner les secrets Forgejo : `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PASSWORD`
-   (option : variable `NUBIA_API_BASE`, secret optionnel `YOUSIGN_API_KEY`).
+   (option : variable `NUBIA_API_BASE`, secrets optionnels `YOUSIGN_API_KEY`,
+   `SCW_ACCESS_KEY` / `SCW_SECRET_KEY` / `SCW_BUCKET` — cf. #6250).
    Secrets optionnels `CADDY_HOST` / `CADDY_USER` / `CADDY_PASSWORD` (#6162) :
    sans eux, l'application auto du bloc Caddy `reservation.doc.nubia-link.com`
    est sautée et le collage manuel reste requis (cf. section précédente).

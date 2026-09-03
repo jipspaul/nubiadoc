@@ -31,6 +31,14 @@ API_BASE="${API_BASE:-http://${HOST}:3000}"
 # YOUSIGN_API_KEY, quelle que soit la config secrets Forgejo -> Bearer vide ->
 # 502 upstream_unavailable systématique sur POST /v1/quotes/:id/signature.
 YOUSIGN_API_KEY="${YOUSIGN_API_KEY:-}"
+# #6250 : même bug que #5688 ci-dessus, mais sur le signer de stockage
+# (`ScalewayStorageSigner::from_env`, `SCW_ACCESS_KEY`/`SCW_SECRET_KEY`/
+# `SCW_BUCKET`) — absentes de toute la chaîne CI -> LXC, `signer.sign()`
+# renvoie donc toujours `None` en prod -> 502 upstream_unavailable sur 100%
+# de `GET /v1/documents/:id` et `/download`, quel que soit le document.
+SCW_ACCESS_KEY="${SCW_ACCESS_KEY:-}"
+SCW_SECRET_KEY="${SCW_SECRET_KEY:-}"
+SCW_BUCKET="${SCW_BUCKET:-}"
 TARGET="x86_64-unknown-linux-musl"
 OUT="$ROOT/.deploy-artifacts"
 
@@ -129,7 +137,9 @@ for d in patient praticien secretary pharmacie infirmiere; do
 done
 
 say "6/8 déploiement distant"
-SSH "PUBLIC_API_BASE='$API_BASE' YOUSIGN_API_KEY='$YOUSIGN_API_KEY' sh /opt/nubia/deploy.sh"
+SSH "PUBLIC_API_BASE='$API_BASE' YOUSIGN_API_KEY='$YOUSIGN_API_KEY' \
+  SCW_ACCESS_KEY='$SCW_ACCESS_KEY' SCW_SECRET_KEY='$SCW_SECRET_KEY' SCW_BUCKET='$SCW_BUCKET' \
+  sh /opt/nubia/deploy.sh"
 
 say "7/8 application auto du bloc Caddy reservation.doc.nubia-link.com (hôte Caddy, opt-in)"
 # #6116/#6139/#6160/#6162 : ce bloc est un template à coller à la main sur
