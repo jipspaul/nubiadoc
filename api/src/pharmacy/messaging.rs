@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PharmaMemberClaims},
+    notify,
     realtime::WsHub,
     AppState,
 };
@@ -243,13 +244,18 @@ pub async fn send_pharmacy_message(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    sqlx::query("SELECT 1 FROM conversation WHERE id = $1 AND pharmacy_id = $2")
-        .bind(conversation_id)
-        .bind(claims.pharmacy_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?
-        .ok_or(AppError::NotFound)?;
+    let conv_row = sqlx::query(
+        "SELECT patient_account_id FROM conversation WHERE id = $1 AND pharmacy_id = $2",
+    )
+    .bind(conversation_id)
+    .bind(claims.pharmacy_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+    let patient_account_id: Option<Uuid> = conv_row
+        .try_get("patient_account_id")
+        .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
         "INSERT INTO message \
@@ -269,6 +275,21 @@ pub async fn send_pharmacy_message(
     let message_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let created_at: chrono::DateTime<chrono::Utc> =
         row.try_get("created_at").map_err(|_| AppError::Internal)?;
+
+    // Notifie le patient (#6259). Titre sans contenu du message (anti-PII).
+    // Patient sans compte app : notification silencieusement absente, même
+    // choix que `cabinet_messaging::send_cabinet_message`.
+    if let Some(account_id) = patient_account_id {
+        notify::notify_patient_account(
+            &mut tx,
+            account_id,
+            "message_received",
+            "Vous avez reçu un nouveau message",
+            serde_json::json!({ "conversation_id": conversation_id, "type": "pharmacy" }),
+        )
+        .await?;
+    }
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let channel = format!("conversation:{conversation_id}");

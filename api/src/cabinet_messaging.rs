@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProSecretaryPlusClaims},
-    AppState,
+    notify, AppState,
 };
 
 #[derive(Deserialize)]
@@ -509,8 +509,8 @@ pub async fn send_cabinet_message(
     // R10 (#5715) : pour une secrétaire, cloisonnement au secrétariat rattaché
     // au(x) praticien(s) suivant le patient — même EXISTS que list_cabinet_conversations,
     // sinon accès direct par :id contourne le filtre appliqué sur la liste.
-    sqlx::query(
-        "SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2 \
+    let conv_row = sqlx::query(
+        "SELECT patient_account_id FROM conversation WHERE id = $1 AND cabinet_id = $2 \
          AND (scope != 'clinical' OR $3 != 'secretary') \
          AND (scope != 'platform_support' OR $3 = 'admin') \
          AND ($3 != 'secretary' OR EXISTS ( \
@@ -531,6 +531,9 @@ pub async fn send_cabinet_message(
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
+    let patient_account_id: Option<Uuid> = conv_row
+        .try_get("patient_account_id")
+        .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
         "INSERT INTO message \
@@ -551,6 +554,20 @@ pub async fn send_cabinet_message(
     let message_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let created_at: chrono::DateTime<chrono::Utc> =
         row.try_get("created_at").map_err(|_| AppError::Internal)?;
+
+    // Notifie le patient (#6259). Titre sans contenu du message (anti-PII).
+    // Patient sans compte app (walk-in) : notification silencieusement
+    // absente, même choix que `cabinet_quotes::send_cabinet_quote`.
+    if let Some(account_id) = patient_account_id {
+        notify::notify_patient_account(
+            &mut tx,
+            account_id,
+            "message_received",
+            "Vous avez reçu un nouveau message",
+            serde_json::json!({ "conversation_id": conversation_id, "type": "cabinet" }),
+        )
+        .await?;
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 

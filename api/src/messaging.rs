@@ -15,8 +15,13 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
-    AppState,
+    notify, AppState,
 };
+
+/// Rôles cabinet notifiés à la réception d'un message patient (#6259) :
+/// praticien + secrétariat, même périmètre que `QUOTE_SIGNED_NOTIFY_ROLES`
+/// (billing.rs).
+const MESSAGE_RECEIVED_NOTIFY_ROLES: [&str; 2] = ["practitioner", "secretary"];
 
 #[derive(Deserialize)]
 pub struct ListConversationsQuery {
@@ -683,6 +688,30 @@ pub async fn send_message(
 
     let message_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 
+    // Notifie le destinataire (#6259). Titre sans contenu du message
+    // (anti-PII). Jamais de notif à l'émetteur (patient).
+    if let Some(cabinet_id) = cabinet_id {
+        notify::notify_cabinet_staff(
+            &mut tx,
+            cabinet_id,
+            &MESSAGE_RECEIVED_NOTIFY_ROLES,
+            "message_received",
+            "Nouveau message reçu",
+            serde_json::json!({ "conversation_id": conversation_id, "type": "cabinet" }),
+        )
+        .await?;
+    }
+    if let Some(pharmacy_id) = pharmacy_id {
+        notify::notify_pharmacy_staff(
+            &mut tx,
+            pharmacy_id,
+            "message_received",
+            "Nouveau message reçu",
+            serde_json::json!({ "conversation_id": conversation_id, "type": "pharmacy" }),
+        )
+        .await?;
+    }
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     // Temps réel : notifie les abonnés du fil (secrétariat/praticien) — #3238.
@@ -697,13 +726,12 @@ pub async fn send_message(
         .to_string(),
     );
 
-    // Stub notification au cabinet — implémentation réelle avec NUB-T4.
     tracing::info!(
         account_id = %claims.account_id,
         conversation_id = %conversation_id,
         message_id = %message_id,
         triage_flag,
-        "message envoyé — notification cabinet stub"
+        "message envoyé"
     );
 
     Ok((
