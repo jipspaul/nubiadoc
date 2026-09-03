@@ -715,8 +715,7 @@ pub async fn me(
                 .map(|r| {
                     let cabinet_id: Uuid =
                         r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
-                    let practitioner_id: Uuid =
-                        r.try_get("id").map_err(|_| AppError::Internal)?;
+                    let practitioner_id: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
                     Ok((cabinet_id, practitioner_id))
                 })
                 .collect::<Result<_, AppError>>()?;
