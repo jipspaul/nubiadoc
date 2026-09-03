@@ -20,6 +20,7 @@ import 'widgets/side_column.dart';
 import '../../pro_config.dart';
 import '../../router/app_router.dart';
 import '../../session/pro_auth_cubit.dart';
+import '../notifications/notification_route_resolver.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
@@ -171,6 +172,16 @@ class ConsultationCliniquePage extends StatelessWidget {
       currentRoute: AppRouter.consultation,
       onNavigate: (destination) => context.go(destination.route),
       notificationRepository: GetIt.instance<NotificationRepository>(),
+      // #6280 — voir PracticienShell.onNotificationTap (même wiring), requis
+      // ici aussi car `/consultation` monte son propre ProShell.
+      onNotificationTap: (context, notification) {
+        final route = NotificationRouteResolver.resolve(
+          kind: notification.kind,
+        );
+        if (route == null) return;
+        Navigator.of(context).pop();
+        context.go(route);
+      },
       bodyBuilder: (ctx, destination) {
         if (destination.route == AppRouter.consultation) {
           // #6190 — go_router réutilise le même State en naviguant de

@@ -45,5 +45,21 @@ void main() {
         expect(dto.toDomain().type, expected);
       });
     });
+
+    // Régression #6280 : le kind brut doit survivre jusqu'au domaine — les
+    // `NotificationRouteResolver` pro (#6264) en ont besoin pour distinguer
+    // des kinds bucketés dans le même `NotificationType` (ex.
+    // order_received/stock_request_received, tous deux `other`).
+    test('toDomain() préserve le kind brut', () {
+      final dto = NotificationDto.fromJson({
+        'id': '1',
+        'kind': 'stock_request_received',
+        'title': 'Titre',
+        'is_read': false,
+        'created_at': '2026-01-01T00:00:00Z',
+      });
+
+      expect(dto.toDomain().kind, 'stock_request_received');
+    });
   });
 }

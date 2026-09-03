@@ -47,6 +47,7 @@ class ProShell extends StatefulWidget {
     this.searchHint,
     this.onSearchTap,
     this.notificationRepository,
+    this.onNotificationTap,
   });
 
   final ProConfig config;
@@ -103,6 +104,17 @@ class ProShell extends StatefulWidget {
   /// cloche affichée — comportement inchangé pour les apps/tests qui ne la
   /// fournissent pas (voir aussi [searchHint]).
   final NotificationRepository? notificationRepository;
+
+  /// Appelé au clic sur une notification du panneau (#6264, deep-link
+  /// kind→route) — la notification vient d'être marquée lue. `ProShell` ne
+  /// connaît ni le kind→route mapping ni le routeur de l'app appelante
+  /// (chacun des 3 apps pro a son propre `AppRouter`/`NotificationRouteResolver`) :
+  /// c'est à l'appelant de résoudre la route et de naviguer (typiquement
+  /// `Navigator.of(context).pop()` pour refermer le panneau puis
+  /// `context.go(route)`). `null` (défaut) : aucune navigation, comportement
+  /// inchangé pour les apps/tests qui ne le fournissent pas encore.
+  final void Function(BuildContext context, AppNotification notification)?
+      onNotificationTap;
 
   @override
   State<ProShell> createState() => _ProShellState();
@@ -506,7 +518,10 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     // fournit pas de [ProShell.notificationRepository] (voir sa doc).
     final bell = _notificationsCubit == null
         ? null
-        : ProNotificationsBell(cubit: _notificationsCubit!);
+        : ProNotificationsBell(
+            cubit: _notificationsCubit!,
+            onNotificationTap: widget.onNotificationTap,
+          );
 
     // En mode [body] (StatefulShellRoute), la page routée porte déjà son
     // propre Scaffold/AppBar le cas échéant (ex. bouton actualiser, FAB) —
@@ -618,7 +633,10 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     // #6263 — même cloche partagée que le rail desktop (voir _buildDesktop).
     final bell = _notificationsCubit == null
         ? null
-        : ProNotificationsBell(cubit: _notificationsCubit!);
+        : ProNotificationsBell(
+            cubit: _notificationsCubit!,
+            onNotificationTap: widget.onNotificationTap,
+          );
 
     return Scaffold(
       appBar: AppBar(

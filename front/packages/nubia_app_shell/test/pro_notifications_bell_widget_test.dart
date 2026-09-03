@@ -10,7 +10,12 @@ import 'package:nubia_domain/nubia_domain.dart';
 class MockNotificationRepository extends Mock
     implements NotificationRepository {}
 
-AppNotification _notif(String id, {bool read = false, String? title}) =>
+AppNotification _notif(
+  String id, {
+  bool read = false,
+  String? title,
+  String? kind,
+}) =>
     AppNotification(
       id: id,
       type: NotificationType.appointment,
@@ -18,6 +23,7 @@ AppNotification _notif(String id, {bool read = false, String? title}) =>
       body: 'Corps $id',
       read: read,
       createdAt: DateTime(2026, 6, 25),
+      kind: kind,
     );
 
 const _config = ProConfig(
@@ -43,12 +49,17 @@ void main() {
     when(() => repo.getUnreadCount()).thenAnswer((_) async => const Right(0));
   });
 
-  Widget buildShell() => MaterialApp(
+  Widget buildShell({
+    void Function(BuildContext context, AppNotification notification)?
+        onNotificationTap,
+  }) =>
+      MaterialApp(
         theme: NubiaTheme.light,
         home: ProShell(
           config: _config,
           session: _session,
           notificationRepository: repo,
+          onNotificationTap: onNotificationTap,
         ),
       );
 
@@ -124,6 +135,45 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(() => repo.markRead('1')).called(1);
+    },
+  );
+
+  testWidgets(
+    // Régression #6280 : le panneau appelait uniquement `markRead`, sans
+    // jamais notifier l'appelant — aucune des 3 apps pro ne pouvait donc
+    // naviguer au clic sur une notification.
+    'clic sur une notification appelle onNotificationTap et referme le panneau',
+    (tester) async {
+      when(() => repo.getNotifications()).thenAnswer(
+        (_) async => Right([
+          _notif('1', title: 'Nouvelle demande de stock', kind: 'stock_request_received'),
+        ]),
+      );
+      when(() => repo.markRead('1')).thenAnswer((_) async => const Right(null));
+
+      AppNotification? tapped;
+      await tester.pumpWidget(
+        buildShell(
+          onNotificationTap: (context, notification) {
+            tapped = notification;
+            Navigator.of(context).pop();
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('pro_notifications_bell')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Nouvelle demande de stock'));
+      await tester.pumpAndSettle();
+
+      verify(() => repo.markRead('1')).called(1);
+      expect(tapped?.id, '1');
+      expect(tapped?.kind, 'stock_request_received');
+      // Le panneau (ouvert en `showGeneralDialog`) doit avoir été refermé par
+      // l'appel à `Navigator.pop` dans le callback.
+      expect(find.text('Notifications'), findsNothing);
     },
   );
 
