@@ -461,6 +461,7 @@ class _WeekNav extends StatelessWidget {
           IconButton(
             key: const Key('agenda_prev_week'),
             icon: const Icon(Icons.chevron_left),
+            tooltip: 'Semaine précédente',
             onPressed: () => context.read<AgendaBloc>().add(
                   AgendaWeekChanged(
                     weekStart: weekStart.subtract(const Duration(days: 7)),
@@ -477,6 +478,7 @@ class _WeekNav extends StatelessWidget {
           IconButton(
             key: const Key('agenda_next_week'),
             icon: const Icon(Icons.chevron_right),
+            tooltip: 'Semaine suivante',
             onPressed: () => context.read<AgendaBloc>().add(
                   AgendaWeekChanged(
                     weekStart: weekStart.add(const Duration(days: 7)),
