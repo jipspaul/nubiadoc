@@ -91,7 +91,17 @@ final _staleInProgressAppointment = Appointment(
   cabinetId: 'cabinet-1',
   practitionerName: 'Dr Claire Lefevre',
   practitionerSpecialty: 'Dentiste',
-  startsAt: DateTime.now().toUtc().subtract(const Duration(hours: 16)),
+  // HIER à midi (heure locale), déterministe quelle que soit l'heure du run.
+  // L'ancien `now - 16h` ne tombait sur la veille que si le test tournait
+  // AVANT 16h : tout front-test lancé le soir voyait « Aujourd'hui » au lieu
+  // d'« En cours » et passait main au rouge (même classe de bombe horaire que
+  // le fix TodayScheduleCard du 2026-09-02 — épingler, jamais d'offset de now).
+  startsAt: DateTime(
+    DateTime.now().subtract(const Duration(days: 1)).year,
+    DateTime.now().subtract(const Duration(days: 1)).month,
+    DateTime.now().subtract(const Duration(days: 1)).day,
+    12,
+  ).toUtc(),
   duration: const Duration(minutes: 30),
   motif: 'QA-queue-flow',
   status: AppointmentStatus.inProgress,
@@ -102,7 +112,16 @@ final _todayConfirmedAppointment = Appointment(
   cabinetId: 'cabinet-1',
   practitionerName: 'Dr Claire Lefevre',
   practitionerSpecialty: 'Dentiste',
-  startsAt: DateTime.now().toUtc().add(const Duration(hours: 2)),
+  // AUJOURD'HUI à 23:59 (heure locale) : « Aujourd'hui » quelle que soit
+  // l'heure du run — l'ancien `now + 2h` devenait « Demain » dès 22h et
+  // faisait échouer la CI du soir (2e bombe horaire du fichier).
+  startsAt: DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
+    23,
+    59,
+  ).toUtc(),
   duration: const Duration(minutes: 30),
   motif: 'QA sweep waiting-room fresh',
   status: AppointmentStatus.confirmed,
