@@ -262,3 +262,85 @@ async fn returned_status_creates_patient_notification() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test : gating à l'émission (#6258) — `inapp_labo=false` empêche l'INSERT ──
+// Contrairement à `returned_status_creates_patient_notification` ci-dessus
+// (préférence par défaut), le patient a ici désactivé la catégorie `labo` via
+// `user_notification_preference` (#6257) : `notify::notify_user` doit sauter
+// l'INSERT, pas juste la filtrer à la lecture (cf. `notify.rs`).
+#[tokio::test]
+async fn returned_status_skips_notification_when_labo_muted() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.pro_user_id, f.cabinet_id);
+
+    sqlx::query(
+        "INSERT INTO user_notification_preference (app_user_id, inapp_labo) VALUES ($1, false)",
+    )
+    .bind(f.patient_app_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let create_response = app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/lab-work-orders")
+                .header("Authorization", format!("Bearer {token}"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "patient_id": f.patient_id,
+                        "lab_name": "Labo Dentaire Retour Mute",
+                        "purchase_price_cents": 18000
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let created: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let order_id: Uuid = created["order_id"].as_str().unwrap().parse().unwrap();
+
+    let patch_response = app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/lab-work-orders/{order_id}"))
+                .header("Authorization", format!("Bearer {token}"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(json!({"status": "returned"}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(patch_response.status(), StatusCode::OK);
+
+    let notif = sqlx::query(
+        "SELECT id FROM notification WHERE app_user_id = $1 AND kind = 'lab_work_returned'",
+    )
+    .bind(f.patient_app_user_id)
+    .fetch_optional(&db)
+    .await
+    .unwrap();
+    assert!(
+        notif.is_none(),
+        "aucune notification lab_work_returned ne doit être insérée quand inapp_labo=false"
+    );
+
+    sqlx::query("DELETE FROM user_notification_preference WHERE app_user_id = $1")
+        .bind(f.patient_app_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    cleanup(&db, &f).await;
+}
