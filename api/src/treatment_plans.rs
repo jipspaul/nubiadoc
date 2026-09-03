@@ -60,6 +60,8 @@ pub struct TreatmentPlanItem {
     pub step_count: i64,
     pub current_phase_title: Option<String>,
     pub current_step: i64,
+    pub total_cost_cents: i64,
+    pub remaining_cents: i64,
 }
 
 #[derive(Serialize)]
@@ -226,6 +228,34 @@ pub async fn list_treatment_plans(
             .try_get("current_step")
             .map_err(|_| AppError::Internal)?;
 
+        // Montant du plan (#6242) : la liste affichait « 0 € » sur 100 % des
+        // plans faute d'exposer ce total, alors que le détail (get_treatment_plan
+        // ci-dessous) le calcule déjà. Même agrégat que le détail : somme des
+        // `quote_item` rattachés aux phases du plan.
+        let cost_totals = sqlx::query(
+            "SELECT COALESCE(SUM((qi.unit_amount * 100)::bigint), 0) AS total_cost_cents, \
+                    COALESCE(SUM(COALESCE((qi.amo_part * 100)::bigint, 0)), 0) AS total_amo_cents, \
+                    COALESCE(SUM(COALESCE((qi.amc_part * 100)::bigint, 0)), 0) AS total_amc_cents \
+             FROM quote_item qi \
+             JOIN treatment_phase tp3 ON tp3.id = qi.phase_id \
+             WHERE tp3.plan_id = $1",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        let total_cost_cents: i64 = cost_totals
+            .try_get("total_cost_cents")
+            .map_err(|_| AppError::Internal)?;
+        let total_amo_cents: i64 = cost_totals
+            .try_get("total_amo_cents")
+            .map_err(|_| AppError::Internal)?;
+        let total_amc_cents: i64 = cost_totals
+            .try_get("total_amc_cents")
+            .map_err(|_| AppError::Internal)?;
+        let remaining_cents = total_cost_cents - total_amo_cents - total_amc_cents;
+
         data.push(TreatmentPlanItem {
             id,
             title,
@@ -234,6 +264,8 @@ pub async fn list_treatment_plans(
             step_count,
             current_phase_title,
             current_step,
+            total_cost_cents,
+            remaining_cents,
         });
     }
 

@@ -80,6 +80,19 @@ final _planWithProgressNoCurrentStep = PatientTreatmentPlan(
   totalCostCents: 163592,
 );
 
+/// Plan « En cours » sans `totalCostCents` (info serveur absente) — ne doit
+/// pas afficher « 0 € », qui affirmerait à tort un plan gratuit (#6242).
+final _planWithProgressNoTotalCost = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Réhabilitation implantaire',
+  status: 'in_progress',
+  practitionerName: 'Amélie Rousseau',
+  proposedAt: DateTime.utc(2026, 7, 22),
+  currentStep: 2,
+  stepCount: 3,
+  currentPhaseTitle: 'endodontie',
+);
+
 /// Plan « Terminé » avec sous-titre et progression — toutes les étapes
 /// affichées comme faites, sans étape courante (#5288).
 final _donePlanWithProgress = PatientTreatmentPlan(
@@ -661,6 +674,28 @@ void main() {
         find.descendant(
             of: card, matching: find.text('Étape 1 sur 3 · endodontie')),
         findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'carte de plan sans totalCostCents — masque le montant, '
+        'n\'affiche pas « 0 € » (#6242)', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state).thenReturn(
+          PatientTreatmentPlansLoaded([_planWithProgressNoTotalCost]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      final card = find.byKey(const Key('treatment_plan_plan-1'));
+      expect(card, findsOneWidget);
+      expect(
+        find.descendant(of: card, matching: find.text('0 €')),
+        findsNothing,
       );
     });
 

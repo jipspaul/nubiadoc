@@ -138,7 +138,8 @@ class PatientTreatmentPlanDto {
     this.currentPhaseTitle,
   });
 
-  /// `GET /v1/treatment-plans` (liste) : ni coûts ni phases.
+  /// `GET /v1/treatment-plans` (liste) : `total_cost_cents` (#6242) mais pas
+  /// de détail (`remaining_cents`/`amo_part_cents`/`amc_part_cents`/phases).
   factory PatientTreatmentPlanDto.fromSummaryJson(Map<String, dynamic> json) =>
       PatientTreatmentPlanDto(
         id: json['id'] as String,

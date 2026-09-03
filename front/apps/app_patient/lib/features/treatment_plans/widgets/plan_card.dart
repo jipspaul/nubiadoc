@@ -95,15 +95,20 @@ class PlanCard extends StatelessWidget {
                           const TextStyle(fontSize: 12.5, color: NubiaColors.n600),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Text(
-                    formatTreatmentPlanCents(plan.totalCostCents ?? 0),
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.bold,
-                      fontFeatures: tabularFigures,
+                  // Absence de `total_cost_cents` (ex : réponse serveur qui ne
+                  // l'expose pas) ≠ plan gratuit — masquer plutôt qu'afficher
+                  // « 0 € », qui est une affirmation fausse (#6242).
+                  if (plan.totalCostCents != null) ...[
+                    const SizedBox(width: 12),
+                    Text(
+                      formatTreatmentPlanCents(plan.totalCostCents!),
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        fontFeatures: tabularFigures,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ],
