@@ -557,13 +557,25 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
             body: _content(context, current),
           );
 
-    // Mode [body] : aucune AppBar ne porte la cloche (chrome de la page
-    // routée, cf. commentaire ci-dessus) — une fine barre dédiée l'ajoute
-    // au-dessus, pour que la cloche reste partagée sans dupliquer le titre.
-    final contentWithBell = widget.body != null && bell != null
+    // #6316 — en mode [body], le NubiaAppBar générique est court-circuité
+    // (cf. commentaire ci-dessus) et emportait avec lui le déclencheur de
+    // recherche (`_SearchTrigger`), alors que seule la duplication du titre
+    // était voulue : le raccourci ⌘K (pro_shell.dart, `_registerShortcuts`)
+    // restait fonctionnel mais n'avait plus aucun point d'entrée visible.
+    final searchTrigger =
+        widget.searchHint != null && widget.onSearchTap != null
+            ? _SearchTrigger(hint: widget.searchHint!, onTap: widget.onSearchTap!)
+            : null;
+
+    // Mode [body] : aucune AppBar ne porte la recherche/la cloche (chrome de
+    // la page routée, cf. commentaire ci-dessus) — une fine barre dédiée les
+    // ajoute au-dessus, pour qu'elles restent partagées sans dupliquer le
+    // titre.
+    final contentWithBell = widget.body != null &&
+            (bell != null || searchTrigger != null)
         ? Column(
             children: [
-              _DesktopNotificationsBar(bell: bell),
+              _DesktopNotificationsBar(searchTrigger: searchTrigger, bell: bell),
               Expanded(child: content),
             ],
           )
@@ -724,13 +736,15 @@ class _RouteSemanticsBoundary extends StatelessWidget {
 }
 
 /// Fine barre au-dessus du contenu routé, seule à porter la cloche (#6263)
-/// quand [ProShell.body] est fourni (StatefulShellRoute) — ce mode-là ne
-/// passe jamais par le [NubiaAppBar] de `_buildDesktop` (voir son
-/// commentaire), qui est le seul autre point où la cloche s'affiche.
+/// et le déclencheur de recherche globale (#6316) quand [ProShell.body] est
+/// fourni (StatefulShellRoute) — ce mode-là ne passe jamais par le
+/// [NubiaAppBar] de `_buildDesktop` (voir son commentaire), qui est le seul
+/// autre point où ces deux éléments s'affichent.
 class _DesktopNotificationsBar extends StatelessWidget {
-  const _DesktopNotificationsBar({required this.bell});
+  const _DesktopNotificationsBar({this.searchTrigger, this.bell});
 
-  final Widget bell;
+  final Widget? searchTrigger;
+  final Widget? bell;
 
   @override
   Widget build(BuildContext context) {
@@ -743,7 +757,13 @@ class _DesktopNotificationsBar extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         border: Border(bottom: BorderSide(color: tokens.borderSubtle)),
       ),
-      child: bell,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (searchTrigger != null) searchTrigger!,
+          if (bell != null) bell!,
+        ],
+      ),
     );
   }
 }
