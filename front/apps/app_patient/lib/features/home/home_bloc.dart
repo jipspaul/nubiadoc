@@ -42,15 +42,25 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
     }
   }
 
-  /// Détail du prochain RDV pour la carte héros (#5198) : le premier RDV à
-  /// venir (l'API les trie déjà par `starts_at ASC`), ou `null` si l'appel
-  /// échoue ou que la liste est vide — la carte héros retombe alors sur son
-  /// état par défaut plutôt que de faire échouer tout l'accueil.
+  /// Détail du prochain RDV pour la carte héros (#5198) : le premier RDV
+  /// dont `startsAt` est encore à venir (l'API les trie par `starts_at ASC`,
+  /// mais `filter=upcoming` inclut aussi, dans une fenêtre glissante de 1
+  /// jour, les RDV `checked_in`/`in_progress` déjà commencés — #6287, sans
+  /// ce filtre un tel RDV passé masquait le vrai RDV du jour). `null` si
+  /// l'appel échoue ou que la liste est vide — la carte héros retombe alors
+  /// sur son état par défaut plutôt que de faire échouer tout l'accueil.
+  /// Aucun RDV à venir : on retombe sur le premier de la liste (RDV en cours
+  /// resté seul), plutôt que de masquer la carte sans raison.
   Future<Appointment?> _nextAppointment() async {
     try {
       final result = await _getUpcomingAppointments();
       return result.fold((_) => null, (appointments) {
-        return appointments.isEmpty ? null : appointments.first;
+        if (appointments.isEmpty) return null;
+        final now = DateTime.now();
+        for (final appointment in appointments) {
+          if (appointment.startsAt.isAfter(now)) return appointment;
+        }
+        return appointments.first;
       });
     } catch (_) {
       return null;
