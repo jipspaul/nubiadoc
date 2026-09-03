@@ -13,6 +13,7 @@ use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
 pub use brevo_mailer::BrevoMailer;
+pub use fcm::FcmJobDispatcher;
 pub use quote_relance_dispatch::{
     dispatch_quote_relances, run_quote_relance_loop, QuoteRelanceDispatchError,
     QuoteRelanceDispatchSummary,
@@ -84,6 +85,7 @@ mod dashboard;
 mod dental_chart;
 mod devices;
 mod documents;
+mod fcm;
 mod health;
 pub mod hl7v2;
 mod implant_passport;

@@ -4,7 +4,8 @@ use std::sync::Arc;
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{
     run_dispatch_loop, run_quote_relance_loop, run_visit_offer_expiry_loop, AppState, BrevoMailer,
-    ScalewayStorageSigner, StorageSigner, StubJobDispatcher, TwilioSmsSender, YousignClient,
+    FcmJobDispatcher, ScalewayStorageSigner, StorageSigner, StubJobDispatcher, TwilioSmsSender,
+    YousignClient,
 };
 use sqlx::PgPool;
 
@@ -53,15 +54,18 @@ async fn main() {
     // Worker de dispatch des rappels RDV (#4034, canal sms #4036) : même
     // pattern que le listener MLLP ci-dessus (tokio::spawn dans le même
     // binaire, ADR-002/ADR-012 — pas de job queue apalis dans ce dépôt à ce
-    // jour, cf. doc de module reminder_dispatch.rs). StubJobDispatcher :
-    // comme tous les autres call sites enqueue_push_notification de ce
-    // dépôt, en attendant une implémentation JobDispatcher réelle (aucune
-    // n'existe encore). TwilioSmsSender en prod (#4036), cf. sa doc de
-    // module pour le choix du provider.
+    // jour, cf. doc de module reminder_dispatch.rs). FcmJobDispatcher (#6321)
+    // décore StubJobDispatcher : push FCM réel si FIREBASE_SERVICE_ACCOUNT est
+    // configuré, sinon fallback silencieux identique à avant (stub pur).
+    // TwilioSmsSender en prod (#4036), cf. sa doc de module pour le choix du
+    // provider.
     const REMINDER_DISPATCH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
     tokio::spawn(run_dispatch_loop(
         state.db.clone(),
-        std::sync::Arc::new(StubJobDispatcher),
+        std::sync::Arc::new(FcmJobDispatcher::new(
+            std::sync::Arc::new(StubJobDispatcher),
+            state.db.clone(),
+        )),
         std::sync::Arc::new(TwilioSmsSender::from_env()),
         REMINDER_DISPATCH_INTERVAL,
     ));
@@ -87,7 +91,10 @@ async fn main() {
     const VISIT_OFFER_EXPIRY_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
     tokio::spawn(run_visit_offer_expiry_loop(
         state.db.clone(),
-        std::sync::Arc::new(StubJobDispatcher),
+        std::sync::Arc::new(FcmJobDispatcher::new(
+            std::sync::Arc::new(StubJobDispatcher),
+            state.db.clone(),
+        )),
         VISIT_OFFER_EXPIRY_INTERVAL,
     ));
 
@@ -130,11 +137,15 @@ fn app_with_hl7v2_status(state: AppState, mllp_status: Hl7v2ListenerStatus) -> a
     // d'intégration qui construisent leur propre routeur.
     // Hub WS créé ICI (et non dans le builder) pour être partagé avec le
     // `WsPushDispatcher` : les notifications insérées sont poussées en temps
-    // réel sur le canal `notifications` des sockets ouvertes (interim
-    // « app vivante » avant FCM/APNs, cf. realtime::WsPushDispatcher).
+    // réel sur le canal `notifications` des sockets ouvertes, EN PLUS du push
+    // FCM réel (`FcmJobDispatcher`, #6321) — la socket couvre l'app vivante,
+    // FCM couvre l'app tuée/en arrière-plan.
     let hub = std::sync::Arc::new(nubia_api::WsHub::new());
-    let dispatcher = std::sync::Arc::new(nubia_api::realtime_push_dispatcher(
-        hub.clone(),
+    let dispatcher = std::sync::Arc::new(FcmJobDispatcher::new(
+        std::sync::Arc::new(nubia_api::realtime_push_dispatcher(
+            hub.clone(),
+            state.db.clone(),
+        )),
         state.db.clone(),
     ));
     nubia_api::app_prod(
