@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import 'devis_bloc.dart';
 import 'quote_delay.dart';
 import 'widgets/devis_kpis.dart';
@@ -119,16 +120,32 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(
-                      width: 230,
-                      child: NubiaSearchBar(
-                        key: const Key('devis_search'),
-                        hint: 'Patient, article…',
-                        onChanged: (value) => setState(() => _query = value),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 230,
+                        child: NubiaSearchBar(
+                          key: const Key('devis_search'),
+                          hint: 'Patient, article…',
+                          onChanged: (value) =>
+                              setState(() => _query = value),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      NubiaButton(
+                        key: const Key('devis_new_quote'),
+                        label: 'Nouveau devis',
+                        icon: Icons.add,
+                        variant: NubiaButtonVariant.secondary,
+                        size: NubiaButtonSize.sm,
+                        // Un devis est toujours rattaché à une commande côté
+                        // API (order_id obligatoire) : le composeur existant
+                        // (quote_composer_sheet.dart) ne s'ouvre que depuis
+                        // le détail d'une commande — on y amène l'officine
+                        // pour qu'elle en choisisse une.
+                        onPressed: () => context.go(AppRouter.orders),
+                      ),
+                    ],
                   ),
                 ),
                 Expanded(
