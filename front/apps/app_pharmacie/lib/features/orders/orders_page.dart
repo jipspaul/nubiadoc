@@ -89,7 +89,8 @@ class _OrdersViewState extends State<OrdersView> {
     return orders
         .where((order) =>
             (order.patientDisplayName ?? '').toLowerCase().contains(query) ||
-            order.id.toLowerCase().contains(query))
+            order.id.toLowerCase().contains(query) ||
+            (order.orderRef ?? '').toLowerCase().contains(query))
         .toList();
   }
 
