@@ -528,23 +528,25 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     // un second NubiaAppBar ici le dupliquerait. On ne fournit le
     // NubiaAppBar générique (titre + recherche + cloche) que dans le mode
     // [bodyBuilder] legacy, où aucune chrome par destination n'existe.
-    final content = widget.body ??
-        Scaffold(
-          appBar: NubiaAppBar(
-            title: current.label,
-            centerTitle: false,
-            actions: [
-              if (widget.searchHint != null && widget.onSearchTap != null)
-                _SearchTrigger(
-                  hint: widget.searchHint!,
-                  onTap: widget.onSearchTap!,
-                ),
-              if (bell != null) bell,
-              const SizedBox(width: 8),
-            ],
-          ),
-          body: _content(context, current),
-        );
+    final body = widget.body;
+    final content = body != null
+        ? _RouteSemanticsBoundary(child: body)
+        : Scaffold(
+            appBar: NubiaAppBar(
+              title: current.label,
+              centerTitle: false,
+              actions: [
+                if (widget.searchHint != null && widget.onSearchTap != null)
+                  _SearchTrigger(
+                    hint: widget.searchHint!,
+                    onTap: widget.onSearchTap!,
+                  ),
+                if (bell != null) bell,
+                const SizedBox(width: 8),
+              ],
+            ),
+            body: _content(context, current),
+          );
 
     // Mode [body] : aucune AppBar ne porte la cloche (chrome de la page
     // routée, cf. commentaire ci-dessus) — une fine barre dédiée l'ajoute
@@ -678,8 +680,37 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
           ),
         ),
       ),
-      body: widget.body ?? _content(context, current),
+      body: widget.body != null
+          ? _RouteSemanticsBoundary(child: widget.body!)
+          : _content(context, current),
     );
+  }
+}
+
+/// Isole [ProShell.body] dans son propre conteneur Semantics (#6310) : quand
+/// [body] est un `StatefulNavigationShell` (`StatefulShellRoute`, praticien
+/// et secrétariat), il embarque son propre `Navigator`/`Overlay` — dont la
+/// route active pousse un `BlockSemantics` qui masque, par ordre de peinture
+/// plutôt que par ascendance dans l'arbre de widgets, TOUT ce qui est peint
+/// avant lui sous le plus proche ancêtre `Semantics(explicitChildNodes:
+/// true)` commun. Ici, cet ancêtre est le nœud de route de `ProShell`
+/// lui-même : sans boundary intermédiaire, `BlockSemantics` remonte jusqu'à
+/// lui et efface la barre latérale/cloche/déconnexion, alors peintes AVANT
+/// [body] dans le `Row`/`Column` du rail — rendues et cliquables (le rendu
+/// visuel ne dépend pas des Semantics), mais absentes de l'arbre
+/// d'accessibilité. `container: true` fait de [body] son propre nœud
+/// Semantics : la recherche du « plus proche ancêtre commun » par
+/// `BlockSemantics` s'arrête ici, sans pouvoir remonter jusqu'aux frères
+/// précédents. Aucun effet en mode [ProShell.bodyBuilder] (pharmacie) :
+/// ce mode ne construit aucun `Navigator` imbriqué.
+class _RouteSemanticsBoundary extends StatelessWidget {
+  const _RouteSemanticsBoundary({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(container: true, child: child);
   }
 }
 
