@@ -274,6 +274,13 @@ pub struct MessageItem {
     pub sender: String,
     pub created_at: String,
     pub read_at: Option<String>,
+    /// Nom de l'émetteur (#6343) — `provider.display_name` pour un praticien,
+    /// absent sinon (patient, secrétariat : le rôle seul suffit côté maquette).
+    pub author_name: Option<String>,
+    /// Rôle de l'émetteur, affiché en tête de bulle côté patient (#6343,
+    /// maquette design-v2 « une messagerie qui ne dit pas qui parle »).
+    /// `None` pour un message patient.
+    pub author_role: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -330,17 +337,25 @@ pub async fn get_conversation_messages(
     // ici ne peut provenir que d'un curseur `/v1/conversations` mal aiguillé ;
     // traité comme absent (1ère page) plutôt que de désaligner les binds SQL.
     let cursor_clause = if matches!(cursor, Some((Some(_), _))) {
-        " AND (created_at > $3 OR (created_at = $3 AND id > $4))"
+        " AND (m.created_at > $3 OR (m.created_at = $3 AND m.id > $4))"
     } else {
         ""
     };
 
+    // author_display_name : nom du praticien émetteur (#6343), résolu via
+    // practitioner.user_id = message.sender_id — jointure inerte pour les
+    // autres sender_kind (patient, secretary, pharmacist), voir mapping du rôle
+    // en Rust plus bas (author_role dérivé de sender_kind, pas de la DB).
     let sql = format!(
-        "SELECT id, body_ciphertext, sender_kind, created_at, read_at \
-         FROM message \
-         WHERE conversation_id = $1 \
+        "SELECT m.id, m.body_ciphertext, m.sender_kind, m.created_at, m.read_at, \
+                pv.display_name AS author_display_name \
+         FROM message m \
+         LEFT JOIN practitioner pr \
+             ON pr.user_id = m.sender_id AND m.sender_kind = 'practitioner' \
+         LEFT JOIN provider pv ON pv.practitioner_id = pr.id \
+         WHERE m.conversation_id = $1 \
          {cursor_clause} \
-         ORDER BY created_at ASC, id ASC \
+         ORDER BY m.created_at ASC, m.id ASC \
          LIMIT $2"
     );
 
@@ -385,6 +400,18 @@ pub async fn get_conversation_messages(
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
         let read_at: Option<chrono::DateTime<chrono::Utc>> =
             row.try_get("read_at").map_err(|_| AppError::Internal)?;
+        let author_display_name: Option<String> = row
+            .try_get("author_display_name")
+            .map_err(|_| AppError::Internal)?;
+
+        // Point 1 de la maquette design-v2 (#6343) : nom + rôle de l'émetteur
+        // au-dessus de la bulle. Le rôle vient de sender_kind, pas de la DB —
+        // même libellés français que le reste du produit (ex. prescriptions.rs).
+        let (author_name, author_role) = match sender.as_str() {
+            "practitioner" => (author_display_name, Some("Praticien".to_string())),
+            "secretary" => (None, Some("Secrétariat".to_string())),
+            _ => (None, None),
+        };
 
         last_created_at = Some(created_at);
         last_id = Some(id);
@@ -395,6 +422,8 @@ pub async fn get_conversation_messages(
             sender,
             created_at: created_at.to_rfc3339(),
             read_at: read_at.map(|dt| dt.to_rfc3339()),
+            author_name,
+            author_role,
         });
     }
 
