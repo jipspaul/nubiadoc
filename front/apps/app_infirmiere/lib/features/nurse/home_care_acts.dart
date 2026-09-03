@@ -12,3 +12,15 @@ const Map<String, String> homeCareActLabels = {
 
 /// Libellé FR d'un acte, ou l'identifiant brut si inconnu de la table.
 String homeCareActLabel(String act) => homeCareActLabels[act] ?? act;
+
+/// Libellés FR des statuts de visite (miroir du `switch` de
+/// `_VisitTab.build` qui nomme les transitions d'action).
+const Map<String, String> visitStatusLabels = {
+  'accepted': 'Acceptée',
+  'en_route': 'En route',
+  'arrived': 'Arrivée sur place',
+  'done': 'Terminée',
+};
+
+/// Libellé FR d'un statut de visite, ou l'identifiant brut si inconnu.
+String visitStatusLabel(String status) => visitStatusLabels[status] ?? status;
