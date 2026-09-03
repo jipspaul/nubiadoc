@@ -80,7 +80,7 @@ pub async fn checkin_appointment(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, starts_at, status, cabinet_id \
+        "SELECT id, starts_at, status, cabinet_id, practitioner_id \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -95,6 +95,9 @@ pub async fn checkin_appointment(
         row.try_get("starts_at").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
 
     if status != "confirmed" {
         return Err(AppError::InvalidStatus);
@@ -157,6 +160,31 @@ pub async fn checkin_appointment(
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    // Notifie le praticien de l'arrivée de son patient (#6260) : sans ça, il
+    // ne l'apprend qu'en regardant la salle d'attente. Titre sans donnée de
+    // santé (cf. notify.rs) — le détail (patient, motif) reste dans l'app.
+    let pract_row = sqlx::query(
+        "SELECT user_id FROM practitioner WHERE id = $1 AND cabinet_id = $2",
+    )
+    .bind(practitioner_id)
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if let Some(pract_row) = pract_row {
+        let practitioner_user_id: Uuid = pract_row
+            .try_get("user_id")
+            .map_err(|_| AppError::Internal)?;
+        notify::notify_user(
+            &mut tx,
+            practitioner_user_id,
+            "patient_checked_in",
+            "Un patient est arrivé",
+            serde_json::json!({ "appointment_id": id }),
+        )
+        .await?;
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 

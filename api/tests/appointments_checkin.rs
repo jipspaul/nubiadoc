@@ -6,7 +6,7 @@ use axum::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
@@ -231,6 +231,115 @@ async fn post_checkin_manual_happy_path_returns_200() {
     assert_eq!(v["status"], "checked_in");
     assert!(v["checkin_at"].is_string(), "checkin_at doit être présent");
 
+    cleanup(&db, cabinet_id, patient_id, prac_id).await;
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test : check-in → notification praticien kind=patient_checked_in (#6260) ─
+
+#[tokio::test]
+async fn post_checkin_notifies_practitioner() {
+    if !db_available() {
+        return;
+    }
+    let db = seed_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("checkin-notifies-prac+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Checkin', 'Notifies')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("checkin-notifies-prac-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // starts_at = now() → dans la fenêtre valide.
+    let (cabinet_id, prac_id, patient_id, appt_id) =
+        insert_fixture(&db, prac_user_id, patient_account_id, "confirmed", "now()").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/appointments/{}/checkin", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"method": "manual"})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let notif_row = sqlx::query(
+        "SELECT kind, title, data FROM notification \
+         WHERE app_user_id = $1 AND kind = 'patient_checked_in'",
+    )
+    .bind(prac_user_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let title: String = notif_row.try_get("title").unwrap();
+    let data: serde_json::Value = notif_row.try_get("data").unwrap();
+    assert_eq!(title, "Un patient est arrivé");
+    assert_eq!(
+        data["appointment_id"].as_str().unwrap(),
+        appt_id.to_string(),
+        "le praticien doit être notifié avec l'appointment_id du check-in"
+    );
+
+    sqlx::query("DELETE FROM notification WHERE app_user_id = $1")
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")
         .bind(patient_account_id)
