@@ -325,3 +325,32 @@ secrétariat /cabinet-payouts, /team-messages, /messages, /rappels.
 3. **Échantillonner le texte toutes les ~700 ms sur 15-20 s** après une action asynchrone : un `SnackBar` dure 4 s et une géolocalisation expire à 10 s. Une lecture unique à +4 s aurait fait conclure à tort que « Obtenir un devis » (soins à domicile) ne dit rien — le message « Position indisponible : activez la géolocalisation. » arrive à t+10,5 s (#6218 confirmé corrigé). Le même échantillonnage a révélé, à l'inverse, que l'agenda praticien affiche bien un message… mais le mauvais (#6254).
 
 **À faire au prochain round** (écrans inventoriés mais NON activés) : patient /notifications (21 contrôles, dont les 4 facettes et les actions par item), patient /treatment-plans (10 cartes), praticien /consultation (29 cartes), praticien /lab-work-orders (26 contrôles), praticien fiche patient (onglets Schéma dentaire / Bilan parodontal / Plan de traitement / Exporter PDF), secrétariat /agenda (grille semaine : navigation + création de RDV), patient /messaging et /documents.
+
+## Ronde 2026-09-03
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| pharmacie | / (File des commandes) | 34 | 8 | 8 | 0 | 0 | 2026-09-03T00:08:00Z |
+| pharmacie | topbar → panneau cloche (#6263) | 17 | 6 | 3 | 3 | 0 | 2026-09-03T00:30:00Z |
+| pharmacie | /notification-preferences (écran NEUF #6265) | 9 | 6 | 6 | 0 | 0 | 2026-09-03T00:25:00Z |
+| pharmacie | /devis (5 facettes + cartes) | 17 | 8 | 7 | 1 | 0 | 2026-09-03T02:50:00Z |
+| pharmacie | /stock (4 facettes + Accepter/Refuser) | 30 | 5 | 5 | 0 | 0 | 2026-09-03T02:45:00Z |
+| praticien | / (Tableau de bord + cloche) | 18 | 5 | 4 | 0 | 1 | 2026-09-03T00:58:00Z |
+| praticien | /agenda | 4 | 1 | 0 | 0 | 1 | 2026-09-03T00:55:00Z |
+| praticien | /patients (annuaire) | 19 | 1 | 1 | 0 | 0 | 2026-09-03T01:05:00Z |
+| praticien | /waiting-room · /ordonnances · /devis · /stock · /stock-inventory · /lab-work-orders · /messages · /team-messages | 96 | 8 | 8 | 0 | 0 | 2026-09-03T01:02:00Z |
+| patient | / (Accueil, carte héros + À faire + Accès rapide) | 20 | 3 | 3 | 0 | 0 | 2026-09-03T01:20:00Z |
+| patient | onglets Messages / Documents / Profil / Accueil | 60 | 4 | 4 | 0 | 0 | 2026-09-03T01:30:00Z |
+| patient | Mes devis (liste) → détail devis | 14 | 3 | 3 | 0 | 0 | 2026-09-03T02:30:00Z |
+| infirmiere | / (3 onglets + cloche + panneau notifications #6266) | 20 | 5 | 5 | 0 | 0 | 2026-09-03T02:10:00Z |
+| secretariat | / (Tableau de bord, nav groupée + cloche) | 24 | 4 | 4 | 0 | 0 | 2026-09-03T02:40:00Z |
+
+**Totaux ronde : 382 contrôles inventoriés, 67 activés, 61 OK, 4 morts, 2 cassés.**
+
+Détail des verdicts non-OK :
+- **MORT ×3** — panneau cloche pharmacie : les lignes `stock_request_received`, `pharmacy_quote_decided` et `order_received` sont marquées lues sans jamais naviguer (#6280 : le resolver n'est branché nulle part ; #6281 : vocabulaire de kinds faux).
+- **MORT ×1** — carte de devis pharmacie `/devis` : `role=group`, `tap=false`, clic sans effet (0 requête, Semantics inchangé) — aucun détail ouvrable (#6291).
+- **CASSÉ ×1** — entrée « Agenda » de la barre latérale praticien : mène à « Impossible de charger l'agenda » (400 `practitioner_id=me`) et fait disparaître la navigation (#6285).
+- **CASSÉ ×1** — toute entrée de la barre latérale praticien hors « Tableau de bord » / « Consultation » : la navigation elle-même est détruite à l'arrivée (#6286).
+
+Non activés (destructifs, hors périmètre) : « Se déconnecter » (5 apps), « Refuser — motif obligatoire » (stock pharmacie, irréversible côté cabinet).
