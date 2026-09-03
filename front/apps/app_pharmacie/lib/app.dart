@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
+import 'features/notifications/notification_route_resolver.dart';
 import 'pharma_config.dart';
 import 'router/app_router.dart';
 import 'session/pharma_auth_cubit.dart';
@@ -20,6 +21,7 @@ class _NubiaPharmaAppState extends State<NubiaPharmaApp> {
   late final PharmaAuthCubit _auth;
   late final RouterNotifier _notifier;
   late final GoRouter _router;
+  late final FcmTapRouter _fcmTapRouter;
 
   @override
   void initState() {
@@ -35,10 +37,19 @@ class _NubiaPharmaAppState extends State<NubiaPharmaApp> {
     });
     _auth.restore();
     _router = AppRouter.create(_notifier);
+    _fcmTapRouter = FcmTapRouter(
+      _router,
+      (message) => NotificationRouteResolver.resolve(
+        kind: message.data['kind'] as String?,
+        data: message.data,
+      ),
+    );
+    _fcmTapRouter.init();
   }
 
   @override
   void dispose() {
+    _fcmTapRouter.dispose();
     _auth.close();
     _notifier.dispose();
     super.dispose();

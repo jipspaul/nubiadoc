@@ -21,6 +21,7 @@ export 'src/auth/auth_session.dart';
 
 // Session services
 export 'src/session/device_registration_service.dart';
+export 'src/session/fcm_tap_router.dart';
 
 // Utils
 export 'src/utils/document_opener.dart';
