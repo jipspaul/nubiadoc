@@ -16,6 +16,7 @@ use axum::{
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::Deserialize;
 use serde_json::json;
+use sqlx::Row;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -307,6 +308,23 @@ async fn handle_client_op(
                 return json!({"op": "subscribed", "channel": channel}).to_string();
             }
 
+            // ── notifications : canal PERSONNEL de l'utilisateur connecté ────
+            // Aucune autorisation à vérifier au-delà du JWT : la clé du hub
+            // est dérivée de `session.user_id` (jamais d'un paramètre client),
+            // il est donc impossible de s'abonner au canal d'un autre.
+            // Publié par `WsPushDispatcher` à chaque notification insérée.
+            if channel == "notifications" {
+                spawn_bridge(
+                    bc_tasks,
+                    channel,
+                    bc_tx,
+                    BridgeSource::Named(
+                        hub.subscribe_named(&user_notifications_key(session.user_id)),
+                    ),
+                );
+                return json!({"op": "subscribed", "channel": channel}).to_string();
+            }
+
             // ── conversation:<uuid> : patient propriétaire OU pro du cabinet ──
             if let Some(id) = channel.strip_prefix("conversation:") {
                 let Ok(conversation_id) = Uuid::parse_str(id) else {
@@ -558,4 +576,103 @@ async fn authorize_patient_queue(
     };
     let _ = tx.rollback().await;
     ok
+}
+
+// ── Push temps réel des notifications (canal `notifications`) ───────────────
+
+/// Clé du canal nommé du hub portant les notifications d'UN utilisateur.
+/// Dérivée exclusivement du JWT côté abonnement (cf. `handle_client_op`).
+pub fn user_notifications_key(user_id: Uuid) -> String {
+    format!("user_notifications:{user_id}")
+}
+
+/// `JobDispatcher` réel branché sur le hub WS : chaque
+/// `enqueue_push_notification` (déjà appelé APRÈS commit par tous les
+/// émetteurs de `notify.rs`) relit la ligne fraîchement insérée puis la
+/// diffuse sur le canal personnel du destinataire.
+///
+/// Quoi : le pont insert-notification → socket ouverte (badge/panneau live).
+/// Quand : interim « app vivante » en attendant le vrai push FCM/APNs (#6321) —
+/// une app tuée ne reçoit rien, c'est assumé.
+/// Pourquoi cette approche : réutilise la couture `JobDispatcher` (un seul
+/// point de câblage, tous les émetteurs couverts) et le `WsHub` existant.
+/// Modes d'échec : best-effort intégral — DB indisponible, ligne absente ou
+/// aucun abonné ⇒ no-op silencieux (le REST reste la source de vérité, le
+/// badge se rattrape au poll 60 s).
+pub struct WsPushDispatcher {
+    hub: Arc<WsHub>,
+    db: sqlx::PgPool,
+}
+
+impl WsPushDispatcher {
+    pub fn new(hub: Arc<WsHub>, db: sqlx::PgPool) -> Self {
+        Self { hub, db }
+    }
+}
+
+impl crate::JobDispatcher for WsPushDispatcher {
+    // Seul le push de notification est réel ici ; les autres jobs gardent le
+    // comportement stub documenté du trait (livraison synchrone best-effort
+    // ailleurs, cf. doc de `JobDispatcher`).
+    fn enqueue_verify_provider(&self, _verification_id: Uuid) {}
+    fn enqueue_notify_callback(&self, _appointment_id: Uuid, _cabinet_id: Uuid) {}
+    fn enqueue_interop_notification(
+        &self,
+        _cabinet_id: Uuid,
+        _resource_type: &str,
+        _resource_id: Uuid,
+    ) {
+    }
+
+    fn enqueue_push_notification(&self, app_user_id: Uuid, notification_id: Uuid) {
+        let hub = self.hub.clone();
+        let db = self.db.clone();
+        tokio::spawn(async move {
+            // Transaction courte : le GUC RLS est posé en portée transaction
+            // (`true`) pour ne jamais fuiter sur la connexion poolée.
+            let Ok(mut tx) = db.begin().await else { return };
+            if sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+                .bind(app_user_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .is_err()
+            {
+                return;
+            }
+            let row = sqlx::query(
+                "SELECT kind, title, data, created_at FROM notification \
+                 WHERE id = $1 AND app_user_id = $2",
+            )
+            .bind(notification_id)
+            .bind(app_user_id)
+            .fetch_optional(&mut *tx)
+            .await;
+            let _ = tx.rollback().await; // lecture seule
+            let Ok(Some(row)) = row else { return };
+            let kind: String = row.try_get("kind").unwrap_or_default();
+            let title: String = row.try_get("title").unwrap_or_default();
+            let data: serde_json::Value = row.try_get("data").unwrap_or(json!({}));
+            let created_at: chrono::DateTime<chrono::Utc> = match row.try_get("created_at") {
+                Ok(v) => v,
+                Err(_) => chrono::Utc::now(),
+            };
+            // Même contrat d'enveloppe que les autres canaux ({channel, event,
+            // data}) ; le titre est déjà sans PII par construction (notify.rs).
+            hub.publish_named(
+                &user_notifications_key(app_user_id),
+                json!({
+                    "channel": "notifications",
+                    "event": "notification_created",
+                    "data": {
+                        "id": notification_id,
+                        "kind": kind,
+                        "title": title,
+                        "data": data,
+                        "created_at": created_at.to_rfc3339(),
+                    }
+                })
+                .to_string(),
+            );
+        });
+    }
 }

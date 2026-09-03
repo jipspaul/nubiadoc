@@ -15,18 +15,33 @@ import 'pro_notifications_state.dart';
 /// liste complète en continu. La liste complète, elle, n'est chargée qu'à
 /// l'ouverture du panneau ([loadList]).
 class ProNotificationsCubit extends Cubit<ProNotificationsState> {
-  ProNotificationsCubit({required NotificationRepository repository})
-      : _repository = repository,
+  ProNotificationsCubit({
+    required NotificationRepository repository,
+    NotificationEventsPort? events,
+  })  : _repository = repository,
         super(const ProNotificationsState()) {
     refreshUnreadCount();
     _pollTimer = Timer.periodic(
       const Duration(seconds: 60),
       (_) => refreshUnreadCount(),
     );
+    // Temps réel (canal WS `notifications`) : bump optimiste immédiat du
+    // badge + bandeau, puis resync sur le total serveur (source de vérité).
+    // Best-effort : sans WS, le polling 60 s ci-dessus reste le filet.
+    _eventsSubscription = events?.watch().listen((incoming) {
+      emit(state.copyWith(
+        unreadCount: state.unreadCount + 1,
+        lastIncoming: incoming,
+        incomingSeq: state.incomingSeq + 1,
+      ));
+      refreshUnreadCount();
+      if (state.notifications != null) loadList();
+    }, onError: (_) {});
   }
 
   final NotificationRepository _repository;
   Timer? _pollTimer;
+  StreamSubscription<IncomingNotification>? _eventsSubscription;
 
   Future<void> refreshUnreadCount() async {
     // Total serveur (#6279), pas la taille d'une page : `getNotifications`
@@ -96,6 +111,7 @@ class ProNotificationsCubit extends Cubit<ProNotificationsState> {
   @override
   Future<void> close() {
     _pollTimer?.cancel();
+    _eventsSubscription?.cancel();
     return super.close();
   }
 }

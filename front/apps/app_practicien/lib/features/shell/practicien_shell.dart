@@ -76,6 +76,7 @@ class PracticienShell extends StatelessWidget {
         );
       },
       notificationRepository: GetIt.instance<NotificationRepository>(),
+      notificationEvents: GetIt.instance<NotificationEventsPort>(),
       // #6280 — le panneau partagé (nubia_app_shell) ne connaît ni les kinds
       // praticien ni son AppRouter : c'est ici qu'on résout la route et
       // navigue, en refermant d'abord le panneau (même geste que le bouton
