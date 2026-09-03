@@ -229,6 +229,7 @@ pub struct SendPharmacyMessageResponse {
 pub async fn send_pharmacy_message(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn crate::JobDispatcher>>,
     claims: PharmaMemberClaims,
     Path(conversation_id): Path<Uuid>,
     Json(body): Json<SendPharmacyMessageBody>,
@@ -279,8 +280,9 @@ pub async fn send_pharmacy_message(
     // Notifie le patient (#6259). Titre sans contenu du message (anti-PII).
     // Patient sans compte app : notification silencieusement absente, même
     // choix que `cabinet_messaging::send_cabinet_message`.
+    let mut push_target: Option<(Uuid, Uuid)> = None;
     if let Some(account_id) = patient_account_id {
-        notify::notify_patient_account(
+        push_target = notify::notify_patient_account(
             &mut tx,
             account_id,
             "message_received",
@@ -291,6 +293,12 @@ pub async fn send_pharmacy_message(
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs) — le
+    // retour du notify était jeté, aucun push ne partait (#6259 incomplet).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     let channel = format!("conversation:{conversation_id}");
     hub.publish_named(
