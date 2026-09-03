@@ -233,9 +233,9 @@ pub async fn list_treatment_plans(
         // ci-dessous) le calcule déjà. Même agrégat que le détail : somme des
         // `quote_item` rattachés aux phases du plan.
         let cost_totals = sqlx::query(
-            "SELECT COALESCE(SUM((qi.unit_amount * 100)::bigint), 0) AS total_cost_cents, \
-                    COALESCE(SUM(COALESCE((qi.amo_part * 100)::bigint, 0)), 0) AS total_amo_cents, \
-                    COALESCE(SUM(COALESCE((qi.amc_part * 100)::bigint, 0)), 0) AS total_amc_cents \
+            "SELECT COALESCE(SUM((qi.unit_amount * 100)::bigint), 0)::bigint AS total_cost_cents, \
+                    COALESCE(SUM(COALESCE((qi.amo_part * 100)::bigint, 0)), 0)::bigint AS total_amo_cents, \
+                    COALESCE(SUM(COALESCE((qi.amc_part * 100)::bigint, 0)), 0)::bigint AS total_amc_cents \
              FROM quote_item qi \
              JOIN treatment_phase tp3 ON tp3.id = qi.phase_id \
              WHERE tp3.plan_id = $1",
