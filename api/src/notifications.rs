@@ -45,7 +45,11 @@ pub struct NotificationItem {
 /// front/apps/app_patient/lib/features/notifications). `None` pour les
 /// autres kinds plutôt que d'inventer une route qui n'existe pas encore
 /// (ex. `waiting_list_slot_offered` : pas de page de détail patient, #3863).
-fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<String> {
+///
+/// `pub(crate)` : réutilisée telle quelle par `fcm::FcmJobDispatcher` (#6321)
+/// pour le `data.deeplink` du payload push — un seul endroit qui sait dériver
+/// une route depuis `(kind, data)`.
+pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<String> {
     match kind {
         "order_received"
         | "order_status_changed"
