@@ -721,7 +721,9 @@ pub async fn list_cabinet_treatment_plans(
         let label: String = row.try_get("label").map_err(|_| AppError::Internal)?;
         let ccam_code: Option<String> = row.try_get("ccam_code").map_err(|_| AppError::Internal)?;
         let tooth: Option<String> = row.try_get("tooth").map_err(|_| AppError::Internal)?;
-        let amount_cents: i64 = row.try_get("amount_cents").map_err(|_| AppError::Internal)?;
+        let amount_cents: i64 = row
+            .try_get("amount_cents")
+            .map_err(|_| AppError::Internal)?;
         acts_by_phase
             .entry(phase_id)
             .or_default()
