@@ -276,11 +276,15 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     final onSearchTap = widget.onSearchTap;
     if (onSearchTap == null) return shell;
 
-    // #5389 — ⌘K ouvre la recherche globale depuis n'importe où dans le
-    // shell (même pattern `CallbackShortcuts` que side_column.dart, #4941).
+    // #5389/#6311 — ⌘K (macOS) ou Ctrl+K (Windows/Linux, les 3 apps pro sont
+    // des back-offices « PC ») ouvre la recherche globale depuis n'importe où
+    // dans le shell (même pattern `CallbackShortcuts` que side_column.dart,
+    // #4941).
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true): onSearchTap,
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            onSearchTap,
       },
       child: shell,
     );

@@ -11,6 +11,7 @@ import '../../pro_config.dart';
 import '../../router/app_router.dart';
 import '../../session/pro_auth_cubit.dart';
 import '../notifications/notification_route_resolver.dart';
+import 'widgets/global_search_dialog.dart';
 
 /// Shell scaffold shared by every branch of the `StatefulShellRoute` declared
 /// in `app_router.dart` — wraps [navigationShell] in [ProShell] so the barre
@@ -94,6 +95,14 @@ class PracticienShell extends StatelessWidget {
         context.go(route);
       },
       body: navigationShell,
+      // #6311 — point d'entrée de recherche globale (destinations de nav +
+      // patients) dans la barre de titre, déclenché au clic ou par ⌘K/Ctrl+K
+      // (même mécanique que `SecretariatShell`, #5143/#5389).
+      searchHint: 'Patient, acte, ordonnance…',
+      onSearchTap: () => openGlobalSearchDialog(
+        context,
+        destinations: ProConfig.shellConfig.destinations,
+      ),
       trailingActions: [
         // #4539 : banc de test du framework A2UI, jamais eu sa place dans
         // la nav en production. Réservé aux builds debug.
