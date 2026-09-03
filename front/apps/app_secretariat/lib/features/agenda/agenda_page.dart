@@ -217,6 +217,24 @@ class _LoadedViewState extends State<_LoadedView> {
     });
   }
 
+  /// Créneaux libres affichés dans la grille (#5069/#5077) — mêmes créneaux
+  /// bookables que le picker « Nouveau RDV » (#3466, [bookableSlots]), pour
+  /// que la pastille cliquée dans la grille ouvre le dialogue avec un
+  /// créneau qui ne déclenchera pas un 409 `slot_taken`. Filtrés par le
+  /// même filtre praticien que la grille (pas par la recherche patient, qui
+  /// ne s'applique pas à un créneau libre).
+  List<Slot> get _filteredFreeSlots {
+    final slots = bookableSlots(widget.state.availableSlots, widget.state.entries);
+    if (_practitionerFilter.isEmpty) return slots;
+    return slots
+        .where((s) => _practitionerFilter.contains(s.practitionerId))
+        .toList(growable: false);
+  }
+
+  void _selectEntry(String entryId) {
+    setState(() => _selectedEntryId = entryId);
+  }
+
   /// RDV pointé par [_selectedEntryId] (volet latéral, #5079) — cherche dans
   /// `widget.state.entries` plutôt que `_filteredEntries` : un changement de
   /// filtre praticien/recherche ne doit pas fermer le volet d'un RDV déjà
@@ -464,6 +482,16 @@ class _LoadedViewState extends State<_LoadedView> {
                     child: _AgendaWeekGrid(
                       weekStart: widget.state.weekStart,
                       entries: filteredEntries,
+                      freeSlots: _filteredFreeSlots,
+                      practitionerNames: practitioners,
+                      selectedEntryId: _selectedEntryId,
+                      onEntryTap: _selectEntry,
+                      onSlotTap: (slot) => _showNewAppointmentDialog(
+                        context,
+                        widget.state,
+                        practitioners,
+                        initialSlot: slot,
+                      ),
                     ),
                   ),
                 ),
@@ -481,13 +509,15 @@ class _LoadedViewState extends State<_LoadedView> {
   void _showNewAppointmentDialog(
     BuildContext context,
     AgendaLoaded state,
-    Map<String, String> practitioners,
-  ) {
+    Map<String, String> practitioners, {
+    Slot? initialSlot,
+  }) {
     final availableSlots = bookableSlots(state.availableSlots, state.entries);
     showDialog<void>(
       context: context,
       builder: (_) => _NewAppointmentDialog(
         availableSlots: availableSlots,
+        initialSlot: initialSlot,
         practitioners: practitioners,
         onConfirm: (appointment) => context.read<AgendaBloc>().add(
               AgendaAppointmentCreateRequested(appointment: appointment),
@@ -771,11 +801,17 @@ class _NewAppointmentDialog extends StatefulWidget {
     required this.availableSlots,
     required this.practitioners,
     required this.onConfirm,
+    this.initialSlot,
   });
 
   final List<Slot> availableSlots;
   final Map<String, String> practitioners;
   final void Function(CabinetAppointment) onConfirm;
+
+  /// Créneau pré-sélectionné (#5077 : clic sur une pastille de créneau
+  /// libre de la grille) — le dialogue s'ouvre alors directement sur le
+  /// créneau visé, sans repasser par le picker déroulant.
+  final Slot? initialSlot;
 
   @override
   State<_NewAppointmentDialog> createState() => _NewAppointmentDialogState();
@@ -799,6 +835,7 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   @override
   void initState() {
     super.initState();
+    _selectedSlot = widget.initialSlot;
     _loadPatients();
   }
 
@@ -1645,12 +1682,9 @@ _PractitionerBlockStyle _practitionerBlockStyle(
 }
 
 // ---------------------------------------------------------------------------
-// Grille semaine (#5069) — socle : gouttière d'heures + 6 colonnes de jours.
-// Le rendu des RDV en blocs positionnés sur cette échelle est hors périmètre
-// de ce ticket (issue #5069, « le rendu des entrées en blocs positionnés est
-// le ticket blocs RDV positionnés ») : cette grille n'affiche encore que la
-// structure (axe horaire + en-têtes datés + compteur), pas les [AgendaEntry]
-// elles-mêmes.
+// Grille semaine (#5069/#6387) — gouttière d'heures + 6 colonnes de jours,
+// avec les RDV rendus en blocs positionnés sur l'échelle horaire et les
+// créneaux libres bookables en pastilles cliquables (#5077).
 // ---------------------------------------------------------------------------
 
 /// Échelle horaire de la grille (maquette design-v2, `secretariat-agenda.png`,
@@ -1661,30 +1695,80 @@ const _agendaHourHeight = 56.0;
 const _agendaStartHour = 8;
 const _agendaEndHour = 19;
 const _agendaDayCount = 6;
+const _agendaPxPerMinute = _agendaHourHeight / 60;
 
 double get _agendaGridHeight =>
     (_agendaEndHour - _agendaStartHour) * _agendaHourHeight;
 
+/// Position verticale (haut/hauteur en px) d'un bloc sur l'échelle horaire
+/// 08:00→19:00, en heure locale (`.toLocal()` — piège UTC #3856, les
+/// `DateTime` remontés par l'API sont en UTC). L'intervalle est rogné aux
+/// bornes de la grille (ex. un RDV commençant à 07:30 s'affiche depuis
+/// 08:00) ; `null` si l'intervalle ne recoupe pas la plage affichée du tout
+/// (ex. un RDV à 21:13, hors grille — toujours compté en en-tête, cf.
+/// `_countFor`, mais pas dessiné).
+class _AgendaBlockGeometry {
+  const _AgendaBlockGeometry({required this.top, required this.height});
+  final double top;
+  final double height;
+}
+
+_AgendaBlockGeometry? _agendaBlockGeometry(DateTime startsAt, DateTime endsAt) {
+  final start = startsAt.toLocal();
+  final end = endsAt.toLocal();
+  const gridStartMin = _agendaStartHour * 60;
+  const gridEndMin = _agendaEndHour * 60;
+  final startMin = start.hour * 60 + start.minute;
+  final endMin = end.hour * 60 + end.minute;
+  if (endMin <= gridStartMin || startMin >= gridEndMin) return null;
+  final clampedStart = startMin < gridStartMin ? gridStartMin : startMin;
+  final clampedEnd = endMin > gridEndMin ? gridEndMin : endMin;
+  return _AgendaBlockGeometry(
+    top: (clampedStart - gridStartMin) * _agendaPxPerMinute,
+    height: (clampedEnd - clampedStart) * _agendaPxPerMinute,
+  );
+}
+
 /// Grille semaine : une colonne par jour (`weekStart` + 0..5), positionnée
-/// sur l'échelle horaire ci-dessus. [entries] sert uniquement au compteur par
-/// colonne (`.c` de la maquette) — pas encore au rendu de blocs.
+/// sur l'échelle horaire ci-dessus. [entries] alimente à la fois le compteur
+/// par colonne (`.c` de la maquette) et les blocs RDV ; [freeSlots] les
+/// pastilles de créneau libre (#5077).
 class _AgendaWeekGrid extends StatelessWidget {
-  const _AgendaWeekGrid({required this.weekStart, required this.entries});
+  const _AgendaWeekGrid({
+    required this.weekStart,
+    required this.entries,
+    required this.freeSlots,
+    required this.practitionerNames,
+    required this.selectedEntryId,
+    required this.onEntryTap,
+    required this.onSlotTap,
+  });
 
   final DateTime weekStart;
   final List<AgendaEntry> entries;
+  final List<Slot> freeSlots;
+  final Map<String, String> practitionerNames;
+  final String? selectedEntryId;
+  final void Function(String entryId) onEntryTap;
+  final void Function(Slot slot) onSlotTap;
 
   List<DateTime> get _days => [
         for (var i = 0; i < _agendaDayCount; i++)
           DateTime(weekStart.year, weekStart.month, weekStart.day + i),
       ];
 
-  int _countFor(DateTime day) => entries
-      .where((e) =>
-          e.startsAt.year == day.year &&
-          e.startsAt.month == day.month &&
-          e.startsAt.day == day.day)
-      .length;
+  bool _isSameDay(DateTime a, DateTime day) =>
+      a.year == day.year && a.month == day.month && a.day == day.day;
+
+  int _countFor(DateTime day) =>
+      entries.where((e) => _isSameDay(e.startsAt, day)).length;
+
+  List<AgendaEntry> _entriesFor(DateTime day) => entries
+      .where((e) => !e.isFree && _isSameDay(e.startsAt, day))
+      .toList(growable: false);
+
+  List<Slot> _slotsFor(DateTime day) =>
+      freeSlots.where((s) => _isSameDay(s.startsAt, day)).toList(growable: false);
 
   @override
   Widget build(BuildContext context) {
@@ -1715,6 +1799,12 @@ class _AgendaWeekGrid extends StatelessWidget {
                 child: _DayColumn(
                   key: Key('agenda_day_column_${_dayKey(days[i])}'),
                   showRightBorder: i < days.length - 1,
+                  entries: _entriesFor(days[i]),
+                  freeSlots: _slotsFor(days[i]),
+                  practitionerNames: practitionerNames,
+                  selectedEntryId: selectedEntryId,
+                  onEntryTap: onEntryTap,
+                  onSlotTap: onSlotTap,
                 ),
               ),
           ],
@@ -1831,12 +1921,62 @@ class _HourGutter extends StatelessWidget {
 /// pour les heures, `27px 28px` pour les demi-heures). Bordure verticale
 /// `--n200` entre colonnes.
 class _DayColumn extends StatelessWidget {
-  const _DayColumn({super.key, required this.showRightBorder});
+  const _DayColumn({
+    super.key,
+    required this.showRightBorder,
+    required this.entries,
+    required this.freeSlots,
+    required this.practitionerNames,
+    required this.selectedEntryId,
+    required this.onEntryTap,
+    required this.onSlotTap,
+  });
 
   final bool showRightBorder;
+  final List<AgendaEntry> entries;
+  final List<Slot> freeSlots;
+  final Map<String, String> practitionerNames;
+  final String? selectedEntryId;
+  final void Function(String entryId) onEntryTap;
+  final void Function(Slot slot) onSlotTap;
 
   @override
   Widget build(BuildContext context) {
+    final blocks = <Widget>[];
+    for (final entry in entries) {
+      final geometry = _agendaBlockGeometry(entry.startsAt, entry.endsAt);
+      if (geometry == null) continue;
+      blocks.add(Positioned(
+        top: geometry.top,
+        height: geometry.height,
+        left: 0,
+        right: 0,
+        child: _AgendaEntryBlock(
+          key: Key('entry_${entry.id}'),
+          entry: entry,
+          practitionerStyle:
+              _practitionerBlockStyle(entry.practitionerId, practitionerNames),
+          selected: entry.id == selectedEntryId,
+          onTap: () => onEntryTap(entry.id),
+        ),
+      ));
+    }
+    for (final slot in freeSlots) {
+      final geometry = _agendaBlockGeometry(slot.startsAt, slot.endsAt);
+      if (geometry == null) continue;
+      blocks.add(Positioned(
+        top: geometry.top,
+        height: geometry.height,
+        left: 0,
+        right: 0,
+        child: _AgendaFreeSlotPill(
+          key: Key('agenda_free_slot_${slot.id}'),
+          slot: slot,
+          onTap: () => onSlotTap(slot),
+        ),
+      ));
+    }
+
     return Container(
       height: _agendaGridHeight,
       decoration: BoxDecoration(
@@ -1844,9 +1984,164 @@ class _DayColumn extends StatelessWidget {
             ? const Border(right: BorderSide(color: NubiaColors.n200))
             : null,
       ),
-      child: const CustomPaint(
-        size: Size.infinite,
-        painter: _DayColumnGridPainter(),
+      child: Stack(
+        children: [
+          const Positioned.fill(
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: _DayColumnGridPainter(),
+            ),
+          ),
+          ...blocks,
+        ],
+      ),
+    );
+  }
+}
+
+/// Bloc RDV positionné (`.ev` de la maquette) — couleur par praticien
+/// ([_practitionerBlockStyle]), sauf RDV à confirmer qui prend la teinte
+/// `warning` (même code couleur que la pastille de légende
+/// `agenda_legend_pending` et le [StatusPill] du volet). Sélectionné =
+/// contour foncé (`.ev.sel`), sans changer la couleur de fond.
+class _AgendaEntryBlock extends StatelessWidget {
+  const _AgendaEntryBlock({
+    super.key,
+    required this.entry,
+    required this.practitionerStyle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AgendaEntry entry;
+  final _PractitionerBlockStyle practitionerStyle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final style = entry.isPending
+        ? _PractitionerBlockStyle(
+            background: tokens.warningBg,
+            border: tokens.warningFg,
+            text: NubiaColors.n900,
+          )
+        : practitionerStyle;
+    final subtitle = [
+      if (entry.motif != null && entry.motif!.isNotEmpty) entry.motif!,
+      if (entry.isPending) 'à confirmer',
+    ].join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(7, 3, 5, 3),
+            decoration: BoxDecoration(
+              color: style.background,
+              borderRadius: BorderRadius.circular(6),
+              border: Border(left: BorderSide(color: style.border, width: 3)),
+            ),
+            foregroundDecoration: selected
+                ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: NubiaColors.n900, width: 2),
+                  )
+                : null,
+            // `SingleChildScrollView` (non défilant) plutôt qu'un `Column`
+            // nu : un bloc de 30 min (28 px, cf. `_agendaHourHeight`) est
+            // plus bas que nom + motif empilés — même rognage que le
+            // `overflow:hidden` de la maquette (`.ev`), sans déclencher
+            // l'assertion `RenderFlex overflowed` d'un Column trop plein.
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.patientName ?? 'Patient',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.15,
+                      color: style.text,
+                    ),
+                  ),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.15,
+                        color: style.text,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pastille de créneau libre bookable (`.free` de la maquette, #5077) —
+/// bordure pointillée via [_DashedRectBox], clic ouvre le dialogue
+/// « Nouveau RDV » avec ce créneau déjà choisi.
+class _AgendaFreeSlotPill extends StatelessWidget {
+  const _AgendaFreeSlotPill({
+    super.key,
+    required this.slot,
+    required this.onTap,
+  });
+
+  final Slot slot;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = slot.startsAt.toLocal();
+    final label =
+        '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: _DashedRectBox(
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.add, size: 13, color: NubiaColors.n400),
+                  const SizedBox(width: 4),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: NubiaColors.n400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

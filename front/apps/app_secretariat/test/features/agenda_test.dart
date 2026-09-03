@@ -743,6 +743,84 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // #6387 — la grille rendait uniquement l'ossature (en-têtes/compteurs) :
+  // `entries` ne servait qu'au compteur par colonne, jamais passé à
+  // `_DayColumn` pour dessiner les blocs.
+  // -------------------------------------------------------------------------
+  group('grille — rendu des blocs RDV et créneaux libres (#6387)', () {
+    testWidgets(
+        'un RDV et un créneau libre dans la plage 08:00–19:00 sont rendus en '
+        'blocs positionnés dans la grille, le bloc RDV est cliquable',
+        (tester) async {
+      final day = _thisWeekMonday().add(const Duration(days: 1));
+      DateTime at(int hour, int minute) =>
+          DateTime(day.year, day.month, day.day, hour, minute);
+
+      final entry = AgendaEntry(
+        id: 'g-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: at(10, 0),
+        endsAt: at(10, 30),
+        patientName: 'Alice Durand',
+        motif: 'Détartrage',
+        isFree: false,
+        status: 'confirmed',
+      );
+      final freeSlot = Slot(
+        id: 'slot-free-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        startsAt: at(11, 0),
+        endsAt: at(11, 30),
+        isAvailable: true,
+      );
+
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => Right([freeSlot]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      final block = find.byKey(const Key('entry_g-1'));
+      expect(block, findsOneWidget);
+      expect(
+        find.descendant(of: block, matching: find.text('Alice Durand')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('agenda_free_slot_slot-free-1')),
+        findsOneWidget,
+      );
+
+      // Le bloc RDV est cliquable : il sélectionne le RDV et ouvre le volet.
+      await tester.tap(block);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('agenda_detail_panel_g-1')), findsOneWidget);
+
+      await GetIt.instance.reset();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Filtre praticien (dropdown)
   // -------------------------------------------------------------------------
 
