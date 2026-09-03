@@ -79,7 +79,7 @@ void main() {
   });
 
   group('Parcours praticien — tableau de bord', () {
-    testWidgets('DashboardPage s\'affiche dans l\'arbre widget',
+    testWidgets('DashboardBody s\'affiche dans l\'arbre widget',
         (tester) async {
       final dashboardBloc = getIt<DashboardBloc>();
 
@@ -88,13 +88,13 @@ void main() {
           theme: NubiaTheme.light,
           home: BlocProvider.value(
             value: dashboardBloc,
-            child: const Scaffold(body: DashboardPage()),
+            child: const Scaffold(body: DashboardBody()),
           ),
         ),
       );
       await tester.pump();
 
-      expect(find.byType(DashboardPage), findsOneWidget);
+      expect(find.byType(DashboardBody), findsOneWidget);
     });
 
     testWidgets('cloisonnement : includeClinical est true pour app_practicien',

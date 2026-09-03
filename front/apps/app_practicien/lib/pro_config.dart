@@ -79,6 +79,14 @@ class ProConfig {
         icon: Icons.chat_bubble_outline,
         route: '/messages',
       ),
+      // #6286 — anciennement icône trailing isolée du rail (jamais présente
+      // hors `/`), désormais une destination de nav à part entière : reste
+      // atteignable (et le rail reste visible) depuis n'importe quel écran.
+      shell.ProNavDestination(
+        label: 'Messagerie interne',
+        icon: Icons.forum_outlined,
+        route: '/team-messages',
+      ),
     ],
   );
 }
