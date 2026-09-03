@@ -307,13 +307,17 @@ class _RelativeDelayPill extends StatelessWidget {
     );
   }
 
+  // #6287 : `diff < 0` (RDV `checked_in`/`in_progress` déjà commencé, encore
+  // renvoyé par `filter=upcoming` dans sa fenêtre glissante de 1 jour) était
+  // replié sur "Aujourd'hui" — contradiction avec une date affichée d'hier.
   static String _relativeDelay(DateTime startsAtUtc) {
     final local = startsAtUtc.toLocal();
     final now = DateTime.now();
     final day = DateTime(local.year, local.month, local.day);
     final today = DateTime(now.year, now.month, now.day);
     final diff = day.difference(today).inDays;
-    if (diff <= 0) return "Aujourd'hui";
+    if (diff < 0) return 'En cours';
+    if (diff == 0) return "Aujourd'hui";
     if (diff == 1) return 'Demain';
     return 'Dans $diff jours';
   }

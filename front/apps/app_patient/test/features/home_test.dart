@@ -83,6 +83,32 @@ final _nextAppointment = Appointment(
   cabinetAddress: 'Cabinet Nubia Opéra — 12 rue de la Paix, 75002 Paris',
 );
 
+/// #6287 : RDV d'hier resté `in_progress` (fenêtre glissante 1 jour de
+/// `filter=upcoming`, cf. #4340/#3777) — ne doit pas masquer le vrai RDV du
+/// jour ni être étiqueté « Aujourd'hui ».
+final _staleInProgressAppointment = Appointment(
+  id: 'appt-stale',
+  cabinetId: 'cabinet-1',
+  practitionerName: 'Dr Claire Lefevre',
+  practitionerSpecialty: 'Dentiste',
+  startsAt: DateTime.now().toUtc().subtract(const Duration(hours: 16)),
+  duration: const Duration(minutes: 30),
+  motif: 'QA-queue-flow',
+  status: AppointmentStatus.inProgress,
+);
+
+final _todayConfirmedAppointment = Appointment(
+  id: 'appt-today',
+  cabinetId: 'cabinet-1',
+  practitionerName: 'Dr Claire Lefevre',
+  practitionerSpecialty: 'Dentiste',
+  startsAt: DateTime.now().toUtc().add(const Duration(hours: 2)),
+  duration: const Duration(minutes: 30),
+  motif: 'QA sweep waiting-room fresh',
+  status: AppointmentStatus.confirmed,
+  cabinetAddress: '12 rue de la République, 69002 Lyon',
+);
+
 Widget _wrap(HomeBloc bloc) {
   final authCubit = MockAuthCubit();
   when(() => authCubit.state).thenReturn(const AuthUnauthenticated());
@@ -553,6 +579,51 @@ void main() {
       );
       expect(find.text('Itinéraire'), findsOneWidget);
       expect(find.text('Préparer'), findsOneWidget);
+    });
+
+    testWidgets(
+        'met en avant le vrai prochain RDV et non un RDV passé en_cours '
+        '(#6287)', (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_summary));
+      when(() => mockGetUpcoming()).thenAnswer(
+        (_) async => Right([
+          _staleInProgressAppointment,
+          _todayConfirmedAppointment,
+        ]),
+      );
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('QA sweep waiting-room fresh'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('QA-queue-flow'), findsNothing);
+      expect(find.text("Aujourd'hui"), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche « En cours » (pas « Aujourd\'hui ») quand seul un RDV passé '
+        'reste en_cours (#6287)', (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_summary));
+      when(() => mockGetUpcoming()).thenAnswer(
+        (_) async => Right([_staleInProgressAppointment]),
+      );
+
+      final bloc = _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.text('En cours'), findsOneWidget);
+      expect(find.text("Aujourd'hui"), findsNothing);
     });
 
     testWidgets('bouton « Préparer » navigue vers /rdv/:id/prepare',
