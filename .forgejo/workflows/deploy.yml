@@ -15,6 +15,10 @@
 # Secret optionnel : YOUSIGN_API_KEY (#5688 — absent tant qu'aucun compte
 # Yousign n'est provisionné : `POST /v1/quotes/:id/signature` répond alors
 # 502 upstream_unavailable, cf. `yousign_client.rs`).
+# Secrets optionnels : SCW_ACCESS_KEY/SCW_SECRET_KEY/SCW_BUCKET (#6250 — même
+# symptôme que #5688 mais sur le signer de stockage : sans eux, `GET
+# /v1/documents/:id` et `/download` répondent 502 upstream_unavailable pour
+# 100% des documents, cf. `scaleway_storage_signer.rs`).
 # Secrets optionnels CADDY_HOST/CADDY_USER/CADDY_PASSWORD (#6162) : sans eux,
 # l'application auto du bloc Caddy reservation.doc.nubia-link.com sur l'hôte
 # Caddy (hors LXC) est sautée — le collage manuel du snippet reste requis.
@@ -132,6 +136,9 @@ jobs:
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
           API_BASE: ${{ vars.NUBIA_API_BASE }}
           YOUSIGN_API_KEY: ${{ secrets.YOUSIGN_API_KEY }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_BUCKET: ${{ secrets.SCW_BUCKET }}
           CADDY_HOST: ${{ secrets.CADDY_HOST }}
           CADDY_USER: ${{ secrets.CADDY_USER }}
           CADDY_PASSWORD: ${{ secrets.CADDY_PASSWORD }}
