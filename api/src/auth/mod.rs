@@ -602,6 +602,11 @@ pub struct CabinetMembership {
     #[serde(skip_serializing_if = "Option::is_none")]
     secretariat_id: Option<Uuid>,
     cabinet_name: String,
+    /// Id `practitioner` (distinct de `user_id`, cf. #6251) pour ce cabinet —
+    /// `None` si l'utilisateur n'a pas d'entité praticien dans ce cabinet
+    /// (secrétaire, admin non-praticien).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    practitioner_id: Option<Uuid>,
 }
 
 /// Appartenance à une pharmacie.
@@ -692,6 +697,29 @@ pub async fn me(
         .await
         .map_err(|_| AppError::Internal)?;
         tx.commit().await.map_err(|_| AppError::Internal)?;
+
+        // Mapping cabinet_id -> practitioner_id (#6251) : `practitioner` n'a pas
+        // de RLS (table jointe librement depuis /v1/cabinet/agenda), une seule
+        // requête couvre tous les cabinets de l'utilisateur. `session.userId`
+        // (= claims.sub, un `app_user.id`) n'est PAS un `practitioner_id` — ce
+        // sont deux entités distinctes (`practitioner.user_id` référence l'une
+        // vers l'autre) ; sans cette résolution, le front n'a aucun moyen de
+        // savoir quel practitioner_id correspond à l'utilisateur connecté.
+        let practitioner_ids_by_cabinet: std::collections::HashMap<Uuid, Uuid> =
+            sqlx::query("SELECT cabinet_id, id FROM practitioner WHERE user_id = $1")
+                .bind(claims.sub)
+                .fetch_all(&state.db)
+                .await
+                .map_err(|_| AppError::Internal)?
+                .into_iter()
+                .map(|r| {
+                    let cabinet_id: Uuid =
+                        r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+                    let practitioner_id: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
+                    Ok((cabinet_id, practitioner_id))
+                })
+                .collect::<Result<_, AppError>>()?;
+
         rows.into_iter()
             .map(|r| {
                 let cid: Uuid = r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
@@ -701,11 +729,13 @@ pub async fn me(
                     .map_err(|_| AppError::Internal)?;
                 let cabinet_name: String =
                     r.try_get("cabinet_name").map_err(|_| AppError::Internal)?;
+                let practitioner_id = practitioner_ids_by_cabinet.get(&cid).copied();
                 Ok(CabinetMembership {
                     cabinet_id: cid,
                     role,
                     secretariat_id,
                     cabinet_name,
+                    practitioner_id,
                 })
             })
             .collect::<Result<Vec<_>, AppError>>()?

@@ -12,7 +12,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
   final StartConsultationUseCase _startConsultation;
   final CreateAppointmentSeriesUseCase _createAppointmentSeries;
 
-  /// Id du praticien connecté (cf. `AuthSession.userId`) — restreint
+  /// Id du praticien connecté (cf. `AuthSession.practitionerId`) — restreint
   /// systématiquement l'agenda chargé à ses propres RDV (#6213 : sans ce
   /// filtre, un praticien voyait la journée complète du cabinet, RDV d'un
   /// confrère inclus, sous un titre « Ma journée »).

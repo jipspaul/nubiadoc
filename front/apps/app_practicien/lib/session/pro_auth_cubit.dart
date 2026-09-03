@@ -97,6 +97,12 @@ class ProAuthCubit extends Cubit<AuthState> {
     String userId = 'me';
     String? displayName;
     String? cabinetName;
+    // `practitioner_id` (#6251) : distinct de `userId` (`app_user.id`) — un
+    // praticien a une entité `practitioner` séparée, c'est elle que porte
+    // `appointment.practitioner_id`. Ne JAMAIS retomber sur `userId`/`'me'`
+    // ici : une session stub ne doit pas fuiter dans les query de filtrage
+    // agenda/tableau de bord (cf. `pro_di.dart#_currentPractitionerId`).
+    String? practitionerId;
     try {
       final response = await _api.dio.get<Map<String, dynamic>>('/me');
       userId = response.data?['user_id'] as String? ?? userId;
@@ -111,6 +117,7 @@ class ProAuthCubit extends Cubit<AuthState> {
           ? ownRoleMatches.first
           : (memberships.isNotEmpty ? memberships.first : null);
       cabinetName = match?['cabinet_name'] as String?;
+      practitionerId = match?['practitioner_id'] as String?;
     } catch (_) {
       // Non bloquant : voir doc ci-dessus.
     }
@@ -120,6 +127,7 @@ class ProAuthCubit extends Cubit<AuthState> {
       role: ProConfig.role,
       displayName: displayName,
       contextLabel: cabinetName,
+      practitionerId: practitionerId,
     );
   }
 }

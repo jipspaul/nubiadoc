@@ -22,12 +22,16 @@ import '../features/stock/stock_inventory_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
 
-/// Id du praticien connecté (`AuthSession.userId`), `null` tant que la
-/// session n'est pas authentifiée (#6213 : ces blocs sont factory-créés, la
-/// session est donc lue au moment de l'instanciation plutôt qu'injectée une
-/// fois pour toutes).
+/// Id du praticien connecté (`AuthSession.practitionerId`), `null` tant que
+/// la session n'est pas authentifiée (#6213 : ces blocs sont factory-créés,
+/// la session est donc lue au moment de l'instanciation plutôt qu'injectée
+/// une fois pour toutes). `practitionerId` — jamais `userId` (#6251) : ce
+/// dernier identifie l'`app_user`, pas l'entité `practitioner` que porte
+/// `appointment.practitioner_id` ; l'utiliser envoyait un id qui ne pouvait
+/// jamais matcher côté API (agenda entièrement vide, voire `400` quand la
+/// session stub `userId:'me'` fuitait tel quel dans la query).
 String? _currentPractitionerId(GetIt gi) => switch (gi<ProAuthCubit>().state) {
-      AuthAuthenticated(:final session) => session.userId,
+      AuthAuthenticated(:final session) => session.practitionerId,
       _ => null,
     };
 
