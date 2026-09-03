@@ -181,6 +181,113 @@ async fn seed(db: &PgPool) -> Fixture {
     }
 }
 
+/// Deuxième commande dans LA MÊME pharmacie que `seed`, pour un patient
+/// distinct — nécessaire pour reproduire #6349 (scan croisé entre deux
+/// commandes `ready` d'un même tenant).
+async fn seed_second_order(db: &PgPool, pharmacy_id: Uuid) -> Fixture {
+    let user_id = Uuid::new_v4();
+    let pro_user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let practitioner_id = Uuid::new_v4();
+    let document_id = Uuid::new_v4();
+    let prescription_id = Uuid::new_v4();
+    let order_id = Uuid::new_v4();
+
+    for (id, kind) in [(user_id, "patient"), (pro_user_id, "pro")] {
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', $3)",
+        )
+        .bind(id)
+        .bind(format!("tr2-{}@nubia.test", id))
+        .bind(kind)
+        .execute(db)
+        .await
+        .unwrap();
+    }
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Marc', 'Dubois')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(db)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale) VALUES ($1, 'Cabinet TR2')")
+        .bind(cabinet_id)
+        .execute(db)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Marc', 'Dubois', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(db)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(practitioner_id)
+        .bind(cabinet_id)
+        .bind(pro_user_id)
+        .execute(db)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO document (id, cabinet_id, patient_id, category, storage_key, filename, \
+                               mime_type, sha256, scan_status, uploaded_by, size_bytes) \
+         VALUES ($1, $2, $3, 'ordonnance', $4, 'ordo.pdf', 'application/pdf', \
+                 repeat('0', 64), 'clean', $5, 0)",
+    )
+    .bind(document_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(format!("sk-{}", document_id))
+    .bind(pro_user_id)
+    .execute(db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO prescription (id, cabinet_id, patient_id, practitioner_id, status, \
+                                   document_id, signed_at) \
+         VALUES ($1, $2, $3, $4, 'sent', $5, now())",
+    )
+    .bind(prescription_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(practitioner_id)
+    .bind(document_id)
+    .execute(db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO pharmacy_order (id, pharmacy_id, cabinet_id, patient_account_id, \
+                                     prescription_id, document_id, created_by_kind, \
+                                     pharmacy_name, patient_display_name) \
+         VALUES ($1, $2, $3, $4, $5, $6, 'patient', 'Pharmacie TR', 'Marc D.')",
+    )
+    .bind(order_id)
+    .bind(pharmacy_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .bind(prescription_id)
+    .bind(document_id)
+    .execute(db)
+    .await
+    .unwrap();
+
+    Fixture {
+        user_id,
+        account_id,
+        pharmacy_id,
+        order_id,
+    }
+}
+
 async fn call(
     method: &str,
     uri: &str,
@@ -293,7 +400,7 @@ async fn full_lifecycle_received_to_picked_up() {
         "POST",
         "/v1/pharmacy/orders/pickup-scan",
         &pharma,
-        Some(json!({"token": token2})),
+        Some(json!({"token": token2, "expected_order_id": fx.order_id})),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "body: {order}");
@@ -305,7 +412,7 @@ async fn full_lifecycle_received_to_picked_up() {
         "POST",
         "/v1/pharmacy/orders/pickup-scan",
         &pharma,
-        Some(json!({"token": token2})),
+        Some(json!({"token": token2, "expected_order_id": fx.order_id})),
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT);
@@ -369,7 +476,10 @@ async fn pickup_token_repeated_get_returns_identical_token_and_expiry() {
         "POST",
         "/v1/pharmacy/orders/pickup-scan",
         &pharma,
-        Some(json!({ "token": tokens.last().unwrap() })),
+        Some(json!({
+            "token": tokens.last().unwrap(),
+            "expected_order_id": fx.order_id,
+        })),
     )
     .await;
     assert_eq!(
@@ -608,7 +718,7 @@ async fn pickup_scan_cross_tenant_404_and_expired_410() {
         "POST",
         "/v1/pharmacy/orders/pickup-scan",
         &pharma_jwt(other_pharmacy, "pharmacist"),
-        Some(json!({"token": token.clone()})),
+        Some(json!({"token": token.clone(), "expected_order_id": fx.order_id})),
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
@@ -626,7 +736,7 @@ async fn pickup_scan_cross_tenant_404_and_expired_410() {
         "POST",
         "/v1/pharmacy/orders/pickup-scan",
         &pharma,
-        Some(json!({"token": token})),
+        Some(json!({"token": token, "expected_order_id": fx.order_id})),
     )
     .await;
     assert_eq!(status, StatusCode::GONE);
@@ -636,8 +746,95 @@ async fn pickup_scan_cross_tenant_404_and_expired_410() {
         "POST",
         "/v1/pharmacy/orders/pickup-scan",
         &pharma,
-        Some(json!({"token": "inconnu"})),
+        Some(json!({"token": "inconnu", "expected_order_id": fx.order_id})),
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+// ── #6349 : scan croisé — repro exacte (cul-de-sac irréversible) ──────────────
+
+#[tokio::test]
+async fn pickup_scan_mismatch_makes_no_transition() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx_a = seed(&db).await; // CMD-A : la commande ouverte à l'écran.
+    let fx_b = seed_second_order(&db, fx_a.pharmacy_id).await; // CMD-B : le QR réellement scanné.
+    let pharma = pharma_jwt(fx_a.pharmacy_id, "pharmacist");
+    let patient_b = patient_jwt(fx_b.user_id, fx_b.account_id);
+
+    for fx in [&fx_a, &fx_b] {
+        call(
+            "POST",
+            &format!("/v1/pharmacy/orders/{}/accept", fx.order_id),
+            &pharma,
+            None,
+        )
+        .await;
+        call(
+            "POST",
+            &format!("/v1/pharmacy/orders/{}/ready", fx.order_id),
+            &pharma,
+            None,
+        )
+        .await;
+    }
+
+    let (_, token_body_b) = call(
+        "GET",
+        &format!("/v1/account/orders/{}/pickup-token", fx_b.order_id),
+        &patient_b,
+        None,
+    )
+    .await;
+    let token_b = token_body_b["token"].as_str().unwrap().to_string();
+
+    // Le pharmacien a CMD-A en main mais scanne (ou saisit) le QR de CMD-B.
+    let (status, body) = call(
+        "POST",
+        "/v1/pharmacy/orders/pickup-scan",
+        &pharma,
+        Some(json!({"token": token_b, "expected_order_id": fx_a.order_id})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "pickup_order_mismatch");
+    assert_eq!(body["order"]["id"], fx_b.order_id.to_string());
+
+    // Aucune écriture : les DEUX commandes restent `ready` (pas de cul-de-sac,
+    // pas de commande basculée `picked_up` à l'insu du pharmacien).
+    let (status, order_a) = call(
+        "GET",
+        &format!("/v1/pharmacy/orders/{}", fx_a.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(order_a["status"], "ready", "body: {order_a}");
+
+    let (status, order_b) = call(
+        "GET",
+        &format!("/v1/pharmacy/orders/{}", fx_b.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(order_b["status"], "ready", "body: {order_b}");
+    assert!(order_b["picked_up_at"].is_null());
+
+    // Le token de CMD-B n'a pas été « brûlé » par le refus : il reste
+    // utilisable pour le scan correct (sur la bonne commande).
+    let (status, order_b2) = call(
+        "POST",
+        "/v1/pharmacy/orders/pickup-scan",
+        &pharma,
+        Some(json!({"token": token_b, "expected_order_id": fx_b.order_id})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {order_b2}");
+    assert_eq!(order_b2["status"], "picked_up");
 }

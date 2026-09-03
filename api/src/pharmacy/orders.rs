@@ -1457,6 +1457,12 @@ pub async fn get_pickup_token(
 #[derive(Deserialize)]
 pub struct PickupScanBody {
     pub token: String,
+    /// Commande ouverte à l'écran (`/orders/:id/pickup`) — permise par la
+    /// route au pharmacien de comparer la commande d'origine au token
+    /// scanné (#6349) : sans elle, le serveur ne peut valider QUE le token
+    /// et transitionnait aveuglément la commande qui lui correspond, même
+    /// si ce n'est pas celle en main du pharmacien.
+    pub expected_order_id: Uuid,
 }
 
 /// `POST /v1/pharmacy/orders/pickup-scan` — ready → picked_up via le token du
@@ -1467,6 +1473,11 @@ pub struct PickupScanBody {
 ///   RLS pharmacy-scoped).
 /// - Statut ≠ ready → 409 `invalid_status` (double scan compris).
 /// - Token expiré → 410.
+/// - Token valide mais rattaché à une commande différente de
+///   `expected_order_id` → 409 `pickup_order_mismatch`, AUCUNE écriture
+///   (#6349 : la comparaison doit précéder toute transition, pas la suivre —
+///   sinon la commande d'un autre patient bascule `picked_up` avant même que
+///   le pharmacien soit averti, sans route de retour arrière).
 /// - Succès : transition atomique single-use (`WHERE … AND status = 'ready'`).
 pub async fn pickup_scan(
     State(state): State<AppState>,
@@ -1490,21 +1501,20 @@ pub async fn pickup_scan(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query(&format!(
-        "UPDATE pharmacy_order \
-         SET status = 'picked_up', picked_up_at = now(), picked_up_by = $2, \
-             updated_at = now() \
+    // Verrouille la ligne (FOR UPDATE) SANS écrire : la commande d'origine
+    // et le token sont comparés avant toute transition d'état (#6349).
+    let candidate = sqlx::query(&format!(
+        "SELECT {ORDER_COLUMNS} FROM pharmacy_order \
          WHERE pickup_token_hash = $1 AND status = 'ready' \
            AND pickup_token_expires_at > now() \
-         RETURNING {ORDER_COLUMNS}",
+         FOR UPDATE",
     ))
     .bind(&token_hash)
-    .bind(claims.sub)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    let Some(row) = row else {
+    let Some(candidate) = candidate else {
         // Diagnostic : token connu dans CE tenant ? statut ? expiration ?
         let probe = sqlx::query(
             "SELECT status, pickup_token_expires_at FROM pharmacy_order \
@@ -1532,6 +1542,26 @@ pub async fn pickup_scan(
             }
         });
     };
+
+    let scanned_order = order_from_row(&candidate)?;
+    if scanned_order.id != body.expected_order_id {
+        tx.rollback().await.ok();
+        let order_json = serde_json::to_value(&scanned_order).map_err(|_| AppError::Internal)?;
+        return Err(AppError::PickupOrderMismatch(order_json));
+    }
+
+    let row = sqlx::query(&format!(
+        "UPDATE pharmacy_order \
+         SET status = 'picked_up', picked_up_at = now(), picked_up_by = $2, \
+             updated_at = now() \
+         WHERE id = $1 AND status = 'ready' \
+         RETURNING {ORDER_COLUMNS}",
+    ))
+    .bind(scanned_order.id)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
 
     let order = order_from_row(&row)?;
 

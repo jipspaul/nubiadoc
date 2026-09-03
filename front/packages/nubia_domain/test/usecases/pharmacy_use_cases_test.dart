@@ -62,15 +62,19 @@ void main() {
       );
     });
 
-    test('ConfirmPharmacyPickupUseCase passe le token opaque au repo',
-        () async {
-      when(() => repo.confirmPickup('tok-123'))
+    test('ConfirmPharmacyPickupUseCase passe le token opaque et la commande '
+        'attendue au repo', () async {
+      when(() => repo.confirmPickup('tok-123', expectedOrderId: 'o1'))
           .thenAnswer((_) async => Right(order));
 
-      final result = await ConfirmPharmacyPickupUseCase(repo)('tok-123');
+      final result = await ConfirmPharmacyPickupUseCase(repo)(
+        'tok-123',
+        expectedOrderId: 'o1',
+      );
 
       expect(result.isRight(), isTrue);
-      verify(() => repo.confirmPickup('tok-123')).called(1);
+      verify(() => repo.confirmPickup('tok-123', expectedOrderId: 'o1'))
+          .called(1);
     });
 
     test('RejectPharmacyOrderUseCase transmet le motif', () async {

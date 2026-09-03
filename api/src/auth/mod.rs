@@ -261,6 +261,14 @@ pub(crate) enum AppError {
     /// `AppError::Conflict` rend `{"code":"verification_pending"}`, un
     /// contrat trompeur pour un simple doublon de demande.
     VisitRequestAlreadyActive,
+    /// `POST /v1/pharmacy/orders/pickup-scan` (#6349) : le token scanné est
+    /// valide et `ready`, mais il appartient à une commande DIFFÉRENTE de
+    /// celle transmise par le client (`expected_order_id`, écran
+    /// `/orders/:id/pickup`) — vérifié AVANT toute écriture, donc aucune
+    /// transition n'a lieu. Porte la commande réellement scannée (même
+    /// forme que le payload de succès) pour que le front affiche l'encart
+    /// de non-correspondance sans re-fetch.
+    PickupOrderMismatch(serde_json::Value),
 }
 
 impl IntoResponse for AppError {
@@ -542,6 +550,11 @@ impl IntoResponse for AppError {
             AppError::VisitRequestAlreadyActive => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "visit_request_already_active"})),
+            )
+                .into_response(),
+            AppError::PickupOrderMismatch(order) => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "pickup_order_mismatch", "order": order})),
             )
                 .into_response(),
         }

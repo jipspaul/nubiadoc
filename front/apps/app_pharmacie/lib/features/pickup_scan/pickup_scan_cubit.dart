@@ -26,9 +26,10 @@ class PickupScanSuccess extends PickupScanState {
   List<Object?> get props => [order];
 }
 
-/// Garde-fou d'interface : le token est valide (le back l'accepte) mais la
-/// commande renvoyée n'est pas celle en main du pharmacien — QR d'un autre
-/// patient. Bloque la délivrance avant tout affichage de succès.
+/// Le token scanné est valide mais concerne une autre commande que celle en
+/// main du pharmacien — QR d'un autre patient. Depuis #6349, le back refuse
+/// la transition (409 `pickup_order_mismatch`) AVANT toute écriture ; cet
+/// état ne suit donc jamais un succès, il vient de ce refus.
 class PickupScanMismatch extends PickupScanState {
   const PickupScanMismatch({
     required this.expectedOrderId,
@@ -99,9 +100,21 @@ class PickupScanCubit extends Cubit<PickupScanState> {
     if (trimmed.isEmpty || state is PickupScanSubmitting) return;
 
     emit(const PickupScanSubmitting());
-    final result = await _confirmPickup(trimmed);
+    final result =
+        await _confirmPickup(trimmed, expectedOrderId: expectedOrderId);
     result.fold(
       (failure) {
+        // #6349 : le back compare désormais la commande d'origine au token
+        // AVANT toute transition — un mismatch n'est jamais un succès, c'est
+        // ce Failure dédié qui porte la commande réellement scannée.
+        if (failure is PickupOrderMismatchFailure) {
+          emit(PickupScanMismatch(
+            expectedOrderId: expectedOrderId,
+            expectedOrderRef: expectedOrderRef,
+            scannedOrder: failure.scannedOrder,
+          ));
+          return;
+        }
         final cause = _invalidCause(failure);
         if (cause != null) {
           emit(PickupScanInvalidCode(failure.message, cause));
@@ -109,20 +122,7 @@ class PickupScanCubit extends Cubit<PickupScanState> {
           emit(PickupScanError(failure.message));
         }
       },
-      (order) {
-        // Le token est bon (le back valide), mais rien côté back ne compare
-        // la commande d'origine et celle du token — c'est ce garde-fou qui
-        // interdit la délivrance d'un sachet au mauvais patient.
-        if (order.id != expectedOrderId) {
-          emit(PickupScanMismatch(
-            expectedOrderId: expectedOrderId,
-            expectedOrderRef: expectedOrderRef,
-            scannedOrder: order,
-          ));
-        } else {
-          emit(PickupScanSuccess(order));
-        }
-      },
+      (order) => emit(PickupScanSuccess(order)),
     );
   }
 
