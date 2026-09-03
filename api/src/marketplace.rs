@@ -239,7 +239,10 @@ pub async fn list_professions(
 
 // ── Provider search ──────────────────────────────────────────────────────────
 
-#[derive(Deserialize)]
+/// `Clone` : le tunnel web SSR (#6318) réutilise les mêmes filtres pour
+/// interroger successivement `search_providers` (liste) et `search_slots`
+/// (grille de créneaux des mêmes praticiens) sans les reconstruire à la main.
+#[derive(Deserialize, Clone)]
 pub struct SearchProvidersQuery {
     pub q: Option<String>,
     pub specialty: Option<Uuid>,

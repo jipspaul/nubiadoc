@@ -53,6 +53,14 @@ a { color: var(--brand-700); }
 .card { background: #fff; border: 1px solid var(--n-200); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
 .card h3 { margin: 0 0 .25rem; font-family: Inter, sans-serif; font-size: 1.05rem; }
 .muted { color: var(--n-600); font-size: .9rem; }
+.tags { margin: .5rem 0 0; }
+.tag { display: inline-block; font-size: .75rem; font-weight: 600; background: var(--n-100); color: var(--n-600); border-radius: 6px; padding: .15rem .5rem; margin: 0 .35rem .35rem 0; }
+.slots { display: flex; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }
+.day { flex: 1 1 0; min-width: 90px; }
+.dlabel { display: block; font-size: .75rem; font-weight: 600; color: var(--n-600); margin-bottom: .35rem; }
+.chip { display: inline-block; font-size: .8rem; font-weight: 600; background: var(--brand-50); color: var(--brand-700); border: 1px solid var(--n-200); border-radius: 6px; padding: .25rem .5rem; margin: 0 .25rem .25rem 0; text-decoration: none; }
+.more { display: block; font-size: .8rem; font-weight: 600; margin-top: .25rem; }
+.nosl { background: var(--n-50); border: 1px dashed var(--n-200); border-radius: 8px; padding: .6rem .75rem; margin-top: .75rem; }
 "#;
 
 pub fn page(title: &str, body: &str) -> Html<String> {

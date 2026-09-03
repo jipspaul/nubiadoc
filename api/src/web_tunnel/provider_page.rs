@@ -10,11 +10,15 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use uuid::Uuid;
 
-use crate::marketplace::{get_provider, search_providers, SearchProvidersQuery};
+use crate::marketplace::{
+    get_provider, search_providers, search_slots, SearchProvidersQuery, SlotRef,
+};
 use crate::AppState;
 
 use super::html::{escape, page};
+use super::search_page::group_slots_by_day;
 use super::slug::slugify;
 
 /// Ex. `("Dr Amélie Rousseau", Some("Chirurgien-dentiste"), Some("Paris"))`
@@ -75,10 +79,46 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
         return not_found();
     };
 
-    let profile = match get_provider(State(state), Path(matched.provider_id)).await {
+    let profile = match get_provider(State(state.clone()), Path(matched.provider_id)).await {
         Ok(Json(profile)) => profile,
         Err(_) => return not_found(),
     };
+
+    // Agenda de la fiche (#6318) : `search_slots`, MÊME fonction que l'API
+    // publique `/v1/search/slots`, restreinte à ce praticien via
+    // `provider_id` — aucune requête de créneaux dupliquée (#5355). Cette
+    // page EST la destination du lien de débord de la carte de recherche,
+    // donc tous les jours à créneaux sont montrés, sans grille tronquée.
+    let slots_params = SearchProvidersQuery {
+        q: None,
+        specialty: None,
+        near: None,
+        place: None,
+        radius_km: None,
+        bbox: None,
+        sector: None,
+        teleconsult: None,
+        pmr: None,
+        languages: None,
+        accepts_new: None,
+        available: None,
+        tiers_payant: None,
+        sort: None,
+        page: Some(1),
+        per_page: Some(1),
+        provider_id: Some(matched.provider_id.to_string()),
+        date: None,
+    };
+    let slots = match search_slots(State(state), Query(slots_params)).await {
+        Ok(Json(resp)) => resp
+            .data
+            .into_iter()
+            .find(|item| item.provider_id == matched.provider_id)
+            .map(|item| item.slots)
+            .unwrap_or_default(),
+        Err(_) => Vec::new(),
+    };
+    let agenda = render_agenda(matched.provider_id, &slots);
 
     let city = profile
         .address
@@ -121,6 +161,7 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
 <div class="context">
   <p>{context}</p>
 </div>
+{agenda}
 <p><a href="/appointments?providerId={provider_id}">Prendre rendez-vous</a></p>"#,
         h1 = escape(&h1),
         subtitle = escape(&subtitle),
@@ -128,6 +169,42 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
     );
 
     page(&title, &body).into_response()
+}
+
+/// Agenda de la fiche praticien : tous les jours à créneaux ouverts,
+/// groupés comme `_SlotsByDay` (`modify_rdv_page.dart`) — repli explicite
+/// (pas un état vide silencieux) quand le praticien n'a aucun créneau en
+/// ligne (#6318).
+fn render_agenda(provider_id: Uuid, slots: &[SlotRef]) -> String {
+    if slots.is_empty() {
+        return r#"<div class="nosl">
+  <p class="muted">Aucun créneau en ligne pour ce praticien pour le moment.</p>
+</div>"#
+            .to_string();
+    }
+
+    let days_html = group_slots_by_day(slots)
+        .iter()
+        .map(|day| {
+            let chips = day
+                .slots
+                .iter()
+                .map(|(hhmm, slot_id)| {
+                    format!(
+                        r#"<a class="chip" href="/appointments?providerId={provider_id}&amp;slotId={slot_id}">{hhmm}</a>"#,
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("");
+            format!(
+                r#"<div class="day"><span class="dlabel">{label}</span>{chips}</div>"#,
+                label = escape(&day.label),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    format!(r#"<div class="slots">{days_html}</div>"#)
 }
 
 fn not_found() -> Response {
