@@ -3,9 +3,8 @@ use std::sync::Arc;
 
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{
-    app_with_quote_signature_client_and_signer, run_dispatch_loop, run_quote_relance_loop,
-    run_visit_offer_expiry_loop, AppState, BrevoMailer, ScalewayStorageSigner, StorageSigner,
-    StubJobDispatcher, TwilioSmsSender, YousignClient,
+    run_dispatch_loop, run_quote_relance_loop, run_visit_offer_expiry_loop, AppState, BrevoMailer,
+    ScalewayStorageSigner, StorageSigner, StubJobDispatcher, TwilioSmsSender, YousignClient,
 };
 use sqlx::PgPool;
 
