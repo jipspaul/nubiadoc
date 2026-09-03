@@ -28,8 +28,21 @@ class OrderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final receivedAt = order.createdAt.toLocal();
     final time = MaterialLocalizations.of(context)
-        .formatTimeOfDay(TimeOfDay.fromDateTime(order.createdAt.toLocal()));
+        .formatTimeOfDay(TimeOfDay.fromDateTime(receivedAt));
+    final now = DateTime.now();
+    final isToday = receivedAt.year == now.year &&
+        receivedAt.month == now.month &&
+        receivedAt.day == now.day;
+    // Une commande non reçue aujourd'hui doit rester situable dans le temps
+    // (file triée sur plusieurs jours/semaines) : on préfixe l'heure avec la
+    // date plutôt que de l'afficher seule, cf. #6315.
+    final receivedLabel = isToday
+        ? 'Reçue à $time'
+        : 'Reçue le '
+            '${receivedAt.day.toString().padLeft(2, '0')}/'
+            '${receivedAt.month.toString().padLeft(2, '0')} à $time';
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final wait = orderWaitOf(order);
     final waitColor = switch (wait?.tone) {
@@ -60,14 +73,14 @@ class OrderRow extends StatelessWidget {
               ),
             wait == null
                 ? Text(
-                    'Reçue à $time',
+                    receivedLabel,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: tokens.textTertiary,
                         ),
                   )
                 : Text.rich(
                     TextSpan(
-                      text: 'Reçue à $time\n',
+                      text: '$receivedLabel\n',
                       children: [
                         TextSpan(
                           text: wait.label,
