@@ -475,8 +475,12 @@ Cloisonnement : un fil clinique escaladé n'est lisible que par le `practitioner
 | DELETE | `/v1/devices/{id}` | oui | Désenregistrer. |
 | GET | `/v1/notifications` | oui | Centre de notifications. |
 | POST | `/v1/notifications/{id}/read` | oui | Marquer lue. |
+| GET | `/v1/me/notification-preferences` | oui | Préférences notif. du porteur du token (patient, pro, pharma, nurse). |
+| PATCH | `/v1/me/notification-preferences` | oui | MAJ opt-in par catégorie/canal (partiel). |
 
 `POST /v1/devices` — body : `{ fcm_token, platform:"ios"|"android"|"web" }`. → `201`. ⚠️ **Payload push sans PII** (`06` E3.7, `07` §2.7) : le contenu réel se charge **authentifié** après ouverture. Types : RDV à venir/modifié/annulé, document à signer, nouveau message, paiement en attente, « c'est bientôt à vous ».
+
+`GET /v1/me/notification-preferences` → `{ inapp_rdv, inapp_messagerie, inapp_devis, inapp_stock, inapp_labo, inapp_visites, email_rdv, email_messagerie, email_devis }` (booléens). Distinct de `/v1/account/notification-preferences` (§6, patient uniquement) : keyed par `app_user_id`, ouvert à tout user authentifié — pro/pharma/nurse inclus (#6257). Défaut avant toute écriture : in-app `true`, email `false`. `PATCH` partiel : seules les clés envoyées sont modifiées (`deny_unknown_fields`, 422 sur clé inconnue). RBAC : RLS scopée par `app.current_user_id`, un user ne lit/écrit que ses propres préférences.
 
 ---
 
