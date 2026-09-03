@@ -5,7 +5,7 @@
 //! 700 lignes) — module autonome, mêmes handlers/contrats, aucun changement
 //! fonctionnel.
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -16,7 +16,7 @@ use crate::{
     auth::{AppError, ProPractitionerClaims},
     notify,
     patient_guardianship::aggregate_guardianship,
-    AppState,
+    AppState, JobDispatcher,
 };
 
 // ── POST /v1/cabinet/quotes ──────────────────────────────────────────────────
@@ -715,6 +715,7 @@ pub struct SendCabinetQuoteResponse {
 /// de statut ci-dessous s'exécutait AVANT tout contrôle RBAC facturation.
 pub async fn send_cabinet_quote(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: crate::permissions::ProBillingClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SendCabinetQuoteResponse>, AppError> {
@@ -779,8 +780,9 @@ pub async fn send_cabinet_quote(
     // Notifie le patient (#6262). Titre sans montant (anti-PII). Patient sans
     // compte app (walk-in) : notification silencieusement absente, même choix
     // que `quote_relance_dispatch::maybe_send_milestone`.
+    let mut push_target: Option<(Uuid, Uuid)> = None;
     if let Some(account_id) = patient_account_id {
-        notify::notify_patient_account(
+        push_target = notify::notify_patient_account(
             &mut tx,
             account_id,
             "quote_received",
@@ -791,6 +793,12 @@ pub async fn send_cabinet_quote(
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs) — le
+    // retour du notify était jeté, aucun push ne partait (#6329).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         user_id = %claims.sub,

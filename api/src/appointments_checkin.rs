@@ -50,6 +50,7 @@ pub struct CheckinResponse {
 pub async fn checkin_appointment(
     State(state): State<AppState>,
     Extension(hub): Extension<std::sync::Arc<crate::realtime::WsHub>>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
     body: Option<Json<CheckinBody>>,
@@ -171,21 +172,31 @@ pub async fn checkin_appointment(
             .fetch_optional(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
+    let mut push_target: Option<(Uuid, Uuid)> = None;
     if let Some(pract_row) = pract_row {
         let practitioner_user_id: Uuid = pract_row
             .try_get("user_id")
             .map_err(|_| AppError::Internal)?;
-        notify::notify_user(
+        if let Some(notification_id) = notify::notify_user(
             &mut tx,
             practitioner_user_id,
             "patient_checked_in",
             "Un patient est arrivé",
             serde_json::json!({ "appointment_id": id }),
         )
-        .await?;
+        .await?
+        {
+            push_target = Some((practitioner_user_id, notification_id));
+        }
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs) — le
+    // retour du notify était jeté, aucun push ne partait (#6329).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     // Temps réel : le patient apparaît dans la salle d'attente du cabinet — #3238.
     hub.publish(
@@ -329,7 +340,7 @@ pub async fn callback_appointment(
 
     // Notifie le secrétariat du cabinet (#6261) : sans ça, la demande de
     // rappel n'apparaît que si quelqu'un rafraîchit l'agenda manuellement.
-    notify::notify_cabinet_staff(
+    let push_targets = notify::notify_cabinet_staff(
         &mut tx,
         cabinet_id,
         &CALLBACK_REQUESTED_NOTIFY_ROLES,
@@ -342,6 +353,12 @@ pub async fn callback_appointment(
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     dispatcher.enqueue_notify_callback(id, cabinet_id);
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs) — le
+    // retour du notify était jeté, aucun push ne partait (#6329).
+    for (app_user_id, notification_id) in push_targets {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         account_id = %claims.account_id,

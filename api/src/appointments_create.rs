@@ -24,7 +24,7 @@ use crate::{
         is_exclusion_violation, AppointmentDetail, CabinetInfo, ProviderDetail,
     },
     auth::{AppError, PatientAccountClaims},
-    notify, AppState,
+    notify, AppState, JobDispatcher,
 };
 
 /// Rôles cabinet notifiés à la création d'une demande de RDV (#6261) :
@@ -63,6 +63,7 @@ fn validate_appointment_payload(starts_at: chrono::DateTime<chrono::Utc>) -> Res
 pub async fn create_appointment(
     State(state): State<AppState>,
     Extension(hub): Extension<std::sync::Arc<crate::realtime::WsHub>>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     headers: HeaderMap,
     Json(body): Json<CreateAppointmentBody>,
@@ -422,7 +423,7 @@ pub async fn create_appointment(
 
     // Notifie le secrétariat du cabinet (#6261) : sans ça, la demande de RDV
     // n'apparaît que si quelqu'un rafraîchit l'agenda manuellement.
-    notify::notify_cabinet_staff(
+    let push_targets = notify::notify_cabinet_staff(
         &mut tx,
         cabinet_id,
         &APPOINTMENT_REQUESTED_NOTIFY_ROLES,
@@ -433,6 +434,12 @@ pub async fn create_appointment(
     .await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs) — le
+    // retour du notify était jeté, aucun push ne partait (#6329).
+    for (app_user_id, notification_id) in push_targets {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     hub.publish(
         cabinet_id,
