@@ -90,5 +90,16 @@ if ! SSH "caddy validate --config '$REMOTE_CANDIDATE_PATH' --adapter caddyfile";
 fi
 
 echo "→ application + rechargement Caddy sur ${CADDY_HOST}"
-SSH "cp '$REMOTE_CANDIDATE_PATH' '$CADDY_CONFIG_PATH' && rm -f '$REMOTE_CANDIDATE_PATH' && (caddy reload --config '$CADDY_CONFIG_PATH' --adapter caddyfile || systemctl reload caddy || service caddy reload)"
+# #6317 (6e récidive) : ce script tournait sans `set -e` et n'a JAMAIS vérifié
+# le code retour de cette dernière commande SSH -> un cp/rm/reload en échec
+# sur l'hôte Caddy (permission, binaire `caddy` absent du PATH non-interactif,
+# service mal nommé, etc.) affichait quand même "✅ appliqué" et sortait 0.
+# Le garde-fou d'échec dur de build-and-deploy.sh (#6188) ne se déclenche que
+# si CADDY_HOST est VIDE ; avec CADDY_HOST configuré mais cette étape en échec
+# silencieux, plus aucun signal ne remonte -> exactement le "faux vert" du
+# postmortem #3493 déjà cité plus haut dans ce fichier.
+if ! SSH "cp '$REMOTE_CANDIDATE_PATH' '$CADDY_CONFIG_PATH' && rm -f '$REMOTE_CANDIDATE_PATH' && (caddy reload --config '$CADDY_CONFIG_PATH' --adapter caddyfile || systemctl reload caddy || service caddy reload)"; then
+  echo "::error::échec de l'application/rechargement du bloc reservation.doc.nubia-link.com sur ${CADDY_HOST} — config live potentiellement inchangée ou partiellement écrite, Caddy pas rechargé."
+  exit 1
+fi
 echo "✅ bloc reservation.doc.nubia-link.com appliqué et Caddy rechargé sur ${CADDY_HOST}"
