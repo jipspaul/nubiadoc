@@ -20,6 +20,8 @@ class NotificationRouteResolver {
         return AppRouter.stock;
       case 'message_received':
         return AppRouter.messages;
+      case 'quote_signed':
+        return AppRouter.devis;
       default:
         return null;
     }
