@@ -399,6 +399,12 @@ pub struct PatchMeNotificationPreferencesBody {
     email_rdv: Option<bool>,
     email_messagerie: Option<bool>,
     email_devis: Option<bool>,
+    push_rdv: Option<bool>,
+    push_messagerie: Option<bool>,
+    push_devis: Option<bool>,
+    push_stock: Option<bool>,
+    push_labo: Option<bool>,
+    push_visites: Option<bool>,
 }
 
 /// Réponse de `GET/PATCH /v1/me/notification-preferences`.
@@ -413,10 +419,17 @@ pub struct MeNotificationPreferencesResponse {
     email_rdv: bool,
     email_messagerie: bool,
     email_devis: bool,
+    push_rdv: bool,
+    push_messagerie: bool,
+    push_devis: bool,
+    push_stock: bool,
+    push_labo: bool,
+    push_visites: bool,
 }
 
 impl MeNotificationPreferencesResponse {
-    /// Défauts avant la première ligne en base : in-app ON, email OFF (#6257).
+    /// Défauts avant la première ligne en base : in-app ON, email OFF,
+    /// push ON (#6257, push ajouté #6322).
     const fn defaults() -> Self {
         Self {
             inapp_rdv: true,
@@ -428,6 +441,12 @@ impl MeNotificationPreferencesResponse {
             email_rdv: false,
             email_messagerie: false,
             email_devis: false,
+            push_rdv: true,
+            push_messagerie: true,
+            push_devis: true,
+            push_stock: true,
+            push_labo: true,
+            push_visites: true,
         }
     }
 
@@ -448,6 +467,16 @@ impl MeNotificationPreferencesResponse {
                 .try_get("email_messagerie")
                 .map_err(|_| AppError::Internal)?,
             email_devis: row.try_get("email_devis").map_err(|_| AppError::Internal)?,
+            push_rdv: row.try_get("push_rdv").map_err(|_| AppError::Internal)?,
+            push_messagerie: row
+                .try_get("push_messagerie")
+                .map_err(|_| AppError::Internal)?,
+            push_devis: row.try_get("push_devis").map_err(|_| AppError::Internal)?,
+            push_stock: row.try_get("push_stock").map_err(|_| AppError::Internal)?,
+            push_labo: row.try_get("push_labo").map_err(|_| AppError::Internal)?,
+            push_visites: row
+                .try_get("push_visites")
+                .map_err(|_| AppError::Internal)?,
         })
     }
 }
@@ -471,7 +500,8 @@ pub async fn get_me_notification_preferences(
 
     let row = sqlx::query(
         "SELECT inapp_rdv, inapp_messagerie, inapp_devis, inapp_stock, inapp_labo, inapp_visites, \
-                email_rdv, email_messagerie, email_devis \
+                email_rdv, email_messagerie, email_devis, \
+                push_rdv, push_messagerie, push_devis, push_stock, push_labo, push_visites \
          FROM user_notification_preference \
          WHERE app_user_id = $1",
     )
@@ -513,11 +543,14 @@ pub async fn patch_me_notification_preferences(
     let row = sqlx::query(
         "INSERT INTO user_notification_preference \
            (app_user_id, inapp_rdv, inapp_messagerie, inapp_devis, inapp_stock, inapp_labo, inapp_visites, \
-            email_rdv, email_messagerie, email_devis) \
+            email_rdv, email_messagerie, email_devis, \
+            push_rdv, push_messagerie, push_devis, push_stock, push_labo, push_visites) \
          VALUES ($1, \
            COALESCE($2, true), COALESCE($3, true), COALESCE($4, true), COALESCE($5, true), \
            COALESCE($6, true), COALESCE($7, true), \
-           COALESCE($8, false), COALESCE($9, false), COALESCE($10, false)) \
+           COALESCE($8, false), COALESCE($9, false), COALESCE($10, false), \
+           COALESCE($11, true), COALESCE($12, true), COALESCE($13, true), \
+           COALESCE($14, true), COALESCE($15, true), COALESCE($16, true)) \
          ON CONFLICT (app_user_id) \
          DO UPDATE SET \
            inapp_rdv        = CASE WHEN $2 IS NOT NULL THEN $2 \
@@ -538,9 +571,22 @@ pub async fn patch_me_notification_preferences(
                                    ELSE user_notification_preference.email_messagerie END, \
            email_devis      = CASE WHEN $10 IS NOT NULL THEN $10 \
                                    ELSE user_notification_preference.email_devis END, \
+           push_rdv         = CASE WHEN $11 IS NOT NULL THEN $11 \
+                                   ELSE user_notification_preference.push_rdv END, \
+           push_messagerie  = CASE WHEN $12 IS NOT NULL THEN $12 \
+                                   ELSE user_notification_preference.push_messagerie END, \
+           push_devis       = CASE WHEN $13 IS NOT NULL THEN $13 \
+                                   ELSE user_notification_preference.push_devis END, \
+           push_stock       = CASE WHEN $14 IS NOT NULL THEN $14 \
+                                   ELSE user_notification_preference.push_stock END, \
+           push_labo        = CASE WHEN $15 IS NOT NULL THEN $15 \
+                                   ELSE user_notification_preference.push_labo END, \
+           push_visites     = CASE WHEN $16 IS NOT NULL THEN $16 \
+                                   ELSE user_notification_preference.push_visites END, \
            updated_at       = now() \
          RETURNING inapp_rdv, inapp_messagerie, inapp_devis, inapp_stock, inapp_labo, inapp_visites, \
-                   email_rdv, email_messagerie, email_devis",
+                   email_rdv, email_messagerie, email_devis, \
+                   push_rdv, push_messagerie, push_devis, push_stock, push_labo, push_visites",
     )
     .bind(claims.sub)
     .bind(body.inapp_rdv)
@@ -552,6 +598,12 @@ pub async fn patch_me_notification_preferences(
     .bind(body.email_rdv)
     .bind(body.email_messagerie)
     .bind(body.email_devis)
+    .bind(body.push_rdv)
+    .bind(body.push_messagerie)
+    .bind(body.push_devis)
+    .bind(body.push_stock)
+    .bind(body.push_labo)
+    .bind(body.push_visites)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

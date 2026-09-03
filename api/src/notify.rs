@@ -58,11 +58,41 @@ async fn category_enabled(
         .map_err(|_| AppError::Internal)
 }
 
+/// `true` si le push FCM est autorisé pour cette catégorie (colonne
+/// `push_<catégorie>` de `user_notification_preference`, migration 0247,
+/// #6322). Indépendante de `category_enabled` (in-app) : un destinataire peut
+/// vouloir la notification dans le centre in-app sans le push mobile.
+async fn push_category_enabled(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    app_user_id: Uuid,
+    category: &str,
+) -> Result<bool, AppError> {
+    let column = match category {
+        "rdv" => "push_rdv",
+        "devis" => "push_devis",
+        "stock" => "push_stock",
+        "messagerie" => "push_messagerie",
+        "labo" => "push_labo",
+        "visites" => "push_visites",
+        _ => return Ok(true),
+    };
+    let sql = format!(
+        "SELECT COALESCE((SELECT {column} FROM user_notification_preference \
+         WHERE app_user_id = $1), true)"
+    );
+    sqlx::query_scalar(&sql)
+        .bind(app_user_id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)
+}
+
 /// Insère une notification in-app pour un utilisateur. Retourne son id (à
 /// passer à `JobDispatcher::enqueue_push_notification` après commit), ou
 /// `None` si le destinataire a désactivé la catégorie du `kind` via
-/// `user_notification_preference` (#6258) — l'appelant ne doit alors rien
-/// enfiler.
+/// `user_notification_preference` — soit l'in-app (#6258), soit le push
+/// (#6322) : la ligne `notification` est créée dès que l'in-app est activé,
+/// mais l'id n'est renvoyé (donc le push enfilé) que si le push l'est aussi.
 pub(crate) async fn notify_user(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     app_user_id: Uuid,
@@ -76,7 +106,9 @@ pub(crate) async fn notify_user(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    if let Some(category) = preference_category(kind) {
+    let category = preference_category(kind);
+
+    if let Some(category) = category {
         if !category_enabled(tx, app_user_id, category).await? {
             return Ok(None);
         }
@@ -95,7 +127,15 @@ pub(crate) async fn notify_user(
     .fetch_one(&mut **tx)
     .await
     .map_err(|_| AppError::Internal)?;
-    Ok(Some(row.try_get("id").map_err(|_| AppError::Internal)?))
+    let notification_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    if let Some(category) = category {
+        if !push_category_enabled(tx, app_user_id, category).await? {
+            return Ok(None);
+        }
+    }
+
+    Ok(Some(notification_id))
 }
 
 /// Résout l'`app_user_id` d'un compte patient (valeur DB) puis notifie.

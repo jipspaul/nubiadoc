@@ -107,6 +107,67 @@ async fn no_row_returns_defaults() {
     assert_eq!(json["email_rdv"], false);
     assert_eq!(json["email_messagerie"], false);
     assert_eq!(json["email_devis"], false);
+    assert_eq!(json["push_rdv"], true);
+    assert_eq!(json["push_messagerie"], true);
+    assert_eq!(json["push_devis"], true);
+    assert_eq!(json["push_stock"], true);
+    assert_eq!(json["push_labo"], true);
+    assert_eq!(json["push_visites"], true);
+}
+
+// ── Test 1b (#6322) : PATCH push_* persiste au re-GET ────────────────────────
+
+#[tokio::test]
+async fn patch_push_key_persists() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    insert_app_user(&owner_db, user_id).await;
+
+    let token = make_jwt(user_id);
+
+    let patch_response = app(make_state().await)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/me/notification-preferences")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({"push_messagerie": false}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(patch_response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(patch_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["push_messagerie"], false);
+    assert_eq!(json["push_rdv"], true);
+
+    let get_response = app(make_state().await)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/me/notification-preferences")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(get_response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(get_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["push_messagerie"], false);
+    assert_eq!(json["push_rdv"], true);
 }
 
 // ── Test 2 : PATCH partiel ne touche que les clés envoyées, re-GET confirme ──
