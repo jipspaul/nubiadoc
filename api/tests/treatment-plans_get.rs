@@ -676,6 +676,16 @@ async fn treatment_plans_list_returns_200() {
         plan["current_step"], 1,
         "current_step = position de la phase courante (#6233)"
     );
+    // #6242 : la liste doit exposer le même montant que le détail
+    // (`GET /v1/treatment-plans/:id`), pas « 0 € » faute de champ.
+    assert_eq!(
+        plan["total_cost_cents"], 3500,
+        "total_cost_cents = somme des quote_item du plan (#6242)"
+    );
+    assert_eq!(
+        plan["remaining_cents"], 1450,
+        "remaining_cents = total - amo - amc (#6242)"
+    );
 
     let page = &v["page"];
     assert!(page["limit"].is_number(), "page.limit présent");
