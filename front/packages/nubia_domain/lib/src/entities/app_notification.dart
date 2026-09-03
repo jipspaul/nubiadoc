@@ -19,6 +19,13 @@ class AppNotification extends Equatable {
   /// Optional deep-link target (e.g. `/appointments/42`).
   final String? deepLink;
 
+  /// Raw `notification.kind` string from the API (e.g. `order_received`,
+  /// `stock_request_received`) — unlike [type], which buckets it into 5
+  /// coarse families, this preserves the exact value the pro apps' kind→route
+  /// `NotificationRouteResolver`s (#6264) switch on. `null` when unset (e.g.
+  /// in tests that don't need deep-linking).
+  final String? kind;
+
   const AppNotification({
     required this.id,
     required this.type,
@@ -27,6 +34,7 @@ class AppNotification extends Equatable {
     required this.read,
     required this.createdAt,
     this.deepLink,
+    this.kind,
   });
 
   AppNotification copyWith({bool? read}) {
@@ -38,6 +46,7 @@ class AppNotification extends Equatable {
       read: read ?? this.read,
       createdAt: createdAt,
       deepLink: deepLink,
+      kind: kind,
     );
   }
 

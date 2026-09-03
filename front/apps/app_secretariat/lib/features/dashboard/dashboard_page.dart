@@ -11,6 +11,7 @@ import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
 import '../admin_membres/members_access_cubit.dart';
 import '../audit_log/audit_log_access_cubit.dart';
+import '../notifications/notification_route_resolver.dart';
 import 'cash_collection_cubit.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_content.dart';
@@ -98,6 +99,18 @@ class SecretariatShell extends StatelessWidget {
       // destination dans le rail/drawer.
       currentRoute: currentRoute,
       notificationRepository: GetIt.instance<NotificationRepository>(),
+      // #6280 — le panneau partagé (nubia_app_shell) ne connaît ni les kinds
+      // secrétariat ni son AppRouter : c'est ici qu'on résout la route et
+      // navigue, en refermant d'abord le panneau (même geste que le bouton
+      // « Fermer »).
+      onNotificationTap: (context, notification) {
+        final route = NotificationRouteResolver.resolve(
+          kind: notification.kind,
+        );
+        if (route == null) return;
+        Navigator.of(context).pop();
+        context.go(route);
+      },
       onNavigate: (destination) {
         final index = ProConfig.shellConfig.destinations
             .indexWhere((d) => d.route == destination.route);

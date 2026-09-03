@@ -16,9 +16,17 @@ import 'pro_notifications_state.dart';
 /// car ce panneau est monté dans une route de dialogue séparée
 /// (`showGeneralDialog`), hors de l'arbre de [ProShell].
 class ProNotificationsPanel extends StatelessWidget {
-  const ProNotificationsPanel({super.key, required this.cubit});
+  const ProNotificationsPanel({
+    super.key,
+    required this.cubit,
+    this.onNotificationTap,
+  });
 
   final ProNotificationsCubit cubit;
+
+  /// Voir [ProShell.onNotificationTap] — transmis jusqu'à [_NotificationTile].
+  final void Function(BuildContext context, AppNotification notification)?
+      onNotificationTap;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +46,10 @@ class ProNotificationsPanel extends StatelessWidget {
               Flexible(
                 child:
                     BlocBuilder<ProNotificationsCubit, ProNotificationsState>(
-                  builder: (context, state) => _PanelBody(state: state),
+                  builder: (context, state) => _PanelBody(
+                    state: state,
+                    onNotificationTap: onNotificationTap,
+                  ),
                 ),
               ),
             ],
@@ -88,9 +99,11 @@ class _PanelHeader extends StatelessWidget {
 }
 
 class _PanelBody extends StatelessWidget {
-  const _PanelBody({required this.state});
+  const _PanelBody({required this.state, this.onNotificationTap});
 
   final ProNotificationsState state;
+  final void Function(BuildContext context, AppNotification notification)?
+      onNotificationTap;
 
   @override
   Widget build(BuildContext context) {
@@ -131,16 +144,20 @@ class _PanelBody extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       itemCount: notifications.length,
       separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, i) =>
-          _NotificationTile(notification: notifications[i]),
+      itemBuilder: (context, i) => _NotificationTile(
+        notification: notifications[i],
+        onNotificationTap: onNotificationTap,
+      ),
     );
   }
 }
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({required this.notification});
+  const _NotificationTile({required this.notification, this.onNotificationTap});
 
   final AppNotification notification;
+  final void Function(BuildContext context, AppNotification notification)?
+      onNotificationTap;
 
   @override
   Widget build(BuildContext context) {
@@ -158,8 +175,10 @@ class _NotificationTile extends StatelessWidget {
         NubiaDate.relative(notification.createdAt),
         style: const TextStyle(fontSize: 11.5, color: NubiaColors.n500),
       ),
-      onTap: () =>
-          context.read<ProNotificationsCubit>().markRead(notification.id),
+      onTap: () {
+        context.read<ProNotificationsCubit>().markRead(notification.id);
+        onNotificationTap?.call(context, notification);
+      },
     );
   }
 }

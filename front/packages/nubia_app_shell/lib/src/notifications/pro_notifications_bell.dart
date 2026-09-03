@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'pro_notifications_cubit.dart';
 import 'pro_notifications_panel.dart';
@@ -7,9 +8,17 @@ import 'pro_notifications_panel.dart';
 /// Cloche de notifications de la topbar [ProShell] (#6263) — badge non-lus
 /// + ouverture du [ProNotificationsPanel] en dropdown ancré sous la cloche.
 class ProNotificationsBell extends StatelessWidget {
-  const ProNotificationsBell({super.key, required this.cubit});
+  const ProNotificationsBell({
+    super.key,
+    required this.cubit,
+    this.onNotificationTap,
+  });
 
   final ProNotificationsCubit cubit;
+
+  /// Transmis tel quel à [ProNotificationsPanel] (voir [ProShell.onNotificationTap]).
+  final void Function(BuildContext context, AppNotification notification)?
+      onNotificationTap;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +56,10 @@ class ProNotificationsBell extends StatelessWidget {
         alignment: Alignment.topRight,
         child: Padding(
           padding: const EdgeInsets.only(top: 64, right: 16),
-          child: ProNotificationsPanel(cubit: cubit),
+          child: ProNotificationsPanel(
+            cubit: cubit,
+            onNotificationTap: onNotificationTap,
+          ),
         ),
       ),
     );

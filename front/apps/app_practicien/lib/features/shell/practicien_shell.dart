@@ -10,6 +10,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import '../../pro_config.dart';
 import '../../router/app_router.dart';
 import '../../session/pro_auth_cubit.dart';
+import '../notifications/notification_route_resolver.dart';
 
 /// Shell scaffold shared by every branch of the `StatefulShellRoute` declared
 /// in `app_router.dart` — wraps [navigationShell] in [ProShell] so the barre
@@ -75,6 +76,18 @@ class PracticienShell extends StatelessWidget {
         );
       },
       notificationRepository: GetIt.instance<NotificationRepository>(),
+      // #6280 — le panneau partagé (nubia_app_shell) ne connaît ni les kinds
+      // praticien ni son AppRouter : c'est ici qu'on résout la route et
+      // navigue, en refermant d'abord le panneau (même geste que le bouton
+      // « Fermer »).
+      onNotificationTap: (context, notification) {
+        final route = NotificationRouteResolver.resolve(
+          kind: notification.kind,
+        );
+        if (route == null) return;
+        Navigator.of(context).pop();
+        context.go(route);
+      },
       body: navigationShell,
       trailingActions: [
         // #4539 : banc de test du framework A2UI, jamais eu sa place dans

@@ -39,6 +39,7 @@ class NotificationDto {
         read: read,
         createdAt: DateTime.parse(createdAt),
         deepLink: deepLink,
+        kind: type,
       );
 
   // Le backend émet des kinds préfixés/composés (ex: appointment_confirmed,
