@@ -92,11 +92,11 @@ void main() {
     when(() => bloc.state).thenReturn(
         const ConsultationCliniqueLoaded(session: _sessionWithActivePlan));
 
-    // 1600 px : le patient de la séance ayant un `patientId`, la colonne
-    // « Dernières séances » (#4937) occupe 280 px à gauche ; il faut donc
-    // ≥ 1280 px *après* elle pour que la colonne contexte (encart « Plan en
-    // cours ») s'affiche à son tour — d'où 1600 px de largeur disponible.
-    await pumpAt(tester, const Size(1600, 2400));
+    // 1400 px : au-delà de kThreeColumnBreakpoint (1189 px, #6386), la
+    // colonne « Contexte » s'affiche avec ses encarts (dont « Plan en
+    // cours ») en un seul seuil — plus de second seuil empilé pour
+    // « Dernières séances » (fusionnée dans `ContextColumn`, #6386).
+    await pumpAt(tester, const Size(1400, 2400));
 
     expect(find.byKey(const Key('consultation_context_column_layout')),
         findsOneWidget);

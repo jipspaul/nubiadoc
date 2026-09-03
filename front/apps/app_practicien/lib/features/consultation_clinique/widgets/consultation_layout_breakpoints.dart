@@ -7,8 +7,15 @@
 // `MediaQuery`, car l'app peut tourner en écran partagé et se redimensionner
 // — regroupés ici pour que les deux fichiers restent alignés sur les mêmes
 // valeurs.
-// Modes d'échec : aucun — constantes pures.
-const kThreeColumnBreakpoint = 1280.0;
+// Modes d'échec : #6386 — `kThreeColumnBreakpoint` doit être exprimé dans le
+// même référentiel que la largeur *disponible* qu'il compare (le corps de
+// `ProShell`, pas la fenêtre) : 1280 px correspondait à la largeur de fenêtre
+// entière de la maquette, jamais atteignable sur le corps une fois la barre
+// latérale de `ProShell` (250 px + 1 px de séparateur, #5138) déduite — la
+// colonne « Contexte » ne pouvait alors apparaître qu'à ~1840 px de fenêtre
+// au lieu des 1440 px ciblés. Valeur recalée : 1440 (fenêtre cible de la
+// maquette) − 251 (chrome fixe de `ProShell`) = 1189.
+const kThreeColumnBreakpoint = 1189.0;
 const kTwoColumnBreakpoint = 900.0;
 const kContextColumnWidth = 288.0;
 // #4964 — 452 px, colonne « Ajouter un acte / Note de séance », maquette

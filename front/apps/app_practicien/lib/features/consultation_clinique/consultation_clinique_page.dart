@@ -15,7 +15,6 @@ import 'widgets/consultation_historique_view.dart';
 import 'widgets/consultation_layout_breakpoints.dart';
 import 'widgets/context_column.dart';
 import 'widgets/patient_identity_bar.dart';
-import 'widgets/recent_sessions_box.dart';
 import 'widgets/side_column.dart';
 import '../../pro_config.dart';
 import '../../router/app_router.dart';
@@ -323,34 +322,12 @@ class _LoadedViewState extends State<_LoadedView> {
     final state = widget.state;
     final session = state.session;
     final textTheme = Theme.of(context).textTheme;
-
-    final body = _buildBody(context, state, session, textTheme);
-    final patientId = session.patientId;
-    if (patientId == null) return body;
-
-    // Colonne de contexte gauche (≥ 1280 px) — encart « Dernières séances »
-    // du patient de la séance en cours (#4937).
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 1280) return body;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 280,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 0, 16),
-                child: RecentSessionsBox(
-                  patientId: patientId,
-                  excludeSessionId: session.id,
-                ),
-              ),
-            ),
-            Expanded(child: body),
-          ],
-        );
-      },
-    );
+    // #6386 — « Dernières séances » (#4937) est désormais rendu par
+    // `ContextColumn`, dans la même colonne que « Alertes du dossier » et
+    // « Plan en cours » (voir sa doc) : plus de `LayoutBuilder`/`Row` séparé
+    // ici, qui empilait un second seuil de 1280 px sur la largeur déjà
+    // amputée de cette colonne.
+    return _buildBody(context, state, session, textTheme);
   }
 
   Widget _buildBody(
@@ -436,6 +413,7 @@ class _LoadedViewState extends State<_LoadedView> {
                         key: const Key('consultation_context_panel'),
                         alerts: session.medicalAlerts,
                         patientId: session.patientId,
+                        sessionId: session.id,
                         activePlan: session.activePlan,
                       ),
                     ),
