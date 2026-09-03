@@ -66,6 +66,10 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
             let id = data.get("appointment_id")?.as_str()?;
             Some(format!("/appointments/{id}"))
         }
+        "message_received" => {
+            let id = data.get("conversation_id")?.as_str()?;
+            Some(format!("/messages/{id}"))
+        }
         _ => None,
     }
 }
@@ -619,4 +623,25 @@ pub async fn patch_me_notification_preferences(
     tracing::info!(user_id = %claims.sub, "me notification preferences updated");
 
     Ok(Json(prefs))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::derive_deep_link;
+
+    #[test]
+    fn message_received_derives_conversation_deep_link() {
+        let conversation_id = uuid::Uuid::new_v4();
+        let data = serde_json::json!({ "conversation_id": conversation_id, "type": "cabinet" });
+        assert_eq!(
+            derive_deep_link("message_received", &data),
+            Some(format!("/messages/{conversation_id}"))
+        );
+    }
+
+    #[test]
+    fn message_received_without_conversation_id_yields_no_deep_link() {
+        let data = serde_json::json!({ "type": "cabinet" });
+        assert!(derive_deep_link("message_received", &data).is_none());
+    }
 }

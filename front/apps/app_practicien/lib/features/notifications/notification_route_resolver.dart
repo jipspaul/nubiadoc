@@ -19,6 +19,8 @@ class NotificationRouteResolver {
         return AppRouter.devis;
       case 'lab_work_returned':
         return AppRouter.labWorkOrders;
+      case 'message_received':
+        return AppRouter.messages;
       default:
         return null;
     }
