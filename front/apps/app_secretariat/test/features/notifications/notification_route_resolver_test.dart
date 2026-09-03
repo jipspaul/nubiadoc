@@ -33,9 +33,16 @@ void main() {
       );
     });
 
-    test('kind inconnu -> null (pas de navigation, pas de crash)', () {
+    test('quote_signed -> devis', () {
       expect(
         NotificationRouteResolver.resolve(kind: 'quote_signed'),
+        AppRouter.devis,
+      );
+    });
+
+    test('kind inconnu -> null (pas de navigation, pas de crash)', () {
+      expect(
+        NotificationRouteResolver.resolve(kind: 'unknown_kind'),
         isNull,
       );
     });
