@@ -22,6 +22,8 @@ class NotificationRouteResolver {
       case 'pharmacy_quote_sent':
       case 'pharmacy_quote_decided':
         return AppRouter.devis;
+      case 'message_received':
+        return AppRouter.messages;
       default:
         return null;
     }
