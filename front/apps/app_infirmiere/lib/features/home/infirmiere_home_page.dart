@@ -27,7 +27,8 @@ class InfirmiereHomePage extends StatelessWidget {
         BlocProvider<NurseCubit>(
           create: (_) => GetIt.instance<NurseCubit>()
             ..loadProfile()
-            ..loadOffers(),
+            ..loadOffers()
+            ..loadActiveVisit(),
         ),
         BlocProvider<NotificationsBloc>(
           create: (_) => GetIt.instance<NotificationsBloc>()

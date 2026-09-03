@@ -58,6 +58,37 @@ pub async fn list_nurse_offers(
     Ok(Json(data))
 }
 
+/// `GET /v1/nurse/visits` — visite en cours de l'infirmière (`accepted`,
+/// `en_route` ou `arrived`), s'il y en a une. Renvoie `null` (jamais 404) en
+/// l'absence de visite en cours : c'est un état normal, pas une erreur.
+///
+/// #6244 : seule la réponse de `accept` alimentait `activeVisit` côté app, qui
+/// la perdait donc dès que le cubit était recréé (redémarrage, retour au
+/// premier plan) — la visite restait bloquée en `accepted` sans aucun moyen de
+/// la retrouver. Cette route permet à l'app de la recharger au démarrage,
+/// comme elle recharge déjà le profil et les offres.
+pub async fn get_active_visit(
+    State(state): State<AppState>,
+    claims: NurseMemberClaims,
+) -> Result<Json<Option<VisitDto>>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    set_nurse_guc(&mut tx, claims.nurse_id).await?;
+
+    let row = sqlx::query(&format!(
+        "SELECT {VISIT_COLUMNS} FROM visit_request \
+         WHERE nurse_id = $1 AND status = ANY($2) \
+         ORDER BY accepted_at DESC LIMIT 1",
+    ))
+    .bind(claims.nurse_id)
+    .bind(&["accepted", "en_route", "arrived"][..])
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok(Json(row.as_ref().map(visit_from_row).transpose()?))
+}
+
 /// `POST /v1/nurse/visits/:id/accept` — accepte une offre (premier-gagne).
 pub async fn accept_visit(
     State(state): State<AppState>,

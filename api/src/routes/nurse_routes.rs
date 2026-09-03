@@ -41,6 +41,7 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         // Offres + cycle de visite — côté infirmière.
         .route("/v1/nurse/offers", get(nurse::visits::list_nurse_offers))
+        .route("/v1/nurse/visits", get(nurse::visits::get_active_visit))
         .route(
             "/v1/nurse/offers/:id/decline",
             post(nurse::visits::decline_offer),

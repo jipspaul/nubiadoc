@@ -109,6 +109,25 @@ class NurseCubit extends Cubit<NurseState> {
     }
   }
 
+  /// Recharge la visite en cours (`GET /nurse/visits`) — à appeler au montage
+  /// de l'écran comme [loadProfile]/[loadOffers] : `activeVisit` n'est
+  /// sinon alimenté que par la réponse de [accept]/[transition], perdue dès
+  /// que le cubit est recréé (redémarrage, retour au premier plan) (#6244).
+  Future<void> loadActiveVisit() async {
+    try {
+      final res = await _dio.get<dynamic>('/nurse/visits');
+      final data = res.data;
+      if (data is Map<String, dynamic> && data.isNotEmpty) {
+        emit(state.copyWith(
+            activeVisit: NurseOffer.fromJson(data), clearError: true));
+      } else {
+        emit(state.copyWith(clearActiveVisit: true, clearError: true));
+      }
+    } on DioException catch (e) {
+      emit(state.copyWith(error: _msg(e)));
+    }
+  }
+
   Future<void> setOnline(bool online) async {
     // En passant en ligne, on pousse la position réelle (matching de proximité).
     double? lat, lng;
