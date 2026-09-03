@@ -354,3 +354,18 @@ Détail des verdicts non-OK :
 - **CASSÉ ×1** — toute entrée de la barre latérale praticien hors « Tableau de bord » / « Consultation » : la navigation elle-même est détruite à l'arrivée (#6286).
 
 Non activés (destructifs, hors périmètre) : « Se déconnecter » (5 apps), « Refuser — motif obligatoire » (stock pharmacie, irréversible côté cabinet).
+| pharmacie | / (File des commandes) | 23 | 5 | 5 | 0 | 0 | 2026-09-03T06:52:00Z |
+| pharmacie | /devis (5 facettes réellement cliquées + actions par statut) | 14 | 6 | 6 | 0 | 0 | 2026-09-03T07:15:00Z |
+| pharmacie | /stock | 23 | 1 | 1 | 0 | 0 (1 recherche DÉSACTIVÉE, légitime : liste chargée) | 2026-09-03T06:50:00Z |
+| pharmacie | /notification-preferences (5 switches, écran neuf #6265) | 5 | 6 | 6 | 0 | 0 (libellés a11y OK — fix #6282 tenu ; bascule persiste après reload complet) | 2026-09-03T06:55:00Z |
+| praticien | / (barre latérale 6 destinations + cloche, clic aux coordonnées du rendu) | 3 en Semantics / ~15 peints | 7 | 7 | 0 | 0 (contrôles fonctionnels mais ABSENTS de l'arbre Semantics, cf. #6310) | 2026-09-03T06:35:00Z |
+| praticien | / (panneau de notifications, 2 lignes) | 5 | 2 | 1 | 1 (« Nouveau message reçu » — #6309) | 0 | 2026-09-03T06:22:00Z |
+| secretariat | / (panneau de notifications, 6 lignes) | 8 | 3 | 2 | 1 (« Nouveau message reçu » — #6309) | 0 | 2026-09-03T06:24:00Z |
+| praticien | / (⌘K et Ctrl+K, 3 viewports 1280/1440/1680) | 2 | 6 | 0 | 6 (aucune palette — #6311) | 0 | 2026-09-03T07:05:00Z |
+| secretariat | / (⌘K / Ctrl+K) | 2 | 2 | 1 (⌘K ouvre « Recherche globale ») | 1 (Ctrl+K inerte — #6311) | 0 | 2026-09-03T06:40:00Z |
+| patient | / (Accueil, tuiles + onglets) | 16 | 1 | 1 | 0 | 0 | 2026-09-03T07:25:00Z |
+| patient | /home-care (17 demandes) | 17 | 1 | 1 | 0 | 0 | 2026-09-03T07:27:00Z |
+| patient | /notifications (4 facettes + Tout marquer lu) | 19 | 7 | 7 | 0 | 0 (« Toutes » d'abord jugé MORT : FAUX POSITIF — il était déjà sélectionné ; re-testé après « Rendez-vous », il restaure bien la liste) | 2026-09-03T07:45:00Z |
+| patient | /profile (13 entrées) | 13 | 2 | 1 | 0 | 0 (« Modifier la photo de profil » jugé MORT à tort : `profile_page.dart:723` ouvre un sélecteur de fichier natif, non observable en headless) | 2026-09-03T07:30:00Z |
+| infirmiere | / (3 onglets Disponibilité/Offres/Ma visite + switch En ligne) | 6 | 4 | 4 | 0 | 0 (états vides corrects et rédigés : « Aucune offre / Les demandes de visite proches apparaîtront ici. ») | 2026-09-03T07:55:00Z |
+| pharmacie | /devis (adversarial : double-clic, BACK, coupure réseau) | 3 | 3 | 3 | 0 | 0 (double-clic → 1 seul POST /remind ; BACK cohérent ; abort → « Impossible de relancer le devis. Réessayer ») | 2026-09-03T08:15:00Z |
