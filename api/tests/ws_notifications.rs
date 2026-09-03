@@ -63,9 +63,7 @@ async fn spawn_server(hub: Arc<WsHub>) -> std::net::SocketAddr {
 async fn connect_and_subscribe(
     addr: std::net::SocketAddr,
     user_id: Uuid,
-) -> tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-> {
+) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
     let url = format!("ws://{}/v1/ws?access_token={}", addr, make_jwt(user_id));
     let (mut ws, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
     ws.send(tungstenite::Message::Text(
@@ -127,5 +125,8 @@ async fn notifications_other_user_events_not_delivered() {
     );
 
     let silence = tokio::time::timeout(Duration::from_millis(300), ws.next()).await;
-    assert!(silence.is_err(), "aucun message ne doit traverser les canaux d'autrui");
+    assert!(
+        silence.is_err(),
+        "aucun message ne doit traverser les canaux d'autrui"
+    );
 }

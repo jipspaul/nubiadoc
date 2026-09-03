@@ -172,7 +172,11 @@ class ConsultationCliniquePage extends StatelessWidget {
       currentRoute: AppRouter.consultation,
       onNavigate: (destination) => context.go(destination.route),
       notificationRepository: GetIt.instance<NotificationRepository>(),
-      notificationEvents: GetIt.instance<NotificationEventsPort>(),
+      // Lookup tolérant : les harnais de test enregistrent le repository
+      // sans le port temps réel — la cloche retombe alors sur son polling.
+      notificationEvents: GetIt.instance.isRegistered<NotificationEventsPort>()
+          ? GetIt.instance<NotificationEventsPort>()
+          : null,
       // #6280 — voir PracticienShell.onNotificationTap (même wiring), requis
       // ici aussi car `/consultation` monte son propre ProShell.
       onNotificationTap: (context, notification) {
