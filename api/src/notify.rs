@@ -11,20 +11,77 @@ use uuid::Uuid;
 
 use crate::auth::AppError;
 
-/// Insère une notification in-app pour un utilisateur. Retourne son id
-/// (à passer à `JobDispatcher::enqueue_push_notification` après commit).
+/// Mapping `kind` → catégorie `user_notification_preference` (migration 0246,
+/// #6257), pour le gating à l'émission (#6258). Uniquement les kinds dont la
+/// catégorie destinataire pro est sans ambiguïté (ex. pas `pharmacy_order_ready`
+/// : notification patient, hors périmètre des catégories pro) ; tout kind
+/// absent de ce mapping n'est jamais bloqué (fail-open documenté).
+fn preference_category(kind: &str) -> Option<&'static str> {
+    match kind {
+        "appointment_requested" | "callback_requested" => Some("rdv"),
+        "quote_signed" | "pharmacy_quote_decided" => Some("devis"),
+        "stock_request_received" => Some("stock"),
+        "message_received" => Some("messagerie"),
+        "lab_work_returned" => Some("labo"),
+        "visit_offer" => Some("visites"),
+        _ => None,
+    }
+}
+
+/// `true` si la catégorie est autorisée pour ce destinataire. Lit
+/// `user_notification_preference.inapp_<catégorie>` — défaut `true` si la
+/// ligne n'existe pas encore pour ce `app_user_id` (jamais bloquant par
+/// défaut, #6258). Suppose `app.current_user_id` déjà posé sur
+/// `app_user_id` (policy RLS `user_notification_preference_owner_select`).
+async fn category_enabled(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    app_user_id: Uuid,
+    category: &str,
+) -> Result<bool, AppError> {
+    let column = match category {
+        "rdv" => "inapp_rdv",
+        "devis" => "inapp_devis",
+        "stock" => "inapp_stock",
+        "messagerie" => "inapp_messagerie",
+        "labo" => "inapp_labo",
+        "visites" => "inapp_visites",
+        _ => return Ok(true),
+    };
+    let sql = format!(
+        "SELECT COALESCE((SELECT {column} FROM user_notification_preference \
+         WHERE app_user_id = $1), true)"
+    );
+    sqlx::query_scalar(&sql)
+        .bind(app_user_id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)
+}
+
+/// Insère une notification in-app pour un utilisateur. Retourne son id (à
+/// passer à `JobDispatcher::enqueue_push_notification` après commit), ou
+/// `None` si le destinataire a désactivé la catégorie du `kind` via
+/// `user_notification_preference` (#6258) — l'appelant ne doit alors rien
+/// enfiler.
 pub(crate) async fn notify_user(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     app_user_id: Uuid,
     kind: &str,
     title: &str,
     data: serde_json::Value,
-) -> Result<Uuid, AppError> {
+) -> Result<Option<Uuid>, AppError> {
     sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
         .bind(app_user_id.to_string())
         .execute(&mut **tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    if let Some(category) = preference_category(kind) {
+        if !category_enabled(tx, app_user_id, category).await? {
+            return Ok(None);
+        }
+    }
+
     let row = sqlx::query(
         "INSERT INTO notification \
          (app_user_id, kind, title, body_ciphertext, body_key_ref, data) \
@@ -38,7 +95,7 @@ pub(crate) async fn notify_user(
     .fetch_one(&mut **tx)
     .await
     .map_err(|_| AppError::Internal)?;
-    row.try_get("id").map_err(|_| AppError::Internal)
+    Ok(Some(row.try_get("id").map_err(|_| AppError::Internal)?))
 }
 
 /// Résout l'`app_user_id` d'un compte patient (valeur DB) puis notifie.
@@ -63,7 +120,9 @@ pub(crate) async fn notify_patient_account(
         .map_err(|_| AppError::Internal)?;
     let Some(row) = row else { return Ok(None) };
     let app_user_id: Uuid = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
-    let notification_id = notify_user(tx, app_user_id, kind, title, data).await?;
+    let Some(notification_id) = notify_user(tx, app_user_id, kind, title, data).await? else {
+        return Ok(None);
+    };
     Ok(Some((app_user_id, notification_id)))
 }
 
@@ -92,8 +151,9 @@ pub(crate) async fn notify_pharmacy_staff(
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
         let user_id: Uuid = row.try_get("user_id").map_err(|_| AppError::Internal)?;
-        let notification_id = notify_user(tx, user_id, kind, title, data.clone()).await?;
-        out.push((user_id, notification_id));
+        if let Some(notification_id) = notify_user(tx, user_id, kind, title, data.clone()).await? {
+            out.push((user_id, notification_id));
+        }
     }
     Ok(out)
 }
@@ -122,8 +182,9 @@ pub(crate) async fn notify_nurse_staff(
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
         let user_id: Uuid = row.try_get("user_id").map_err(|_| AppError::Internal)?;
-        let notification_id = notify_user(tx, user_id, kind, title, data.clone()).await?;
-        out.push((user_id, notification_id));
+        if let Some(notification_id) = notify_user(tx, user_id, kind, title, data.clone()).await? {
+            out.push((user_id, notification_id));
+        }
     }
     Ok(out)
 }
@@ -159,8 +220,9 @@ pub(crate) async fn notify_cabinet_staff(
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
         let user_id: Uuid = row.try_get("user_id").map_err(|_| AppError::Internal)?;
-        let notification_id = notify_user(tx, user_id, kind, title, data.clone()).await?;
-        out.push((user_id, notification_id));
+        if let Some(notification_id) = notify_user(tx, user_id, kind, title, data.clone()).await? {
+            out.push((user_id, notification_id));
+        }
     }
     Ok(out)
 }

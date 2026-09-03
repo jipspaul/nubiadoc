@@ -250,13 +250,18 @@ async fn process_one_reminder(
                     serde_json::json!({ "appointment_id": appointment_id, "reminder_id": reminder_id }),
                 )
                 .await?;
-                (
-                    DispatchAction::Push {
-                        app_user_id: uid,
-                        notification_id,
-                    },
-                    "sent",
-                )
+                match notification_id {
+                    Some(notification_id) => (
+                        DispatchAction::Push {
+                            app_user_id: uid,
+                            notification_id,
+                        },
+                        "sent",
+                    ),
+                    // Catégorie mutée par le destinataire (#6258) : même
+                    // traitement que l'opt-out SMS ci-dessous, pas un échec.
+                    None => (DispatchAction::Cancelled, "cancelled"),
+                }
             } else {
                 (DispatchAction::None, "failed")
             }
