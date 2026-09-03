@@ -593,6 +593,18 @@ pub async fn create_treatment_plan(
 // GET /v1/cabinet/patients/:id/treatment-plans
 // ---------------------------------------------------------------------------
 
+/// Acte rattaché à une phase (§4.1, écran praticien #4051, maquette
+/// design-v2 point 2) — mêmes champs que `TreatmentPlanDetailItem` (détail
+/// patient) : label, code CCAM, dent et montant en centimes.
+#[derive(Serialize)]
+pub struct CabinetTreatmentPhaseAct {
+    pub id: Uuid,
+    pub label: String,
+    pub ccam_code: Option<String>,
+    pub tooth: Option<String>,
+    pub amount_cents: i64,
+}
+
 /// Phase imbriquée dans `CabinetTreatmentPlanItem` (§4.1, écran praticien #4051).
 #[derive(Serialize)]
 pub struct CabinetTreatmentPhaseItem {
@@ -600,6 +612,7 @@ pub struct CabinetTreatmentPhaseItem {
     pub position: i32,
     pub title: String,
     pub status: String,
+    pub acts: Vec<CabinetTreatmentPhaseAct>,
 }
 
 /// Plan de traitement d'un patient, avec ses phases (écran praticien #4051).
@@ -679,7 +692,47 @@ pub async fn list_cabinet_treatment_plans(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Montants (#6347) : la liste ne servait que 4 champs par phase, sans
+    // aucun acte ni montant — tous les agrégats calculés côté front
+    // (`TreatmentPlan.totalCents`/`realizedCents`, #5012/#5013) valaient donc
+    // toujours 0. Même agrégat que `get_treatment_plan` (détail patient) :
+    // les `quote_item` rattachés aux phases de ce patient, dans ce cabinet.
+    let act_rows = sqlx::query(
+        "SELECT qi.id, qi.phase_id, qi.label, qi.ccam_code, qi.tooth, \
+                (qi.unit_amount * 100)::bigint AS amount_cents \
+         FROM quote_item qi \
+         JOIN treatment_phase tph ON tph.id = qi.phase_id \
+         JOIN treatment_plan tp ON tp.id = tph.plan_id \
+         WHERE tp.patient_id = $1 AND tp.cabinet_id = $2 AND tp.deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut acts_by_phase: std::collections::HashMap<Uuid, Vec<CabinetTreatmentPhaseAct>> =
+        std::collections::HashMap::new();
+    for row in &act_rows {
+        let phase_id: Uuid = row.try_get("phase_id").map_err(|_| AppError::Internal)?;
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let label: String = row.try_get("label").map_err(|_| AppError::Internal)?;
+        let ccam_code: Option<String> = row.try_get("ccam_code").map_err(|_| AppError::Internal)?;
+        let tooth: Option<String> = row.try_get("tooth").map_err(|_| AppError::Internal)?;
+        let amount_cents: i64 = row.try_get("amount_cents").map_err(|_| AppError::Internal)?;
+        acts_by_phase
+            .entry(phase_id)
+            .or_default()
+            .push(CabinetTreatmentPhaseAct {
+                id,
+                label,
+                ccam_code,
+                tooth,
+                amount_cents,
+            });
+    }
 
     let mut phases_by_plan: std::collections::HashMap<Uuid, Vec<CabinetTreatmentPhaseItem>> =
         std::collections::HashMap::new();
@@ -689,6 +742,7 @@ pub async fn list_cabinet_treatment_plans(
         let position: i32 = row.try_get("position").map_err(|_| AppError::Internal)?;
         let title: String = row.try_get("title").map_err(|_| AppError::Internal)?;
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+        let acts = acts_by_phase.remove(&id).unwrap_or_default();
         phases_by_plan
             .entry(plan_id)
             .or_default()
@@ -697,6 +751,7 @@ pub async fn list_cabinet_treatment_plans(
                 position,
                 title,
                 status,
+                acts,
             });
     }
 
