@@ -108,7 +108,9 @@ pub async fn accept_visit(
     match result.as_str() {
         "accepted" => {}
         "not_found" | "no_offer" => return Err(AppError::NotFound),
-        _ => return Err(AppError::InvalidStatus), // demande déjà prise / plus offerte
+        // "invalid_status" (demande déjà prise / plus offerte, y compris rejeu
+        // d'un accept déjà traité) ou toute autre valeur inattendue : 409.
+        _ => return Err(AppError::InvalidStatus),
     }
 
     // Relit la visite sous le GUC infirmière + notifie le patient.
