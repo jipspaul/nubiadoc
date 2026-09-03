@@ -25,6 +25,13 @@ class _PatientQuickCreatePageState extends State<PatientQuickCreatePage> {
   final _phone = TextEditingController();
   DateTime? _birthDate;
 
+  // Garde synchrone (#6351) : `state is PatientsCreating` ne devient vrai
+  // qu'au rebuild consécutif à `emit`, donc un 2e clic survenant avant ce
+  // rebuild passe encore le `onPressed` basé sur `loading`. `_submitting`
+  // est lu/écrit de façon synchrone dès le premier appel à `_submit`, sans
+  // attendre de rebuild : le 2e clic est bloqué immédiatement.
+  bool _submitting = false;
+
   @override
   void dispose() {
     _firstName.dispose();
@@ -54,6 +61,8 @@ class _PatientQuickCreatePageState extends State<PatientQuickCreatePage> {
       '${d.year}';
 
   void _submit(BuildContext context) {
+    if (_submitting) return;
+    setState(() => _submitting = true);
     context.read<PatientsBloc>().add(
           PatientsCreateRequested(
             firstName: _firstName.text.trim(),
@@ -70,10 +79,12 @@ class _PatientQuickCreatePageState extends State<PatientQuickCreatePage> {
       listener: (context, state) {
         if (state is PatientsCreateSuccess) {
           Navigator.of(context).pop(state.patient);
+        } else if (state is PatientsCreateError) {
+          setState(() => _submitting = false);
         }
       },
       builder: (context, state) {
-        final loading = state is PatientsCreating;
+        final loading = state is PatientsCreating || _submitting;
         return Scaffold(
           key: const Key('patient_quick_create_scaffold'),
           appBar: AppBar(title: const Text('Nouveau patient')),

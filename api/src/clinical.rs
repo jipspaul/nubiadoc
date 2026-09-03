@@ -626,6 +626,57 @@ pub async fn quick_create_patient(
         None
     };
 
+    // Garde anti double-submit (#6351) : un double-clic (ou un retry réseau)
+    // rejouant la même saisie à quelques secondes d'intervalle créait deux
+    // dossiers patient distincts pour la même personne — le front seul ne
+    // suffit pas à s'en prémunir (contrôle uniquement l'appel courant, pas
+    // les requêtes déjà en vol). Si un patient identique vient d'être créé
+    // par le même auteur dans ce cabinet, on renvoie ce dossier existant au
+    // lieu d'en insérer un second.
+    let duplicate = sqlx::query(
+        "SELECT id, created_at FROM patient \
+         WHERE cabinet_id = $1 \
+           AND created_by_secretariat_id IS NOT DISTINCT FROM $2 \
+           AND first_name = $3 AND last_name = $4 \
+           AND birth_date IS NOT DISTINCT FROM $5 \
+           AND contact = $6 \
+           AND created_at > now() - interval '10 seconds' \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(claims.cabinet_id)
+    .bind(created_by_secretariat_id)
+    .bind(&first_name)
+    .bind(&last_name)
+    .bind(birth_date)
+    .bind(&contact)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(row) = duplicate {
+        let patient_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let created_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        tracing::warn!(
+            cabinet_id = %claims.cabinet_id,
+            patient_id = %patient_id,
+            "cabinet patient quick-create : double-submit ignoré (#6351)"
+        );
+        return Ok((
+            StatusCode::CREATED,
+            Json(QuickCreatePatientResponse {
+                id: patient_id,
+                cabinet_id: claims.cabinet_id,
+                first_name,
+                last_name,
+                phone: phone.map(str::to_string),
+                birth_date: birth_date.map(|d| d.to_string()),
+                created_at: created_at.to_rfc3339(),
+            }),
+        ));
+    }
+
     let row = sqlx::query(
         "INSERT INTO patient (cabinet_id, first_name, last_name, birth_date, contact, created_by_secretariat_id) \
          VALUES ($1, $2, $3, $4, $5, $6) \

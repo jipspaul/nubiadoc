@@ -1,3 +1,4 @@
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -18,7 +19,10 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
         super(const PatientsInitial()) {
     on<PatientsLoadRequested>(_onLoad);
     on<PatientsSearchChanged>(_onSearch);
-    on<PatientsCreateRequested>(_onCreate);
+    // droppable() : un 2e PatientsCreateRequested arrivant pendant que le
+    // précédent est en cours de traitement est ignoré — évite le double
+    // POST /v1/cabinet/patients/quick sur double-clic (#6351).
+    on<PatientsCreateRequested>(_onCreate, transformer: droppable());
   }
 
   Future<void> _onLoad(

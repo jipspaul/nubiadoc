@@ -127,6 +127,31 @@ void main() {
           as PatientsCreateRequested;
       expect(captured.phone, isNull);
     });
+
+    testWidgets(
+        'double-clic rapide sur "Créer le dossier" n\'ajoute qu\'un seul '
+        'event (#6351)', (tester) async {
+      when(() => bloc.state).thenReturn(const PatientsInitial());
+      await tester.pumpWidget(buildPage());
+
+      await tester.enterText(
+        find.byKey(const Key('patient_create_first_name_field')),
+        'Jean',
+      );
+      await tester.enterText(
+        find.byKey(const Key('patient_create_last_name_field')),
+        'Testovitch',
+      );
+      await tester.pump();
+
+      // Deux taps consécutifs sans attendre de rebuild entre les deux, pour
+      // reproduire le double-clic du rapport (#6351).
+      await tester.tap(find.byKey(const Key('patient_create_submit_button')));
+      await tester.tap(find.byKey(const Key('patient_create_submit_button')));
+      await tester.pump();
+
+      verify(() => bloc.add(any())).called(1);
+    });
   });
 
   group('PatientQuickCreatePage — soumission et erreur', () {
