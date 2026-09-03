@@ -343,16 +343,19 @@ pub async fn get_conversation_messages(
     };
 
     // author_display_name : nom du praticien émetteur (#6343), résolu via
-    // practitioner.user_id = message.sender_id — jointure inerte pour les
-    // autres sender_kind (patient, secretary, pharmacist), voir mapping du rôle
-    // en Rust plus bas (author_role dérivé de sender_kind, pas de la DB).
+    // provider.user_id = message.sender_id — jointure directe sur `provider`
+    // (public_read / cabinet_manage) pour rester lisible sous RLS patient, qui
+    // ne pose que `app.patient_account_id` (pas `app.current_cabinet_id`, donc
+    // `practitioner.tenant_isolation` bloquerait une jointure via cette table).
+    // Jointure inerte pour les autres sender_kind (patient, secretary,
+    // pharmacist), voir mapping du rôle en Rust plus bas (author_role dérivé
+    // de sender_kind, pas de la DB).
     let sql = format!(
         "SELECT m.id, m.body_ciphertext, m.sender_kind, m.created_at, m.read_at, \
                 pv.display_name AS author_display_name \
          FROM message m \
-         LEFT JOIN practitioner pr \
-             ON pr.user_id = m.sender_id AND m.sender_kind = 'practitioner' \
-         LEFT JOIN provider pv ON pv.practitioner_id = pr.id \
+         LEFT JOIN provider pv \
+             ON pv.user_id = m.sender_id AND m.sender_kind = 'practitioner' \
          WHERE m.conversation_id = $1 \
          {cursor_clause} \
          ORDER BY m.created_at ASC, m.id ASC \
