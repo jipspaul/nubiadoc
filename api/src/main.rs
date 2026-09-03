@@ -3,9 +3,8 @@ use std::sync::Arc;
 
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{
-    app_with_quote_signature_client_and_signer, run_dispatch_loop, run_quote_relance_loop,
-    run_visit_offer_expiry_loop, AppState, BrevoMailer, ScalewayStorageSigner, StorageSigner,
-    StubJobDispatcher, TwilioSmsSender, YousignClient,
+    run_dispatch_loop, run_quote_relance_loop, run_visit_offer_expiry_loop, AppState, BrevoMailer,
+    ScalewayStorageSigner, StorageSigner, StubJobDispatcher, TwilioSmsSender, YousignClient,
 };
 use sqlx::PgPool;
 
@@ -129,10 +128,21 @@ fn app_with_hl7v2_status(state: AppState, mllp_status: Hl7v2ListenerStatus) -> a
     // le domaine fantôme storage.example.com). StubQuoteSignatureClient/
     // StubStorageSigner restent utilisés par app(state)/les tests
     // d'intégration qui construisent leur propre routeur.
-    app_with_quote_signature_client_and_signer(
+    // Hub WS créé ICI (et non dans le builder) pour être partagé avec le
+    // `WsPushDispatcher` : les notifications insérées sont poussées en temps
+    // réel sur le canal `notifications` des sockets ouvertes (interim
+    // « app vivante » avant FCM/APNs, cf. realtime::WsPushDispatcher).
+    let hub = std::sync::Arc::new(nubia_api::WsHub::new());
+    let dispatcher = std::sync::Arc::new(nubia_api::realtime_push_dispatcher(
+        hub.clone(),
+        state.db.clone(),
+    ));
+    nubia_api::app_prod(
         state,
         std::sync::Arc::new(YousignClient::from_env()),
         std::sync::Arc::new(ScalewayStorageSigner::from_env()) as std::sync::Arc<dyn StorageSigner>,
+        hub,
+        dispatcher,
     )
     .route("/v1/interop/hl7v2/health", axum::routing::get(hl7v2_health))
     .layer(axum::Extension(mllp_status))

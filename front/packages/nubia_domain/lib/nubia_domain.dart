@@ -75,6 +75,7 @@ export 'src/repositories/pro_notification_preferences_repository.dart';
 export 'src/repositories/patient_pharmacy_repository.dart';
 export 'src/repositories/pharmacy_directory_repository.dart';
 export 'src/repositories/pharmacy_order_events_port.dart';
+export 'src/repositories/notification_events_port.dart';
 export 'src/repositories/pharmacy_orders_repository.dart';
 export 'src/repositories/pharmacy_quotes_repository.dart';
 export 'src/repositories/pharmacy_session_repository.dart';

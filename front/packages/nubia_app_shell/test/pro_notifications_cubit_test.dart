@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +22,7 @@ AppNotification _notif(String id, {bool read = false}) => AppNotification(
 const _serverFailure = ServerFailure(message: 'Erreur serveur');
 
 void main() {
+  realtimeGroup();
   late MockNotificationRepository repo;
 
   setUp(() {
@@ -161,6 +164,62 @@ void main() {
         ),
       ],
       verify: (_) => verify(() => repo.markAllRead()).called(1),
+    );
+  });
+}
+
+/// Port temps réel piloté par le test (canal WS `notifications`).
+class _FakeEventsPort implements NotificationEventsPort {
+  final controller = StreamController<IncomingNotification>.broadcast();
+
+  @override
+  Stream<IncomingNotification> watch() => controller.stream;
+
+  @override
+  void dispose() => controller.close();
+}
+
+// Tests du flux temps réel (append — le groupe s'exécute via le main existant
+// grâce à l'appel en toute fin de fichier).
+void realtimeGroup() {
+  group('ProNotificationsCubit · temps réel (canal notifications)', () {
+    late MockNotificationRepository repo;
+    late _FakeEventsPort events;
+
+    setUp(() {
+      repo = MockNotificationRepository();
+      events = _FakeEventsPort();
+      when(() => repo.getUnreadCount()).thenAnswer((_) async => right(3));
+    });
+
+    tearDown(() => events.dispose());
+
+    blocTest<ProNotificationsCubit, ProNotificationsState>(
+      'un événement entrant bump le badge, expose lastIncoming et resync',
+      build: () => ProNotificationsCubit(repository: repo, events: events),
+      act: (cubit) async {
+        await Future<void>.delayed(Duration.zero); // refresh initial (3)
+        events.controller.add(const IncomingNotification(
+          id: 'n-1',
+          kind: 'message_received',
+          title: 'Nouveau message reçu',
+        ));
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (cubit) {
+        expect(cubit.state.incomingSeq, 1);
+        expect(cubit.state.lastIncoming?.title, 'Nouveau message reçu');
+        // bump optimiste (3+1) puis resync serveur (3) — le dernier état
+        // reflète le total serveur, source de vérité.
+        expect(cubit.state.unreadCount, 3);
+        verify(() => repo.getUnreadCount()).called(greaterThanOrEqualTo(2));
+      },
+    );
+
+    blocTest<ProNotificationsCubit, ProNotificationsState>(
+      'sans port fourni, le cubit reste sur son polling (aucune erreur)',
+      build: () => ProNotificationsCubit(repository: repo),
+      verify: (cubit) => expect(cubit.state.incomingSeq, 0),
     );
   });
 }

@@ -115,6 +115,7 @@ import '../repositories/waiting_room_repository_impl.dart';
 import '../realtime/polling_pharmacy_order_events.dart';
 import '../realtime/ws_client.dart';
 import '../realtime/ws_pharmacy_order_events.dart';
+import '../realtime/ws_notification_events.dart';
 
 /// Registers the data layer: Dio APIs, repository implementations and use cases.
 ///
@@ -236,6 +237,17 @@ void registerData(
     )
     ..registerFactory(() => SearchPharmaciesUseCase(gi()))
     ..registerFactory(() => GetPatientPharmacyUseCase(gi()));
+
+  // --- Notifications temps réel (canal WS `notifications`, toutes les apps) --
+  gi.registerLazySingleton<NotificationEventsPort>(
+    () => WsNotificationEvents(
+      client: WsClient(
+        baseWsUrl: _wsUrl(),
+        accessTokenProvider: () => gi<TokenStorage>().getAccessToken(),
+      ),
+    ),
+    dispose: (port) => port.dispose(),
+  );
 
   // --- Use cases ------------------------------------------------------------
   _registerUseCases(gi);

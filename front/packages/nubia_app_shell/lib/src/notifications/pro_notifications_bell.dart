@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'pro_notifications_cubit.dart';
+import 'pro_notifications_state.dart';
 import 'pro_notifications_panel.dart';
 
 /// Cloche de notifications de la topbar [ProShell] (#6263) — badge non-lus
@@ -24,7 +25,28 @@ class ProNotificationsBell extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: cubit,
-      child: Builder(
+      // Bandeau temps réel : chaque notification poussée sur le canal WS
+      // `notifications` (incomingSeq bump) s'affiche en SnackBar cliquable —
+      // titre générique sans PII par construction (notify.rs côté API).
+      child: BlocListener<ProNotificationsCubit, ProNotificationsState>(
+        listenWhen: (prev, next) =>
+            next.incomingSeq != prev.incomingSeq && next.lastIncoming != null,
+        listener: (context, state) {
+          final incoming = state.lastIncoming!;
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(
+              key: const Key('pro_notifications_toast'),
+              content: Text(incoming.title),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
+              action: SnackBarAction(
+                label: 'Voir',
+                onPressed: () => _openPanel(context),
+              ),
+            ),
+          );
+        },
+        child: Builder(
         builder: (context) {
           final unreadCount =
               context.select((ProNotificationsCubit c) => c.state.unreadCount);
@@ -40,6 +62,7 @@ class ProNotificationsBell extends StatelessWidget {
             ),
           );
         },
+        ),
       ),
     );
   }

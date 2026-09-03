@@ -18,7 +18,16 @@ pub use quote_relance_dispatch::{
     QuoteRelanceDispatchSummary,
 };
 pub use realtime::channels;
+pub use realtime::user_notifications_key;
 pub use realtime::WsHub;
+
+/// Construit le `WsPushDispatcher` (mod `realtime` privé) — utilisé par `main`.
+pub fn realtime_push_dispatcher(
+    hub: std::sync::Arc<WsHub>,
+    db: sqlx::PgPool,
+) -> realtime::WsPushDispatcher {
+    realtime::WsPushDispatcher::new(hub, db)
+}
 pub use reminder_dispatch::{
     dispatch_pending_reminders, run_dispatch_loop, ReminderDispatchError, ReminderDispatchSummary,
 };
@@ -493,11 +502,31 @@ pub fn app_with_quote_signature_client_and_signer(
     quote_signature_client: Arc<dyn QuoteSignatureClient>,
     signer: Arc<dyn StorageSigner>,
 ) -> Router {
-    build_router(
+    app_prod(
         state,
-        Arc::new(StubJobDispatcher),
+        quote_signature_client,
         signer,
         Arc::new(WsHub::new()),
+        Arc::new(StubJobDispatcher),
+    )
+}
+
+/// Variante production complète : hub WS et `JobDispatcher` fournis par
+/// l'appelant, pour que le dispatcher publie sur le MÊME hub que les sockets
+/// (`WsPushDispatcher`, canal `notifications`). Les autres builders délèguent
+/// ici avec des stubs — aucun test existant ne change.
+pub fn app_prod(
+    state: AppState,
+    quote_signature_client: Arc<dyn QuoteSignatureClient>,
+    signer: Arc<dyn StorageSigner>,
+    hub: Arc<WsHub>,
+    dispatcher: Arc<dyn JobDispatcher>,
+) -> Router {
+    build_router(
+        state,
+        dispatcher,
+        signer,
+        hub,
         quote_signature_client,
         Arc::new(StubAlmaClient),
     )

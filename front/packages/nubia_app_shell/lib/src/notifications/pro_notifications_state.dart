@@ -12,9 +12,17 @@ class ProNotificationsState extends Equatable {
     this.notifications,
     this.isLoadingList = false,
     this.error,
+    this.lastIncoming,
+    this.incomingSeq = 0,
   });
 
   final int unreadCount;
+
+  /// Dernière notification poussée en temps réel (canal WS `notifications`),
+  /// affichée en bandeau par la cloche. [incomingSeq] s'incrémente à chaque
+  /// arrivée pour que le listener réagisse même à deux titres identiques.
+  final IncomingNotification? lastIncoming;
+  final int incomingSeq;
   final List<AppNotification>? notifications;
   final bool isLoadingList;
   final String? error;
@@ -28,17 +36,22 @@ class ProNotificationsState extends Equatable {
     List<AppNotification>? notifications,
     bool? isLoadingList,
     Object? error = _unset,
+    IncomingNotification? lastIncoming,
+    int? incomingSeq,
   }) {
     return ProNotificationsState(
       unreadCount: unreadCount ?? this.unreadCount,
       notifications: notifications ?? this.notifications,
       isLoadingList: isLoadingList ?? this.isLoadingList,
       error: identical(error, _unset) ? this.error : error as String?,
+      lastIncoming: lastIncoming ?? this.lastIncoming,
+      incomingSeq: incomingSeq ?? this.incomingSeq,
     );
   }
 
   @override
-  List<Object?> get props => [unreadCount, notifications, isLoadingList, error];
+  List<Object?> get props =>
+      [unreadCount, notifications, isLoadingList, error, incomingSeq];
 }
 
 const _unset = Object();

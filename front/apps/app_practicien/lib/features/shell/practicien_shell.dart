@@ -76,6 +76,11 @@ class PracticienShell extends StatelessWidget {
         );
       },
       notificationRepository: GetIt.instance<NotificationRepository>(),
+      // Lookup tolérant : les harnais de test enregistrent le repository
+      // sans le port temps réel — la cloche retombe alors sur son polling.
+      notificationEvents: GetIt.instance.isRegistered<NotificationEventsPort>()
+          ? GetIt.instance<NotificationEventsPort>()
+          : null,
       // #6280 — le panneau partagé (nubia_app_shell) ne connaît ni les kinds
       // praticien ni son AppRouter : c'est ici qu'on résout la route et
       // navigue, en refermant d'abord le panneau (même geste que le bouton

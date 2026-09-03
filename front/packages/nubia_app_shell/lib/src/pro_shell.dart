@@ -47,6 +47,7 @@ class ProShell extends StatefulWidget {
     this.searchHint,
     this.onSearchTap,
     this.notificationRepository,
+    this.notificationEvents,
     this.onNotificationTap,
   });
 
@@ -105,6 +106,11 @@ class ProShell extends StatefulWidget {
   /// fournissent pas (voir aussi [searchHint]).
   final NotificationRepository? notificationRepository;
 
+  /// Flux temps réel des notifications (canal WS `notifications`) — optionnel :
+  /// sans lui la cloche reste sur son polling 60 s (#6263). Avec lui : badge
+  /// instantané + bandeau SnackBar à chaque notification reçue.
+  final NotificationEventsPort? notificationEvents;
+
   /// Appelé au clic sur une notification du panneau (#6264, deep-link
   /// kind→route) — la notification vient d'être marquée lue. `ProShell` ne
   /// connaît ni le kind→route mapping ni le routeur de l'app appelante
@@ -149,7 +155,10 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     super.initState();
     final repository = widget.notificationRepository;
     if (repository != null) {
-      _notificationsCubit = ProNotificationsCubit(repository: repository);
+      _notificationsCubit = ProNotificationsCubit(
+        repository: repository,
+        events: widget.notificationEvents,
+      );
       WidgetsBinding.instance.addObserver(this);
     }
   }
