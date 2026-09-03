@@ -358,7 +358,8 @@ Non activés (destructifs, hors périmètre) : « Se déconnecter » (5 apps), �
 | pharmacie | /devis (5 facettes réellement cliquées + actions par statut) | 14 | 6 | 6 | 0 | 0 | 2026-09-03T07:15:00Z |
 | pharmacie | /stock | 23 | 1 | 1 | 0 | 0 (1 recherche DÉSACTIVÉE, légitime : liste chargée) | 2026-09-03T06:50:00Z |
 | pharmacie | /notification-preferences (5 switches, écran neuf #6265) | 5 | 6 | 6 | 0 | 0 (libellés a11y OK — fix #6282 tenu ; bascule persiste après reload complet) | 2026-09-03T06:55:00Z |
-| praticien | / (barre latérale 6 destinations + cloche, clic aux coordonnées du rendu) | 3 en Semantics / ~15 peints | 7 | 7 | 0 | 0 (contrôles fonctionnels mais ABSENTS de l'arbre Semantics, cf. #6310) | 2026-09-03T06:35:00Z |
+| praticien | / (barre latérale 6 destinations + cloche, clic aux coordonnées du rendu) | 15 | 7 | 7 | 0 | 0 (rail bien présent dans les Semantics — #6310 retiré, faux positif d'échantillonnage) | 2026-09-03T08:40:00Z |
+| praticien | rail vérifié sur 11 routes + secrétariat sur 8 (contre-mesure #6310) | 19 | 19 | 19 | 0 | 0 | 2026-09-03T08:40:00Z |
 | praticien | / (panneau de notifications, 2 lignes) | 5 | 2 | 1 | 1 (« Nouveau message reçu » — #6309) | 0 | 2026-09-03T06:22:00Z |
 | secretariat | / (panneau de notifications, 6 lignes) | 8 | 3 | 2 | 1 (« Nouveau message reçu » — #6309) | 0 | 2026-09-03T06:24:00Z |
 | praticien | / (⌘K et Ctrl+K, 3 viewports 1280/1440/1680) | 2 | 6 | 0 | 6 (aucune palette — #6311) | 0 | 2026-09-03T07:05:00Z |
