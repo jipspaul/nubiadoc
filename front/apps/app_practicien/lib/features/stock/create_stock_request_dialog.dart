@@ -184,6 +184,7 @@ class _ItemRow extends StatelessWidget {
           IconButton(
             key: Key('stock_item_remove_$index'),
             icon: const Icon(Icons.close),
+            tooltip: 'Retirer cet article',
             onPressed: onRemove,
           ),
       ],

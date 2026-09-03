@@ -172,11 +172,13 @@ class _MotifsList extends StatelessWidget {
                     IconButton(
                       key: Key('motif_edit_${motif.id}'),
                       icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'Modifier ce motif',
                       onPressed: () => onEdit(motif),
                     ),
                     IconButton(
                       key: Key('motif_delete_${motif.id}'),
                       icon: const Icon(Icons.delete_outline),
+                      tooltip: 'Supprimer ce motif',
                       onPressed: () => onDelete(motif),
                     ),
                   ],

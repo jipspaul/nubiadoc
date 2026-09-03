@@ -265,6 +265,7 @@ class _ThreadViewState extends State<_ThreadView> {
                 IconButton(
                   key: const Key('messaging_back_button'),
                   icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Retour',
                   onPressed: () => context.pop(),
                 ),
                 Expanded(
