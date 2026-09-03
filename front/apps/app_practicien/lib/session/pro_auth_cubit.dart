@@ -94,10 +94,12 @@ class ProAuthCubit extends Cubit<AuthState> {
   /// session, il retombe silencieusement sur les libellés génériques
   /// existants ([ProConfig.role]/[ProConfig.appTitle]).
   Future<AuthSession> _session() async {
+    String userId = 'me';
     String? displayName;
     String? cabinetName;
     try {
       final response = await _api.dio.get<Map<String, dynamic>>('/me');
+      userId = response.data?['user_id'] as String? ?? userId;
       displayName = response.data?['display_name'] as String?;
       final memberships = (response.data?['memberships'] as List<dynamic>? ??
               const [])
@@ -114,7 +116,7 @@ class ProAuthCubit extends Cubit<AuthState> {
     }
     return AuthSession(
       kind: UserKind.pro,
-      userId: 'me',
+      userId: userId,
       role: ProConfig.role,
       displayName: displayName,
       contextLabel: cabinetName,
