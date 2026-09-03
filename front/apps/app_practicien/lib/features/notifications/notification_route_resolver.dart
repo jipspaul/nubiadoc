@@ -9,22 +9,16 @@ import '../../router/app_router.dart';
 class NotificationRouteResolver {
   const NotificationRouteResolver._();
 
-  /// [data] est la charge utile JSON de la notification (ex. `conversation_id`
-  /// pour `message_received`). `null` = kind inconnu ou non pertinent pour
-  /// cette app : le panneau reste ouvert, aucune navigation (pas de crash).
+  /// `null` = kind inconnu ou non pertinent pour cette app : le panneau
+  /// reste ouvert, aucune navigation (pas de crash).
   static String? resolve({required String? kind, Map<String, dynamic>? data}) {
     switch (kind) {
-      case 'patient_checked_in':
+      case 'waiting_room_called':
         return AppRouter.waitingRoom;
       case 'quote_signed':
         return AppRouter.devis;
-      case 'labo':
+      case 'lab_work_returned':
         return AppRouter.labWorkOrders;
-      case 'message_received':
-        final conversationId = data?['conversation_id'] as String?;
-        return conversationId != null
-            ? '${AppRouter.messages}?conversationId=$conversationId'
-            : AppRouter.messages;
       default:
         return null;
     }

@@ -5,9 +5,9 @@ import 'package:app_practicien/router/app_router.dart';
 
 void main() {
   group('NotificationRouteResolver (praticien)', () {
-    test('patient_checked_in -> salle d\'attente', () {
+    test('waiting_room_called -> salle d\'attente', () {
       expect(
-        NotificationRouteResolver.resolve(kind: 'patient_checked_in'),
+        NotificationRouteResolver.resolve(kind: 'waiting_room_called'),
         AppRouter.waitingRoom,
       );
     });
@@ -19,33 +19,16 @@ void main() {
       );
     });
 
-    test('labo -> bons (lab work orders)', () {
+    test('lab_work_returned -> bons (lab work orders)', () {
       expect(
-        NotificationRouteResolver.resolve(kind: 'labo'),
+        NotificationRouteResolver.resolve(kind: 'lab_work_returned'),
         AppRouter.labWorkOrders,
-      );
-    });
-
-    test('message_received avec conversation_id -> conversation ciblée', () {
-      expect(
-        NotificationRouteResolver.resolve(
-          kind: 'message_received',
-          data: const {'conversation_id': 'conv-42'},
-        ),
-        '${AppRouter.messages}?conversationId=conv-42',
-      );
-    });
-
-    test('message_received sans data -> liste des messages', () {
-      expect(
-        NotificationRouteResolver.resolve(kind: 'message_received'),
-        AppRouter.messages,
       );
     });
 
     test('kind inconnu -> null (pas de navigation, pas de crash)', () {
       expect(
-        NotificationRouteResolver.resolve(kind: 'stock'),
+        NotificationRouteResolver.resolve(kind: 'stock_request_received'),
         isNull,
       );
     });

@@ -19,26 +19,9 @@ void main() {
       );
     });
 
-    test('message_received avec conversation_id -> conversation ciblée', () {
+    test('stock_request_received -> stock', () {
       expect(
-        NotificationRouteResolver.resolve(
-          kind: 'message_received',
-          data: const {'conversation_id': 'conv-42'},
-        ),
-        '${AppRouter.messages}?conversationId=conv-42',
-      );
-    });
-
-    test('message_received sans data -> liste des messages', () {
-      expect(
-        NotificationRouteResolver.resolve(kind: 'message_received'),
-        AppRouter.messages,
-      );
-    });
-
-    test('stock -> stock', () {
-      expect(
-        NotificationRouteResolver.resolve(kind: 'stock'),
+        NotificationRouteResolver.resolve(kind: 'stock_request_received'),
         AppRouter.stock,
       );
     });
