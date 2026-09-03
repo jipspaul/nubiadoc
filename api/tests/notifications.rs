@@ -227,6 +227,74 @@ async fn notifications_unread_only_returns_only_unread() {
         .ok();
 }
 
+// ── Test 2b : page.unread_count reflète le total, pas la page (#6279) ────────
+// Repro exacte de #6279 : badge de la cloche plafonné à `limit` (défaut 20)
+// au lieu du total réel de non-lus, un pro avec plus de non-lus que `limit`
+// voyait un compteur figé.
+
+#[tokio::test]
+async fn notifications_unread_count_reflects_total_not_page_size() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let app_db = app_pool().await;
+    let user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("notif-unread-count+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // 3 non-lues, 1 lue — mais on ne demande que 2 (`limit=2`), comme le
+    // ferait un client qui paginerait au lieu de compter `data.len()`.
+    insert_notification(&app_db, user_id, "rdv", "Non lu 1", false).await;
+    insert_notification(&app_db, user_id, "rdv", "Non lu 2", false).await;
+    insert_notification(&app_db, user_id, "rdv", "Non lu 3", false).await;
+    insert_notification(&app_db, user_id, "rdv", "Lu", true).await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/notifications?unread_only=true&limit=2")
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    // La page ne contient que 2 items (limit)...
+    assert_eq!(v["data"].as_array().unwrap().len(), 2);
+    assert!(!v["page"]["next_cursor"].is_null());
+    // ...mais le total de non-lus reste 3, pas 2 (`data.len()`) ni le
+    // total toutes notifications confondues (4).
+    assert_eq!(v["page"]["unread_count"], 3);
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 3 : sans JWT → 401 ───────────────────────────────────────────────────
 
 #[tokio::test]
