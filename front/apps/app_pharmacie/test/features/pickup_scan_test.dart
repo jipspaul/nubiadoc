@@ -40,7 +40,7 @@ void main() {
     blocTest<PickupScanCubit, PickupScanState>(
       'code valide → Submitting puis Success',
       build: () {
-        when(() => repo.confirmPickup('tok-1'))
+        when(() => repo.confirmPickup('tok-1', expectedOrderId: 'o1'))
             .thenAnswer((_) async => Right(pickedUp()));
         return buildCubit();
       },
@@ -49,15 +49,19 @@ void main() {
         const PickupScanSubmitting(),
         PickupScanSuccess(pickedUp()),
       ],
-      verify: (_) => verify(() => repo.confirmPickup('tok-1')).called(1),
+      verify: (_) => verify(
+          () => repo.confirmPickup('tok-1', expectedOrderId: 'o1')).called(1),
     );
 
     blocTest<PickupScanCubit, PickupScanState>(
-      'token valide mais commande différente → Mismatch, pas Success',
+      'token valide mais commande différente → refusé par le back (#6349), '
+      'Mismatch, jamais Success',
       build: () {
-        when(() => repo.confirmPickup('tok-marc')).thenAnswer(
-          (_) async =>
-              Right(pickedUp(id: 'o2-marc', patient: 'Marc Dubois')),
+        when(() =>
+                repo.confirmPickup('tok-marc', expectedOrderId: 'o1-julie'))
+            .thenAnswer(
+          (_) async => Left(PickupOrderMismatchFailure(
+              pickedUp(id: 'o2-marc', patient: 'Marc Dubois'))),
         );
         return buildCubit();
       },
@@ -70,13 +74,16 @@ void main() {
           scannedOrder: pickedUp(id: 'o2-marc', patient: 'Marc Dubois'),
         ),
       ],
-      verify: (_) => verify(() => repo.confirmPickup('tok-marc')).called(1),
+      verify: (_) => verify(() =>
+              repo.confirmPickup('tok-marc', expectedOrderId: 'o1-julie'))
+          .called(1),
     );
 
     blocTest<PickupScanCubit, PickupScanState>(
       '409 (double scan) → InvalidCode, cause wrongStatus',
       build: () {
-        when(() => repo.confirmPickup(any())).thenAnswer(
+        when(() => repo.confirmPickup(any(), expectedOrderId: any(named: 'expectedOrderId')))
+            .thenAnswer(
           (_) async => const Left(ServerFailure(
               message: 'Action impossible.',
               statusCode: 409,
@@ -98,7 +105,8 @@ void main() {
     blocTest<PickupScanCubit, PickupScanState>(
       '410 (token expiré) → InvalidCode, cause expired',
       build: () {
-        when(() => repo.confirmPickup(any())).thenAnswer(
+        when(() => repo.confirmPickup(any(), expectedOrderId: any(named: 'expectedOrderId')))
+            .thenAnswer(
           (_) async => const Left(ServerFailure(
               message: 'Code expiré.', statusCode: 410, code: 'token_expired')),
         );
@@ -118,9 +126,9 @@ void main() {
     blocTest<PickupScanCubit, PickupScanState>(
       'token inconnu (404) → InvalidCode, cause unknownCode ; erreur réseau → Error',
       build: () {
-        when(() => repo.confirmPickup('inconnu'))
+        when(() => repo.confirmPickup('inconnu', expectedOrderId: 'o1'))
             .thenAnswer((_) async => const Left(NotFoundFailure()));
-        when(() => repo.confirmPickup('reseau'))
+        when(() => repo.confirmPickup('reseau', expectedOrderId: 'o1'))
             .thenAnswer((_) async => const Left(NetworkFailure()));
         return buildCubit();
       },
@@ -145,14 +153,15 @@ void main() {
       build: buildCubit,
       act: (cubit) => cubit.submit('   ', expectedOrderId: 'o1'),
       expect: () => const <PickupScanState>[],
-      verify: (_) => verifyNever(() => repo.confirmPickup(any())),
+      verify: (_) => verifyNever(() => repo.confirmPickup(any(),
+          expectedOrderId: any(named: 'expectedOrderId'))),
     );
   });
 
   group('PickupScanBody (widget)', () {
     testWidgets('tap sur "Réessayer" après un échec ramène l\'état idle',
         (tester) async {
-      when(() => repo.confirmPickup('inconnu'))
+      when(() => repo.confirmPickup('inconnu', expectedOrderId: 'o1'))
           .thenAnswer((_) async => const Left(NotFoundFailure()));
       final cubit = buildCubit();
 

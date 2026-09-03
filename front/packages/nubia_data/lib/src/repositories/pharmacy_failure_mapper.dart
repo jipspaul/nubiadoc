@@ -1,12 +1,14 @@
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
+import 'package:nubia_data/src/remote/pharmacy_orders/pharmacy_order_dto.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 
 /// Mapping d'erreurs commun aux repos pharmacie.
 ///
 /// 401 → session expirée ; 404 → introuvable (anti-énumération côté back) ;
-/// 409 → transition/action invalide (machine à états serveur) ;
-/// 410 → token de retrait expiré.
+/// 409 → transition/action invalide (machine à états serveur), ou
+/// `pickup_order_mismatch` (#6349 : token valide mais mauvaise commande,
+/// AUCUNE transition côté serveur) ; 410 → token de retrait expiré.
 Future<Either<Failure, T>> guardPharmacyCall<T>(
   Future<T> Function() call, {
   required String errorMessage,
@@ -21,6 +23,17 @@ Future<Either<Failure, T>> guardPharmacyCall<T>(
       case 404:
         return const Left(NotFoundFailure());
       case 409:
+        final data = e.response?.data;
+        if (data is Map && data['code'] == 'pickup_order_mismatch') {
+          final orderJson = data['order'];
+          if (orderJson is Map<String, dynamic>) {
+            return Left(
+              PickupOrderMismatchFailure(
+                PharmacyOrderDto.fromJson(orderJson).toDomain(),
+              ),
+            );
+          }
+        }
         return const Left(
           ServerFailure(
             message: 'Action impossible dans l’état actuel de la commande.',

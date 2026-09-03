@@ -9,6 +9,9 @@ class ConfirmPharmacyPickupUseCase {
 
   const ConfirmPharmacyPickupUseCase(this._repository);
 
-  Future<Either<Failure, PharmacyOrder>> call(String token) =>
-      _repository.confirmPickup(token);
+  Future<Either<Failure, PharmacyOrder>> call(
+    String token, {
+    required String expectedOrderId,
+  }) =>
+      _repository.confirmPickup(token, expectedOrderId: expectedOrderId);
 }

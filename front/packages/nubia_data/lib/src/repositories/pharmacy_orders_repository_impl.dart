@@ -51,9 +51,16 @@ class PharmacyOrdersRepositoryImpl implements PharmacyOrdersRepository {
       );
 
   @override
-  Future<Either<Failure, PharmacyOrder>> confirmPickup(String token) =>
+  Future<Either<Failure, PharmacyOrder>> confirmPickup(
+    String token, {
+    required String expectedOrderId,
+  }) =>
       guardPharmacyCall(
-        () async => (await _api.pickupScan(token)).toDomain(),
+        () async => (await _api.pickupScan(
+          token,
+          expectedOrderId: expectedOrderId,
+        ))
+            .toDomain(),
         errorMessage: 'Impossible de valider le retrait.',
       );
 

@@ -53,11 +53,16 @@ class PharmacyOrdersApi {
     return PharmacyOrderDto.fromJson(response.data!);
   }
 
-  /// Scan du QR patient — endpoint par token (le scanner ne connaît que le QR).
-  Future<PharmacyOrderDto> pickupScan(String token) async {
+  /// Scan du QR patient — endpoint par token (le scanner ne connaît que le
+  /// QR), mais [expectedOrderId] (commande ouverte à l'écran) est transmis
+  /// pour que le serveur refuse toute transition en cas de mismatch (#6349).
+  Future<PharmacyOrderDto> pickupScan(
+    String token, {
+    required String expectedOrderId,
+  }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/pharmacy/orders/pickup-scan',
-      data: {'token': token},
+      data: {'token': token, 'expected_order_id': expectedOrderId},
     );
     return PharmacyOrderDto.fromJson(response.data!);
   }

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:nubia_domain/src/entities/pharmacy_order.dart';
 
 /// Base class for all domain failures (left side of Either).
 /// Never contains raw exceptions — only typed, user-facing info.
@@ -21,6 +22,22 @@ class NetworkFailure extends Failure {
 /// dialogue bloquant dédié plutôt qu'un simple snackbar d'erreur.
 class ClinicalRiskWarningFailure extends Failure {
   const ClinicalRiskWarningFailure(super.message);
+}
+
+/// #6349 : `POST /pharmacy/orders/pickup-scan` a refusé (409
+/// `pickup_order_mismatch`) car le token scanné appartient à une AUTRE
+/// commande que celle transmise (`expected_order_id`) — le serveur n'a fait
+/// AUCUNE transition. Distinct de `ServerFailure` pour que l'UI affiche
+/// directement l'encart de non-correspondance avec [scannedOrder], sans
+/// re-fetch.
+class PickupOrderMismatchFailure extends Failure {
+  const PickupOrderMismatchFailure(this.scannedOrder)
+      : super('Ce code correspond à une autre commande.');
+
+  final PharmacyOrder scannedOrder;
+
+  @override
+  List<Object?> get props => [message, scannedOrder];
 }
 
 class ServerFailure extends Failure {

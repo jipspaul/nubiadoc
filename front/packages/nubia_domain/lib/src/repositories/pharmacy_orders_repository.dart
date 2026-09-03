@@ -24,7 +24,13 @@ abstract class PharmacyOrdersRepository {
 
   /// POST /v1/pharmacy/orders/pickup-scan — ready → pickedUp.
   /// [token] = contenu du QR patient (opaque, zéro PII).
-  Future<Either<Failure, PharmacyOrder>> confirmPickup(String token);
+  /// [expectedOrderId] = commande ouverte à l'écran (#6349) : le serveur
+  /// compare la commande d'origine au token AVANT toute transition — un
+  /// mismatch renvoie [PickupOrderMismatchFailure], jamais un succès.
+  Future<Either<Failure, PharmacyOrder>> confirmPickup(
+    String token, {
+    required String expectedOrderId,
+  });
 
   /// GET /v1/pharmacy/orders/{id}/document — URL signée du PDF d'ordonnance.
   Future<Either<Failure, String>> getPrescriptionUrl(String id);
