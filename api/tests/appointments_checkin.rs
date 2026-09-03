@@ -261,7 +261,10 @@ async fn post_checkin_notifies_practitioner() {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
     )
     .bind(patient_user_id)
-    .bind(format!("checkin-notifies-prac+{}@nubia.test", patient_user_id))
+    .bind(format!(
+        "checkin-notifies-prac+{}@nubia.test",
+        patient_user_id
+    ))
     .execute(&db)
     .await
     .unwrap();
@@ -280,7 +283,10 @@ async fn post_checkin_notifies_practitioner() {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
     )
     .bind(prac_user_id)
-    .bind(format!("checkin-notifies-prac-prac+{}@nubia.test", prac_user_id))
+    .bind(format!(
+        "checkin-notifies-prac-prac+{}@nubia.test",
+        prac_user_id
+    ))
     .execute(&db)
     .await
     .unwrap();

@@ -164,14 +164,13 @@ pub async fn checkin_appointment(
     // Notifie le praticien de l'arrivée de son patient (#6260) : sans ça, il
     // ne l'apprend qu'en regardant la salle d'attente. Titre sans donnée de
     // santé (cf. notify.rs) — le détail (patient, motif) reste dans l'app.
-    let pract_row = sqlx::query(
-        "SELECT user_id FROM practitioner WHERE id = $1 AND cabinet_id = $2",
-    )
-    .bind(practitioner_id)
-    .bind(cabinet_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let pract_row =
+        sqlx::query("SELECT user_id FROM practitioner WHERE id = $1 AND cabinet_id = $2")
+            .bind(practitioner_id)
+            .bind(cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
     if let Some(pract_row) = pract_row {
         let practitioner_user_id: Uuid = pract_row
             .try_get("user_id")
