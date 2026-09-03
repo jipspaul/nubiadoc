@@ -500,7 +500,16 @@ void main() {
       expect(amount.textAlign, TextAlign.right);
       expect(amount.style?.fontWeight, FontWeight.w600);
 
-      expect(find.text('À signer'), findsOneWidget);
+      // #6243 : la facette de statut de la barre d'outils partage le même
+      // libellé verbatim maquette que la pastille de statut de la ligne —
+      // on scope donc la recherche à la ligne du tableau.
+      expect(
+        find.descendant(
+          of: find.byType(DevisTableRow),
+          matching: find.text('À signer'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets(
@@ -1213,6 +1222,125 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('devis_kpi_active')), findsNothing);
+    });
+  });
+
+  // --- Facettes de statut + recherche (#6243) -----------------------------------
+  group('DevisPage — facettes de statut et recherche (#6243)', () {
+    late _MockDevisBloc bloc;
+
+    setUp(() {
+      bloc = _MockDevisBloc();
+    });
+
+    Widget buildPage() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<DevisBloc>.value(
+            value: bloc,
+            child: const DevisPage(),
+          ),
+        );
+
+    final draft = CabinetQuote(
+      id: 'DEV-1001',
+      cabinetId: 'c1',
+      patientId: 'p1',
+      patientName: 'Léa Bernard',
+      totalCents: 2400,
+      patientShareCents: 2400,
+      status: CabinetQuoteStatus.draft,
+      createdAt: DateTime(2026, 1, 1),
+    );
+    final sent = CabinetQuote(
+      id: 'DEV-1002',
+      cabinetId: 'c1',
+      patientId: 'p2',
+      patientName: 'Sophie Roux',
+      totalCents: 4200,
+      patientShareCents: 4200,
+      status: CabinetQuoteStatus.sent,
+      createdAt: DateTime(2026, 1, 2),
+    );
+
+    testWidgets('la barre d\'outils expose une recherche et les facettes de '
+        'statut de la maquette design-v2', (tester) async {
+      when(() => bloc.state).thenReturn(DevisLoaded([draft, sent]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('devis_search')), findsOneWidget);
+      expect(find.byKey(const Key('devis_facet_sent')), findsOneWidget);
+      expect(find.byKey(const Key('devis_facet_draft')), findsOneWidget);
+      expect(find.byKey(const Key('devis_facet_signed')), findsOneWidget);
+      expect(find.byKey(const Key('devis_facet_expired')), findsOneWidget);
+    });
+
+    testWidgets('sélectionner une facette de statut filtre la liste ; la '
+        'recliquer réinitialise', (tester) async {
+      when(() => bloc.state).thenReturn(DevisLoaded([draft, sent]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DevisTableRow), findsNWidgets(2));
+
+      await tester.tap(find.byKey(const Key('devis_facet_draft')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DevisTableRow), findsOneWidget);
+      expect(find.text('Léa Bernard'), findsOneWidget);
+      expect(find.text('Sophie Roux'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('devis_facet_draft')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DevisTableRow), findsNWidgets(2));
+    });
+
+    testWidgets('la recherche filtre par nom de patient', (tester) async {
+      when(() => bloc.state).thenReturn(DevisLoaded([draft, sent]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('devis_search')),
+        'Sophie',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DevisTableRow), findsOneWidget);
+      expect(find.text('Sophie Roux'), findsOneWidget);
+      expect(find.text('Léa Bernard'), findsNothing);
+    });
+
+    testWidgets('la recherche filtre par n° de devis', (tester) async {
+      when(() => bloc.state).thenReturn(DevisLoaded([draft, sent]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('devis_search')),
+        'DEV-1001',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DevisTableRow), findsOneWidget);
+      expect(find.text('Léa Bernard'), findsOneWidget);
+    });
+
+    testWidgets('aucun résultat pour le filtre courant : état vide dédié',
+        (tester) async {
+      when(() => bloc.state).thenReturn(DevisLoaded([draft, sent]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('devis_search')),
+        'personne ne porte ce nom',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DevisTableRow), findsNothing);
+      expect(find.text('Aucun résultat'), findsOneWidget);
     });
   });
 

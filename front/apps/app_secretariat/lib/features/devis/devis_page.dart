@@ -9,6 +9,7 @@ import 'devis_bloc.dart';
 import 'devis_event.dart';
 import 'devis_state.dart';
 import 'widgets/devis_kpis.dart';
+import 'widgets/devis_status_facets.dart';
 import 'widgets/devis_table.dart';
 
 /// Écran "Devis" côté secrétariat — liste des devis du cabinet.
@@ -40,9 +41,33 @@ class _DevisPageState extends State<DevisPage> {
   /// (états à un seul devis, pas `DevisLoaded`).
   List<CabinetQuote>? _lastQuotes;
 
+  /// Recherche client (#6243) — patient ou n° de devis, sur la liste déjà
+  /// chargée (aucun nouvel appel réseau), combinée en ET avec [_statusFilter].
+  String _query = '';
+
+  /// Facette de statut active (#6243, `DevisStatusFacetBar`) — reclique la
+  /// même facette pour la désactiver, comme `stock_page.dart`.
+  CabinetQuoteStatus? _statusFilter;
+
   void _selectQuote(String id) => setState(() => _selectedQuoteId = id);
 
   void _closeQuoteSheet() => setState(() => _selectedQuoteId = null);
+
+  void _onFacetSelected(CabinetQuoteStatus status) {
+    setState(() => _statusFilter = _statusFilter == status ? null : status);
+  }
+
+  List<CabinetQuote> _filterQuotes(List<CabinetQuote> quotes) {
+    final query = _query.trim().toLowerCase();
+    return quotes.where((quote) {
+      if (_statusFilter != null && quote.status != _statusFilter) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      return quote.patientName.toLowerCase().contains(query) ||
+          quote.id.toLowerCase().contains(query);
+    }).toList();
+  }
 
   // Libellé verbatim maquette — énonce l'ordre COURANT (pas l'action
   // suivante), cf. #5085 : le tooltip précédent décrivait l'inverse de
@@ -61,31 +86,12 @@ class _DevisPageState extends State<DevisPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Flexible(
-              child: Text(
-                NubiaL10n.quotes,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 24),
-            Expanded(
-              child: BlocBuilder<DevisBloc, DevisState>(
-                builder: (context, state) => state is DevisLoaded
-                    ? DevisKpiBar(quotes: state.quotes)
-                    : const SizedBox.shrink(),
-              ),
-            ),
-          ],
+        title: Text(
+          NubiaL10n.quotes,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         actions: [
-          _SortChip(
-            key: const Key('sort_button'),
-            label: _sortLabel,
-            onTap: () => setState(() => _sortAsc = !_sortAsc),
-          ),
           IconButton(
             tooltip: NubiaL10n.refresh,
             icon: const Icon(Icons.refresh),
@@ -145,19 +151,65 @@ class _DevisPageState extends State<DevisPage> {
             }
             final sendingId =
                 state is DevisSendInProgress ? state.quote.id : null;
+            final filteredQuotes = _filterQuotes(sortedQuotes);
             final listView = Column(
               children: [
-                const DevisTableHeader(),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: sortedQuotes.length,
-                    itemBuilder: (ctx, i) => DevisTableRow(
-                      quote: sortedQuotes[i],
-                      onTap: () => _selectQuote(sortedQuotes[i].id),
-                      active: _selectedQuoteId == sortedQuotes[i].id,
-                      actionLoading: sendingId == sortedQuotes[i].id,
+                DevisKpiBar(quotes: quotes),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(
+                      width: 280,
+                      child: NubiaSearchBar(
+                        key: const Key('devis_search'),
+                        hint: 'Patient, n° de devis…',
+                        onChanged: (value) => setState(() => _query = value),
+                      ),
                     ),
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: DevisStatusFacetBar(
+                          quotes: quotes,
+                          selected: _statusFilter,
+                          onSelected: _onFacetSelected,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _SortChip(
+                        key: const Key('sort_button'),
+                        label: _sortLabel,
+                        onTap: () => setState(() => _sortAsc = !_sortAsc),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const DevisTableHeader(),
+                Expanded(
+                  child: filteredQuotes.isEmpty
+                      ? const NubiaEmptyState(
+                          icon: Icons.search_off,
+                          title: 'Aucun résultat',
+                          subtitle:
+                              'Aucun devis ne correspond à ce filtre.',
+                        )
+                      : ListView.builder(
+                          itemCount: filteredQuotes.length,
+                          itemBuilder: (ctx, i) => DevisTableRow(
+                            quote: filteredQuotes[i],
+                            onTap: () => _selectQuote(filteredQuotes[i].id),
+                            active:
+                                _selectedQuoteId == filteredQuotes[i].id,
+                            actionLoading:
+                                sendingId == filteredQuotes[i].id,
+                          ),
+                        ),
                 ),
               ],
             );
