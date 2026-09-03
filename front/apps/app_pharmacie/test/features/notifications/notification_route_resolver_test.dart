@@ -12,34 +12,31 @@ void main() {
       );
     });
 
-    test('commandes -> file des commandes', () {
+    test('order_status_changed -> file des commandes', () {
       expect(
-        NotificationRouteResolver.resolve(kind: 'commandes'),
+        NotificationRouteResolver.resolve(kind: 'order_status_changed'),
         AppRouter.orders,
       );
     });
 
-    test('stock -> stock', () {
+    test('stock_request_received -> stock', () {
       expect(
-        NotificationRouteResolver.resolve(kind: 'stock'),
+        NotificationRouteResolver.resolve(kind: 'stock_request_received'),
         AppRouter.stock,
       );
     });
 
-    test('message_received avec conversation_id -> conversation ciblée', () {
+    test('pharmacy_quote_sent -> devis', () {
       expect(
-        NotificationRouteResolver.resolve(
-          kind: 'message_received',
-          data: const {'conversation_id': 'conv-42'},
-        ),
-        '${AppRouter.messages}?conversationId=conv-42',
+        NotificationRouteResolver.resolve(kind: 'pharmacy_quote_sent'),
+        AppRouter.devis,
       );
     });
 
-    test('message_received sans data -> liste des messages', () {
+    test('pharmacy_quote_decided -> devis', () {
       expect(
-        NotificationRouteResolver.resolve(kind: 'message_received'),
-        AppRouter.messages,
+        NotificationRouteResolver.resolve(kind: 'pharmacy_quote_decided'),
+        AppRouter.devis,
       );
     });
 
