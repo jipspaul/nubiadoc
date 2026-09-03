@@ -47,9 +47,12 @@ class _ImplantPassportBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ImplantPassportCubit, ImplantPassportState>(
-      listenWhen: (_, s) => s is ImplantPassportLoaded && s.exportUrl != null,
+      listenWhen: (_, s) =>
+          s is ImplantPassportLoaded &&
+          (s.exportUrl != null || s.exportError != null),
       listener: (context, state) {
-        if (state is ImplantPassportLoaded && state.exportUrl != null) {
+        if (state is! ImplantPassportLoaded) return;
+        if (state.exportUrl != null) {
           openDocumentUrl(state.exportUrl!).then((opened) {
             if (!opened && context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -60,6 +63,20 @@ class _ImplantPassportBody extends StatelessWidget {
           // Repasse par un état sans exportUrl pour éviter de rouvrir le
           // lien à chaque rebuild.
           context.read<ImplantPassportCubit>().load();
+        }
+        if (state.exportError != null) {
+          // L'export a échoué : la liste reste affichée, seul un SnackBar
+          // signale l'échec, avec un bouton qui relance l'export (pas la
+          // liste).
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.exportError!),
+              action: SnackBarAction(
+                label: 'Réessayer',
+                onPressed: () => context.read<ImplantPassportCubit>().export(),
+              ),
+            ),
+          );
         }
       },
       builder: (context, state) {
