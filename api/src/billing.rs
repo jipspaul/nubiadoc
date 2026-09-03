@@ -9,7 +9,7 @@
 //! Alias patient `/v1/billing/quotes/*` (BR5) : les handlers `billing_*` délèguent
 //! aux handlers pro-existants via redirection logique (même code, alias contractuel).
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::{
     auth::{AppError, PatientAccountClaims},
     billing_payments::{create_payment_intent, PaymentIntentBody, PaymentIntentResponse},
-    notify, AppState,
+    notify, AppState, JobDispatcher,
 };
 
 /// Rôles cabinet notifiés à la signature d'un devis (#6262) : praticien +
@@ -432,6 +432,7 @@ pub struct SignQuoteResponse {
 /// Retourne `200 { signed: true, signed_at: "...ISO8601..." }` (stub Yousign — pas d'appel réel).
 pub async fn sign_quote(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SignQuoteResponse>, AppError> {
@@ -511,7 +512,7 @@ pub async fn sign_quote(
         .map_err(|_| AppError::Internal)?;
 
     // Notifie le cabinet (#6262). Titre sans montant (anti-PII).
-    notify::notify_cabinet_staff(
+    let push_targets = notify::notify_cabinet_staff(
         &mut tx,
         cabinet_id,
         &QUOTE_SIGNED_NOTIFY_ROLES,
@@ -522,6 +523,12 @@ pub async fn sign_quote(
     .await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs) — le
+    // retour du notify était jeté, aucun push ne partait (#6329).
+    for (app_user_id, notification_id) in push_targets {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         account_id = %claims.account_id,
@@ -582,10 +589,11 @@ pub async fn billing_deposit(
 /// Idempotent : un devis déjà signé renvoie `200` sans erreur.
 pub async fn billing_confirm_signature(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SignQuoteResponse>, AppError> {
-    sign_quote(State(state), claims, Path(id)).await
+    sign_quote(State(state), Extension(dispatcher), claims, Path(id)).await
 }
 
 // ── GET /v1/payments ─────────────────────────────────────────────────────────

@@ -14,7 +14,7 @@ use serde_json::Value;
 use sha2::Sha256;
 use uuid::Uuid;
 
-use crate::{auth::AppError, AppState, YousignWebhookSecret};
+use crate::{auth::AppError, AppState, JobDispatcher, YousignWebhookSecret};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -73,6 +73,7 @@ pub struct WebhookAck {
 pub async fn yousign_webhook(
     State(state): State<AppState>,
     Extension(YousignWebhookSecret(secret)): Extension<YousignWebhookSecret>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<WebhookAck>, AppError> {
@@ -149,8 +150,9 @@ pub async fn yousign_webhook(
     // lieu (idempotence : un second appel du webhook pour le même devis
     // n'affecte aucune ligne et ne doit pas re-notifier). Titre sans montant
     // (anti-PII), même politique que `billing::sign_quote`.
+    let mut push_targets: Vec<(Uuid, Uuid)> = Vec::new();
     if update_result.rows_affected() > 0 {
-        crate::notify::notify_cabinet_staff(
+        push_targets = crate::notify::notify_cabinet_staff(
             &mut tx,
             cabinet_id,
             &["practitioner", "secretary"],
@@ -162,6 +164,12 @@ pub async fn yousign_webhook(
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs) — le
+    // retour du notify était jeté, aucun push ne partait (#6329).
+    for (app_user_id, notification_id) in push_targets {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         quote_id = %quote_id,
