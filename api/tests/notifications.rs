@@ -283,7 +283,7 @@ async fn notifications_unread_count_reflects_total_not_page_size() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     // La page ne contient que 2 items (limit)...
     assert_eq!(v["data"].as_array().unwrap().len(), 2);
-    assert!(v["page"]["next_cursor"].is_some());
+    assert!(!v["page"]["next_cursor"].is_null());
     // ...mais le total de non-lus reste 3, pas 2 (`data.len()`) ni le
     // total toutes notifications confondues (4).
     assert_eq!(v["page"]["unread_count"], 3);
