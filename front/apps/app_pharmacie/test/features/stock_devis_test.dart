@@ -261,6 +261,7 @@ void main() {
         return PharmacyDevisBloc(
           list: ListPharmacyQuotesUseCase(repo),
           send: SendPharmacyQuoteUseCase(repo),
+          remind: RemindPharmacyQuoteUseCase(repo),
         );
       },
       seed: () => PharmacyDevisLoaded([quote(PharmacyQuoteStatus.draft)]),
@@ -268,6 +269,25 @@ void main() {
       expect: () => [
         PharmacyDevisLoaded([quote(PharmacyQuoteStatus.draft)],
             sendingId: 'q1'),
+        PharmacyDevisLoaded([quote(PharmacyQuoteStatus.sent)]),
+      ],
+    );
+
+    blocTest<PharmacyDevisBloc, PharmacyDevisState>(
+      'relancer un devis envoyé le laisse dans la liste (statut inchangé)',
+      build: () {
+        when(() => repo.remind('q1'))
+            .thenAnswer((_) async => Right(quote(PharmacyQuoteStatus.sent)));
+        return PharmacyDevisBloc(
+          list: ListPharmacyQuotesUseCase(repo),
+          send: SendPharmacyQuoteUseCase(repo),
+          remind: RemindPharmacyQuoteUseCase(repo),
+        );
+      },
+      seed: () => PharmacyDevisLoaded([quote(PharmacyQuoteStatus.sent)]),
+      act: (bloc) => bloc.add(const PharmacyDevisRemindRequested('q1')),
+      expect: () => [
+        PharmacyDevisLoaded([quote(PharmacyQuoteStatus.sent)], sendingId: 'q1'),
         PharmacyDevisLoaded([quote(PharmacyQuoteStatus.sent)]),
       ],
     );
@@ -303,6 +323,40 @@ void main() {
       expect(find.byKey(const Key('quote_send_q1')), findsNothing);
       expect(find.text('Accepté'), findsOneWidget);
       expect(find.text('Accepté le 01/07'), findsOneWidget);
+    });
+
+    testWidgets('devis envoyé → bouton Relancer, pas d\'envoi',
+        (tester) async {
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state)
+          .thenReturn(PharmacyDevisLoaded([quote(PharmacyQuoteStatus.sent)]));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      expect(find.byKey(const Key('quote_remind_q1')), findsOneWidget);
+      expect(find.text('Relancer'), findsOneWidget);
+      expect(find.byKey(const Key('quote_send_q1')), findsNothing);
+    });
+
+    testWidgets('tap sur Relancer déclenche PharmacyDevisRemindRequested',
+        (tester) async {
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state)
+          .thenReturn(PharmacyDevisLoaded([quote(PharmacyQuoteStatus.sent)]));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      await tester.tap(find.byKey(const Key('quote_remind_q1')));
+      await tester.pump();
+
+      verify(() => bloc.add(const PharmacyDevisRemindRequested('q1')))
+          .called(1);
     });
 
     testWidgets('devis expiré → bouton Réémettre, pas d\'envoi',

@@ -39,6 +39,13 @@ class PharmacyQuotesRepositoryImpl implements PharmacyQuotesRepository {
       );
 
   @override
+  Future<Either<Failure, PharmacyQuote>> remind(String id) =>
+      guardPharmacyCall(
+        () async => (await _api.remind(id)).toDomain(),
+        errorMessage: 'Impossible de relancer le devis.',
+      );
+
+  @override
   Future<Either<Failure, PharmacyQuote>> decide(String id,
           {required bool accept}) =>
       guardPharmacyCall(

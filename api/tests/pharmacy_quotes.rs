@@ -329,6 +329,94 @@ async fn full_cycle_draft_sent_accepted() {
 }
 
 #[tokio::test]
+async fn remind_sent_quote_renotifies_without_changing_status() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharmacist = pharma_jwt(fx.pharmacy_id, "pharmacist");
+
+    let (_, quote) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        &pharmacist,
+        Some(json!({
+            "order_id": fx.order_id,
+            "items": [
+                {"label": "Bain de bouche", "qty": 1, "unit_price_cents": 450}
+            ]
+        })),
+    )
+    .await;
+    let id = quote["id"].as_str().unwrap().to_string();
+
+    // Relancer un brouillon (jamais envoyé) → 409 : rien à relancer.
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{id}/remind"),
+        &pharmacist,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{id}/send"),
+        &pharmacist,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Un préparateur ne peut pas relancer → 403.
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{id}/remind"),
+        &pharma_jwt(fx.pharmacy_id, "preparator"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // Relance : reste `sent`, ré-notifie le patient (pas de PII).
+    let (status, quote) = call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{id}/remind"),
+        &pharmacist,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {quote}");
+    assert_eq!(quote["status"], "sent");
+
+    let count: i64 = sqlx::Row::try_get(
+        &sqlx::query(
+            "SELECT count(*) AS n FROM notification \
+             WHERE app_user_id = $1 AND kind = 'pharmacy_quote_reminder'",
+        )
+        .bind(fx.user_id)
+        .fetch_one(&db)
+        .await
+        .unwrap(),
+        "n",
+    )
+    .unwrap();
+    assert_eq!(count, 1);
+
+    // Relance sur un devis inconnu → 404.
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{}/remind", Uuid::new_v4()),
+        &pharmacist,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn validation_and_isolation() {
     if !db_available() {
         return;

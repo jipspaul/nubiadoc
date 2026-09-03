@@ -63,6 +63,14 @@ class PharmacyQuotesApi {
     return PharmacyQuoteDto.fromJson(response.data!);
   }
 
+  /// POST /v1/pharmacy/quotes/{id}/remind (espace pharmacie) — relance d'un
+  /// devis `sent` sans réponse du patient.
+  Future<PharmacyQuoteDto> remind(String id) async {
+    final response =
+        await _dio.post<Map<String, dynamic>>('/pharmacy/quotes/$id/remind');
+    return PharmacyQuoteDto.fromJson(response.data!);
+  }
+
   /// POST /v1/account/pharmacy-quotes/{id}/accept|refuse (espace patient).
   Future<PharmacyQuoteDto> decide(String id, {required bool accept}) async {
     final action = accept ? 'accept' : 'refuse';

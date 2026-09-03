@@ -240,6 +240,20 @@ class _QuoteCard extends StatelessWidget {
                       .read<PharmacyDevisBloc>()
                       .add(PharmacyDevisSendRequested(quote.id)),
             ),
+          ] else if (quote.status == PharmacyQuoteStatus.sent) ...[
+            const SizedBox(height: 12),
+            NubiaButton(
+              key: Key('quote_remind_${quote.id}'),
+              label: 'Relancer',
+              icon: Icons.notifications_active_outlined,
+              variant: NubiaButtonVariant.secondary,
+              isLoading: sending,
+              onPressed: sending
+                  ? null
+                  : () => context
+                      .read<PharmacyDevisBloc>()
+                      .add(PharmacyDevisRemindRequested(quote.id)),
+            ),
           ] else if (quote.status == PharmacyQuoteStatus.expired &&
               quote.orderId != null) ...[
             // Occasion manquée (délai dépassé) : un nouveau devis peut être

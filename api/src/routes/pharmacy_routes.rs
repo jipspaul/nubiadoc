@@ -70,6 +70,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             axum::routing::post(pharmacy::quotes::send_pharmacy_quote),
         )
         .route(
+            "/v1/pharmacy/quotes/:id/remind",
+            axum::routing::post(pharmacy::quotes::remind_pharmacy_quote),
+        )
+        .route(
             "/v1/account/pharmacy-quotes",
             get(pharmacy::quotes::list_account_pharmacy_quotes),
         )

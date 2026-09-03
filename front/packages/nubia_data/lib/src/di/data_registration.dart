@@ -369,6 +369,7 @@ void _registerPharmacy(GetIt gi) {
     ..registerFactory(() => ListPharmacyQuotesUseCase(gi()))
     ..registerFactory(() => CreatePharmacyQuoteUseCase(gi()))
     ..registerFactory(() => SendPharmacyQuoteUseCase(gi()))
+    ..registerFactory(() => RemindPharmacyQuoteUseCase(gi()))
     ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
     ..registerFactory(() => GetCabinetConversationUseCase(gi()))
     ..registerFactory(() => SendMessageCabinetUseCase(gi()));
