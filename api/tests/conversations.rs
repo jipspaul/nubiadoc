@@ -1260,8 +1260,8 @@ async fn conversations_messages_includes_author_name_and_role() {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO provider (id, practitioner_id, cabinet_id, display_name, is_listed) \
-             VALUES ($1, $2, $3, 'Dr Amélie Rousseau', true)",
+            "INSERT INTO provider (id, practitioner_id, cabinet_id, display_name, rpps_verified, is_listed) \
+             VALUES ($1, $2, $3, 'Dr Amélie Rousseau', true, true)",
         )
         .bind(provider_id)
         .bind(prac_id)
