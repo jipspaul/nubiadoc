@@ -64,4 +64,30 @@ void main() {
       expect(kpis.fulfilledCount, 0);
     },
   );
+
+  test(
+    'partnerCabinetsLabel est accordé au singulier pour un seul cabinet',
+    () {
+      final kpis = StockKpis.fromRequests(
+        [_request(status: StockRequestStatus.sent, cabinetName: 'Cabinet Lyon')],
+      );
+
+      expect(kpis.partnerCabinetsCount, 1);
+      expect(kpis.partnerCabinetsLabel, 'cabinet partenaire');
+    },
+  );
+
+  test(
+    'partnerCabinetsLabel reste au pluriel pour plusieurs cabinets ou aucun',
+    () {
+      final none = StockKpis.fromRequests(const []);
+      final many = StockKpis.fromRequests([
+        _request(status: StockRequestStatus.sent, cabinetName: 'Cabinet Lyon'),
+        _request(status: StockRequestStatus.sent, cabinetName: 'Cabinet Paris'),
+      ]);
+
+      expect(none.partnerCabinetsLabel, 'cabinets partenaires');
+      expect(many.partnerCabinetsLabel, 'cabinets partenaires');
+    },
+  );
 }

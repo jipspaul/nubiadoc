@@ -49,6 +49,9 @@ class StockKpis {
   final int toDeliverCount;
   final int fulfilledCount;
   final int partnerCabinetsCount;
+
+  String get partnerCabinetsLabel =>
+      partnerCabinetsCount == 1 ? 'cabinet partenaire' : 'cabinets partenaires';
 }
 
 bool _isSameMonth(DateTime a, DateTime b) =>
@@ -98,7 +101,7 @@ class StockKpiBanner extends StatelessWidget {
           Expanded(
             child: _StockKpiStat(
               value: '${kpis.partnerCabinetsCount}',
-              label: 'cabinets partenaires',
+              label: kpis.partnerCabinetsLabel,
             ),
           ),
         ],
