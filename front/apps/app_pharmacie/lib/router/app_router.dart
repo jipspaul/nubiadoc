@@ -63,8 +63,14 @@ class AppRouter {
         ),
         GoRoute(
           path: '/orders/:id/pickup',
-          builder: (_, state) =>
-              PickupScanPage(orderId: state.pathParameters['id']!),
+          // `extra` porte le numéro CMD-… de la commande en main quand la
+          // navigation vient de la file (#6350) — absent en accès direct
+          // par lien, auquel cas l'encart de non-correspondance se replie
+          // sur l'UUID du path.
+          builder: (_, state) => PickupScanPage(
+            orderId: state.pathParameters['id']!,
+            orderRef: state.extra as String?,
+          ),
         ),
         GoRoute(
           path: notificationPreferences,

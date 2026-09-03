@@ -243,7 +243,10 @@ class _RowAction extends StatelessWidget {
           icon: Icons.qr_code_scanner,
           variant: NubiaButtonVariant.secondary,
           size: NubiaButtonSize.sm,
-          onPressed: () => context.go('/orders/${order.id}/pickup'),
+          onPressed: () => context.go(
+            '/orders/${order.id}/pickup',
+            extra: order.orderRef,
+          ),
         );
       case PharmacyOrderStatus.pickedUp:
       case PharmacyOrderStatus.rejected:

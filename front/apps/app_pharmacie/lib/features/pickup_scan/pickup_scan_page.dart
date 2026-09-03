@@ -15,10 +15,14 @@ import 'widgets/qr_scanner_view.dart';
 /// manuelle du code est TOUJOURS proposée (fallback Windows/Linux, caméra
 /// refusée, QR illisible).
 class PickupScanPage extends StatelessWidget {
-  const PickupScanPage({super.key, required this.orderId});
+  const PickupScanPage({super.key, required this.orderId, this.orderRef});
 
   /// Commande d'origine (pour le retour) — le scan lui-même est PAR TOKEN.
   final String orderId;
+
+  /// Numéro métier (`CMD-…`) de la commande en main, transmis par l'écran
+  /// appelant quand il l'a déjà chargée (#6350).
+  final String? orderRef;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +34,7 @@ class PickupScanPage extends StatelessWidget {
           leading:
               BackButton(onPressed: () => context.go('/orders/$orderId')),
         ),
-        body: PickupScanBody(orderId: orderId),
+        body: PickupScanBody(orderId: orderId, orderRef: orderRef),
       ),
     );
   }
@@ -40,9 +44,14 @@ class PickupScanPage extends StatelessWidget {
 /// panneau du volet droit (voir [OrderDetailBody]) en plus de son usage en
 /// page complète via [PickupScanPage] (accès direct par route).
 class PickupScanBody extends StatelessWidget {
-  const PickupScanBody({super.key, required this.orderId});
+  const PickupScanBody({super.key, required this.orderId, this.orderRef});
 
   final String orderId;
+
+  /// Numéro métier (`CMD-…`) de la commande en main, quand l'écran appelant
+  /// l'a déjà chargée (#6350) — sinon l'encart de non-correspondance se
+  /// replie sur [orderId].
+  final String? orderRef;
 
   @override
   Widget build(BuildContext context) {
@@ -62,9 +71,11 @@ class PickupScanBody extends StatelessWidget {
             children: [
               if (QrScannerView.isSupported)
                 QrScannerView(
-                  onCode: (code) => context
-                      .read<PickupScanCubit>()
-                      .submit(code, expectedOrderId: orderId),
+                  onCode: (code) => context.read<PickupScanCubit>().submit(
+                        code,
+                        expectedOrderId: orderId,
+                        expectedOrderRef: orderRef,
+                      ),
                 )
               else
                 const NubiaCard(
@@ -104,9 +115,11 @@ class PickupScanBody extends StatelessWidget {
               ],
               ManualCodeField(
                 enabled: !submitting,
-                onSubmit: (code) => context
-                    .read<PickupScanCubit>()
-                    .submit(code, expectedOrderId: orderId),
+                onSubmit: (code) => context.read<PickupScanCubit>().submit(
+                      code,
+                      expectedOrderId: orderId,
+                      expectedOrderRef: orderRef,
+                    ),
               ),
               if (submitting) ...[
                 const SizedBox(height: 16),
@@ -213,7 +226,8 @@ class _MismatchView extends StatelessWidget {
                     Expanded(
                       child: _MismatchColumn(
                         label: 'Sachet en main',
-                        value: 'Commande ${state.expectedOrderId}',
+                        value:
+                            'Commande ${state.expectedOrderRef ?? state.expectedOrderId}',
                         color: tokens.dangerFg,
                       ),
                     ),
@@ -221,7 +235,7 @@ class _MismatchView extends StatelessWidget {
                     Expanded(
                       child: _MismatchColumn(
                         label: 'QR scanné',
-                        value: '${state.scannedOrder.patientDisplayName ?? 'Patient inconnu'} — ${state.scannedOrder.id}',
+                        value: '${state.scannedOrder.patientDisplayName ?? 'Patient inconnu'} — ${state.scannedOrder.orderRef ?? state.scannedOrder.id}',
                         color: tokens.dangerFg,
                       ),
                     ),
@@ -244,7 +258,8 @@ class _MismatchView extends StatelessWidget {
                     Expanded(
                       child: NubiaButton(
                         key: const Key('pickup_mismatch_open_order'),
-                        label: 'Ouvrir ${state.scannedOrder.id}',
+                        label:
+                            'Ouvrir ${state.scannedOrder.orderRef ?? state.scannedOrder.id}',
                         variant: NubiaButtonVariant.secondary,
                         onPressed: () => context
                             .go('/orders/${state.scannedOrder.id}'),
