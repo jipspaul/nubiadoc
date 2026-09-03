@@ -320,6 +320,7 @@ class _ThreadViewState extends State<_ThreadView> {
                 IconButton(
                   key: const Key('cabinet_messaging_back_button'),
                   icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Retour',
                   onPressed: () => context.read<CabinetMessagingBloc>().add(
                         const CabinetMessagingBackRequested(),
                       ),
@@ -408,6 +409,7 @@ class _ThreadViewState extends State<_ThreadView> {
                   : IconButton(
                       key: const Key('cabinet_messaging_send_button'),
                       icon: const Icon(Icons.send),
+                      tooltip: 'Envoyer le message',
                       onPressed: _send,
                     ),
             ],

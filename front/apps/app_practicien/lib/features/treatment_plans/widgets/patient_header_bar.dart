@@ -45,6 +45,7 @@ class PatientHeaderBar extends StatelessWidget {
           IconButton(
             key: const Key('treatment_plans_back_button'),
             icon: const Icon(Icons.arrow_back),
+            tooltip: 'Retour',
             onPressed: () => Navigator.of(context).pop(),
           ),
           NubiaAvatar(initials: initialsFrom(name), radius: 18),

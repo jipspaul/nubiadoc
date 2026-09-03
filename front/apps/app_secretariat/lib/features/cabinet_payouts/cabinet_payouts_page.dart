@@ -204,6 +204,7 @@ class _MonthSelector extends StatelessWidget {
           IconButton(
             key: const Key('cabinet_payouts_month_prev'),
             icon: const Icon(Icons.chevron_left, size: 18),
+            tooltip: 'Mois précédent',
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
             onPressed: () => change(-1),
@@ -215,6 +216,7 @@ class _MonthSelector extends StatelessWidget {
           IconButton(
             key: const Key('cabinet_payouts_month_next'),
             icon: const Icon(Icons.chevron_right, size: 18),
+            tooltip: 'Mois suivant',
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
             onPressed: () => change(1),

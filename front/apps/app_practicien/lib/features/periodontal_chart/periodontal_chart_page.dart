@@ -242,6 +242,7 @@ class _IndicesEditor extends StatelessWidget {
                 IconButton(
                   key: Key('periodontal_chart_remove_index_${entry.key}'),
                   icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Supprimer cet indice',
                   onPressed: () => context
                       .read<PeriodontalChartCubit>()
                       .removeIndex(entry.key),
@@ -301,6 +302,7 @@ class _AddIndexRowState extends State<_AddIndexRow> {
         IconButton(
           key: const Key('periodontal_chart_add_index_button'),
           icon: const Icon(Icons.add_circle_outline),
+          tooltip: 'Ajouter cet indice',
           onPressed: _add,
         ),
       ],

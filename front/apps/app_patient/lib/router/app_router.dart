@@ -282,6 +282,7 @@ class AppRouter {
                       return IconButton(
                         key: const Key('btn_appbar_back'),
                         icon: const Icon(Icons.arrow_back),
+                        tooltip: 'Retour',
                         onPressed: () => context
                             .read<FinancialBloc>()
                             .add(const FinancialBackToList()),

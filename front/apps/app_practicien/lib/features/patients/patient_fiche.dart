@@ -220,6 +220,7 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                       IconButton(
                         key: const Key('patient_fiche_back_button'),
                         icon: const Icon(Icons.arrow_back),
+                        tooltip: 'Retour',
                         onPressed: () => Navigator.maybePop(context),
                       ),
                       NubiaAvatar(
