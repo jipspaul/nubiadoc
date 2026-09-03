@@ -235,6 +235,75 @@ async fn insert_plan_with_phases(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid
     plan_id
 }
 
+/// Insère un plan avec une phase, un devis et un `quote_item` rattaché à
+/// cette phase (montant 100,00 €) — pour vérifier que la liste praticien
+/// (#6347) sert bien les actes/montants. Retourne `(plan_id, phase_id)`.
+async fn insert_plan_with_phase_and_quote_item(
+    db: &PgPool,
+    cabinet_id: Uuid,
+    patient_id: Uuid,
+) -> (Uuid, Uuid) {
+    let plan_id = Uuid::new_v4();
+    let phase_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO treatment_plan (id, cabinet_id, patient_id, title, status) \
+         VALUES ($1, $2, $3, 'Plan couronne', 'in_progress')",
+    )
+    .bind(plan_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO treatment_phase (id, cabinet_id, plan_id, position, title, status) \
+         VALUES ($1, $2, $3, 1, 'Phase 1 · Couronne', 'confirmed')",
+    )
+    .bind(phase_id)
+    .bind(cabinet_id)
+    .bind(plan_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount) \
+         VALUES ($1, $2, $3, 'draft', 100.00)",
+    )
+    .bind(quote_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO quote_item \
+         (id, cabinet_id, quote_id, phase_id, label, ccam_code, tooth, unit_amount) \
+         VALUES ($1, $2, $3, $4, 'Couronne céramo-métallique', 'HBLD038', '26', 100.00)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(quote_id)
+    .bind(phase_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+    (plan_id, phase_id)
+}
+
 async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -320,6 +389,84 @@ async fn list_cabinet_treatment_plans_returns_nested_phases_sorted() {
     assert_eq!(phases[0]["title"], "Phase 1 · Chirurgie");
     assert_eq!(phases[1]["position"], 2);
     assert_eq!(phases[1]["title"], "Phase 2 · Prothèse");
+
+    // Aucun quote_item rattaché à ces phases → acts vide (pas d'erreur de
+    // parsing, montant nul légitime).
+    assert_eq!(phases[0]["acts"].as_array().unwrap().len(), 0);
+    assert_eq!(phases[1]["acts"].as_array().unwrap().len(), 0);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 1bis : quote_item rattaché à une phase → montant servi (#6347) ──────
+
+#[tokio::test]
+async fn list_cabinet_treatment_plans_includes_phase_acts_and_amounts() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let (plan_id, phase_id) =
+        insert_plan_with_phase_and_quote_item(&db, f.cabinet_id, f.patient_id).await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/treatment-plans",
+                    f.patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["id"], plan_id.to_string());
+
+    let phases = data[0]["phases"].as_array().unwrap();
+    assert_eq!(phases.len(), 1);
+    assert_eq!(phases[0]["id"], phase_id.to_string());
+
+    let acts = phases[0]["acts"].as_array().unwrap();
+    assert_eq!(acts.len(), 1);
+    assert_eq!(acts[0]["label"], "Couronne céramo-métallique");
+    assert_eq!(acts[0]["ccam_code"], "HBLD038");
+    assert_eq!(acts[0]["tooth"], "26");
+    assert_eq!(acts[0]["amount_cents"], 10000);
+
+    // Nettoyage explicite quote_item/quote avant `cleanup_fixtures` (FK
+    // quote_item.phase_id -> treatment_phase, pas de ON DELETE CASCADE).
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote_item WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
 
     cleanup_fixtures(&db, &f).await;
 }
