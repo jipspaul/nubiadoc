@@ -407,7 +407,7 @@ class _ContextualActionState extends State<_ContextualAction> {
         if (_scanning) {
           return BlocProvider<PickupScanCubit>(
             create: (_) => GetIt.instance<PickupScanCubit>(),
-            child: PickupScanBody(orderId: order.id),
+            child: PickupScanBody(orderId: order.id, orderRef: order.orderRef),
           );
         }
         return NubiaButton(

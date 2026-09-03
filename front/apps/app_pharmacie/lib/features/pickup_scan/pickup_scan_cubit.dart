@@ -32,14 +32,19 @@ class PickupScanSuccess extends PickupScanState {
 class PickupScanMismatch extends PickupScanState {
   const PickupScanMismatch({
     required this.expectedOrderId,
+    this.expectedOrderRef,
     required this.scannedOrder,
   });
 
   final String expectedOrderId;
+
+  /// Numéro métier (`CMD-…`) de la commande en main, quand l'écran appelant
+  /// l'a déjà chargée (#6350) — sinon repli sur [expectedOrderId] à l'affichage.
+  final String? expectedOrderRef;
   final PharmacyOrder scannedOrder;
 
   @override
-  List<Object?> get props => [expectedOrderId, scannedOrder];
+  List<Object?> get props => [expectedOrderId, expectedOrderRef, scannedOrder];
 }
 
 /// Cause précise d'un refus de scan — permet à l'UI d'afficher une conduite
@@ -85,7 +90,11 @@ class PickupScanCubit extends Cubit<PickupScanState> {
 
   final ConfirmPharmacyPickupUseCase _confirmPickup;
 
-  Future<void> submit(String token, {required String expectedOrderId}) async {
+  Future<void> submit(
+    String token, {
+    required String expectedOrderId,
+    String? expectedOrderRef,
+  }) async {
     final trimmed = token.trim();
     if (trimmed.isEmpty || state is PickupScanSubmitting) return;
 
@@ -107,6 +116,7 @@ class PickupScanCubit extends Cubit<PickupScanState> {
         if (order.id != expectedOrderId) {
           emit(PickupScanMismatch(
             expectedOrderId: expectedOrderId,
+            expectedOrderRef: expectedOrderRef,
             scannedOrder: order,
           ));
         } else {
