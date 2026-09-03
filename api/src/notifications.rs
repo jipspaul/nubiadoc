@@ -66,6 +66,24 @@ fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<String> {
     }
 }
 
+/// Mapping `kind` → colonne `inapp_*` de `user_notification_preference`
+/// (migration 0246) pour les catégories pro dont l'émission est déjà
+/// câblée côté staff (#6278 : les 9 opt-in étaient persistés mais jamais
+/// appliqués — `notify_user` insère sans jamais lire cette table). Filtre
+/// appliqué à la lecture plutôt qu'à l'émission : `ELSE true` couvre aussi
+/// bien les `kind` patient (table 0024 dédiée) que les catégories pro pas
+/// encore émises (`messagerie`, `labo`), sans risquer de masquer par erreur
+/// une notification hors périmètre de ce mapping.
+const PREFERENCE_FILTER_SQL: &str = "(CASE n.kind \
+     WHEN 'quote_signed' THEN COALESCE(unp.inapp_devis, true) \
+     WHEN 'pharmacy_quote_decided' THEN COALESCE(unp.inapp_devis, true) \
+     WHEN 'stock_request_received' THEN COALESCE(unp.inapp_stock, true) \
+     WHEN 'appointment_requested' THEN COALESCE(unp.inapp_rdv, true) \
+     WHEN 'callback_requested' THEN COALESCE(unp.inapp_rdv, true) \
+     WHEN 'visit_offer' THEN COALESCE(unp.inapp_visites, true) \
+     ELSE true \
+     END)";
+
 /// Métadonnées de pagination.
 #[derive(Serialize)]
 pub struct NotificationsPage {
@@ -109,6 +127,9 @@ fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 /// `data` (JSONB non-PII) et `deep_link` dérivé sont eux toujours restitués (#3863) —
 /// `data` n'a jamais été chiffrée, aucune raison de la filtrer en attendant NUB-T3.
 /// Pas de PII dans les logs.
+/// Opt-out `user_notification_preference` (#6278) : les notifications dont le
+/// `kind` relève d'une catégorie pro opt-out (`PREFERENCE_FILTER_SQL`) sont
+/// exclues de `data` et de `page.unread_count`.
 pub async fn list_notifications(
     State(state): State<AppState>,
     claims: MeClaims,
@@ -127,23 +148,25 @@ pub async fn list_notifications(
     let unread_only = params.unread_only.unwrap_or(false);
 
     let unread_clause = if unread_only {
-        " AND is_read = false"
+        " AND n.is_read = false"
     } else {
         ""
     };
     let cursor_clause = if cursor.is_some() {
-        " AND (created_at < $3 OR (created_at = $3 AND id < $4))"
+        " AND (n.created_at < $3 OR (n.created_at = $3 AND n.id < $4))"
     } else {
         ""
     };
 
     let sql = format!(
-        "SELECT id, kind, title, data, is_read, created_at \
-         FROM notification \
-         WHERE app_user_id = $2\
+        "SELECT n.id, n.kind, n.title, n.data, n.is_read, n.created_at \
+         FROM notification n \
+         LEFT JOIN user_notification_preference unp ON unp.app_user_id = n.app_user_id \
+         WHERE n.app_user_id = $2 \
+         AND {PREFERENCE_FILTER_SQL} \
          {unread_clause}\
          {cursor_clause} \
-         ORDER BY created_at DESC, id DESC \
+         ORDER BY n.created_at DESC, n.id DESC \
          LIMIT $1"
     );
 
@@ -175,13 +198,16 @@ pub async fn list_notifications(
             .map_err(|_| AppError::Internal)?,
     };
 
-    let unread_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM notification WHERE app_user_id = $1 AND is_read = false",
-    )
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let unread_count_sql = format!(
+        "SELECT COUNT(*) FROM notification n \
+         LEFT JOIN user_notification_preference unp ON unp.app_user_id = n.app_user_id \
+         WHERE n.app_user_id = $1 AND n.is_read = false AND {PREFERENCE_FILTER_SQL}"
+    );
+    let unread_count: i64 = sqlx::query_scalar(&unread_count_sql)
+        .bind(claims.sub)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 

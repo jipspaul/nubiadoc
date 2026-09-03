@@ -669,3 +669,84 @@ async fn notifications_list_restitutes_data_and_deep_link() {
         .await
         .ok();
 }
+
+// ── Test : opt-out pro (#6278) — inapp_stock=false exclut stock_request_received ──
+// Repro exacte de #6278 : `inapp_stock=false` persisté dans
+// `user_notification_preference` (migration 0246) n'avait aucun effet, une
+// notification `stock_request_received` restait visible et comptée dans
+// `unread_count`. Vérifie aussi qu'une catégorie non opt-out (`inapp_devis`,
+// resté à sa valeur par défaut) reste, elle, restituée normalement.
+
+#[tokio::test]
+async fn notifications_excludes_opted_out_pro_category() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let app_db = app_pool().await;
+    let user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("notif-optout+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO user_notification_preference (app_user_id, inapp_stock) VALUES ($1, false)",
+    )
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    insert_notification(
+        &app_db,
+        user_id,
+        "stock_request_received",
+        "Nouvelle demande de stock",
+        false,
+    )
+    .await;
+    insert_notification(&app_db, user_id, "quote_signed", "Devis signé", false).await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/notifications")
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let items = v["data"].as_array().unwrap();
+    // Seule la notification "quote_signed" (catégorie non opt-out) reste.
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["kind"], "quote_signed");
+    // Le badge non-lus ne compte plus la notification opt-out.
+    assert_eq!(v["page"]["unread_count"], 1);
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
