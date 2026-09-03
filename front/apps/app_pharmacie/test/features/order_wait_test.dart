@@ -93,5 +93,17 @@ void main() {
 
       expect(orderWaitOf(order, now: now)!.label, 'Attend 2 h 02');
     });
+
+    test('received depuis 27 j 9 h → « Attend 27 j », ton danger', () {
+      final order = _order(
+        status: PharmacyOrderStatus.received,
+        createdAt: DateTime(2026, 7, 17, 2, 21),
+      );
+
+      final wait = orderWaitOf(order, now: now)!;
+
+      expect(wait.label, 'Attend 27 j');
+      expect(wait.tone, OrderWaitTone.danger);
+    });
   });
 }
