@@ -262,7 +262,7 @@ class _VisitTab extends StatelessWidget {
           Text(v.requestedActs.map(homeCareActLabel).join(' · ')),
           Text('${v.address['line1'] ?? ''}, ${v.address['city'] ?? ''}'),
           const SizedBox(height: 8),
-          Chip(label: Text('Statut : ${v.status}')),
+          Chip(label: Text('Statut : ${visitStatusLabel(v.status)}')),
           const Spacer(),
           if (label != null && action != null)
             NubiaButton(
