@@ -35,6 +35,7 @@ class AuthSession {
     this.accountId,
     this.role = ProRole.unknown,
     this.cabinetId,
+    this.practitionerId,
     this.displayName,
     this.contextLabel,
   });
@@ -50,6 +51,12 @@ class AuthSession {
 
   /// Pro-only: the active cabinet id.
   final String? cabinetId;
+
+  /// Pro-only: the `practitioner` entity id for this user in the active
+  /// cabinet, distinct from [userId] (`practitioner.user_id` references it,
+  /// cf. #6251) — `null` when the user has no practitioner entity there
+  /// (secretary, non-practitioner admin).
+  final String? practitionerId;
 
   final String? displayName;
 
