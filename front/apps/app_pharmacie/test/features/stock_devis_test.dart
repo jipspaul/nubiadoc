@@ -591,6 +591,21 @@ void main() {
       expect(find.text('Jean Dupont'), findsOneWidget);
       expect(find.text('Alice Martin'), findsOneWidget);
     });
+
+    testWidgets('bouton « Nouveau devis » présent à côté de la recherche',
+        (tester) async {
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state)
+          .thenReturn(PharmacyDevisLoaded([quote(PharmacyQuoteStatus.draft)]));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      expect(find.byKey(const Key('devis_new_quote')), findsOneWidget);
+      expect(find.text('Nouveau devis'), findsOneWidget);
+    });
   });
 
   group('DevisKpis', () {
