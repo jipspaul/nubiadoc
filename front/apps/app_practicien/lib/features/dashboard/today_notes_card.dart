@@ -80,8 +80,11 @@ class _NoteRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hour = entry.timestamp.hour.toString().padLeft(2, '0');
-    final min = entry.timestamp.minute.toString().padLeft(2, '0');
+    // Conversion via `.toLocal()` avant de lire heure/minute — évite le
+    // piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+    final localTimestamp = entry.timestamp.toLocal();
+    final hour = localTimestamp.hour.toString().padLeft(2, '0');
+    final min = localTimestamp.minute.toString().padLeft(2, '0');
     final style = NoteStatusStyle.of(entry.status);
 
     // Le nom passe en titre, heure (+ motif quand exposé) en sous-ligne

@@ -256,6 +256,11 @@ String _formatDayMonth(DateTime date) =>
     '${date.month.toString().padLeft(2, '0')}';
 
 /// Formate une heure en `HH:MM` (ex. « 15:30 »), verbatim maquette.
-String _formatTime(DateTime date) =>
-    '${date.hour.toString().padLeft(2, '0')}:'
-    '${date.minute.toString().padLeft(2, '0')}';
+///
+/// Convertit toujours via `.toLocal()` avant de lire heure/minute — évite
+/// le piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+String _formatTime(DateTime date) {
+  final local = date.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
+}

@@ -99,8 +99,11 @@ class _TodayFlowRow extends StatelessWidget {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
 
-    final time = '${entry.startsAt.hour.toString().padLeft(2, '0')}:'
-        '${entry.startsAt.minute.toString().padLeft(2, '0')}';
+    // Conversion via `.toLocal()` avant de lire heure/minute — évite le
+    // piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+    final localStartsAt = entry.startsAt.toLocal();
+    final time = '${localStartsAt.hour.toString().padLeft(2, '0')}:'
+        '${localStartsAt.minute.toString().padLeft(2, '0')}';
     final patientName =
         entry.patientName != null && entry.patientName!.isNotEmpty
             ? entry.patientName!

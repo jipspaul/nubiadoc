@@ -63,7 +63,9 @@ class _AppointmentSlotPickerState extends State<AppointmentSlotPicker> {
       'nov.',
       'déc.',
     ];
-    final d = slot.startsAt;
+    // Conversion via `.toLocal()` avant de lire heure/minute — évite le
+    // piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+    final d = slot.startsAt.toLocal();
     final h =
         '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
     return '${weekdays[d.weekday - 1]} ${d.day} ${months[d.month - 1]} – $h';

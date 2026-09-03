@@ -335,7 +335,9 @@ class _WaitingEntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reason = entry.reason;
-    final appointmentTime = entry.appointmentTime;
+    // Conversion via `.toLocal()` avant de lire heure/minute — évite le
+    // piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+    final appointmentTime = entry.appointmentTime?.toLocal();
     final timeLabel = appointmentTime != null
         ? '${appointmentTime.hour.toString().padLeft(2, '0')}:'
             '${appointmentTime.minute.toString().padLeft(2, '0')}'
@@ -505,7 +507,9 @@ class _WaitColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final wait = entry.waitSoFar;
-    final arrivedAt = entry.arrivedAt;
+    // Conversion via `.toLocal()` avant de lire heure/minute — évite le
+    // piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+    final arrivedAt = entry.arrivedAt.toLocal();
     final arrivedLabel = 'arrivé à '
         '${arrivedAt.hour.toString().padLeft(2, '0')}:'
         '${arrivedAt.minute.toString().padLeft(2, '0')}';

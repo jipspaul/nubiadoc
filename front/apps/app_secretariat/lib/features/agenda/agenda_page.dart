@@ -848,7 +848,9 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
       'nov.',
       'déc.',
     ];
-    final d = slot.startsAt;
+    // Conversion via `.toLocal()` avant de lire heure/minute — évite le
+    // piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+    final d = slot.startsAt.toLocal();
     final h =
         '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
     return '${weekdays[d.weekday - 1]} ${d.day} ${months[d.month - 1]} – $h';
@@ -1130,8 +1132,10 @@ class _AgendaDetailPanel extends StatelessWidget {
   ];
 
   String get _dateRangeLabel {
-    final start = entry.startsAt;
-    final end = entry.endsAt;
+    // Conversion via `.toLocal()` avant de lire heure/minute — évite le
+    // piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+    final start = entry.startsAt.toLocal();
+    final end = entry.endsAt.toLocal();
     final weekday = _weekdays[start.weekday - 1];
     final month = _months[start.month - 1];
     final startTime =
