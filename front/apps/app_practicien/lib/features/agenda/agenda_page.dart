@@ -587,10 +587,14 @@ class _EntryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
-    final startH = entry.startsAt.hour.toString().padLeft(2, '0');
-    final startM = entry.startsAt.minute.toString().padLeft(2, '0');
-    final endH = entry.endsAt.hour.toString().padLeft(2, '0');
-    final endM = entry.endsAt.minute.toString().padLeft(2, '0');
+    // Conversion via `.toLocal()` avant de lire heure/minute — évite le
+    // piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+    final localStartsAt = entry.startsAt.toLocal();
+    final localEndsAt = entry.endsAt.toLocal();
+    final startH = localStartsAt.hour.toString().padLeft(2, '0');
+    final startM = localStartsAt.minute.toString().padLeft(2, '0');
+    final endH = localEndsAt.hour.toString().padLeft(2, '0');
+    final endM = localEndsAt.minute.toString().padLeft(2, '0');
     final timeLabel = '$startH:$startM – $endH:$endM';
 
     return Padding(

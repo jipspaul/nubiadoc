@@ -516,9 +516,13 @@ class _NextPatientHeroCard extends StatelessWidget {
     );
   }
 
-  static String _formatTime(DateTime time) =>
-      '${time.hour.toString().padLeft(2, '0')}:'
-      '${time.minute.toString().padLeft(2, '0')}';
+  /// Convertit toujours via `.toLocal()` avant de lire heure/minute — évite
+  /// le piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+  static String _formatTime(DateTime time) {
+    final local = time.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
 }
 
 // ---------------------------------------------------------------------------
