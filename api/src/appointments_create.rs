@@ -24,8 +24,13 @@ use crate::{
         is_exclusion_violation, AppointmentDetail, CabinetInfo, ProviderDetail,
     },
     auth::{AppError, PatientAccountClaims},
-    AppState,
+    notify, AppState,
 };
+
+/// Rôles cabinet notifiés à la création d'une demande de RDV (#6261) :
+/// secrétariat uniquement — le praticien n'a pas besoin d'un rappel temps
+/// réel pour une simple demande, il consulte son agenda.
+const APPOINTMENT_REQUESTED_NOTIFY_ROLES: [&str; 1] = ["secretary"];
 
 /// Corps de la requête `POST /v1/appointments`.
 #[derive(Deserialize)]
@@ -414,6 +419,18 @@ pub async fn create_appointment(
         fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
     let beneficiary =
         fetch_beneficiary_for_response(&mut tx, patient_id, claims.account_id).await?;
+
+    // Notifie le secrétariat du cabinet (#6261) : sans ça, la demande de RDV
+    // n'apparaît que si quelqu'un rafraîchit l'agenda manuellement.
+    notify::notify_cabinet_staff(
+        &mut tx,
+        cabinet_id,
+        &APPOINTMENT_REQUESTED_NOTIFY_ROLES,
+        "appointment_requested",
+        "Nouvelle demande de rendez-vous",
+        serde_json::json!({ "appointment_id": appointment_id }),
+    )
+    .await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 

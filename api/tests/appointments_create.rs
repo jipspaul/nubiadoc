@@ -780,3 +780,114 @@ async fn create_appointment_fulfills_matching_waiting_list_entry() {
         .ok();
     teardown(&db, &f).await;
 }
+
+// ── Test : la création d'une demande de RDV notifie le secrétariat (#6261) ──
+
+#[tokio::test]
+async fn create_appointment_notifies_secretariat() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "notifysecretariat").await;
+    insert_open_slot(&db, &f, "2032-09-10T09:00:00Z", "2032-09-10T09:30:00Z").await;
+
+    let secretary_user_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(secretary_user_id)
+    .bind(format!(
+        "create-notifysecretariat-sec+{secretary_user_id}@nubia.test"
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
+         VALUES ($1, $2, 'secretary', true)",
+    )
+    .bind(f.cabinet_id)
+    .bind(secretary_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/appointments")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(f.patient_user_id, f.patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "provider_id": f.provider_id,
+                        "starts_at": "2032-09-10T09:00:00Z"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let appointment_id = v["id"].as_str().unwrap();
+
+    let notif_row = sqlx::query(
+        "SELECT kind, data FROM notification WHERE app_user_id = $1 AND kind = 'appointment_requested'",
+    )
+    .bind(secretary_user_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let data: serde_json::Value = notif_row.try_get("data").unwrap();
+    assert_eq!(
+        data["appointment_id"].as_str().unwrap(),
+        appointment_id,
+        "le secrétariat doit être notifié avec l'appointment_id créé"
+    );
+
+    sqlx::query("DELETE FROM notification WHERE app_user_id = $1")
+        .bind(secretary_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet_membership WHERE cabinet_id = $1 AND user_id = $2")
+        .bind(f.cabinet_id)
+        .bind(secretary_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(secretary_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    teardown(&db, &f).await;
+}
