@@ -603,7 +603,12 @@ class _ToggleRow extends StatelessWidget {
         Expanded(
           child: Text(title, style: textTheme.bodyLarge),
         ),
-        NubiaToggle(key: toggleKey, value: value, onChanged: onChanged),
+        Semantics(
+          container: true,
+          label: title,
+          child:
+              NubiaToggle(key: toggleKey, value: value, onChanged: onChanged),
+        ),
       ],
     );
   }
