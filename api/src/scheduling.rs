@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims, ProSecretaryPlusClaims},
-    notify, AppState,
+    notify, patient_guardianship, AppState,
 };
 
 #[derive(Deserialize)]
@@ -2373,7 +2373,20 @@ pub async fn patch_cabinet_appointment(
         if let Some(uid) = uid {
             notify::notify_user(&mut tx, uid, kind, title, notify_data).await?;
         } else if let Some(account_id) = account_id {
-            notify::notify_patient_account(&mut tx, account_id, kind, title, notify_data).await?;
+            // Responsable légal (#6423, même résolution que cabinet_quotes.rs
+            // ::create_cabinet_quote #4098) : si le bénéficiaire du RDV est un
+            // dépendant géré par un tuteur (account_guardianship actif), la
+            // notification doit atteindre le tuteur — c'est lui qui gère le
+            // RDV et voit l'app, jamais le compte du dépendant lui-même.
+            let (guardians, _dependents) =
+                patient_guardianship::aggregate_guardianship(&mut tx, account_id).await?;
+            let notify_target = guardians
+                .into_iter()
+                .next()
+                .map(|g| g.account_id)
+                .unwrap_or(account_id);
+            notify::notify_patient_account(&mut tx, notify_target, kind, title, notify_data)
+                .await?;
         }
     }
 
