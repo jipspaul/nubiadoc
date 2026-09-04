@@ -231,6 +231,8 @@ cette ronde. Les chiffres du tableau ci-dessous sont ceux d'APRÈS correction.
 > et re-clic isolé de chaque cas, il en reste **5 morts/désactivés et 4 cassés réels**, tous filés —
 > #6446 (« Appeler » désactivé à tort), #6447 (« Je suis là » → 409), #6449 (2 puces qui vident la liste),
 > #6455 (« Retour » inerte), #6461 (« Exporter en PDF » → 404) — ou couverts par une issue API (#6453).
+> **Un 20ᵉ finding a été filé puis refermé par moi-même** (#6469) : voir la leçon nº 13. Bilan retenu :
+> **19 findings — 1 P0, 9 P1, 9 P2.**
 > Les 11 « cassés » de praticien `/patients` sont des **403 « relation de soin » légitimes**, correctement
 > rendus depuis #6426, et les 6 de secrétariat `/team-messages` des jalons « à venir » assumés.
 
