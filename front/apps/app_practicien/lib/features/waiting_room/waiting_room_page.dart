@@ -692,7 +692,7 @@ class _MyPatientsPanel extends StatelessWidget {
       AuthAuthenticated(:final session) => session,
       _ => const AuthSession(kind: UserKind.pro, userId: 'me'),
     };
-    final currentPractitionerId = session.userId;
+    final currentPractitionerId = session.practitionerId;
 
     final mine = <WaitingRoomEntry>[];
     final unassigned = <WaitingRoomEntry>[];
@@ -907,15 +907,15 @@ class _EntryCard extends StatelessWidget {
     };
     final practitionerLabel = switch (entry.practitionerId) {
       null => 'non attribué',
-      final id when id == session.userId => 'vous',
+      final id when id == session.practitionerId => 'vous',
       _ => entry.practitionerName ?? 'confrère',
     };
 
     // Patient d'un confrère : non appelable depuis cette file (#5026) — le
     // bouton d'appel de la ligne reste visible mais atténué, cf. maquette
     // design-v2 (`.cb`, opacity .35).
-    final isOtherPractitioner =
-        entry.practitionerId != null && entry.practitionerId != session.userId;
+    final isOtherPractitioner = entry.practitionerId != null &&
+        entry.practitionerId != session.practitionerId;
 
     // Motif admin en tête du sous-titre (#5030) — pas de « · » orphelin
     // quand le motif est absent.

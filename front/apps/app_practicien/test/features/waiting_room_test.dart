@@ -61,13 +61,20 @@ Widget _wrap(WaitingRoomBloc bloc, {ProAuthCubit? authCubit}) => MaterialApp(
       ),
     );
 
-MockProAuthCubit _makeAuthCubit({required String userId}) {
+/// `practitionerId` distinct de `userId` (#6251) : la file compare les
+/// entrées à l'identité *praticien*, jamais au compte. Par défaut égal à
+/// [userId] pour ne pas alourdir chaque appelant existant.
+MockProAuthCubit _makeAuthCubit({
+  required String userId,
+  String? practitionerId,
+}) {
   final cubit = MockProAuthCubit();
   when(() => cubit.state).thenReturn(
     AuthAuthenticated(
       AuthSession(
         kind: UserKind.pro,
         userId: userId,
+        practitionerId: practitionerId ?? userId,
         role: ProRole.practitioner,
       ),
     ),
@@ -876,6 +883,7 @@ void main() {
       WidgetTester tester,
       WaitingRoomEntry entry, {
       required String currentUserId,
+      String? currentPractitionerId,
     }) async {
       when(() => mockList()).thenAnswer((_) async => Right([entry]));
       final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
@@ -887,7 +895,10 @@ void main() {
             providers: [
               BlocProvider<WaitingRoomBloc>.value(value: bloc),
               BlocProvider<ProAuthCubit>.value(
-                value: _makeAuthCubit(userId: currentUserId),
+                value: _makeAuthCubit(
+                  userId: currentUserId,
+                  practitionerId: currentPractitionerId,
+                ),
               ),
             ],
             child: const Scaffold(body: WaitingRoomBody()),
@@ -915,6 +926,40 @@ void main() {
           matching: find.textContaining('vous'),
         ),
         findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'id de compte ≠ id praticien : affiche quand même « vous » et '
+        'garde le bouton d\'appel actif (#6446)', (tester) async {
+      final entry = WaitingRoomEntry(
+        id: 'wr-1',
+        cabinetId: 'cab-1',
+        patientId: 'pat-1',
+        patientName: 'Camille Moreau',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 6)),
+        practitionerId: 'c0000000-practitioner',
+        practitionerName: 'Dr Hugo Marin',
+      );
+      await pumpEntry(
+        tester,
+        entry,
+        currentUserId: 'a0000000-account',
+        currentPractitionerId: 'c0000000-practitioner',
+      );
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-1')),
+          matching: find.textContaining('vous'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<IconButton>(
+          find.byKey(const Key('entry_action_wr-1')),
+        ).onPressed,
+        isNotNull,
       );
     });
 
