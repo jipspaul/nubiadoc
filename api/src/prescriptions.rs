@@ -777,9 +777,8 @@ pub async fn list_account_prescriptions(
         .iter()
         .map(|row| {
             let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-            let created_at: chrono::DateTime<chrono::Utc> = row
-                .try_get("created_at")
-                .map_err(|_| AppError::Internal)?;
+            let created_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("created_at").map_err(|_| AppError::Internal)?;
             last_created_at = Some(created_at);
             last_id = Some(id);
             Ok(AccountPrescriptionItem {
