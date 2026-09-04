@@ -220,7 +220,7 @@ class WaitingRoomPage extends StatelessWidget {
                   builder: (context, state) => state is WaitingRoomLoaded
                       ? Row(
                           children: [
-                            Expanded(
+                            Flexible(
                               child:
                                   WaitingRoomKpiBar(entries: state.entries),
                             ),

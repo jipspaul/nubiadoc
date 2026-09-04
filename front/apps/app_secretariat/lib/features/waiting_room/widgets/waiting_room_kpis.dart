@@ -49,8 +49,9 @@ class WaitingRoomKpiBar extends StatelessWidget {
     final kpis = WaitingRoomKpis.fromEntries(entries);
 
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(
+        Flexible(
           child: _WaitingRoomKpiStat(
             key: const Key('waiting_room_kpi_count'),
             value: '${kpis.waitingCount}',
@@ -58,7 +59,7 @@ class WaitingRoomKpiBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
+        Flexible(
           child: _WaitingRoomKpiStat(
             key: const Key('waiting_room_kpi_average'),
             value: '${kpis.averageWaitMinutes} min',
@@ -66,7 +67,7 @@ class WaitingRoomKpiBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
+        Flexible(
           child: _WaitingRoomKpiStat(
             key: const Key('waiting_room_kpi_over_thirty'),
             value: '${kpis.overThirtyCount}',
