@@ -38,8 +38,14 @@ StockRequest stockRequest(StockRequestStatus status) => StockRequest(
       createdAt: DateTime(2026, 7, 1),
     );
 
-PharmacyQuote quote(PharmacyQuoteStatus status,
-        {String? orderId, String id = 'q1', int totalCents = 900}) =>
+PharmacyQuote quote(
+  PharmacyQuoteStatus status, {
+  String? orderId,
+  String id = 'q1',
+  int totalCents = 900,
+  DateTime? sentAt,
+  DateTime? decidedAt,
+}) =>
     PharmacyQuote(
       id: id,
       pharmacyId: 'p1',
@@ -52,6 +58,8 @@ PharmacyQuote quote(PharmacyQuoteStatus status,
       totalCents: totalCents,
       status: status,
       createdAt: DateTime(2026, 7, 1),
+      sentAt: sentAt,
+      decidedAt: decidedAt,
     );
 
 void main() {
@@ -305,12 +313,13 @@ void main() {
       );
 
       expect(find.text('Jean D.'), findsOneWidget);
-      expect(find.text('Total : 9,00 €'), findsOneWidget);
+      expect(find.text('9,00 €'), findsOneWidget);
       expect(find.byKey(const Key('quote_send_q1')), findsOneWidget);
       expect(find.textContaining('Créé'), findsOneWidget);
     });
 
-    testWidgets('devis accepté → pas de bouton d\'envoi', (tester) async {
+    testWidgets('devis accepté sans commande → pas de bouton d\'envoi ni d\'action',
+        (tester) async {
       final bloc = MockPharmacyDevisBloc();
       when(() => bloc.state).thenReturn(
           PharmacyDevisLoaded([quote(PharmacyQuoteStatus.accepted)]));
@@ -323,6 +332,21 @@ void main() {
       expect(find.byKey(const Key('quote_send_q1')), findsNothing);
       expect(find.text('Accepté'), findsOneWidget);
       expect(find.text('Accepté le 01/07'), findsOneWidget);
+    });
+
+    testWidgets('devis accepté avec commande → bouton Préparer (écart #5, #6454)',
+        (tester) async {
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded(
+          [quote(PharmacyQuoteStatus.accepted, orderId: 'o1')]));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      expect(find.byKey(const Key('quote_prepare_q1')), findsOneWidget);
+      expect(find.text('Préparer'), findsOneWidget);
     });
 
     testWidgets('devis envoyé → bouton Relancer, pas d\'envoi',
@@ -605,6 +629,107 @@ void main() {
 
       expect(find.byKey(const Key('devis_new_quote')), findsOneWidget);
       expect(find.text('Nouveau devis'), findsOneWidget);
+    });
+  });
+
+  group('QA #6454 — devis pharmacie vs maquette design-v2', () {
+    testWidgets('écart #1 : le n° de devis est visible dans la liste',
+        (tester) async {
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded(
+          [quote(PharmacyQuoteStatus.sent, id: 'DEV-P-0412')]));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      expect(find.text('DEV-P-0412'), findsOneWidget);
+    });
+
+    testWidgets(
+        'écart #2/#3 : cliquer une ligne ouvre le volet de détail avec le prix unitaire par ligne',
+        (tester) async {
+      // Tableau + volet juxtaposés : élargit la surface de test comme le
+      // fait app_secretariat (devis_test.dart) pour la même combinaison.
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state)
+          .thenReturn(PharmacyDevisLoaded([quote(PharmacyQuoteStatus.sent)]));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      // Avant clic : pas de volet.
+      expect(find.byKey(const Key('devis_sheet_q1')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('quote_q1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('devis_sheet_q1')), findsOneWidget);
+      // Prix unitaire de la ligne (450 c), distinct du total (900 c) :
+      // l'un et l'autre doivent être lisibles sans calcul mental.
+      expect(find.text('4,50 €'), findsOneWidget);
+      expect(find.text('9,00 €'), findsWidgets);
+      expect(find.textContaining('Hors remboursement'), findsOneWidget);
+      expect(find.text('Devis créé'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('devis_sheet_close')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('devis_sheet_q1')), findsNothing);
+    });
+
+    testWidgets('écart #4 : le pied de liste affiche les agrégats',
+        (tester) async {
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded([
+        quote(
+          PharmacyQuoteStatus.accepted,
+          id: 'q1',
+          sentAt: DateTime(2026, 7, 1, 10),
+          decidedAt: DateTime(2026, 7, 3, 10),
+        ),
+        quote(
+          PharmacyQuoteStatus.refused,
+          id: 'q2',
+          orderId: 'o1',
+          sentAt: DateTime(2026, 7, 1, 10),
+          decidedAt: DateTime(2026, 7, 2, 10),
+        ),
+      ]));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      final footer = find.byKey(const Key('devis_list_footer'));
+      expect(footer, findsOneWidget);
+      expect(
+          find.descendant(
+              of: footer,
+              matching: find.textContaining('devis affichés sur 2')),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: footer, matching: find.textContaining("Taux d'acceptation")),
+          findsOneWidget);
+      expect(find.descendant(of: footer, matching: find.textContaining('50 %')),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: footer,
+              matching: find.textContaining('Délai moyen de réponse')),
+          findsOneWidget);
+      expect(find.descendant(of: footer, matching: find.textContaining('1,5 j')),
+          findsOneWidget);
     });
   });
 

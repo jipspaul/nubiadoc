@@ -6,55 +6,19 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
 import 'devis_bloc.dart';
-import 'quote_delay.dart';
+import 'widgets/devis_detail_sheet.dart';
 import 'widgets/devis_kpis.dart';
+import 'widgets/devis_list_footer.dart';
 import 'widgets/devis_status_facets.dart';
+import 'widgets/devis_table.dart';
 
 /// Devis d'officine — corps de la destination « Devis ».
+///
+/// Design-v2 (QA #6454) : liste sous forme de tableau (n° de devis visible,
+/// #6454 écart 1) dont chaque ligne ouvre un volet de détail juxtaposé
+/// (écart 2), et pied de liste avec les agrégats de la maquette (écart 4).
 class PharmacyDevisView extends StatefulWidget {
   const PharmacyDevisView({super.key});
-
-  static const _labels = {
-    PharmacyQuoteStatus.draft: 'Brouillon',
-    PharmacyQuoteStatus.sent: 'Envoyé',
-    PharmacyQuoteStatus.accepted: 'Accepté',
-    PharmacyQuoteStatus.refused: 'Refusé',
-    PharmacyQuoteStatus.expired: 'Expiré',
-  };
-
-  static const _variants = {
-    PharmacyQuoteStatus.draft: StatusPillVariant.info,
-    PharmacyQuoteStatus.sent: StatusPillVariant.warning,
-    PharmacyQuoteStatus.accepted: StatusPillVariant.success,
-    PharmacyQuoteStatus.refused: StatusPillVariant.error,
-    PharmacyQuoteStatus.expired: StatusPillVariant.error,
-  };
-
-  /// `refused` et `expired` partagent le variant `error` : seule l'icône
-  /// (et l'action proposée sous la carte) les distingue — un refus est une
-  /// décision du patient, une expiration un délai dépassé.
-  static const _icons = {
-    PharmacyQuoteStatus.refused: Icons.cancel,
-    PharmacyQuoteStatus.expired: Icons.event_busy,
-  };
-
-  static String formatCents(int cents) {
-    final str = (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
-    final commaIndex = str.indexOf(',');
-    return '${_groupThousands(str.substring(0, commaIndex))}'
-        '${str.substring(commaIndex)} €';
-  }
-
-  static String _groupThousands(String digits) {
-    final buffer = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && (digits.length - i) % 3 == 0) {
-        buffer.write(' ');
-      }
-      buffer.write(digits[i]);
-    }
-    return buffer.toString();
-  }
 
   @override
   State<PharmacyDevisView> createState() => _PharmacyDevisViewState();
@@ -63,6 +27,11 @@ class PharmacyDevisView extends StatefulWidget {
 class _PharmacyDevisViewState extends State<PharmacyDevisView> {
   DevisStatusFacet _facet = DevisStatusFacet.all;
   String _query = '';
+  String? _selectedQuoteId;
+
+  void _selectQuote(String id) => setState(() => _selectedQuoteId = id);
+
+  void _closeSheet() => setState(() => _selectedQuoteId = null);
 
   List<PharmacyQuote> _filter(List<PharmacyQuote> quotes) {
     final byFacet = quotes.where(_facet.matches);
@@ -86,11 +55,11 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
               padding: EdgeInsets.all(16),
               child: Column(
                 children: [
-                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                  NubiaSkeletonLoader(height: 56, borderRadius: 12),
                   SizedBox(height: 12),
-                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                  NubiaSkeletonLoader(height: 56, borderRadius: 12),
                   SizedBox(height: 12),
-                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                  NubiaSkeletonLoader(height: 56, borderRadius: 12),
                 ],
               ),
             );
@@ -110,7 +79,18 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
               );
             }
             final filtered = _filter(quotes);
-            return Column(
+            final selectedId = _selectedQuoteId;
+            PharmacyQuote? selectedQuote;
+            if (selectedId != null) {
+              for (final q in quotes) {
+                if (q.id == selectedId) {
+                  selectedQuote = q;
+                  break;
+                }
+              }
+            }
+
+            final listColumn = Column(
               children: [
                 DevisKpiBanner(quotes: quotes),
                 DevisStatusFacetBar(
@@ -148,155 +128,55 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                const DevisTableHeader(),
                 Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final quote = filtered[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _QuoteCard(
-                          quote: quote,
-                          sending: sendingId == quote.id,
+                  child: filtered.isEmpty
+                      ? const NubiaEmptyState(
+                          icon: Icons.search_off,
+                          title: 'Aucun résultat',
+                          subtitle: 'Aucun devis ne correspond à ce filtre.',
+                        )
+                      : ListView.builder(
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final quote = filtered[index];
+                            return DevisTableRow(
+                              quote: quote,
+                              onTap: () => _selectQuote(quote.id),
+                              active: selectedId == quote.id,
+                              actionLoading: sendingId == quote.id,
+                            );
+                          },
                         ),
-                      );
-                    },
+                ),
+                DevisListFooter(
+                  stats: DevisFooterStats.of(
+                    quotes,
+                    displayedCount: filtered.length,
                   ),
                 ),
               ],
             );
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: listColumn),
+                if (selectedQuote != null)
+                  SizedBox(
+                    width: 360,
+                    child: DevisDetailSheet(
+                      key: Key('devis_sheet_${selectedQuote.id}'),
+                      quote: selectedQuote,
+                      onClose: _closeSheet,
+                      sending: sendingId == selectedQuote.id,
+                    ),
+                  ),
+              ],
+            );
         }
       },
-    );
-  }
-}
-
-class _QuoteCard extends StatelessWidget {
-  const _QuoteCard({required this.quote, required this.sending});
-
-  final PharmacyQuote quote;
-  final bool sending;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = theme.extension<NubiaTokens>()!;
-    final delay = quoteDelayOf(quote);
-    final delayColor = switch (delay.tone) {
-      QuoteDelayTone.neutral => tokens.textTertiary,
-      QuoteDelayTone.soon => tokens.warningFg,
-      QuoteDelayTone.late => tokens.dangerFg,
-    };
-    return NubiaCard(
-      key: Key('quote_${quote.id}'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      quote.patientDisplayName ?? 'Patient',
-                      style: theme.textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      delay.label,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: delayColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              StatusPill(
-                label: PharmacyDevisView._labels[quote.status]!,
-                variant: PharmacyDevisView._variants[quote.status]!,
-                icon: PharmacyDevisView._icons[quote.status],
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          for (final item in quote.items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '• ${item.quantity} × ${item.label}',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ),
-                  Text(
-                    PharmacyDevisView.formatCents(item.totalCents),
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 8),
-          Text(
-            'Total : ${PharmacyDevisView.formatCents(quote.totalCents)}',
-            style: theme.textTheme.titleSmall,
-          ),
-          if (quote.status == PharmacyQuoteStatus.draft) ...[
-            const SizedBox(height: 12),
-            NubiaButton(
-              key: Key('quote_send_${quote.id}'),
-              label: 'Envoyer au patient',
-              isLoading: sending,
-              onPressed: sending
-                  ? null
-                  : () => context
-                      .read<PharmacyDevisBloc>()
-                      .add(PharmacyDevisSendRequested(quote.id)),
-            ),
-          ] else if (quote.status == PharmacyQuoteStatus.sent) ...[
-            const SizedBox(height: 12),
-            NubiaButton(
-              key: Key('quote_remind_${quote.id}'),
-              label: 'Relancer',
-              icon: Icons.notifications_active_outlined,
-              variant: NubiaButtonVariant.secondary,
-              isLoading: sending,
-              onPressed: sending
-                  ? null
-                  : () => context
-                      .read<PharmacyDevisBloc>()
-                      .add(PharmacyDevisRemindRequested(quote.id)),
-            ),
-          ] else if (quote.status == PharmacyQuoteStatus.expired &&
-              quote.orderId != null) ...[
-            // Occasion manquée (délai dépassé) : un nouveau devis peut être
-            // réémis depuis la commande d'origine — contrairement à un
-            // refus, qui est une décision terminale du patient.
-            const SizedBox(height: 12),
-            NubiaButton(
-              key: Key('quote_reissue_${quote.id}'),
-              label: 'Réémettre',
-              icon: Icons.refresh,
-              variant: NubiaButtonVariant.secondary,
-              onPressed: () => context.go('/orders/${quote.orderId}'),
-            ),
-          ] else if (quote.status == PharmacyQuoteStatus.refused &&
-              quote.orderId != null) ...[
-            const SizedBox(height: 12),
-            NubiaButton(
-              key: Key('quote_view_${quote.id}'),
-              label: 'Voir',
-              icon: Icons.visibility,
-              variant: NubiaButtonVariant.tertiary,
-              onPressed: () => context.go('/orders/${quote.orderId}'),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }
