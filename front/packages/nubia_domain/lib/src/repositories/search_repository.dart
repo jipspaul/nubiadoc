@@ -6,8 +6,14 @@ import 'package:nubia_domain/src/entities/slot_hold.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 
 abstract class SearchRepository {
+  /// #6431 : [teleconsult]/[sector] portent les filtres structurés de
+  /// `SearchProvidersQuery` (api/src/marketplace.rs) — distincts de [query]
+  /// (recherche plein texte sur nom/spécialité), qu'aucun terme en langue
+  /// naturelle ne peut fiabiliser.
   Future<Either<Failure, List<ProviderResult>>> searchProviders({
     required String query,
+    bool? teleconsult,
+    String? sector,
   });
 
   /// Interprète une recherche en langage naturel (POST /v1/search/parse).

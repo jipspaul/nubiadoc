@@ -10,10 +10,17 @@ abstract class AppointmentsEvent extends Equatable {
 
 class AppointmentsSearchChanged extends AppointmentsEvent {
   final String query;
-  const AppointmentsSearchChanged(this.query);
+  // #6431 : filtres structurés de `SearchProvidersQuery`
+  // (api/src/marketplace.rs) portés par les puces « Téléconsult »/« Secteur
+  // 1 » — aucun terme en langue naturelle ajouté à [query] ne peut les
+  // représenter fiablement (ex. « téléconsultation » ne matche ni le nom ni
+  // la spécialité d'un praticien).
+  final bool? teleconsult;
+  final String? sector;
+  const AppointmentsSearchChanged(this.query, {this.teleconsult, this.sector});
 
   @override
-  List<Object?> get props => [query];
+  List<Object?> get props => [query, teleconsult, sector];
 }
 
 class AppointmentsProviderSelected extends AppointmentsEvent {

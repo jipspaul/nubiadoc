@@ -10,6 +10,12 @@ class SearchProvidersUseCase {
 
   Future<Either<Failure, List<ProviderResult>>> call({
     required String query,
+    bool? teleconsult,
+    String? sector,
   }) =>
-      _repository.searchProviders(query: query);
+      _repository.searchProviders(
+        query: query,
+        teleconsult: teleconsult,
+        sector: sector,
+      );
 }

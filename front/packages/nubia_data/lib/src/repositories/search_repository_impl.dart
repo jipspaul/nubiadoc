@@ -16,9 +16,15 @@ class SearchRepositoryImpl implements SearchRepository {
   @override
   Future<Either<Failure, List<ProviderResult>>> searchProviders({
     required String query,
+    bool? teleconsult,
+    String? sector,
   }) async {
     try {
-      final dtos = await _api.searchProviders(query: query);
+      final dtos = await _api.searchProviders(
+        query: query,
+        teleconsult: teleconsult,
+        sector: sector,
+      );
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
