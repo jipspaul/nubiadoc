@@ -18,7 +18,9 @@ class RespondStockRequestUseCase {
   }) {
     switch (response) {
       case StockRequestResponse.accept:
-        return _repository.accept(id);
+        return note == null
+            ? _repository.accept(id)
+            : _repository.accept(id, note: note);
       case StockRequestResponse.reject:
         return _repository.reject(id, note: note);
       case StockRequestResponse.fulfill:

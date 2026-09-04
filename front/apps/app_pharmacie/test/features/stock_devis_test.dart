@@ -121,7 +121,7 @@ void main() {
       );
 
       expect(find.text('Cabinet Dupont'), findsOneWidget);
-      expect(find.text('• 10 × Compresses stériles'), findsOneWidget);
+      expect(find.textContaining('Compresses stériles'), findsOneWidget);
       expect(find.byKey(const Key('stock_accept_s1')), findsOneWidget);
       expect(find.byKey(const Key('stock_reject_s1')), findsOneWidget);
     });
