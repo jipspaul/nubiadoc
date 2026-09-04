@@ -171,3 +171,134 @@ async fn lists_own_prescriptions_only() {
     );
     assert_eq!(data[0]["status"], "signed");
 }
+
+/// Régression #6381 : `LIMIT 100` en dur, sans pagination, tronquait
+/// silencieusement l'historique au-delà de la 100e ligne. Vérifie qu'un
+/// curseur (`?limit=2` puis `?limit=2&cursor=...`) permet d'atteindre
+/// l'intégralité des ordonnances.
+#[tokio::test]
+async fn paginates_beyond_limit_via_cursor() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let pro_user_id = Uuid::new_v4();
+
+    for (id, kind) in [(user_id, "patient"), (pro_user_id, "pro")] {
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', $3)",
+        )
+        .bind(id)
+        .bind(format!("pg-{}@nubia.test", id))
+        .bind(kind)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'P', 'A')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale) VALUES ($1, 'Cabinet PG')")
+        .bind(cabinet_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    let practitioner_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(practitioner_id)
+        .bind(cabinet_id)
+        .bind(pro_user_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    let patient_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'P', 'A', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // created_at décroissants : le plus récent en premier (ORDER BY created_at DESC).
+    let created_ats = [
+        "2025-06-01 12:02:00+00",
+        "2025-06-01 12:01:00+00",
+        "2025-06-01 12:00:00+00",
+    ];
+    let mut prescription_ids = Vec::new();
+    for created_at in created_ats {
+        let prescription_id = Uuid::new_v4();
+        sqlx::query(&format!(
+            "INSERT INTO prescription (id, cabinet_id, patient_id, practitioner_id, status, \
+                                       signed_at, created_at) \
+             VALUES ($1, $2, $3, $4, 'signed', now(), '{created_at}')"
+        ))
+        .bind(prescription_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(practitioner_id)
+        .execute(&db)
+        .await
+        .unwrap();
+        prescription_ids.push(prescription_id);
+    }
+
+    let token = patient_jwt(user_id, account_id);
+    let pool = app_pool().await;
+
+    async fn fetch(pool: &PgPool, token: &str, uri: &str) -> serde_json::Value {
+        let response = app(AppState {
+            db: pool.clone(),
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        })
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(uri)
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    let page1 = fetch(&pool, &token, "/v1/account/prescriptions?limit=2").await;
+    let data1 = page1["data"].as_array().unwrap();
+    assert_eq!(data1.len(), 2, "page 1 : {page1}");
+    assert_eq!(data1[0]["id"], json!(prescription_ids[0]));
+    assert_eq!(data1[1]["id"], json!(prescription_ids[1]));
+    let cursor = page1["page"]["next_cursor"]
+        .as_str()
+        .expect("has_more -> next_cursor présent");
+
+    let page2 = fetch(
+        &pool,
+        &token,
+        &format!("/v1/account/prescriptions?limit=2&cursor={cursor}"),
+    )
+    .await;
+    let data2 = page2["data"].as_array().unwrap();
+    assert_eq!(data2.len(), 1, "page 2 : {page2}");
+    assert_eq!(data2[0]["id"], json!(prescription_ids[2]));
+    assert!(page2["page"]["next_cursor"].is_null());
+}

@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -662,10 +662,37 @@ pub struct AccountPrescriptionItem {
     pub signed_at: Option<String>,
 }
 
+/// Pagination cursor de `page.next_cursor` (même schéma que `documents.rs`
+/// `PageInfo` : `list_documents`).
+#[derive(Serialize)]
+pub struct AccountPrescriptionsPageInfo {
+    pub next_cursor: Option<String>,
+    pub limit: i64,
+}
+
 /// Réponse de `GET /v1/account/prescriptions`.
 #[derive(Serialize)]
 pub struct AccountPrescriptionsResponse {
     pub data: Vec<AccountPrescriptionItem>,
+    pub page: AccountPrescriptionsPageInfo,
+}
+
+#[derive(Deserialize)]
+pub struct ListAccountPrescriptionsQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+fn encode_prescriptions_cursor(created_at: chrono::DateTime<chrono::Utc>, id: Uuid) -> String {
+    format!("{}|{}", created_at.timestamp_micros(), id)
+}
+
+fn decode_prescriptions_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
+    let (micros_str, id_str) = s.split_once('|')?;
+    let micros: i64 = micros_str.parse().ok()?;
+    let dt = chrono::DateTime::from_timestamp_micros(micros)?;
+    let id = Uuid::parse_str(id_str).ok()?;
+    Some((dt, id))
 }
 
 /// `GET /v1/account/prescriptions` — ordonnances visibles par le compte
@@ -674,10 +701,24 @@ pub struct AccountPrescriptionsResponse {
 /// nécessaires à `POST /v1/account/prescriptions/{id}/order`.
 /// Les brouillons (`status = 'draft'`, jamais signés/envoyés) sont exclus,
 /// cohérent avec la liste devis patient (fix #3487) : cf. issue #3622.
+/// Paginée par curseur (`limit`/`cursor`, même schéma que `list_documents`) :
+/// avant #6381, `LIMIT 100` était figé en dur, tous patients du foyer
+/// confondus, sans aucun moyen d'aller au-delà.
 pub async fn list_account_prescriptions(
     State(state): State<AppState>,
     claims: crate::auth::PatientAccountClaims,
+    Query(params): Query<ListAccountPrescriptionsQuery>,
 ) -> Result<Json<AccountPrescriptionsResponse>, AppError> {
+    // Défaut à 100 (comportement historique du `LIMIT 100` en dur) pour ne
+    // pas régresser les clients existants qui n'envoient pas `limit` — la
+    // pagination par curseur permet désormais d'aller au-delà.
+    let limit: i64 = params.limit.unwrap_or(100).clamp(1, 100);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_prescriptions_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+    let fetch_limit = limit + 1;
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(claims.account_id.to_string())
@@ -693,27 +734,59 @@ pub async fn list_account_prescriptions(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(
+    let cursor_clause = if cursor.is_some() {
+        " AND (created_at < $2 OR (created_at = $2 AND id < $3))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
         "SELECT id, status, document_id, created_at, signed_at \
-         FROM prescription WHERE deleted_at IS NULL AND status <> 'draft' \
-         ORDER BY created_at DESC LIMIT 100",
-    )
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+         FROM prescription WHERE deleted_at IS NULL AND status <> 'draft'\
+         {cursor_clause} \
+         ORDER BY created_at DESC, id DESC LIMIT $1"
+    );
+
+    let rows = match cursor {
+        Some((cursor_at, cursor_id)) => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(cursor_at)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let data = rows
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let mut last_created_at: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut last_id: Option<Uuid> = None;
+
+    let data = visible
         .iter()
         .map(|row| {
+            let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let created_at: chrono::DateTime<chrono::Utc> = row
+                .try_get("created_at")
+                .map_err(|_| AppError::Internal)?;
+            last_created_at = Some(created_at);
+            last_id = Some(id);
             Ok(AccountPrescriptionItem {
-                id: row.try_get("id").map_err(|_| AppError::Internal)?,
+                id,
                 status: row.try_get("status").map_err(|_| AppError::Internal)?,
                 document_id: row.try_get("document_id").map_err(|_| AppError::Internal)?,
-                created_at: row
-                    .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
-                    .map_err(|_| AppError::Internal)?
-                    .to_rfc3339(),
+                created_at: created_at.to_rfc3339(),
                 signed_at: row
                     .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("signed_at")
                     .map_err(|_| AppError::Internal)?
@@ -722,7 +795,18 @@ pub async fn list_account_prescriptions(
         })
         .collect::<Result<Vec<_>, AppError>>()?;
 
-    Ok(Json(AccountPrescriptionsResponse { data }))
+    let next_cursor = if has_more {
+        last_created_at
+            .zip(last_id)
+            .map(|(dt, id)| encode_prescriptions_cursor(dt, id))
+    } else {
+        None
+    };
+
+    Ok(Json(AccountPrescriptionsResponse {
+        data,
+        page: AccountPrescriptionsPageInfo { next_cursor, limit },
+    }))
 }
 
 // ── Génération PDF de l'ordonnance signée ────────────────────────────────────
