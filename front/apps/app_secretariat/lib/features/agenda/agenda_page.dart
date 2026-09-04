@@ -1238,8 +1238,6 @@ class _AgendaDetailPanel extends StatelessWidget {
       '${entry.duration.inMinutes} min',
     ];
 
-    const missingBackData = 'À créer — donnée back manquante';
-
     return Container(
       key: Key('agenda_detail_panel_${entry.id}'),
       width: 296,
@@ -1316,9 +1314,9 @@ class _AgendaDetailPanel extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _kv(context, 'Praticien', practitionerName),
-            _kv(context, 'Téléphone', missingBackData),
-            _kv(context, 'Créé le', missingBackData),
-            _kv(context, 'Couverture', missingBackData),
+            _kv(context, 'Téléphone', '—'),
+            _kv(context, 'Créé le', '—'),
+            _kv(context, 'Couverture', '—'),
             const SizedBox(height: 8),
             if (entry.isPending)
               Padding(
