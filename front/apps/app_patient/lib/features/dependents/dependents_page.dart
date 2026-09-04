@@ -1192,7 +1192,11 @@ class _ScopeRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        NubiaToggle(key: rowKey, value: value, onChanged: onChanged),
+        Semantics(
+          container: true,
+          label: title,
+          child: NubiaToggle(key: rowKey, value: value, onChanged: onChanged),
+        ),
       ],
     );
   }
