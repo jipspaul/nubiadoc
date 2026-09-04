@@ -62,7 +62,8 @@ class PatientPharmacyRepositoryImpl implements PatientPharmacyRepository {
       );
 
   @override
-  Future<Either<Failure, String>> getPickupToken(String id) =>
+  Future<Either<Failure, ({String token, String shortCode})>> getPickupToken(
+          String id) =>
       guardPharmacyCall(
         () => _api.getPickupToken(id),
         errorMessage: 'Impossible de générer le code de retrait.',

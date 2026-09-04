@@ -1363,10 +1363,36 @@ pub async fn cancel_account_order(
 
 // ── QR de retrait (lot B3) ────────────────────────────────────────────────────
 
+/// Alphabet de Crockford (32 symboles) pour le code court dictable au
+/// comptoir (#6419) : exclut `I`, `L`, `O`, `U`, ambigus à l'oral/à l'écrit
+/// avec `1`, `0` ou entre eux.
+const SHORT_CODE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/// Dérive un code court (8 caractères, formaté `XXXX-XXXX`) des 5 premiers
+/// octets du HMAC du token — déterministe comme le token lui-même (même
+/// `(id, expires_at)` ⇒ même code, cf. commentaire de [`get_pickup_token`]).
+/// Colonne et alphabet séparés du token : ne réduit pas l'entropie du QR.
+fn encode_short_code(mac_bytes: &[u8]) -> String {
+    let mut bits: u64 = 0;
+    for &b in &mac_bytes[..5] {
+        bits = (bits << 8) | b as u64;
+    }
+    let mut chars = [0u8; 8];
+    for (i, slot) in chars.iter_mut().enumerate() {
+        let shift = 5 * (7 - i);
+        *slot = SHORT_CODE_ALPHABET[((bits >> shift) & 0x1f) as usize];
+    }
+    let code = std::str::from_utf8(&chars).expect("alphabet is ASCII");
+    format!("{}-{}", &code[0..4], &code[4..8])
+}
+
 /// Réponse de `GET /v1/account/orders/{id}/pickup-token`.
 #[derive(Serialize)]
 pub struct PickupTokenResponse {
     pub token: String,
+    /// Code court dictable au comptoir (#6419) — même commande que `token`,
+    /// résolu par `pickup_scan` via une colonne séparée (`pickup_short_code`).
+    pub short_code: String,
     pub expires_at: String,
 }
 
@@ -1437,20 +1463,23 @@ pub async fn get_pickup_token(
     mac.update(id.to_string().as_bytes());
     mac.update(b"|");
     mac.update(expires_at.to_rfc3339().as_bytes());
-    let token = hex::encode(mac.finalize().into_bytes());
+    let mac_bytes = mac.finalize().into_bytes();
+    let token = hex::encode(mac_bytes);
     let token_hash = hex::encode(Sha256::digest(token.as_bytes()));
+    let short_code = encode_short_code(&mac_bytes);
 
     // Écriture UNIQUEMENT si le token est neuf/renouvelé (expires_at a changé) —
     // un ré-appel dans la fenêtre de validité ne touche pas la DB.
     if existing_expires_at != Some(expires_at) {
         sqlx::query(
             "UPDATE pharmacy_order \
-             SET pickup_token_hash = $2, pickup_token_expires_at = $3 \
+             SET pickup_token_hash = $2, pickup_token_expires_at = $3, pickup_short_code = $4 \
              WHERE id = $1 AND status = 'ready'",
         )
         .bind(id)
         .bind(&token_hash)
         .bind(expires_at)
+        .bind(short_code.replace('-', ""))
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -1459,6 +1488,7 @@ pub async fn get_pickup_token(
     tx.commit().await.map_err(|_| AppError::Internal)?;
     Ok(Json(PickupTokenResponse {
         token,
+        short_code,
         expires_at: expires_at.to_rfc3339(),
     }))
 }
@@ -1498,11 +1528,32 @@ pub async fn pickup_scan(
 ) -> Result<Json<OrderDto>, AppError> {
     use sha2::{Digest, Sha256};
 
-    let token = body.token.trim();
-    if token.is_empty() {
+    let raw = body.token.trim();
+    if raw.is_empty() {
         return Err(AppError::ValidationError);
     }
-    let token_hash = hex::encode(Sha256::digest(token.as_bytes()));
+
+    // Le pharmacien scanne le QR (token long, 64 hex) OU saisit/se fait
+    // dicter le code court affiché dessous (8 caractères, #6419) : les deux
+    // résolvent la MÊME commande, sur des colonnes séparées — le code court
+    // n'affaiblit pas l'entropie du QR (`pickup_token_hash` reste l'unique
+    // chemin scanné, cf. commentaire de `get_pickup_token`).
+    let is_full_token = raw.len() == 64 && raw.chars().all(|c| c.is_ascii_hexdigit());
+    let normalized_short: String = raw
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_uppercase();
+    let (lookup_column, lookup_value) = if is_full_token {
+        (
+            "pickup_token_hash",
+            hex::encode(Sha256::digest(raw.as_bytes())),
+        )
+    } else if normalized_short.len() == 8 {
+        ("pickup_short_code", normalized_short)
+    } else {
+        return Err(AppError::NotFound);
+    };
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
@@ -1515,22 +1566,22 @@ pub async fn pickup_scan(
     // et le token sont comparés avant toute transition d'état (#6349).
     let candidate = sqlx::query(&format!(
         "SELECT {ORDER_COLUMNS} FROM pharmacy_order \
-         WHERE pickup_token_hash = $1 AND status = 'ready' \
+         WHERE {lookup_column} = $1 AND status = 'ready' \
            AND pickup_token_expires_at > now() \
          FOR UPDATE",
     ))
-    .bind(&token_hash)
+    .bind(&lookup_value)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
     let Some(candidate) = candidate else {
-        // Diagnostic : token connu dans CE tenant ? statut ? expiration ?
-        let probe = sqlx::query(
+        // Diagnostic : token/code connu dans CE tenant ? statut ? expiration ?
+        let probe = sqlx::query(&format!(
             "SELECT status, pickup_token_expires_at FROM pharmacy_order \
-             WHERE pickup_token_hash = $1",
-        )
-        .bind(&token_hash)
+             WHERE {lookup_column} = $1",
+        ))
+        .bind(&lookup_value)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;

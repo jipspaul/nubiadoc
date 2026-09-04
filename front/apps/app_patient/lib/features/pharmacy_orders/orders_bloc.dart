@@ -88,6 +88,7 @@ class PatientOrderDetailLoaded extends PatientOrderDetailState {
   const PatientOrderDetailLoaded(
     this.order, {
     this.pickupToken,
+    this.pickupShortCode,
     this.cancelling = false,
     this.pharmacyPhone,
     this.pharmacy,
@@ -97,6 +98,11 @@ class PatientOrderDetailLoaded extends PatientOrderDetailState {
 
   /// Token opaque du QR (récupéré uniquement quand la commande est prête).
   final String? pickupToken;
+
+  /// Code court dictable au comptoir (#6419) — même commande que
+  /// [pickupToken], résolu séparément côté API pour ne pas affaiblir
+  /// l'entropie du QR.
+  final String? pickupShortCode;
   final bool cancelling;
 
   /// Téléphone de la pharmacie DE LA COMMANDE (récupéré uniquement quand la
@@ -110,7 +116,7 @@ class PatientOrderDetailLoaded extends PatientOrderDetailState {
 
   @override
   List<Object?> get props =>
-      [order, pickupToken, cancelling, pharmacyPhone, pharmacy];
+      [order, pickupToken, pickupShortCode, cancelling, pharmacyPhone, pharmacy];
 }
 
 class PatientOrderDetailError extends PatientOrderDetailState {
@@ -207,8 +213,10 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
     final tokenResult = await _pickupToken(order.id);
     tokenResult.fold(
       (_) => emit(PatientOrderDetailLoaded(order, pharmacy: pharmacy)),
-      (token) => emit(PatientOrderDetailLoaded(order,
-          pickupToken: token, pharmacy: pharmacy)),
+      (pickup) => emit(PatientOrderDetailLoaded(order,
+          pickupToken: pickup.token,
+          pickupShortCode: pickup.shortCode,
+          pharmacy: pharmacy)),
     );
   }
 

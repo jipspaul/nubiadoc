@@ -48,6 +48,7 @@ class PatientOrderDetailBody extends StatelessWidget {
             case PatientOrderDetailLoaded(
                 :final order,
                 :final pickupToken,
+                :final pickupShortCode,
                 :final cancelling,
                 :final pharmacyPhone,
                 :final pharmacy
@@ -60,8 +61,14 @@ class PatientOrderDetailBody extends StatelessWidget {
                   key: const Key('order_detail_column'),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (order.canShowPickupCode && pickupToken != null) ...[
-                      PickupReadyHero(order: order, token: pickupToken),
+                    if (order.canShowPickupCode &&
+                        pickupToken != null &&
+                        pickupShortCode != null) ...[
+                      PickupReadyHero(
+                        order: order,
+                        token: pickupToken,
+                        shortCode: pickupShortCode,
+                      ),
                       const SizedBox(height: 16),
                     ],
                     if (pharmacy != null)
