@@ -751,12 +751,13 @@ class _AppointmentCard extends StatelessWidget {
               const SizedBox(height: 12),
               _DocumentSummaryChips(appointment: appointment),
             ],
-            // #5265 : maquette design-v2 point #3 — le check-in n'a de sens
-            // que le jour J (un RDV confirmé isUpcoming peut être dans trois
-            // semaines) et doit disparaître dès `checkedIn`, même si le RDV
-            // reste dans la fenêtre du jour.
-            if (_isCheckinDay(appointment.startsAt) &&
-                appointment.status != AppointmentStatus.checkedIn) ...[
+            // #6447 : le bandeau ne doit s'afficher que quand le check-in
+            // peut réellement réussir côté back — cf. `checkin_appointment`
+            // (api/src/appointments_checkin.rs) : status = 'confirmed' ET
+            // starts_at ± 60 min. Un RDV `cancelled`/`requested`/`checkedIn`
+            // (etc.) ou hors fenêtre ne doit jamais promettre « signalez
+            // votre arrivée ».
+            if (_canCheckin(appointment)) ...[
               const SizedBox(height: 12),
               _CheckinBand(appointment: appointment),
             ],
@@ -766,14 +767,12 @@ class _AppointmentCard extends StatelessWidget {
     );
   }
 
-  static bool _isCheckinDay(DateTime startsAt) {
-    final now = DateTime.now();
-    final local = startsAt.toLocal();
-    return local.year == now.year &&
-        local.month == now.month &&
-        local.day == now.day;
+  static bool _canCheckin(Appointment appointment) {
+    if (appointment.status != AppointmentStatus.confirmed) return false;
+    final delta = appointment.startsAt.difference(DateTime.now());
+    return delta <= const Duration(minutes: 60) &&
+        delta >= const Duration(minutes: -60);
   }
-
 }
 
 // ---------------------------------------------------------------------------
@@ -853,7 +852,8 @@ class _DateRail extends StatelessWidget {
 
 /// Bandeau check-in (maquette design-v2, point #3) : sorti du `Wrap`
 /// d'actions pour devenir un bandeau pleine largeur en bas de carte, visible
-/// uniquement le jour du RDV (cf. `_isCheckinDay` dans [_AppointmentCard]).
+/// uniquement quand le check-in peut réussir (cf. `_canCheckin` dans
+/// [_AppointmentCard]).
 /// Fond `brand700`, texte blanc, icône `how_to_reg` 20px ; bouton fond blanc
 /// / texte `brand700`, radius 10, hauteur 36.
 class _CheckinBand extends StatelessWidget {

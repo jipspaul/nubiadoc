@@ -1,6 +1,10 @@
 // Issue #5265 — maquette design-v2 point #3 : le check-in sort du `Wrap`
-// d'actions pour devenir un bandeau pleine largeur, visible uniquement le
-// jour du RDV, et masqué dès que le statut passe à `checkedIn`.
+// d'actions pour devenir un bandeau pleine largeur.
+// Issue #6447 : le bandeau ne doit s'afficher que quand le check-in peut
+// réellement réussir côté back (`checkin_appointment`,
+// api/src/appointments_checkin.rs) — status = 'confirmed' ET starts_at
+// dans la fenêtre ± 60 min — et non plus sur toute la journée calendaire
+// quel que soit le statut.
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,11 +53,11 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  // Midi pile aujourd'hui : reste dans la fenêtre du jour quelle que soit
-  // l'heure d'exécution du test, et donne un HH:mm déterministe à asserter.
-  DateTime todayAtNoon() {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day, 12);
+  String hhmm(DateTime dt) {
+    final local = dt.toLocal();
+    final h = local.hour.toString().padLeft(2, '0');
+    final m = local.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   Appointment appointment({
@@ -72,13 +76,14 @@ void main() {
       );
 
   testWidgets(
-      'un RDV confirmé aujourd\'hui affiche le bandeau check-in pleine largeur',
+      'un RDV confirmé dans la fenêtre des 60 min affiche le bandeau check-in',
       (tester) async {
-    await pump(tester, appointment(startsAt: todayAtNoon()));
+    final startsAt = DateTime.now().add(const Duration(minutes: 20));
+    await pump(tester, appointment(startsAt: startsAt));
 
     expect(
       find.text(
-        'Vous êtes attendu à 12:00 — signalez votre arrivée',
+        'Vous êtes attendu à ${hhmm(startsAt)} — signalez votre arrivée',
         findRichText: true,
       ),
       findsOneWidget,
@@ -99,12 +104,25 @@ void main() {
     expect(find.byIcon(Icons.how_to_reg), findsNothing);
   });
 
+  testWidgets(
+      'un RDV confirmé aujourd\'hui mais hors fenêtre ± 60 min n\'affiche aucun check-in',
+      (tester) async {
+    await pump(
+      tester,
+      appointment(startsAt: DateTime.now().add(const Duration(hours: 3))),
+    );
+
+    expect(find.text('Je suis là'), findsNothing);
+    expect(find.byKey(const Key('checkin_rdv-1')), findsNothing);
+    expect(find.byIcon(Icons.how_to_reg), findsNothing);
+  });
+
   testWidgets('le bandeau disparaît dès que le statut passe à checkedIn',
       (tester) async {
     await pump(
       tester,
       appointment(
-        startsAt: todayAtNoon(),
+        startsAt: DateTime.now().add(const Duration(minutes: 20)),
         status: AppointmentStatus.checkedIn,
       ),
     );
@@ -113,9 +131,44 @@ void main() {
     expect(find.byKey(const Key('checkin_rdv-1')), findsNothing);
   });
 
+  testWidgets(
+      'un RDV annulé dans la fenêtre du jour n\'affiche jamais le check-in (#6447)',
+      (tester) async {
+    await pump(
+      tester,
+      appointment(
+        startsAt: DateTime.now().add(const Duration(minutes: 20)),
+        status: AppointmentStatus.cancelled,
+      ),
+    );
+
+    expect(find.text('Je suis là'), findsNothing);
+    expect(find.byKey(const Key('checkin_rdv-1')), findsNothing);
+    expect(find.byIcon(Icons.how_to_reg), findsNothing);
+  });
+
+  testWidgets(
+      'un RDV non confirmé (requested) dans la fenêtre du jour n\'affiche jamais le check-in (#6447)',
+      (tester) async {
+    await pump(
+      tester,
+      appointment(
+        startsAt: DateTime.now().add(const Duration(minutes: 20)),
+        status: AppointmentStatus.requested,
+      ),
+    );
+
+    expect(find.text('Je suis là'), findsNothing);
+    expect(find.byKey(const Key('checkin_rdv-1')), findsNothing);
+    expect(find.byIcon(Icons.how_to_reg), findsNothing);
+  });
+
   testWidgets('tap "Je suis là" dispatche MesRdvCheckinRequested',
       (tester) async {
-    await pump(tester, appointment(startsAt: todayAtNoon()));
+    await pump(
+      tester,
+      appointment(startsAt: DateTime.now().add(const Duration(minutes: 20))),
+    );
 
     await tester.tap(find.byKey(const Key('checkin_rdv-1')));
     await tester.pumpAndSettle();
