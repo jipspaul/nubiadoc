@@ -68,9 +68,38 @@ champ « Patient, n° commande… » est bien peint et fonctionnel (2 `<input>` 
 « CMD-0090 » filtre réellement la liste). Ne pas conclure « champ absent / inaccessible » sur un
 inventaire pris avant interaction.
 
+| praticien | /stock | 3 | 3 | 3 | 0 | 0 | 2026-09-04T09:05:00+00:00 |
+| praticien | /messages | 9 | 9 | 9 | 0 | 0 | 2026-09-04T09:10:00+00:00 |
+| praticien | /patients | 12 (contenu) | 12 | 2 mesurés | 0 | 0 réel — **10 « CASSÉ » invalidés : jeton expiré en cours de lot** (voir ci-dessous) | 2026-09-04T09:15:00+00:00 |
+| praticien | /consultation | 15 (contenu) | 12 | 11 | 1 non re-vérifié (« Terminée », facette de même longueur — piège nº 4) | 0 | 2026-09-04T09:20:00+00:00 |
+| infirmiere | / (3 onglets, audit complet + adversarial) | 8 uniques | 7 | 7 | 0 | 0 | 2026-09-04T08:40:00+00:00 |
+| patient | /home-care/new | 8 | 0 activés (2 jugés) | — | 0 | 0 (2 désactivés **légitimes** : « Obtenir un devis » et « Confirmer la demande » tant qu'aucun acte n'est coché) | 2026-09-04T09:07:00+00:00 |
+| patient | /notifications | 19 | 1 ciblé | 1 | 0 | 0 | 2026-09-04T09:07:00+00:00 |
+
+**Cumul de la ronde : 87 contrôles activés et jugés, 75 OK, 0 mort confirmé, 0 cassé confirmé.**
+
+### Deux faux positifs de plus, invalidés cette ronde (2026-09-04)
+
+6. **Jeton expiré en cours de lot** — *nouveau piège, le plus coûteux.* L'audit de `praticien /patients`
+   a sorti **10 contrôles « CASSÉ (403 GET /v1/cabinet/patients/<id>) »**. Re-test immédiat à l'API avec
+   un jeton frais : **42/42 → 200**, aucun refus. Les JWT de cette plateforme vivent ~25 min ; un lot
+   d'activation qui re-navigue entre chaque clic dépasse cette durée. Symptôme trompeur : l'écran suivant
+   (`/consultation`) est repassé à 0 cassé — l'app avait rafraîchi son jeton entre-temps.
+   **Règle** : re-logger (ou re-tester à l'API avec un jeton frais) avant de conclure « CASSÉ » sur une
+   série de 4xx, surtout des 401/403 groupés en fin de lot.
+7. **SnackBar absent de l'arbre Semantics** — un test qui ne lit que `semText` conclut à un « échec
+   silencieux » là où l'app affiche bien « Erreur réseau (hors ligne). ». Recouper par une **capture
+   précoce** (< 4 s, durée de vie par défaut d'un SnackBar). Détail dans `explored-paths.md`,
+   scénario `adversarial-infirmiere`.
+
 ### À traiter en priorité à la prochaine ronde
-- **patient `/` et `/profile`** : lot d'activation interrompu par le budget temps de cette ronde — 15 + 13 contrôles inventoriés, 5 seulement activés.
-- **infirmiere `/`** : les 3 onglets (Disponibilité / Offres / Ma visite) n'ont jamais été audités contrôle par contrôle en UI ; l'app n'a que 6 contrôles, c'est rapide et jamais fait.
-- **praticien `/consultation`, `/patients`, `/stock`, `/messages`** : inventoriés cette ronde (32/30/16/22 contrôles), aucun activé.
-- **secretariat `/patients`** : les 3 facettes « Impayés / Alertes / Sans RDV à venir » ne sont toujours pas exposées comme `role=button` — reste à les localiser autrement et prouver qu'elles filtrent.
-- **pharmacie `/devis`, `/stock`, `/messages`** et **patient `/documents`** : inventoriés, jamais activés (report de la ronde précédente).
+- **patient `/` et `/profile`** : lot d'activation partiel (15 + 13 inventoriés, 12 activés sur `/`).
+- **praticien `/patients`** : à ré-auditer avec re-login à mi-parcours — le lot de cette ronde est
+  inexploitable au-delà des 2 premiers contrôles (jeton expiré, cf. piège nº 6).
+- **praticien `/consultation`** : la facette « Terminée » sort MORT sans re-clic isolé — piège nº 4
+  probable (facettes « En cours »/« Terminée »/« Annulée » de longueur voisine), à prouver ou infirmer.
+- **secretariat `/patients`** : les 3 facettes « Impayés / Alertes / Sans RDV à venir » ne sont toujours
+  pas exposées comme `role=button` — les localiser autrement et prouver qu'elles filtrent.
+- **pharmacie `/devis`, `/stock`, `/messages`** et **patient `/documents`** : inventoriés, jamais activés
+  (report de la ronde précédente). Note : les 13 « Télécharger » de `/documents` échoueront tous tant que
+  #6425 (signer de stockage) n'est pas corrigé.
