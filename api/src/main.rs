@@ -4,10 +4,28 @@ use std::sync::Arc;
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{
     run_dispatch_loop, run_quote_relance_loop, run_visit_offer_expiry_loop, AppState, BrevoMailer,
-    FcmJobDispatcher, ScalewayStorageSigner, StorageSigner, StubJobDispatcher, TwilioSmsSender,
-    YousignClient,
+    FcmJobDispatcher, LocalStorageSigner, ScalewayStorageSigner, StorageSigner, StubJobDispatcher,
+    TwilioSmsSender, YousignClient,
 };
 use sqlx::PgPool;
+
+/// `ScalewayStorageSigner` dès que `SCW_ACCESS_KEY`/`SCW_SECRET_KEY`/`SCW_BUCKET`
+/// sont toutes renseignées (#4717) ; sinon `LocalStorageSigner` (#6425 —
+/// récidive de #6250 : le plombage CI -> conteneur de ces variables ne
+/// suffit pas tant qu'aucun compte Scaleway n'est réellement provisionné
+/// côté secrets Forgejo, et `ScalewayStorageSigner::from_env()` reste alors
+/// `None` indéfiniment -> 502 upstream_unavailable sur 100% des documents).
+fn storage_signer() -> std::sync::Arc<dyn StorageSigner> {
+    let scw_configured = ["SCW_ACCESS_KEY", "SCW_SECRET_KEY", "SCW_BUCKET"]
+        .iter()
+        .all(|key| std::env::var(key).map(|v| !v.is_empty()).unwrap_or(false));
+
+    if scw_configured {
+        std::sync::Arc::new(ScalewayStorageSigner::from_env())
+    } else {
+        std::sync::Arc::new(LocalStorageSigner::from_env())
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -151,7 +169,7 @@ fn app_with_hl7v2_status(state: AppState, mllp_status: Hl7v2ListenerStatus) -> a
     nubia_api::app_prod(
         state,
         std::sync::Arc::new(YousignClient::from_env()),
-        std::sync::Arc::new(ScalewayStorageSigner::from_env()) as std::sync::Arc<dyn StorageSigner>,
+        storage_signer(),
         hub,
         dispatcher,
     )

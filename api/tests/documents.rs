@@ -12,7 +12,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use nubia_api::{app, app_with_dispatcher, AppState, StorageSigner, StubJobDispatcher, StubMailer};
+use nubia_api::{
+    app, app_with_dispatcher, AppState, LocalStorageSigner, StorageSigner, StubJobDispatcher,
+    StubMailer,
+};
 
 const JWT_SECRET: &str = "test-jwt-secret-documents";
 
@@ -511,6 +514,161 @@ async fn download_signer_unavailable_returns_502() {
         response.status(),
         StatusCode::BAD_GATEWAY,
         "signer indisponible (lien jamais généré) doit retourner 502 upstream_unavailable, pas 410 link_expired"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM document WHERE id = $1")
+            .bind(doc_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test : LocalStorageSigner (fallback #6425) sert un lien, pas de 502 ──────
+
+#[tokio::test]
+async fn download_local_storage_signer_fallback_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let doc_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("dl-local+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, 'Alice', 'Local')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Local {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Alice', 'Local', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO document \
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256) \
+             VALUES ($1, $2, $3, 'ordonnance', 'key/local', 'local.pdf', 'application/pdf', $4)",
+        )
+        .bind(doc_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind("d".repeat(64))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // #6425 : sans SCW_* configurées, ScalewayStorageSigner::from_env() reste
+    // `None` indéfiniment — LocalStorageSigner (choisi par `main.rs` dans ce
+    // cas) doit garantir un lien exploitable, pas un 502 permanent.
+    let response = app_with_dispatcher(
+        state,
+        Arc::new(StubJobDispatcher),
+        Arc::new(LocalStorageSigner::from_env()),
+    )
+    .oneshot(
+        Request::builder()
+            .method("GET")
+            .uri(format!("/v1/documents/{}/download", doc_id))
+            .header(
+                "Authorization",
+                format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+            )
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "LocalStorageSigner doit toujours produire un lien exploitable — plus de 502 upstream_unavailable"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(
+        json["download_url"]
+            .as_str()
+            .unwrap()
+            .contains("/v1/storage/local/key/local?"),
+        "download_url doit pointer sur la route de service locale : {json}"
     );
 
     // Cleanup
