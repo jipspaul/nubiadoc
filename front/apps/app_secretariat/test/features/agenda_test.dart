@@ -1280,6 +1280,31 @@ void main() {
       await GetIt.instance.reset();
     });
 
+    testWidgets('Ctrl+N ouvre le dialogue Nouveau RDV (#6413)',
+        (tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi);
+      final mockListPatients = MockListCabinetPatientsUseCase();
+      when(() => mockListPatients()).thenAnswer((_) async => const Right([]));
+      gi.registerFactory<ListCabinetPatientsUseCase>(() => mockListPatients);
+
+      await pumpAgenda(tester);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nouveau rendez-vous'), findsOneWidget);
+
+      await GetIt.instance.reset();
+    });
+
     testWidgets('/ met le focus sur la recherche patient', (tester) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
