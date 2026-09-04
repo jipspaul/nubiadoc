@@ -1,6 +1,7 @@
 //! `StorageSigner` self-hébergé — sert les objets `ObjectStorage` (en
-//! pratique `InMemoryObjectStorage`) via une URL HMAC-signée, expirante,
-//! pointant sur `GET /v1/storage/local/*key` de cette même API.
+//! pratique `PostgresObjectStorage`, cf. `build_router` et #6453) via une URL
+//! HMAC-signée, expirante, pointant sur `GET /v1/storage/local/*key` de cette
+//! même API.
 //!
 //! Fallback pour les déploiements où `ScalewayStorageSigner` n'est pas
 //! configuré (`SCW_ACCESS_KEY`/`SCW_SECRET_KEY`/`SCW_BUCKET` absentes) : le
@@ -94,8 +95,7 @@ pub struct LocalStorageQuery {
 ///
 /// Pas d'auth par token porteur : la signature HMAC + expiration en tient
 /// lieu, comme une URL S3 présignée réelle. Signature invalide/expirée ->
-/// `403`. Objet jamais uploadé (ou process redémarré depuis, cf. doc de
-/// `InMemoryObjectStorage`) -> `404`.
+/// `403`. Objet jamais uploadé -> `404`.
 pub async fn serve_local_object(
     Extension(signer): Extension<Arc<LocalStorageSigner>>,
     Extension(storage): Extension<Arc<dyn ObjectStorage>>,

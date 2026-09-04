@@ -112,6 +112,7 @@ mod payment_schedules;
 mod periodontal_chart;
 mod permissions;
 mod pharmacy;
+mod postgres_object_storage;
 mod practitioner_favorite_acts;
 mod prescription_list;
 mod prescription_renew;
@@ -160,18 +161,17 @@ impl StorageClient for StubStorageClient {
 }
 
 /// Trait d'upload d'objets binaires (documents chiffrés) — swappable (in-memory
-/// en test, Scaleway/MinIO en prod). Distinct de `StorageClient` (signature
-/// d'URL) : ce trait couvre l'écriture effective de l'objet, corrigeant le
-/// stub historique où `storage_key` référençait une clé jamais uploadée
-/// (issue #4626 — ordonnance signée inutilisable en production).
+/// en test, `PostgresObjectStorage` en prod, cf. `build_router`). Distinct de
+/// `StorageClient` (signature d'URL) : ce trait couvre l'écriture effective de
+/// l'objet, corrigeant le stub historique où `storage_key` référençait une clé
+/// jamais uploadée (issue #4626 — ordonnance signée inutilisable en production).
 #[async_trait::async_trait]
 pub trait ObjectStorage: Send + Sync {
     /// Uploade `bytes` sous `key` avec le `content_type` donné.
     async fn upload(&self, key: &str, content_type: &str, bytes: Vec<u8>) -> Result<(), String>;
 
     /// Relit un objet précédemment uploadé — `None` si la clé est inconnue
-    /// (jamais uploadée, ou process redémarré depuis : `InMemoryObjectStorage`
-    /// n'est pas persistant). Utilisé par `local_storage_signer::serve_local_object`
+    /// (jamais uploadée). Utilisé par `local_storage_signer::serve_local_object`
     /// (#6425 — route de service du `StorageSigner` self-hébergé).
     async fn download(&self, key: &str) -> Option<(String, Vec<u8>)>;
 }
@@ -179,6 +179,8 @@ pub trait ObjectStorage: Send + Sync {
 /// Implémentation en mémoire pour les tests et le dev local — pas de dépendance
 /// réseau, mais l'upload est réellement effectué (contrairement au stub
 /// historique qui ne faisait qu'inventer un UUID sans jamais écrire l'objet).
+/// Non persistante entre process : ne JAMAIS câbler en production (cf. #6453 —
+/// c'était le bug, `build_router` utilise désormais `PostgresObjectStorage`).
 #[derive(Default)]
 pub struct InMemoryObjectStorage {
     objects: std::sync::Mutex<std::collections::HashMap<String, (String, Vec<u8>)>>,
@@ -594,14 +596,19 @@ fn build_router(
         get(local_storage_signer::serve_local_object),
     );
 
+    // Postgres (#6453) : seul composant persistant à travers les redéploiements
+    // (cf. doc de module `postgres_object_storage`) — `InMemoryObjectStorage`
+    // câblé ici perdait tout le coffre-fort à chaque redémarrage du process.
+    let object_storage = Arc::new(postgres_object_storage::PostgresObjectStorage::new(
+        state.db.clone(),
+    )) as Arc<dyn ObjectStorage>;
+
     router
         .layer(Extension(hub))
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
         ))
-        .layer(Extension(
-            Arc::new(InMemoryObjectStorage::default()) as Arc<dyn ObjectStorage>
-        ))
+        .layer(Extension(object_storage))
         .layer(Extension(Arc::new(
             local_storage_signer::LocalStorageSigner::from_env(),
         )))
