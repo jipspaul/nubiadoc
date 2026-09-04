@@ -413,6 +413,7 @@ pub async fn get_conversation_messages(
         let (author_name, author_role) = match sender.as_str() {
             "practitioner" => (author_display_name, Some("Praticien".to_string())),
             "secretary" => (None, Some("Secrétariat".to_string())),
+            "pharmacist" => (None, Some("Pharmacie".to_string())),
             _ => (None, None),
         };
 
