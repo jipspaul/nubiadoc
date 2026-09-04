@@ -57,6 +57,22 @@ void main() {
     );
   });
 
+  testWidgets(
+      '#6398 — n\'ajoute pas de préfixe Dr en double si practitionerName le contient déjà',
+      (tester) async {
+    const session = ClinicalSession(
+      id: 's5',
+      appointmentId: 'a5',
+      status: 'in_progress',
+      acts: [],
+      practitionerName: 'Dr Hugo Marin',
+    );
+    await pump(tester, session);
+
+    expect(find.textContaining('Dr Dr Hugo Marin'), findsNothing);
+    expect(find.textContaining('Dr Hugo Marin'), findsOneWidget);
+  });
+
   testWidgets('masque les segments dont la donnée est absente', (tester) async {
     const session = ClinicalSession(
       id: 's2',

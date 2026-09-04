@@ -191,7 +191,8 @@ class _PatientIdentitySubtitle extends StatelessWidget {
       if (birthDate != null) 'né(e) le ${_formatBirthDate(birthDate!)}',
       if (lastVisitDate != null)
         'Dernière visite ${_formatLastVisit(lastVisitDate!)}',
-      if (practitioner != null && practitioner.isNotEmpty) 'Dr $practitioner',
+      if (practitioner != null && practitioner.isNotEmpty)
+        practitioner.startsWith('Dr ') ? practitioner : 'Dr $practitioner',
     ];
     if (parts.isEmpty) return const SizedBox.shrink();
     return Text(
