@@ -30,6 +30,7 @@ String _generateGuestPassword() {
 class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     with SafeEmitMixin<AppointmentsState> {
   final SearchProvidersUseCase _searchProviders;
+  final GetProviderUseCase _getProvider;
   final SearchSlotsUseCase _searchSlots;
   final HoldSlotUseCase _holdSlot;
   final ConfirmBookingUseCase _confirmBooking;
@@ -45,6 +46,7 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
 
   AppointmentsBloc({
     required SearchProvidersUseCase searchProviders,
+    required GetProviderUseCase getProvider,
     required SearchSlotsUseCase searchSlots,
     required HoldSlotUseCase holdSlot,
     required ConfirmBookingUseCase confirmBooking,
@@ -53,6 +55,7 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     required UpdateNotificationPreferencesUseCase updateNotificationPreferences,
     required AuthCubit authCubit,
   })  : _searchProviders = searchProviders,
+        _getProvider = getProvider,
         _searchSlots = searchSlots,
         _holdSlot = holdSlot,
         _confirmBooking = confirmBooking,
@@ -62,6 +65,8 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
         _authCubit = authCubit,
         super(const AppointmentsInitial()) {
     on<AppointmentsSearchChanged>(_onSearchChanged, transformer: restartable());
+    on<AppointmentsDeepLinkRequested>(_onDeepLinkRequested,
+        transformer: droppable());
     on<AppointmentsProviderSelected>(_onProviderSelected,
         transformer: droppable());
     on<AppointmentsSlotSelected>(_onSlotSelected, transformer: droppable());
@@ -134,6 +139,35 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     // Retour instantané à la dernière liste de praticiens connue, sans
     // refaire d'appel réseau.
     emit(_lastProvidersLoaded);
+  }
+
+  /// #6459 : résout le `providerId` du lien de créneau du tunnel SSR en
+  /// `ProviderResult` (GET /v1/providers/:id), puis enchaîne sur le même
+  /// chemin que la sélection d'un praticien déjà chargé
+  /// ([_onProviderSelected]) — chargement des créneaux + présélection de
+  /// `slotId`. Praticien introuvable/dépublié (404) ou erreur réseau :
+  /// `AppointmentsError`, jamais un retour silencieux à la recherche
+  /// générique (c'était le bug).
+  Future<void> _onDeepLinkRequested(
+    AppointmentsDeepLinkRequested event,
+    Emitter<AppointmentsState> emit,
+  ) async {
+    emit(const AppointmentsSearchLoading());
+    try {
+      final result = await _getProvider(event.providerId);
+      await result.fold(
+        (failure) async => safeEmit(AppointmentsError(failure.message)),
+        (provider) => _onProviderSelected(
+          AppointmentsProviderSelected(
+            provider,
+            preselectSlotId: event.slotId,
+          ),
+          emit,
+        ),
+      );
+    } catch (_) {
+      safeEmit(const AppointmentsError('Erreur de chargement du praticien.'));
+    }
   }
 
   Future<void> _onProviderSelected(

@@ -23,6 +23,8 @@ import 'package:app_patient/session/auth_cubit.dart';
 class MockSearchProvidersUseCase extends Mock
     implements SearchProvidersUseCase {}
 
+class MockGetProviderUseCase extends Mock implements GetProviderUseCase {}
+
 class MockSearchSlotsUseCase extends Mock implements SearchSlotsUseCase {}
 
 class MockHoldSlotUseCase extends Mock implements HoldSlotUseCase {}
@@ -88,6 +90,7 @@ AppointmentsBloc _makeBloc({
   required MockSearchSlotsUseCase searchSlots,
   required MockHoldSlotUseCase holdSlot,
   required MockConfirmBookingUseCase confirmBooking,
+  MockGetProviderUseCase? getProvider,
   MockRegisterUseCase? register,
   MockUpdateAccountUseCase? updateAccount,
   MockUpdateNotificationPreferencesUseCase? updateNotificationPreferences,
@@ -95,6 +98,7 @@ AppointmentsBloc _makeBloc({
 }) =>
     AppointmentsBloc(
       searchProviders: searchProviders,
+      getProvider: getProvider ?? MockGetProviderUseCase(),
       searchSlots: searchSlots,
       holdSlot: holdSlot,
       confirmBooking: confirmBooking,
@@ -194,6 +198,68 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Dr Dupont'), findsOneWidget);
+    });
+
+    // #6459 — suivre un lien de créneau du tunnel SSR
+    // (`/appointments?providerId=…&slotId=…`) doit ouvrir directement le
+    // praticien du lien, jamais l'annuaire par défaut.
+    testWidgets(
+        'avec deepLinkProviderId/deepLinkSlotId, ouvre directement le '
+        'praticien du lien sans passer par la recherche générique',
+        (tester) async {
+      final slot = Slot(
+        id: 's1',
+        cabinetId: 'cab-1',
+        practitionerId: 'p1',
+        startsAt: DateTime(2026, 7, 10, 9, 0),
+        endsAt: DateTime(2026, 7, 10, 9, 30),
+        isAvailable: true,
+      );
+      final getProvider = MockGetProviderUseCase();
+      when(() => getProvider('p1')).thenAnswer(
+        (_) async => const Right(
+          ProviderResult(id: 'p1', displayName: 'Dr Hugo Marin', specialty: 'Dentiste'),
+        ),
+      );
+      when(() => mockSearchSlots(providerId: 'p1'))
+          .thenAnswer((_) async => Right([slot]));
+      when(() => mockHoldSlot('s1')).thenAnswer(
+        (_) async => Right(
+          SlotHold(token: 'hold-1', expiresAt: DateTime(2026, 7, 10, 8, 50)),
+        ),
+      );
+
+      final bloc = _makeBloc(
+        searchProviders: mockSearchProviders,
+        getProvider: getProvider,
+        searchSlots: mockSearchSlots,
+        holdSlot: mockHoldSlot,
+        confirmBooking: mockConfirmBooking,
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
+          child: const Scaffold(
+            body: AppointmentsPage(
+              deepLinkProviderId: 'p1',
+              deepLinkSlotId: 's1',
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      verifyNever(() => mockSearchProviders(
+            query: any(named: 'query'),
+            teleconsult: any(named: 'teleconsult'),
+            sector: any(named: 'sector'),
+          ));
+      expect(find.text('Dr Hugo Marin'), findsWidgets);
     });
   });
 
@@ -437,6 +503,83 @@ void main() {
         isA<AppointmentsSlotsLoaded>()
             .having((s) => s.selectedSlot?.id, 'selectedSlot.id', 's1')
             .having((s) => s.holdToken, 'holdToken', 'hold-1'),
+      ],
+    );
+
+    // #6459 — un lien de créneau du tunnel SSR (`/appointments?providerId=
+    // …&slotId=…`) ne porte que des ids : le praticien doit être résolu
+    // (GET /v1/providers/:id) avant de pouvoir enchaîner sur les créneaux,
+    // au lieu de retomber silencieusement sur la recherche générique.
+    blocTest<AppointmentsBloc, AppointmentsState>(
+      'AppointmentsDeepLinkRequested résout le praticien puis présélectionne '
+      'le créneau du lien',
+      build: () {
+        final slot = Slot(
+          id: 's1',
+          cabinetId: 'cab-1',
+          practitionerId: 'p1',
+          startsAt: DateTime(2026, 7, 10, 9, 0),
+          endsAt: DateTime(2026, 7, 10, 9, 30),
+          isAvailable: true,
+        );
+        final getProvider = MockGetProviderUseCase();
+        when(() => getProvider('p1')).thenAnswer(
+          (_) async => const Right(
+            ProviderResult(id: 'p1', displayName: 'Dr Hugo Marin', specialty: 'Dentiste'),
+          ),
+        );
+        when(() => mockSearchSlots(providerId: 'p1'))
+            .thenAnswer((_) async => Right([slot]));
+        when(() => mockHoldSlot('s1')).thenAnswer(
+          (_) async => Right(
+            SlotHold(token: 'hold-1', expiresAt: DateTime(2026, 7, 10, 8, 50)),
+          ),
+        );
+        return _makeBloc(
+          searchProviders: mockSearchProviders,
+          getProvider: getProvider,
+          searchSlots: mockSearchSlots,
+          holdSlot: mockHoldSlot,
+          confirmBooking: mockConfirmBooking,
+        );
+      },
+      act: (bloc) => bloc.add(
+        const AppointmentsDeepLinkRequested(providerId: 'p1', slotId: 's1'),
+      ),
+      expect: () => [
+        const AppointmentsSearchLoading(),
+        isA<AppointmentsSlotsLoading>()
+            .having((s) => s.provider.displayName, 'provider', 'Dr Hugo Marin'),
+        isA<AppointmentsSlotsLoaded>()
+            .having((s) => s.selectedSlot, 'selectedSlot', isNull),
+        isA<AppointmentsSlotsLoaded>()
+            .having((s) => s.selectedSlot?.id, 'selectedSlot.id', 's1')
+            .having((s) => s.holdToken, 'holdToken', 'hold-1'),
+      ],
+    );
+
+    blocTest<AppointmentsBloc, AppointmentsState>(
+      'AppointmentsDeepLinkRequested — praticien introuvable (404) : Error, '
+      'jamais un retour silencieux à la recherche générique',
+      build: () {
+        final getProvider = MockGetProviderUseCase();
+        when(() => getProvider('gone')).thenAnswer(
+          (_) async => const Left(NotFoundFailure('Praticien introuvable.')),
+        );
+        return _makeBloc(
+          searchProviders: mockSearchProviders,
+          getProvider: getProvider,
+          searchSlots: mockSearchSlots,
+          holdSlot: mockHoldSlot,
+          confirmBooking: mockConfirmBooking,
+        );
+      },
+      act: (bloc) =>
+          bloc.add(const AppointmentsDeepLinkRequested(providerId: 'gone')),
+      expect: () => [
+        const AppointmentsSearchLoading(),
+        isA<AppointmentsError>()
+            .having((s) => s.message, 'message', 'Praticien introuvable.'),
       ],
     );
 

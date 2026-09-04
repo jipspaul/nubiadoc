@@ -23,6 +23,8 @@ class AppointmentsPage extends StatefulWidget {
   const AppointmentsPage({
     this.onViewMyAppointments,
     this.initialQuery,
+    this.deepLinkProviderId,
+    this.deepLinkSlotId,
     super.key,
   });
 
@@ -34,6 +36,14 @@ class AppointmentsPage extends StatefulWidget {
   /// RDV » (Mes RDV · historique) — repart de la même recherche, sans forcer
   /// de sélection automatique (l'utilisateur choisit toujours dans la liste).
   final String? initialQuery;
+
+  /// #6459 : `providerId`/`slotId` d'un lien de créneau du tunnel SSR
+  /// (`/appointments?providerId=…&slotId=…`, `api/src/web_tunnel/`) — quand
+  /// présent, l'écran saute la recherche générique et ouvre directement le
+  /// praticien du lien, créneau présélectionné. [deepLinkSlotId] seul, sans
+  /// [deepLinkProviderId], est ignoré (le SSR émet toujours les deux).
+  final String? deepLinkProviderId;
+  final String? deepLinkSlotId;
 
   @override
   State<AppointmentsPage> createState() => _AppointmentsPageState();
@@ -55,6 +65,16 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
   @override
   void initState() {
     super.initState();
+    final deepLinkProviderId = widget.deepLinkProviderId;
+    if (deepLinkProviderId != null) {
+      // #6459 : lien de créneau du tunnel SSR — praticien + créneau du lien
+      // directement, jamais l'annuaire par défaut.
+      context.read<AppointmentsBloc>().add(AppointmentsDeepLinkRequested(
+            providerId: deepLinkProviderId,
+            slotId: widget.deepLinkSlotId,
+          ));
+      return;
+    }
     // Annuaire par défaut au chargement : l'écran n'est jamais vide.
     context
         .read<AppointmentsBloc>()

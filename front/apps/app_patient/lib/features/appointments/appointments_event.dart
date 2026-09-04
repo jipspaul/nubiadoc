@@ -36,6 +36,21 @@ class AppointmentsProviderSelected extends AppointmentsEvent {
   List<Object?> get props => [provider, preselectSlotId];
 }
 
+/// #6459 : hand-off tunnel SSR → app — le lien de créneau du SSR
+/// (`api/src/web_tunnel/`) ne porte que `providerId`/`slotId` en query
+/// string, jamais un `ProviderResult` déjà résolu (au contraire de
+/// [AppointmentsProviderSelected], posé depuis un praticien déjà chargé en
+/// mémoire). Le praticien doit d'abord être récupéré (GET /v1/providers/:id)
+/// avant de pouvoir enchaîner sur le chargement des créneaux.
+class AppointmentsDeepLinkRequested extends AppointmentsEvent {
+  final String providerId;
+  final String? slotId;
+  const AppointmentsDeepLinkRequested({required this.providerId, this.slotId});
+
+  @override
+  List<Object?> get props => [providerId, slotId];
+}
+
 class AppointmentsSlotSelected extends AppointmentsEvent {
   final Slot slot;
   const AppointmentsSlotSelected(this.slot);

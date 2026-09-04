@@ -60,6 +60,32 @@ class ProviderResultDto {
     );
   }
 
+  /// Contrat réel : ProviderProfile (GET /v1/providers/:id, api/src/marketplace.rs)
+  /// — clé `provider_id`, `geo` = {lat, lng} (déjà plat, pas de `distance_m`
+  /// ni `next_slot_at`, `specialty` nullable contrairement à ProviderItem).
+  factory ProviderResultDto.fromProviderProfileJson(
+    Map<String, dynamic> json,
+  ) {
+    double? lat;
+    double? lng;
+    final geo = json['geo'];
+    if (geo is Map) {
+      lat = (geo['lat'] as num?)?.toDouble();
+      lng = (geo['lng'] as num?)?.toDouble();
+    }
+    return ProviderResultDto(
+      id: json['provider_id'] as String,
+      displayName: json['display_name'] as String,
+      specialty: (json['specialty'] as String?) ?? 'Praticien',
+      lat: lat,
+      lng: lng,
+      ratingAvg: (json['rating_avg'] as num?)?.toDouble(),
+      sector: json['sector'] as String?,
+      tiersPayant: json['tiers_payant'] as bool?,
+      pmr: json['pmr'] as bool?,
+    );
+  }
+
   ProviderResult toDomain() => ProviderResult(
         id: id,
         displayName: displayName,

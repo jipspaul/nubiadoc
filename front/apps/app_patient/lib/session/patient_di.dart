@@ -142,6 +142,7 @@ void registerPatient(GetIt gi) {
   gi.registerFactory<AppointmentsBloc>(
     () => AppointmentsBloc(
       searchProviders: gi<SearchProvidersUseCase>(),
+      getProvider: gi<GetProviderUseCase>(),
       searchSlots: gi<SearchSlotsUseCase>(),
       holdSlot: gi<HoldSlotUseCase>(),
       confirmBooking: gi<ConfirmBookingUseCase>(),

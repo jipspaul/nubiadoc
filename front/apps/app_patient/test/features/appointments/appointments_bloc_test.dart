@@ -14,6 +14,8 @@ import 'package:app_patient/session/auth_cubit.dart';
 
 class _MockSearchProviders extends Mock implements SearchProvidersUseCase {}
 
+class _MockGetProvider extends Mock implements GetProviderUseCase {}
+
 class _MockSearchSlots extends Mock implements SearchSlotsUseCase {}
 
 class _MockHoldSlot extends Mock implements HoldSlotUseCase {}
@@ -32,6 +34,7 @@ class _MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 void main() {
   group('AppointmentsBloc — restartable (lost-update)', () {
     late _MockSearchProviders searchProviders;
+    late _MockGetProvider getProvider;
     late _MockSearchSlots searchSlots;
     late _MockHoldSlot holdSlot;
     late _MockConfirmBooking confirmBooking;
@@ -42,6 +45,7 @@ void main() {
 
     setUp(() {
       searchProviders = _MockSearchProviders();
+      getProvider = _MockGetProvider();
       searchSlots = _MockSearchSlots();
       holdSlot = _MockHoldSlot();
       confirmBooking = _MockConfirmBooking();
@@ -57,6 +61,7 @@ void main() {
 
     AppointmentsBloc makeBloc() => AppointmentsBloc(
           searchProviders: searchProviders,
+          getProvider: getProvider,
           searchSlots: searchSlots,
           holdSlot: holdSlot,
           confirmBooking: confirmBooking,

@@ -226,6 +226,7 @@ export 'src/entities/provider_result.dart';
 export 'src/repositories/search_repository.dart';
 export 'src/usecases/search/parse_search_use_case.dart';
 export 'src/usecases/search/search_providers_use_case.dart';
+export 'src/usecases/search/get_provider_use_case.dart';
 export 'src/usecases/search/search_slots_use_case.dart';
 export 'src/usecases/search/hold_slot_use_case.dart';
 export 'src/usecases/search/confirm_booking_use_case.dart';
