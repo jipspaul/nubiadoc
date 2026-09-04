@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import '../treatment_plans/treatment_status_style.dart';
 import 'async_section_state.dart';
 import 'medical_questionnaire_review_section.dart';
+import 'patient_access_denied_notice.dart';
 import 'patient_clinical_alerts_card.dart';
 import 'patient_current_plan_section.dart';
 import 'patient_fiche_bloc.dart';
@@ -1309,7 +1310,14 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
           ),
           const SizedBox(height: 8),
           if (error != null)
-            NubiaErrorWidget(message: error!, onRetry: loadSection)
+            if (accessDenied)
+              PatientAccessDeniedNotice(
+                key: const Key('patient_documents_access_denied'),
+                message: "Vous n'avez pas encore suivi ce patient — les "
+                    "documents ne sont pas accessibles.",
+              )
+            else
+              NubiaErrorWidget(message: error!, onRetry: loadSection)
           else if (loading || documents == null)
             const NubiaSkeletonLoader(height: 48, borderRadius: 8)
           else if (documents.isEmpty)

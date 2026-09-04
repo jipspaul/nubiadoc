@@ -83,6 +83,27 @@ void main() {
     expect(find.byKey(const Key('patient_documents_empty')), findsNothing);
   });
 
+  testWidgets(
+      '#6426 : un 403 (pas de relation de soin) affiche un état explicite '
+      'sans bouton Réessayer', (tester) async {
+    when(() => listDocs('patient-1', category: null)).thenAnswer(
+      (_) async => const Left(ServerFailure(
+        message: 'Impossible de charger les documents.',
+        statusCode: 403,
+      )),
+    );
+
+    await tester.pumpWidget(buildSection());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('patient_documents_access_denied')),
+      findsOneWidget,
+    );
+    expect(find.text('Impossible de charger les documents.'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Réessayer'), findsNothing);
+  });
+
   testWidgets('filtre catégorie radio → relance la liste avec ?category=radio',
       (tester) async {
     when(() => listDocs('patient-1', category: null))

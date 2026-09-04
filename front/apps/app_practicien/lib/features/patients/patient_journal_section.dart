@@ -3,6 +3,8 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'patient_access_denied_notice.dart';
+
 /// Timeline chronologique unique du dossier patient (#4971 — maquette
 /// design-v2 « un journal, pas cinq sections »). Agrège via
 /// [ListPatientJournalUseCase] (#4970) et filtre par [PatientJournalKind] en
@@ -58,6 +60,12 @@ enum _JournalFilter {
 class _PatientJournalSectionState extends State<PatientJournalSection> {
   List<PatientJournalEntry>? _entries;
   String? _error;
+
+  /// #6426 — 403 déterministe (garde « relation de soin » RLS §14) sur une
+  /// des sources agrégées par [ListPatientJournalUseCase] : distinct d'une
+  /// panne transitoire, ce n'est pas un état d'erreur mais une frontière de
+  /// permission attendue.
+  bool _accessDenied = false;
   _JournalFilter _filter = _JournalFilter.all;
 
   @override
@@ -73,11 +81,13 @@ class _PatientJournalSectionState extends State<PatientJournalSection> {
     result.fold(
       (failure) => setState(() {
         _error = failure.message;
+        _accessDenied = failure is ServerFailure && failure.statusCode == 403;
         _entries = null;
       }),
       (entries) => setState(() {
         _entries = entries;
         _error = null;
+        _accessDenied = false;
       }),
     );
   }
@@ -121,7 +131,14 @@ class _PatientJournalSectionState extends State<PatientJournalSection> {
             ),
           const SizedBox(height: 12),
           if (_error != null)
-            Text(_error!, style: TextStyle(color: cs.error))
+            if (_accessDenied)
+              const PatientAccessDeniedNotice(
+                key: Key('patient_journal_access_denied'),
+                message: "Vous n'avez pas encore suivi ce patient — "
+                    "l'historique clinique n'est pas accessible.",
+              )
+            else
+              Text(_error!, style: TextStyle(color: cs.error))
           else if (entries == null)
             const Column(
               key: Key('patient_journal_skeleton'),

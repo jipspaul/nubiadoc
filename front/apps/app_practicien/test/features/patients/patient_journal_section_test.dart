@@ -121,6 +121,27 @@ void main() {
   });
 
   testWidgets(
+      '#6426 : un 403 (pas de relation de soin) affiche un état explicite, '
+      'pas le message technique', (tester) async {
+    when(() => listJournal(any())).thenAnswer(
+      (_) async => const Left(ServerFailure(
+        message: "Impossible de charger l'historique des ordonnances.",
+        statusCode: 403,
+      )),
+    );
+
+    await pumpSection(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_journal_access_denied')),
+        findsOneWidget);
+    expect(
+      find.text("Impossible de charger l'historique des ordonnances."),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
       'affiche les six filtres, « Tout » sélectionné par défaut, et filtre '
       'la timeline en place', (tester) async {
     when(() => listJournal(any())).thenAnswer(
