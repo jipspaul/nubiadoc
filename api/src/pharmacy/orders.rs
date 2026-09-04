@@ -1545,7 +1545,10 @@ pub async fn pickup_scan(
         .collect::<String>()
         .to_uppercase();
     let (lookup_column, lookup_value) = if is_full_token {
-        ("pickup_token_hash", hex::encode(Sha256::digest(raw.as_bytes())))
+        (
+            "pickup_token_hash",
+            hex::encode(Sha256::digest(raw.as_bytes())),
+        )
     } else if normalized_short.len() == 8 {
         ("pickup_short_code", normalized_short)
     } else {
