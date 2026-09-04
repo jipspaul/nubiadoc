@@ -102,14 +102,20 @@ class TodayScheduleCard extends StatelessWidget {
   }
 
   List<AgendaEntry> _todayEntries(List<AgendaEntry> entries, DateTime now) {
+    // Conversion via `.toLocal()` avant de comparer la date de calendrier —
+    // évite le piège UTC #3856 (les `DateTime` remontés par l'API sont en
+    // UTC) : sans elle, un RDV proche de minuit se retrouve groupé dans la
+    // mauvaise journée.
     final result = entries
-        .where((e) =>
-            !e.isFree &&
-            !e.isCancelled &&
-            !e.isNoShow &&
-            e.startsAt.year == now.year &&
-            e.startsAt.month == now.month &&
-            e.startsAt.day == now.day)
+        .where((e) {
+          final localStartsAt = e.startsAt.toLocal();
+          return !e.isFree &&
+              !e.isCancelled &&
+              !e.isNoShow &&
+              localStartsAt.year == now.year &&
+              localStartsAt.month == now.month &&
+              localStartsAt.day == now.day;
+        })
         .toList()
       ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
     return result;
@@ -139,8 +145,11 @@ class _ScheduleRow extends StatelessWidget {
     final style = ScheduleStatusStyle.of(entry);
     final past = _isPast(entry, now);
     final isNow = _isNow(entry, now);
-    final hour = entry.startsAt.hour.toString().padLeft(2, '0');
-    final minute = entry.startsAt.minute.toString().padLeft(2, '0');
+    // Conversion via `.toLocal()` avant de lire heure/minute — évite le
+    // piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+    final localStartsAt = entry.startsAt.toLocal();
+    final hour = localStartsAt.hour.toString().padLeft(2, '0');
+    final minute = localStartsAt.minute.toString().padLeft(2, '0');
 
     final row = ListRow(
       key: Key('today_schedule_row_${entry.id}'),
