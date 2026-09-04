@@ -27,6 +27,9 @@ class MockCreateCabinetAppointmentUseCase extends Mock
 class MockConfirmAppointmentUseCase extends Mock
     implements ConfirmAppointmentUseCase {}
 
+class MockCabinetCheckinAppointmentUseCase extends Mock
+    implements CabinetCheckinAppointmentUseCase {}
+
 class MockRescheduleAppointmentUseCase extends Mock
     implements RescheduleAppointmentUseCase {}
 
@@ -72,6 +75,7 @@ AgendaBloc _makeBloc({
   required MockGetCabinetAgendaUseCase getAgenda,
   required MockCreateCabinetAppointmentUseCase createAppointment,
   required MockConfirmAppointmentUseCase confirmAppointment,
+  required MockCabinetCheckinAppointmentUseCase checkinAppointment,
   required MockRescheduleAppointmentUseCase rescheduleAppointment,
   required MockListBookableSlotsUseCase listSlots,
   required MockListCabinetPractitionersUseCase listPractitioners,
@@ -80,6 +84,7 @@ AgendaBloc _makeBloc({
       getAgenda: getAgenda,
       createAppointment: createAppointment,
       confirmAppointment: confirmAppointment,
+      checkinAppointment: checkinAppointment,
       rescheduleAppointment: rescheduleAppointment,
       listSlots: listSlots,
       listPractitioners: listPractitioners,
@@ -160,6 +165,7 @@ void main() {
   late MockGetCabinetAgendaUseCase mockGetAgenda;
   late MockCreateCabinetAppointmentUseCase mockCreate;
   late MockConfirmAppointmentUseCase mockConfirm;
+  late MockCabinetCheckinAppointmentUseCase mockCheckin;
   late MockRescheduleAppointmentUseCase mockReschedule;
   late MockListBookableSlotsUseCase mockListSlots;
   late MockListCabinetPractitionersUseCase mockListPractitioners;
@@ -168,6 +174,7 @@ void main() {
     mockGetAgenda = MockGetCabinetAgendaUseCase();
     mockCreate = MockCreateCabinetAppointmentUseCase();
     mockConfirm = MockConfirmAppointmentUseCase();
+    mockCheckin = MockCabinetCheckinAppointmentUseCase();
     mockReschedule = MockRescheduleAppointmentUseCase();
     mockListSlots = MockListBookableSlotsUseCase();
     mockListPractitioners = MockListCabinetPractitionersUseCase();
@@ -179,6 +186,7 @@ void main() {
         getAgenda: mockGetAgenda,
         createAppointment: mockCreate,
         confirmAppointment: mockConfirm,
+        checkinAppointment: mockCheckin,
         rescheduleAppointment: mockReschedule,
         listSlots: mockListSlots,
         listPractitioners: mockListPractitioners,
@@ -376,6 +384,7 @@ void main() {
             getAgenda: mockGetAgenda,
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -469,6 +478,7 @@ void main() {
             getAgenda: mockGetAgenda,
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -626,6 +636,7 @@ void main() {
             getAgenda: mockGetAgenda,
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -703,6 +714,7 @@ void main() {
             getAgenda: mockGetAgenda,
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -787,6 +799,7 @@ void main() {
             getAgenda: mockGetAgenda,
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -858,6 +871,7 @@ void main() {
             getAgenda: mockGetAgenda,
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -928,6 +942,7 @@ void main() {
             getAgenda: mockGetAgenda,
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -1007,6 +1022,7 @@ void main() {
             getAgenda: mockGetAgenda,
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -1145,6 +1161,7 @@ void main() {
             getAgenda: mockGetAgenda,
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -1345,6 +1362,7 @@ void main() {
             getAgenda: mockGetAgenda,
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,

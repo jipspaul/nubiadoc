@@ -233,6 +233,7 @@ export 'src/usecases/search/confirm_booking_use_case.dart';
 export 'src/usecases/agenda/get_cabinet_agenda_use_case.dart';
 export 'src/usecases/agenda/list_cabinet_practitioners_use_case.dart';
 export 'src/usecases/agenda/confirm_appointment_use_case.dart';
+export 'src/usecases/agenda/cabinet_checkin_appointment_use_case.dart';
 export 'src/usecases/agenda/start_consultation_use_case.dart';
 // cabinet appointments pro
 export 'src/usecases/cabinet_appointments/list_cabinet_appointments_use_case.dart';

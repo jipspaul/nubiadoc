@@ -711,6 +711,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => GetCabinetAgendaUseCase(gi()))
     ..registerFactory(() => ListCabinetPractitionersUseCase(gi()))
     ..registerFactory(() => ConfirmAppointmentUseCase(gi()))
+    ..registerFactory(() => CabinetCheckinAppointmentUseCase(gi()))
     ..registerFactory(() => ListCabinetAppointmentsUseCase(gi()))
     ..registerFactory(() => CreateCabinetAppointmentUseCase(gi()))
     ..registerFactory(() => RescheduleAppointmentUseCase(gi()))
