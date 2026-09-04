@@ -1942,15 +1942,16 @@ class _DayColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final blocks = <Widget>[];
+    final practitionerOrder = practitionerNames.keys.toList(growable: false);
+    final items = <_LaneItem>[];
     for (final entry in entries) {
       final geometry = _agendaBlockGeometry(entry.startsAt, entry.endsAt);
       if (geometry == null) continue;
-      blocks.add(Positioned(
+      items.add(_LaneItem(
         top: geometry.top,
         height: geometry.height,
-        left: 0,
-        right: 0,
+        rank: _practitionerRank(entry.practitionerId, practitionerOrder),
+        order: items.length,
         child: _AgendaEntryBlock(
           key: Key('entry_${entry.id}'),
           entry: entry,
@@ -1964,11 +1965,11 @@ class _DayColumn extends StatelessWidget {
     for (final slot in freeSlots) {
       final geometry = _agendaBlockGeometry(slot.startsAt, slot.endsAt);
       if (geometry == null) continue;
-      blocks.add(Positioned(
+      items.add(_LaneItem(
         top: geometry.top,
         height: geometry.height,
-        left: 0,
-        right: 0,
+        rank: _practitionerRank(slot.practitionerId, practitionerOrder),
+        order: items.length,
         child: _AgendaFreeSlotPill(
           key: Key('agenda_free_slot_${slot.id}'),
           slot: slot,
@@ -1976,6 +1977,35 @@ class _DayColumn extends StatelessWidget {
         ),
       ));
     }
+
+    // #6395/#6393 : deux blocs qui se recouvrent dans le temps (RDV + pastille
+    // de créneau libre d'un autre praticien, ex.) sont désormais répartis en
+    // couloirs plutôt qu'empilés en `left: 0, right: 0` (le dernier peint
+    // masquait systématiquement les autres). Les blocs qui ne se chevauchent
+    // pas gardent la pleine largeur, comme avant.
+    final blocks = [
+      for (final laid in _layoutLanes(items))
+        Positioned(
+          top: laid.item.top,
+          height: laid.item.height,
+          left: 0,
+          right: 0,
+          child: laid.columns <= 1
+              ? laid.item.child
+              : Align(
+                  alignment: Alignment(
+                    laid.columns > 1
+                        ? (2 * laid.columnIndex / (laid.columns - 1)) - 1
+                        : 0,
+                    0,
+                  ),
+                  child: FractionallySizedBox(
+                    widthFactor: 1 / laid.columns,
+                    child: laid.item.child,
+                  ),
+                ),
+        ),
+    ];
 
     return Container(
       height: _agendaGridHeight,
@@ -1997,6 +2027,94 @@ class _DayColumn extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Rang du praticien dans le roster affiché (même ordre que
+/// [_practitionerBlockStyle]/légende) — sert à trier les couloirs de
+/// [_layoutLanes] pour qu'un même praticien retombe toujours du même côté.
+/// Praticien inconnu du roster (ex. #4666 : congé/désactivé) -> relégué en
+/// dernier plutôt que planté.
+int _practitionerRank(String practitionerId, List<String> practitionerOrder) {
+  final index = practitionerOrder.indexOf(practitionerId);
+  return index < 0 ? practitionerOrder.length : index;
+}
+
+/// Bloc temporel à placer dans un [_DayColumn] : RDV ou pastille de créneau
+/// libre, avant répartition en couloirs par [_layoutLanes].
+class _LaneItem {
+  const _LaneItem({
+    required this.top,
+    required this.height,
+    required this.rank,
+    required this.order,
+    required this.child,
+  });
+
+  final double top;
+  final double height;
+  final int rank;
+  final int order;
+  final Widget child;
+}
+
+class _LaidOutLaneItem {
+  const _LaidOutLaneItem({
+    required this.item,
+    required this.columnIndex,
+    required this.columns,
+  });
+
+  final _LaneItem item;
+  final int columnIndex;
+  final int columns;
+}
+
+/// Répartit [items] en couloirs quand ils se chevauchent dans le temps
+/// (#6395/#6393) : un RDV et une pastille de créneau libre de deux
+/// praticiens différents à la même heure doivent rester tous les deux
+/// lisibles ("occupation croisée", maquette v2 point 3), au lieu du dernier
+/// peint qui masquait l'autre en `left:0, right:0`. Les blocs isolés dans le
+/// temps gardent la pleine largeur (`columns == 1`). Regroupement par
+/// balayage trié sur `top` (les intervalles ne se recoupant pas partitionnent
+/// exactement en composantes connexes), puis tri par [_practitionerRank]
+/// dans chaque groupe pour un couloir stable par praticien.
+List<_LaidOutLaneItem> _layoutLanes(List<_LaneItem> items) {
+  if (items.isEmpty) return const [];
+  final sorted = [...items]
+    ..sort((a, b) {
+      final byTop = a.top.compareTo(b.top);
+      return byTop != 0 ? byTop : a.order.compareTo(b.order);
+    });
+
+  final result = <_LaidOutLaneItem>[];
+  var clusterStart = 0;
+  var clusterEnd = sorted.first.top + sorted.first.height;
+  for (var i = 1; i <= sorted.length; i++) {
+    if (i == sorted.length || sorted[i].top >= clusterEnd) {
+      result.addAll(_assignLanes(sorted.sublist(clusterStart, i)));
+      if (i < sorted.length) {
+        clusterStart = i;
+        clusterEnd = sorted[i].top + sorted[i].height;
+      }
+    } else {
+      final end = sorted[i].top + sorted[i].height;
+      if (end > clusterEnd) clusterEnd = end;
+    }
+  }
+  return result;
+}
+
+List<_LaidOutLaneItem> _assignLanes(List<_LaneItem> cluster) {
+  final ordered = [...cluster]
+    ..sort((a, b) {
+      final byRank = a.rank.compareTo(b.rank);
+      return byRank != 0 ? byRank : a.order.compareTo(b.order);
+    });
+  final columns = ordered.length;
+  return [
+    for (var i = 0; i < ordered.length; i++)
+      _LaidOutLaneItem(item: ordered[i], columnIndex: i, columns: columns),
+  ];
 }
 
 /// Bloc RDV positionné (`.ev` de la maquette) — couleur par praticien
@@ -2129,12 +2247,16 @@ class _AgendaFreeSlotPill extends StatelessWidget {
                 children: [
                   const Icon(Icons.add, size: 13, color: NubiaColors.n400),
                   const SizedBox(width: 4),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: NubiaColors.n400,
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: NubiaColors.n400,
+                      ),
                     ),
                   ),
                 ],
