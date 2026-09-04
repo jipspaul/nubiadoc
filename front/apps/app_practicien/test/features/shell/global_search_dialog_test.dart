@@ -64,8 +64,15 @@ GoRouter _buildRouter() => GoRouter(
         ),
         GoRoute(
           path: '/patients',
-          builder: (_, state) =>
-              Scaffold(body: Text('patients page ${state.extra ?? ''}')),
+          builder: (_, __) => const Scaffold(body: Text('patients page')),
+          routes: [
+            GoRoute(
+              path: ':id',
+              builder: (_, state) => Scaffold(
+                body: Text('patient detail ${state.pathParameters['id']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -128,7 +135,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('global_search_dialog')), findsNothing);
-      expect(find.text('patients page pat-marc'), findsOneWidget);
+      expect(find.text('patient detail pat-marc'), findsOneWidget);
     },
   );
 
