@@ -362,7 +362,10 @@ async fn list_row_exposes_contact() {
     let row = find_row(&body, f.patient_id);
 
     assert_eq!(row["contact"]["tel"], "0612345678", "row: {row}");
-    assert_eq!(row["contact"]["email"], "marc.liste@example.test", "row: {row}");
+    assert_eq!(
+        row["contact"]["email"], "marc.liste@example.test",
+        "row: {row}"
+    );
 
     cleanup(&seed_db, &f).await;
 }
