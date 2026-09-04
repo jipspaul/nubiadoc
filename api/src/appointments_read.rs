@@ -160,8 +160,8 @@ pub async fn list_appointments(
               AND a.starts_at < now() + interval '1 day') \
               OR (a.starts_at > now() AND a.status IN ('requested','confirmed')))"
             .to_string(),
-        Some("past") => " AND (a.status IN ('done','cancelled','no_show') \
-              OR (a.starts_at <= now() AND a.status IN ('requested','confirmed')))"
+        Some("past") => " AND (a.starts_at <= now() \
+              AND a.status IN ('done','cancelled','no_show','requested','confirmed'))"
             .to_string(),
         Some(s) if REAL_STATUSES.contains(&s) => format!(" AND a.status = '{s}'"),
         // `status` nommé mais non reconnu (ni vue upcoming/past, ni vrai statut) :
