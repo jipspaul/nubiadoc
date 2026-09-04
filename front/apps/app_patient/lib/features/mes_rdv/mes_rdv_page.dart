@@ -1208,15 +1208,17 @@ class _MenuItemLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 18, color: color ?? NubiaColors.n500),
         const SizedBox(width: 10),
-        Text(
-          label,
-          style: TextStyle(
-            color: color ?? NubiaColors.n800,
-            fontWeight: FontWeight.w500,
+        Flexible(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color ?? NubiaColors.n800,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ],
