@@ -1346,3 +1346,10 @@ Quatre findings de cette ronde ont été corrigés et mergés pendant qu'elle se
 | #6428 | `fedd73ea` — libellés KPI de la salle d'attente | **CONFIRMÉ** : « 1 en attente · 0 min attente moyenne · 0 au-delà de 30 min » — les 3 libellés sont complets, plus aucune ellipse (capture `sv1-kpi-corriges.png`) |
 
 **Bilan des correctifs de la ronde : 5 findings ouverts, corrigés et mergés pendant la ronde ; 5 re-vérifiés en live** (#6412, #6419, #6423, #6425, #6428).
+
+#### Ronde 2026-09-04 — balayage final d'endpoints (09:50 UTC)
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| balayage-endpoints-cabinet | 2026-09-04T08:52:00Z | OK | **256 routes déclarées** recensées depuis `api/src/routes/*.rs` (110 `cabinet`, 32 `account`, 18 `pharmacy`, 11 `auth`, 10 `nurse`, 9 `appointments`…). Balayage GET des 10 routes cabinet non exercées cette ronde, token praticien : `/cabinet/stats/activity`, `/payouts`, `/lab-work-orders`, `/cr-templates`, `/appointment-motifs`, `/waiting-list`, `/unavailability`, `/stock-requests`, `/quotes`, `/conversations` → **200 sur les 10**, données cohérentes. Aucun 5xx, aucune route morte. *(Rappel de méthode : un premier passage a rendu 401 partout — jeton expiré, cf. piège nº6 ; re-testé avec un jeton frais.)* |
+| cabinet-payouts-donnees-mock | 2026-09-04T08:53:00Z | OK | `GET /v1/cabinet/payouts` sert un jeu **mock assumé** : `po_mock_1a2b3c` (stripe, 150 €), `PO-MOCK-9F8E7D` (gocardless, 85 €), `po_mock_unmatched` (999 999 c, « délibérément non rapprochable »). C'est un **stub documenté** — `cabinet_payouts.rs:24-32` et `:128-152` l'énoncent (« données mock, pas d'appel externe »), et les identifiants se nomment eux-mêmes « mock ». **Non filé** : contrairement à #6427 (noms de praticiens inventés présentés comme le roster réel, avec un « Vous » erroné), la nature de démonstration est ici explicite et non trompeuse. À revoir le jour où un vrai provider de paiement est branché |
