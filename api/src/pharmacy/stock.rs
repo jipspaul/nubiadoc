@@ -380,7 +380,7 @@ pub async fn list_pharmacy_stock_requests(
     Ok(Json(StockRequestsResponse { data }))
 }
 
-/// Body optionnel de `POST /v1/pharmacy/stock-requests/{id}/reject`.
+/// Body optionnel de `POST /v1/pharmacy/stock-requests/{id}/accept|reject`.
 #[derive(Deserialize, Default)]
 pub struct RespondStockBody {
     pub note: Option<String>,
@@ -439,14 +439,16 @@ async fn stock_response(
     stock_from_row(&row)
 }
 
-/// `POST /v1/pharmacy/stock-requests/{id}/accept` — sent → accepted.
+/// `POST /v1/pharmacy/stock-requests/{id}/accept` — sent → accepted (note optionnelle).
 pub async fn accept_stock_request(
     State(state): State<AppState>,
     claims: PharmaMemberClaims,
     Path(id): Path<Uuid>,
+    body: Option<Json<RespondStockBody>>,
 ) -> Result<Json<StockRequestDto>, AppError> {
+    let note = body.as_ref().and_then(|b| b.note.as_deref());
     let request =
-        stock_response(&state, claims.pharmacy_id, id, &["sent"], "accepted", None).await?;
+        stock_response(&state, claims.pharmacy_id, id, &["sent"], "accepted", note).await?;
     Ok(Json(request))
 }
 

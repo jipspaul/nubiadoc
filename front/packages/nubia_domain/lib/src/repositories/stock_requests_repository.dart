@@ -17,7 +17,7 @@ abstract class StockRequestsRepository {
   });
 
   /// POST /v1/pharmacy/stock-requests/{id}/accept
-  Future<Either<Failure, StockRequest>> accept(String id);
+  Future<Either<Failure, StockRequest>> accept(String id, {String? note});
 
   /// POST /v1/pharmacy/stock-requests/{id}/reject
   Future<Either<Failure, StockRequest>> reject(String id, {String? note});

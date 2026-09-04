@@ -28,8 +28,9 @@ class StockRequestsRepositoryImpl implements StockRequestsRepository {
       );
 
   @override
-  Future<Either<Failure, StockRequest>> accept(String id) => guardPharmacyCall(
-        () async => (await _api.accept(id)).toDomain(),
+  Future<Either<Failure, StockRequest>> accept(String id, {String? note}) =>
+      guardPharmacyCall(
+        () async => (await _api.accept(id, note: note)).toDomain(),
         errorMessage: 'Impossible d’accepter la demande.',
       );
 

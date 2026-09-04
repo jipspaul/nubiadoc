@@ -46,7 +46,8 @@ class PharmacyStockApi {
     return StockRequestDto.fromJson(response.data!);
   }
 
-  Future<StockRequestDto> accept(String id) => _action(id, 'accept');
+  Future<StockRequestDto> accept(String id, {String? note}) =>
+      _action(id, 'accept', body: {if (note != null) 'note': note});
 
   Future<StockRequestDto> reject(String id, {String? note}) =>
       _action(id, 'reject', body: {if (note != null) 'note': note});
