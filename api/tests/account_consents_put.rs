@@ -634,7 +634,10 @@ async fn consent_put_soins_revoke_returns_409_invalid_status() {
     .fetch_one(&db)
     .await
     .unwrap();
-    assert!(granted, "soins doit rester accordé après la tentative de révocation");
+    assert!(
+        granted,
+        "soins doit rester accordé après la tentative de révocation"
+    );
 
     cleanup(&db, user_id).await;
 }
