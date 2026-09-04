@@ -87,7 +87,9 @@ inventaire pris avant interaction.
 | secretariat | /patients (facettes `role=switch`) | 6 | 4 | 4 | 0 | 0 | 2026-09-04T08:35:00+00:00 |
 | patient | /book (puces de filtre) | 5 | 4 | 1 | 0 | **3 CASSÉS confirmés : « Téléconsult », « Secteur 1 », « Généraliste » vident la liste (#6431)** | 2026-09-04T08:45:00+00:00 |
 
-**Cumul de la ronde : 135 contrôles activés et jugés, 113 OK, 0 mort confirmé, 3 CASSÉS confirmés (#6431).**
+| patient | /profile | 13 | 8 | 7 | 0 (1 faux positif : sélecteur de fichier natif) | 0 | 2026-09-04T08:55:00+00:00 |
+
+**Cumul de la ronde : 143 contrôles activés et jugés, 120 OK, 0 mort confirmé, 3 CASSÉS confirmés (#6431).**
 
 Les 4 verdicts MORT du lot pharmacie ont été re-testés **isolément avec un signal réel** (nombre de lignes
 « Total : » + contenu des premières lignes) : `Brouillons (17)` 6 → **1** ligne et le contenu bascule sur
@@ -107,7 +109,16 @@ haut de liste sont déjà toutes « Accepté »** — contenu identique attendu,
    contre-épreuve à 200 sur un patient réellement suivi. Le vrai défaut n'est pas le bouton mais le
    **rendu** de ce 403 (#6426). **Règle** : quand `bag.net` remonte des 4xx, identifier la ROUTE exacte
    avant de qualifier le contrôle — un écran peut s'ouvrir correctement et n'échouer que sur ses panneaux.
-7. **SnackBar absent de l'arbre Semantics** — un test qui ne lit que `semText` conclut à un « échec
+7. **Un sélecteur de fichier NATIF ne laisse aucune trace détectable.** « Modifier la photo de profil »
+   (`/profile`) est sorti MORT du lot : aucune navigation, aucune repeinture, aucune requête, et même
+   **aucun `<input type=file>` dans le DOM**. Le contrôle fonctionne pourtant : en écoutant l'événement
+   Playwright `filechooser`, on mesure **filechooser=1**. Le code est sain — `_pickAndUpload`
+   (`profile_page.dart:653`) atteint bien `FilePicker.platform.pickFiles`, et `FilePickerService` comme
+   `UpdateAvatarUseCase` sont enregistrés (`nubia_core/injection.dart:26`, `nubia_data/data_registration.dart:417`).
+   **Règle** : brancher `page.on('filechooser')` avant tout audit d'un écran qui peut téléverser, et ne
+   jamais conclure MORT sur un bouton d'import/export sans ce témoin.
+
+8. **SnackBar absent de l'arbre Semantics** — un test qui ne lit que `semText` conclut à un « échec
    silencieux » là où l'app affiche bien « Erreur réseau (hors ligne). ». Recouper par une **capture
    précoce** (< 4 s, durée de vie par défaut d'un SnackBar). Détail dans `explored-paths.md`,
    scénario `adversarial-infirmiere`.
