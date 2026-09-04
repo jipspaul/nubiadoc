@@ -457,10 +457,15 @@ class _LockedConsentCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Switch(
-                  key: Key('consent_${consent.purpose}'),
-                  value: true,
-                  onChanged: null,
+                Semantics(
+                  container: true,
+                  label: _kConsentLabels[consent.purpose] ??
+                      _kUnknownConsentLabel,
+                  child: Switch(
+                    key: Key('consent_${consent.purpose}'),
+                    value: true,
+                    onChanged: null,
+                  ),
                 ),
               ],
             ),
@@ -646,12 +651,17 @@ class _ConsentCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Switch(
-                  key: Key('consent_${consent.purpose}'),
-                  value: consent.granted,
-                  onChanged: pending
-                      ? null
-                      : (v) => _handleToggle(context, consent.purpose, v),
+                Semantics(
+                  container: true,
+                  label: _kConsentLabels[consent.purpose] ??
+                      _kUnknownConsentLabel,
+                  child: Switch(
+                    key: Key('consent_${consent.purpose}'),
+                    value: consent.granted,
+                    onChanged: pending
+                        ? null
+                        : (v) => _handleToggle(context, consent.purpose, v),
+                  ),
                 ),
               ],
             ),
