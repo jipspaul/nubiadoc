@@ -149,15 +149,24 @@ jobs:
           # fichier corrompu et repanique à l'identique à chaque tentative —
           # y compris sur des runs ultérieurs. On purge donc le cache avant de
           # retenter dès qu'une signature RAM/ICE est détectée.
+          #
+          # `rust-integration` compile beaucoup plus de binaires de test que le
+          # gate `rust` (un binaire par fichier sous api/tests/) : le volume
+          # persistant peut se remplir progressivement d'un run à l'autre et
+          # finir par saturer le disque du runner ici plutôt que dans `rust`.
+          # nextest ne remonte alors qu'un message générique ("creating test
+          # list failed", sans le "No space left on device" sous-jacent) —
+          # on traite donc cette signature comme les autres accidents
+          # d'infra : purge du cache + nouvelle tentative.
           for a in 1 2 3; do
             echo "::group::nextest tentative $a"
             if cargo nextest run --workspace --all-features --no-fail-fast --retries 2 2>&1 | tee /tmp/ci-fail.log; then
               echo "::endgroup::"; exit 0
             fi
             echo "::endgroup::"
-            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler|unexpectedly panicked' /tmp/ci-fail.log \
+            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler|unexpectedly panicked|No space left on device|ENOSPC|creating test list failed' /tmp/ci-fail.log \
               || { echo 'echec test reel (survecu aux retries) -> stop'; exit 1; }
-            echo 'segfault/kill/ICE (RAM ?) -> purge cache target (corruption possible) + nouvelle tentative'
+            echo 'segfault/kill/ICE/disque plein (infra) -> purge cache target + nouvelle tentative'
             rm -rf "${CARGO_TARGET_DIR:?}"/* 2>/dev/null || true
           done
           exit 1
