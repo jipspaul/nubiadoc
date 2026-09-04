@@ -84,7 +84,10 @@ inventaire pris avant interaction.
 | pharmacie | /stock | 11 | 8 | 8 | 0 (1 faux positif) | 0 (2 « Refuser » non activés : destructifs) | 2026-09-04T09:12:00+00:00 |
 | pharmacie | /messages | 8 | 8 | 8 | 0 (1 faux positif) | 0 | 2026-09-04T09:12:00+00:00 |
 
-**Cumul de la ronde : 127 contrôles activés et jugés, 108 OK, 0 mort confirmé, 0 cassé confirmé.**
+| secretariat | /patients (facettes `role=switch`) | 6 | 4 | 4 | 0 | 0 | 2026-09-04T08:35:00+00:00 |
+| patient | /book (puces de filtre) | 5 | 4 | 1 | 0 | **3 CASSÉS confirmés : « Téléconsult », « Secteur 1 », « Généraliste » vident la liste (#6431)** | 2026-09-04T08:45:00+00:00 |
+
+**Cumul de la ronde : 135 contrôles activés et jugés, 113 OK, 0 mort confirmé, 3 CASSÉS confirmés (#6431).**
 
 Les 4 verdicts MORT du lot pharmacie ont été re-testés **isolément avec un signal réel** (nombre de lignes
 « Total : » + contenu des premières lignes) : `Brouillons (17)` 6 → **1** ligne et le contenu bascule sur
@@ -115,8 +118,7 @@ haut de liste sont déjà toutes « Accepté »** — contenu identique attendu,
   inexploitable au-delà des 2 premiers contrôles (jeton expiré, cf. piège nº 6).
 - **praticien `/consultation`** : la facette « Terminée » sort MORT sans re-clic isolé — piège nº 4
   probable (facettes « En cours »/« Terminée »/« Annulée » de longueur voisine), à prouver ou infirmer.
-- **secretariat `/patients`** : les 3 facettes « Impayés / Alertes / Sans RDV à venir » ne sont toujours
-  pas exposées comme `role=button` — les localiser autrement et prouver qu'elles filtrent.
-- **pharmacie `/devis`, `/stock`, `/messages`** et **patient `/documents`** : inventoriés, jamais activés
-  (report de la ronde précédente). Note : les 13 « Télécharger » de `/documents` échoueront tous tant que
-  #6425 (signer de stockage) n'est pas corrigé.
+- **patient `/documents`** : inventorié, jamais activé. Note : les 13 « Télécharger » échoueront tous tant
+  que #6425 (signer de stockage) n'est pas corrigé — inutile de les auditer avant.
+- **patient `/book`** : re-tester les 5 puces après correction de #6431, et vérifier au passage que la carte
+  se recentre sur les praticiens (elle retombe sur Paris, `_defaultCenter`, alors que le jeu de données est lyonnais).
