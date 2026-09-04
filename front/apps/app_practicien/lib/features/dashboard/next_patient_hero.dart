@@ -24,7 +24,9 @@ class NextPatientHero extends StatelessWidget {
     }
 
     final textTheme = Theme.of(context).textTheme;
-    final appointmentTime = summary.nextPatientAppointmentTime;
+    // Conversion via `.toLocal()` avant de lire heure/minute — évite le piège
+    // UTC #3856/#6420 (l'API renvoie l'heure en UTC), récidive #6445.
+    final appointmentTime = summary.nextPatientAppointmentTime?.toLocal();
     final waitingMinutes = summary.nextPatientWaitingMinutes;
     final reason = summary.nextPatientReason;
 
