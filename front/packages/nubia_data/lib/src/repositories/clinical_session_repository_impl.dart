@@ -160,6 +160,21 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
             'Alerte clinique : acte bloqué.';
         return Left(ClinicalRiskWarningFailure(message));
       }
+      // #6466 — 422 { code: "insufficient_stock" } (api/src/
+      // consultation_act_stock.rs) : au moins un consommable mappé à cet
+      // acte n'a plus assez de stock, l'acte entier est refusé. Sans ce
+      // mapping le praticien recevait le message générique
+      // "Impossible d'ajouter l'acte.", indiscernable d'une panne réseau.
+      if (e.response?.statusCode == 422 &&
+          e.response?.data is Map &&
+          (e.response?.data as Map)['code'] == 'insufficient_stock') {
+        return const Left(ServerFailure(
+          message:
+              "Stock insuffisant pour au moins un consommable requis par cet acte. Consultez l'inventaire.",
+          statusCode: 422,
+          code: 'insufficient_stock',
+        ));
+      }
       return Left(ServerFailure(
         message: "Impossible d'ajouter l'acte.",
         statusCode: e.response?.statusCode,
