@@ -138,6 +138,36 @@ class CabinetAppointmentsRepositoryImpl
   }
 
   @override
+  Future<Either<Failure, CabinetAppointment>> checkin(String id) async {
+    try {
+      final dto = await _api.checkin(id);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      // 409 invalid_status : le RDV n'est plus `confirmed` (déjà arrivé,
+      // annulé, absent…) entre l'ouverture du volet et le clic — même
+      // logique que confirm ci-dessus (#4535), l'appelant recharge l'agenda.
+      if (e.response?.statusCode == 409) {
+        return const Left(ValidationFailure(
+          message: 'Ce rendez-vous n\'est plus en attente d\'arrivée '
+              '(déjà arrivé, ou statut modifié entre-temps).',
+        ));
+      }
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Rendez-vous introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de marquer ce rendez-vous arrivé.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, CabinetAppointment>> reschedule(
       String id, DateTime newStartsAt) async {
     try {

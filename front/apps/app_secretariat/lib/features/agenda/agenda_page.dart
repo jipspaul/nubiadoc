@@ -362,6 +362,10 @@ class _LoadedViewState extends State<_LoadedView> {
                         AgendaAppointmentConfirmRequested(
                             appointmentId: _selectedEntry!.id),
                       ),
+                  onCheckin: () => context.read<AgendaBloc>().add(
+                        AgendaAppointmentCheckinRequested(
+                            appointmentId: _selectedEntry!.id),
+                      ),
                   onReschedule: (newStartsAt) => context.read<AgendaBloc>().add(
                         AgendaAppointmentRescheduleRequested(
                           appointmentId: _selectedEntry!.id,
@@ -1127,11 +1131,14 @@ StatusPillVariant _statusVariant(AgendaEntry entry) {
 /// porte l'identité, le statut et les actions (Confirmer / Marquer arrivé /
 /// Déplacer / Appeler) du RDV pointé dans la grille.
 ///
-/// « Marquer arrivé » et « Appeler » sont désactivés avec un TODO explicite :
-/// `AgendaEntry` n'expose ni téléphone patient, ni date de création, ni
-/// couverture, et `AgendaBloc` n'a pas d'event de check-in (seul
-/// `isCheckedIn` existe côté lecture) — cf. issue #5079, aucune valeur n'est
-/// inventée pour ces champs back manquants.
+/// « Marquer arrivé » est l'action primaire du volet (#6411) : branchée sur
+/// `POST /v1/cabinet/appointments/:id/checkin`, activée uniquement pour un
+/// RDV `confirmed` (même garde que le back, cf. `cabinet_checkin_appointment`
+/// dans `appointments_checkin.rs`).
+///
+/// « Appeler » reste désactivé avec un TODO explicite : `AgendaEntry`
+/// n'expose pas le téléphone patient — cf. issue #5079, aucune valeur n'est
+/// inventée pour ce champ back manquant.
 class _AgendaDetailPanel extends StatelessWidget {
   const _AgendaDetailPanel({
     required this.entry,
@@ -1139,6 +1146,7 @@ class _AgendaDetailPanel extends StatelessWidget {
     required this.actionInProgress,
     required this.onClose,
     required this.onConfirm,
+    required this.onCheckin,
     required this.onReschedule,
   });
 
@@ -1147,6 +1155,7 @@ class _AgendaDetailPanel extends StatelessWidget {
   final bool actionInProgress;
   final VoidCallback onClose;
   final VoidCallback onConfirm;
+  final VoidCallback onCheckin;
   final void Function(DateTime newStartsAt) onReschedule;
 
   static const _weekdays = [
@@ -1326,20 +1335,18 @@ class _AgendaDetailPanel extends StatelessWidget {
               ),
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Tooltip(
-                message: 'Check-in non branché : aucun event/use case '
-                    'AgendaBloc pour marquer un RDV arrivé (TODO back, '
-                    'issue #5079).',
-                child: SizedBox(
-                  width: double.infinity,
-                  child: NubiaButton(
-                    key: Key('checkin_${entry.id}'),
-                    label: 'Marquer arrivé',
-                    icon: Icons.how_to_reg,
-                    // Désactivé : donnée back manquante, cf. commentaire de
-                    // classe — ne pas simuler le check-in côté front.
-                    onPressed: null,
-                  ),
+              child: SizedBox(
+                width: double.infinity,
+                child: NubiaButton(
+                  key: Key('checkin_${entry.id}'),
+                  label: 'Marquer arrivé',
+                  icon: Icons.how_to_reg,
+                  // Action nº1 du comptoir (#6411) : n'a de sens que sur un
+                  // RDV confirmé — même garde que `cabinet_checkin_appointment`
+                  // côté back (409 invalid_status sinon).
+                  onPressed: (actionInProgress || !entry.isConfirmed)
+                      ? null
+                      : onCheckin,
                 ),
               ),
             ),

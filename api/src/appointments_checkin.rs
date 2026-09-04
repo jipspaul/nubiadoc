@@ -223,6 +223,175 @@ pub async fn checkin_appointment(
     }))
 }
 
+// ── Cabinet check-in ─────────────────────────────────────────────────────────
+
+/// `POST /v1/cabinet/appointments/:id/checkin` — secrétariat marque un patient
+/// arrivé au comptoir (#6411) : jusqu'ici seul `checkin_appointment` ci-dessus
+/// existait, réservé au patient (`kind:"patient"`) — aucun chemin n'ouvrait le
+/// check-in à un rôle cabinet, malgré le bouton « Marquer arrivé » du volet
+/// agenda (design-v2).
+///
+/// Token pro requis (secretary+). `cabinet_id` extrait du JWT — jamais du body.
+/// RLS scopé via `app.current_cabinet_id` : 404 si le RDV n'appartient pas au
+/// cabinet. R10 : secrétaire scopée au secrétariat actif — même garde que
+/// `confirm_appointment`/`no_show_appointment`.
+/// Statut source attendu : `confirmed` → sinon `409 invalid_status` (pas de
+/// fenêtre horaire ±60 min ici, contrairement au check-in patient : le
+/// secrétariat constate une présence physique, pas une déclaration à distance).
+/// Auditée (`checkin_appointment`) dans `audit_log`, avec le rôle réel de
+/// l'acteur (secretary/practitioner/admin).
+pub async fn cabinet_checkin_appointment(
+    State(state): State<AppState>,
+    Extension(hub): Extension<std::sync::Arc<crate::realtime::WsHub>>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
+    claims: crate::auth::ProSecretaryPlusClaims,
+    Path(appt_id): Path<Uuid>,
+) -> Result<Json<CheckinResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let secretariat_scope = if claims.role == "secretary" {
+        Some(claims.secretariat_id.ok_or(AppError::NotFound)?)
+    } else {
+        None
+    };
+
+    let row = sqlx::query(
+        "SELECT id, status, practitioner_id FROM appointment a \
+         WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
+           AND ($3::uuid IS NULL OR EXISTS ( \
+               SELECT 1 FROM provider pr \
+               JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+               WHERE pr.practitioner_id = a.practitioner_id \
+                 AND ps.secretariat_id = $3 \
+                 AND ps.active = true \
+           ))",
+    )
+    .bind(appt_id)
+    .bind(claims.cabinet_id)
+    .bind(secretariat_scope)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+
+    if status != "confirmed" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    let updated = sqlx::query(
+        "UPDATE appointment \
+         SET status = 'checked_in', checkin_at = now(), checkin_method = 'manual', updated_at = now() \
+         WHERE id = $1 \
+         RETURNING checkin_at",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let checkin_at: chrono::DateTime<chrono::Utc> = updated
+        .try_get("checkin_at")
+        .map_err(|_| AppError::Internal)?;
+
+    // Insérer l'événement check-in (UNIQUE sur appointment_id → 409 si double check-in concurrent).
+    let ce_result = sqlx::query(
+        "INSERT INTO checkin_event (cabinet_id, appointment_id, mode) VALUES ($1, $2, 'manual')",
+    )
+    .bind(claims.cabinet_id)
+    .bind(id)
+    .execute(&mut *tx)
+    .await;
+    match ce_result {
+        Ok(_) => {}
+        Err(e) if is_unique_violation(&e) => return Err(AppError::InvalidStatus),
+        Err(_) => return Err(AppError::Internal),
+    }
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, $3, 'checkin_appointment', 'appointment', $4)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind(&claims.role)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Notifie le praticien de l'arrivée de son patient (même besoin que le
+    // check-in patient ci-dessus — cf. #6260) : sans ça, il ne l'apprend
+    // qu'en regardant la salle d'attente.
+    let pract_row =
+        sqlx::query("SELECT user_id FROM practitioner WHERE id = $1 AND cabinet_id = $2")
+            .bind(practitioner_id)
+            .bind(claims.cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    let mut push_target: Option<(Uuid, Uuid)> = None;
+    if let Some(pract_row) = pract_row {
+        let practitioner_user_id: Uuid = pract_row
+            .try_get("user_id")
+            .map_err(|_| AppError::Internal)?;
+        if let Some(notification_id) = notify::notify_user(
+            &mut tx,
+            practitioner_user_id,
+            "patient_checked_in",
+            "Un patient est arrivé",
+            serde_json::json!({ "appointment_id": id }),
+        )
+        .await?
+        {
+            push_target = Some((practitioner_user_id, notification_id));
+        }
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+
+    // Temps réel : le patient apparaît dans la salle d'attente du cabinet — #3238.
+    hub.publish(
+        claims.cabinet_id,
+        serde_json::json!({
+            "channel": "waiting_room",
+            "event": "checked_in",
+            "data": { "appointment_id": id, "checkin_at": checkin_at.to_rfc3339() }
+        })
+        .to_string(),
+    );
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        appointment_id = %id,
+        "appointment checked in by cabinet staff"
+    );
+
+    Ok(Json(CheckinResponse {
+        appointment_id: id,
+        status: "checked_in".to_string(),
+        checkin_at: checkin_at.to_rfc3339(),
+    }))
+}
+
 // ── Callback request ────────────────────────────────────────────────────────
 
 /// Réponse de `POST /v1/appointments/:id/callback-request`.

@@ -73,6 +73,14 @@ class CabinetAppointmentsApi {
     return CabinetAppointmentDto.fromConfirmResponse(response.data!);
   }
 
+  Future<CabinetAppointmentDto> checkin(String id) async {
+    final response = await _dio
+        .post<Map<String, dynamic>>('/cabinet/appointments/$id/checkin');
+    // La réponse 200 ne contient que { appointment_id, status, checkin_at } —
+    // pas le RDV complet. Même factory que /confirm (même shape minimale).
+    return CabinetAppointmentDto.fromConfirmResponse(response.data!);
+  }
+
   Future<CabinetAppointmentDto> reschedule(
       String id, DateTime newStartsAt) async {
     final response = await _dio.patch<Map<String, dynamic>>(

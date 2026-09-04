@@ -50,6 +50,7 @@ void registerPro(GetIt gi) {
         getAgenda: gi<GetCabinetAgendaUseCase>(),
         createAppointment: gi<CreateCabinetAppointmentUseCase>(),
         confirmAppointment: gi<ConfirmAppointmentUseCase>(),
+        checkinAppointment: gi<CabinetCheckinAppointmentUseCase>(),
         rescheduleAppointment: gi<RescheduleAppointmentUseCase>(),
         listSlots: gi<ListBookableSlotsUseCase>(),
         listPractitioners: gi<ListCabinetPractitionersUseCase>(),

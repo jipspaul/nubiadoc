@@ -6,7 +6,8 @@ use axum::{
 };
 
 use crate::{
-    appointment_motifs, appointment_series, provider_unavailability, scheduling, AppState,
+    appointment_motifs, appointment_series, appointments_checkin, provider_unavailability,
+    scheduling, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -27,6 +28,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/appointments/:id/confirm",
             post(scheduling::confirm_appointment),
+        )
+        .route(
+            "/v1/cabinet/appointments/:id/checkin",
+            post(appointments_checkin::cabinet_checkin_appointment),
         )
         .route(
             "/v1/cabinet/appointments/:id/start",
