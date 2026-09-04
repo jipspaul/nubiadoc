@@ -497,10 +497,10 @@ class _LoadedViewState extends State<_LoadedView> {
                 ),
         ),
         const _AgendaConfidentialityNotice(),
-        if (practitioners.isNotEmpty || filteredEntries.any((e) => e.isFree))
+        if (practitioners.isNotEmpty || _filteredFreeSlots.isNotEmpty)
           _AgendaFootLegend(
             practitioners: practitioners,
-            showFreeSlotHint: filteredEntries.any((e) => e.isFree),
+            showFreeSlotHint: _filteredFreeSlots.isNotEmpty,
           ),
       ],
     );
