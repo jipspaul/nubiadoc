@@ -818,6 +818,73 @@ void main() {
 
       await GetIt.instance.reset();
     });
+
+    testWidgets(
+        '#6395 : un RDV « à confirmer » et une pastille de créneau libre '
+        "d'un autre praticien à la même heure sont répartis en couloirs "
+        'et restent visibles tous les deux', (tester) async {
+      final day = _thisWeekMonday().add(const Duration(days: 1));
+      DateTime at(int hour, int minute) =>
+          DateTime(day.year, day.month, day.day, hour, minute);
+
+      final pendingEntry = AgendaEntry(
+        id: 'g-pending',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: at(10, 0),
+        endsAt: at(10, 30),
+        patientName: 'Marc Dubois',
+        isFree: false,
+        status: 'requested',
+      );
+      final crossPractitionerFreeSlot = Slot(
+        id: 'slot-free-cross',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-2',
+        startsAt: at(10, 0),
+        endsAt: at(10, 30),
+        isAvailable: true,
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([pendingEntry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => Right([crossPractitionerFreeSlot]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      final entryBlock = find.byKey(const Key('entry_g-pending'));
+      final freeSlotPill =
+          find.byKey(const Key('agenda_free_slot_slot-free-cross'));
+      expect(entryBlock, findsOneWidget);
+      expect(freeSlotPill, findsOneWidget);
+
+      // Même créneau horaire (10:00-10:30) pour deux praticiens différents :
+      // les deux blocs doivent occuper des rects distincts (couloirs) plutôt
+      // que le même rect avec la pastille peinte par-dessus le RDV.
+      expect(tester.getRect(entryBlock).overlaps(tester.getRect(freeSlotPill)),
+          isFalse);
+
+      await GetIt.instance.reset();
+    });
   });
 
   // -------------------------------------------------------------------------
