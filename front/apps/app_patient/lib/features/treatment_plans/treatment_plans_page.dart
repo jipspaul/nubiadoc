@@ -28,7 +28,7 @@ class PatientTreatmentPlansBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mes plans de traitement')),
+      appBar: AppBar(title: const Text('Mes plans de soins')),
       body: BlocBuilder<PatientTreatmentPlansBloc, PatientTreatmentPlansState>(
         builder: (context, state) {
           switch (state) {
