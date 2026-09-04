@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -144,6 +146,60 @@ void main() {
     expect(
       find.byKey(const Key('pharmacy_withdrawal_cancel_button')),
       findsNothing,
+    );
+  });
+
+  // #6488 — un échec du toggle (hors ligne, etc.) ne doit jamais fermer la
+  // feuille comme si le retrait avait réussi : la feuille reste ouverte et
+  // le SnackBar `toggleError` de la page (#5215) informe l'utilisateur.
+  testWidgets(
+      'retrait du partage pharmacie : échec réseau -> la feuille reste '
+      "ouverte et le message d'erreur s'affiche", (tester) async {
+    final cubit = MockConsentsCubit();
+    final controller = StreamController<ConsentsState>();
+    addTearDown(controller.close);
+
+    when(() => cubit.pendingPharmacyOrderRef()).thenAnswer((_) async => null);
+    whenListen(
+      cubit,
+      controller.stream,
+      initialState: const ConsentsLoaded(consents),
+    );
+    when(() => cubit.load()).thenAnswer((_) async {});
+    when(() => cubit.toggle(any(), any())).thenAnswer((_) async {
+      controller.add(
+        const ConsentsLoaded(
+          consents,
+          toggleError: 'Erreur réseau. Vérifiez votre connexion.',
+        ),
+      );
+    });
+
+    GetIt.instance.registerFactory<ConsentsCubit>(() => cubit);
+    addTearDown(() => GetIt.instance.reset());
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NubiaTheme.light,
+        home: const Scaffold(body: ConsentsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('consent_partage_pharmacie')));
+    await tester.pumpAndSettle();
+    await tester
+        .tap(find.byKey(const Key('pharmacy_withdrawal_confirm_button')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('pharmacy_withdrawal_sheet')),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Erreur réseau. Vérifiez votre connexion.'),
+      findsOneWidget,
     );
   });
 }

@@ -937,8 +937,19 @@ class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
 
   Future<void> _confirm() async {
     setState(() => _submitting = true);
-    await context.read<ConsentsCubit>().toggle(_kPharmacySharingPurpose, false);
-    if (mounted) Navigator.of(context).pop();
+    final cubit = context.read<ConsentsCubit>();
+    await cubit.toggle(_kPharmacySharingPurpose, false);
+    if (!mounted) return;
+    final state = cubit.state;
+    // Échec (hors ligne, etc.) : le SnackBar `toggleError` de la page
+    // s'affiche déjà via son propre listener (#5215) — ici on ne fait que
+    // garder la feuille ouverte et redonner la main, plutôt que la fermer
+    // comme si le retrait avait réussi (#6488).
+    if (state is ConsentsLoaded && state.toggleError != null) {
+      setState(() => _submitting = false);
+      return;
+    }
+    Navigator.of(context).pop();
   }
 
   @override
