@@ -1768,7 +1768,7 @@ class _AgendaWeekGrid extends StatelessWidget {
       entries.where((e) => _isSameDay(e.startsAt, day)).length;
 
   List<AgendaEntry> _entriesFor(DateTime day) => entries
-      .where((e) => !e.isFree && _isSameDay(e.startsAt, day))
+      .where((e) => !e.isFree && !e.isCancelled && _isSameDay(e.startsAt, day))
       .toList(growable: false);
 
   List<Slot> _slotsFor(DateTime day) =>

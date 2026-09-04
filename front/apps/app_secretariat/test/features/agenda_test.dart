@@ -885,6 +885,68 @@ void main() {
 
       await GetIt.instance.reset();
     });
+
+    testWidgets(
+        '#6393 : un RDV annulé au même créneau qu\'un RDV confirmé ne '
+        "s'affiche pas dans la grille et ne masque plus le RDV confirmé",
+        (tester) async {
+      final day = _thisWeekMonday().add(const Duration(days: 1));
+      DateTime at(int hour, int minute) =>
+          DateTime(day.year, day.month, day.day, hour, minute);
+
+      final confirmedEntry = AgendaEntry(
+        id: 'g-confirmed',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: at(15, 0),
+        endsAt: at(15, 30),
+        patientName: 'QA sweep waiting-room',
+        isFree: false,
+        status: 'confirmed',
+      );
+      final cancelledEntry = AgendaEntry(
+        id: 'g-cancelled',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: at(15, 0),
+        endsAt: at(15, 30),
+        patientName: 'QA self',
+        isFree: false,
+        status: 'cancelled',
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([confirmedEntry, cancelledEntry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('entry_g-confirmed')), findsOneWidget);
+      expect(find.byKey(const Key('entry_g-cancelled')), findsNothing);
+      expect(find.text('QA sweep waiting-room'), findsOneWidget);
+
+      await GetIt.instance.reset();
+    });
   });
 
   // -------------------------------------------------------------------------
