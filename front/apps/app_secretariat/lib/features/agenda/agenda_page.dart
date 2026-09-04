@@ -1757,8 +1757,12 @@ class _AgendaWeekGrid extends StatelessWidget {
           DateTime(weekStart.year, weekStart.month, weekStart.day + i),
       ];
 
-  bool _isSameDay(DateTime a, DateTime day) =>
-      a.year == day.year && a.month == day.month && a.day == day.day;
+  bool _isSameDay(DateTime a, DateTime day) {
+    final local = a.toLocal();
+    return local.year == day.year &&
+        local.month == day.month &&
+        local.day == day.day;
+  }
 
   int _countFor(DateTime day) =>
       entries.where((e) => _isSameDay(e.startsAt, day)).length;
