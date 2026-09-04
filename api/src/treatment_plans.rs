@@ -498,13 +498,12 @@ pub async fn get_treatment_plan(
             let title: String = row.try_get("title").map_err(|_| AppError::Internal)?;
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let items = items_by_phase.remove(&phase_id).unwrap_or_default();
-            let (pending_quote_id, pending_quote_sent_at) =
-                match pending_quote_by_phase.remove(&phase_id) {
-                    Some((quote_id, sent_at)) => {
-                        (Some(quote_id), sent_at.map(|dt| dt.to_rfc3339()))
-                    }
-                    None => (None, None),
-                };
+            let (pending_quote_id, pending_quote_sent_at) = match pending_quote_by_phase
+                .remove(&phase_id)
+            {
+                Some((quote_id, sent_at)) => (Some(quote_id), sent_at.map(|dt| dt.to_rfc3339())),
+                None => (None, None),
+            };
             Ok(TreatmentPlanPhase {
                 id: phase_id,
                 position,
