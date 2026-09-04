@@ -673,7 +673,17 @@ pub async fn list_account_orders(
     );
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    // GUC patient : lecture pharmacy_order/prescription_item (policies 0108, 0109).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    // GUC compte : traversée tutelle via account_guardianship (policy 0025,
+    // requise par prescription_line_patient_read étendue en 0243) — sans ce
+    // GUC, le sous-select line_count de ORDER_COLUMNS voit 0 ligne pour les
+    // commandes d'un dépendant (RLS filtre silencieusement, #6412).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
