@@ -73,6 +73,34 @@ const _kConsentDescriptions = <String, String>{
 /// immédiates, comme avant.
 const _kPharmacySharingPurpose = 'partage_pharmacie';
 
+/// Base légale des finalités librement révocables (à l'opposé de
+/// [_kLockedConsentPurposes], dont la base légale est le contrat de soin),
+/// affichée par la feuille de détail d'un consentement (#6478).
+const _kConsentBasedLegalBasis = 'Consentement (article 6.1.a du RGPD) — '
+    'vous pouvez le retirer à tout moment.';
+
+/// Statut daté d'un consentement (maquette design-v2, #5210 : le RGPD
+/// impose de pouvoir prouver la date du consentement, pas seulement son état
+/// actuel). Partagé entre [_ConsentMetaRow] et [_ConsentDetailsSheet] (#6478)
+/// pour que les deux affichages restent cohérents.
+({String label, IconData icon}) _consentStatus(Consent consent) {
+  if (consent.granted) {
+    return (
+      label: consent.grantedAt != null
+          ? 'Accordé le ${NubiaDate.dayLong(consent.grantedAt)}'
+          : 'Accordé',
+      icon: Icons.check_circle,
+    );
+  }
+  if (consent.revokedAt != null) {
+    return (
+      label: 'Refusé le ${NubiaDate.dayLong(consent.revokedAt)}',
+      icon: Icons.cancel,
+    );
+  }
+  return (label: 'Jamais accordé', icon: Icons.cancel);
+}
+
 /// Regroupement des finalités librement révocables en sections « Partages »,
 /// « Technologies », « Communications » (maquette design-v2,
 /// `patient-consentements.png`, #5204). La section « Nécessaire au service »
@@ -499,7 +527,7 @@ class _LockedConsentCard extends StatelessWidget {
               ),
             ),
           ),
-          _ConsentMetaRow(consent: consent),
+          _ConsentMetaRow(consent: consent, legalBasis: legalBasisLabel),
         ],
       ),
     );
@@ -668,7 +696,13 @@ class _ConsentCard extends StatelessWidget {
           ),
           if (consent.purpose == _kPharmacySharingPurpose)
             _PharmacyRecipientChip(pharmacyName: pharmacyName),
-          _ConsentMetaRow(consent: consent),
+          _ConsentMetaRow(
+            consent: consent,
+            legalBasis: _kConsentBasedLegalBasis,
+            recipientName: consent.purpose == _kPharmacySharingPurpose
+                ? pharmacyName
+                : null,
+          ),
         ],
       ),
     );
@@ -679,9 +713,21 @@ class _ConsentCard extends StatelessWidget {
 /// `patient-consentements.png`, #5210) : le RGPD impose de pouvoir prouver
 /// la date du consentement, pas seulement son état actuel (accordé/refusé).
 class _ConsentMetaRow extends StatelessWidget {
-  const _ConsentMetaRow({required this.consent});
+  const _ConsentMetaRow({
+    required this.consent,
+    required this.legalBasis,
+    this.recipientName,
+  });
 
   final Consent consent;
+
+  /// Base légale affichée par la feuille de détail (#6478) — contrat de
+  /// soin pour les finalités verrouillées, consentement pour les autres.
+  final String legalBasis;
+
+  /// Destinataire connu de cette finalité (ex. pharmacie déclarée pour
+  /// `partage_pharmacie`), affiché par la feuille de détail si présent.
+  final String? recipientName;
 
   @override
   Widget build(BuildContext context) {
@@ -689,21 +735,7 @@ class _ConsentMetaRow extends StatelessWidget {
     final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
           color: tokens.textTertiary,
         );
-
-    final String statusLabel;
-    final IconData statusIcon;
-    if (consent.granted) {
-      statusLabel = consent.grantedAt != null
-          ? 'Accordé le ${NubiaDate.dayLong(consent.grantedAt)}'
-          : 'Accordé';
-      statusIcon = Icons.check_circle;
-    } else if (consent.revokedAt != null) {
-      statusLabel = 'Refusé le ${NubiaDate.dayLong(consent.revokedAt)}';
-      statusIcon = Icons.cancel;
-    } else {
-      statusLabel = 'Jamais accordé';
-      statusIcon = Icons.cancel;
-    }
+    final status = _consentStatus(consent);
 
     return Container(
       key: Key('consent_meta_${consent.purpose}'),
@@ -713,20 +745,23 @@ class _ConsentMetaRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(statusIcon, size: 16, color: tokens.textTertiary),
+          Icon(status.icon, size: 16, color: tokens.textTertiary),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              statusLabel,
+              status.label,
               style: textStyle,
               overflow: TextOverflow.ellipsis,
             ),
           ),
           GestureDetector(
             key: Key('consent_details_${consent.purpose}'),
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Détails du consentement bientôt disponibles.'),
+            onTap: () => NubiaBottomSheet.show<void>(
+              context: context,
+              child: _ConsentDetailsSheet(
+                consent: consent,
+                legalBasis: legalBasis,
+                recipientName: recipientName,
               ),
             ),
             child: Text(
@@ -737,6 +772,105 @@ class _ConsentMetaRow extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Feuille de détail d'un consentement (issue #6478) : le lien « Détails »
+/// de chaque carte était un stub snackbar « bientôt disponible », sans
+/// contenu. N'affiche que des données réellement connues du front — la
+/// durée de conservation et l'historique des changements ne sont exposés
+/// par aucune API patient aujourd'hui (seul `GET /v1/cabinet/audit-log`,
+/// côté pro, existe — voir [_RightsSection]) : renvoyés vers le contact DPO
+/// plutôt qu'inventés.
+class _ConsentDetailsSheet extends StatelessWidget {
+  const _ConsentDetailsSheet({
+    required this.consent,
+    required this.legalBasis,
+    this.recipientName,
+  });
+
+  final Consent consent;
+  final String legalBasis;
+  final String? recipientName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    final status = _consentStatus(consent);
+    final label = _kConsentLabels[consent.purpose] ?? _kUnknownConsentLabel;
+    final description =
+        _kConsentDescriptions[consent.purpose] ?? _kUnknownConsentLabel;
+
+    return SingleChildScrollView(
+      key: Key('consent_details_sheet_${consent.purpose}'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: theme.textTheme.titleMedium),
+          const SizedBox(height: 16),
+          _ConsentDetailRow(label: 'Finalité', value: description),
+          _ConsentDetailRow(label: 'Base légale', value: legalBasis),
+          _ConsentDetailRow(label: 'Statut', value: status.label),
+          if (recipientName case final recipient?)
+            _ConsentDetailRow(label: 'Destinataire', value: recipient),
+          const SizedBox(height: 8),
+          Text.rich(
+            TextSpan(
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: tokens.textTertiary),
+              children: [
+                const TextSpan(
+                  text: 'Durée de conservation et historique détaillé des '
+                      'changements : sur demande auprès de notre délégué à '
+                      'la protection des données, ',
+                ),
+                TextSpan(
+                  text: _kDpoEmail,
+                  style:
+                      const TextStyle(decoration: TextDecoration.underline),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () => sendEmail(_kDpoEmail),
+                ),
+                const TextSpan(text: '.'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ligne libellé/valeur de [_ConsentDetailsSheet].
+class _ConsentDetailRow extends StatelessWidget {
+  const _ConsentDetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(value, style: theme.textTheme.bodyMedium),
         ],
       ),
     );
