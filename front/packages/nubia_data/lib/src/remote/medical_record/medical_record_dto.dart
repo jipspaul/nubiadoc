@@ -3,13 +3,18 @@ import 'package:nubia_domain/src/entities/medical_record_summary.dart';
 
 /// `allergies`/`treatments` sont des `jsonb` libres côté back
 /// (`Vec<serde_json::Value>`, `medical_record.rs`) — chaque entrée peut être
-/// une chaîne (`"Pénicilline"`) ou un objet (`{"name": "Pénicilline"}`).
-/// Convertit défensivement vers une chaîne d'affichage plutôt que d'imposer
-/// un schéma strict que le back ne garantit pas.
+/// une chaîne (`"Pénicilline"`), un objet `{"name": "Pénicilline"}` /
+/// `{"label": "Pénicilline"}`, un objet structuré
+/// `{"severity": "high", "substance": "Pénicilline"}`, ou un objet issu du
+/// questionnaire patient `{"source": "questionnaire_patient", "text": "…"}`
+/// (`api/src/medical_questionnaire.rs`). Convertit défensivement vers une
+/// chaîne d'affichage plutôt que d'imposer un schéma strict que le back ne
+/// garantit pas.
 String _entryToDisplayString(dynamic entry) {
   if (entry is String) return entry;
   if (entry is Map) {
-    final name = entry['name'] ?? entry['label'];
+    final name =
+        entry['name'] ?? entry['label'] ?? entry['substance'] ?? entry['text'];
     if (name is String && name.isNotEmpty) return name;
   }
   return entry.toString();
