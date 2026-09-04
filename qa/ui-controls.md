@@ -155,6 +155,17 @@ cette ronde. Les chiffres du tableau ci-dessous sont ceux d'APRÈS correction.
     affichant explicitement « : à venir », `cabinet_team_messages_page.dart:1008-1036`), pas des bugs.
     Non rapportés.
 
+13. **Une liste DÉFILANTE ne se juge jamais sur le seul arbre Semantics.** Flutter n'y expose que les
+    éléments **construits/visibles** ; l'inventaire tronque en plus chaque libellé à 90 caractères.
+    Sur un fil de messagerie de 32 messages, le message du jour n'apparaissait dans aucune de mes
+    lectures Semantics — j'en ai conclu « jamais rendu » et **filé un P1 (#6469) que j'ai dû refermer
+    moi-même comme faux positif** : après 40 crans de molette, tout est bien à l'écran (capture
+    `qa/screenshots/patient/rev-fil-pharma-bas.png`). Le contre-exemple qui aurait dû m'alerter plus
+    tôt : un fil **court** (4 messages) affichait bien son dernier message, ce qui rendait l'hypothèse
+    « troncature » incohérente.
+    **Règle** : sur toute liste défilante, exiger une **capture après défilement jusqu'en bas** avant
+    de conclure « non rendu » — et se méfier d'une conclusion qui ne tient que sur les fils longs.
+
 ### Ronde 2026-09-04 (12:00–14:00 UTC) — audit bouton par bouton, 5 apps
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
