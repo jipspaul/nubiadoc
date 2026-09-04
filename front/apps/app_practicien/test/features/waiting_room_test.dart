@@ -339,8 +339,9 @@ void main() {
     });
 
     testWidgets(
-        'affiche le panneau Praticiens présents et la note confidentialité '
-        'sur large écran (#5040)', (tester) async {
+        'n\'affiche pas de panneau Praticiens présents (aucune source de '
+        'données réelle) et affiche la note confidentialité sur large '
+        'écran (#6427)', (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -354,14 +355,10 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.byKey(const Key('presence_panel')), findsOneWidget);
-      expect(find.text('Praticiens présents'), findsOneWidget);
-      expect(find.text('Dr Amélie Rousseau'), findsOneWidget);
-      expect(find.text('Vous · en consultation'), findsOneWidget);
-      expect(find.text('Présente'), findsOneWidget);
-      expect(find.text('Dr Marc Lefèvre'), findsOneWidget);
-      expect(find.text('Fauteuil 2 · termine à 18h'), findsOneWidget);
-      expect(find.text('Départ 18h'), findsOneWidget);
+      expect(find.byKey(const Key('presence_panel')), findsNothing);
+      expect(find.text('Praticiens présents'), findsNothing);
+      expect(find.text('Dr Amélie Rousseau'), findsNothing);
+      expect(find.text('Dr Marc Lefèvre'), findsNothing);
 
       expect(
         find.byKey(const Key('waiting_room_confidentiality_note')),
