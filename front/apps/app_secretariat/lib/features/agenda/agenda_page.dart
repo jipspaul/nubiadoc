@@ -277,8 +277,9 @@ class _LoadedViewState extends State<_LoadedView> {
 
   /// Raccourcis clavier agenda (maquette design-v2, pied de grille, #5082) :
   /// ←/→ semaine préc./suiv., ↑/↓ sélection RDV, ⏎ confirme la sélection, T
-  /// revient à aujourd'hui, / focus la recherche patient. ⌘N est câblé via
-  /// [CallbackShortcuts] dans [build] ; ⌘K (palette de commandes) n'est PAS
+  /// revient à aujourd'hui, / focus la recherche patient. ⌘N/Ctrl+N est câblé
+  /// via [CallbackShortcuts] dans [build] (#6413) ; ⌘K (palette de commandes)
+  /// n'est PAS
   /// câblé ici : `ProShell`/`SecretariatShell` l'ouvre déjà globalement
   /// (recherche globale, #5389) et enveloppe cette page, donc le raccourci
   /// fonctionne déjà sur cet écran sans code dédié.
@@ -321,13 +322,18 @@ class _LoadedViewState extends State<_LoadedView> {
     final practitioners = _practitioners;
     final filteredEntries = _filteredEntries;
 
+    void newAppointmentShortcut() {
+      if (!widget.state.actionInProgress) {
+        _showNewAppointmentDialog(context, widget.state, practitioners);
+      }
+    }
+
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
-        const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () {
-          if (!widget.state.actionInProgress) {
-            _showNewAppointmentDialog(context, widget.state, practitioners);
-          }
-        },
+        const SingleActivator(LogicalKeyboardKey.keyN, meta: true):
+            newAppointmentShortcut,
+        const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+            newAppointmentShortcut,
       },
       child: Focus(
         focusNode: _listFocusNode,
