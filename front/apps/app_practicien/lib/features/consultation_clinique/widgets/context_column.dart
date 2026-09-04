@@ -1,6 +1,6 @@
 // Quoi : colonne « Contexte » gauche de l'écran consultation au fauteuil
 // (encarts « Alertes du dossier », « Dernières séances », « Plan en cours »
-// + squelette « à venir »).
+// + squelette « à venir » affiché uniquement en l'absence des trois, #6396).
 // Quand : rendue par `_LoadedView` (`consultation_clinique_page.dart`)
 // uniquement en layout 3 colonnes (largeur disponible ≥ kThreeColumnBreakpoint,
 // #4935).
@@ -26,8 +26,9 @@ import 'recent_sessions_box.dart';
 /// dossier porte des alertes médicales passives ([alerts] non vide), puis
 /// l'encart « Dernières séances » (#4937, #6386) quand [patientId] est connu,
 /// puis l'encart « Plan en cours » (#4938) quand le patient a un plan de
-/// traitement actif ([activePlan] non nul et [patientId] connu) ; le reste
-/// reste un squelette « à venir », ticket dédié.
+/// traitement actif ([activePlan] non nul et [patientId] connu) ; le
+/// squelette « à venir » (#6396) ne s'affiche que si aucun des trois encarts
+/// ci-dessus n'est rendu.
 class ContextColumn extends StatelessWidget {
   const ContextColumn({
     super.key,
@@ -86,19 +87,20 @@ class ContextColumn extends StatelessWidget {
             ActivePlanBox(patientId: patientId!, plan: activePlan!),
             const SizedBox(height: 12),
           ],
-          NubiaCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Contexte patient', style: textTheme.titleSmall),
-                const SizedBox(height: 8),
-                Text(
-                  'Historique et plan de traitement arrivent bientôt.',
-                  style: textTheme.bodySmall,
-                ),
-              ],
+          if (alerts.isEmpty && !showRecentSessions && !showActivePlan)
+            NubiaCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Contexte patient', style: textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Historique et plan de traitement arrivent bientôt.',
+                    style: textTheme.bodySmall,
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
