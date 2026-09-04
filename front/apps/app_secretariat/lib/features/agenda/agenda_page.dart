@@ -1620,7 +1620,78 @@ class _AgendaFootLegend extends StatelessWidget {
                 ),
               ],
             ),
+          const _AgendaKeyboardShortcuts(),
         ],
+      ),
+    );
+  }
+}
+
+/// Rappel des raccourcis clavier en pied de grille (maquette design-v2, `.kb`
+/// — #6417) : les raccourcis eux-mêmes existent déjà (`_handleKey`), seul
+/// leur affichage manquait, laissant un poste de secrétariat sans moyen de
+/// les découvrir.
+class _AgendaKeyboardShortcuts extends StatelessWidget {
+  const _AgendaKeyboardShortcuts();
+
+  static const _entries = [
+    ('← →', 'semaine'),
+    ('↑ ↓', 'RDV'),
+    ('⏎', 'confirmer'),
+    ('⌘K', 'commandes'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Wrap(
+      key: const Key('agenda_keyboard_shortcuts'),
+      spacing: 12,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final entry in _entries)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _KbdBadge(entry.$1),
+              const SizedBox(width: 4),
+              Text(
+                entry.$2,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+/// Pastille façon touche clavier (`.kbd` de la maquette).
+class _KbdBadge extends StatelessWidget {
+  const _KbdBadge(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: NubiaColors.n600,
+        ),
       ),
     );
   }
@@ -1774,6 +1845,13 @@ class _AgendaWeekGrid extends StatelessWidget {
   List<Slot> _slotsFor(DateTime day) =>
       freeSlots.where((s) => _isSameDay(s.startsAt, day)).toList(growable: false);
 
+  /// Jour courant (maquette design-v2, `.dh.now`/`.dcol.now` — #6417) :
+  /// comparé en date locale, indépendamment de l'heure.
+  bool _isToday(DateTime day) {
+    final now = DateTime.now();
+    return day.year == now.year && day.month == now.month && day.day == now.day;
+  }
+
   @override
   Widget build(BuildContext context) {
     final days = _days;
@@ -1789,6 +1867,7 @@ class _AgendaWeekGrid extends StatelessWidget {
                   key: Key('agenda_day_header_${_dayKey(day)}'),
                   day: day,
                   count: _countFor(day),
+                  isToday: _isToday(day),
                 ),
               ),
           ],
@@ -1809,6 +1888,7 @@ class _AgendaWeekGrid extends StatelessWidget {
                   selectedEntryId: selectedEntryId,
                   onEntryTap: onEntryTap,
                   onSlotTap: onSlotTap,
+                  isToday: _isToday(days[i]),
                 ),
               ),
           ],
@@ -1823,10 +1903,16 @@ class _AgendaWeekGrid extends StatelessWidget {
 /// réelle, corrigeant le défaut « une semaine sans une seule date »), puis
 /// compteur d'entrées du jour aligné à droite (`.c`).
 class _DayColumnHeader extends StatelessWidget {
-  const _DayColumnHeader({super.key, required this.day, required this.count});
+  const _DayColumnHeader({
+    super.key,
+    required this.day,
+    required this.count,
+    required this.isToday,
+  });
 
   final DateTime day;
   final int count;
+  final bool isToday;
 
   static const _weekdayAbbrevs = [
     'LUN',
@@ -1841,7 +1927,8 @@ class _DayColumnHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return Padding(
+    return Container(
+      color: isToday ? NubiaColors.brand50 : null,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
         children: [
@@ -1853,13 +1940,13 @@ class _DayColumnHeader extends StatelessWidget {
                     text: '${_weekdayAbbrevs[day.weekday - 1]} ',
                     style: textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: NubiaColors.n700,
+                      color: isToday ? NubiaColors.brand700 : NubiaColors.n700,
                     ),
                   ),
                   TextSpan(
                     text: '${day.day}',
                     style: textTheme.labelSmall?.copyWith(
-                      color: NubiaColors.n500,
+                      color: isToday ? NubiaColors.brand800 : NubiaColors.n500,
                     ),
                   ),
                 ],
@@ -1934,6 +2021,7 @@ class _DayColumn extends StatelessWidget {
     required this.selectedEntryId,
     required this.onEntryTap,
     required this.onSlotTap,
+    required this.isToday,
   });
 
   final bool showRightBorder;
@@ -1943,6 +2031,7 @@ class _DayColumn extends StatelessWidget {
   final String? selectedEntryId;
   final void Function(String entryId) onEntryTap;
   final void Function(Slot slot) onSlotTap;
+  final bool isToday;
 
   @override
   Widget build(BuildContext context) {
@@ -2011,14 +2100,18 @@ class _DayColumn extends StatelessWidget {
         ),
     ];
 
+    final nowLineTop = isToday ? _currentTimeGridTop() : null;
+
     return Container(
       height: _agendaGridHeight,
       decoration: BoxDecoration(
+        color: isToday ? NubiaColors.brand50 : null,
         border: showRightBorder
             ? const Border(right: BorderSide(color: NubiaColors.n200))
             : null,
       ),
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
           const Positioned.fill(
             child: CustomPaint(
@@ -2027,10 +2120,62 @@ class _DayColumn extends StatelessWidget {
             ),
           ),
           ...blocks,
+          if (nowLineTop != null) _NowLine(top: nowLineTop),
         ],
       ),
     );
   }
+}
+
+/// Ligne d'heure courante (`.nowline` de la maquette) : uniquement dans la
+/// colonne du jour, positionnée par [_currentTimeGridTop] sur la même échelle
+/// que [_agendaBlockGeometry].
+class _NowLine extends StatelessWidget {
+  const _NowLine({required this.top});
+
+  final double top;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Positioned(
+      key: const Key('agenda_now_line'),
+      top: top - 0.75,
+      left: 0,
+      right: 0,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(height: 1.5, color: tokens.dangerFg),
+          Positioned(
+            left: -4,
+            top: -3.25,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: tokens.dangerFg,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Position verticale de l'heure courante sur l'échelle 08:00→19:00
+/// (`_agendaStartHour`/`_agendaEndHour`) — `null` hors de cette plage (ex.
+/// poste ouvert avant 8 h ou après 19 h), auquel cas aucune ligne n'est
+/// dessinée.
+double? _currentTimeGridTop() {
+  final now = DateTime.now();
+  const gridStartMin = _agendaStartHour * 60;
+  const gridEndMin = _agendaEndHour * 60;
+  final nowMin = now.hour * 60 + now.minute;
+  if (nowMin < gridStartMin || nowMin > gridEndMin) return null;
+  return (nowMin - gridStartMin) * _agendaPxPerMinute;
 }
 
 /// Rang du praticien dans le roster affiché (même ordre que
