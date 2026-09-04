@@ -167,6 +167,13 @@ class _DocumentsLoaded extends StatefulWidget {
 
 class _DocumentsLoadedState extends State<_DocumentsLoaded> {
   String _query = '';
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   /// Facettes calculées à partir des catégories réellement présentes dans
   /// [documents] — « Tous » reste toujours en tête avec le total ; les
@@ -252,6 +259,7 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: NubiaSearchBar(
                 key: const Key('documents_search'),
+                controller: _searchController,
                 hint: 'Rechercher un document…',
                 onChanged: (value) => setState(() => _query = value),
               ),
@@ -279,20 +287,7 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
             ),
             Expanded(
               child: docs.isEmpty && pending == null
-                  ? NubiaEmptyState(
-                      key: const Key('documents_empty'),
-                      icon: Icons.folder_open_outlined,
-                      title: 'Aucun document pour l\'instant',
-                      subtitle:
-                          'Vos ordonnances, cartes et comptes-rendus '
-                          'apparaîtront ici.',
-                      action: NubiaButton(
-                        label: 'Ajouter un document',
-                        icon: Icons.upload_file_outlined,
-                        variant: NubiaButtonVariant.secondary,
-                        onPressed: () => _pickAndUpload(context),
-                      ),
-                    )
+                  ? _buildEmptyState(context, state)
                   : RefreshIndicator(
                       key: const ValueKey('documents_refresh'),
                       onRefresh: () async {
@@ -344,6 +339,63 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
           ],
         ),
       ],
+    );
+  }
+
+  /// État vide : deux cas distincts.
+  ///
+  /// - Coffre jamais rempli ([DocumentsLoaded.documents] vide) : copie
+  ///   d'onboarding + CTA d'ajout.
+  /// - Recherche/filtre courant sans résultat (le coffre contient des
+  ///   documents mais [docs] est vide) : le message doit décrire *cet*
+  ///   état — pas prétendre que le coffre est vide — et proposer d'effacer
+  ///   la recherche/le filtre plutôt que d'ajouter un document (#6487).
+  Widget _buildEmptyState(BuildContext context, DocumentsLoaded state) {
+    if (state.documents.isEmpty) {
+      return NubiaEmptyState(
+        key: const Key('documents_empty'),
+        icon: Icons.folder_open_outlined,
+        title: 'Aucun document pour l\'instant',
+        subtitle:
+            'Vos ordonnances, cartes et comptes-rendus '
+            'apparaîtront ici.',
+        action: NubiaButton(
+          label: 'Ajouter un document',
+          icon: Icons.upload_file_outlined,
+          variant: NubiaButtonVariant.secondary,
+          onPressed: () => _pickAndUpload(context),
+        ),
+      );
+    }
+
+    final query = _query.trim();
+    final hasQuery = query.isNotEmpty;
+
+    return NubiaEmptyState(
+      key: const Key('documents_no_results'),
+      icon: Icons.search_off_outlined,
+      title: hasQuery
+          ? 'Aucun document ne correspond à « $query »'
+          : 'Aucun document dans cette catégorie',
+      subtitle: hasQuery
+          ? 'Essayez un autre mot-clé.'
+          : 'Essayez une autre catégorie.',
+      action: NubiaButton(
+        label: hasQuery ? 'Effacer la recherche' : 'Réinitialiser les filtres',
+        icon: Icons.close,
+        variant: NubiaButtonVariant.secondary,
+        onPressed: () {
+          if (hasQuery) {
+            _searchController.clear();
+            setState(() => _query = '');
+          }
+          if (state.activeFilter != null) {
+            context.read<DocumentsBloc>().add(
+              const DocumentsFilterChanged(null),
+            );
+          }
+        },
+      ),
     );
   }
 
