@@ -1,10 +1,17 @@
 //! Tests d'intégration : `GET /v1/cabinet/patients` (liste paginée) expose
-//! `balance_due_cents` et `no_show_count` par ligne (#5112).
+//! `balance_due_cents` et `no_show_count` par ligne (#5112), ainsi que
+//! `contact` (#6463).
 //!
 //! Avant #5112, ces champs n'étaient présents que sur `GET
 //! /cabinet/patients/:id` (#4044/#4090) — le client devait faire un fetch
 //! détail par ligne pour les afficher (N+1 réseau). Ce test couvre le
 //! critère d'acceptation : la liste seule suffit.
+//!
+//! Avant #6463, `contact` (colonne JSONB `email`/`tel`/`adresse`) n'était
+//! projeté que par `GET /cabinet/patients/:id` (`patient_detail.rs`) — la
+//! colonne « Contact » de l'écran secrétariat, alimentée par la liste,
+//! affichait « — » pour tous les patients même quand un téléphone existait
+//! en base.
 //!
 //! Token `role: "admin"` : bypass volontaire des gardes de scope
 //! secrétariat — même choix que `cabinet_patient_balance.rs` (#4044) /
@@ -316,6 +323,46 @@ async fn list_row_balance_reflects_full_payment() {
 
     assert_eq!(row["balance_due_cents"], 0, "row: {row}");
     assert_eq!(row["no_show_count"], 0, "row: {row}");
+
+    cleanup(&seed_db, &f).await;
+}
+
+/// Patient avec un téléphone en base (`contact.tel`) → la ligne liste porte
+/// `contact`, pas seulement le détail (#6463).
+#[tokio::test]
+async fn list_row_exposes_contact() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let f = insert_fixture(&seed_db, &Uuid::new_v4().to_string()).await;
+
+    let mut tx = seed_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE patient SET contact = $1 WHERE id = $2")
+        .bind(json!({"tel": "0612345678", "email": "marc.liste@example.test"}))
+        .bind(f.patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_admin_token(Uuid::new_v4(), f.cabinet_id);
+    let body = list_patients(app(state), &token).await;
+    let row = find_row(&body, f.patient_id);
+
+    assert_eq!(row["contact"]["tel"], "0612345678", "row: {row}");
+    assert_eq!(row["contact"]["email"], "marc.liste@example.test", "row: {row}");
 
     cleanup(&seed_db, &f).await;
 }

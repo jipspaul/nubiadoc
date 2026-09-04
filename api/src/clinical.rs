@@ -42,6 +42,11 @@ pub struct PatientItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub birth_date: Option<String>,
     pub created_at: String,
+    /// Coordonnées (email, tel, adresse) — colonne JSONB `contact`, même
+    /// forme que `PatientAdminSection.contact` (`patient_detail.rs`) (#6463 :
+    /// absente de la liste jusqu'ici, colonne « Contact » toujours à « — »
+    /// côté secrétariat alors que le détail sert bien le téléphone).
+    pub contact: Value,
     /// Solde restant dû, en centimes (#4044/#4045) — même formule que
     /// `PatientAdminSection.balance_due_cents` (`patient_detail.rs`), agrégée
     /// ici par sous-requête corrélée pour tenir sur la même requête SQL que
@@ -188,7 +193,7 @@ pub async fn list_cabinet_patients(
     // liste expose ces colonnes sans le N+1 réseau que corrige #5112 (un
     // fetch détail par ligne côté client).
     let sql = format!(
-        "SELECT p.id, p.first_name, p.last_name, p.birth_date, p.created_at, \
+        "SELECT p.id, p.first_name, p.last_name, p.birth_date, p.created_at, p.contact, \
                 (( \
                    COALESCE((SELECT SUM(total_amount) FROM quote \
                              WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
@@ -299,6 +304,7 @@ pub async fn list_cabinet_patients(
             row.try_get("birth_date").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let contact: Value = row.try_get("contact").map_err(|_| AppError::Internal)?;
         let balance_due_cents: i64 = row
             .try_get("balance_due_cents")
             .map_err(|_| AppError::Internal)?;
@@ -321,6 +327,7 @@ pub async fn list_cabinet_patients(
             last_name,
             birth_date: birth_date.map(|d| d.to_string()),
             created_at: created_at.to_rfc3339(),
+            contact,
             balance_due_cents,
             no_show_count,
             has_active_alerts,
