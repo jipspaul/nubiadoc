@@ -72,12 +72,14 @@ class _MesRdvBody extends StatelessWidget {
 /// Squelette de chargement : reprend le rythme des cartes réelles
 /// (même padding de liste, silhouette rail + titre/sous-titre + action).
 class _MesRdvLoadingSkeleton extends StatelessWidget {
-  const _MesRdvLoadingSkeleton();
+  const _MesRdvLoadingSkeleton({this.listKey = const Key('mes_rdv_loading')});
+
+  final Key listKey;
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      key: const Key('mes_rdv_loading'),
+      key: listKey,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: 3,
       itemBuilder: (_, __) => const Padding(
@@ -196,7 +198,16 @@ class _LoadedViewState extends State<_LoadedView> {
               SegmentedControl(
                 key: const Key('mes_rdv_segments'),
                 segments: const ['À venir', 'Historique'],
-                counts: [upcoming.length, history.length],
+                // #6448 : `history` reste `const []` tant que l'onglet n'a
+                // pas été ouvert (chargement paresseux, cf. mes_rdv_bloc.dart)
+                // — afficher `history.length` à ce stade affirmait un faux
+                // « 0 » à un patient qui a un historique. On masque le
+                // compteur (pastille absente) tant que `historyLoaded` est
+                // faux plutôt que de mentir sur la donnée.
+                counts: [
+                  upcoming.length,
+                  widget.state.historyLoaded ? history.length : null,
+                ],
                 selectedIndex: _selectedIndex,
                 onChanged: (i) {
                   setState(() => _selectedIndex = i);
@@ -230,16 +241,35 @@ class _LoadedViewState extends State<_LoadedView> {
                 emptyLabel: 'Aucun rendez-vous à venir',
                 isUpcoming: true,
               ),
-              _AppointmentList(
-                key: const Key('history_list'),
-                appointments: history,
-                emptyLabel: 'Aucun historique',
-                isUpcoming: false,
-              ),
+              _buildHistoryTab(context, history),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  // #6448 : tant que l'historique se charge, la vue précédente affichait
+  // directement `_AppointmentList` avec `history` encore vide — indiscernable
+  // d'un « Aucun historique » réel. Un squelette (chargement) ou l'état
+  // d'erreur existant remplacent désormais cette liste vide trompeuse.
+  Widget _buildHistoryTab(BuildContext context, List<Appointment> history) {
+    if (widget.state.historyError != null && !widget.state.historyLoaded) {
+      return NubiaErrorWidget(
+        key: const Key('history_error'),
+        message: widget.state.historyError!,
+        onRetry: () =>
+            context.read<MesRdvBloc>().add(const MesRdvHistoryRequested()),
+      );
+    }
+    if (widget.state.historyLoading && !widget.state.historyLoaded) {
+      return const _MesRdvLoadingSkeleton(listKey: Key('history_loading'));
+    }
+    return _AppointmentList(
+      key: const Key('history_list'),
+      appointments: history,
+      emptyLabel: 'Aucun historique',
+      isUpcoming: false,
     );
   }
 }
