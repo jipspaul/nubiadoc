@@ -53,14 +53,22 @@ class NotificationRouteResolver {
   /// Traduit un `deep_link` API en route app. `/appointments/<id>` n'a pas de
   /// route dédiée côté patient (`/appointments` sert au booking, sans `:id`) ;
   /// on réutilise la convention `mesRdv?id=` déjà en place pour les push FCM.
-  /// Les autres deep_links (ex. `/pharmacy/orders/<id>`) correspondent déjà à
-  /// une route existante.
+  /// `/messages/<id>` (émis par `derive_deep_link` côté API pour
+  /// `message_received`, #6482) ne correspond à aucune route déclarée : la
+  /// conversation vit sous `/messaging/:id` (`app_router.dart`) ; on
+  /// retraduit donc le préfixe. Les autres deep_links (ex.
+  /// `/pharmacy/orders/<id>`) correspondent déjà à une route existante.
   static String _resolveFromDeepLink(String deepLink) {
     final appointmentMatch = RegExp(
       r'^/appointments/(.+)$',
     ).firstMatch(deepLink);
     if (appointmentMatch != null) {
       return '${AppRouter.mesRdv}?id=${appointmentMatch.group(1)}';
+    }
+    final messageMatch = RegExp(r'^/messages(?:/(.+))?$').firstMatch(deepLink);
+    if (messageMatch != null) {
+      final id = messageMatch.group(1);
+      return id != null ? '${AppRouter.messaging}/$id' : AppRouter.messaging;
     }
     return deepLink;
   }
