@@ -113,7 +113,7 @@ class _PatientsBodyState extends State<_PatientsBody> {
                         title: p.fullName,
                         subtitle: p.email ?? p.phone,
                         trailing: const Icon(Icons.chevron_right, size: 20),
-                        onTap: () => context.push('/patients/${p.id}'),
+                        onTap: () => context.go('/patients/${p.id}'),
                       );
                     },
                   ),
@@ -414,7 +414,7 @@ class _DetailViewState extends State<_DetailView> {
             variant: NubiaButtonVariant.secondary,
             icon: Icons.grid_view_outlined,
             label: 'Schéma dentaire',
-            onPressed: () => context.push('/patients/${p.id}/dental-chart'),
+            onPressed: () => context.go('/patients/${p.id}/dental-chart'),
           ),
           const SizedBox(height: 12),
           NubiaButton(
@@ -423,7 +423,7 @@ class _DetailViewState extends State<_DetailView> {
             icon: Icons.query_stats_outlined,
             label: 'Bilan parodontal',
             onPressed: () =>
-                context.push('/patients/${p.id}/periodontal-chart'),
+                context.go('/patients/${p.id}/periodontal-chart'),
           ),
           const SizedBox(height: 12),
           NubiaButton(
@@ -431,7 +431,7 @@ class _DetailViewState extends State<_DetailView> {
             variant: NubiaButtonVariant.secondary,
             icon: Icons.assignment_outlined,
             label: 'Plan de traitement',
-            onPressed: () => context.push('/patients/${p.id}/treatment-plans'),
+            onPressed: () => context.go('/patients/${p.id}/treatment-plans'),
           ),
           const SizedBox(height: 12),
           // #4541 : la fiche patient n'offrait aucun moyen d'atteindre une

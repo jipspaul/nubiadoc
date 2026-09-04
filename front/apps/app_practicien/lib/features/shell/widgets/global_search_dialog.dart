@@ -212,7 +212,7 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
 
   void _openResult(_GlobalSearchResult result) {
     Navigator.of(context).pop();
-    context.push('/patients/${result.id}');
+    context.go('/patients/${result.id}');
   }
 
   @override
