@@ -18,12 +18,16 @@ class SearchRepositoryImpl implements SearchRepository {
     required String query,
     bool? teleconsult,
     String? sector,
+    String? specialty,
+    String? available,
   }) async {
     try {
       final dtos = await _api.searchProviders(
         query: query,
         teleconsult: teleconsult,
         sector: sector,
+        specialty: specialty,
+        available: available,
       );
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {

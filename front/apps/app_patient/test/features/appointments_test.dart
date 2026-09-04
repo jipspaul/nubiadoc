@@ -153,6 +153,8 @@ void main() {
               query: any(named: 'query'),
               teleconsult: any(named: 'teleconsult'),
               sector: any(named: 'sector'),
+              specialty: any(named: 'specialty'),
+              available: any(named: 'available'),
             ))
           .thenAnswer((_) async => const Right([]));
 
@@ -182,6 +184,8 @@ void main() {
               query: any(named: 'query'),
               teleconsult: any(named: 'teleconsult'),
               sector: any(named: 'sector'),
+              specialty: any(named: 'specialty'),
+              available: any(named: 'available'),
             ))
           .thenAnswer((_) async => const Right([provider]));
 
@@ -373,6 +377,8 @@ void main() {
               query: any(named: 'query'),
               teleconsult: any(named: 'teleconsult'),
               sector: any(named: 'sector'),
+              specialty: any(named: 'specialty'),
+              available: any(named: 'available'),
             ))
             .thenAnswer((_) async => const Right([]));
         return _makeBloc(
@@ -397,6 +403,8 @@ void main() {
               query: any(named: 'query'),
               teleconsult: any(named: 'teleconsult'),
               sector: any(named: 'sector'),
+              specialty: any(named: 'specialty'),
+              available: any(named: 'available'),
             ))
             .thenAnswer((_) async => const Right([]));
         return _makeBloc(
@@ -415,6 +423,8 @@ void main() {
             query: '',
             teleconsult: null,
             sector: null,
+            specialty: null,
+            available: null,
           )).called(1),
     );
 
@@ -441,6 +451,8 @@ void main() {
               query: any(named: 'query'),
               teleconsult: any(named: 'teleconsult'),
               sector: any(named: 'sector'),
+              specialty: any(named: 'specialty'),
+              available: any(named: 'available'),
             ))
             .thenAnswer((_) async => const Right([provider]));
         when(() => mockSearchSlots(providerId: 'p1'))
@@ -590,6 +602,8 @@ void main() {
               query: any(named: 'query'),
               teleconsult: any(named: 'teleconsult'),
               sector: any(named: 'sector'),
+              specialty: any(named: 'specialty'),
+              available: any(named: 'available'),
             )).thenAnswer(
             (_) async => const Left(NetworkFailure('Erreur réseau.')));
         return _makeBloc(

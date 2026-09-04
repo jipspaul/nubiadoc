@@ -17,10 +17,23 @@ class AppointmentsSearchChanged extends AppointmentsEvent {
   // la spécialité d'un praticien).
   final bool? teleconsult;
   final String? sector;
-  const AppointmentsSearchChanged(this.query, {this.teleconsult, this.sector});
+  // #6449 : même raisonnement pour « Disponible »/« Généraliste » — [specialty]
+  // (uuid) et [available] (`today`/`this_week`/jour de semaine) sont les
+  // filtres structurés correspondants, aucun terme en langue naturelle ajouté
+  // à [query] ne peut les représenter fiablement (« disponible »/« généraliste »
+  // ne matchent ni le nom ni la spécialité d'un praticien).
+  final String? specialty;
+  final String? available;
+  const AppointmentsSearchChanged(
+    this.query, {
+    this.teleconsult,
+    this.sector,
+    this.specialty,
+    this.available,
+  });
 
   @override
-  List<Object?> get props => [query, teleconsult, sector];
+  List<Object?> get props => [query, teleconsult, sector, specialty, available];
 }
 
 class AppointmentsProviderSelected extends AppointmentsEvent {

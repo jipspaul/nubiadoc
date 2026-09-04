@@ -80,10 +80,18 @@ void main() {
         final completerAbc = Completer<Either<Failure, List<ProviderResult>>>();
 
         when(() => searchProviders(
-                query: 'ab', teleconsult: null, sector: null))
+                query: 'ab',
+                teleconsult: null,
+                sector: null,
+                specialty: null,
+                available: null))
             .thenAnswer((_) => completerAb.future);
         when(() => searchProviders(
-                query: 'abc', teleconsult: null, sector: null))
+                query: 'abc',
+                teleconsult: null,
+                sector: null,
+                specialty: null,
+                available: null))
             .thenAnswer((_) => completerAbc.future);
 
         final bloc = makeBloc();
