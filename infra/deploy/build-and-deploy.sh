@@ -14,8 +14,8 @@
 #   5. pousse binaire/image, migrations, seed, bundles web
 #   6. lance deploy.sh sur le LXC (run de la stack)
 #   7. applique (opt-in, cf. CADDY_HOST) le bloc Caddy reservation.doc.nubia-link.com
-#      sur l'hôte Caddy hors LXC ; sans CADDY_HOST, échec dur si le domaine est
-#      injoignable (#6188)
+#      sur l'hôte Caddy hors LXC ; échec dur si le domaine ne sert PAS de TLS
+#      après coup, que CADDY_HOST soit provisionné ou non (#6188, #6379)
 #   8. health-check TLS best-effort des domaines publics
 set -euo pipefail
 
@@ -153,23 +153,21 @@ say "7/8 application auto du bloc Caddy reservation.doc.nubia-link.com (hôte Ca
 CADDY_HOST="${CADDY_HOST:-}" CADDY_USER="${CADDY_USER:-}" CADDY_PASSWORD="${CADDY_PASSWORD:-}" \
   bash "$ROOT/infra/deploy/apply-reservation-caddy.sh"
 
-# #6188 (5e récidive #6116/#6139/#6160/#6162) : quand CADDY_HOST n'est pas
-# provisionné, l'étape ci-dessus est un no-op silencieux et le health-check
-# de l'étape suivante reste `|| true` (best-effort, pour ne pas bloquer un
-# déploiement sain sur un simple flap DNS/réseau du runner) — cette
-# combinaison est exactement ce qui a permis à reservation.doc.nubia-link.com
-# de rester en panne TLS >24h à répétition sans jamais faire échouer la CI,
-# noyé dans un warning. Dans ce cas précis (aucune remédiation auto possible
-# ET domaine réellement injoignable), on fait échouer le déploiement : le
-# collage manuel documenté dans Caddyfile.snippet est la SEULE voie de
-# résolution restante, et un badge rouge est le seul signal qui a une chance
-# d'être agi dessus (cf. postmortem #3493, déjà cité ci-dessus).
-if [ -z "$CADDY_HOST" ]; then
-  RESERVATION_CODE="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' https://reservation.doc.nubia-link.com/ 2>/dev/null || true)"
-  if [ -z "$RESERVATION_CODE" ] || [ "$RESERVATION_CODE" = "000" ]; then
-    echo "::error::reservation.doc.nubia-link.com injoignable en TLS et CADDY_HOST non provisionné (aucune remédiation auto possible) — collage manuel requis (cf. infra/deploy/Caddyfile.snippet). 5e récidive du même symptôme (#6116, #6139, #6160, #6162, #6188) : déploiement bloqué pour forcer l'action humaine."
-    exit 1
-  fi
+# #6379 (7e récidive #6116/#6139/#6160/#6162/#6188/#6317) : cette vérification
+# n'était gardée QUE par `if [ -z "$CADDY_HOST" ]` (#6188), donc elle ne se
+# déclenchait que quand le secret n'était PAS provisionné. Dès que CADDY_HOST
+# est configuré, apply-reservation-caddy.sh peut sortir 0 (un des `reload`
+# a réussi, cf. sa propre correction #6317) sans que le domaine serve
+# réellement du TLS (bloc appliqué sur un Caddy sans certificat valide,
+# vhost écrasé après coup, etc.) — plus AUCUN contrôle bloquant ne portait
+# alors sur reservation.doc.nubia-link.com. On teste donc maintenant le
+# RÉSULTAT OBSERVABLE (le domaine sert-il du TLS ?) dans TOUS les cas, que
+# CADDY_HOST soit vide ou non : un badge rouge est le seul signal qui a une
+# chance d'être agi dessus (cf. postmortem #3493, déjà cité ci-dessus).
+RESERVATION_CODE="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' https://reservation.doc.nubia-link.com/ 2>/dev/null || true)"
+if [ -z "$RESERVATION_CODE" ] || [ "$RESERVATION_CODE" = "000" ]; then
+  echo "::error::reservation.doc.nubia-link.com injoignable en TLS après application du bloc Caddy — collage/vérification manuel requis (cf. infra/deploy/Caddyfile.snippet). 7e récidive du même symptôme (#6116, #6139, #6160, #6162, #6188, #6317, #6379) : déploiement bloqué pour forcer l'action humaine."
+  exit 1
 fi
 
 say "8/8 health-check TLS des domaines publics (Caddy hôte, best-effort)"
