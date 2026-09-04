@@ -384,3 +384,58 @@ async fn implant_passport_export_with_foreign_implant_id_returns_404() {
         "un implant hors compte ne doit jamais être exportable, même via implant_id"
     );
 }
+
+// ── Test 8 : #6461 — le PDF est réellement uploadé (plus de clé fantôme) ─────
+
+#[tokio::test]
+async fn implant_passport_export_actually_uploads_pdf_object() {
+    if !db_available() {
+        return;
+    }
+    let owner = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/implant-passport/export")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+
+    // Régression #6461 : le handler ne faisait que signer une clé de stockage
+    // jamais uploadée (`storage_key` fantôme) — l'URL signée renvoyait 404 à
+    // tous les coups. La clé doit désormais référencer un objet réellement
+    // écrit dans `object_storage_blob` (même correctif que #4626).
+    let storage_key = format!("implant-passport/{account_id}.pdf");
+    let row = sqlx::query(
+        "SELECT content_type, length(bytes) AS len FROM object_storage_blob WHERE key = $1",
+    )
+    .bind(&storage_key)
+    .fetch_optional(&owner)
+    .await
+    .unwrap()
+    .expect("le PDF doit être réellement uploadé, pas juste une clé signée");
+
+    let content_type: String = sqlx::Row::try_get(&row, "content_type").unwrap();
+    let len: i32 = sqlx::Row::try_get(&row, "len").unwrap();
+
+    assert_eq!(content_type, "application/pdf");
+    assert!(len > 0, "le PDF uploadé ne doit pas être vide");
+}
