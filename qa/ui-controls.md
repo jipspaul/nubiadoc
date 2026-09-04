@@ -76,17 +76,23 @@ inventaire pris avant interaction.
 | patient | /home-care/new | 8 | 0 activés (2 jugés) | — | 0 | 0 (2 désactivés **légitimes** : « Obtenir un devis » et « Confirmer la demande » tant qu'aucun acte n'est coché) | 2026-09-04T09:07:00+00:00 |
 | patient | /notifications | 19 | 1 ciblé | 1 | 0 | 0 | 2026-09-04T09:07:00+00:00 |
 
-**Cumul de la ronde : 87 contrôles activés et jugés, 75 OK, 0 mort confirmé, 0 cassé confirmé.**
+| praticien | /patients (fiche ouverte) | 12 | 6 | 6 (la fiche s'ouvre) | 0 | 0 — les 403 sont la garde relation-de-soin, mal rendue (#6426) | 2026-09-04T07:56:00+00:00 |
+| praticien | /consultation (facettes, re-clic isolé) | 3 facettes | 3 | 2 + 1 déjà active | 0 | 0 | 2026-09-04T08:03:00+00:00 |
+| secretariat | /salle-attente (« Appeler » + échec réseau) | 4 | 2 ciblés | 2 | 0 | 0 | 2026-09-04T08:48:00+00:00 |
+
+**Cumul de la ronde : 98 contrôles activés et jugés, 85 OK, 0 mort confirmé, 0 cassé confirmé.**
 
 ### Deux faux positifs de plus, invalidés cette ronde (2026-09-04)
 
-6. **Jeton expiré en cours de lot** — *nouveau piège, le plus coûteux.* L'audit de `praticien /patients`
-   a sorti **10 contrôles « CASSÉ (403 GET /v1/cabinet/patients/<id>) »**. Re-test immédiat à l'API avec
-   un jeton frais : **42/42 → 200**, aucun refus. Les JWT de cette plateforme vivent ~25 min ; un lot
-   d'activation qui re-navigue entre chaque clic dépasse cette durée. Symptôme trompeur : l'écran suivant
-   (`/consultation`) est repassé à 0 cassé — l'app avait rafraîchi son jeton entre-temps.
-   **Règle** : re-logger (ou re-tester à l'API avec un jeton frais) avant de conclure « CASSÉ » sur une
-   série de 4xx, surtout des 401/403 groupés en fin de lot.
+6. **Un 4xx capté au niveau réseau n'est pas forcément « le » bouton qui casse.** L'audit de
+   `praticien /patients` a sorti 10 contrôles « CASSÉ (403 …/cabinet/patients/<id>) ». Deux hypothèses
+   ont été testées puis départagées : *(a)* jeton expiré — **écartée** (42/42 → 200 au curl sur la route
+   principale, et le re-login à mi-parcours n'a rien changé) ; *(b)* le clic ouvre bien la fiche, mais
+   **six sous-routes cliniques** (`medical-record`, `prescriptions`, `documents`, `dental-chart`,
+   `treatment-plans`, `notes`) renvoient un 403 **légitime** (garde relation de soin) — **confirmée**,
+   contre-épreuve à 200 sur un patient réellement suivi. Le vrai défaut n'est pas le bouton mais le
+   **rendu** de ce 403 (#6426). **Règle** : quand `bag.net` remonte des 4xx, identifier la ROUTE exacte
+   avant de qualifier le contrôle — un écran peut s'ouvrir correctement et n'échouer que sur ses panneaux.
 7. **SnackBar absent de l'arbre Semantics** — un test qui ne lit que `semText` conclut à un « échec
    silencieux » là où l'app affiche bien « Erreur réseau (hors ligne). ». Recouper par une **capture
    précoce** (< 4 s, durée de vie par défaut d'un SnackBar). Détail dans `explored-paths.md`,
