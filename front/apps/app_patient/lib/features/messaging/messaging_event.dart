@@ -21,6 +21,18 @@ final class MessagingThreadOpened extends MessagingEvent {
   List<Object?> get props => [conversation];
 }
 
+/// Ouverture d'un fil dont on ne connaît que l'identifiant (#6399) : route
+/// `:id` atteinte par URL directe (deep link / rechargement de page), sans
+/// le `Conversation` que le chemin liste -> clic fournit via `extra`.
+final class MessagingThreadRequested extends MessagingEvent {
+  final String conversationId;
+
+  const MessagingThreadRequested(this.conversationId);
+
+  @override
+  List<Object?> get props => [conversationId];
+}
+
 final class MessagingSendRequested extends MessagingEvent {
   final String conversationId;
   final String text;

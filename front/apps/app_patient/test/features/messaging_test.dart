@@ -313,6 +313,58 @@ void main() {
       ],
     );
 
+    // #6399 — URL directe / rechargement de page sur /messaging/:id : seul
+    // l'identifiant est connu (pas de `Conversation` via `extra`), le bloc
+    // doit la retrouver via l'API au lieu de planter sur un cast nul.
+    blocTest<MessagingBloc, MessagingState>(
+      'émet [ThreadLoading, ThreadLoaded] quand un thread est demandé '
+      'par son seul identifiant (deep link)',
+      build: () {
+        when(() => mockGetConversations())
+            .thenAnswer((_) async => Right([_conv]));
+        when(() => mockGetMessages(any()))
+            .thenAnswer((_) async => Right([_msg]));
+        when(() => mockMarkRead(any()))
+            .thenAnswer((_) async => const Right(null));
+        return _makeBloc(
+          getConversations: mockGetConversations,
+          getMessages: mockGetMessages,
+          sendMessage: mockSendMessage,
+          markRead: mockMarkRead,
+        );
+      },
+      act: (bloc) => bloc.add(const MessagingThreadRequested('conv-1')),
+      expect: () => [
+        isA<MessagingThreadLoading>()
+            .having((s) => s.conversationId, 'id', 'conv-1'),
+        isA<MessagingThreadLoaded>()
+            .having((s) => s.messages, 'messages', [_msg]).having(
+                (s) => s.conversation.cabinetName, 'cabinet', 'Cabinet Lyon'),
+      ],
+    );
+
+    blocTest<MessagingBloc, MessagingState>(
+      'émet [ThreadLoading, ThreadError] quand la conversation demandée '
+      'par identifiant est introuvable',
+      build: () {
+        when(() => mockGetConversations())
+            .thenAnswer((_) async => const Right([]));
+        return _makeBloc(
+          getConversations: mockGetConversations,
+          getMessages: mockGetMessages,
+          sendMessage: mockSendMessage,
+          markRead: mockMarkRead,
+        );
+      },
+      act: (bloc) => bloc.add(const MessagingThreadRequested('conv-inconnue')),
+      expect: () => [
+        isA<MessagingThreadLoading>()
+            .having((s) => s.conversationId, 'id', 'conv-inconnue'),
+        isA<MessagingThreadError>()
+            .having((s) => s.conversationId, 'id', 'conv-inconnue'),
+      ],
+    );
+
     // #5286 — le compteur non-lu doit se remettre à 0 localement dès la
     // lecture du fil, sans dépendre uniquement du rechargement serveur.
     blocTest<MessagingBloc, MessagingState>(
