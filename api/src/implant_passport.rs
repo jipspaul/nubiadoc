@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims, ProPractitionerClaims},
-    AppState, StorageSigner,
+    AppState, ObjectStorage, StorageSigner,
 };
 
 /// Un implant du passeport implantaire patient.
@@ -37,6 +37,28 @@ pub struct ImplantItem {
 #[derive(Serialize)]
 pub struct ImplantPassportResponse {
     pub data: Vec<ImplantItem>,
+}
+
+fn implant_item_from_row(row: &sqlx::postgres::PgRow) -> Result<ImplantItem, AppError> {
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let brand: String = row.try_get("brand").map_err(|_| AppError::Internal)?;
+    let lot_number: Option<String> = row.try_get("lot_number").map_err(|_| AppError::Internal)?;
+    let placement_date: Option<chrono::NaiveDate> = row
+        .try_get("placement_date")
+        .map_err(|_| AppError::Internal)?;
+    let tooth_position: Option<String> = row
+        .try_get("tooth_position")
+        .map_err(|_| AppError::Internal)?;
+    let notes: Option<String> = row.try_get("notes").map_err(|_| AppError::Internal)?;
+
+    Ok(ImplantItem {
+        id,
+        brand,
+        lot_number,
+        placement_date: placement_date.map(|d| d.to_string()),
+        tooth_position,
+        notes,
+    })
 }
 
 /// `GET /v1/implant-passport` — liste les implants dentaires du patient authentifié.
@@ -79,27 +101,8 @@ pub async fn list_implant_passport(
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let mut data: Vec<ImplantItem> = Vec::with_capacity(rows.len());
-    for row in rows {
-        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-        let brand: String = row.try_get("brand").map_err(|_| AppError::Internal)?;
-        let lot_number: Option<String> =
-            row.try_get("lot_number").map_err(|_| AppError::Internal)?;
-        let placement_date: Option<chrono::NaiveDate> = row
-            .try_get("placement_date")
-            .map_err(|_| AppError::Internal)?;
-        let tooth_position: Option<String> = row
-            .try_get("tooth_position")
-            .map_err(|_| AppError::Internal)?;
-        let notes: Option<String> = row.try_get("notes").map_err(|_| AppError::Internal)?;
-
-        data.push(ImplantItem {
-            id,
-            brand,
-            lot_number,
-            placement_date: placement_date.map(|d| d.to_string()),
-            tooth_position,
-            notes,
-        });
+    for row in &rows {
+        data.push(implant_item_from_row(row)?);
     }
 
     tracing::info!(
@@ -121,10 +124,14 @@ pub struct ExportImplantPassportQuery {
     pub implant_id: Option<Uuid>,
 }
 
-/// `GET /v1/implant-passport/export` — export PDF du passeport implantaire (version 🎭 mockée).
+/// `GET /v1/implant-passport/export` — export PDF du passeport implantaire.
 ///
-/// Token `kind:"patient"` requis. Retourne `302 Found` avec `Location` vers l'URL signée.
-/// Échec du signer → `502 upstream_unavailable`. Aucun implant présent → ne bloque pas l'export.
+/// Token `kind:"patient"` requis. Génère le PDF puis l'uploade dans l'Object
+/// Storage (#6461 — remplace le stub qui ne faisait que signer une clé jamais
+/// écrite, cf. #4626) avant de retourner `302 Found` avec `Location` vers
+/// l'URL signée. Échec du signer → `502 upstream_unavailable`. Aucun implant
+/// présent → ne bloque pas l'export (le PDF généré liste alors qu'aucun
+/// implant n'est enregistré).
 /// `?implant_id=` (#5334) scope l'export à un implant : l'implant doit
 /// appartenir au compte authentifié (RLS `implant_passport_patient_read`,
 /// migration 0077/0219) sinon `404`.
@@ -132,42 +139,68 @@ pub async fn export_implant_passport(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Extension(signer): Extension<Arc<dyn StorageSigner>>,
+    Extension(object_storage): Extension<Arc<dyn ObjectStorage>>,
     Query(query): Query<ExportImplantPassportQuery>,
 ) -> Result<Response, AppError> {
-    // Version mockée : clé de stockage dérivée du compte patient (+ implant
-    // ciblé le cas échéant, #5334).
-    let storage_key = if let Some(implant_id) = query.implant_id {
-        let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-        // Scope patient — RLS implant_passport_patient_read (migration 0077/0219).
-        sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
-            .bind(claims.account_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-        sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
-            .bind(claims.account_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+    // Scope patient — RLS implant_passport_patient_read (migration 0077/0219).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
-        let exists =
-            sqlx::query("SELECT 1 FROM implant_passport WHERE id = $1 AND deleted_at IS NULL")
-                .bind(implant_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
+    let (storage_key, items) = if let Some(implant_id) = query.implant_id {
+        let row = sqlx::query(
+            "SELECT id, brand, lot_number, placement_date, tooth_position, notes \
+             FROM implant_passport WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(implant_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
 
-        tx.commit().await.map_err(|_| AppError::Internal)?;
+        (
+            format!("implant-passport/{}/{}.pdf", claims.account_id, implant_id),
+            vec![implant_item_from_row(&row)?],
+        )
+    } else {
+        let rows = sqlx::query(
+            "SELECT id, brand, lot_number, placement_date, tooth_position, notes \
+             FROM implant_passport \
+             WHERE deleted_at IS NULL \
+             ORDER BY placement_date DESC NULLS LAST, id DESC",
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
-        if exists.is_none() {
-            return Err(AppError::NotFound);
+        let mut items: Vec<ImplantItem> = Vec::with_capacity(rows.len());
+        for row in &rows {
+            items.push(implant_item_from_row(row)?);
         }
 
-        format!("implant-passport/{}/{}.pdf", claims.account_id, implant_id)
-    } else {
-        format!("implant-passport/{}.pdf", claims.account_id)
+        (format!("implant-passport/{}.pdf", claims.account_id), items)
     };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Génère le PDF (contenu réel) puis l'uploade dans l'Object Storage via
+    // le client injecté (Postgres en prod, in-memory en test) — `storage_key`
+    // référence désormais un objet effectivement écrit, plus une clé fantôme
+    // (#6461, même correctif que `sign_prescription`/#4626).
+    let pdf_bytes = render_implant_passport_pdf(claims.account_id, &items);
+    object_storage
+        .upload(&storage_key, "application/pdf", pdf_bytes)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     // `signer.sign() == None` : le lien n'a jamais été généré (signer non
     // configuré), pas "expiré" — 502 upstream_unavailable, pas 410 link_expired
@@ -188,6 +221,82 @@ pub async fn export_implant_passport(
         .header(header::CACHE_CONTROL, "no-store")
         .body(Body::empty())
         .map_err(|_| AppError::Internal)
+}
+
+/// Génère le contenu binaire (PDF minimal valide) du passeport implantaire.
+///
+/// Même approche que `render_prescription_pdf` (`prescriptions.rs`) : pas de
+/// dépendance externe (crate PDF), structure `%PDF-1.4` minimale suffisante
+/// pour obtenir un document ouvrable par n'importe quel lecteur, avec un
+/// contenu réel et non nul.
+fn render_implant_passport_pdf(account_id: Uuid, items: &[ImplantItem]) -> Vec<u8> {
+    let escape = |s: &str| {
+        s.replace('\\', "\\\\")
+            .replace('(', "\\(")
+            .replace(')', "\\)")
+    };
+
+    let mut lines: Vec<String> = vec![
+        "Passeport implantaire".to_string(),
+        format!("Compte patient : {}", account_id),
+        String::new(),
+    ];
+    if items.is_empty() {
+        lines.push("Aucun implant enregistre.".to_string());
+    }
+    for item in items {
+        let mut line = item.brand.clone();
+        if let Some(tooth_position) = &item.tooth_position {
+            line.push_str(&format!(" ({})", tooth_position));
+        }
+        if let Some(placement_date) = &item.placement_date {
+            line.push_str(&format!(" - Pose le {}", placement_date));
+        }
+        if let Some(lot_number) = &item.lot_number {
+            line.push_str(&format!(" - Lot {}", lot_number));
+        }
+        lines.push(line);
+    }
+
+    let mut content = String::from("BT /F1 12 Tf 50 780 Td 14 TL\n");
+    for line in &lines {
+        content.push_str(&format!("({}) Tj T*\n", escape(line)));
+    }
+    content.push_str("ET");
+
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> \
+         /MediaBox [0 0 595 842] /Contents 4 0 R >>"
+            .to_string(),
+        format!(
+            "<< /Length {} >>\nstream\n{}\nendstream",
+            content.len(),
+            content
+        ),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+    ];
+
+    let mut pdf = String::from("%PDF-1.4\n");
+    let mut offsets = Vec::with_capacity(objects.len());
+    for (i, obj) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.push_str(&format!("{} 0 obj\n{}\nendobj\n", i + 1, obj));
+    }
+    let xref_offset = pdf.len();
+    pdf.push_str(&format!("xref\n0 {}\n", objects.len() + 1));
+    pdf.push_str("0000000000 65535 f \n");
+    for off in &offsets {
+        pdf.push_str(&format!("{:010} 00000 n \n", off));
+    }
+    pdf.push_str(&format!(
+        "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{}\n%%EOF",
+        objects.len() + 1,
+        xref_offset
+    ));
+
+    pdf.into_bytes()
 }
 
 // ── GET /v1/cabinet/patients/:id/implants ──────────────────────────────────
