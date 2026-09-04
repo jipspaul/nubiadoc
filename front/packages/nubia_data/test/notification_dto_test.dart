@@ -65,5 +65,62 @@ void main() {
 
       expect(dto.toDomain().kind, 'stock_request_received');
     });
+
+    // Régression #6376 : l'API n'émet jamais de `body` (toujours un stub
+    // chiffré côté backend, cf. `api/src/notify.rs` `notify_user`), mais
+    // fournit toujours `data` en clair. Sans dérivation côté client, 4
+    // notifications `visit_status_changed` distinctes (`data.status` :
+    // accepted/en_route/arrived/done) rendaient une ligne de détail
+    // identique (vide) — indistinguables dans l'inbox patient.
+    test('body absent + kind=visit_status_changed -> dérive du data.status, '
+        'distingue les 4 étapes', () {
+      final bodies = {
+        'accepted',
+        'en_route',
+        'arrived',
+        'done',
+      }.map((status) {
+        final dto = NotificationDto.fromJson({
+          'id': '1',
+          'kind': 'visit_status_changed',
+          'title': 'Votre visite a été mise à jour',
+          'data': {'visit_request_id': 'v1', 'status': status},
+          'is_read': false,
+          'created_at': '2026-01-01T00:00:00Z',
+        });
+        return dto.toDomain().body;
+      }).toSet();
+
+      // 4 statuts distincts -> 4 corps distincts, tous non vides.
+      expect(bodies, hasLength(4));
+      expect(bodies, everyElement(isNotEmpty));
+    });
+
+    test('body déjà fourni par l\'API -> jamais écrasé par la dérivation', () {
+      final dto = NotificationDto.fromJson({
+        'id': '1',
+        'kind': 'visit_status_changed',
+        'title': 'Titre',
+        'body': 'Corps réel',
+        'data': {'status': 'done'},
+        'is_read': false,
+        'created_at': '2026-01-01T00:00:00Z',
+      });
+
+      expect(dto.toDomain().body, 'Corps réel');
+    });
+
+    test('body absent + status inconnu -> corps générique non vide', () {
+      final dto = NotificationDto.fromJson({
+        'id': '1',
+        'kind': 'order_status_changed',
+        'title': 'Titre',
+        'data': {'order_id': 'o1', 'status': 'unknown_future_status'},
+        'is_read': false,
+        'created_at': '2026-01-01T00:00:00Z',
+      });
+
+      expect(dto.toDomain().body, isNotEmpty);
+    });
   });
 }
