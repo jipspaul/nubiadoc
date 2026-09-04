@@ -12,10 +12,14 @@ class SearchProvidersUseCase {
     required String query,
     bool? teleconsult,
     String? sector,
+    String? specialty,
+    String? available,
   }) =>
       _repository.searchProviders(
         query: query,
         teleconsult: teleconsult,
         sector: sector,
+        specialty: specialty,
+        available: available,
       );
 }

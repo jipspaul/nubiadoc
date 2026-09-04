@@ -90,6 +90,8 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
         query: query,
         teleconsult: event.teleconsult,
         sector: event.sector,
+        specialty: event.specialty,
+        available: event.available,
       );
       await result.fold(
         (failure) async => emit(AppointmentsError(failure.message)),

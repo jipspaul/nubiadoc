@@ -9,11 +9,14 @@ abstract class SearchRepository {
   /// #6431 : [teleconsult]/[sector] portent les filtres structurés de
   /// `SearchProvidersQuery` (api/src/marketplace.rs) — distincts de [query]
   /// (recherche plein texte sur nom/spécialité), qu'aucun terme en langue
-  /// naturelle ne peut fiabiliser.
+  /// naturelle ne peut fiabiliser. #6449 : [specialty] (uuid)/[available]
+  /// (`today`/`this_week`/jour de semaine), même raisonnement.
   Future<Either<Failure, List<ProviderResult>>> searchProviders({
     required String query,
     bool? teleconsult,
     String? sector,
+    String? specialty,
+    String? available,
   });
 
   /// Profil public d'un praticien par id (GET /v1/providers/:id, docs/12

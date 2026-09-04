@@ -412,26 +412,38 @@ List<ProviderResultDaySlots>? _buildDaySlots(
 /// de représentation en texte libre (aucun praticien ne s'appelle
 /// « téléconsultation » ni « secteur 1 ») — les envoyer via `q` vide
 /// systématiquement la liste ; ils doivent porter les paramètres
-/// `teleconsult`/`sector` correspondants.
+/// `teleconsult`/`sector` correspondants. #6449 : récidive identique sur
+/// « Disponible »/« Généraliste » — même correctif via `available`/`specialty`.
 class _QuickFilter {
   const _QuickFilter(this.key, this.label, this.icon,
-      {this.query, this.teleconsult, this.sector});
+      {this.query, this.teleconsult, this.sector, this.specialty,
+      this.available});
   final String key;
   final String label;
   final IconData icon;
   final String? query;
   final bool? teleconsult;
   final String? sector;
+  final String? specialty;
+  final String? available;
 }
+
+/// #6449 : uuid de la spécialité « Omnipratique » (`db/migrations/0039_
+/// marketplace_taxonomy_seed.sql`, identique dans `db/seed/seed.sql` et
+/// `db/seed/seed_paris_providers.sql`) — c'est la spécialité dentaire
+/// généraliste, seule interprétation possible de « Généraliste » dans un
+/// annuaire exclusivement dentaire (aucune spécialité littéralement nommée
+/// « généraliste » n'existe, cf. #6449).
+const _kGeneralisteSpecialtyId = 'd2000000-0000-0000-0000-000000000001';
 
 const _quickFilters = <_QuickFilter>[
   _QuickFilter('dispo', 'Disponible', Icons.event_available_outlined,
-      query: 'disponible'),
+      available: 'today'),
   _QuickFilter('teleconsult', 'Téléconsult', Icons.videocam_outlined,
       teleconsult: true),
   _QuickFilter('secteur1', 'Secteur 1', Icons.euro_outlined, sector: '1'),
   _QuickFilter('generaliste', 'Généraliste', Icons.medical_services_outlined,
-      query: 'généraliste'),
+      specialty: _kGeneralisteSpecialtyId),
   _QuickFilter('dentiste', 'Dentiste', Icons.masks_outlined,
       query: 'dentiste'),
 ];
@@ -493,9 +505,10 @@ class _SearchViewState extends State<_SearchView> {
   AppointmentsBloc get _bloc => context.read<AppointmentsBloc>();
 
   /// Recherche « propre » = texte libre + termes des chips actives à
-  /// représentation texte (#6431 : les chips à filtre structuré, ex.
-  /// « Téléconsult »/« Secteur 1 », n'y contribuent pas — voir
-  /// [_activeTeleconsult]/[_activeSector]).
+  /// représentation texte (#6431/#6449 : les chips à filtre structuré, ex.
+  /// « Téléconsult »/« Secteur 1 »/« Disponible »/« Généraliste », n'y
+  /// contribuent pas — voir
+  /// [_activeTeleconsult]/[_activeSector]/[_activeSpecialty]/[_activeAvailable]).
   String _composedQuery([String? overrideText]) {
     final parts = <String>[(overrideText ?? _controller.text).trim()];
     for (final f in _quickFilters) {
@@ -521,6 +534,26 @@ class _SearchViewState extends State<_SearchView> {
     return null;
   }
 
+  /// #6449 : filtre structuré `specialty` porté par une chip active.
+  String? get _activeSpecialty {
+    for (final f in _quickFilters) {
+      if (_activeFilters.contains(f.key) && f.specialty != null) {
+        return f.specialty;
+      }
+    }
+    return null;
+  }
+
+  /// #6449 : filtre structuré `available` porté par une chip active.
+  String? get _activeAvailable {
+    for (final f in _quickFilters) {
+      if (_activeFilters.contains(f.key) && f.available != null) {
+        return f.available;
+      }
+    }
+    return null;
+  }
+
   /// Frappe au clavier : recherche live débattue sur le texte + chips actifs.
   void _onChanged(String value) {
     _debounce?.cancel();
@@ -529,6 +562,8 @@ class _SearchViewState extends State<_SearchView> {
         _composedQuery(value),
         teleconsult: _activeTeleconsult,
         sector: _activeSector,
+        specialty: _activeSpecialty,
+        available: _activeAvailable,
       ));
     });
   }
@@ -546,6 +581,8 @@ class _SearchViewState extends State<_SearchView> {
         raw,
         teleconsult: _activeTeleconsult,
         sector: _activeSector,
+        specialty: _activeSpecialty,
+        available: _activeAvailable,
       ));
       return;
     }
@@ -563,6 +600,8 @@ class _SearchViewState extends State<_SearchView> {
           raw,
           teleconsult: _activeTeleconsult,
           sector: _activeSector,
+          specialty: _activeSpecialty,
+          available: _activeAvailable,
         ));
       },
       (parsed) {
@@ -578,6 +617,8 @@ class _SearchViewState extends State<_SearchView> {
           effective,
           teleconsult: _activeTeleconsult,
           sector: _activeSector,
+          specialty: _activeSpecialty,
+          available: _activeAvailable,
         ));
       },
     );
@@ -592,6 +633,8 @@ class _SearchViewState extends State<_SearchView> {
       _composedQuery(),
       teleconsult: _activeTeleconsult,
       sector: _activeSector,
+      specialty: _activeSpecialty,
+      available: _activeAvailable,
     ));
   }
 
