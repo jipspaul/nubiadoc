@@ -56,14 +56,15 @@ class NotificationDto {
         raw.startsWith('recall_')) {
       return NotificationType.appointment;
     }
-    if (raw == 'message' || raw.startsWith('review_request')) {
+    if (raw.startsWith('message') || raw.startsWith('review_request')) {
       return NotificationType.message;
     }
     if (raw.startsWith('document') || raw.startsWith('lab_work')) {
       return NotificationType.document;
     }
     if (raw.startsWith('payment') ||
-        raw == 'quote_relance' ||
+        raw.startsWith('quote') ||
+        raw == 'unpaid_invoice' ||
         raw.startsWith('pharmacy_quote')) {
       return NotificationType.payment;
     }
