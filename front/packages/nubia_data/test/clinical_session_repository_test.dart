@@ -161,4 +161,40 @@ void main() {
       );
     });
   });
+
+  group('addAct — 422 insufficient_stock (#6466)', () {
+    test('422 {code: insufficient_stock} → ServerFailure dédiée, pas le message générique',
+        () async {
+      when(() => api.addAct(
+            consultationId: any(named: 'consultationId'),
+            ccamCode: any(named: 'ccamCode'),
+            label: any(named: 'label'),
+            tooth: any(named: 'tooth'),
+            amountCents: any(named: 'amountCents'),
+            included: any(named: 'included'),
+          )).thenThrow(_dioError(422, data: {'code': 'insufficient_stock'}));
+
+      final result = await repo.addAct(
+        consultationId: 's1',
+        ccamCode: 'HBJD002',
+        label: "Obturation d'une dent, deux faces (composite)",
+        tooth: '11',
+        amountCents: 3325,
+      );
+
+      expect(result.isLeft(), isTrue);
+      result.fold(
+        (failure) {
+          expect(failure, isA<ServerFailure>());
+          expect(
+            failure.message,
+            "Stock insuffisant pour au moins un consommable requis par cet acte. Consultez l'inventaire.",
+          );
+          expect((failure as ServerFailure).statusCode, 422);
+          expect(failure.code, 'insufficient_stock');
+        },
+        (_) => fail('attendu Left'),
+      );
+    });
+  });
 }
