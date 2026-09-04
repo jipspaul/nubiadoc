@@ -11,10 +11,19 @@ import 'pickup_qr_card.dart';
 /// Enrobe [PickupQrCard] tel quel (clés `pickup_qr_image` /
 /// `pickup_code_text`, contenu du QR inchangé) — ne le réécrit pas.
 class PickupReadyHero extends StatelessWidget {
-  const PickupReadyHero({super.key, required this.order, required this.token});
+  const PickupReadyHero({
+    super.key,
+    required this.order,
+    required this.token,
+    required this.shortCode,
+  });
 
   final PharmacyOrder order;
   final String token;
+
+  /// Code court dictable au comptoir (#6419) — affiché sous le QR à la
+  /// place du token brut, non dictable.
+  final String shortCode;
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +67,7 @@ class PickupReadyHero extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 16),
-          PickupQrCard(token: token),
+          PickupQrCard(token: token, shortCode: shortCode),
           const SizedBox(height: 8),
           Text(
             'Ou dictez ce code au pharmacien',

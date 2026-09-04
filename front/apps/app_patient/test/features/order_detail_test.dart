@@ -59,6 +59,7 @@ void main() {
         PatientOrderDetailLoaded(
           makeReadyOrder(readyAt: DateTime(2026, 8, 16, 10, 4)),
           pickupToken: 'TOK123',
+          pickupShortCode: 'K7M4-T2QX',
         ),
       );
 
@@ -96,6 +97,7 @@ void main() {
             pickupDeadline: DateTime(2026, 8, 19, 10, 4),
           ),
           pickupToken: 'TOK123',
+          pickupShortCode: 'K7M4-T2QX',
         ),
       );
 

@@ -3,12 +3,14 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 /// QR de retrait : encode UNIQUEMENT le token opaque (zéro PII, zéro id
-/// métier). Le code en clair est affiché dessous — fallback lisible pour la
-/// saisie manuelle au comptoir.
+/// métier). Le code court est affiché dessous — fallback dictable/saisissable
+/// au comptoir (#6419) ; distinct du token pour ne pas affaiblir l'entropie
+/// du QR.
 class PickupQrCard extends StatelessWidget {
-  const PickupQrCard({super.key, required this.token});
+  const PickupQrCard({super.key, required this.token, required this.shortCode});
 
   final String token;
+  final String shortCode;
 
   @override
   Widget build(BuildContext context) {
@@ -32,9 +34,9 @@ class PickupQrCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Semantics(
-            label: 'Code de retrait $token',
+            label: 'Code de retrait $shortCode',
             child: SelectableText(
-              token,
+              shortCode,
               key: const Key('pickup_code_text'),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,

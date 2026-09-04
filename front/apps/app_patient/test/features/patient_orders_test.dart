@@ -122,8 +122,8 @@ void main() {
         when(() => events.watchOrder('o1')).thenAnswer(
           (_) => Stream.fromIterable([order(PharmacyOrderStatus.ready)]),
         );
-        when(() => repo.getPickupToken('o1'))
-            .thenAnswer((_) async => const Right('tok-qr'));
+        when(() => repo.getPickupToken('o1')).thenAnswer((_) async =>
+            const Right((token: 'tok-qr', shortCode: 'K7M4-T2QX')));
         return buildDetail();
       },
       act: (cubit) => cubit.load('o1'),
@@ -133,7 +133,9 @@ void main() {
         PatientOrderDetailLoaded(order(PharmacyOrderStatus.preparing),
             pharmacy: orderPharmacy),
         PatientOrderDetailLoaded(order(PharmacyOrderStatus.ready),
-            pickupToken: 'tok-qr', pharmacy: orderPharmacy),
+            pickupToken: 'tok-qr',
+            pickupShortCode: 'K7M4-T2QX',
+            pharmacy: orderPharmacy),
       ],
       verify: (_) => verify(() => repo.getPickupToken('o1')).called(1),
     );
@@ -430,7 +432,8 @@ void main() {
       final cubit = MockPatientOrderDetailCubit();
       when(() => cubit.state).thenReturn(PatientOrderDetailLoaded(
           order(PharmacyOrderStatus.ready),
-          pickupToken: 'tok-qr'));
+          pickupToken: 'tok-qr',
+          pickupShortCode: 'K7M4-T2QX'));
 
       await tester.pumpApp(
         BlocProvider<PatientOrderDetailCubit>.value(

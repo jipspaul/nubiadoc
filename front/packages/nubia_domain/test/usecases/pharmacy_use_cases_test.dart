@@ -107,13 +107,15 @@ void main() {
           .called(1);
     });
 
-    test('GetPickupTokenUseCase renvoie le token du QR', () async {
-      when(() => repo.getPickupToken('o1'))
-          .thenAnswer((_) async => const Right('tok-abc'));
+    test('GetPickupTokenUseCase renvoie le token du QR et le code court',
+        () async {
+      when(() => repo.getPickupToken('o1')).thenAnswer((_) async =>
+          const Right((token: 'tok-abc', shortCode: 'K7M4-T2QX')));
 
       final result = await GetPickupTokenUseCase(repo)('o1');
 
-      expect(result.getOrElse(() => ''), 'tok-abc');
+      expect(result.getOrElse(() => (token: '', shortCode: '')),
+          (token: 'tok-abc', shortCode: 'K7M4-T2QX'));
     });
 
     test('GetMyPharmacyUseCase supporte l\'absence de pharmacie déclarée',

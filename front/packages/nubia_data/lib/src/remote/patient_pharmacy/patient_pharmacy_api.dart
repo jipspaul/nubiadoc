@@ -63,11 +63,16 @@ class PatientPharmacyApi {
     return PharmacyOrderDto.fromJson(response.data!);
   }
 
-  /// GET /v1/account/orders/{id}/pickup-token — token opaque du QR (zéro PII).
-  Future<String> getPickupToken(String id) async {
+  /// GET /v1/account/orders/{id}/pickup-token — token opaque du QR (zéro PII)
+  /// + code court dictable au comptoir (#6419, colonnes séparées côté API).
+  Future<({String token, String shortCode})> getPickupToken(String id) async {
     final response = await _dio
         .get<Map<String, dynamic>>('/account/orders/$id/pickup-token');
-    return response.data!['token'] as String;
+    final data = response.data!;
+    return (
+      token: data['token'] as String,
+      shortCode: data['short_code'] as String,
+    );
   }
 
   /// GET /v1/account/prescriptions — ordonnances du compte.
