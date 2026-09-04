@@ -185,29 +185,36 @@ class _LoadedViewState extends State<_LoadedView> {
         if (widget.state.actionInProgress)
           const LinearProgressIndicator(key: Key('mes_rdv_action_progress')),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          // #6421 : la puce de tri, nettement plus large que les deux
+          // onglets, ellipsait leurs libellés quand elle partageait leur
+          // ligne à 390px — la maquette design-v2 la sort sur sa propre
+          // ligne, alignée à droite sous la barre d'onglets pleine largeur.
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: SegmentedControl(
-                  key: const Key('mes_rdv_segments'),
-                  segments: const ['À venir', 'Historique'],
-                  counts: [upcoming.length, history.length],
-                  selectedIndex: _selectedIndex,
-                  onChanged: (i) {
-                    setState(() => _selectedIndex = i);
-                    if (i == 1) {
-                      context
-                          .read<MesRdvBloc>()
-                          .add(const MesRdvHistoryRequested());
-                    }
-                  },
-                ),
+              SegmentedControl(
+                key: const Key('mes_rdv_segments'),
+                segments: const ['À venir', 'Historique'],
+                counts: [upcoming.length, history.length],
+                selectedIndex: _selectedIndex,
+                onChanged: (i) {
+                  setState(() => _selectedIndex = i);
+                  if (i == 1) {
+                    context
+                        .read<MesRdvBloc>()
+                        .add(const MesRdvHistoryRequested());
+                  }
+                },
               ),
-              _SortChip(
-                key: const Key('sort_button'),
-                label: _sortLabel,
-                onTap: _toggleSort,
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _SortChip(
+                  key: const Key('sort_button'),
+                  label: _sortLabel,
+                  onTap: _toggleSort,
+                ),
               ),
             ],
           ),
