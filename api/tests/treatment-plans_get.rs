@@ -301,6 +301,10 @@ async fn treatment_plan_get_owner_returns_200() {
     assert_eq!(phases[0]["title"], "Phase 1 · Bilan");
     assert_eq!(phases[0]["position"], 1);
     assert_eq!(phases[0]["status"], "requested");
+    assert!(
+        phases[0]["pending_quote_id"].is_null(),
+        "pas de devis en attente tant que le devis reste `draft`"
+    );
 
     let items = phases[0]["items"]
         .as_array()
@@ -323,6 +327,112 @@ async fn treatment_plan_get_owner_returns_200() {
     assert_eq!(v["amo_part_cents"], 1250);
     assert_eq!(v["amc_part_cents"], 800);
     assert_eq!(v["remaining_cents"], 1450);
+
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 1b : devis envoyé et non signé sur une phase → pending_quote_id/
+//    pending_quote_sent_at exposés (#6485 : jusqu'ici toujours `null`, quel
+//    que soit l'état réel du devis — le front avait déjà le bandeau + le CTA
+//    « Consulter et signer le devis » mais aucune donnée pour les afficher).
+
+#[tokio::test]
+async fn treatment_plan_get_includes_pending_quote_for_phase() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("tp-get-pending+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Pending', 'Quote')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("tp-get-pending-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id) =
+        insert_treatment_plan_fixture(&db, prac_user_id, account_id).await;
+
+    // Fait passer le devis de la fixture en `sent` (envoyé, non signé).
+    sqlx::query("UPDATE quote SET status = 'sent', sent_at = now() WHERE id = $1")
+        .bind(quote_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/treatment-plans/{}", plan_id))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let phases = v["phases"].as_array().expect("phases doit être un tableau");
+    assert_eq!(phases.len(), 1, "une phase attendue");
+    assert_eq!(
+        phases[0]["pending_quote_id"],
+        quote_id.to_string(),
+        "le devis `sent` couvrant la phase doit être exposé (#6485)"
+    );
+    assert!(
+        phases[0]["pending_quote_sent_at"].is_string(),
+        "pending_quote_sent_at doit être exposé quand le devis est `sent`"
+    );
 
     cleanup_fixture(
         &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,

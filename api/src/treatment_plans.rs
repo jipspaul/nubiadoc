@@ -312,6 +312,13 @@ pub struct TreatmentPlanPhase {
     pub title: String,
     pub status: String,
     pub items: Vec<TreatmentPlanDetailItem>,
+    /// Devis envoyé et non signé qui couvre cette phase, s'il y en a un —
+    /// alimente le bandeau + CTA « Consulter et signer le devis » côté
+    /// front (`_PendingQuoteBanner`, #6485 : le front les affichait déjà
+    /// depuis #5300 mais l'API ne renvoyait jamais ces champs, laissant le
+    /// patient sans aucun moyen d'accéder au devis qui bloque son étape).
+    pub pending_quote_id: Option<Uuid>,
+    pub pending_quote_sent_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -407,7 +414,41 @@ pub async fn get_treatment_plan(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Devis (`quote`) envoyés et non signés couvrant une phase de ce plan —
+    // un seul par phase (le plus ancien envoyé) même si plusieurs quote_item
+    // de la phase appartiennent à des devis distincts (#6485). Pas de fuite
+    // inter-patient : la jointure part de `treatment_phase` restreinte à
+    // `plan_id`, dont l'appartenance au patient courant est déjà garantie
+    // par la RLS `treatment_plan_patient_read` appliquée plus haut ;
+    // `quote`/`quote_item` sont eux lisibles via `tenant_isolation` (RLS
+    // générique `cabinet_id`, migration 0011) une fois `app.current_cabinet_id`
+    // posé ci-dessus.
+    let pending_quote_rows = sqlx::query(
+        "SELECT DISTINCT ON (qi.phase_id) qi.phase_id, q.id AS quote_id, q.sent_at \
+         FROM quote_item qi \
+         JOIN quote q ON q.id = qi.quote_id \
+         JOIN treatment_phase tp3 ON tp3.id = qi.phase_id \
+         WHERE tp3.plan_id = $1 AND q.status = 'sent' AND q.deleted_at IS NULL \
+         ORDER BY qi.phase_id, q.sent_at ASC NULLS LAST",
+    )
+    .bind(plan_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut pending_quote_by_phase: std::collections::HashMap<
+        Uuid,
+        (Uuid, Option<chrono::DateTime<chrono::Utc>>),
+    > = std::collections::HashMap::new();
+    for row in &pending_quote_rows {
+        let phase_id: Uuid = row.try_get("phase_id").map_err(|_| AppError::Internal)?;
+        let quote_id: Uuid = row.try_get("quote_id").map_err(|_| AppError::Internal)?;
+        let sent_at: Option<chrono::DateTime<chrono::Utc>> =
+            row.try_get("sent_at").map_err(|_| AppError::Internal)?;
+        pending_quote_by_phase.insert(phase_id, (quote_id, sent_at));
+    }
 
     // Group items by phase_id.
     let mut items_by_phase: std::collections::HashMap<Uuid, Vec<TreatmentPlanDetailItem>> =
@@ -457,12 +498,20 @@ pub async fn get_treatment_plan(
             let title: String = row.try_get("title").map_err(|_| AppError::Internal)?;
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let items = items_by_phase.remove(&phase_id).unwrap_or_default();
+            let (pending_quote_id, pending_quote_sent_at) = match pending_quote_by_phase
+                .remove(&phase_id)
+            {
+                Some((quote_id, sent_at)) => (Some(quote_id), sent_at.map(|dt| dt.to_rfc3339())),
+                None => (None, None),
+            };
             Ok(TreatmentPlanPhase {
                 id: phase_id,
                 position,
                 title,
                 status,
                 items,
+                pending_quote_id,
+                pending_quote_sent_at,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
