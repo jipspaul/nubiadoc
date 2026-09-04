@@ -272,4 +272,4 @@ cette ronde. Les chiffres du tableau ci-dessous sont ceux d'APRÈS correction.
 | pharmacie | / (File des commandes, 1280) | 33 | 19 | 18 | 0 | 0 | 2026-09-04T21:45:00+00:00 |
 | secretariat | /salle-attente (1280) | 20 | 18 | 17 | 0 | 0 | 2026-09-04T21:45:00+00:00 |
 | praticien | /waiting-room (1280) | 17 | 15 | 14 | 0 | 0 | 2026-09-04T21:45:00+00:00 |
-| infirmiere | / (390) | 6 | 2 | 1 | 0 | 0 | 2026-09-04T21:45:00+00:00 |
+| infirmiere | / (390) | 6 | 5 | 5 | 0 | 0 | 2026-09-04T21:45:00+00:00 |
