@@ -3698,6 +3698,14 @@ const CONSENT_PURPOSES: [&str; 5] = [
     "partage_pharmacie",
 ];
 
+/// Purposes non révocables une fois accordés — l'UI patient les affiche en
+/// section « Nécessaire au service » avec un interrupteur désactivé
+/// (`front/.../consents_page.dart`), mais ce verrou n'est qu'une commodité
+/// d'affichage : sans garde serveur, un `PUT {granted:false}` direct
+/// contournait ce verrou et révoquait un consentement présenté comme requis
+/// pour être soigné (#6465). `granted:true` reste accepté (idempotent).
+const NON_REVOCABLE_CONSENT_PURPOSES: [&str; 1] = ["soins"];
+
 /// `PUT /v1/account/consents/{purpose}` — donne ou révoque un consentement RGPD.
 ///
 /// Upsert idempotent : `granted_at` posé si accordé, `revoked_at` si révoqué.
@@ -3710,6 +3718,10 @@ pub async fn put_account_consent(
 ) -> Result<Json<ConsentUpdateResponse>, AppError> {
     if !CONSENT_PURPOSES.contains(&purpose.as_str()) {
         return Err(AppError::ValidationError);
+    }
+
+    if !body.granted && NON_REVOCABLE_CONSENT_PURPOSES.contains(&purpose.as_str()) {
+        return Err(AppError::InvalidStatus);
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
