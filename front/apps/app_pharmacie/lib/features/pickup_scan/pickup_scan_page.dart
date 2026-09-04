@@ -214,8 +214,8 @@ class _MismatchView extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Le code scanné est valide, mais il concerne un autre '
-                  'patient. Ne délivrez pas ce sachet.',
+                  'Le code scanné est valide, mais il concerne une autre '
+                  'commande. Ne délivrez pas ce sachet.',
                   style: theme.textTheme.bodyMedium
                       ?.copyWith(color: tokens.dangerFg),
                 ),
