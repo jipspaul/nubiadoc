@@ -145,7 +145,11 @@ void main() {
     testWidgets(
         'affiche "Aucun praticien trouvé." quand la recherche renvoie une liste vide',
         (tester) async {
-      when(() => mockSearchProviders(query: any(named: 'query')))
+      when(() => mockSearchProviders(
+              query: any(named: 'query'),
+              teleconsult: any(named: 'teleconsult'),
+              sector: any(named: 'sector'),
+            ))
           .thenAnswer((_) async => const Right([]));
 
       final bloc = _makeBloc(
@@ -170,7 +174,11 @@ void main() {
         displayName: 'Dr Dupont',
         specialty: 'Dentiste',
       );
-      when(() => mockSearchProviders(query: any(named: 'query')))
+      when(() => mockSearchProviders(
+              query: any(named: 'query'),
+              teleconsult: any(named: 'teleconsult'),
+              sector: any(named: 'sector'),
+            ))
           .thenAnswer((_) async => const Right([provider]));
 
       final bloc = _makeBloc(
@@ -295,7 +303,11 @@ void main() {
     blocTest<AppointmentsBloc, AppointmentsState>(
       'émet [SearchLoading, ProvidersLoaded(empty)] quand la recherche renvoie []',
       build: () {
-        when(() => mockSearchProviders(query: any(named: 'query')))
+        when(() => mockSearchProviders(
+              query: any(named: 'query'),
+              teleconsult: any(named: 'teleconsult'),
+              sector: any(named: 'sector'),
+            ))
             .thenAnswer((_) async => const Right([]));
         return _makeBloc(
           searchProviders: mockSearchProviders,
@@ -315,7 +327,11 @@ void main() {
     blocTest<AppointmentsBloc, AppointmentsState>(
       'query vide = annuaire par défaut (charge quand même des praticiens)',
       build: () {
-        when(() => mockSearchProviders(query: any(named: 'query')))
+        when(() => mockSearchProviders(
+              query: any(named: 'query'),
+              teleconsult: any(named: 'teleconsult'),
+              sector: any(named: 'sector'),
+            ))
             .thenAnswer((_) async => const Right([]));
         return _makeBloc(
           searchProviders: mockSearchProviders,
@@ -329,7 +345,11 @@ void main() {
         const AppointmentsSearchLoading(),
         isA<AppointmentsProvidersLoaded>(),
       ],
-      verify: (_) => verify(() => mockSearchProviders(query: '')).called(1),
+      verify: (_) => verify(() => mockSearchProviders(
+            query: '',
+            teleconsult: null,
+            sector: null,
+          )).called(1),
     );
 
     // #5357 — la carte résultat affiche 3 jours de créneaux réels par
@@ -351,7 +371,11 @@ void main() {
           endsAt: DateTime(2026, 7, 10, 9, 30),
           isAvailable: true,
         );
-        when(() => mockSearchProviders(query: any(named: 'query')))
+        when(() => mockSearchProviders(
+              query: any(named: 'query'),
+              teleconsult: any(named: 'teleconsult'),
+              sector: any(named: 'sector'),
+            ))
             .thenAnswer((_) async => const Right([provider]));
         when(() => mockSearchSlots(providerId: 'p1'))
             .thenAnswer((_) async => Right([slot]));
@@ -419,7 +443,11 @@ void main() {
     blocTest<AppointmentsBloc, AppointmentsState>(
       'émet [Error] quand la recherche échoue',
       build: () {
-        when(() => mockSearchProviders(query: any(named: 'query'))).thenAnswer(
+        when(() => mockSearchProviders(
+              query: any(named: 'query'),
+              teleconsult: any(named: 'teleconsult'),
+              sector: any(named: 'sector'),
+            )).thenAnswer(
             (_) async => const Left(NetworkFailure('Erreur réseau.')));
         return _makeBloc(
           searchProviders: mockSearchProviders,

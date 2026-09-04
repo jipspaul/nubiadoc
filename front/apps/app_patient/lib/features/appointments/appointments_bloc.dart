@@ -81,7 +81,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     // (l'API renvoie les praticiens listés). L'écran n'est jamais vide au départ.
     emit(const AppointmentsSearchLoading());
     try {
-      final result = await _searchProviders(query: query);
+      final result = await _searchProviders(
+        query: query,
+        teleconsult: event.teleconsult,
+        sector: event.sector,
+      );
       await result.fold(
         (failure) async => emit(AppointmentsError(failure.message)),
         (providers) async {

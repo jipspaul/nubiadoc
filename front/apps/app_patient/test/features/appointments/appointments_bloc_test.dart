@@ -74,9 +74,11 @@ void main() {
         // "abc" est rapide : résout en premier
         final completerAbc = Completer<Either<Failure, List<ProviderResult>>>();
 
-        when(() => searchProviders(query: 'ab'))
+        when(() => searchProviders(
+                query: 'ab', teleconsult: null, sector: null))
             .thenAnswer((_) => completerAb.future);
-        when(() => searchProviders(query: 'abc'))
+        when(() => searchProviders(
+                query: 'abc', teleconsult: null, sector: null))
             .thenAnswer((_) => completerAbc.future);
 
         final bloc = makeBloc();

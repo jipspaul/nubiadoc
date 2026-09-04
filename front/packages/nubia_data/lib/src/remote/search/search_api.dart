@@ -8,14 +8,22 @@ class SearchApi {
   SearchApi(ApiClient client) : _dio = client.dio;
 
   /// GET /v1/search/providers → { data: [ProviderItem], facets, page }.
-  /// `q` vide/absent = annuaire par défaut (praticiens listés).
+  /// `q` vide/absent = annuaire par défaut (praticiens listés). [teleconsult]/
+  /// [sector] sont les filtres structurés de `SearchProvidersQuery`
+  /// (api/src/marketplace.rs) — #6431.
   Future<List<ProviderResultDto>> searchProviders({
     required String query,
+    bool? teleconsult,
+    String? sector,
   }) async {
     final trimmed = query.trim();
     final response = await _dio.get<Map<String, dynamic>>(
       '/search/providers',
-      queryParameters: {if (trimmed.isNotEmpty) 'q': trimmed},
+      queryParameters: {
+        if (trimmed.isNotEmpty) 'q': trimmed,
+        if (teleconsult != null) 'teleconsult': teleconsult,
+        if (sector != null) 'sector': sector,
+      },
     );
     final data = (response.data?['data'] as List<dynamic>? ?? []);
     return data

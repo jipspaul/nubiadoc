@@ -386,24 +386,34 @@ List<ProviderResultDaySlots>? _buildDaySlots(
 //   • recherche langage naturel via POST /v1/search/parse (repli texte brut)
 // ---------------------------------------------------------------------------
 
-/// Filtre rapide (chip) : libellé, icône et terme injecté dans la recherche.
+/// Filtre rapide (chip) : soit un terme de recherche plein texte (nom ou
+/// spécialité), soit un filtre structuré de `SearchProvidersQuery`
+/// (api/src/marketplace.rs). #6431 : « Téléconsult »/« Secteur 1 » n'ont pas
+/// de représentation en texte libre (aucun praticien ne s'appelle
+/// « téléconsultation » ni « secteur 1 ») — les envoyer via `q` vide
+/// systématiquement la liste ; ils doivent porter les paramètres
+/// `teleconsult`/`sector` correspondants.
 class _QuickFilter {
-  const _QuickFilter(this.key, this.label, this.icon, this.query);
+  const _QuickFilter(this.key, this.label, this.icon,
+      {this.query, this.teleconsult, this.sector});
   final String key;
   final String label;
   final IconData icon;
-  final String query;
+  final String? query;
+  final bool? teleconsult;
+  final String? sector;
 }
 
 const _quickFilters = <_QuickFilter>[
-  _QuickFilter(
-      'dispo', 'Disponible', Icons.event_available_outlined, 'disponible'),
+  _QuickFilter('dispo', 'Disponible', Icons.event_available_outlined,
+      query: 'disponible'),
   _QuickFilter('teleconsult', 'Téléconsult', Icons.videocam_outlined,
-      'téléconsultation'),
-  _QuickFilter('secteur1', 'Secteur 1', Icons.euro_outlined, 'secteur 1'),
+      teleconsult: true),
+  _QuickFilter('secteur1', 'Secteur 1', Icons.euro_outlined, sector: '1'),
   _QuickFilter('generaliste', 'Généraliste', Icons.medical_services_outlined,
-      'médecin généraliste'),
-  _QuickFilter('dentiste', 'Dentiste', Icons.masks_outlined, 'dentiste'),
+      query: 'généraliste'),
+  _QuickFilter('dentiste', 'Dentiste', Icons.masks_outlined,
+      query: 'dentiste'),
 ];
 
 /// Centre par défaut de la carte quand aucun praticien géolocalisé (Paris).
@@ -462,20 +472,44 @@ class _SearchViewState extends State<_SearchView> {
 
   AppointmentsBloc get _bloc => context.read<AppointmentsBloc>();
 
-  /// Recherche « propre » = texte libre + termes des chips actifs.
+  /// Recherche « propre » = texte libre + termes des chips actives à
+  /// représentation texte (#6431 : les chips à filtre structuré, ex.
+  /// « Téléconsult »/« Secteur 1 », n'y contribuent pas — voir
+  /// [_activeTeleconsult]/[_activeSector]).
   String _composedQuery([String? overrideText]) {
     final parts = <String>[(overrideText ?? _controller.text).trim()];
     for (final f in _quickFilters) {
-      if (_activeFilters.contains(f.key)) parts.add(f.query);
+      if (_activeFilters.contains(f.key) && f.query != null) {
+        parts.add(f.query!);
+      }
     }
     return parts.where((p) => p.isNotEmpty).join(' ').trim();
+  }
+
+  /// #6431 : filtre structuré `teleconsult` porté par une chip active.
+  bool? get _activeTeleconsult => _quickFilters.any(
+        (f) => _activeFilters.contains(f.key) && f.teleconsult == true,
+      )
+          ? true
+          : null;
+
+  /// #6431 : filtre structuré `sector` porté par une chip active.
+  String? get _activeSector {
+    for (final f in _quickFilters) {
+      if (_activeFilters.contains(f.key) && f.sector != null) return f.sector;
+    }
+    return null;
   }
 
   /// Frappe au clavier : recherche live débattue sur le texte + chips actifs.
   void _onChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
-      _bloc.add(AppointmentsSearchChanged(_composedQuery(value)));
+      _bloc.add(AppointmentsSearchChanged(
+        _composedQuery(value),
+        teleconsult: _activeTeleconsult,
+        sector: _activeSector,
+      ));
     });
   }
 
@@ -488,7 +522,11 @@ class _SearchViewState extends State<_SearchView> {
     final gi = GetIt.instance;
     if (raw.isEmpty || !gi.isRegistered<ParseSearchUseCase>()) {
       setState(() => _interpretation = null);
-      _bloc.add(AppointmentsSearchChanged(raw));
+      _bloc.add(AppointmentsSearchChanged(
+        raw,
+        teleconsult: _activeTeleconsult,
+        sector: _activeSector,
+      ));
       return;
     }
     setState(() => _parsing = true);
@@ -501,7 +539,11 @@ class _SearchViewState extends State<_SearchView> {
           _parsing = false;
           _interpretation = null;
         });
-        _bloc.add(AppointmentsSearchChanged(raw));
+        _bloc.add(AppointmentsSearchChanged(
+          raw,
+          teleconsult: _activeTeleconsult,
+          sector: _activeSector,
+        ));
       },
       (parsed) {
         final effective =
@@ -512,7 +554,11 @@ class _SearchViewState extends State<_SearchView> {
               ? null
               : parsed.interpretation.trim();
         });
-        _bloc.add(AppointmentsSearchChanged(effective));
+        _bloc.add(AppointmentsSearchChanged(
+          effective,
+          teleconsult: _activeTeleconsult,
+          sector: _activeSector,
+        ));
       },
     );
   }
@@ -522,7 +568,11 @@ class _SearchViewState extends State<_SearchView> {
       if (!_activeFilters.remove(filter.key)) _activeFilters.add(filter.key);
     });
     _debounce?.cancel();
-    _bloc.add(AppointmentsSearchChanged(_composedQuery()));
+    _bloc.add(AppointmentsSearchChanged(
+      _composedQuery(),
+      teleconsult: _activeTeleconsult,
+      sector: _activeSector,
+    ));
   }
 
   /// Tap sur un pin ou une carte : recentre la carte et ouvre le détail.
