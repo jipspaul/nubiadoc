@@ -36,6 +36,7 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
         super(const MessagingInitial()) {
     on<MessagingConversationsLoadRequested>(_onConversationsLoad);
     on<MessagingThreadOpened>(_onThreadOpened);
+    on<MessagingThreadRequested>(_onThreadRequested);
     on<MessagingSendRequested>(_onSend);
     on<MessagingBackRequested>(_onBack);
   }
@@ -60,30 +61,65 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
   Future<void> _onThreadOpened(
     MessagingThreadOpened event,
     Emitter<MessagingState> emit,
+  ) =>
+      _loadThread(event.conversation, emit);
+
+  /// Deep link / rechargement de page (#6399) : seul l'identifiant est
+  /// connu (`pathParameters['id']`), il n'y a pas de [Conversation] fournie
+  /// en `extra` par une liste déjà chargée. On la retrouve via l'API avant
+  /// d'ouvrir le fil, pour éviter de déréférencer un objet absent.
+  Future<void> _onThreadRequested(
+    MessagingThreadRequested event,
+    Emitter<MessagingState> emit,
   ) async {
-    emit(MessagingThreadLoading(event.conversation.id));
+    emit(MessagingThreadLoading(event.conversationId));
+    final result = await _getConversations();
+    final conversation = result.fold<Conversation?>(
+      (_) => null,
+      (conversations) {
+        for (final candidate in conversations) {
+          if (candidate.id == event.conversationId) return candidate;
+        }
+        return null;
+      },
+    );
+    if (conversation == null) {
+      safeEmit(MessagingThreadError(
+        conversationId: event.conversationId,
+        message: 'Conversation introuvable.',
+      ));
+      return;
+    }
+    await _loadThread(conversation, emit);
+  }
+
+  Future<void> _loadThread(
+    Conversation conversation,
+    Emitter<MessagingState> emit,
+  ) async {
+    emit(MessagingThreadLoading(conversation.id));
     try {
-      final result = await _getMessages(event.conversation.id);
+      final result = await _getMessages(conversation.id);
       result.fold(
         (failure) => safeEmit(MessagingThreadError(
-          conversationId: event.conversation.id,
+          conversationId: conversation.id,
           message: failure.message,
         )),
         (messages) => safeEmit(MessagingThreadLoaded(
-          conversation: event.conversation,
+          conversation: conversation,
           messages: messages,
         )),
       );
     } catch (_) {
       safeEmit(MessagingThreadError(
-          conversationId: event.conversation.id,
+          conversationId: conversation.id,
           message: 'Erreur de chargement.'));
     }
     // Marqué lu localement dès l'ouverture, indépendamment du résultat de
-    // l'appel serveur ci-dessous : la pastille ne doit pas se rallumer si
+    // l'appel serveur ci-dessus : la pastille ne doit pas se rallumer si
     // `_markRead` échoue (best effort, fire-and-forget).
-    _locallyReadConversationIds.add(event.conversation.id);
-    await _markRead(event.conversation.id);
+    _locallyReadConversationIds.add(conversation.id);
+    await _markRead(conversation.id);
   }
 
   Future<void> _onSend(

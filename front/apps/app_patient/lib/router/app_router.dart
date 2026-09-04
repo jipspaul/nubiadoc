@@ -370,11 +370,21 @@ class AppRouter {
         // vers un état de fil, donc il réaffiche toujours la liste au retour.
         GoRoute(
           path: '$messaging/:id',
-          builder: (_, state) => BlocProvider(
-            create: (_) => GetIt.instance<MessagingBloc>()
-              ..add(MessagingThreadOpened(state.extra as Conversation)),
-            child: const Scaffold(body: MessagingPage()),
-          ),
+          builder: (_, state) {
+            // `extra` n'est présent que sur le chemin liste -> clic
+            // (`messaging_page.dart`) : sur une URL directe (deep link,
+            // rechargement de page), lui seul est `null` et il faut
+            // recharger la conversation via son identifiant (#6399).
+            final conversation = state.extra as Conversation?;
+            final id = state.pathParameters['id']!;
+            return BlocProvider(
+              create: (_) => GetIt.instance<MessagingBloc>()
+                ..add(conversation != null
+                    ? MessagingThreadOpened(conversation)
+                    : MessagingThreadRequested(id)),
+              child: const Scaffold(body: MessagingPage()),
+            );
+          },
         ),
         GoRoute(
           path: reviews,
