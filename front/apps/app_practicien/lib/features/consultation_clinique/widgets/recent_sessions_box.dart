@@ -107,11 +107,14 @@ class _RecentSessionRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 38,
+            width: 48,
             child: Text(
               session.startedAt != null
                   ? formatShortDate(session.startedAt!)
                   : '',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
               style: textTheme.bodySmall?.copyWith(
                 fontFeatures: const [FontFeature.tabularFigures()],
                 color: onSurfaceVariant,
