@@ -306,7 +306,7 @@ class AppRouter {
                             .add(const FinancialBackToList()),
                       );
                     }
-                    return const BackButton();
+                    return _backOrHomeLeading(context);
                   },
                 ),
                 title: BlocBuilder<FinancialBloc, FinancialState>(
