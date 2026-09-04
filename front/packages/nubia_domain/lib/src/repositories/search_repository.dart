@@ -16,6 +16,12 @@ abstract class SearchRepository {
     String? sector,
   });
 
+  /// Profil public d'un praticien par id (GET /v1/providers/:id, docs/12
+  /// §12.2) — utilisé pour le hand-off tunnel SSR → app (#6459) : les liens
+  /// de créneau du SSR ne portent que `providerId`/`slotId`, pas le nom/la
+  /// spécialité qu'affiche l'écran créneaux.
+  Future<Either<Failure, ProviderResult>> getProvider(String providerId);
+
   /// Interprète une recherche en langage naturel (POST /v1/search/parse).
   /// Retourne les filtres structurés + une phrase d'interprétation. En cas
   /// d'échec (endpoint non déployé, réseau), l'appelant retombe sur le texte

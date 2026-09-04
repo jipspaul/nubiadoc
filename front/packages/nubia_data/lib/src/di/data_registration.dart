@@ -474,6 +474,7 @@ void _registerUseCases(GetIt gi) {
     // search
     ..registerFactory(() => ParseSearchUseCase(gi()))
     ..registerFactory(() => SearchProvidersUseCase(gi()))
+    ..registerFactory(() => GetProviderUseCase(gi()))
     ..registerFactory(() => SearchSlotsUseCase(gi()))
     ..registerFactory(() => HoldSlotUseCase(gi()))
     ..registerFactory(() => ConfirmBookingUseCase(gi()))

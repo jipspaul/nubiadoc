@@ -236,12 +236,16 @@ class AppRouter {
           path: appointments,
           // #5269 : « Reprendre RDV » (Mes RDV · historique) transmet le nom
           // du praticien via `extra` pour repartir de la même recherche.
+          // #6459 : les liens de créneau du tunnel SSR (`api/src/web_tunnel/`)
+          // portent `providerId`/`slotId` en query string, pas via `extra`.
           builder: (context, state) => BlocProvider(
             create: (_) => GetIt.instance<AppointmentsBloc>(),
             child: Scaffold(
               appBar: AppBar(title: const Text('Prendre un rendez-vous')),
               body: AppointmentsPage(
                 initialQuery: state.extra as String?,
+                deepLinkProviderId: state.uri.queryParameters['providerId'],
+                deepLinkSlotId: state.uri.queryParameters['slotId'],
                 // #5194 : l'annuaire n'est plus un onglet du shell — « Voir
                 // mes RDV » sur l'écran de confirmation pousse la route
                 // dédiée au lieu de basculer un onglet du DashboardPage.

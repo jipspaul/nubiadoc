@@ -44,6 +44,28 @@ class SearchRepositoryImpl implements SearchRepository {
   }
 
   @override
+  Future<Either<Failure, ProviderResult>> getProvider(String providerId) async {
+    try {
+      final dto = await _api.getProvider(providerId);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Praticien introuvable.'));
+      }
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout) {
+        return const Left(OfflineFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Erreur lors du chargement du praticien.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, ParsedSearch>> parseSearch(String query) async {
     try {
       final dto = await _api.parseSearch(query);

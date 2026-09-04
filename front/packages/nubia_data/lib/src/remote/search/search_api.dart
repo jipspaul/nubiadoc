@@ -41,6 +41,16 @@ class SearchApi {
     return ParsedSearchDto.fromJson(response.data ?? const {});
   }
 
+  /// GET /v1/providers/:id → ProviderProfile (docs/12 §12.2). Profil public
+  /// complet — utilisé pour résoudre le `providerId` d'un lien de créneau du
+  /// tunnel SSR (#6459), qui n'a que l'id et pas le nom/la spécialité.
+  Future<ProviderResultDto> getProvider(String providerId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/providers/$providerId',
+    );
+    return ProviderResultDto.fromProviderProfileJson(response.data ?? const {});
+  }
+
   /// GET /v1/providers/:id/availability → { data: [AvailabilitySlotItem] }.
   /// 50 prochains créneaux ouverts du praticien.
   Future<List<SlotDto>> searchSlots({
