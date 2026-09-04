@@ -65,6 +65,20 @@ import '../features/reviews/reviews_bloc.dart';
 import '../features/reviews/reviews_event.dart';
 import '../features/reviews/reviews_page.dart';
 
+/// Bouton retour explicite pour les routes atteignables par URL directe
+/// (lien partagé, notification, rechargement de page) : replie vers
+/// l'accueil quand la pile de navigation est vide, au lieu de laisser
+/// l'écran sans aucune sortie (#6457).
+Widget _backOrHomeLeading(BuildContext context) {
+  return IconButton(
+    key: const Key('btn_appbar_back'),
+    icon: const Icon(Icons.arrow_back),
+    tooltip: 'Retour',
+    onPressed: () =>
+        context.canPop() ? context.pop() : context.go(AppRouter.home),
+  );
+}
+
 /// Patient router. Route names are app-owned; the auth guard is the shared
 /// [buildAuthGuard] from nubia_core.
 class AppRouter {
@@ -398,7 +412,10 @@ class AppRouter {
               create: (_) => GetIt.instance<ReviewsBloc>()
                 ..add(ReviewsLoadRequested(providerId)),
               child: Scaffold(
-                appBar: AppBar(title: const Text('Avis')),
+                appBar: AppBar(
+                  leading: _backOrHomeLeading(context),
+                  title: const Text('Avis'),
+                ),
                 body: const ReviewsPage(),
               ),
             );
@@ -418,11 +435,14 @@ class AppRouter {
         ),
         GoRoute(
           path: oubliettes,
-          builder: (_, __) => BlocProvider(
+          builder: (context, __) => BlocProvider(
             create: (_) => GetIt.instance<OubliettesBloc>()
               ..add(const OubliettesLoadRequested()),
             child: Scaffold(
-              appBar: AppBar(title: const Text('Oubliettes')),
+              appBar: AppBar(
+                leading: _backOrHomeLeading(context),
+                title: const Text('Oubliettes'),
+              ),
               body: const OubliettesPage(),
             ),
           ),
