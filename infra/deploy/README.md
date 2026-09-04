@@ -38,9 +38,14 @@ Variables : `DEPLOY_HOST` (192.168.1.100) · `DEPLOY_USER` (root) · `DEPLOY_PAS
 `app_patient`, n'en dépend pas).
 
 Variables optionnelles `SCW_ACCESS_KEY` / `SCW_SECRET_KEY` / `SCW_BUCKET` (Object
-Storage Scaleway, `ScalewayStorageSigner`) : sans elles, `GET /v1/documents/:id`
-et `/download` répondent `502 upstream_unavailable` pour 100% des documents
-(coffre-fort patient illisible), cf. #6250.
+Storage Scaleway, `ScalewayStorageSigner`) : tant qu'aucun compte Scaleway n'est
+réellement provisionné côté secrets Forgejo (pas seulement plombé jusqu'au
+conteneur, cf. #6250), `GET /v1/documents/:id` et `/download` basculent
+automatiquement sur `LocalStorageSigner` — coffre-fort servi via cette même API
+(`PUBLIC_API_BASE` / `STORAGE_SIGNING_KEY`, tous deux déjà câblés dans
+`deploy.sh`), sans dépendre d'un compte tiers non configuré (#6425, récidive de
+#6250 : le plombage seul ne suffisait pas). `ScalewayStorageSigner` reste
+préféré dès que les `SCW_*` ci-dessus sont réellement renseignées.
 
 Variables optionnelles `CADDY_HOST` / `CADDY_USER` (défaut `root`) / `CADDY_PASSWORD` /
 `CADDY_SSH_PORT` (défaut `22`) / `CADDY_CONFIG_PATH` (défaut `/etc/caddy/Caddyfile`) :

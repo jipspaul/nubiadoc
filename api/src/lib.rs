@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 pub use brevo_mailer::BrevoMailer;
 pub use fcm::FcmJobDispatcher;
+pub use local_storage_signer::LocalStorageSigner;
 pub use quote_relance_dispatch::{
     dispatch_quote_relances, run_quote_relance_loop, QuoteRelanceDispatchError,
     QuoteRelanceDispatchSummary,
@@ -91,6 +92,7 @@ pub mod hl7v2;
 mod implant_passport;
 mod interop;
 mod lab_work_orders;
+mod local_storage_signer;
 mod marketplace;
 mod medical_questionnaire;
 mod medical_record;
@@ -166,6 +168,12 @@ impl StorageClient for StubStorageClient {
 pub trait ObjectStorage: Send + Sync {
     /// Uploade `bytes` sous `key` avec le `content_type` donné.
     async fn upload(&self, key: &str, content_type: &str, bytes: Vec<u8>) -> Result<(), String>;
+
+    /// Relit un objet précédemment uploadé — `None` si la clé est inconnue
+    /// (jamais uploadée, ou process redémarré depuis : `InMemoryObjectStorage`
+    /// n'est pas persistant). Utilisé par `local_storage_signer::serve_local_object`
+    /// (#6425 — route de service du `StorageSigner` self-hébergé).
+    async fn download(&self, key: &str) -> Option<(String, Vec<u8>)>;
 }
 
 /// Implémentation en mémoire pour les tests et le dev local — pas de dépendance
@@ -184,6 +192,10 @@ impl ObjectStorage for InMemoryObjectStorage {
             .map_err(|_| "lock poisoned".to_string())?
             .insert(key.to_string(), (content_type.to_string(), bytes));
         Ok(())
+    }
+
+    async fn download(&self, key: &str) -> Option<(String, Vec<u8>)> {
+        self.objects.lock().ok()?.get(key).cloned()
     }
 }
 
@@ -572,6 +584,15 @@ fn build_router(
     let router = routes::nurse_routes::add(router);
     let router = routes::secretariats::add(router);
     let router = routes::webhooks_interop::add(router);
+    // Route de service du `StorageSigner` self-hébergé (#6425) — sert les
+    // objets `ObjectStorage` via les URL générées par `LocalStorageSigner`.
+    // Toujours montée (coût nul si `ScalewayStorageSigner` est le signer
+    // actif, cf. `main.rs`) : la signature HMAC + expiration fait office
+    // d'authentification, comme une vraie URL S3 présignée.
+    let router = router.route(
+        "/v1/storage/local/*key",
+        get(local_storage_signer::serve_local_object),
+    );
 
     router
         .layer(Extension(hub))
@@ -581,6 +602,9 @@ fn build_router(
         .layer(Extension(
             Arc::new(InMemoryObjectStorage::default()) as Arc<dyn ObjectStorage>
         ))
+        .layer(Extension(Arc::new(
+            local_storage_signer::LocalStorageSigner::from_env(),
+        )))
         .layer(Extension(dispatcher))
         .layer(Extension(signer))
         .layer(Extension(

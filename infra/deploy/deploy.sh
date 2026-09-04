@@ -117,6 +117,7 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
   -e SCW_ACCESS_KEY="${SCW_ACCESS_KEY:-}" \
   -e SCW_SECRET_KEY="${SCW_SECRET_KEY:-}" \
   -e SCW_BUCKET="${SCW_BUCKET:-}" \
+  -e PUBLIC_API_BASE="$PUBLIC_API_BASE" -e STORAGE_SIGNING_KEY=dev-only-not-for-prod \
   localhost/nubia-api:latest >/dev/null
 # #5688 : avant ce -e, YOUSIGN_API_KEY n'était jamais transmise au conteneur
 # (aucune plomberie CI -> LXC), donc POST /v1/quotes/:id/signature répondait
@@ -132,6 +133,17 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
 # Tant que les secrets Forgejo ne sont pas renseignés, ces `-e` restent vides
 # et `scaleway_storage_signer.rs` court-circuite proprement (fail-closed,
 # `sign() -> None`) plutôt que de tenter un appel voué à l'échec.
+# #6425 (RÉCIDIVE de #6250, 25h après sa fermeture) : le plombage CI ->
+# conteneur ci-dessus ne suffit pas tant qu'aucun compte Scaleway n'est
+# RÉELLEMENT provisionné côté secrets Forgejo — `signer.sign()` restait donc
+# `None` indéfiniment, coffre-fort patient 100% illisible en continu. Plutôt
+# que de dépendre d'un compte tiers jamais créé, `main.rs::storage_signer()`
+# retombe sur `LocalStorageSigner` (`local_storage_signer.rs`) tant que les
+# `SCW_*` ci-dessus sont vides : sert les documents via cette même API, signé
+# HMAC (`STORAGE_SIGNING_KEY`, même convention dev-only que `JWT_SECRET`
+# ci-dessus), `PUBLIC_API_BASE` (déjà calculé en tête de ce script) pour
+# construire des liens absolus. `ScalewayStorageSigner` reste préféré dès
+# que les `SCW_*` sont réellement renseignées.
 # Tunnel web de réservation SSR public (ADR-013, #5356) : plus de port dédié
 # séparé depuis #5628 (un `WEB_TUNNEL_PORT`/3001 distinct n'était raccordé à
 # aucun nom de domaine en production — cf. commentaire de main.rs) ; ces
