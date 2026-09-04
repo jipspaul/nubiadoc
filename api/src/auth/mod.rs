@@ -33,7 +33,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 use crate::{
-    appointments_response::is_exclusion_violation, AppState, JobDispatcher, StorageClient,
+    appointments_response::{format_establishment_address, is_exclusion_violation},
+    AppState, JobDispatcher, StorageClient,
 };
 
 /// Réponse de `POST /v1/auth/login`.
@@ -3389,6 +3390,13 @@ pub async fn post_coverage_card(
 pub struct ReferringDoctorResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_id: Option<Uuid>,
+    /// Nom résolu quand `provider_id` référence un praticien de l'annuaire.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub specialty: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub free_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3399,6 +3407,9 @@ pub struct ReferringDoctorResponse {
 
 const NO_REFERRING_DOCTOR: ReferringDoctorResponse = ReferringDoctorResponse {
     provider_id: None,
+    name: None,
+    specialty: None,
+    address: None,
     free_name: None,
     free_phone: None,
     free_address: None,
@@ -3420,9 +3431,14 @@ pub async fn get_account_referring_doctor(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT provider_id, free_name, free_phone, free_address \
-         FROM patient_referring_doctor \
-         WHERE patient_account_id = $1",
+        "SELECT prd.provider_id, prd.free_name, prd.free_phone, prd.free_address, \
+             pv.display_name AS provider_name, s.label AS provider_specialty, \
+             e.address AS provider_address \
+         FROM patient_referring_doctor prd \
+         LEFT JOIN provider pv ON pv.id = prd.provider_id \
+         LEFT JOIN specialty s ON s.id = pv.specialty_id \
+         LEFT JOIN establishment e ON e.id = pv.establishment_id \
+         WHERE prd.patient_account_id = $1",
     )
     .bind(claims.account_id)
     .fetch_optional(&mut *tx)
@@ -3435,8 +3451,16 @@ pub async fn get_account_referring_doctor(
         return Ok(Json(NO_REFERRING_DOCTOR));
     };
 
+    let provider_address: Option<serde_json::Value> =
+        row.try_get("provider_address").unwrap_or(None);
+
     Ok(Json(ReferringDoctorResponse {
         provider_id: row.try_get("provider_id").map_err(|_| AppError::Internal)?,
+        name: row.try_get("provider_name").unwrap_or(None),
+        specialty: row.try_get("provider_specialty").unwrap_or(None),
+        address: provider_address
+            .as_ref()
+            .and_then(format_establishment_address),
         free_name: row.try_get("free_name").map_err(|_| AppError::Internal)?,
         free_phone: row.try_get("free_phone").map_err(|_| AppError::Internal)?,
         free_address: row
@@ -3508,16 +3532,25 @@ pub async fn put_account_referring_doctor(
     };
 
     let row = sqlx::query(
-        "INSERT INTO patient_referring_doctor \
-           (patient_account_id, provider_id, free_name, free_phone, free_address) \
-         VALUES ($1, $2, $3, $4, $5) \
-         ON CONFLICT (patient_account_id) DO UPDATE SET \
-           provider_id  = $2, \
-           free_name    = $3, \
-           free_phone   = $4, \
-           free_address = $5, \
-           updated_at   = now() \
-         RETURNING provider_id, free_name, free_phone, free_address",
+        "WITH upsert AS ( \
+             INSERT INTO patient_referring_doctor \
+               (patient_account_id, provider_id, free_name, free_phone, free_address) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (patient_account_id) DO UPDATE SET \
+               provider_id  = $2, \
+               free_name    = $3, \
+               free_phone   = $4, \
+               free_address = $5, \
+               updated_at   = now() \
+             RETURNING provider_id, free_name, free_phone, free_address \
+         ) \
+         SELECT upsert.provider_id, upsert.free_name, upsert.free_phone, upsert.free_address, \
+             pv.display_name AS provider_name, s.label AS provider_specialty, \
+             e.address AS provider_address \
+         FROM upsert \
+         LEFT JOIN provider pv ON pv.id = upsert.provider_id \
+         LEFT JOIN specialty s ON s.id = pv.specialty_id \
+         LEFT JOIN establishment e ON e.id = pv.establishment_id",
     )
     .bind(claims.account_id)
     .bind(body.provider_id)
@@ -3557,8 +3590,16 @@ pub async fn put_account_referring_doctor(
         "patient referring doctor updated"
     );
 
+    let provider_address: Option<serde_json::Value> =
+        row.try_get("provider_address").unwrap_or(None);
+
     Ok(Json(ReferringDoctorResponse {
         provider_id: row.try_get("provider_id").map_err(|_| AppError::Internal)?,
+        name: row.try_get("provider_name").unwrap_or(None),
+        specialty: row.try_get("provider_specialty").unwrap_or(None),
+        address: provider_address
+            .as_ref()
+            .and_then(format_establishment_address),
         free_name: row.try_get("free_name").map_err(|_| AppError::Internal)?,
         free_phone: row.try_get("free_phone").map_err(|_| AppError::Internal)?,
         free_address: row
