@@ -54,6 +54,7 @@ class _OrdersViewState extends State<OrdersView> {
   Completer<void>? _refreshCompleter;
   Timer? _freshnessTicker;
   final _searchFocusNode = FocusNode();
+  final _searchController = TextEditingController();
   String _query = '';
 
   static const _filters = <(String, PharmacyOrderStatus?)>[
@@ -77,6 +78,7 @@ class _OrdersViewState extends State<OrdersView> {
   void dispose() {
     _freshnessTicker?.cancel();
     _searchFocusNode.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -147,6 +149,7 @@ class _OrdersViewState extends State<OrdersView> {
                       width: 280,
                       child: NubiaSearchBar(
                         key: const Key('orders_search'),
+                        controller: _searchController,
                         focusNode: _searchFocusNode,
                         hint: 'Patient, n° commande…',
                         onChanged: (value) => setState(() => _query = value),
@@ -229,11 +232,28 @@ class _OrdersViewState extends State<OrdersView> {
       case OrdersLoaded(:final pendingOrderId):
         final orders = _search(state.visible);
         if (orders.isEmpty) {
-          return const NubiaEmptyState(
-            icon: Icons.shopping_bag_outlined,
-            title: 'Aucune commande',
-            subtitle: 'Les ordonnances transmises par les patients '
-                'apparaîtront ici.',
+          final query = _query.trim();
+          final hasQuery = query.isNotEmpty;
+          return NubiaEmptyState(
+            icon: hasQuery ? Icons.search_off : Icons.shopping_bag_outlined,
+            title: hasQuery
+                ? 'Aucun résultat pour « $query »'
+                : 'Aucune commande',
+            subtitle: hasQuery
+                ? 'Essayez un autre nom de patient ou numéro de commande.'
+                : 'Les ordonnances transmises par les patients '
+                    'apparaîtront ici.',
+            action: hasQuery
+                ? NubiaButton(
+                    label: 'Effacer la recherche',
+                    icon: Icons.close,
+                    variant: NubiaButtonVariant.secondary,
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _query = '');
+                    },
+                  )
+                : null,
           );
         }
         return RefreshIndicator(

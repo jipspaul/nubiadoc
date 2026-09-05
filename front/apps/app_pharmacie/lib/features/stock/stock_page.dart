@@ -34,8 +34,15 @@ class StockView extends StatefulWidget {
 
 class _StockViewState extends State<StockView> {
   StockRequestStatus _facet = StockRequestStatus.sent;
+  final _searchController = TextEditingController();
   String _query = '';
   String? _selectedId;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   List<StockRequest> _filter(List<StockRequest> requests) {
     final query = _query.trim().toLowerCase();
@@ -72,6 +79,8 @@ class _StockViewState extends State<StockView> {
           case StockLoaded(:final requests, :final respondingId):
             final filtered =
                 _filter(requests.where((r) => r.status == _facet).toList());
+            final query = _query.trim();
+            final hasQuery = query.isNotEmpty;
             final selectedIndex =
                 filtered.indexWhere((r) => r.id == _selectedId);
             final selected = selectedIndex == -1 ? null : filtered[selectedIndex];
@@ -108,6 +117,7 @@ class _StockViewState extends State<StockView> {
                       width: 230,
                       child: NubiaSearchBar(
                         key: const Key('stock_search'),
+                        controller: _searchController,
                         hint: 'Cabinet, article…',
                         onChanged: (value) => setState(() => _query = value),
                       ),
@@ -116,11 +126,28 @@ class _StockViewState extends State<StockView> {
                 ),
                 Expanded(
                   child: filtered.isEmpty
-                      ? const NubiaEmptyState(
-                          icon: Icons.inventory_2_outlined,
-                          title: 'Aucune demande de stock',
-                          subtitle:
-                              'Les demandes envoyées par les cabinets apparaîtront ici.',
+                      ? NubiaEmptyState(
+                          icon: hasQuery
+                              ? Icons.search_off
+                              : Icons.inventory_2_outlined,
+                          title: hasQuery
+                              ? 'Aucun résultat pour « $query »'
+                              : 'Aucune demande de stock',
+                          subtitle: hasQuery
+                              ? 'Essayez un autre cabinet ou article.'
+                              : 'Les demandes envoyées par les cabinets '
+                                  'apparaîtront ici.',
+                          action: hasQuery
+                              ? NubiaButton(
+                                  label: 'Effacer la recherche',
+                                  icon: Icons.close,
+                                  variant: NubiaButtonVariant.secondary,
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _query = '');
+                                  },
+                                )
+                              : null,
                         )
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,

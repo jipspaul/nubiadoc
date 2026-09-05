@@ -254,6 +254,35 @@ void main() {
 
       expect(find.byKey(const Key('stock_accept_s1')), findsNothing);
     });
+
+    testWidgets(
+        'recherche sans résultat affiche un message de recherche, pas le '
+        'message d\'amorçage (#6367)', (tester) async {
+      final bloc = MockStockBloc();
+      when(() => bloc.state)
+          .thenReturn(StockLoaded([stockRequest(StockRequestStatus.sent)]));
+
+      await tester.pumpApp(
+        BlocProvider<StockBloc>.value(
+            value: bloc, child: const Scaffold(body: StockView())),
+      );
+
+      final field = find.descendant(
+        of: find.byKey(const Key('stock_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, 'ZZZINEXISTANT');
+      await tester.pump();
+
+      expect(
+          find.text('Aucun résultat pour « ZZZINEXISTANT »'), findsOneWidget);
+      expect(find.text('Aucune demande de stock'), findsNothing);
+
+      await tester.tap(find.text('Effacer la recherche'));
+      await tester.pump();
+
+      expect(find.text('Cabinet Dupont'), findsOneWidget);
+    });
   });
 
   group('PharmacyDevisBloc', () {

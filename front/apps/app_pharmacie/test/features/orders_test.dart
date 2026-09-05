@@ -648,6 +648,38 @@ void main() {
       expect(find.byKey(const Key('order_row_o2')), findsOneWidget);
     });
 
+    testWidgets(
+        'recherche sans résultat affiche un message de recherche, pas le '
+        'message d\'amorçage (#6367)', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [orderNamed('o1', 'Jean Dupont')]),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      final field = find.descendant(
+        of: find.byKey(const Key('orders_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, 'ZZZINEXISTANT');
+      await tester.pump();
+
+      expect(
+          find.text('Aucun résultat pour « ZZZINEXISTANT »'), findsOneWidget);
+      expect(find.text('Aucune commande'), findsNothing);
+
+      await tester.tap(find.text('Effacer la recherche'));
+      await tester.pump();
+
+      expect(find.text('Jean Dupont'), findsOneWidget);
+    });
+
     testWidgets('placeholder exact du champ de recherche', (tester) async {
       final bloc = MockOrdersBloc();
       when(() => bloc.state).thenReturn(
