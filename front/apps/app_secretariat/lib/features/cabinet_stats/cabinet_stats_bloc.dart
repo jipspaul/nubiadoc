@@ -32,11 +32,21 @@ class CabinetStatsBloc extends Bloc<CabinetStatsEvent, CabinetStatsState>
 
     // stats/activity est réservé aux praticiens (RBAC #4592) : un 403 y est
     // attendu pour le secrétariat et ne doit pas masquer les KPI de
-    // facturation (stats/billing), eux bien accessibles à ce rôle.
+    // facturation (stats/billing), eux bien accessibles à ce rôle. Le 403 est
+    // néanmoins distingué d'une activité vide (#6369) via [activityForbidden]
+    // pour que l'écran ne l'affiche pas comme un fait métier.
+    final activityForbidden = activityResult.fold(
+      (failure) => failure is ServerFailure && failure.statusCode == 403,
+      (_) => false,
+    );
     billingResult.fold(
       (failure) => safeEmit(CabinetStatsError(failure.message)),
       (billing) => safeEmit(
-        CabinetStatsLoaded(activityResult.getOrElse(() => const []), billing),
+        CabinetStatsLoaded(
+          activityResult.getOrElse(() => const []),
+          billing,
+          activityForbidden: activityForbidden,
+        ),
       ),
     );
   }

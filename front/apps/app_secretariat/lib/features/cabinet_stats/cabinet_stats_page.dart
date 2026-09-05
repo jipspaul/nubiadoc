@@ -100,9 +100,16 @@ class _CabinetStatsBodyState extends State<CabinetStatsBody> {
                   .read<CabinetStatsBloc>()
                   .add(const CabinetStatsLoadRequested()),
             );
-          case CabinetStatsLoaded(:final activity, :final billing):
+          case CabinetStatsLoaded(
+              :final activity,
+              :final billing,
+              :final activityForbidden
+            ):
             return _CabinetStatsLoadedView(
-                activity: activity, billing: billing);
+              activity: activity,
+              billing: billing,
+              activityForbidden: activityForbidden,
+            );
         }
       },
     );
@@ -110,11 +117,15 @@ class _CabinetStatsBodyState extends State<CabinetStatsBody> {
 }
 
 class _CabinetStatsLoadedView extends StatelessWidget {
-  const _CabinetStatsLoadedView(
-      {required this.activity, required this.billing});
+  const _CabinetStatsLoadedView({
+    required this.activity,
+    required this.billing,
+    required this.activityForbidden,
+  });
 
   final List<CabinetActivityStat> activity;
   final CabinetBillingStats billing;
+  final bool activityForbidden;
 
   @override
   Widget build(BuildContext context) {
@@ -178,7 +189,16 @@ class _CabinetStatsLoadedView extends StatelessWidget {
               const SizedBox(height: 24),
               Text('Activité par praticien', style: textTheme.titleMedium),
               const SizedBox(height: 12),
-              if (byPractitioner.isEmpty)
+              if (activityForbidden)
+                const NubiaEmptyState(
+                  key: Key('cabinet_stats_activity_forbidden'),
+                  icon: Icons.lock_outline,
+                  title: 'Réservé aux praticiens',
+                  subtitle:
+                      "Votre rôle ne permet pas d'afficher l'activité par "
+                      'praticien.',
+                )
+              else if (byPractitioner.isEmpty)
                 const NubiaEmptyState(
                   key: Key('cabinet_stats_activity_empty'),
                   icon: Icons.bar_chart_outlined,
