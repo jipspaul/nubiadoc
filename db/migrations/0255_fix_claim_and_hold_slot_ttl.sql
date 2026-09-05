@@ -1,4 +1,4 @@
--- 0252_fix_claim_and_hold_slot_ttl.sql
+-- 0255_fix_claim_and_hold_slot_ttl.sql
 -- Corrige le TTL du hold de créneau posé par claim_and_hold_slot() (issue #6510).
 --
 -- La migration 0120 (#3259) a déplacé l'INSERT du hold depuis le handler Rust
