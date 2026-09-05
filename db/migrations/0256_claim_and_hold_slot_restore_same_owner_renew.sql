@@ -1,15 +1,14 @@
--- 0252_fix_claim_and_hold_slot_ttl.sql
--- Corrige le TTL du hold de créneau posé par claim_and_hold_slot() (issue #6510).
+-- 0256_claim_and_hold_slot_restore_same_owner_renew.sql
+-- #6519 : la CI échoue sur hold_slot_same_owner_renews_instead_of_409 (409 au
+-- lieu de 200 attendu).
 --
--- La migration 0120 (#3259) a déplacé l'INSERT du hold depuis le handler Rust
--- vers cette fonction SECURITY DEFINER, avec un TTL de 5 minutes. La 0232
--- (#5363) l'a déjà aligné sur les 10 minutes de la maquette design-v2,
--- documentées dans api/src/marketplace.rs:1304-1305 et
--- front/apps/app_patient/lib/features/appointments/appointments_event.dart:129 —
--- ce correctif reprend donc intégralement la logique de 0232 (gardes
--- deleted_at/online_booking/starts_at de 0140/0142/0145, libération du hold
--- expiré de 0141) : la version précédente de cette migration était repartie
--- d'un état antérieur à ces correctifs et les avait régressés.
+-- 0255 (#6510, TTL) a été écrite en reprenant la logique de 0232 pour
+-- documenter le TTL 10 min, mais 0232 est *antérieure* à 0252 (#6509, renew
+-- idempotent du hold pour son propre détenteur) : le `CREATE OR REPLACE` de
+-- 0255 a donc silencieusement effacé le correctif de 0252 en écrasant la
+-- fonction. On restaure ici le bloc de renouvellement de 0252 par-dessus la
+-- version actuelle (TTL 10 min inchangé).
+-- Issue : #6509 (régression), #6510 (TTL)
 
 CREATE OR REPLACE FUNCTION claim_and_hold_slot(
   p_slot_id uuid,
@@ -44,6 +43,19 @@ BEGIN
     IF FOUND THEN
       UPDATE availability_slot SET status = 'open' WHERE id = p_slot_id;
       current_status := 'open';
+    END IF;
+  END IF;
+
+  -- #6509 : hold actif (non expiré) déjà détenu par CE patient -> renouvellement
+  -- au lieu d'un rejet 409, pour rester idempotent sur son propre créneau.
+  IF current_status = 'held' THEN
+    UPDATE slot_holds
+      SET hold_token = p_hold_token, expires_at = now() + interval '10 minutes'
+      WHERE slot_id = p_slot_id AND user_id = p_user_id
+      RETURNING expires_at INTO exp;
+    IF FOUND THEN
+      RETURN QUERY SELECT 'claimed'::text, exp;              -- 200 (renouvelé)
+      RETURN;
     END IF;
   END IF;
 

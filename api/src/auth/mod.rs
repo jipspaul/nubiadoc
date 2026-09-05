@@ -712,15 +712,20 @@ pub async fn me(
         .map_err(|_| AppError::Internal)?;
         tx.commit().await.map_err(|_| AppError::Internal)?;
 
-        // Mapping cabinet_id -> practitioner_id (#6251) : `practitioner` n'a pas
-        // de RLS (table jointe librement depuis /v1/cabinet/agenda), une seule
-        // requête couvre tous les cabinets de l'utilisateur. `session.userId`
+        // Mapping cabinet_id -> practitioner_id (#6251) : `practitioner` est une
+        // table tenant, RLS fail-closed FORCE (migration 0011) — une requête
+        // directe sur une connexion nue (sans `app.current_cabinet_id`, il n'y a
+        // pas UN cabinet à poser puisque l'utilisateur peut en avoir plusieurs)
+        // renvoie toujours 0 ligne, `practitioner_id` toujours absent malgré des
+        // données correctes (#6504, récidive de #6446). `user_practitioner_ids()`
+        // (migration 0254, SECURITY DEFINER — même pattern que
+        // `user_all_memberships`) contourne cette RLS. `session.userId`
         // (= claims.sub, un `app_user.id`) n'est PAS un `practitioner_id` — ce
         // sont deux entités distinctes (`practitioner.user_id` référence l'une
         // vers l'autre) ; sans cette résolution, le front n'a aucun moyen de
         // savoir quel practitioner_id correspond à l'utilisateur connecté.
         let practitioner_ids_by_cabinet: std::collections::HashMap<Uuid, Uuid> =
-            sqlx::query("SELECT cabinet_id, id FROM practitioner WHERE user_id = $1")
+            sqlx::query("SELECT cabinet_id, practitioner_id FROM user_practitioner_ids($1)")
                 .bind(claims.sub)
                 .fetch_all(&state.db)
                 .await
@@ -729,7 +734,9 @@ pub async fn me(
                 .map(|r| {
                     let cabinet_id: Uuid =
                         r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
-                    let practitioner_id: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
+                    let practitioner_id: Uuid = r
+                        .try_get("practitioner_id")
+                        .map_err(|_| AppError::Internal)?;
                     Ok((cabinet_id, practitioner_id))
                 })
                 .collect::<Result<_, AppError>>()?;
