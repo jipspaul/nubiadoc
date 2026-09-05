@@ -386,6 +386,11 @@ void main() {
       expect(find.byKey(const Key('add_member_fab')), findsNothing);
       expect(find.byKey(const Key('admin_membres_forbidden')), findsOneWidget);
       expect(find.text('Accès réservé aux administrateurs'), findsOneWidget);
+      // #6561 : « Actualiser » ne doit plus rejouer le 403 silencieusement.
+      final refreshButton = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.refresh),
+      );
+      expect(refreshButton.onPressed, isNull);
     });
 
     testWidgets('état Loaded : le FAB d\'invitation reste disponible',
@@ -397,6 +402,20 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('add_member_fab')), findsOneWidget);
+    });
+
+    testWidgets('état Loaded : le bouton Actualiser reste actif',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        const AdminMembresLoaded(members: [], secretariats: []),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final refreshButton = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.refresh),
+      );
+      expect(refreshButton.onPressed, isNotNull);
     });
 
     Future<void> submitInviteViaFab(WidgetTester tester) async {

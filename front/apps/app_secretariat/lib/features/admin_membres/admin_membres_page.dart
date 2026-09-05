@@ -36,8 +36,9 @@ class _AdminMembresPageState extends State<AdminMembresPage>
   Widget build(BuildContext context) {
     // L'invitation (POST /members) est réservée aux admins. En cas de 403,
     // on masque le FAB pour ne pas proposer une action interdite (cul-de-sac).
-    final canInvite =
-        context.watch<AdminMembresBloc>().state is! AdminMembresForbidden;
+    final isForbidden =
+        context.watch<AdminMembresBloc>().state is AdminMembresForbidden;
+    final canInvite = !isForbidden;
     return Scaffold(
       key: const Key('admin_membres_scaffold'),
       appBar: AppBar(
@@ -46,9 +47,11 @@ class _AdminMembresPageState extends State<AdminMembresPage>
           IconButton(
             tooltip: 'Actualiser',
             icon: const Icon(Icons.refresh),
-            onPressed: () => context
-                .read<AdminMembresBloc>()
-                .add(const AdminMembresLoadRequested()),
+            onPressed: isForbidden
+                ? null
+                : () => context
+                    .read<AdminMembresBloc>()
+                    .add(const AdminMembresLoadRequested()),
           ),
         ],
         bottom: TabBar(

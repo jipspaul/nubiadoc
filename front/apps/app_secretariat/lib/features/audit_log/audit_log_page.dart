@@ -94,6 +94,8 @@ class _AuditLogBodyState extends State<AuditLogBody> {
 
   @override
   Widget build(BuildContext context) {
+    final isForbidden =
+        context.watch<AuditLogBloc>().state is AuditLogForbidden;
     return Column(
       children: [
         _AuditLogFilterBar(
@@ -102,8 +104,8 @@ class _AuditLogBodyState extends State<AuditLogBody> {
           entityController: _entityController,
           onPickFrom: () => _pickDate(isFrom: true),
           onPickTo: () => _pickDate(isFrom: false),
-          onApply: _applyFilters,
-          onReset: _resetFilters,
+          onApply: isForbidden ? null : _applyFilters,
+          onReset: isForbidden ? null : _resetFilters,
         ),
         Expanded(
           child: BlocBuilder<AuditLogBloc, AuditLogState>(
@@ -157,8 +159,8 @@ class _AuditLogFilterBar extends StatelessWidget {
   final TextEditingController entityController;
   final VoidCallback onPickFrom;
   final VoidCallback onPickTo;
-  final VoidCallback onApply;
-  final VoidCallback onReset;
+  final VoidCallback? onApply;
+  final VoidCallback? onReset;
 
   @override
   Widget build(BuildContext context) {
