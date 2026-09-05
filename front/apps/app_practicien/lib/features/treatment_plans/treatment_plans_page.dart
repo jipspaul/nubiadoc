@@ -317,10 +317,11 @@ class _NewPlanEntry extends StatelessWidget {
   }
 }
 
-/// Entrée compacte `.pl` d'un plan dans la colonne maître : titre + statut.
+/// Entrée compacte `.pl` d'un plan dans la colonne maître (maquette
+/// design-v2 `.pl` : `.t1` titre, `.t2` pastille + nombre de phases, `.bar`
+/// barre d'avancement segmentée, `.t3` libellé d'avancement + montant du
+/// plan) — #6365, la moitié basse manquait depuis le squelette #5010.
 /// Sélectionnée (`.pl.on`) : fond `brand50`, bordure gauche `brand700` 3px.
-/// Le détail (KPIs, phases, footer) reste dans le panneau `.det`
-/// (ex-`_PlanCard`) — hors scope de ce ticket squelette (#5010).
 class _PlanListItem extends StatelessWidget {
   const _PlanListItem({
     required this.plan,
@@ -337,6 +338,9 @@ class _PlanListItem extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final (planStatusLabel, planStatusVariant) =
         treatmentPlanStatusStyle(plan.status);
+    final phases = plan.phases;
+    final doneCount = phases.where((phase) => phase.status == 'done').length;
+    final donePlural = doneCount > 1 ? 's' : '';
     return Container(
       key: Key('treatment_plan_list_item_${plan.id}'),
       margin: const EdgeInsets.only(bottom: 4),
@@ -355,22 +359,89 @@ class _PlanListItem extends StatelessWidget {
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    plan.title,
-                    style: textTheme.bodyMedium?.copyWith(
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                Text(
+                  plan.title,
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(width: 8),
-                StatusPill(
-                  label: planStatusLabel,
-                  variant: planStatusVariant,
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    StatusPill(
+                      label: planStatusLabel,
+                      variant: planStatusVariant,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        '${phases.length} phase'
+                        '${phases.length > 1 ? 's' : ''}',
+                        key: Key('treatment_plan_list_phase_count_${plan.id}'),
+                        style: textTheme.bodySmall
+                            ?.copyWith(color: NubiaColors.n500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
+                if (phases.isNotEmpty) ...[
+                  const SizedBox(height: 9),
+                  SizedBox(
+                    key:
+                        Key('treatment_plan_list_progress_bar_${plan.id}'),
+                    height: 5,
+                    child: Row(
+                      children: [
+                        for (final (index, phase) in phases.indexed) ...[
+                          if (index > 0) const SizedBox(width: 2),
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: phase.status == 'done'
+                                    ? NubiaColors.brand600
+                                    : NubiaColors.n200,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '$doneCount phase$donePlural sur ${phases.length} '
+                          'terminée$donePlural',
+                          key: Key(
+                            'treatment_plan_list_progress_label_${plan.id}',
+                          ),
+                          style: textTheme.bodySmall
+                              ?.copyWith(color: NubiaColors.n500),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        NubiaMoney.formatCents(plan.totalCents),
+                        key: Key('treatment_plan_list_total_${plan.id}'),
+                        style: textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: NubiaColors.n900,
+                          fontFeatures: tabularFigures,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
