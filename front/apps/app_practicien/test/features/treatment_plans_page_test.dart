@@ -101,6 +101,31 @@ final _planWithActivePhase = TreatmentPlan(
   ],
 );
 
+final _planWithActs = TreatmentPlan(
+  id: 'plan-4',
+  title: 'Réhabilitation 26 (implant)',
+  status: 'in_progress',
+  createdAt: DateTime(2026, 1, 4),
+  phases: const [
+    TreatmentPhase(
+      id: 'phase-acts-1',
+      position: 1,
+      title: 'Phase 1 · Chirurgie implantaire',
+      status: 'in_progress',
+      acts: [
+        TreatmentPhaseAct(
+          id: 'act-1',
+          label: 'Pose implant 26',
+          ccamCode: 'LBLD017',
+          tooth: '26',
+          amountCents: 120000,
+          subtitle: 'Séance du 11/08 · en cours',
+        ),
+      ],
+    ),
+  ],
+);
+
 void main() {
   late _MockListPlans listPlans;
   late _MockCreatePlan createPlan;
@@ -411,6 +436,40 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('ccam_search_field')), findsOneWidget);
+  });
+
+  testWidgets(
+      'phase avec actes → une ligne d\'acte par acte rendue sous l\'en-tête '
+      'de la carte (#6364)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithActs]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    final actRow = find.byKey(const Key('treatment_phase_act_act-1'));
+    expect(actRow, findsOneWidget);
+    expect(
+      find.descendant(of: actRow, matching: find.text('Pose implant 26')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: actRow, matching: find.text('LBLD017')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: actRow,
+        matching: find.text('Séance du 11/08 · en cours'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: actRow, matching: find.text('1 200,00 €')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('phase non active → pas d\'affordance « Ajouter un acte »',

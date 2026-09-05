@@ -632,11 +632,17 @@ class _PlanCardState extends State<_PlanCard> {
                         phase: phase,
                         busy: busy,
                         amountCents: phase.totalCents,
-                        // Liste vide tant que le ticket domaine « actes
-                        // rattachés à une phase » n'a pas doté TreatmentPhase
-                        // d'une liste d'actes (#5015 : la carte doit rester
-                        // valide sans lignes d'actes en attendant).
-                        acts: const [],
+                        acts: [
+                          for (final act in phase.acts)
+                            PhaseActRow(
+                              id: act.id,
+                              tooth: act.tooth,
+                              label: act.label,
+                              ccamCode: act.ccamCode ?? '',
+                              subtitle: act.subtitle ?? '',
+                              amountCents: act.amountCents,
+                            ),
+                        ],
                         onAddAct: () => _openAddAct(context, phase),
                         onOpenQuote: () => context.push(AppRouter.devis),
                         onGenerateQuote: () => context.push(AppRouter.devis),
