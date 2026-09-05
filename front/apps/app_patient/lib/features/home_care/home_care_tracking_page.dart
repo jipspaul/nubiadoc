@@ -69,6 +69,14 @@ class HomeCareTrackingBody extends StatelessWidget {
                           .join(' · '),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    if (visit.nurseDisplayName != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Infirmière : ${visit.nurseDisplayName}',
+                        key: const Key('home_care_nurse_name'),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Text(visit.addressLine),
                     const SizedBox(height: 8),

@@ -328,6 +328,18 @@ void main() {
       expect(visit.requestedActs, isEmpty);
       expect(visit.address, isEmpty);
       expect(visit.addressLine, ',  ');
+      expect(visit.nurseDisplayName, isNull);
+    });
+
+    test('nurse_display_name présent → exposé (#6506)', () {
+      final visit = VisitRequest.fromJson(const {
+        'id': 'visit-1',
+        'status': 'accepted',
+        'estimated_price_cents': 2500,
+        'nurse_display_name': 'Camille D.',
+      });
+
+      expect(visit.nurseDisplayName, 'Camille D.');
     });
   });
 }

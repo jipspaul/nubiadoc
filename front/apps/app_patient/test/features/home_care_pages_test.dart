@@ -175,6 +175,35 @@ void main() {
 
       verify(() => cubit.cancel()).called(1);
     });
+
+    testWidgets(
+        'infirmière assignée → nom affiché au patient (#6506)', (tester) async {
+      when(() => cubit.state).thenReturn(
+        const HomeCareTrackingLoaded(
+          VisitRequest(
+            id: 'visit-1',
+            status: 'accepted',
+            requestedActs: ['pansement'],
+            address: {'line1': '1 rue de Rivoli', 'city': 'Paris'},
+            estimatedPriceCents: 4000,
+            nurseDisplayName: 'Camille D.',
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(wrap());
+
+      expect(find.byKey(const Key('home_care_nurse_name')), findsOneWidget);
+      expect(find.text('Infirmière : Camille D.'), findsOneWidget);
+    });
+
+    testWidgets('pas d\'infirmière assignée → pas de ligne nom', (tester) async {
+      when(() => cubit.state).thenReturn(const HomeCareTrackingLoaded(_visit));
+
+      await tester.pumpWidget(wrap());
+
+      expect(find.byKey(const Key('home_care_nurse_name')), findsNothing);
+    });
   });
 
   group('HomeCareRequestBody (parcours complet)', () {
