@@ -153,7 +153,7 @@ async fn insert_named_patient_appt(
     prac_id: Uuid,
     first_name: &str,
     last_name: &str,
-) -> Uuid {
+) -> (Uuid, Uuid) {
     let appt_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
 
@@ -194,7 +194,7 @@ async fn insert_named_patient_appt(
 
     tx.commit().await.unwrap();
 
-    appt_id
+    (appt_id, patient_id)
 }
 
 async fn cleanup(db: &PgPool, cabinet_id: Uuid, prac_user_id: Uuid) {
@@ -263,7 +263,8 @@ async fn waiting_room_pro_sees_initials() {
     let app_db = app_pool().await;
 
     let f = insert_cabinet(&db).await;
-    insert_named_patient_appt(&db, f.cabinet_id, f.prac_id, "Jean", "Dupont").await;
+    let (_appt_id, patient_id) =
+        insert_named_patient_appt(&db, f.cabinet_id, f.prac_id, "Jean", "Dupont").await;
 
     let state = AppState {
         db: app_db,
@@ -312,6 +313,13 @@ async fn waiting_room_pro_sees_initials() {
         data[0]["practitioner_name"].as_str().unwrap(),
         format!("Dr WR {}", f.prac_id),
         "practitioner_name doit refléter provider.display_name"
+    );
+    // Régression #6549 : sans patient_id, le hero « Patient suivant » du front
+    // ne peut pas cibler la fiche du patient et retombe sur l'annuaire complet.
+    assert_eq!(
+        data[0]["patient_id"].as_str().unwrap(),
+        patient_id.to_string(),
+        "patient_id doit être présent pour permettre au front de cibler /patients/<id>"
     );
 
     cleanup(&db, f.cabinet_id, f.prac_user_id).await;
