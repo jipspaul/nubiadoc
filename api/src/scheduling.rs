@@ -517,6 +517,11 @@ pub async fn call_next_patient(
 #[derive(Serialize)]
 pub struct WaitingRoomEntry {
     pub appointment_id: Uuid,
+    /// Identifiant du patient — indispensable pour que le hero « Patient
+    /// suivant » (front) puisse cibler `/patients/<id>` au lieu de l'annuaire
+    /// complet (#6241, #6549 : absent ici, le repli du DTO front neutralisait
+    /// la garde et renvoyait vers la liste).
+    pub patient_id: Uuid,
     /// Nom complet (pro/admin) ou initiales (secrétariat) — cloisonnement clinique RBAC.
     pub patient_name_initials: String,
     pub checkin_at: Option<String>,
@@ -565,7 +570,7 @@ pub async fn get_waiting_room(
     let rows = if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
+                "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, a.patient_id, \
                         a.practitioner_id, prov.display_name AS practitioner_name, \
                         p.first_name, p.last_name, \
                         GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
@@ -596,7 +601,7 @@ pub async fn get_waiting_room(
     } else if claims.role == "practitioner" {
         // Un praticien ne voit que sa propre file d'attente, pas celle du cabinet entier.
         sqlx::query(
-            "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
+            "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, a.patient_id, \
                     a.practitioner_id, prov.display_name AS practitioner_name, \
                     p.first_name, p.last_name, \
                     GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
@@ -620,7 +625,7 @@ pub async fn get_waiting_room(
         .map_err(|_| AppError::Internal)?
     } else {
         sqlx::query(
-            "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, \
+            "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, a.patient_id, \
                     a.practitioner_id, prov.display_name AS practitioner_name, \
                     p.first_name, p.last_name, \
                     GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
@@ -645,6 +650,7 @@ pub async fn get_waiting_room(
         .into_iter()
         .map(|row| -> Result<WaitingRoomEntry, AppError> {
             let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
             let db_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let checkin_at: Option<chrono::DateTime<chrono::Utc>> =
                 row.try_get("checkin_at").map_err(|_| AppError::Internal)?;
@@ -684,6 +690,7 @@ pub async fn get_waiting_room(
 
             Ok(WaitingRoomEntry {
                 appointment_id,
+                patient_id,
                 patient_name_initials,
                 checkin_at: checkin_at.map(|dt| dt.to_rfc3339()),
                 wait_minutes,
