@@ -189,3 +189,66 @@ async fn adt_missing_or_malformed_ins_is_rejected() {
 
     cleanup(&owner, cabinet_id).await;
 }
+
+/// A5 (#3916) : un patient pré-existant partageant le même INS (hash posé,
+/// pas de ciphertext — non résoluble par déchiffre-compare) déclenche une
+/// paire `patient_merge_candidate` à l'ingestion A28, avec la raison
+/// démographie divergente quand le nom diffère.
+#[tokio::test]
+async fn adt_a28_flags_ins_duplicate_pair() {
+    if !db_available() {
+        return;
+    }
+    ensure_kms_env();
+    let owner = owner_pool().await;
+    let app = app_pool().await;
+    let cabinet_id = insert_cabinet(&owner).await;
+    let ins = "199036733456789";
+    let hash = nubia_api::patient_merge_candidates::ins_hash(ins).expect("KMS env posée");
+
+    // Doublon « historique » : même INS (hash), démographie différente.
+    sqlx::query(
+        "INSERT INTO patient (cabinet_id, first_name, last_name, ins_hash) \
+         VALUES ($1, 'Ancien', 'DOUBLON', $2)",
+    )
+    .bind(cabinet_id)
+    .bind(&hash)
+    .execute(&owner)
+    .await
+    .unwrap();
+
+    let a28 = parse(&build_adt("A28", ins, "NOUVEAU", "Paul", "19990315")).unwrap();
+    adt::handle(&app, cabinet_id, &a28, "ADT^A28")
+        .await
+        .unwrap();
+
+    let (count, reason): (i64, String) = sqlx::query_as(
+        "SELECT count(*) OVER (), reason FROM patient_merge_candidate \
+         WHERE cabinet_id = $1 LIMIT 1",
+    )
+    .bind(cabinet_id)
+    .fetch_one(&owner)
+    .await
+    .unwrap();
+    assert_eq!(count, 1, "une paire candidate doit être flaggée");
+    assert_eq!(reason, "same_ins_demographie_divergente");
+
+    // Rejeu du même A28 : idempotent, pas de seconde paire.
+    adt::handle(&app, cabinet_id, &a28, "ADT^A28")
+        .await
+        .unwrap();
+    let count2: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM patient_merge_candidate WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .fetch_one(&owner)
+            .await
+            .unwrap();
+    assert_eq!(count2, 1);
+
+    sqlx::query("DELETE FROM patient_merge_candidate WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&owner)
+        .await
+        .ok();
+    cleanup(&owner, cabinet_id).await;
+}

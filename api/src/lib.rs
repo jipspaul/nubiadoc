@@ -106,6 +106,7 @@ mod patient_alerts;
 mod patient_detail;
 mod patient_guardianship;
 mod patient_merge;
+pub mod patient_merge_candidates;
 mod patient_satisfaction;
 mod patient_tags;
 mod payment_schedules;

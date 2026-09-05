@@ -196,10 +196,12 @@ async fn create_patient(
     match find_patient_by_ins(&mut tx, cabinet_id, &identity.ins, &key_manager).await? {
         Some(patient_id) => apply_demographics(&mut tx, patient_id, &identity).await?,
         None => {
-            sqlx::query(
+            let row = sqlx::query(
                 "INSERT INTO patient \
-                   (cabinet_id, first_name, last_name, birth_date, ins_ciphertext, ins_key_ref) \
-                 VALUES ($1, $2, $3, $4, $5, $6)",
+                   (cabinet_id, first_name, last_name, birth_date, ins_ciphertext, \
+                    ins_key_ref, ins_hash) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7) \
+                 RETURNING id",
             )
             .bind(cabinet_id)
             .bind(&identity.first_name)
@@ -207,9 +209,21 @@ async fn create_patient(
             .bind(identity.birth_date)
             .bind(&encrypted.ciphertext)
             .bind(&encrypted.key_ref)
-            .execute(&mut *tx)
+            .bind(crate::patient_merge_candidates::ins_hash(&identity.ins))
+            .fetch_one(&mut *tx)
             .await
             .map_err(|_| AdtError::Internal)?;
+            // A5 (#3916) : flagge les doublons d'INS (paires à revue humaine).
+            // Sans KMS_MASTER_KEY le hash est None -> détection sautée, jamais
+            // bloquante pour l'ingestion elle-même.
+            let new_id: Uuid = row.try_get("id").map_err(|_| AdtError::Internal)?;
+            if let Some(hash) = crate::patient_merge_candidates::ins_hash(&identity.ins) {
+                crate::patient_merge_candidates::flag_ins_duplicates(
+                    &mut tx, cabinet_id, new_id, &hash,
+                )
+                .await
+                .map_err(|_| AdtError::Internal)?;
+            }
         }
     }
     tx.commit().await.map_err(|_| AdtError::Internal)?;
