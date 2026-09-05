@@ -12,6 +12,8 @@ class NurseOffer extends Equatable {
     required this.patientDisplayName,
     required this.address,
     required this.status,
+    required this.estimatedPriceCents,
+    required this.notes,
   });
 
   final String id;
@@ -19,6 +21,8 @@ class NurseOffer extends Equatable {
   final String patientDisplayName;
   final Map<String, dynamic> address;
   final String status;
+  final int estimatedPriceCents;
+  final String? notes;
 
   static NurseOffer fromJson(Map<String, dynamic> j) => NurseOffer(
         id: j['id'] as String,
@@ -27,6 +31,8 @@ class NurseOffer extends Equatable {
         patientDisplayName: j['patient_display_name'] as String? ?? '',
         address: (j['address'] as Map<String, dynamic>?) ?? const {},
         status: j['status'] as String? ?? 'offered',
+        estimatedPriceCents: (j['estimated_price_cents'] as num? ?? 0).toInt(),
+        notes: j['notes'] as String?,
       );
 
   @override
