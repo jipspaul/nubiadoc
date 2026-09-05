@@ -118,4 +118,26 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+      'stats/activity refusée (403) → message « Réservé aux praticiens », '
+      'pas « Aucune activité sur la période » (#6369)', (tester) async {
+    final bloc = MockCabinetStatsBloc();
+    when(() => bloc.state).thenReturn(const CabinetStatsLoaded(
+      [],
+      _billing,
+      activityForbidden: true,
+    ));
+    await tester.pumpWidget(_wrap(bloc));
+
+    expect(
+      find.byKey(const Key('cabinet_stats_activity_forbidden')),
+      findsOneWidget,
+    );
+    expect(find.text('Réservé aux praticiens'), findsOneWidget);
+    expect(
+      find.byKey(const Key('cabinet_stats_activity_empty')),
+      findsNothing,
+    );
+  });
 }
