@@ -41,6 +41,11 @@ pub struct QuoteItem {
     pub total_amount_cents: i64,
     pub currency: String,
     pub created_at: String,
+    /// `provider.display_name` du praticien émetteur (#6563), `null` si le
+    /// devis n'a pas de `practitioner_id` ou si ce praticien n'a pas de fiche
+    /// `provider` — même source que `fetch_provider_for_response`
+    /// (`appointments_response.rs`).
+    pub practitioner_name: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -115,7 +120,8 @@ pub async fn list_quotes(
 
     let sql = format!(
         "SELECT q.id, q.status, (q.total_amount * 100)::bigint AS amount_cents, \
-                q.currency, q.created_at \
+                q.currency, q.created_at, \
+                practitioner_display_name(q.practitioner_id) AS practitioner_name \
          FROM quote q \
          WHERE q.deleted_at IS NULL\
          {status_clause}{cursor_clause} \
@@ -183,6 +189,9 @@ pub async fn list_quotes(
         let currency: String = row.try_get("currency").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let practitioner_name: Option<String> = row
+            .try_get("practitioner_name")
+            .map_err(|_| AppError::Internal)?;
 
         last_created_at = Some(created_at);
         last_id = Some(id);
@@ -193,6 +202,7 @@ pub async fn list_quotes(
             total_amount_cents: amount_cents,
             currency: currency.trim().to_string(),
             created_at: created_at.to_rfc3339(),
+            practitioner_name,
         });
     }
 
@@ -257,6 +267,8 @@ pub struct QuoteDetail {
     /// Montant d'acompte minimum en centimes, dérivé de `deposit_pct` (arrondi
     /// au centime supérieur). `null` si `deposit_pct` est `null`.
     pub deposit_amount_cents: Option<i64>,
+    /// Voir `QuoteItem.practitioner_name` (#6563).
+    pub practitioner_name: Option<String>,
 }
 
 /// `GET /v1/quotes/:id` — détail d'un devis du patient connecté.
@@ -281,7 +293,8 @@ pub async fn get_quote(
     let quote_row = sqlx::query(
         "SELECT q.id, q.cabinet_id, q.status, q.version, \
                 (q.total_amount * 100)::bigint AS amount_cents, \
-                q.currency, q.signed_at, q.created_at, q.updated_at, q.deposit_pct::double precision AS deposit_pct \
+                q.currency, q.signed_at, q.created_at, q.updated_at, q.deposit_pct::double precision AS deposit_pct, \
+                practitioner_display_name(q.practitioner_id) AS practitioner_name \
          FROM quote q \
          WHERE q.id = $1 AND q.deleted_at IS NULL",
     )
@@ -348,6 +361,9 @@ pub async fn get_quote(
     let deposit_pct: Option<f64> = quote_row
         .try_get("deposit_pct")
         .map_err(|_| AppError::Internal)?;
+    let practitioner_name: Option<String> = quote_row
+        .try_get("practitioner_name")
+        .map_err(|_| AppError::Internal)?;
 
     let mut items = Vec::with_capacity(item_rows.len());
     let mut patient_share_total: i64 = 0;
@@ -410,6 +426,7 @@ pub async fn get_quote(
         items,
         deposit_pct,
         deposit_amount_cents,
+        practitioner_name,
     }))
 }
 

@@ -43,6 +43,7 @@ SELECT has_column('quote', 'deposit_paid',  'quote.deposit_paid présent (0093)'
 SELECT col_not_null('quote', 'deposit_paid','quote.deposit_paid NOT NULL');
 SELECT has_column('quote', 'deposit_pct',   'quote.deposit_pct présent (0094)');
 SELECT col_type_is('quote', 'deposit_pct', 'numeric(5,2)', 'quote.deposit_pct numeric(5,2)');
+SELECT has_column('quote', 'practitioner_id', 'quote.practitioner_id présent (0258, #6563)');
 
 -- quote_item
 SELECT has_column('quote_item', 'cabinet_id',    'quote_item.cabinet_id présent (tenant)');
@@ -93,6 +94,10 @@ SELECT fk_ok('quote', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 
 -- FK composite tenant-scopée depuis 0213 (#4291) : quote(signature_id, cabinet_id)
 -- -> signature(id, cabinet_id), cf. tests/88_quote_signature_composite_fk.sql.
 SELECT fk_ok('quote', ARRAY['signature_id', 'cabinet_id'], 'signature', ARRAY['id', 'cabinet_id']);
+-- FK composite dès la création (0258, #6563) : quote(practitioner_id, cabinet_id)
+-- -> practitioner(id, cabinet_id) — jamais de FK simple à corriger après coup
+-- (Postgres ignore la RLS pour les contraintes FK, cf. audit #4291/0214).
+SELECT fk_ok('quote', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('quote_item',       'cabinet_id',  'cabinet',          'id');
 SELECT fk_ok('quote_item', ARRAY['quote_id', 'cabinet_id'], 'quote', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('signature',        'cabinet_id',  'cabinet',          'id');

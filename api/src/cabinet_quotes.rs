@@ -163,12 +163,27 @@ pub async fn create_cabinet_quote(
         None => None,
     };
 
+    // Praticien émetteur (#6563) : résolu depuis le user_id JWT, `NULL` si le
+    // créateur n'a pas de fiche `practitioner` (rôles admin/manager autorisés
+    // par `ProPractitionerClaims` mais non cliniciens) — pas de 403, on ne
+    // veut pas casser la création de devis par ces rôles.
+    let practitioner_id: Option<Uuid> =
+        sqlx::query("SELECT id FROM practitioner WHERE cabinet_id = $1 AND user_id = $2")
+            .bind(claims.cabinet_id)
+            .bind(claims.sub)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .map(|row| row.try_get("id"))
+            .transpose()
+            .map_err(|_| AppError::Internal)?;
+
     // Insère le devis.
     let quote_row = sqlx::query(
         "INSERT INTO quote \
          (cabinet_id, patient_id, status, total_amount, currency, deposit_pct, \
-          billed_to_account_id) \
-         VALUES ($1, $2, 'draft', $3::numeric / 100, 'EUR', $4, $5) \
+          billed_to_account_id, practitioner_id) \
+         VALUES ($1, $2, 'draft', $3::numeric / 100, 'EUR', $4, $5, $6) \
          RETURNING id",
     )
     .bind(claims.cabinet_id)
@@ -176,6 +191,7 @@ pub async fn create_cabinet_quote(
     .bind(total_cents)
     .bind(body.deposit_pct)
     .bind(billed_to_account_id)
+    .bind(practitioner_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

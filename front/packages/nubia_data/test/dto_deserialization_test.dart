@@ -590,6 +590,22 @@ void main() {
       expect(q.totalCents, 38000);
       expect(q.status.toString(), contains('signed'));
       expect(q.items, isEmpty);
+      expect(q.practitionerName, '');
+    });
+
+    // #6563 : la liste des devis affichait des titres identiques
+    // ("Devis du 05/09/2026") faute de practitioner_name côté API — le DTO
+    // doit le lire dès qu'il est présent dans le résumé.
+    test('QuoteDto.fromSummaryJson : lit practitioner_name quand présent', () {
+      final q = QuoteDto.fromSummaryJson({
+        'id': 'q1',
+        'status': 'sent',
+        'total_amount_cents': 38000,
+        'currency': 'EUR',
+        'created_at': '2026-07-03T06:15:29Z',
+        'practitioner_name': 'Dr Amélie Rousseau',
+      }).toDomain();
+      expect(q.practitionerName, 'Dr Amélie Rousseau');
     });
 
     test(
