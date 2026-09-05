@@ -516,3 +516,23 @@ la ronde précédente.
 - **Hors viewport, encore** : `praticien /agenda` « Démarrer » à y=929 sur 800 px ; les 2 dernières cartes
   de `patient /financial`, `/treatment-plans`, `pharmacie /devis`.
 - **Jalons `SnackBar` déjà connus** : « Épingler » / « Joindre un patient, un devis… ».
+
+### Troisième lot (20:30–21:15 UTC) — 6 écrans de plus
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts confirmés | cassés confirmés | levées / notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/mes-rdv` (390) | 7 | 7 | 5 | 0 | 0 | « Historique » **fonctionne et émet 13 requêtes** — le compteur à 0 de #6448 ne se reproduit pas. 2 MORT → levés : onglet « À venir » **déjà actif**, et le 3e « Plus d'actions » hors écran. | 2026-09-05T20:35:00+00:00 |
+| patient | `/notifications` (390) | 17 | 17 | **17** | 0 | 0 | **Écran le plus propre de la ronde : 17/17.** Les notifications produites par mes propres flux X3 y sont visibles et actionnables (« Votre commande est prête, vous pouvez la retirer » → « Afficher mon code »). | 2026-09-05T20:36:00+00:00 |
+| patient | `/profile` (390) | 12 | 12 | 10 | 0 | 0 | 2 MORT → **levés par lecture du code** : « Modifier la photo de profil » appelle `_pickAndUpload` (`profile_page.dart:731`), un sélecteur de fichier natif qui n'ouvre rien en navigateur headless ; « Authentification biométrique » est un `Switch` (`:234-241`) qui ne réagit qu'à son curseur, pas au centre de la ligne (piège nº 3). | 2026-09-05T20:37:00+00:00 |
+| patient | `/book` (390) | 26 | 3 | 3 | 0 | 0 | **Mécanique « 3 jours de créneaux » de la maquette VÉRIFIÉE** : la carte praticien porte bien 3 jours nommés — « Sam. 5 septembre — / Dim. 6 septembre — / Lun. 7 septembre » — avec le tiret comme **état vide par jour**, plus « 1re dispo · Lun. 7 sep ». Les créneaux sont de vrais boutons (`11:00`, `11:30`, `12:00`) et « Voir plus de créneaux » est présent. | 2026-09-05T20:40:00+00:00 |
+| patient | `/` Accueil (390) | 20 | — | — | — | — | Inventaire pour la comparaison design-v2. **La carte « Reste à charge » y affiche 1 025 064,40 €** → **#6566**. | 2026-09-05T20:33:00+00:00 |
+| praticien | `/waiting-room` (1280×834) | 12 | — | — | — | — | Ré-inventaire au viewport de la maquette (voir `design-v2.md`) — écran désormais très conforme. | 2026-09-05T20:20:00+00:00 |
+
+### Nouveau piège à ajouter à la liste (nº 23)
+- **nº 23 — les dialogues NATIFS du navigateur/OS sont invisibles à la sonde.** Trois motifs distincts
+  rencontrés cette ronde, tous sortis MORT à tort : (a) `url_launcher` vers un schéma externe
+  (`tel:` / `maps:` — « Appeler », « Itinéraire » de `patient /pharmacy`), (b) sélecteur de fichier natif
+  (`_pickAndUpload` — « Modifier la photo de profil »), (c) API navigateur indisponible en headless
+  (biométrie). **Aucun ne produit navigation, requête XHR ni repeinture.** Réflexe : lire l'`onPressed`
+  avant tout verdict MORT — désormais 3 familles de faux positifs (nav active, hors viewport, dialogue natif)
+  plus les `SnackBar` (nº 19) et les `Switch` (nº 3).
