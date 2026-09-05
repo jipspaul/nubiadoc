@@ -30,9 +30,11 @@ void main() {
         MaterialApp(
           theme: NubiaTheme.light,
           home: Scaffold(
-            body: PatientJournalSection(
-              patientId: 'pat-1',
-              showClinical: showClinical,
+            body: SingleChildScrollView(
+              child: PatientJournalSection(
+                patientId: 'pat-1',
+                showClinical: showClinical,
+              ),
             ),
           ),
         ),
@@ -231,5 +233,50 @@ void main() {
     expect(find.text('Traitement endodontique'), findsNothing);
     expect(find.text('Ordonnance'), findsNothing);
     expect(find.text('Devis implant'), findsOneWidget);
+  });
+
+  // #6559 — un dossier chargé (~600 entrées) rendait sa Column en entier,
+  // page de 115 600 px, actions cliniques enterrées à 128 écrans. Le
+  // journal doit se plafonner et révéler le reste par lots.
+  testWidgets(
+      "plafonne l'affichage à 20 entrées et révèle le reste via "
+      "« Voir plus »", (tester) async {
+    when(() => listJournal(any())).thenAnswer(
+      (_) async => Right([
+        for (var i = 0; i < 45; i++)
+          PatientJournalEntry(
+            date: DateTime(2026, 8, 10).subtract(Duration(days: i)),
+            kind: PatientJournalKind.acte,
+            title: 'Acte $i',
+            subtitle: 'HBFD00$i',
+            tags: const [],
+          ),
+      ]),
+    );
+
+    await pumpSection(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_journal_entry_0')), findsOneWidget);
+    expect(find.byKey(const Key('patient_journal_entry_19')), findsOneWidget);
+    expect(find.byKey(const Key('patient_journal_entry_20')), findsNothing);
+    final showMoreButton =
+        find.byKey(const Key('patient_journal_show_more'));
+    expect(showMoreButton, findsOneWidget);
+    expect(find.text('Voir plus d\'entrées (25 restantes)'), findsOneWidget);
+
+    await tester.ensureVisible(showMoreButton);
+    await tester.tap(showMoreButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_journal_entry_39')), findsOneWidget);
+    expect(find.text('Voir plus d\'entrées (5 restantes)'), findsOneWidget);
+
+    await tester.ensureVisible(showMoreButton);
+    await tester.tap(showMoreButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_journal_entry_44')), findsOneWidget);
+    expect(find.byKey(const Key('patient_journal_show_more')), findsNothing);
   });
 }
