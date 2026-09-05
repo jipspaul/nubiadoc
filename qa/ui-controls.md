@@ -313,7 +313,7 @@ activations** dès que l'écran a bougé — sans quoi on juge un écran empilé
 | secretariat | /audit-log (1280x800) | 24 | 24 | 19 | **0** | **0** | 2 MORT levé(s) ; 2 CASSÉ = 403 RBAC | 2026-09-05T13:58:00Z |
 | secretariat | /cabinet-stats (1280x800) | 24 | 24 | 18 | **0** | **0** | 4 MORT levé(s) ; 1 CASSÉ = 403 RBAC | 2026-09-05T13:59:00Z |
 | secretariat | /patients/new (1280x800) | 5 | 5 | 0 | **0** | **0** | 4 MORT levé(s) ; 1 désactivé légitime | 2026-09-05T13:50:00Z |
-| secretariat | /salle-attente (1280x800) | 25 | 25 | 20 | **0** | **0** | 4 MORT levé(s) ; « Appeler » prouvé OK (POST call-next) ; « Prévenir le praticien » = stub « à venir » | 2026-09-05T13:51:00Z |
+| secretariat | /salle-attente (1280x800) | 25 | 25 | 20 | **0** | **0** | 4 MORT levé(s) ; « Appeler » prouvé OK ; « Prévenir le praticien » = stub « à venir » | 2026-09-05T13:51:00Z |
 | secretariat | /team-messages (1280x800) | 26 | 26 | 20 | **0** | **0** | 5 MORT levé(s) | 2026-09-05T13:52:00Z |
 
 **Total ronde : 24 écrans, 417 contrôles inventoriés, 414 activés, 331 OK — aucun contrôle mort ni cassé retenu.**
@@ -330,8 +330,7 @@ activations** dès que l'écran a bougé — sans quoi on juge un écran empilé
 
 ### Les 42 verdicts MORT/CASSÉ du lot automatique ont TOUS été levés — aucun n'était un vrai défaut
 
-C'est le résultat le plus important de la ronde sur ce volet : **le lot brut annonçait 38 MORT + 4 CASSÉ
-sur 24 écrans, et la vérification ciblée les a tous expliqués.** (27 contrôles supplémentaires sont
+C'est le résultat le plus important de la ronde sur ce volet : **le lot brut annonçait 38 MORT + 4 CASSÉ sur 23 écrans, et la vérification ciblée les a tous expliqués.** (27 contrôles supplémentaires sont
 sortis « hors écran », donc explicitement NON jugés plutôt que déclarés morts.) Détail des quatre causes :
 
 1. **Contrôle déjà actif (majorité des cas)** — cliquer l'élément déjà sélectionné ne produit légitimement rien :
