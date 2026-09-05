@@ -676,6 +676,9 @@ pub async fn upload_document(
     if file_bytes.is_empty() {
         return Err(AppError::ValidationError);
     }
+    // #4756 : même garde antivirus (stub EICAR) que la carte mutuelle —
+    // les deux endpoints écrivent dans la même table `document`.
+    crate::file_scan::reject_eicar(&file_bytes)?;
     let file_mime = file_mime.ok_or(AppError::ValidationError)?;
     if !ALLOWED_UPLOAD_MIMES.contains(&file_mime.as_str()) {
         return Err(AppError::ValidationError);

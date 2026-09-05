@@ -1606,7 +1606,12 @@ impl FromRequestParts<AppState> for ProPractitionerClaims {
             .map(|d| d.claims)
             .map_err(|_| AppError::Unauthorized)?;
 
-        if claims.role == "secretary" {
+        // `manager` est un rôle de secrétariat (front-office, créé via
+        // /cabinet/secretariats/:id/staff) : même tier non-clinique que
+        // `secretary` (§07 §4.1 — le secrétariat n'accède pas au contenu
+        // clinique). Sans ce blocage il lisait dossier médical, notes et
+        // ordonnances (#5718).
+        if claims.role == "secretary" || claims.role == "manager" {
             return Err(AppError::Forbidden);
         }
 
@@ -3274,10 +3279,6 @@ pub struct CoverageCardResponse {
     signed_url: String,
 }
 
-// Signature EICAR (68 octets) — chaîne standard de test antivirus.
-const EICAR_SIGNATURE: &[u8] =
-    b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
-
 /// `POST /v1/account/coverage/card` — upload de la carte mutuelle (multipart).
 ///
 /// Champs multipart attendus :
@@ -3348,12 +3349,7 @@ pub async fn post_coverage_card(
     let file_mime = file_mime.ok_or(AppError::ValidationError)?;
 
     // Antivirus : rejet EICAR (stub — intégration ClamAV à NUB-T3).
-    if file_bytes
-        .windows(EICAR_SIGNATURE.len())
-        .any(|w| w == EICAR_SIGNATURE)
-    {
-        return Err(AppError::ValidationError);
-    }
+    crate::file_scan::reject_eicar(&file_bytes)?;
 
     let fname = filename.unwrap_or_else(|| format!("carte_mutuelle_{}.bin", side));
     let size_bytes = file_bytes.len() as i64;
