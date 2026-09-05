@@ -62,13 +62,26 @@ fn make_admin_token(sub: Uuid, cabinet_id: Uuid) -> String {
     .unwrap()
 }
 
-/// Insère cabinet + admin user + patient + un devis SIGNÉ (`total_amount`)
-/// et un paiement PAID (`paid_amount`, ou aucun paiement si `None`) ;
+/// Insère cabinet + admin user + patient + un devis SIGNÉ (`total_amount`,
+/// porté par une ligne `quote_item` unique dont les parts AMO/AMC optionnelles
+/// réduisent le reste-à-charge — #4748) et un paiement PAID (`paid_amount`,
+/// ou aucun paiement si `None`) ;
 /// retourne `(cabinet_id, admin_user_id, patient_id, quote_id)`.
 async fn insert_fixture(
     db: &PgPool,
     suffix: &str,
     total_amount: &str,
+    paid_amount: Option<&str>,
+) -> (Uuid, Uuid, Uuid, Uuid) {
+    insert_fixture_with_parts(db, suffix, total_amount, None, None, paid_amount).await
+}
+
+async fn insert_fixture_with_parts(
+    db: &PgPool,
+    suffix: &str,
+    total_amount: &str,
+    amo_part: Option<&str>,
+    amc_part: Option<&str>,
     paid_amount: Option<&str>,
 ) -> (Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
@@ -122,6 +135,19 @@ async fn insert_fixture(
     .await
     .unwrap();
 
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount, amo_part, amc_part) \
+         VALUES ($1, $2, 'Acte de test', 1, $3::numeric, $4::numeric, $5::numeric)",
+    )
+    .bind(cabinet_id)
+    .bind(quote_id)
+    .bind(total_amount)
+    .bind(amo_part)
+    .bind(amc_part)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     if let Some(amount) = paid_amount {
         sqlx::query(
             "INSERT INTO payment \
@@ -154,6 +180,13 @@ async fn cleanup(db: &PgPool, cabinet_id: Uuid, admin_user_id: Uuid, patient_id:
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query(
+        "DELETE FROM quote_item WHERE quote_id IN (SELECT id FROM quote WHERE patient_id = $1)",
+    )
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .ok();
     sqlx::query("DELETE FROM quote WHERE patient_id = $1")
         .bind(patient_id)
         .execute(&mut *tx)
@@ -239,6 +272,39 @@ async fn balance_due_is_zero_when_quote_fully_paid() {
         &Uuid::new_v4().to_string(),
         "300.00",
         Some("300.00"),
+    )
+    .await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_admin_token(Uuid::new_v4(), cabinet_id);
+    let body = get_patient(app(state), patient_id, &token).await;
+
+    assert_eq!(body["balance_due_cents"], 0, "body: {body}");
+
+    cleanup(&seed_db, cabinet_id, admin_user_id, patient_id).await;
+}
+
+/// #4748 : devis signé de 200,00 € dont 100,00 € AMO + 50,00 € AMC — le
+/// reste-à-charge patient est 50,00 €. Payé intégralement (50,00 €), le solde
+/// doit être 0 (l'ancienne formule sur le total BRUT affichait 150,00 € dus).
+#[tokio::test]
+async fn balance_due_uses_patient_share_not_gross_total() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, admin_user_id, patient_id, _quote_id) = insert_fixture_with_parts(
+        &seed_db,
+        &Uuid::new_v4().to_string(),
+        "200.00",
+        Some("100.00"),
+        Some("50.00"),
+        Some("50.00"),
     )
     .await;
 

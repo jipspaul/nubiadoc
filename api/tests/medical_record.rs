@@ -469,3 +469,60 @@ async fn patch_medical_record_medico_legal_persists() {
 
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
+
+// ── Test : manager (front-office, tier non-clinique) → 403 (#5718) ───────────
+
+#[tokio::test]
+async fn get_medical_record_manager_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+
+    #[derive(serde::Serialize)]
+    struct Claims {
+        sub: Uuid,
+        kind: String,
+        cabinet_id: Uuid,
+        role: String,
+        exp: u64,
+    }
+    let token = encode(
+        &Header::default(),
+        &Claims {
+            sub: Uuid::new_v4(),
+            kind: "pro".into(),
+            cabinet_id,
+            role: "manager".into(),
+            exp: exp(),
+        },
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    for uri in [
+        format!("/v1/cabinet/patients/{patient_id}/medical-record"),
+        format!("/v1/cabinet/patients/{patient_id}/notes"),
+        format!("/v1/cabinet/patients/{patient_id}/prescriptions"),
+    ] {
+        let resp = app(make_state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(&uri)
+                    .header("Authorization", format!("Bearer {}", token))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "{uri} devrait être interdit au rôle manager"
+        );
+    }
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
