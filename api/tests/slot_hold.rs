@@ -319,3 +319,106 @@ async fn hold_slot_already_held_returns_409() {
         .await
         .ok();
 }
+
+// ── Test 4 : re-hold de SON PROPRE créneau → 200, renouvellement (#6509) ────
+//
+// Un patient qui pose un hold puis quitte le flux (BACK navigateur, cf.
+// #6236) sans jamais réserver ni relâcher explicitement doit pouvoir
+// reprendre SON créneau : poser un hold est idempotent pour son propre
+// détenteur, contrairement au cas "autre patient" du test 3 (409 inchangé).
+#[tokio::test]
+async fn hold_slot_same_owner_renews_instead_of_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let (_, slot_id) = insert_provider_and_slot(&db, &suffix).await;
+    let (user_id, account_id) = insert_patient(&db, &suffix).await;
+
+    let token = make_patient_jwt(user_id, account_id);
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Premier hold, normal.
+    let response1 = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/slots/{}/hold", slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response1.status(), StatusCode::OK);
+    let body1 = axum::body::to_bytes(response1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_slice(&body1).unwrap();
+    let first_token = v1["hold_token"].as_str().unwrap().to_string();
+
+    // Sortie de flux simulée (BACK navigateur) : re-pose un hold sur le MÊME
+    // créneau, avec le MÊME token patient → doit renouveler, pas 409.
+    let response2 = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/slots/{}/hold", slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response2.status(),
+        StatusCode::OK,
+        "re-poser un hold sur son propre créneau doit renouveler (200), pas 409"
+    );
+    let body2 = axum::body::to_bytes(response2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&body2).unwrap();
+    let second_token = v2["hold_token"].as_str().unwrap().to_string();
+    assert_ne!(
+        first_token, second_token,
+        "le hold_token doit être renouvelé"
+    );
+
+    // Le slot reste 'held', et une seule ligne slot_holds pour ce créneau,
+    // toujours au nom du même patient.
+    let row = sqlx::query("SELECT status FROM availability_slot WHERE id = $1")
+        .bind(slot_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let status: String = sqlx::Row::try_get(&row, "status").unwrap();
+    assert_eq!(status, "held");
+
+    let holds: Vec<(Uuid, String)> =
+        sqlx::query_as("SELECT user_id, hold_token FROM slot_holds WHERE slot_id = $1")
+            .bind(slot_id)
+            .fetch_all(&db)
+            .await
+            .unwrap();
+    assert_eq!(holds.len(), 1, "un seul hold doit exister pour ce créneau");
+    assert_eq!(holds[0].0, user_id);
+    assert_eq!(holds[0].1, second_token);
+
+    // Nettoyage
+    sqlx::query("DELETE FROM slot_holds WHERE slot_id = $1")
+        .bind(slot_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM availability_slot WHERE id = $1")
+        .bind(slot_id)
+        .execute(&db)
+        .await
+        .ok();
+}
