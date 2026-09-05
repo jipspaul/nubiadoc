@@ -76,6 +76,9 @@ void main() {
       expect(find.textContaining(' · '), findsNothing);
       // Praticien absent sur `_implant` → ligne non rendue.
       expect(find.text('Praticien'), findsNothing);
+      // #6366 : l'API ne sert que `brand` (pas de manufacturer/model) → la
+      // marque doit rester affichée pour identifier le dispositif.
+      expect(find.text('Nobel Biocare'), findsOneWidget);
     });
 
     testWidgets(
