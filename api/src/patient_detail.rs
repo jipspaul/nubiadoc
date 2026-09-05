@@ -216,11 +216,18 @@ pub async fn get_cabinet_patient(
     // failed/refunded, qui n'engagent aucune somme — même exclusion que
     // `create_payment_intent`, billing.rs). RLS tenant_isolation déjà
     // satisfaite par le GUC app.current_cabinet_id positionné plus haut.
+    // #4748 : la dette du patient est son RESTE-À-CHARGE (total lignes − part
+    // AMO − part AMC), pas le total brut du devis — même formule que la garde
+    // d'échéancier #4644 (payment_schedules.rs) et que patient_share_cents
+    // (cabinet_quotes.rs). Sur le brut, un patient ayant tout réglé restait
+    // débiteur de la part assurance à vie.
     let balance_row = sqlx::query(
         "SELECT (( \
-           COALESCE((SELECT SUM(total_amount) FROM quote \
-                     WHERE patient_id = $1 AND cabinet_id = $2 \
-                       AND status = 'signed' AND deleted_at IS NULL), 0) \
+           COALESCE((SELECT SUM(qi.qty * qi.unit_amount \
+                       - COALESCE(qi.amo_part, 0) - COALESCE(qi.amc_part, 0)) \
+                     FROM quote q JOIN quote_item qi ON qi.quote_id = q.id \
+                     WHERE q.patient_id = $1 AND q.cabinet_id = $2 \
+                       AND q.status = 'signed' AND q.deleted_at IS NULL), 0) \
            - \
            COALESCE((SELECT SUM(amount) FROM payment \
                      WHERE patient_id = $1 AND cabinet_id = $2 \
