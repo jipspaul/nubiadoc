@@ -602,6 +602,12 @@ class _DocumentCard extends StatelessWidget {
     final (icon, label) = _categoryMeta(doc.category);
     final size = _formatSize(doc.fileSizeBytes);
     final issuer = doc.issuer;
+    // Titre lisible pour le patient : jamais le nom de fichier technique
+    // (souvent un UUID généré par la chaîne d'ingestion, ex.
+    // « ordonnance-<uuid>.pdf », indiscernable des 174 autres) — composé à
+    // partir de la catégorie et de la date de dépôt (maquette design-v2,
+    // écran 1, ex. « Ordonnance du 10 août »).
+    final title = '$label du ${_formatShortDate(doc.createdAt)}';
     // Provenance en premier élément de la méta (maquette design-v2, point 2) ;
     // à défaut, on retombe sur le libellé de catégorie pour ne pas laisser
     // la méta vide ni de séparateur « · » orphelin.
@@ -654,7 +660,7 @@ class _DocumentCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  doc.name,
+                  title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: textTheme.titleSmall,
