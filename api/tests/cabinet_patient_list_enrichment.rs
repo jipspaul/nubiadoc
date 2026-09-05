@@ -150,6 +150,16 @@ async fn insert_fixture(db: &PgPool, suffix: &str) -> Fixture {
     .await
     .unwrap();
 
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount) \
+         VALUES ($1, $2, 'Acte de test', 1, 500.00)",
+    )
+    .bind(cabinet_id)
+    .bind(quote_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     Fixture {
@@ -196,6 +206,13 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query(
+        "DELETE FROM quote_item WHERE quote_id IN (SELECT id FROM quote WHERE patient_id = $1)",
+    )
+    .bind(f.patient_id)
+    .execute(&mut *tx)
+    .await
+    .ok();
     sqlx::query("DELETE FROM quote WHERE patient_id = $1")
         .bind(f.patient_id)
         .execute(&mut *tx)
