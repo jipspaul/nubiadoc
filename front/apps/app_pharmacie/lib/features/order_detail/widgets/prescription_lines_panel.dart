@@ -9,9 +9,9 @@ import 'prescription_line_tile.dart';
 /// droite). Le PDF reste accessible via « Voir l'original » dans l'en-tête
 /// — un recours, plus le seul accès.
 ///
-/// [prescriberName]/[rpps]/[prescribedAt]/[validUntil] : la donnée n'est pas
-/// encore plombée jusqu'ici (ticket dédié) — `null` affiche un tiret, en
-/// attendant.
+/// [rpps]/[prescribedAt]/[validUntil] : la donnée n'est pas encore plombée
+/// jusqu'ici (ticket dédié) — `null` affiche un tiret, en attendant.
+/// [prescriberName] est alimenté depuis [PharmacyOrder.prescriberName].
 class PrescriptionLinesPanel extends StatelessWidget {
   const PrescriptionLinesPanel({
     super.key,
