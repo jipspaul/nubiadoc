@@ -536,3 +536,12 @@ la ronde précédente.
   (biométrie). **Aucun ne produit navigation, requête XHR ni repeinture.** Réflexe : lire l'`onPressed`
   avant tout verdict MORT — désormais 3 familles de faux positifs (nav active, hors viewport, dialogue natif)
   plus les `SnackBar` (nº 19) et les `Switch` (nº 3).
+
+### Quatrième lot (21:15–21:45 UTC) — secrétariat, écrans restants
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts confirmés | cassés confirmés | levées / notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/salle-attente` (1280) | 23 | 7 | **7** | 0 | 0 | **7/7.** « **Appeler MD** » est désormais **nommé** (point 1 de la maquette) et émet son `call-next` + rafraîchissement ; le bouton « Appeler » de ligne fonctionne aussi. « Prévenir le praticien » sort OK cette fois (repeinture détectée) — c'était le jalon `SnackBar` de la ronde précédente. | 2026-09-05T21:20:00+00:00 |
+| secretariat | `/devis` (1280) | ~24 | 9 | 9 | 0 | 0 | Les 3 puces de filtre portent leur compteur (À signer 52 / Brouillons 74 / Signés 74) et basculent. Recherche « Patient, n° de devis… » fonctionnelle. | 2026-09-05T21:22:00+00:00 |
+| secretariat | `/messages` (1280) | — | — | — | — | — | Lancé en fin de ronde, non terminé — **à reprendre en priorité à la prochaine ronde**. | — |
+| **TOTAL RONDE (4 lots)** | **~42 écrans** | **~760** | **~254** | **~230** | **0** | **3** | | |
