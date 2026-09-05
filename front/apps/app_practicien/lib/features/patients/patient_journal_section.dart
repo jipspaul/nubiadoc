@@ -58,8 +58,15 @@ enum _JournalFilter {
 }
 
 class _PatientJournalSectionState extends State<PatientJournalSection> {
+  // #6559 — journal non plafonné : un dossier chargé (~600 entrées agrégées
+  // actes+ordonnances+devis+documents+RDV) rendait sa Column en entier, page
+  // de 115 600 px, actions cliniques de l'en-tête enterrées à 128 écrans de
+  // défilement. On plafonne l'affichage et on révèle par lots.
+  static const int _kPageSize = 20;
+
   List<PatientJournalEntry>? _entries;
   String? _error;
+  int _visible = _kPageSize;
 
   /// #6426 — 403 déterministe (garde « relation de soin » RLS §14) sur une
   /// des sources agrégées par [ListPatientJournalUseCase] : distinct d'une
@@ -127,7 +134,10 @@ class _PatientJournalSectionState extends State<PatientJournalSection> {
             _JournalFilterBar(
               key: const Key('patient_journal_filter_bar'),
               selected: _filter,
-              onSelected: (filter) => setState(() => _filter = filter),
+              onSelected: (filter) => setState(() {
+                _filter = filter;
+                _visible = _kPageSize;
+              }),
             ),
           const SizedBox(height: 12),
           if (_error != null)
@@ -158,17 +168,37 @@ class _PatientJournalSectionState extends State<PatientJournalSection> {
                   textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
             )
           else
-            Column(
-              key: const Key('patient_journal_entries'),
-              children: [
-                for (var i = 0; i < entries.length; i++)
-                  _JournalEntryRow(
-                    key: ValueKey('patient_journal_entry_$i'),
-                    entry: entries[i],
-                    isLast: i == entries.length - 1,
-                  ),
-              ],
-            ),
+            Builder(builder: (context) {
+              final visibleCount =
+                  _visible < entries.length ? _visible : entries.length;
+              final hasMore = entries.length > visibleCount;
+              return Column(
+                key: const Key('patient_journal_entries'),
+                children: [
+                  for (var i = 0; i < visibleCount; i++)
+                    _JournalEntryRow(
+                      key: ValueKey('patient_journal_entry_$i'),
+                      entry: entries[i],
+                      isLast: !hasMore && i == visibleCount - 1,
+                    ),
+                  if (hasMore) ...[
+                    const SizedBox(height: 12),
+                    Center(
+                      child: OutlinedButton.icon(
+                        key: const Key('patient_journal_show_more'),
+                        onPressed: () => setState(
+                          () => _visible += _kPageSize,
+                        ),
+                        icon: const Icon(Icons.expand_more),
+                        label: Text(
+                          "Voir plus d'entrées (${entries.length - visibleCount} restantes)",
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            }),
         ],
       ),
     );
