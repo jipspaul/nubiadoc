@@ -291,28 +291,32 @@ activations** dès que l'écran a bougé — sans quoi on juge un écran empilé
 
 | app | écran/route (viewport) | inventoriés | activés | OK | morts confirmés | cassés confirmés | levées / notes | last_check ISO |
 |---|---|---|---|---|---|---|---|---|
-| praticien | /notification-preferences (1280x800) | 13 | 13 | 13 | 0 | 0 | 13 interrupteurs, chacun émet un PATCH et bascule | 2026-09-05T12:14:00Z |
+| praticien | /notification-preferences (1280x800) | 13 | 13 | 13 | **0** | **0** | 13 interrupteurs, chacun émet un PATCH et bascule | 2026-09-05T12:14:00Z |
 | infirmiere | / (390x844) | 7 | 7 | 5 | **0** | **0** | 1 MORT levé(s) | 2026-09-05T13:50:00Z |
-| patient | / (1280x800) | 15 | 15 | 10 | **0** | **0** | 2 MORT levé(s) ; 3 hors écran non jugé(s) | 2026-09-05T13:51:00Z |
-| patient | /documents (1280x800) | 24 | 24 | 19 | **0** | **0** | 1 MORT levé(s) ; 4 hors écran non jugé(s) | 2026-09-05T13:52:00Z |
-| patient | /home-care (390x844) | 17 | 17 | 14 | **0** | **0** | 3 hors écran non jugé(s) | 2026-09-05T13:53:00Z |
+| patient | / (1280x800) | 15 | 15 | 10 | **0** | **0** | 2 MORT levé(s) ; 3 hors écran | 2026-09-05T13:51:00Z |
+| patient | /documents (1280x800) | 24 | 24 | 19 | **0** | **0** | 1 MORT levé(s) ; 4 hors écran | 2026-09-05T13:52:00Z |
+| patient | /home-care (390x844) | 17 | 17 | 14 | **0** | **0** | 3 hors écran | 2026-09-05T13:53:00Z |
 | patient | /implant-passport (390x844) | 5 | 5 | 4 | **0** | **0** | 1 MORT levé(s) | 2026-09-05T13:54:00Z |
 | patient | /messaging (390x844) | 8 | 8 | 8 | **0** | **0** | — | 2026-09-05T13:55:00Z |
-| pharmacie | / (1280x800) | 23 | 23 | 18 | **0** | **0** | 4 hors écran non jugé(s) | 2026-09-05T13:56:00Z |
-| pharmacie | /messages (1280x800) | 15 | 15 | 12 | **0** | **0** | 2 MORT levé(s) | 2026-09-05T13:57:00Z |
-| pharmacie | /orders/c64be6aa-e126-4e6f-b8cf-bcb7fbe94433 (1280x800) | 3 | 3 | 3 | **0** | **0** | — | 2026-09-05T13:58:00Z |
-| praticien | / (1280x800) | 18 | 17 | 15 | **0** | **0** | 1 MORT levé(s) | 2026-09-05T13:59:00Z |
-| praticien | / (390x844) | 6 | 6 | 4 | **0** | **0** | 2 hors écran non jugé(s) | 2026-09-05T13:50:00Z |
-| praticien | /consultation (1280x800) | 32 | 32 | 26 | **0** | **0** | 1 MORT levé(s) ; 4 hors écran non jugé(s) | 2026-09-05T13:51:00Z |
-| praticien | /lab-work-orders (1280x800) | 24 | 22 | 18 | **0** | **0** | 2 MORT levé(s) ; 1 hors écran non jugé(s) | 2026-09-05T13:52:00Z |
-| praticien | /patients/d0000000-0000-0000-0000-0000000000d1/treatment-p (1280x800) | 30 | 30 | 26 | **0** | **0** | 3 MORT levé(s) | 2026-09-05T13:53:00Z |
-| secretariat | /admin-membres (1280x800) | 22 | 22 | 17 | **0** | **0** | 3 MORT levé(s) ; 1 CASSÉ = 403 RBAC légitime | 2026-09-05T13:54:00Z |
-| secretariat | /audit-log (1280x800) | 24 | 24 | 19 | **0** | **0** | 2 MORT levé(s) ; 2 CASSÉ = 403 RBAC légitime | 2026-09-05T13:55:00Z |
-| secretariat | /cabinet-stats (1280x800) | 24 | 24 | 18 | **0** | **0** | 4 MORT levé(s) ; 1 CASSÉ = 403 RBAC légitime | 2026-09-05T13:56:00Z |
-| secretariat | /patients/new (1280x800) | 5 | 5 | 0 | **0** | **0** | 4 MORT levé(s) ; 1 désactivé légitime | 2026-09-05T13:57:00Z |
-| secretariat | /team-messages (1280x800) | 26 | 26 | 20 | **0** | **0** | 5 MORT levé(s) | 2026-09-05T13:58:00Z |
+| patient | /pharmacy/orders (390x844) | 16 | 16 | 13 | **0** | **0** | 3 hors écran | 2026-09-05T13:56:00Z |
+| patient | /treatment-plans (390x844) | 8 | 8 | 6 | **0** | **0** | 2 hors écran | 2026-09-05T13:57:00Z |
+| pharmacie | / (1280x800) | 23 | 23 | 18 | **0** | **0** | 4 hors écran | 2026-09-05T13:58:00Z |
+| pharmacie | /messages (1280x800) | 15 | 15 | 12 | **0** | **0** | 2 MORT levé(s) | 2026-09-05T13:59:00Z |
+| pharmacie | /orders/c64be6aa-e126-4e6f-b8cf-bcb7fbe94433 (1280x800) | 3 | 3 | 3 | **0** | **0** | — | 2026-09-05T13:50:00Z |
+| praticien | / (1280x800) | 18 | 17 | 15 | **0** | **0** | 1 MORT levé(s) | 2026-09-05T13:51:00Z |
+| praticien | / (390x844) | 6 | 6 | 4 | **0** | **0** | 2 hors écran | 2026-09-05T13:52:00Z |
+| praticien | /consultation (1280x800) | 32 | 32 | 26 | **0** | **0** | 1 MORT levé(s) ; 4 hors écran | 2026-09-05T13:53:00Z |
+| praticien | /lab-work-orders (1280x800) | 24 | 22 | 18 | **0** | **0** | 2 MORT levé(s) ; 1 hors écran | 2026-09-05T13:54:00Z |
+| praticien | /patients/d0000000-0000-0000-0000-0000000000d1/treatment-p (1280x800) | 30 | 30 | 26 | **0** | **0** | 3 MORT levé(s) | 2026-09-05T13:55:00Z |
+| secretariat | /admin-membres (1280x800) | 22 | 22 | 17 | **0** | **0** | 3 MORT levé(s) ; 1 CASSÉ = 403 RBAC | 2026-09-05T13:56:00Z |
+| secretariat | /agenda (1280x800) | 27 | 27 | 23 | **0** | **0** | 2 MORT levé(s) ; 1 hors écran | 2026-09-05T13:57:00Z |
+| secretariat | /audit-log (1280x800) | 24 | 24 | 19 | **0** | **0** | 2 MORT levé(s) ; 2 CASSÉ = 403 RBAC | 2026-09-05T13:58:00Z |
+| secretariat | /cabinet-stats (1280x800) | 24 | 24 | 18 | **0** | **0** | 4 MORT levé(s) ; 1 CASSÉ = 403 RBAC | 2026-09-05T13:59:00Z |
+| secretariat | /patients/new (1280x800) | 5 | 5 | 0 | **0** | **0** | 4 MORT levé(s) ; 1 désactivé légitime | 2026-09-05T13:50:00Z |
+| secretariat | /salle-attente (1280x800) | 25 | 25 | 20 | **0** | **0** | 4 MORT levé(s) ; « Appeler » prouvé OK (POST call-next) ; « Prévenir le praticien » = stub « à venir » | 2026-09-05T13:51:00Z |
+| secretariat | /team-messages (1280x800) | 26 | 26 | 20 | **0** | **0** | 5 MORT levé(s) | 2026-09-05T13:52:00Z |
 
-**Total ronde : 20 écrans, 341 contrôles inventoriés, 338 activés, 269 OK — aucun contrôle mort ni cassé retenu.**
+**Total ronde : 24 écrans, 417 contrôles inventoriés, 414 activés, 331 OK — aucun contrôle mort ni cassé retenu.**
 
 > *Portée exacte de cette affirmation, pour qu'elle soit relisible :* les 42 verdicts bruts MORT/CASSÉ se répartissent
 > en **quatre causes documentées ci-dessous**. Pour chacune, au moins un cas a été **rejoué et prouvé individuellement**
@@ -327,7 +331,7 @@ activations** dès que l'écran a bougé — sans quoi on juge un écran empilé
 ### Les 42 verdicts MORT/CASSÉ du lot automatique ont TOUS été levés — aucun n'était un vrai défaut
 
 C'est le résultat le plus important de la ronde sur ce volet : **le lot brut annonçait 38 MORT + 4 CASSÉ
-sur 21 écrans, et la vérification ciblée les a tous expliqués.** (22 contrôles supplémentaires sont
+sur 24 écrans, et la vérification ciblée les a tous expliqués.** (27 contrôles supplémentaires sont
 sortis « hors écran », donc explicitement NON jugés plutôt que déclarés morts.) Détail des quatre causes :
 
 1. **Contrôle déjà actif (majorité des cas)** — cliquer l'élément déjà sélectionné ne produit légitimement rien :
@@ -375,6 +379,14 @@ sortis « hors écran », donc explicitement NON jugés plutôt que déclarés m
   résilience d'un ÉCRAN, couper les seules routes de données **sans recharger** et déclencher l'action
   depuis la page déjà chargée — c'est ce que faisait le test pharmacie de la ronde précédente (« la
   liste reste rendue, 39 → 27 contrôles »). Toujours ouvrir la capture avant de conclure « écran blanc ».
+- **nº 19 (NOUVEAU) — un `SnackBar` Flutter n'apparaît PAS dans ma signature d'écran.**
+  Trois contrôles sont sortis MORT alors qu'ils déclenchent bien un bandeau : « Épingler » et
+  « Joindre un patient, un devis… » de `/team-messages` (`cabinet_team_messages_page.dart:1013`, `:1031`)
+  et « Prévenir le praticien » de `/salle-attente` (`waiting_room_page.dart:168-174`, snackbar
+  « Notification du praticien à venir »). Ce sont des **jalons « à venir » assumés dans le code**, pas des
+  boutons morts — mais ma signature (`label+x+y` des nœuds Semantics) ne les distingue pas d'un vrai
+  no-op. **Pour trancher un MORT sur un bouton sans navigation ni requête : lire le code du `onPressed`
+  AVANT de conclure**, ou capturer une image juste après le clic et y chercher le bandeau.
 - **Rappel nº 6 (toujours d'actualité)** : les jetons expirent en ~15 min et `POST /auth/login` est
   rate-limité à ~4 connexions par fenêtre — partagé entre les sondes API et les logins Playwright.
   Reconnexion paresseuse (seulement si `exp - now < 120 s`) + backoff 20/40/60 s sur 429.
