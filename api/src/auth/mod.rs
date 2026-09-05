@@ -1598,12 +1598,7 @@ impl FromRequestParts<AppState> for ProPractitionerClaims {
             .map(|d| d.claims)
             .map_err(|_| AppError::Unauthorized)?;
 
-        // `manager` est un rôle de secrétariat (front-office, créé via
-        // /cabinet/secretariats/:id/staff) : même tier non-clinique que
-        // `secretary` (§07 §4.1 — le secrétariat n'accède pas au contenu
-        // clinique). Sans ce blocage il lisait dossier médical, notes et
-        // ordonnances (#5718).
-        if claims.role == "secretary" || claims.role == "manager" {
+        if claims.role == "secretary" {
             return Err(AppError::Forbidden);
         }
 
