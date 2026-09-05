@@ -1295,3 +1295,82 @@ async fn documents_list_pagination_cursor_works() {
         .await
         .ok();
 }
+
+/// #4756 : le coffre-fort refuse un fichier portant la signature EICAR en 422
+/// (même garde que POST /account/coverage/card) — rien n'est écrit en base.
+#[tokio::test]
+async fn documents_upload_eicar_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("upload-eicar+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Eicar')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let jwt = make_patient_jwt(user_id, account_id);
+
+    let eicar = b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
+    let boundary = "testboundaryeicar001";
+    let body = make_upload_multipart(boundary, "facture", eicar, "eicar.pdf", "application/pdf");
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/documents")
+                .header("Authorization", format!("Bearer {jwt}"))
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM document WHERE patient_account_id = $1")
+            .bind(account_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(count, 0, "aucun document ne doit être stocké");
+
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
