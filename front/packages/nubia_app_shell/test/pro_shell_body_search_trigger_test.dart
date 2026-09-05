@@ -51,6 +51,39 @@ void main() {
     },
   );
 
+  // #6340 — le déclencheur était peint et cliquable mais totalement absent
+  // de l'arbre Semantics (aucun `role=button`, libellé aplati dans le group
+  // racine de la page) : invisible aux lecteurs d'écran et hors du parcours
+  // de focus clavier.
+  testWidgets(
+    'body StatefulShellRoute + searchHint/onSearchTap : le déclencheur de '
+    'recherche expose un nœud Semantics bouton',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: ProShell(
+            config: _config,
+            session: _session,
+            searchHint: 'Patient, devis, commande…',
+            onSearchTap: () {},
+            body: const Scaffold(body: Center(child: Text('contenu routé'))),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final trigger =
+          tester.getSemantics(find.byKey(const Key('global_search_trigger')));
+      expect(trigger.flagsCollection.isButton, isTrue);
+      expect(trigger.label, 'Patient, devis, commande… ⌘K');
+
+      handle.dispose();
+    },
+  );
+
   testWidgets(
     'body StatefulShellRoute sans searchHint/onSearchTap : pas de '
     'déclencheur de recherche',
