@@ -471,6 +471,180 @@ async fn dashboard_with_sent_quote_counts_reminder() {
         .ok();
 }
 
+// ── Test : devis signé + paiement pending associé → reste à charge déduit, pas ajouté (#6566) ──
+
+#[tokio::test]
+async fn dashboard_signed_quote_with_pending_payment_deducts_not_adds() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("dashboard-topay+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Théo', 'Solde')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+    let payment_id = Uuid::new_v4();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Dashboard ToPay Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Théo', 'Solde', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Devis signé de 200€ : c'est la dette maximale théorique du patient.
+        sqlx::query(
+            "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount) \
+             VALUES ($1, $2, $3, 'signed', 200.00)",
+        )
+        .bind(quote_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // PaymentIntent pending de 80€ déjà engagé par le patient sur ce devis :
+        // il doit RÉDUIRE le reste à charge (200 - 80 = 120 restants), pas s'y ajouter.
+        sqlx::query(
+            "INSERT INTO payment (id, cabinet_id, patient_id, quote_id, amount, kind, provider, status) \
+             VALUES ($1, $2, $3, $4, 80.00, 'deposit', 'stripe', 'pending')",
+        )
+        .bind(payment_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(quote_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/dashboard")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let to_pay = v["to_pay"].as_array().unwrap();
+    assert_eq!(
+        to_pay.len(),
+        1,
+        "un seul devis signé encore dû, un seul item to_pay attendu"
+    );
+    assert_eq!(
+        to_pay[0]["quote_id"],
+        quote_id.to_string(),
+        "l'item to_pay doit référencer le devis, pas le paiement"
+    );
+    assert_eq!(
+        to_pay[0]["amount_cents"], 12000,
+        "200€ signés - 80€ pending déjà engagés = 120€ (12000c) restant à charge, \
+         pas 80€ (8000c) ajoutés en plus (#6566)"
+    );
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM payment WHERE id = $1")
+            .bind(payment_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote WHERE id = $1")
+            .bind(quote_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 3 : token pro → 403 ──────────────────────────────────────────────────
 
 #[tokio::test]

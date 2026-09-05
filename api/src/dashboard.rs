@@ -25,7 +25,7 @@ pub struct ToSignItem {
 
 #[derive(Serialize)]
 pub struct ToPayItem {
-    pub payment_id: Uuid,
+    pub quote_id: Uuid,
     pub amount_cents: i64,
 }
 
@@ -83,11 +83,23 @@ pub async fn get_dashboard(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    // Paiements en attente — index payment_cabinet_status_idx (0012)
-    let payments = sqlx::query(
-        "SELECT id, (amount * 100)::bigint AS amount_cents \
-         FROM payment \
-         WHERE status = 'pending'",
+    // Reste à charge (#6566) : un devis SIGNÉ reste une dette tant que les
+    // paiements pending/paid qui lui sont associés ne couvrent pas son total —
+    // même définition que le solde cabinet (patient_detail.rs, clinical.rs) :
+    // un PaymentIntent `pending` est une intention DÉJÀ engagée par le patient,
+    // donc il réduit la dette au lieu de s'y ajouter. Agrégé par `quote_id`
+    // (GROUP BY) pour ne pas compter en double plusieurs intents pending sur
+    // le même devis, et borné par devis via le WHERE (jamais négatif).
+    let dues = sqlx::query(
+        "SELECT q.id, ((q.total_amount - COALESCE(p.paid_amount, 0)) * 100)::bigint AS amount_cents \
+         FROM quote q \
+         LEFT JOIN ( \
+           SELECT quote_id, SUM(amount) AS paid_amount FROM payment \
+           WHERE status IN ('pending', 'paid') AND quote_id IS NOT NULL \
+           GROUP BY quote_id \
+         ) p ON p.quote_id = q.id \
+         WHERE q.status = 'signed' AND q.deleted_at IS NULL \
+           AND q.total_amount > COALESCE(p.paid_amount, 0)",
     )
     .fetch_all(&mut *tx)
     .await
@@ -141,15 +153,15 @@ pub async fn get_dashboard(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let to_pay = payments
+    let to_pay = dues
         .into_iter()
         .map(|row| -> Result<ToPayItem, AppError> {
-            let payment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let quote_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
             let amount_cents: i64 = row
                 .try_get("amount_cents")
                 .map_err(|_| AppError::Internal)?;
             Ok(ToPayItem {
-                payment_id,
+                quote_id,
                 amount_cents,
             })
         })
