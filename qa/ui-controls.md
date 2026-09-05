@@ -405,3 +405,81 @@ sortis « hors écran », donc explicitement NON jugés plutôt que déclarés m
   (#6369) et non une erreur brute.
 - **pharmacie `/orders/:id` (Délivrance)** : re-vérifier le panneau des lignes d'ordonnance après #6368
   (`prescriberName` transmis au panneau).
+
+---
+
+## Ronde 2026-09-05 (18:00–20:30 UTC) — 5 apps, ciblage diff-driven des 2 merges API de 17h56–18h00
+
+Contexte de ciblage (Étape 1bis) : depuis le dernier commit de registre (`4d03521`), **aucun fichier
+`front/` n'a bougé** — seuls `api/src/scheduling.rs` et ses tests. Les deux merges (#6549 `patient_id`
+dans la salle d'attente, #6548 `deny_unknown_fields` sur le PATCH RDV) ont donc été **re-vérifiés de
+droit** en priorité, puis le budget est allé aux écrans jamais audités et aux points laissés ouverts par
+la ronde précédente.
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts confirmés | cassés confirmés | levées / notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/` Tableau de bord (1280) | 23 | 1 | 1 | 0 | 0 | **#6549 re-vérifié en UI** : « Ouvrir le dossier » du hero navigue bien vers `/patients/d0000000-…-d1` (et non plus l'annuaire), avec `GET /cabinet/patients/<id>` émis. Correctif confirmé bout-en-bout. | 2026-09-05T18:07:00+00:00 |
+| praticien | `/lab-work-orders` (1280) | 22 | 9 | 9 | 0 | 0 | « Nouveau bon » sorti MORT par le détecteur → **levé** : `lab_work_orders_page.dart:139-148` affiche un `SnackBar` « Création de bon de travail à venir » (jalon assumé, invisible dans ma signature — piège nº 19). « Marquer retourné » et « Programmer la pose » émettent bien leur requête. | 2026-09-05T18:12:00+00:00 |
+| praticien | `/stock-inventory` (1280) | 28 | 15 | 12 | 0 | 0 | 3 « Mouvement » MORT → **levés** : ce sont les 3 dernières lignes, hors viewport vertical (piège nº 2). Les 8 premières sont OK. | 2026-09-05T18:15:00+00:00 |
+| praticien | `/ordonnances` (1280) | 17 | 4 | 4 | 0 | 0 | « Choisir un patient » ouvre bien le sélecteur. | 2026-09-05T18:14:00+00:00 |
+| praticien | `/devis` (1280) | 24 | 11 | 9 | 0 | 0 | 2 cartes MORT → **levées** (hors viewport, mêmes 2 dernières lignes). Les 6 premières cartes ouvrent le détail. Montants « 33,25 € » / « 100 € » : `_formatCents` local (`devis_page.dart:553`) duplique `formatQuoteCents(alwaysShowDecimals:false)` — non filé (option documentée, pas de maquette v2 pour cet écran). | 2026-09-05T18:16:00+00:00 |
+| praticien | `/patients/:id` Dossier patient (1280/1440/1920) | 49 | — | — | — | — | Audité en **structure** plutôt qu'en activation : la page fait 115 600 px → **#6559**. Les 5 actions du pied sont atteignables (prouvé par 60× molette 20 000 px), donc ni mortes ni cassées — seulement à 128 écrans du haut. | 2026-09-05T18:38:00+00:00 |
+| secretariat | `/` Tableau de bord + rail (1280) | 28 | — | — | — | — | Inventaire de navigation pour la comparaison design-v2. Badges peints 3 / 7 / 31 mais absents des Semantics → **#6555**. | 2026-09-05T18:20:00+00:00 |
+| secretariat | `/patients` Fiches patients (1280) | 44 | 5 | 4 | 0 | 0 | Volet latéral conforme au clic sur une ligne. **4 touches clavier prouvées sans effet** (`/`, `↑`, `↓`, `⏎`) alors que la pastille « ⌘N » est peinte → **#6558**. | 2026-09-05T18:34:00+00:00 |
+| secretariat | `/cabinet-payouts` Encaissements (1280) | 26 | 3 | 3 | 0 | 0 | « Mois précédent » ×2 → juillet 2026 se remplit (3 virements + « Détail » + « Analyser »). « Exporter (CSV) » grisé sur un mois vide = **DÉSACTIVÉ légitime prouvé**. | 2026-09-05T18:30:00+00:00 |
+| secretariat | `/liste-attente` (1280) | 20 | 4 | 4 | 0 | 0 | RAS. | 2026-09-05T18:52:00+00:00 |
+| secretariat | `/appointment-motifs` (1280) | 24 | 7 | 5 | 0 | 0 | « Motifs de RDV » MORT = nav de l'écran courant (piège nº 1). « Statistiques » CASSE → **levé** : navigue vers `/cabinet-stats`, dont le 403 est rendu en état « réservé » (#6369). | 2026-09-05T18:55:00+00:00 |
+| secretariat | `/audit-log` (1280) | 24 | 8 | 5 | 0 | **2** | État « Accès réservé aux administrateurs » **correct** (cadenas + explication) — la question laissée ouverte par la ronde précédente est **tranchée : pas d'erreur brute**. Mais « Filtrer » et « Réinitialiser » restent actifs et rejouent un 403 silencieux → **#6561**. « Entité » MORT = textbox (piège nº 16). | 2026-09-05T18:57:00+00:00 |
+| secretariat | `/admin-membres` (1280) | 22 | 6 | 3 | 0 | **1** | Même état « réservé » correct. « Actualiser » actif → 403 silencieux → **#6561**. Onglets « Membres »/« Secrétariats » MORT = onglet actif (piège nº 1). | 2026-09-05T18:58:00+00:00 |
+| patient | `/implant-passport` (390) | 5 | 5 | 4 | 0 | 0 | La 4e carte MORT → **levée** : elle est réduite à 6 px de haut, rognée par le pied figé → c'est le symptôme de **#6560**, pas un bouton mort. | 2026-09-05T18:36:00+00:00 |
+| patient | `/profile/dependents` (390) | 22 | 22 | 17 | 0 | 0 | 5 MORT → **levés** : les 5 contrôles des 2 dernières cartes, hors viewport (piège nº 2). « Planifier » / « Prendre RDV » / « Documents » émettent 10 à 18 requêtes chacun. | 2026-09-05T18:33:00+00:00 |
+| patient | `/reviews` (390) | 1 | 1 | 1 | 0 | 0 | « Retour » fonctionne (l'écran à 0 commande de #6457 est corrigé) mais l'écran reste sans autre action. | 2026-09-05T18:33:00+00:00 |
+| patient | `/home-care/new` (390) | 12 | 8 | 8 | 0 | 0 | Parcours complet joué : cocher « Injection » **active** « Obtenir un devis » (`aria-disabled` passe de `true` à absent), les 3 champs d'adresse acceptent la saisie. Voir la section adversariale ci-dessous. | 2026-09-05T18:46:00+00:00 |
+| pharmacie | `/` File des commandes (1280) | 35 | — | — | — | — | Inventaire : 8 « Délivrer », 2 « Marquer prête », 4 puces de filtre avec compteurs (Toutes 56 / Reçues 10 / En préparation 3 / Prêtes 43). | 2026-09-05T18:25:00+00:00 |
+| pharmacie | `/messages` (1280) | 15 | 14 | 12 | 0 | 0 | 2 MORT → **levés** (nav de l'écran courant + puce de filtre déjà sélectionnée). Les 4 fils s'ouvrent. | 2026-09-05T18:27:00+00:00 |
+| pharmacie | `/stock` (1280) | 15 | 14 | 12 | 0 | 0 | 2 MORT → **levés** (idem). « Accepter » émet bien sa requête (effet constaté côté cabinet, ligne X7). | 2026-09-05T18:29:00+00:00 |
+| pharmacie | `/orders/:id/pickup` (1280) | 4 | — | — | — | — | Atteint via le test de coupure réseau (voir adversariaux). | 2026-09-05T18:56:00+00:00 |
+| infirmiere | `/` Disponibilité / Offres / Ma visite (390) | 7 | 6 | 5 | 0 | 0 | « Disponibilité » MORT = onglet actif (piège nº 1). L'interrupteur « En ligne » **émet bien son PATCH** — ⚠️ il a basculé mon infirmière hors ligne pendant un test API concurrent, cf. leçon nº 20. | 2026-09-05T18:23:00+00:00 |
+| **TOTAL** | **21 écrans** | **446** | **141** | **123** | **0** | **3** | | |
+
+### Adversariaux joués cette ronde
+| cas | écran | résultat |
+|---|---|---|
+| Texte très long (240 caractères) dans un champ libre | patient `/home-care/new` (390) | **OK** — `ymax` reste à 844, **0 nœud hors cadre horizontal**. Pas de débordement. |
+| Retour navigateur au milieu d'un flux | patient `/` → `/book` → `goBack()` | **OK** — retour propre à `/`, 16 contrôles interactifs, ni écran blanc ni cul-de-sac. |
+| Double-clic rapide (60 ms) sur une action métier | patient `/home-care/new` → « Confirmer la demande » | **Non concluant** : le bouton est légitimement désactivé tant que l'étape « Obtenir un devis » n'a pas abouti (`onPressed: (state is! HomeCareRequestEstimated …) ? null : …`, `home_care_request_page.dart:158-166`), et la géolocalisation est indisponible en navigateur headless. À rejouer avec une position simulée. |
+| Coupure réseau `route.abort()` sur `**/v1/**` **sans recharger**, puis action depuis la page déjà chargée | pharmacie `/` → clic « Délivrer » | **OK, erreur digne** — navigue vers `/orders/:id/pickup` et affiche « **Caméra indisponible — utilisez la saisie manuelle ci-dessous** » avec le champ « Code de retrait » + « Valider le code ». Ni écran blanc, ni spinner infini, `console.error` vide. |
+| Géolocalisation refusée (navigateur headless) | patient `/home-care/new` → « Obtenir un devis » | **OK, erreur digne** — après le timeout de 10 s de `_defaultCurrentPosition` (`home_care_request_cubit.dart:146-155`), un `SnackBar` « **Position indisponible : activez la géolocalisation.** » s'affiche et le formulaire se déverrouille. Voir leçon nº 21. |
+
+### Leçons de méthode ajoutées cette ronde
+- **nº 20 (NOUVEAU) — ne jamais laisser tourner un audit UI et une sonde API sur le MÊME compte en parallèle.**
+  Mon audit de l'app infirmière a activé l'interrupteur « En ligne » (c'est son travail) pendant que je
+  testais X10 en curl : la demande de visite est alors partie alors qu'aucune infirmière n'était en ligne,
+  elle est restée en `requested` sans offre, et j'ai failli conclure à un **fan-out cassé**. C'était mon
+  propre test qui interférait. Après remise en ligne, la demande part en `offered` et l'offre arrive
+  immédiatement. **Sérialiser, ou utiliser des comptes distincts.**
+- **nº 21 (NOUVEAU) — un délai d'attente côté client se lit dans le CODE avant de crier au spinner infini.**
+  « Obtenir un devis » n'émettait aucune requête et verrouillait le formulaire : j'ai attendu 4 s puis
+  conclu au blocage. Le cubit borne en réalité la géolocalisation à **10 s**
+  (`home_care_request_cubit.dart:148`) avant d'émettre son échec. En re-testant à 9,5 / 10,5 / 11,5 s et en
+  **ouvrant la capture**, le `SnackBar` « Position indisponible » est bien là (piège nº 19 à nouveau : un
+  `SnackBar` n'entre jamais dans la signature Semantics). **Lire le timeout, puis capturer autour.**
+- **nº 22 (NOUVEAU) — les clés de réponse s'inventorient dans le code, pas au jugé.** Quatre faux
+  « champ manquant » ce round, tous de mon fait : `POST /v1/cabinet/prescriptions` renvoie
+  `prescription_id` (pas `id`), `POST /v1/cabinet/quotes` renvoie `quote_id`, `/v1/search/providers`
+  renvoie `provider_id`, et `QuoteItemInput` attend `amount_cents` (pas `unit_amount_cents`). J'ai
+  brièvement cru à « une création qui répond 201 sans écrire » — le RE-GET l'a démentie. **Toujours
+  imprimer la réponse VERBATIM avant de la parser.**
+- **Rappel nº 18/19 re-confirmés** : la coupure réseau pharmacie a produit un ratio de pixels quasi-blancs
+  de **0,939** (au-dessus du seuil 0,92 « canvas vide ») alors que la capture montre un écran **parfaitement
+  rendu** avec 3 contrôles. Le ratio de blanc seul ne prouve rien sur un écran clair — **ouvrir la capture**.
+
+### À traiter en priorité à la prochaine ronde
+- **praticien `/patients/:id`** : ré-auditer bouton par bouton une fois #6559 corrigé (les 49 contrôles
+  n'ont pas pu être activés un à un tant que la page fait 128 écrans).
+- **patient `/home-care/new`** : rejouer le double-submit avec une **géolocalisation simulée**
+  (`context.grantPermissions(['geolocation'])` + `setGeolocation`), seul moyen d'atteindre
+  « Confirmer la demande » et donc de tester le double POST.
+- **praticien `/messages`, `/team-messages`, `/agenda`, `/consultation`** : non audités cette ronde.
+- **patient `/messaging`, `/treatment-plans`, `/financial`, `/pharmacy/*`** : non audités cette ronde.
+- **secretariat `/bookable-slots`, `/admin-secretariats`, `/team-messages`** : jamais audités.
