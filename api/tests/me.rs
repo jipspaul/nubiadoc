@@ -507,6 +507,108 @@ async fn me_pro_two_memberships_returns_two_entries() {
         .ok();
 }
 
+// ── Test 7 : pro praticien → practitioner_id résolu dans le membership ────────
+// Régression #6504 (récidive de #6446) : `practitioner` est protégé par une
+// RLS fail-closed (migration 0011) ; la résolution doit passer par la
+// fonction SECURITY DEFINER `user_practitioner_ids` (migration 0254), pas par
+// une requête directe sur une connexion sans `app.current_cabinet_id`.
+
+#[tokio::test]
+async fn me_pro_practitioner_returns_practitioner_id() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let practitioner_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("me-pro-practitioner+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, 'Cabinet Test Practitioner', 'dentiste')",
+    )
+    .bind(cabinet_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'practitioner', true)",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(practitioner_id)
+        .bind(cabinet_id)
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/me")
+                .header("Authorization", format!("Bearer {}", make_pro_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let memberships = v["memberships"].as_array().unwrap();
+    assert_eq!(memberships.len(), 1);
+    assert_eq!(
+        memberships[0]["practitioner_id"],
+        practitioner_id.to_string()
+    );
+
+    sqlx::query("DELETE FROM practitioner WHERE id = $1")
+        .bind(practitioner_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet_membership WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 #[tokio::test]
 async fn me_no_jwt_returns_401() {
     let db = PgPool::connect_lazy(
