@@ -7,7 +7,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use chrono::TimeZone;
+use chrono::{Datelike, TimeZone};
 use serde::{Deserialize, Serialize};
 use sqlx::{Acquire, Row};
 use uuid::Uuid;
@@ -16,6 +16,53 @@ use crate::{
     auth::{AppError, ProPractitionerClaims, ProSecretaryPlusClaims},
     notify, patient_guardianship, AppState,
 };
+
+/// Borne UTC de minuit local pour une date cabinet (#6577) : le marché
+/// nubiadoc est mono-fuseau (`Europe/Paris`), donc pas de dépendance
+/// `chrono-tz` — juste la règle UE de passage heure d'été/hiver (dernier
+/// dimanche de mars/octobre à 01:00 UTC).
+fn paris_midnight_utc(date: chrono::NaiveDate) -> Result<chrono::DateTime<chrono::Utc>, AppError> {
+    let ndt = date.and_hms_opt(0, 0, 0).ok_or(AppError::ValidationError)?;
+    let offset_hours = paris_utc_offset_hours(date);
+    Ok(chrono::Utc.from_utc_datetime(&ndt) - chrono::Duration::hours(offset_hours))
+}
+
+/// Décalage `Europe/Paris` (heures) applicable à minuit local de `date` :
+/// +2 (CEST) entre le dernier dimanche de mars et le dernier dimanche
+/// d'octobre, +1 (CET) sinon.
+fn paris_utc_offset_hours(date: chrono::NaiveDate) -> i64 {
+    let year = date.year();
+    let dst_start = last_sunday_of_month(year, 3);
+    let dst_end = last_sunday_of_month(year, 10);
+    if date >= dst_start && date < dst_end {
+        2
+    } else {
+        1
+    }
+}
+
+fn last_sunday_of_month(year: i32, month: u32) -> chrono::NaiveDate {
+    let first_of_next = if month == 12 {
+        chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+    } else {
+        chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+    }
+    .expect("mois valide");
+    let last_of_month = first_of_next - chrono::Duration::days(1);
+    let days_since_sunday = last_of_month.weekday().num_days_from_sunday();
+    last_of_month - chrono::Duration::days(days_since_sunday as i64)
+}
+
+/// Fenêtre `[début, fin[` en UTC pour `days` jours locaux cabinet à partir de
+/// `base_date` (#6577) : la journée du cabinet se découpe sur minuit local,
+/// pas minuit UTC.
+fn cabinet_local_days_utc_range(
+    base_date: chrono::NaiveDate,
+    days: i64,
+) -> Result<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>), AppError> {
+    let end_date = base_date + chrono::Duration::days(days);
+    Ok((paris_midnight_utc(base_date)?, paris_midnight_utc(end_date)?))
+}
 
 #[derive(Deserialize)]
 pub struct AgendaQuery {
@@ -71,17 +118,12 @@ pub async fn get_cabinet_agenda(
         None => chrono::Utc::now().date_naive(),
     };
 
-    let ndt = base_date
-        .and_hms_opt(0, 0, 0)
-        .ok_or(AppError::ValidationError)?;
-    let range_start: chrono::DateTime<chrono::Utc> = chrono::Utc.from_utc_datetime(&ndt);
-
     let days: i64 = if params.view.as_deref() == Some("week") {
         7
     } else {
         1
     };
-    let range_end = range_start + chrono::Duration::days(days);
+    let (range_start, range_end) = cabinet_local_days_utc_range(base_date, days)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -1281,10 +1323,7 @@ pub async fn get_cabinet_appointments(
         if let Some(date_str) = &params.date {
             let d = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
                 .map_err(|_| AppError::ValidationError)?;
-            let ndt_start = d.and_hms_opt(0, 0, 0).ok_or(AppError::ValidationError)?;
-            let range_start = chrono::Utc.from_utc_datetime(&ndt_start);
-            let range_end = range_start + chrono::Duration::days(1);
-            Some((range_start, range_end))
+            Some(cabinet_local_days_utc_range(d, 1)?)
         } else {
             None
         };
