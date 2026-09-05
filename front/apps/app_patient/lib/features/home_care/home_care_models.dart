@@ -45,6 +45,7 @@ class VisitRequest extends Equatable {
     required this.requestedActs,
     required this.address,
     required this.estimatedPriceCents,
+    this.nurseDisplayName,
   });
 
   final String id;
@@ -52,6 +53,9 @@ class VisitRequest extends Equatable {
   final List<String> requestedActs;
   final Map<String, dynamic> address;
   final int estimatedPriceCents;
+  /// Nom affiché de l'infirmière assignée, dès qu'une offre a été acceptée
+  /// (`null` avant, symétrique de `patient_display_name` côté infirmière).
+  final String? nurseDisplayName;
 
   static VisitRequest fromJson(Map<String, dynamic> j) => VisitRequest(
         id: j['id'] as String,
@@ -60,6 +64,7 @@ class VisitRequest extends Equatable {
             (j['requested_acts'] as List<dynamic>? ?? []).cast<String>(),
         address: (j['address'] as Map<String, dynamic>?) ?? const {},
         estimatedPriceCents: j['estimated_price_cents'] as int? ?? 0,
+        nurseDisplayName: j['nurse_display_name'] as String?,
       );
 
   String get addressLine =>

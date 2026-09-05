@@ -48,11 +48,26 @@ pub(crate) const VISIT_COLUMNS: &str = "id, nurse_id, status, requested_acts, ad
      patient_display_name, notes, estimated_price_cents, requested_at, offered_at, \
      accepted_at, en_route_at, arrived_at, done_at, cancelled_at";
 
+/// Mêmes colonnes, pour les endpoints PATIENT (#6506) : ajoute le nom affiché
+/// de l'infirmière assignée via `visit_nurse_display_name` (SECURITY DEFINER,
+/// 0253), qui contourne le filtre `is_listed` de la RLS `nurse` — le patient
+/// doit voir qui vient chez lui même si l'infirmière n'est pas dans
+/// l'annuaire public. Constante séparée de `VISIT_COLUMNS` (repris tel quel
+/// par `nurse/visits.rs`, qui préfixe chaque colonne par `vr.` pour sa
+/// jointure — un appel de fonction ne se préfixe pas de cette façon).
+pub(crate) const VISIT_COLUMNS_FOR_PATIENT: &str = "id, nurse_id, \
+     visit_nurse_display_name(nurse_id) AS nurse_display_name, status, requested_acts, address, \
+     patient_display_name, notes, estimated_price_cents, requested_at, offered_at, \
+     accepted_at, en_route_at, arrived_at, done_at, cancelled_at";
+
 /// Une demande de visite dans les réponses API.
 #[derive(Serialize)]
 pub struct VisitDto {
     pub id: Uuid,
     pub nurse_id: Option<Uuid>,
+    /// #6506 : nom affiché de l'infirmière assignée, dès qu'elle a accepté
+    /// (symétrique de `patient_display_name`, déjà vu côté infirmière).
+    pub nurse_display_name: Option<String>,
     pub status: String,
     pub requested_acts: Vec<String>,
     pub address: serde_json::Value,
@@ -77,6 +92,10 @@ pub(crate) fn visit_from_row(row: &PgRow) -> Result<VisitDto, AppError> {
     Ok(VisitDto {
         id: row.try_get("id").map_err(|_| AppError::Internal)?,
         nurse_id: row.try_get("nurse_id").map_err(|_| AppError::Internal)?,
+        // Absente des requêtes côté infirmière (`VISIT_COLUMNS`, sans le join
+        // patient) : `unwrap_or(None)` plutôt que `?` pour rester compatible
+        // avec les deux constantes de colonnes.
+        nurse_display_name: row.try_get("nurse_display_name").unwrap_or(None),
         status: row.try_get("status").map_err(|_| AppError::Internal)?,
         requested_acts: row
             .try_get("requested_acts")
@@ -156,7 +175,7 @@ pub async fn create_visit_request(
          (patient_account_id, visit_geo, address, requested_acts, patient_display_name, notes, \
           estimated_price_cents) \
          VALUES ($1, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, $4, $5, $6, $7, $8) \
-         RETURNING {VISIT_COLUMNS}",
+         RETURNING {VISIT_COLUMNS_FOR_PATIENT}",
     ))
     .bind(claims.account_id) // $1
     .bind(body.lat) // $2
@@ -230,7 +249,7 @@ pub async fn create_visit_request(
         visit
     } else {
         let row = sqlx::query(&format!(
-            "SELECT {VISIT_COLUMNS} FROM visit_request WHERE id = $1",
+            "SELECT {VISIT_COLUMNS_FOR_PATIENT} FROM visit_request WHERE id = $1",
         ))
         .bind(request_id)
         .fetch_one(&mut *tx)
@@ -271,7 +290,7 @@ pub async fn list_account_visit_requests(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(&format!(
-        "SELECT {VISIT_COLUMNS} FROM visit_request \
+        "SELECT {VISIT_COLUMNS_FOR_PATIENT} FROM visit_request \
          WHERE patient_account_id = $1 ORDER BY requested_at DESC LIMIT 50",
     ))
     .bind(claims.account_id)
@@ -301,7 +320,7 @@ pub async fn get_account_visit_request(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(&format!(
-        "SELECT {VISIT_COLUMNS} FROM visit_request WHERE id = $1",
+        "SELECT {VISIT_COLUMNS_FOR_PATIENT} FROM visit_request WHERE id = $1",
     ))
     .bind(id)
     .fetch_optional(&mut *tx)
@@ -331,7 +350,7 @@ pub async fn cancel_account_visit_request(
         "UPDATE visit_request \
          SET status = 'cancelled', cancelled_at = now(), updated_at = now() \
          WHERE id = $1 AND status IN ('requested','offered','accepted','en_route','arrived') \
-         RETURNING {VISIT_COLUMNS}",
+         RETURNING {VISIT_COLUMNS_FOR_PATIENT}",
     ))
     .bind(id)
     .fetch_optional(&mut *tx)
