@@ -196,6 +196,7 @@ class _Composer extends StatelessWidget {
             const SizedBox(width: 8),
             IconButton.filled(
               key: const Key('team_message_send_button'),
+              tooltip: 'Envoyer',
               onPressed: enabled ? onSend : null,
               icon: const Icon(Icons.send_outlined),
             ),
