@@ -776,6 +776,12 @@ class _DesktopNotificationsBar extends StatelessWidget {
 /// (#5389, maquette design-v2 secrétariat) — encart bordé, loupe, placeholder
 /// grisé et badge clavier ⌘K, même styles que `_GlobalSearchField`
 /// (app_practicien, patient_identity_bar.dart, #4948).
+///
+/// [Semantics] explicite (#6192, #6340) : la sémantique auto-générée
+/// d'`InkWell` ne remonte pas jusqu'à l'arbre d'accessibilité une fois
+/// imbriquée dans la [_DesktopNotificationsBar] — le contrôle était peint et
+/// cliquable mais totalement absent des Semantics, invisible aux lecteurs
+/// d'écran et hors du parcours de focus clavier.
 class _SearchTrigger extends StatelessWidget {
   const _SearchTrigger({required this.hint, required this.onTap});
 
@@ -788,36 +794,43 @@ class _SearchTrigger extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.only(right: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          key: const Key('global_search_trigger'),
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Container(
-            height: 40,
-            constraints: const BoxConstraints(maxWidth: 320),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: tokens.borderDefault),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.search, size: 18, color: tokens.textTertiary),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    hint,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodyMedium
-                        ?.copyWith(color: tokens.textTertiary),
+      child: Semantics(
+        container: true,
+        excludeSemantics: true,
+        button: true,
+        label: '$hint ⌘K',
+        onTap: onTap,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: const Key('global_search_trigger'),
+            borderRadius: BorderRadius.circular(8),
+            onTap: onTap,
+            child: Container(
+              height: 40,
+              constraints: const BoxConstraints(maxWidth: 320),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: tokens.borderDefault),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.search, size: 18, color: tokens.textTertiary),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      hint,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium
+                          ?.copyWith(color: tokens.textTertiary),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                const _SearchShortcutBadge(),
-              ],
+                  const SizedBox(width: 8),
+                  const _SearchShortcutBadge(),
+                ],
+              ),
             ),
           ),
         ),
