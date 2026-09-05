@@ -105,6 +105,7 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
   CabinetQuote _withStatus(CabinetQuote quote, CabinetQuoteStatus status) =>
       CabinetQuote(
         id: quote.id,
+        quoteRef: quote.quoteRef,
         cabinetId: quote.cabinetId,
         patientId: quote.patientId,
         patientName: quote.patientName,

@@ -330,6 +330,11 @@ async fn cabinet_quotes_get_with_quote_and_status_filter() {
     let q = q.unwrap();
     assert_eq!(q["status"], "sent");
     assert_eq!(q["total_amount"], 20000i64, "200.00 EUR = 20000 centimes");
+    assert!(
+        q["quote_ref"].as_str().unwrap().starts_with("DEV-"),
+        "quote_ref: {}",
+        q["quote_ref"]
+    );
 
     // Avec filtre ?status=sent : le devis apparaît
     let response2 = app(state.clone())

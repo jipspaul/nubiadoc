@@ -267,6 +267,10 @@ const QUOTE_VALIDITY_DAYS: i64 = 30;
 #[derive(Serialize)]
 pub struct CabinetQuoteItem {
     pub id: Uuid,
+    /// `'DEV-' || lpad(quote_seq, 4, '0')` (migration 0257, #6370) — référence
+    /// lisible/prononçable, même pattern que `pharmacy_order.order_ref`
+    /// (`CMD-0042`, migration 0245).
+    pub quote_ref: String,
     pub patient_id: Option<Uuid>,
     pub patient_name: Option<String>,
     pub status: String,
@@ -342,7 +346,7 @@ pub async fn list_cabinet_quotes(
     // pas une valeur utilisateur — l'interpoler dans le SQL est sûr (même
     // pattern que OVERDUE_THRESHOLD_DAYS dans overdue_sql plus bas).
     let base_sql = format!(
-        "SELECT q.id, q.patient_id, \
+        "SELECT q.id, ('DEV-' || lpad(q.quote_seq::text, 4, '0')) AS quote_ref, q.patient_id, \
                     trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
                     q.status, (q.total_amount * 100)::bigint AS amount_cents, \
                     (SELECT coalesce(sum((qi.qty * qi.unit_amount \
@@ -436,6 +440,7 @@ pub async fn list_cabinet_quotes(
         .into_iter()
         .map(|row| {
             let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let quote_ref: String = row.try_get("quote_ref").map_err(|_| AppError::Internal)?;
             let patient_id: Option<Uuid> =
                 row.try_get("patient_id").map_err(|_| AppError::Internal)?;
             let patient_name: Option<String> = row
@@ -457,6 +462,7 @@ pub async fn list_cabinet_quotes(
                 .map_err(|_| AppError::Internal)?;
             Ok(CabinetQuoteItem {
                 id,
+                quote_ref,
                 patient_id,
                 patient_name: patient_name.filter(|n| !n.is_empty()),
                 status,
@@ -512,6 +518,8 @@ pub struct CabinetQuoteLineItem {
 #[derive(Serialize)]
 pub struct CabinetQuoteDetail {
     pub id: Uuid,
+    /// Voir `CabinetQuoteItem.quote_ref` (#6370).
+    pub quote_ref: String,
     pub patient_id: Option<Uuid>,
     pub patient_name: Option<String>,
     pub status: String,
@@ -563,7 +571,7 @@ pub async fn get_cabinet_quote(
     // pas une valeur utilisateur — l'interpoler dans le SQL est sûr (même
     // pattern que dans list_cabinet_quotes ci-dessus).
     let quote_row = sqlx::query(&format!(
-        "SELECT q.id, q.patient_id, \
+        "SELECT q.id, ('DEV-' || lpad(q.quote_seq::text, 4, '0')) AS quote_ref, q.patient_id, \
                 trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
                 q.status, (q.total_amount * 100)::bigint AS amount_cents, \
                 q.signed_at, q.created_at, q.deposit_pct::double precision AS deposit_pct, \
@@ -603,6 +611,9 @@ pub async fn get_cabinet_quote(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
+    let quote_ref: String = quote_row
+        .try_get("quote_ref")
+        .map_err(|_| AppError::Internal)?;
     let patient_id: Option<Uuid> = quote_row
         .try_get("patient_id")
         .map_err(|_| AppError::Internal)?;
@@ -676,6 +687,7 @@ pub async fn get_cabinet_quote(
 
     Ok(Json(CabinetQuoteDetail {
         id,
+        quote_ref,
         patient_id,
         patient_name: patient_name.filter(|n| !n.is_empty()),
         status,

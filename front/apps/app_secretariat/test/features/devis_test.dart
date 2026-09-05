@@ -48,6 +48,7 @@ void main() {
     test('CabinetQuote ne porte pas de champ motif ni notes_medicales', () {
       final quote = CabinetQuote(
         id: 'q1',
+        quoteRef: 'q1',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Jean Dupont',
@@ -87,6 +88,7 @@ void main() {
 
     final quote = CabinetQuote(
       id: 'q1',
+      quoteRef: 'q1',
       cabinetId: 'c1',
       patientId: 'p1',
       patientName: 'Marie Curie',
@@ -292,6 +294,7 @@ void main() {
         DevisLoaded([
           CabinetQuote(
             id: 'q1',
+            quoteRef: 'q1',
             cabinetId: 'c1',
             patientId: 'p1',
             patientName: 'Marie Curie',
@@ -334,6 +337,7 @@ void main() {
         (tester) async {
       final older = CabinetQuote(
         id: 'q1',
+        quoteRef: 'q1',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Alice',
@@ -344,6 +348,7 @@ void main() {
       );
       final newer = CabinetQuote(
         id: 'q2',
+        quoteRef: 'q2',
         cabinetId: 'c1',
         patientId: 'p2',
         patientName: 'Bob',
@@ -384,6 +389,7 @@ void main() {
         DevisLoaded([
           CabinetQuote(
             id: 'q1',
+            quoteRef: 'q1',
             cabinetId: 'c1',
             patientId: 'p1',
             patientName: 'Paul Cancelled',
@@ -426,6 +432,7 @@ void main() {
         DevisLoaded([
           CabinetQuote(
             id: 'DEV-2041',
+            quoteRef: 'DEV-2041',
             cabinetId: 'c1',
             patientId: 'p1',
             patientName: 'Julie Martin',
@@ -478,6 +485,7 @@ void main() {
         DevisLoaded([
           CabinetQuote(
             id: 'DEV-2041',
+            quoteRef: 'DEV-2041',
             cabinetId: 'c1',
             patientId: 'p1',
             patientName: 'Julie Martin',
@@ -519,6 +527,7 @@ void main() {
         DevisLoaded([
           CabinetQuote(
             id: 'DEV-2041',
+            quoteRef: 'DEV-2041',
             cabinetId: 'c1',
             patientId: 'p1',
             patientName: 'Julie Martin',
@@ -546,6 +555,7 @@ void main() {
 
       final quote = CabinetQuote(
         id: 'DEV-2041',
+        quoteRef: 'DEV-2041',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Julie Martin',
@@ -621,6 +631,7 @@ void main() {
     }) =>
         CabinetQuote(
           id: 'q1',
+          quoteRef: 'q1',
           cabinetId: 'c1',
           patientId: 'p1',
           patientName: 'Alice',
@@ -768,6 +779,7 @@ void main() {
 
     final detailQuote = CabinetQuote(
       id: 'q1',
+      quoteRef: 'q1',
       cabinetId: 'c1',
       patientId: 'p1',
       patientName: 'Albert Einstein',
@@ -822,6 +834,7 @@ void main() {
         (tester) async {
       final cancelledQuote = CabinetQuote(
         id: 'q1',
+        quoteRef: 'q1',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Paul Cancelled',
@@ -842,6 +855,7 @@ void main() {
         (tester) async {
       final bigQuote = CabinetQuote(
         id: 'q2',
+        quoteRef: 'q2',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Marie Curie',
@@ -866,6 +880,7 @@ void main() {
         (tester) async {
       final paidQuote = CabinetQuote(
         id: 'q3',
+        quoteRef: 'q3',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Ada Lovelace',
@@ -897,6 +912,7 @@ void main() {
         'même vocabulaire que l\'app Patient (#5091)', (tester) async {
       final quoteWithItems = CabinetQuote(
         id: 'q4',
+        quoteRef: 'q4',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Julie Martin',
@@ -965,6 +981,7 @@ void main() {
         'pour un devis envoyé en attente de signature', (tester) async {
       final pendingQuote = CabinetQuote(
         id: 'q5',
+        quoteRef: 'q5',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Jean Rousseau',
@@ -1011,6 +1028,7 @@ void main() {
         'est affichée', (tester) async {
       final quote = CabinetQuote(
         id: 'q1',
+        quoteRef: 'q1',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Alice',
@@ -1032,6 +1050,7 @@ void main() {
       final now = DateTime(2026, 8, 10);
       final quote = CabinetQuote(
         id: 'q1',
+        quoteRef: 'q1',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Alice',
@@ -1052,6 +1071,7 @@ void main() {
       final now = DateTime(2026, 8, 20);
       final quote = CabinetQuote(
         id: 'q1',
+        quoteRef: 'q1',
         cabinetId: 'c1',
         patientId: 'p1',
         patientName: 'Alice',
@@ -1078,6 +1098,7 @@ void main() {
       final quotes = [
         CabinetQuote(
           id: 'q1',
+          quoteRef: 'q1',
           cabinetId: 'c1',
           patientId: 'p1',
           patientName: 'Marie Curie',
@@ -1089,6 +1110,7 @@ void main() {
         ),
         CabinetQuote(
           id: 'q2',
+          quoteRef: 'q2',
           cabinetId: 'c1',
           patientId: 'p2',
           patientName: 'Paul Cancelled',
@@ -1099,6 +1121,7 @@ void main() {
         ),
         CabinetQuote(
           id: 'q3',
+          quoteRef: 'q3',
           cabinetId: 'c1',
           patientId: 'p3',
           patientName: 'Léa Expired',
@@ -1109,6 +1132,7 @@ void main() {
         ),
         CabinetQuote(
           id: 'q4',
+          quoteRef: 'q4',
           cabinetId: 'c1',
           patientId: 'p4',
           patientName: 'Signed',
@@ -1133,6 +1157,7 @@ void main() {
       final quotes = [
         CabinetQuote(
           id: 'q1',
+          quoteRef: 'q1',
           cabinetId: 'c1',
           patientId: 'p1',
           patientName: 'Marie Curie',
@@ -1180,6 +1205,7 @@ void main() {
         DevisLoaded([
           CabinetQuote(
             id: 'q1',
+            quoteRef: 'q1',
             cabinetId: 'c1',
             patientId: 'p1',
             patientName: 'Marie Curie',
@@ -1243,6 +1269,7 @@ void main() {
 
     final draft = CabinetQuote(
       id: 'DEV-1001',
+      quoteRef: 'DEV-1001',
       cabinetId: 'c1',
       patientId: 'p1',
       patientName: 'Léa Bernard',
@@ -1253,6 +1280,7 @@ void main() {
     );
     final sent = CabinetQuote(
       id: 'DEV-1002',
+      quoteRef: 'DEV-1002',
       cabinetId: 'c1',
       patientId: 'p2',
       patientName: 'Sophie Roux',
@@ -1363,6 +1391,7 @@ void main() {
     CabinetQuote quoteWith(String id, CabinetQuoteStatus status) =>
         CabinetQuote(
           id: id,
+          quoteRef: id,
           cabinetId: 'c1',
           patientId: 'p_$id',
           patientName: 'Patient $id',
@@ -1467,6 +1496,7 @@ void main() {
 
     final quote = CabinetQuote(
       id: 'q1',
+      quoteRef: 'q1',
       cabinetId: 'c1',
       patientId: 'p1',
       patientName: 'Julie Martin',

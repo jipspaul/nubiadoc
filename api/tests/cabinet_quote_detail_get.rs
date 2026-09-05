@@ -328,6 +328,11 @@ async fn cabinet_quote_detail_returns_200_with_items() {
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
 
     assert_eq!(v["id"], quote_id.to_string());
+    assert!(
+        v["quote_ref"].as_str().unwrap().starts_with("DEV-"),
+        "quote_ref: {}",
+        v["quote_ref"]
+    );
     assert_eq!(v["status"], "signed");
     assert_eq!(v["patient_name"], "Bob Detail");
     assert_eq!(v["total_amount"], 30000i64, "300.00 EUR = 30000 centimes");

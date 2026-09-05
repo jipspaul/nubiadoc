@@ -43,6 +43,7 @@ CabinetQuote _quote(
 }) =>
     CabinetQuote(
       id: id,
+      quoteRef: id,
       cabinetId: 'cab',
       patientId: 'p-$id',
       patientName: patientName,

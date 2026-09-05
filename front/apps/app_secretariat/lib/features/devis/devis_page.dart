@@ -65,7 +65,7 @@ class _DevisPageState extends State<DevisPage> {
       }
       if (query.isEmpty) return true;
       return quote.patientName.toLowerCase().contains(query) ||
-          quote.id.toLowerCase().contains(query);
+          quote.quoteRef.toLowerCase().contains(query);
     }).toList();
   }
 
@@ -541,7 +541,7 @@ class _DevisSheetBody extends StatelessWidget {
             children: [
               Flexible(
                 child: Text(
-                  quote.id,
+                  quote.quoteRef,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: textTheme.bodyMedium?.copyWith(

@@ -3,6 +3,10 @@ import 'package:nubia_domain/src/entities/quote.dart';
 
 class CabinetQuoteDto {
   final String id;
+
+  /// Voir `CabinetQuote.quoteRef` (#6370). Absent des payloads antérieurs à
+  /// la migration 0257 → retombe sur [id] (rétrocompat).
+  final String quoteRef;
   final String cabinetId;
   final String patientId;
   final String patientName;
@@ -25,6 +29,7 @@ class CabinetQuoteDto {
 
   const CabinetQuoteDto({
     required this.id,
+    required this.quoteRef,
     required this.cabinetId,
     required this.patientId,
     required this.patientName,
@@ -40,8 +45,10 @@ class CabinetQuoteDto {
 
   factory CabinetQuoteDto.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'] as List<dynamic>?;
+    final id = json['id'] as String;
     return CabinetQuoteDto(
-      id: json['id'] as String,
+      id: id,
+      quoteRef: json['quote_ref'] as String? ?? id,
       cabinetId: json['cabinet_id'] as String? ?? '',
       // patient_id / patient_name sont Option côté back (LEFT JOIN patient).
       patientId: json['patient_id'] as String? ?? '',
@@ -80,6 +87,7 @@ class CabinetQuoteDto {
 
   CabinetQuote toDomain() => CabinetQuote(
         id: id,
+        quoteRef: quoteRef,
         cabinetId: cabinetId,
         patientId: patientId,
         patientName: patientName,
