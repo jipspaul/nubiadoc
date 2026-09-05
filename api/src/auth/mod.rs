@@ -1870,6 +1870,20 @@ pub async fn patch_cabinet_provider(
     claims: ProPractitionerClaims,
     Json(body): Json<PatchProviderBody>,
 ) -> Result<Json<ProviderProfileResponse>, AppError> {
+    // Postgres refuse l'octet NUL dans `text`/`text[]` : sans cette garde le
+    // bind échoue et remonte en 500 au lieu du 422 attendu (#4776).
+    if let Some(bio) = &body.bio {
+        crate::text_validation::reject_nul_byte(bio)?;
+    }
+    if let Some(specialite) = &body.specialite {
+        crate::text_validation::reject_nul_byte(specialite)?;
+    }
+    if let Some(langues) = &body.langues {
+        for langue in langues {
+            crate::text_validation::reject_nul_byte(langue)?;
+        }
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")

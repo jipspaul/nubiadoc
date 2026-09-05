@@ -181,3 +181,45 @@ async fn patch_provider_secretary_returns_403() {
         .await
         .ok();
 }
+
+// ── Test 3 : octet NUL dans un champ texte → 422 (jamais 500) (#4776) ────────
+
+#[tokio::test]
+async fn patch_provider_nul_byte_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("patch_nul_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &email).await;
+
+    for body in [
+        json!({"bio": "abc\u{0000}def"}),
+        json!({"specialite": "dent\u{0000}aire"}),
+        json!({"langues": ["fr", "e\u{0000}n"]}),
+    ] {
+        let resp = app(make_state(db.clone()))
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/cabinet/provider")
+                    .header("content-type", "application/json")
+                    .header("Authorization", format!("Bearer {}", token))
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "body {body} devrait être rejeté en 422"
+        );
+    }
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
