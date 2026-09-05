@@ -61,7 +61,10 @@ fn cabinet_local_days_utc_range(
     days: i64,
 ) -> Result<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>), AppError> {
     let end_date = base_date + chrono::Duration::days(days);
-    Ok((paris_midnight_utc(base_date)?, paris_midnight_utc(end_date)?))
+    Ok((
+        paris_midnight_utc(base_date)?,
+        paris_midnight_utc(end_date)?,
+    ))
 }
 
 #[derive(Deserialize)]
