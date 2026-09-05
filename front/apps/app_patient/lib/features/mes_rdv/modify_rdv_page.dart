@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import 'modify_rdv_bloc.dart';
 import 'modify_rdv_event.dart';
 import 'modify_rdv_state.dart';
@@ -67,7 +69,14 @@ class _ModifyRdvBody extends StatelessWidget {
       body: BlocConsumer<ModifyRdvBloc, ModifyRdvState>(
         listener: (context, state) {
           if (state is ModifyRdvSuccess) {
-            Navigator.of(context).pop(true);
+            // Accessible en URL directe (partage de lien, ronde QA) sans
+            // route en-dessous dans la pile : un pop() la vide entièrement
+            // et laisse un canvas blanc (#6374). On retombe sur « Mes RDV ».
+            if (context.canPop()) {
+              context.pop(true);
+            } else {
+              context.go(AppRouter.mesRdv);
+            }
           }
           if (state is ModifyRdvLoaded && state.error != null) {
             ScaffoldMessenger.of(
