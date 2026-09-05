@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../infirmiere_config.dart';
+import '../../router/app_router.dart';
 import '../../session/infirmiere_auth_cubit.dart';
 import '../notifications/notifications_bloc.dart';
 import '../notifications/notifications_event.dart';
@@ -85,6 +87,13 @@ class _HomeScaffoldState extends State<_HomeScaffold> {
               ),
               onPressed: () => _openNotifications(context),
             ),
+          ),
+          IconButton(
+            key: const Key('notification_prefs_button'),
+            tooltip: 'Préférences de notifications',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () =>
+                context.push(AppRouter.notificationPreferences),
           ),
           IconButton(
             tooltip: 'Se déconnecter',

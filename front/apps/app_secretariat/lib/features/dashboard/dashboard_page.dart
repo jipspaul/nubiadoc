@@ -8,6 +8,7 @@ import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
 import 'package:nubia_core/nubia_core.dart';
 
 import '../../pro_config.dart';
+import '../../router/app_router.dart';
 import '../../session/pro_auth_cubit.dart';
 import '../admin_membres/members_access_cubit.dart';
 import '../audit_log/audit_log_access_cubit.dart';
@@ -139,6 +140,12 @@ class SecretariatShell extends StatelessWidget {
             icon: const Icon(Icons.auto_awesome_outlined),
             onPressed: () => context.push('/a2ui-demo'),
           ),
+        IconButton(
+          key: const Key('notification_prefs_button'),
+          tooltip: 'Préférences de notifications',
+          icon: const Icon(Icons.settings_outlined),
+          onPressed: () => context.push(AppRouter.notificationPreferences),
+        ),
       ],
       // #5143/#5389 — point d'entrée de recherche globale (destinations de
       // nav + patient/devis/commande) dans la barre de titre, déclenché au

@@ -5,6 +5,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../features/home/infirmiere_home_page.dart';
 import '../features/login/login_page.dart';
+import '../features/notification_prefs/notification_prefs_page.dart';
 
 class AppRouter {
   AppRouter._();
@@ -12,6 +13,7 @@ class AppRouter {
   static const splash = '/splash';
   static const login = '/login';
   static const home = '/';
+  static const notificationPreferences = '/notification-preferences';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -45,6 +47,10 @@ class AppRouter {
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
         GoRoute(path: home, builder: (_, __) => const InfirmiereHomePage()),
+        GoRoute(
+          path: notificationPreferences,
+          builder: (_, __) => const NotificationPrefsPage(),
+        ),
       ],
     );
   }

@@ -14,6 +14,13 @@ class ProNotificationPreferencesDto {
   final bool emailMessagerie;
   final bool emailDevis;
 
+  final bool pushRdv;
+  final bool pushMessagerie;
+  final bool pushDevis;
+  final bool pushStock;
+  final bool pushLabo;
+  final bool pushVisites;
+
   const ProNotificationPreferencesDto({
     required this.inappRdv,
     required this.inappMessagerie,
@@ -24,6 +31,12 @@ class ProNotificationPreferencesDto {
     required this.emailRdv,
     required this.emailMessagerie,
     required this.emailDevis,
+    required this.pushRdv,
+    required this.pushMessagerie,
+    required this.pushDevis,
+    required this.pushStock,
+    required this.pushLabo,
+    required this.pushVisites,
   });
 
   factory ProNotificationPreferencesDto.fromJson(Map<String, dynamic> json) =>
@@ -37,6 +50,12 @@ class ProNotificationPreferencesDto {
         emailRdv: json['email_rdv'] as bool? ?? false,
         emailMessagerie: json['email_messagerie'] as bool? ?? false,
         emailDevis: json['email_devis'] as bool? ?? false,
+        pushRdv: json['push_rdv'] as bool? ?? true,
+        pushMessagerie: json['push_messagerie'] as bool? ?? true,
+        pushDevis: json['push_devis'] as bool? ?? true,
+        pushStock: json['push_stock'] as bool? ?? true,
+        pushLabo: json['push_labo'] as bool? ?? true,
+        pushVisites: json['push_visites'] as bool? ?? true,
       );
 
   Map<String, dynamic> toJson() => {
@@ -49,6 +68,12 @@ class ProNotificationPreferencesDto {
         'email_rdv': emailRdv,
         'email_messagerie': emailMessagerie,
         'email_devis': emailDevis,
+        'push_rdv': pushRdv,
+        'push_messagerie': pushMessagerie,
+        'push_devis': pushDevis,
+        'push_stock': pushStock,
+        'push_labo': pushLabo,
+        'push_visites': pushVisites,
       };
 
   ProNotificationPreferences toDomain() => ProNotificationPreferences(
@@ -61,6 +86,12 @@ class ProNotificationPreferencesDto {
         emailRdv: emailRdv,
         emailMessagerie: emailMessagerie,
         emailDevis: emailDevis,
+        pushRdv: pushRdv,
+        pushMessagerie: pushMessagerie,
+        pushDevis: pushDevis,
+        pushStock: pushStock,
+        pushLabo: pushLabo,
+        pushVisites: pushVisites,
       );
 
   factory ProNotificationPreferencesDto.fromDomain(
@@ -76,5 +107,11 @@ class ProNotificationPreferencesDto {
         emailRdv: prefs.emailRdv,
         emailMessagerie: prefs.emailMessagerie,
         emailDevis: prefs.emailDevis,
+        pushRdv: prefs.pushRdv,
+        pushMessagerie: prefs.pushMessagerie,
+        pushDevis: prefs.pushDevis,
+        pushStock: prefs.pushStock,
+        pushLabo: prefs.pushLabo,
+        pushVisites: prefs.pushVisites,
       );
 }

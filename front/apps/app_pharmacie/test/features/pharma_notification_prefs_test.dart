@@ -26,6 +26,12 @@ const _prefs = ProNotificationPreferences(
   emailRdv: false,
   emailMessagerie: false,
   emailDevis: false,
+  pushRdv: true,
+  pushMessagerie: true,
+  pushDevis: true,
+  pushStock: true,
+  pushLabo: true,
+  pushVisites: true,
 );
 
 void main() {
@@ -69,7 +75,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Messagerie'), findsOneWidget);
+    await scrollTo(tester, find.text('Devis'));
     expect(find.text('Devis'), findsOneWidget);
+    await scrollTo(tester, find.byKey(const Key('pharma_notif_block_stock')));
     expect(find.text('Demandes de stock'), findsOneWidget);
   });
 
@@ -168,6 +176,48 @@ void main() {
   });
 
   testWidgets(
+      'affiche une bascule push pour messagerie, devis et stock (#6341)',
+      (tester) async {
+    await tester.pumpWidget(wrap());
+    await tester.pumpAndSettle();
+
+    for (final key in [
+      'pharma_notif_push_messagerie',
+      'pharma_notif_push_devis',
+      'pharma_notif_push_stock',
+    ]) {
+      final finder = find.byKey(Key(key));
+      await scrollTo(tester, finder);
+      expect(finder, findsOneWidget);
+    }
+  });
+
+  testWidgets(
+      'toggle push devis déclenche un PATCH optimiste avec la bonne valeur',
+      (tester) async {
+    when(() => mockUpdate(any())).thenAnswer((_) async => const Right(_prefs));
+
+    await tester.pumpWidget(wrap());
+    await tester.pumpAndSettle();
+
+    final toggleFinder = find.byKey(const Key('pharma_notif_push_devis'));
+    await scrollTo(tester, toggleFinder);
+
+    final before = tester.widget<NubiaToggle>(toggleFinder);
+    expect(before.value, isTrue);
+
+    await tester.tap(toggleFinder);
+    await tester.pump();
+
+    final captured =
+        verify(() => mockUpdate.call(captureAny())).captured.last
+            as ProNotificationPreferences;
+    expect(captured.pushDevis, isFalse);
+
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
       'chaque interrupteur porte un libellé accessible distinct catégorie + canal (#6282)',
       (tester) async {
     final handle = tester.ensureSemantics();
@@ -200,6 +250,18 @@ void main() {
     expect(
       await labelOf(const Key('pharma_notif_inapp_stock')),
       'Demandes de stock — Dans l\'application',
+    );
+    expect(
+      await labelOf(const Key('pharma_notif_push_messagerie')),
+      'Messagerie — Sur mobile (push)',
+    );
+    expect(
+      await labelOf(const Key('pharma_notif_push_devis')),
+      'Devis — Sur mobile (push)',
+    );
+    expect(
+      await labelOf(const Key('pharma_notif_push_stock')),
+      'Demandes de stock — Sur mobile (push)',
     );
 
     handle.dispose();
