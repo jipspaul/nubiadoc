@@ -368,6 +368,34 @@ void main() {
     });
 
     testWidgets(
+        'le nom du prescripteur servi par l\'API est affiché (#6368)',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          PharmacyOrder(
+            id: 'o1',
+            pharmacyId: 'p1',
+            patientDisplayName: 'Jean D.',
+            prescriptionId: 'rx1',
+            status: PharmacyOrderStatus.received,
+            createdAt: DateTime(2026, 7, 1, 10),
+            updatedAt: DateTime(2026, 7, 1, 10),
+            prescriberName: 'Dr Hugo Marin',
+          ),
+          items: prescriptionItems,
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.text('Dr Hugo Marin'), findsOneWidget);
+    });
+
+    testWidgets(
         'aucune ligne d\'ordonnance → le panneau ne s\'affiche pas',
         (tester) async {
       final bloc = MockOrderDetailBloc();
