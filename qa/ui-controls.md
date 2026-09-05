@@ -483,3 +483,36 @@ la ronde précédente.
 - **praticien `/messages`, `/team-messages`, `/agenda`, `/consultation`** : non audités cette ronde.
 - **patient `/messaging`, `/treatment-plans`, `/financial`, `/pharmacy/*`** : non audités cette ronde.
 - **secretariat `/bookable-slots`, `/admin-secretariats`, `/team-messages`** : jamais audités.
+
+### Second lot de la ronde 2026-09-05 (19:20–20:30 UTC) — 13 écrans de plus
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts confirmés | cassés confirmés | levées / notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/messages` (1280) | 24 | 11 | 11 | 0 | 0 | Les 8 fils s'ouvrent chacun sur SON fil. Le message X8 de cette ronde y est visible (« QA-R42 X8 cloisonnement… »), confirmant l'effet cross-app en UI. | 2026-09-05T19:24:00+00:00 |
+| praticien | `/team-messages` (1280) | 18 | 5 | 4 | 0 | 0 | Le bouton d'envoi a un **libellé Semantics VIDE** → **#6564** (jumeau de #6544, fichier distinct de l'app praticien). Son verdict MORT est attendu (champ vide ⇒ `onPressed: null`). | 2026-09-05T19:25:00+00:00 |
+| praticien | `/stock` (1280) | 18 | 5 | 5 | 0 | 0 | « Nouvelle demande » ouvre bien le dialogue. | 2026-09-05T19:26:00+00:00 |
+| praticien | `/agenda` (1280) | 23 | 9 | 8 | 0 | 0 | Navigation semaine ±, « Série de RDV », « Inclure passés », « Filtrer par date » : tous OK. « Démarrer » MORT → **levé** : rect mesuré à **283,929** sur une fenêtre de 800 px — hors champ, le clic n'atteint jamais le bouton (piège nº 2). | 2026-09-05T19:45:00+00:00 |
+| praticien | `/consultation` (1280) | 22 | 3 | 3 | 0 | 0 | Onglets « En cours » / « Terminée » fonctionnels. | 2026-09-05T19:28:00+00:00 |
+| secretariat | `/bookable-slots` (1280) | 27 | 10 | 7 | 0 | 0 | « Créer un créneau », « Tous les praticiens », « Toutes les dates » OK. 2 MORT = nav de l'écran courant. 1 CASSE (« Statistiques » → 403) → **levé**, même état « réservé » que #6561. | 2026-09-05T19:30:00+00:00 |
+| secretariat | `/admin-secretariats` (1280) | 21 | 5 | 5 | 0 | 0 | « Inviter un secrétariat » ouvre son dialogue. Contrairement à `/admin-membres`, cet écran **n'est pas admin-only** en lecture (cf. #5156) et affiche bien ses 2 secrétariats. | 2026-09-05T19:31:00+00:00 |
+| secretariat | `/team-messages` (1280) | 18 | 7 | 5 | 0 | 0 | « Mentionner » OK. « Épingler » et « Joindre un patient, un devis… » MORT → **levés** : jalons `SnackBar` « à venir » déjà documentés (piège nº 19). | 2026-09-05T19:32:00+00:00 |
+| patient | `/financial` (390) | 10 | 10 | 8 | 0 | 0 | Les 7 cartes ouvrent leur détail. 2 MORT = les 2 dernières, hors écran. **Les 9 cartes portent 2 libellés seulement** → **#6563**. | 2026-09-05T19:22:00+00:00 |
+| patient | `/treatment-plans` (390) | 8 | 8 | 6 | 0 | 0 | 6 plans s'ouvrent, dont 2 cartes « À accepter » avec leur bouton « Consulter » (3 requêtes chacune). 2 MORT = les 2 dernières, hors écran. | 2026-09-05T19:23:00+00:00 |
+| patient | `/pharmacy` (390) | 5 | 5 | 3 | 0 | 0 | « Envoyer une ordonnance », « Suivre mes commandes », « Changer de pharmacie » OK. « Itinéraire » et « Appeler » MORT → **levés** : ce sont des `url_launcher` vers des schémas externes (`openMapsDirections` / `callPhoneNumber`, `pharmacy_card.dart:87` et `:98`) — sans navigation ni requête XHR, invisibles à mon détecteur. | 2026-09-05T19:23:00+00:00 |
+| patient | `/home-care/new` (390, **géoloc simulée**) | 12 | 6 | 6 | 0 | 0 | Parcours complet enfin joué de bout en bout — voir l'adversarial ci-dessous. | 2026-09-05T19:40:00+00:00 |
+| pharmacie | `/devis` (1280) | 27 | 19 | 16 | 0 | 0 | Les boutons « Préparer » de ligne naviguent chacun vers **SA** commande (`/orders/085ccb0a…`, `/orders/c64be6aa…`, `/orders/4c88fb41…` — cibles distinctes, pas d'identifiant unique erroné). 3 MORT = dernières lignes hors écran. | 2026-09-05T19:35:00+00:00 |
+| pharmacie | `/` File des commandes (**1440**) | 37 | — | — | — | — | Ré-inventaire au viewport de la maquette pour la comparaison design-v2 (voir `design-v2.md`). | 2026-09-05T19:50:00+00:00 |
+| **TOTAL RONDE** | **34 écrans** | **~700** | **238** | **214** | **0** | **3** | | |
+
+### Adversarial rejoué avec une position simulée (gap de la 1re moitié, refermé)
+| cas | écran | résultat |
+|---|---|---|
+| **Double-clic rapide (50 ms) sur une action métier**, contexte Playwright avec `permissions:['geolocation']` + `geolocation:{45.7578, 4.8420}` | patient `/home-care/new` → « Confirmer la demande » | **OK — aucun double-envoi.** Avec une position disponible, « Obtenir un devis » émet bien `POST /v1/account/visit-requests/estimate` et le prix s'affiche, ce qui active « Confirmer la demande ». Deux clics à 50 ms d'intervalle ne produisent qu'**UN SEUL** `POST /v1/account/visit-requests`, aucun 4xx, aucune exception, et l'app navigue vers le suivi `/home-care/8798e81e-…`. *À noter : après l'affichage du prix, le bouton descend à y=862 sur une fenêtre de 844 — il faut défiler de 400 px pour l'atteindre, ce qui avait fait échouer mes deux tentatives précédentes.* |
+
+### Faux positifs supplémentaires levés dans ce lot (aucun n'était un défaut)
+- **`url_launcher` vers un schéma externe** (`tel:`, `maps:`) — nouveau motif, à ajouter à la liste des
+  pièges : « Itinéraire » et « Appeler » de `patient /pharmacy` ne produisent ni navigation, ni requête,
+  ni repeinture dans un navigateur sans gestionnaire de protocole. **Lire l'`onPressed` avant de conclure.**
+- **Hors viewport, encore** : `praticien /agenda` « Démarrer » à y=929 sur 800 px ; les 2 dernières cartes
+  de `patient /financial`, `/treatment-plans`, `pharmacie /devis`.
+- **Jalons `SnackBar` déjà connus** : « Épingler » / « Joindre un patient, un devis… ».
