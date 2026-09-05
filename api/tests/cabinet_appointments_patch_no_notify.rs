@@ -199,6 +199,7 @@ async fn insert_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uuid, Uuid, Uui
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn cleanup_fixture(
     seed_db: &PgPool,
     app_db: &PgPool,
