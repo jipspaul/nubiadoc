@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
+import '../../router/app_router.dart';
 import 'patients_bloc.dart';
 import 'patients_event.dart';
 import 'patients_state.dart';
@@ -78,7 +80,17 @@ class _PatientQuickCreatePageState extends State<PatientQuickCreatePage> {
     return BlocConsumer<PatientsBloc, PatientsState>(
       listener: (context, state) {
         if (state is PatientsCreateSuccess) {
-          Navigator.of(context).pop(state.patient);
+          // #6373 : atteinte directement par l'URL (deep-link, bookmark,
+          // rechargement de page), cette route n'a rien sous elle dans la
+          // pile — `Navigator.pop` la retire sans rien à afficher derrière
+          // (écran blanc définitif). `context.push` depuis `patients_page`
+          // laisse `canPop()` à true, seul cas où l'appelant attend le
+          // patient créé en retour ; sinon on retombe sur la liste.
+          if (context.canPop()) {
+            context.pop(state.patient);
+          } else {
+            context.go(AppRouter.patients);
+          }
         } else if (state is PatientsCreateError) {
           setState(() => _submitting = false);
         }
