@@ -239,8 +239,20 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('3 phases'), findsOneWidget);
-    expect(find.text('1 phase sur 3 terminée'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('treatment_plan_plan-progress')),
+        matching: find.text('3 phases'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('treatment_plan_plan-progress')),
+        matching: find.text('1 phase sur 3 terminée'),
+      ),
+      findsOneWidget,
+    );
     expect(
       tester
           .widget<Text>(
@@ -280,6 +292,75 @@ void main() {
     expect(
       find.byKey(const Key('treatment_plan_progress_bar_plan-2')),
       findsNothing,
+    );
+  });
+
+  testWidgets(
+      'colonne des plans → entrée de liste porte nombre de phases, barre '
+      'segmentée, avancement et montant (#6365)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithProgress, _planNoPhases]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    final listItem =
+        find.byKey(const Key('treatment_plan_list_item_plan-progress'));
+    expect(listItem, findsOneWidget);
+    expect(
+      find.descendant(
+        of: listItem,
+        matching: find.byKey(
+          const Key('treatment_plan_list_phase_count_plan-progress'),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: listItem, matching: find.text('3 phases')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: listItem,
+        matching: find.text('1 phase sur 3 terminée'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: listItem,
+        matching: find.byKey(
+          const Key('treatment_plan_list_total_plan-progress'),
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    final barFinder = find.byKey(
+      const Key('treatment_plan_list_progress_bar_plan-progress'),
+    );
+    expect(barFinder, findsOneWidget);
+    final segments = tester
+        .widget<Row>(find.descendant(of: barFinder, matching: find.byType(Row)))
+        .children
+        .whereType<Expanded>()
+        .toList();
+    expect(segments, hasLength(3));
+
+    // Plan sans phase → pas de barre ni d'avancement dans la liste non plus.
+    expect(
+      find.byKey(const Key('treatment_plan_list_progress_bar_plan-2')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('treatment_plan_list_item_plan-2')),
+        matching: find.text('0 phase'),
+      ),
+      findsOneWidget,
     );
   });
 
