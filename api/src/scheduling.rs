@@ -1837,7 +1837,15 @@ pub async fn no_show_appointment(
 // ── Cabinet PATCH appointment ─────────────────────────────────────────────────
 
 /// Corps de la requête `PATCH /v1/cabinet/appointments/:id`.
+///
+/// `deny_unknown_fields` (#6548) : même garde-fou que
+/// `PatchNotificationPreferencesBody` (auth/mod.rs) / `PatchMeNotificationPreferencesBody`
+/// (notifications.rs) — un champ inconnu (ex. `slot_id`, qui n'existe que sur
+/// `POST /v1/cabinet/appointments`) était ignoré par serde sans erreur, et le
+/// PATCH renvoyait 200 sans avoir rien changé tout en notifiant à tort le
+/// patient d'un changement de motif.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchCabinetAppointmentBody {
     /// Nouveau créneau de début (ISO 8601 UTC). La durée est préservée.
     pub starts_at: Option<String>,
@@ -2082,7 +2090,7 @@ pub async fn patch_cabinet_appointment(
     };
 
     let row = sqlx::query(
-        "SELECT id, status, slot_id, practitioner_id, starts_at, patient_id FROM appointment a \
+        "SELECT id, status, slot_id, practitioner_id, starts_at, patient_id, motif FROM appointment a \
          WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
            AND ($3::uuid IS NULL OR EXISTS ( \
                SELECT 1 FROM provider pr \
@@ -2109,6 +2117,7 @@ pub async fn patch_cabinet_appointment(
     let starts_at: chrono::DateTime<chrono::Utc> =
         row.try_get("starts_at").map_err(|_| AppError::Internal)?;
     let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+    let current_motif: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
 
     // Clôture cabinet d'un `checked_in` (typiquement périmé, d'un jour passé,
     // donc absent de waiting-room/queue) : seule sortie de file possible avant
@@ -2359,41 +2368,51 @@ pub async fn patch_cabinet_appointment(
     // horaire) ou changement de motif par le cabinet doivent l'informer,
     // même résolution app_user_id / patient_account_id que confirm_appointment/
     // offer_waiting_list_slot ci-dessus.
-    let pat_row = sqlx::query(
-        "SELECT app_user_id, patient_account_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(patient_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-    if let Some(row) = pat_row {
-        let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
-        let account_id: Option<Uuid> = row
-            .try_get("patient_account_id")
-            .map_err(|_| AppError::Internal)?;
-        let (kind, title) = if new_starts_at.is_some() {
-            ("appointment_rescheduled", "Rendez-vous reprogrammé")
-        } else {
-            ("appointment_motif_changed", "Motif du rendez-vous modifié")
-        };
-        let notify_data = serde_json::json!({ "appointment_id": id });
-        if let Some(uid) = uid {
-            notify::notify_user(&mut tx, uid, kind, title, notify_data).await?;
-        } else if let Some(account_id) = account_id {
-            // Responsable légal (#6423, même résolution que cabinet_quotes.rs
-            // ::create_cabinet_quote #4098) : si le bénéficiaire du RDV est un
-            // dépendant géré par un tuteur (account_guardianship actif), la
-            // notification doit atteindre le tuteur — c'est lui qui gère le
-            // RDV et voit l'app, jamais le compte du dépendant lui-même.
-            let (guardians, _dependents) =
-                patient_guardianship::aggregate_guardianship(&mut tx, account_id).await?;
-            let notify_target = guardians
-                .into_iter()
-                .next()
-                .map(|g| g.account_id)
-                .unwrap_or(account_id);
-            notify::notify_patient_account(&mut tx, notify_target, kind, title, notify_data)
-                .await?;
+    //
+    // #6548 : ne notifier que si quelque chose a réellement changé — un PATCH
+    // sans starts_at et avec un motif identique (ou absent) à l'existant est
+    // un no-op et ne doit jamais déclencher « Motif du rendez-vous modifié ».
+    let motif_changed = body
+        .motif
+        .as_deref()
+        .is_some_and(|m| Some(m) != current_motif.as_deref());
+    if new_starts_at.is_some() || motif_changed {
+        let pat_row = sqlx::query(
+            "SELECT app_user_id, patient_account_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(patient_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        if let Some(row) = pat_row {
+            let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+            let account_id: Option<Uuid> = row
+                .try_get("patient_account_id")
+                .map_err(|_| AppError::Internal)?;
+            let (kind, title) = if new_starts_at.is_some() {
+                ("appointment_rescheduled", "Rendez-vous reprogrammé")
+            } else {
+                ("appointment_motif_changed", "Motif du rendez-vous modifié")
+            };
+            let notify_data = serde_json::json!({ "appointment_id": id });
+            if let Some(uid) = uid {
+                notify::notify_user(&mut tx, uid, kind, title, notify_data).await?;
+            } else if let Some(account_id) = account_id {
+                // Responsable légal (#6423, même résolution que cabinet_quotes.rs
+                // ::create_cabinet_quote #4098) : si le bénéficiaire du RDV est un
+                // dépendant géré par un tuteur (account_guardianship actif), la
+                // notification doit atteindre le tuteur — c'est lui qui gère le
+                // RDV et voit l'app, jamais le compte du dépendant lui-même.
+                let (guardians, _dependents) =
+                    patient_guardianship::aggregate_guardianship(&mut tx, account_id).await?;
+                let notify_target = guardians
+                    .into_iter()
+                    .next()
+                    .map(|g| g.account_id)
+                    .unwrap_or(account_id);
+                notify::notify_patient_account(&mut tx, notify_target, kind, title, notify_data)
+                    .await?;
+            }
         }
     }
 
