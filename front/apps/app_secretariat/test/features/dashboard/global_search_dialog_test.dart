@@ -30,6 +30,7 @@ final _patient = CabinetPatient(
 
 final _quote = CabinetQuote(
   id: 'quote-marc',
+  quoteRef: 'quote-marc',
   cabinetId: 'cab-1',
   patientId: 'pat-marc',
   patientName: 'Marc Dubois',

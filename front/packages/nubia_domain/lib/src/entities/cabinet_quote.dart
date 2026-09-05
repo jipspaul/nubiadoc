@@ -9,6 +9,10 @@ enum CabinetQuoteStatus { draft, sent, signed, paid, expired, cancelled }
 /// Source : GET /v1/cabinet/quotes
 class CabinetQuote extends Equatable {
   final String id;
+
+  /// Référence lisible/prononçable (`DEV-0042`, migration 0257, #6370) —
+  /// à afficher partout où [id] (UUID technique) l'était côté secrétariat.
+  final String quoteRef;
   final String cabinetId;
   final String patientId;
   final String patientName;
@@ -22,6 +26,7 @@ class CabinetQuote extends Equatable {
 
   const CabinetQuote({
     required this.id,
+    required this.quoteRef,
     required this.cabinetId,
     required this.patientId,
     required this.patientName,

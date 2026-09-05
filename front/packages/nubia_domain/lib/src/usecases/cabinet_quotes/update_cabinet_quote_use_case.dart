@@ -18,6 +18,7 @@ class UpdateCabinetQuoteUseCase {
         items.fold<int>(0, (sum, i) => sum + i.patientShareCents);
     final quote = CabinetQuote(
       id: id,
+      quoteRef: '',
       cabinetId: '',
       patientId: '',
       patientName: '',

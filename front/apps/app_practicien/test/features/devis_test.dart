@@ -45,6 +45,7 @@ const _line = QuoteLineItem(
 
 final _draftQuote = CabinetQuote(
   id: 'q1',
+  quoteRef: 'q1',
   cabinetId: 'cab-1',
   patientId: 'pat-1',
   patientName: 'Jean Dupont',
@@ -57,6 +58,7 @@ final _draftQuote = CabinetQuote(
 
 final _sentQuote = CabinetQuote(
   id: 'q2',
+  quoteRef: 'q2',
   cabinetId: 'cab-1',
   patientId: 'pat-2',
   patientName: 'Marie Martin',

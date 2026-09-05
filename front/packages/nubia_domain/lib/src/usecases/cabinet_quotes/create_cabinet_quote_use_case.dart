@@ -18,6 +18,7 @@ class CreateCabinetQuoteUseCase {
         items.fold<int>(0, (sum, i) => sum + i.patientShareCents);
     final quote = CabinetQuote(
       id: '',
+      quoteRef: '',
       cabinetId: '',
       patientId: patientId,
       patientName: '',

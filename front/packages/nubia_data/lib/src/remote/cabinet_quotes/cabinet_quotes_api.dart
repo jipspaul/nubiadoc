@@ -48,6 +48,7 @@ class CabinetQuotesApi {
   Future<CabinetQuoteDto> create(CabinetQuote quote) async {
     final dto = CabinetQuoteDto(
       id: '',
+      quoteRef: '',
       cabinetId: quote.cabinetId,
       patientId: quote.patientId,
       patientName: quote.patientName,
@@ -77,6 +78,7 @@ class CabinetQuotesApi {
   Future<CabinetQuoteDto> update(CabinetQuote quote) async {
     final dto = CabinetQuoteDto(
       id: quote.id,
+      quoteRef: quote.quoteRef,
       cabinetId: quote.cabinetId,
       patientId: quote.patientId,
       patientName: quote.patientName,

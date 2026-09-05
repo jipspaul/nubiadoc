@@ -110,6 +110,7 @@ void main() {
       () async {
     CabinetQuote fakeQuote(int i) => CabinetQuote(
           id: 'quote-$i',
+          quoteRef: 'quote-$i',
           cabinetId: 'cab-1',
           patientId: patientId,
           patientName: 'Marc Dubois',
