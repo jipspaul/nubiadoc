@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
+import 'dashboard_bloc.dart';
+import 'dashboard_event.dart';
 
 /// Hero « Patient suivant » (#5045, maquette design-v2) : remplace la grille
 /// de compteurs en tête du tableau de bord par le patient qui attend déjà en
@@ -147,7 +150,17 @@ class NextPatientHero extends StatelessWidget {
               Expanded(
                 child: FilledButton.icon(
                   key: const Key('next_patient_hero_start_consultation'),
-                  onPressed: () => context.go(AppRouter.consultation),
+                  // #6241 : démarre réellement la séance de CE patient
+                  // (`POST /cabinet/appointments/<id>/start`, cf.
+                  // DashboardBloc) au lieu d'ouvrir la liste générique des
+                  // consultations, sans rien démarrer.
+                  onPressed: summary.nextPatientAppointmentId == null
+                      ? null
+                      : () => context.read<DashboardBloc>().add(
+                            DashboardConsultationStartRequested(
+                              appointmentId: summary.nextPatientAppointmentId!,
+                            ),
+                          ),
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: NubiaColors.brand700,
@@ -163,7 +176,13 @@ class NextPatientHero extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   key: const Key('next_patient_hero_open_file'),
-                  onPressed: () => context.go(AppRouter.patients),
+                  // #6241 : ouvre la fiche de CE patient au lieu de
+                  // l'annuaire complet du cabinet.
+                  onPressed: summary.nextPatientPatientId == null
+                      ? null
+                      : () => context.go(
+                            '${AppRouter.patients}/${summary.nextPatientPatientId}',
+                          ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     side: const BorderSide(color: Colors.white),

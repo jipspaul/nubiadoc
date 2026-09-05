@@ -154,6 +154,7 @@ void main() {
       ).thenAnswer((_) async => fakeResponse([
             {
               'appointment_id': 'appt-1',
+              'patient_id': 'pat-1',
               'patient_name': 'Camille Moreau',
               'motif': 'Pose de couronne',
               'starts_at': '2026-08-26T14:30:00.000Z',
@@ -177,6 +178,17 @@ void main() {
         reason: 'joint le RDV du jour correspondant pour la durée prévue',
       );
       expect(summary.nextPatientWaitingMinutes, greaterThanOrEqualTo(11));
+      expect(
+        summary.nextPatientAppointmentId,
+        'appt-1',
+        reason: '#6241 — le hero doit pouvoir démarrer CE RDV, pas un '
+            'RDV générique',
+      );
+      expect(
+        summary.nextPatientPatientId,
+        'pat-1',
+        reason: '#6241 — le hero doit pouvoir ouvrir la fiche de CE patient',
+      );
     });
 
     test('nextPatient est absent quand la salle d\'attente est vide', () async {

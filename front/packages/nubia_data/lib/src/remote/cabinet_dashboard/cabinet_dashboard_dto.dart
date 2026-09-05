@@ -16,6 +16,8 @@ class CabinetDashboardDto {
   final DateTime? nextPatientAppointmentTime;
   final int? nextPatientDurationMinutes;
   final int? nextPatientWaitingMinutes;
+  final String? nextPatientAppointmentId;
+  final String? nextPatientPatientId;
   final String? nextPatientAllergyLabel;
   final int? nextPatientTreatmentPlanCents;
   final DateTime? nextPatientLastVisitAt;
@@ -33,6 +35,8 @@ class CabinetDashboardDto {
     this.nextPatientAppointmentTime,
     this.nextPatientDurationMinutes,
     this.nextPatientWaitingMinutes,
+    this.nextPatientAppointmentId,
+    this.nextPatientPatientId,
     this.nextPatientAllergyLabel,
     this.nextPatientTreatmentPlanCents,
     this.nextPatientLastVisitAt,
@@ -59,6 +63,8 @@ class CabinetDashboardDto {
           (json['next_patient_duration_minutes'] as num?)?.toInt(),
       nextPatientWaitingMinutes:
           (json['next_patient_waiting_minutes'] as num?)?.toInt(),
+      nextPatientAppointmentId: json['next_patient_appointment_id'] as String?,
+      nextPatientPatientId: json['next_patient_patient_id'] as String?,
       nextPatientAllergyLabel: json['next_patient_allergy_label'] as String?,
       nextPatientTreatmentPlanCents:
           (json['next_patient_treatment_plan_cents'] as num?)?.toInt(),
@@ -80,6 +86,8 @@ class CabinetDashboardDto {
         nextPatientAppointmentTime: nextPatientAppointmentTime,
         nextPatientDurationMinutes: nextPatientDurationMinutes,
         nextPatientWaitingMinutes: nextPatientWaitingMinutes,
+        nextPatientAppointmentId: nextPatientAppointmentId,
+        nextPatientPatientId: nextPatientPatientId,
         nextPatientAllergyLabel: nextPatientAllergyLabel,
         nextPatientTreatmentPlanCents: nextPatientTreatmentPlanCents,
         nextPatientLastVisitAt: nextPatientLastVisitAt,

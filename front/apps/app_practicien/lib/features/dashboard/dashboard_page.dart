@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import '../agenda/agenda_bloc.dart';
 import '../agenda/agenda_event.dart';
 import 'dashboard_bloc.dart';
@@ -38,24 +40,46 @@ class _DashboardContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<DashboardBloc, DashboardState>(
-      builder: (context, state) {
-        return switch (state) {
-          DashboardInitial() ||
-          DashboardLoading() =>
-            const _DashboardLoadingView(key: Key('dashboard_loading')),
-          DashboardError(:final message) => NubiaErrorWidget(
-              key: const Key('dashboard_error'),
-              message: message,
-              onRetry: () => context
-                  .read<DashboardBloc>()
-                  .add(const DashboardLoadRequested()),
-            ),
-          DashboardLoaded(:final summary) => _DashboardLoadedView(
-              summary: summary,
-            ),
-        };
+    return BlocListener<DashboardBloc, DashboardState>(
+      listenWhen: (_, current) =>
+          current is DashboardLoaded &&
+          (current.actionError != null ||
+              current.startedConsultationId != null),
+      listener: (context, state) {
+        if (state is DashboardLoaded && state.actionError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.actionError!)),
+          );
+        }
+        if (state is DashboardLoaded && state.startedConsultationId != null) {
+          // #6241 : ouvrir directement la séance au fauteuil, même correctif
+          // que #3367 côté agenda.
+          final id = state.startedConsultationId!;
+          context
+              .read<DashboardBloc>()
+              .add(const DashboardStartedConsultationConsumed());
+          GoRouter.of(context).go('${AppRouter.consultation}?id=$id');
+        }
       },
+      child: BlocBuilder<DashboardBloc, DashboardState>(
+        builder: (context, state) {
+          return switch (state) {
+            DashboardInitial() ||
+            DashboardLoading() =>
+              const _DashboardLoadingView(key: Key('dashboard_loading')),
+            DashboardError(:final message) => NubiaErrorWidget(
+                key: const Key('dashboard_error'),
+                message: message,
+                onRetry: () => context
+                    .read<DashboardBloc>()
+                    .add(const DashboardLoadRequested()),
+              ),
+            DashboardLoaded(:final summary) => _DashboardLoadedView(
+                summary: summary,
+              ),
+          };
+        },
+      ),
     );
   }
 }

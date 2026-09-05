@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -13,6 +14,7 @@ import 'package:app_practicien/features/agenda/agenda_event.dart';
 import 'package:app_practicien/features/agenda/agenda_state.dart';
 import 'package:app_practicien/features/dashboard/dashboard_bloc.dart';
 import 'package:app_practicien/features/dashboard/dashboard_event.dart';
+import 'package:app_practicien/features/dashboard/dashboard_page.dart';
 import 'package:app_practicien/features/dashboard/dashboard_state.dart';
 import 'package:app_practicien/features/dashboard/next_patient_hero.dart';
 import 'package:app_practicien/features/dashboard/pending_actions_card.dart';
@@ -28,11 +30,17 @@ import 'package:app_practicien/features/dashboard/week_summary_card.dart';
 class MockGetProDashboardSummaryUseCase extends Mock
     implements GetProDashboardSummaryUseCase {}
 
+class MockStartConsultationUseCase extends Mock
+    implements StartConsultationUseCase {}
+
 class MockTodayNotesBloc extends MockBloc<TodayNotesEvent, TodayNotesState>
     implements TodayNotesBloc {}
 
 class MockAgendaBloc extends MockBloc<AgendaEvent, AgendaState>
     implements AgendaBloc {}
+
+class MockDashboardBloc extends MockBloc<DashboardEvent, DashboardState>
+    implements DashboardBloc {}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -61,13 +69,28 @@ final _nextPatientSummary = ProDashboardSummary(
   nextPatientAppointmentTime: DateTime(2026, 8, 26, 14, 30),
   nextPatientDurationMinutes: 30,
   nextPatientWaitingMinutes: 12,
+  nextPatientAppointmentId: 'appt-1',
+  nextPatientPatientId: 'pat-1',
   nextPatientAllergyLabel: 'Allergie pénicilline',
   nextPatientTreatmentPlanCents: 163592,
   nextPatientLastVisitAt: DateTime(2026, 7, 22),
 );
 
-DashboardBloc _makeBloc(MockGetProDashboardSummaryUseCase uc) =>
-    DashboardBloc(getSummary: uc);
+const _session = ClinicalSession(
+  id: 'sess-1',
+  appointmentId: 'appt-1',
+  status: 'in_progress',
+  acts: [],
+);
+
+DashboardBloc _makeBloc(
+  MockGetProDashboardSummaryUseCase uc, {
+  MockStartConsultationUseCase? startConsultation,
+}) =>
+    DashboardBloc(
+      getSummary: uc,
+      startConsultation: startConsultation ?? MockStartConsultationUseCase(),
+    );
 
 // ---------------------------------------------------------------------------
 // Widget helper
@@ -155,6 +178,76 @@ void main() {
         const DashboardError('Erreur réseau'),
       ],
     );
+
+    group('DashboardConsultationStartRequested (#6241)', () {
+      late MockStartConsultationUseCase mockStart;
+
+      setUp(() {
+        mockStart = MockStartConsultationUseCase();
+      });
+
+      blocTest<DashboardBloc, DashboardState>(
+        'démarre la séance du RDV ciblé et propage startedConsultationId',
+        build: () {
+          when(() => mockUc())
+              .thenAnswer((_) async => Right(_nextPatientSummary));
+          when(() => mockStart('appt-1'))
+              .thenAnswer((_) async => const Right(_session));
+          return _makeBloc(mockUc, startConsultation: mockStart);
+        },
+        act: (bloc) async {
+          bloc.add(const DashboardLoadRequested());
+          await Future<void>.delayed(Duration.zero);
+          bloc.add(const DashboardConsultationStartRequested(
+              appointmentId: 'appt-1'));
+        },
+        skip: 2, // Loading puis Loaded(summary) déjà couverts ci-dessus.
+        expect: () => [
+          DashboardLoaded(_nextPatientSummary, actionInProgress: true),
+          DashboardLoaded(_nextPatientSummary, startedConsultationId: 'sess-1'),
+        ],
+        verify: (_) => verify(() => mockStart('appt-1')).called(1),
+      );
+
+      blocTest<DashboardBloc, DashboardState>(
+        'expose actionError quand le démarrage échoue',
+        build: () {
+          when(() => mockUc())
+              .thenAnswer((_) async => Right(_nextPatientSummary));
+          when(() => mockStart('appt-1')).thenAnswer(
+            (_) async =>
+                const Left(ServerFailure(message: 'RDV déjà démarré')),
+          );
+          return _makeBloc(mockUc, startConsultation: mockStart);
+        },
+        act: (bloc) async {
+          bloc.add(const DashboardLoadRequested());
+          await Future<void>.delayed(Duration.zero);
+          bloc.add(const DashboardConsultationStartRequested(
+              appointmentId: 'appt-1'));
+        },
+        skip: 2,
+        expect: () => [
+          DashboardLoaded(_nextPatientSummary, actionInProgress: true),
+          DashboardLoaded(_nextPatientSummary, actionError: 'RDV déjà démarré'),
+        ],
+      );
+
+      blocTest<DashboardBloc, DashboardState>(
+        'DashboardStartedConsultationConsumed remet startedConsultationId à '
+        'null',
+        build: () => _makeBloc(mockUc, startConsultation: mockStart),
+        seed: () => DashboardLoaded(
+          _nextPatientSummary,
+          startedConsultationId: 'sess-1',
+        ),
+        act: (bloc) =>
+            bloc.add(const DashboardStartedConsultationConsumed()),
+        expect: () => [
+          DashboardLoaded(_nextPatientSummary),
+        ],
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -696,26 +789,6 @@ void main() {
           home: Scaffold(body: NextPatientHero(summary: summary)),
         );
 
-    GoRouter makeRouter(ProDashboardSummary summary) => GoRouter(
-          initialLocation: '/',
-          routes: [
-            GoRoute(
-              path: '/',
-              builder: (_, __) =>
-                  Scaffold(body: NextPatientHero(summary: summary)),
-            ),
-            GoRoute(
-              path: '/consultation',
-              builder: (_, __) =>
-                  const Scaffold(body: Text('consultation page')),
-            ),
-            GoRoute(
-              path: '/patients',
-              builder: (_, __) => const Scaffold(body: Text('patients page')),
-            ),
-          ],
-        );
-
     testWidgets('masque le hero quand personne n\'attend', (tester) async {
       await tester.pumpWidget(wrapCard(_summary));
 
@@ -772,22 +845,56 @@ void main() {
       expect(find.byType(StatusPill), findsNothing);
     });
 
-    testWidgets('démarrer la consultation navigue vers /consultation',
-        (tester) async {
-      final router = makeRouter(_nextPatientSummary);
+    testWidgets(
+        'démarrer la consultation envoie DashboardConsultationStartRequested '
+        'avec l\'id du RDV en attente, pas une navigation à l\'aveugle '
+        '(#6241)', (tester) async {
+      final mockBloc = MockDashboardBloc();
+      when(() => mockBloc.state)
+          .thenReturn(DashboardLoaded(_nextPatientSummary));
+
       await tester.pumpWidget(
-        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(
+            body: BlocProvider<DashboardBloc>.value(
+              value: mockBloc,
+              child: NextPatientHero(summary: _nextPatientSummary),
+            ),
+          ),
+        ),
       );
 
       await tester
           .tap(find.byKey(const Key('next_patient_hero_start_consultation')));
-      await tester.pumpAndSettle();
 
-      expect(find.text('consultation page'), findsOneWidget);
+      verify(
+        () => mockBloc.add(
+          const DashboardConsultationStartRequested(appointmentId: 'appt-1'),
+        ),
+      ).called(1);
     });
 
-    testWidgets('ouvrir le dossier navigue vers /patients', (tester) async {
-      final router = makeRouter(_nextPatientSummary);
+    testWidgets(
+        'ouvrir le dossier navigue vers la fiche du patient en attente, pas '
+        'l\'annuaire complet (#6241)', (tester) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) => Scaffold(
+              body: NextPatientHero(summary: _nextPatientSummary),
+            ),
+          ),
+          GoRoute(
+            path: '/patients/:id',
+            builder: (_, state) => Scaffold(
+              body: Text('fiche patient ${state.pathParameters['id']}'),
+            ),
+          ),
+        ],
+      );
       await tester.pumpWidget(
         MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
       );
@@ -795,7 +902,71 @@ void main() {
       await tester.tap(find.byKey(const Key('next_patient_hero_open_file')));
       await tester.pumpAndSettle();
 
-      expect(find.text('patients page'), findsOneWidget);
+      expect(find.text('fiche patient pat-1'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // DashboardBody — bout-en-bout hero -> start -> navigation (#6241)
+  // ---------------------------------------------------------------------------
+
+  group('DashboardBody — démarrer la consultation depuis le hero (#6241)', () {
+    late MockGetProDashboardSummaryUseCase mockUc;
+    late MockStartConsultationUseCase mockStart;
+
+    setUp(() {
+      mockUc = MockGetProDashboardSummaryUseCase();
+      mockStart = MockStartConsultationUseCase();
+      GetIt.instance.registerFactory<DashboardBloc>(
+        () => DashboardBloc(getSummary: mockUc, startConsultation: mockStart),
+      );
+      // DashboardBody rend aussi TodayScheduleCard/TodayNotesCard, qui
+      // résolvent leur propre bloc via GetIt — sans stub, GetIt lève faute
+      // d'enregistrement dès que ces cartes se construisent.
+      final agendaBloc = MockAgendaBloc();
+      when(() => agendaBloc.state).thenReturn(
+        AgendaLoaded(entries: const [], weekStart: DateTime.now()),
+      );
+      GetIt.instance.registerFactory<AgendaBloc>(() => agendaBloc);
+      final notesBloc = MockTodayNotesBloc();
+      when(() => notesBloc.state).thenReturn(const TodayNotesLoaded([]));
+      GetIt.instance.registerFactory<TodayNotesBloc>(() => notesBloc);
+      addTearDown(GetIt.instance.reset);
+    });
+
+    testWidgets(
+        'ouvre la séance réellement démarrée au fauteuil, au lieu de la '
+        'liste historique des consultations', (tester) async {
+      when(() => mockUc())
+          .thenAnswer((_) async => Right(_nextPatientSummary));
+      when(() => mockStart('appt-1'))
+          .thenAnswer((_) async => const Right(_session));
+
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(path: '/', builder: (_, __) => const DashboardBody()),
+          GoRoute(
+            path: '/consultation',
+            builder: (_, state) => Scaffold(
+              body: Text(
+                'consultation démarrée id=${state.uri.queryParameters['id']}',
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      await tester
+          .tap(find.byKey(const Key('next_patient_hero_start_consultation')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('consultation démarrée id=sess-1'), findsOneWidget);
     });
   });
 }

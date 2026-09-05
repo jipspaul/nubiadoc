@@ -66,6 +66,7 @@ void registerPro(GetIt gi) {
   gi.registerFactory<DashboardBloc>(
     () => DashboardBloc(
       getSummary: gi<GetProDashboardSummaryUseCase>(),
+      startConsultation: gi<StartConsultationUseCase>(),
       practitionerId: _currentPractitionerId(gi),
     ),
   );
