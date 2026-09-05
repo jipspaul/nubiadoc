@@ -140,6 +140,11 @@ class CabinetDashboardApi {
       nextPatientAppointmentTime: nextPatient?.appointmentTime,
       nextPatientDurationMinutes: nextPatientDurationMinutes,
       nextPatientWaitingMinutes: nextPatient?.waitSoFar.inMinutes,
+      // #6241 : sans ces identifiants, le hero du tableau de bord ne peut
+      // cibler ni le RDV (`POST .../start`) ni la fiche (`/patients/<id>`)
+      // du patient qui attend.
+      nextPatientAppointmentId: nextPatient?.appointmentId,
+      nextPatientPatientId: nextPatient?.patientId,
       // Allergie / plan de traitement / dernière visite : pas encore exposés
       // par ces endpoints — cf. commentaire de classe de [ProDashboardSummary].
       nextPatientAllergyLabel: null,

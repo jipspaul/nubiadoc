@@ -27,6 +27,14 @@ class ProDashboardSummary {
   final int? nextPatientDurationMinutes;
   final int? nextPatientWaitingMinutes;
 
+  /// Identifiants du RDV et du patient en attente (#6241) — indispensables
+  /// aux actions du hero : « Démarrer la consultation » doit appeler
+  /// `POST /cabinet/appointments/<nextPatientAppointmentId>/start` et
+  /// « Ouvrir le dossier » doit ouvrir `/patients/<nextPatientPatientId>`,
+  /// plutôt que d'atterrir sur des listes génériques sans patient ciblé.
+  final String? nextPatientAppointmentId;
+  final String? nextPatientPatientId;
+
   /// Allergie, plan de traitement et dernière visite ne sont pas exposés par
   /// les endpoints agrégés ci-dessus — restent `null` jusqu'à un ticket
   /// domaine dédié (jointure dossier patient côté back).
@@ -47,6 +55,8 @@ class ProDashboardSummary {
     this.nextPatientAppointmentTime,
     this.nextPatientDurationMinutes,
     this.nextPatientWaitingMinutes,
+    this.nextPatientAppointmentId,
+    this.nextPatientPatientId,
     this.nextPatientAllergyLabel,
     this.nextPatientTreatmentPlanCents,
     this.nextPatientLastVisitAt,

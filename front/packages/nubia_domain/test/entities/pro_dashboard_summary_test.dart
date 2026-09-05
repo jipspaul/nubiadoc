@@ -57,6 +57,8 @@ void main() {
       expect(summary.nextPatientAppointmentTime, isNull);
       expect(summary.nextPatientDurationMinutes, isNull);
       expect(summary.nextPatientWaitingMinutes, isNull);
+      expect(summary.nextPatientAppointmentId, isNull);
+      expect(summary.nextPatientPatientId, isNull);
       expect(summary.nextPatientAllergyLabel, isNull);
       expect(summary.nextPatientTreatmentPlanCents, isNull);
       expect(summary.nextPatientLastVisitAt, isNull);
@@ -82,6 +84,27 @@ void main() {
       expect(summary.nextPatientReason, 'Pose de couronne');
       expect(summary.nextPatientDurationMinutes, 30);
       expect(summary.nextPatientWaitingMinutes, 12);
+    });
+
+    test(
+        'expose l\'id du RDV et du patient en attente (#6241 — nécessaires '
+        'aux actions du hero : démarrer la consultation et ouvrir le '
+        'dossier)', () {
+      const summary = ProDashboardSummary(
+        todayAppointments: 9,
+        waitingRoomCount: 1,
+        unreadMessages: 0,
+        pendingConfirmations: 0,
+        weeklyCompletedActs: 0,
+        weeklyFeesCents: 0,
+        weeklyNoShowCount: 0,
+        nextPatientName: 'Camille Moreau',
+        nextPatientAppointmentId: 'appt-1',
+        nextPatientPatientId: 'pat-1',
+      );
+
+      expect(summary.nextPatientAppointmentId, 'appt-1');
+      expect(summary.nextPatientPatientId, 'pat-1');
     });
   });
 }
