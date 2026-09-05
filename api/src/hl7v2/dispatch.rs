@@ -430,10 +430,11 @@ PV1|1|O\r";
         assert_eq!(reparsed_dup.segment("MSA").unwrap().field(1), Some("AA"));
     }
 
-    /// Pool jamais connecté (`connect_lazy`) : suffisant pour ADT (stub, ne
-    /// touche jamais `pool`) et un type non géré (idem) — pas de DB requise.
-    /// Le traitement SIU réel (qui, lui, a besoin d'une vraie DB) est couvert
-    /// par les tests DB-gated de `siu.rs` et le test e2e (lot B11).
+    /// Pool jamais connecté (`connect_lazy`) : suffisant pour un ADT dont le
+    /// PID est invalide (rejet AVANT tout accès DB) et un type non géré
+    /// (no-op) — pas de DB requise. Les traitements ADT/SIU réels (qui, eux,
+    /// ont besoin d'une vraie DB) sont couverts par les tests DB-gated de
+    /// `hl7v2_adt.rs`/`siu.rs` et le test e2e (lot B11).
     fn lazy_pool() -> PgPool {
         sqlx::postgres::PgPoolOptions::new()
             .connect_lazy("postgres://fake@localhost/fake")
@@ -447,10 +448,12 @@ PV1|1|O\r";
         let cabinet_id = Uuid::new_v4();
         let msg = parse("MSH|^~\\&|A|B|C|D|20260719||ADT^A28|1|P|2.5\r").unwrap();
 
-        assert_eq!(
-            process_message(&pool, cabinet_id, partner_id, &msg, "ADT^A28").await,
-            Ok(())
-        );
+        // B8 : un ADT sans segment PID est rejeté AVANT tout accès DB
+        // (fail-fast de parse_pid) — plus un no-op depuis #3927.
+        let err = process_message(&pool, cabinet_id, partner_id, &msg, "ADT^A28")
+            .await
+            .unwrap_err();
+        assert!(err.contains("PID"), "détail inattendu : {err}");
 
         let unknown = parse("MSH|^~\\&|A|B|C|D|20260719||ZZZ^Z99|1|P|2.5\r").unwrap();
         assert_eq!(
