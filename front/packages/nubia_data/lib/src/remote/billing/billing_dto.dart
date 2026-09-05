@@ -88,8 +88,8 @@ class QuoteDto {
   });
 
   /// Détail : GET /v1/quotes/:id → {id, status, total_amount_cents, currency,
-  /// signed_at, created_at, items:[...]}. Champs absents de l'API
-  /// (cabinet_id, practitioner_name, deposit) → valeurs neutres.
+  /// signed_at, created_at, items:[...], practitioner_name?}. Champs encore
+  /// absents de l'API (cabinet_id, deposit) → valeurs neutres.
   factory QuoteDto.fromJson(Map<String, dynamic> json) {
     final items = (json['items'] as List<dynamic>? ?? [])
         .map((e) => QuoteLineItemDto.fromJson(e as Map<String, dynamic>))
@@ -117,13 +117,14 @@ class QuoteDto {
   }
 
   /// Liste : GET /v1/quotes → items résumés {id, status,
-  /// total_amount_cents, currency, created_at} (sans lignes ni parts).
+  /// total_amount_cents, currency, created_at, practitioner_name?}
+  /// (sans lignes ni parts).
   factory QuoteDto.fromSummaryJson(Map<String, dynamic> json) {
     final total = (json['total_amount_cents'] as num?)?.toInt() ?? 0;
     return QuoteDto(
       id: json['id'] as String,
       cabinetId: '',
-      practitionerName: '',
+      practitionerName: (json['practitioner_name'] as String?) ?? '',
       items: const [],
       totalCents: total,
       patientShareCents: total,
