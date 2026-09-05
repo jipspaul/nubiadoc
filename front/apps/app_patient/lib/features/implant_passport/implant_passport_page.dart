@@ -127,11 +127,23 @@ class _ImplantPassportBody extends StatelessWidget {
                                 final toothPosition = implant.toothPosition;
                                 final anatomicalName =
                                     toothLabelFromFdi(toothPosition);
-                                final manufacturerModel = [
+                                final manufacturerModelText = [
                                   if (implant.manufacturer != null)
                                     implant.manufacturer!,
                                   if (implant.model != null) implant.model!,
                                 ].join(' · ');
+                                // L'API ne sert que `brand` (pas encore de
+                                // fabricant/modèle distincts) : à défaut, on
+                                // affiche la marque pour identifier le
+                                // dispositif (passeport à présenter avant IRM).
+                                // Si le titre de la carte est déjà la marque
+                                // (pas de nom anatomique), pas de doublon.
+                                final manufacturerModel =
+                                    manufacturerModelText.isNotEmpty
+                                        ? manufacturerModelText
+                                        : (anatomicalName != null
+                                            ? implant.brand
+                                            : '');
                                 final infoRows = <Widget>[
                                   if (implant.placementDate != null)
                                     _ImplantInfoRow(
