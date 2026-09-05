@@ -126,10 +126,12 @@ async fn main() {
     // rendant 100 % injoignable malgré un code fonctionnellement correct.
     // `api.<domaine>` proxie déjà TOUT le port `APP_PORT` sans filtre de
     // chemin (cf. Caddyfile.snippet) : merger ici rend ces pages joignables
-    // immédiatement, sans aucune action manuelle côté hôte. Pas de collision
-    // possible : `/v1/...` a un préfixe fixe (jamais capturé par les
-    // catch-all `/:slug` ou `/:query_slug/:locality_slug` du tunnel, qui
-    // exigent respectivement exactement 1 et 2 segments).
+    // immédiatement, sans aucune action manuelle côté hôte. Les catch-all
+    // `/:slug` et `/:query_slug/:locality_slug` du tunnel refusent
+    // explicitement tout chemin dont le premier segment est `v1` (garde
+    // `reject_v1_prefix` dans `web_tunnel::router`, #6556) : un chemin
+    // `/v1/...` sans route d'API correspondante répond donc 404, jamais une
+    // page SEO du tunnel.
     let http_task = axum::serve(
         listener,
         app_with_hl7v2_status(state.clone(), mllp_status)
