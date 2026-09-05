@@ -302,3 +302,197 @@ async fn paginates_beyond_limit_via_cursor() {
     assert_eq!(data2[0]["id"], json!(prescription_ids[2]));
     assert!(page2["page"]["next_cursor"].is_null());
 }
+
+/// Régression #6507 : `GET /v1/account/prescriptions` ne renvoyait qu'une
+/// coquille (id/status/document_id/dates), et `GET
+/// /v1/account/prescriptions/{id}` n'existait pas (404 routeur). Le patient
+/// doit pouvoir lire les lignes (libellé/posologie/durée) et le prescripteur
+/// d'une ordonnance signée qui lui appartient — brouillon ou ordonnance
+/// d'un autre compte restent invisibles (mêmes bornes que la liste).
+#[tokio::test]
+async fn reads_own_signed_prescription_detail_with_items() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let other_account = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let pro_user_id = Uuid::new_v4();
+
+    for (id, kind) in [(user_id, "patient"), (pro_user_id, "pro")] {
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', $3)",
+        )
+        .bind(id)
+        .bind(format!("apd-{}@nubia.test", id))
+        .bind(kind)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+    for (account, owner) in [(account_id, user_id), (other_account, Uuid::new_v4())] {
+        if account == other_account {
+            sqlx::query(
+                "INSERT INTO app_user (id, email, password_hash, kind) \
+                 VALUES ($1, $2, 'hash', 'patient')",
+            )
+            .bind(owner)
+            .bind(format!("apd2-{}@nubia.test", owner))
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+        sqlx::query(
+            "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+             VALUES ($1, $2, 'P', 'A')",
+        )
+        .bind(account)
+        .bind(owner)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale) VALUES ($1, 'Cabinet APD')")
+        .bind(cabinet_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    let practitioner_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(practitioner_id)
+        .bind(cabinet_id)
+        .bind(pro_user_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO provider (cabinet_id, practitioner_id, user_id, display_name, is_listed, \
+                                rpps_verified) \
+         VALUES ($1, $2, $3, 'Dr Hugo Marin', true, true)",
+    )
+    .bind(cabinet_id)
+    .bind(practitioner_id)
+    .bind(pro_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let mut patient_ids = std::collections::HashMap::new();
+    for account in [account_id, other_account] {
+        let patient_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'P', 'A', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account)
+        .execute(&db)
+        .await
+        .unwrap();
+        patient_ids.insert(account, patient_id);
+    }
+
+    let signed_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO prescription (id, cabinet_id, patient_id, practitioner_id, status, \
+                                    signed_at) \
+         VALUES ($1, $2, $3, $4, 'signed', now())",
+    )
+    .bind(signed_id)
+    .bind(cabinet_id)
+    .bind(patient_ids[&account_id])
+    .bind(practitioner_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO prescription_item (cabinet_id, prescription_id, label, posology, duration) \
+         VALUES ($1, $2, 'Amoxicilline 500mg', '1 gelule 3x/jour', '7 jours')",
+    )
+    .bind(cabinet_id)
+    .bind(signed_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let draft_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO prescription (id, cabinet_id, patient_id, practitioner_id, status) \
+         VALUES ($1, $2, $3, $4, 'draft')",
+    )
+    .bind(draft_id)
+    .bind(cabinet_id)
+    .bind(patient_ids[&account_id])
+    .bind(practitioner_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let others_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO prescription (id, cabinet_id, patient_id, practitioner_id, status, \
+                                    signed_at) \
+         VALUES ($1, $2, $3, $4, 'signed', now())",
+    )
+    .bind(others_id)
+    .bind(cabinet_id)
+    .bind(patient_ids[&other_account])
+    .bind(practitioner_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let pool = app_pool().await;
+    let token = patient_jwt(user_id, account_id);
+
+    async fn get(pool: &PgPool, token: &str, id: Uuid) -> axum::response::Response {
+        app(AppState {
+            db: pool.clone(),
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        })
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/account/prescriptions/{id}"))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
+    let response = get(&pool, &token, signed_id).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["id"], json!(signed_id));
+    assert_eq!(v["status"], "signed");
+    assert_eq!(v["prescriber_name"], "Dr Hugo Marin");
+    assert_eq!(v["prescriber_practice"], "Cabinet APD");
+    let items = v["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "items : {v}");
+    assert_eq!(items[0]["label"], "Amoxicilline 500mg");
+    assert_eq!(items[0]["posology"], "1 gelule 3x/jour");
+    assert_eq!(items[0]["duration"], "7 jours");
+
+    let response = get(&pool, &token, draft_id).await;
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "un brouillon n'est jamais opposable"
+    );
+
+    let response = get(&pool, &token, others_id).await;
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "RLS : ordonnance d'un autre compte invisible"
+    );
+}

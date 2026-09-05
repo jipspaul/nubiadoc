@@ -115,6 +115,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             get(prescriptions::list_account_prescriptions),
         )
         .route(
+            "/v1/account/prescriptions/:id",
+            get(prescriptions::get_account_prescription),
+        )
+        .route(
             "/v1/account/prescriptions/:id/order",
             axum::routing::post(pharmacy::orders::create_account_order),
         )

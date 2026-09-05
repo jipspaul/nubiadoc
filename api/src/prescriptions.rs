@@ -808,6 +808,137 @@ pub async fn list_account_prescriptions(
     }))
 }
 
+// ── GET /v1/account/prescriptions/:id ─────────────────────────────────────────
+
+/// Un item dans la réponse détail patient — mêmes champs que
+/// `pharmacy::orders::OrderItemDto` (pas de données internes cabinet comme
+/// `product_reference`/`non_substitution_reason`).
+#[derive(Serialize)]
+pub struct AccountPrescriptionItemDto {
+    pub label: String,
+    pub form: Option<String>,
+    pub posology: String,
+    pub duration: String,
+    pub quantity: Option<String>,
+}
+
+/// Réponse de `GET /v1/account/prescriptions/{id}`.
+#[derive(Serialize)]
+pub struct AccountPrescriptionDetailDto {
+    pub id: Uuid,
+    pub status: String,
+    pub document_id: Option<Uuid>,
+    pub created_at: String,
+    pub signed_at: Option<String>,
+    pub prescriber_name: Option<String>,
+    pub prescriber_practice: Option<String>,
+    pub items: Vec<AccountPrescriptionItemDto>,
+}
+
+/// `GET /v1/account/prescriptions/{id}` — détail (lignes + prescripteur)
+/// d'une ordonnance visible par le compte patient (policy
+/// `prescription_patient_read`, mêmes bornes que `list_account_prescriptions`).
+/// Symétrique à `GET /v1/account/orders/{id}` — corrige #6507 : jusqu'ici
+/// seule une coquille technique (id/status/document_id/dates) était exposée
+/// côté liste, sans libellé, posologie, durée ni prescripteur, et aucune
+/// route de détail n'existait (404 routeur).
+///
+/// - Ordonnance invisible (RLS) ou en `draft` → 404 (un brouillon n'est
+///   jamais un document opposable, cohérent avec la liste).
+pub async fn get_account_prescription(
+    State(state): State<AppState>,
+    claims: crate::auth::PatientAccountClaims,
+    Path(prescription_id): Path<Uuid>,
+) -> Result<Json<AccountPrescriptionDetailDto>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    // GUC compte : requis par guardianship_owner_select (0025) pour que la
+    // sous-requête account_guardianship de prescription_patient_read
+    // (0109/0223) voie la tutelle du tuteur en session (#4597).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, cabinet_id, practitioner_id, status, document_id, created_at, signed_at \
+         FROM prescription \
+         WHERE id = $1 AND deleted_at IS NULL AND status <> 'draft'",
+    )
+    .bind(prescription_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let document_id: Option<Uuid> = row.try_get("document_id").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+    let signed_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("signed_at").map_err(|_| AppError::Internal)?;
+
+    // GUC cabinet : nécessaire pour résoudre le prescripteur (#6253, cf.
+    // pharmacy::orders::prescriber_identity) sous les policies
+    // `tenant_isolation` (cabinet) / `provider_cabinet_manage` — même schéma
+    // que pharmacy::orders::create_account_order.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let (prescriber_name, prescriber_practice) =
+        crate::pharmacy::orders::prescriber_identity(&mut tx, cabinet_id, practitioner_id).await?;
+
+    // RLS `prescription_line_patient_read` (0108, étendue par 0243) borne
+    // déjà aux lignes des ordonnances du patient courant OU d'un dépendant
+    // sous tutelle active, via les GUC posés ci-dessus.
+    let item_rows = sqlx::query(
+        "SELECT label, form, posology, duration, quantity \
+         FROM prescription_item WHERE prescription_id = $1",
+    )
+    .bind(prescription_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let items = item_rows
+        .into_iter()
+        .map(|r| {
+            Ok(AccountPrescriptionItemDto {
+                label: r.try_get("label").map_err(|_| AppError::Internal)?,
+                form: r.try_get("form").map_err(|_| AppError::Internal)?,
+                posology: r.try_get("posology").map_err(|_| AppError::Internal)?,
+                duration: r.try_get("duration").map_err(|_| AppError::Internal)?,
+                quantity: r.try_get("quantity").map_err(|_| AppError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(AccountPrescriptionDetailDto {
+        id,
+        status,
+        document_id,
+        created_at: created_at.to_rfc3339(),
+        signed_at: signed_at.map(|t| t.to_rfc3339()),
+        prescriber_name,
+        prescriber_practice,
+        items,
+    }))
+}
+
 // ── Génération PDF de l'ordonnance signée ────────────────────────────────────
 
 /// Génère le contenu binaire (PDF minimal valide) de l'ordonnance signée.
