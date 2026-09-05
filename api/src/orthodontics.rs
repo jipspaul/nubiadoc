@@ -337,6 +337,7 @@ fn is_valid_treatment_transition(current: &str, target: &str) -> bool {
 
 /// Body de `PATCH /v1/cabinet/orthodontics/:id`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchOrthodonticTreatmentBody {
     pub status: String,
 }

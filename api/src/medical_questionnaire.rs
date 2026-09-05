@@ -67,6 +67,7 @@ pub struct CreateMedicalQuestionnaireBody {
 
 /// Corps de `PATCH /v1/account/medical-questionnaire`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchMedicalQuestionnaireBody {
     pub cabinet_id: Uuid,
     pub payload: Option<Value>,

@@ -2755,6 +2755,7 @@ pub async fn list_cabinet_slots(
 
 /// Corps de `PATCH /v1/cabinet/slots/:id`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchSlotBody {
     pub starts_at: Option<String>,
     pub ends_at: Option<String>,

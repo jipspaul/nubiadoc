@@ -302,6 +302,7 @@ pub async fn create_lab_work_order(
 
 /// Body de `PATCH /v1/cabinet/lab-work-orders/:id`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchLabWorkOrderBody {
     pub status: String,
 }

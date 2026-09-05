@@ -33,6 +33,7 @@ use crate::{
 
 /// Corps de la requête `PATCH /v1/appointments/:id`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchAppointmentBody {
     pub starts_at: Option<String>,
     pub motif: Option<String>,

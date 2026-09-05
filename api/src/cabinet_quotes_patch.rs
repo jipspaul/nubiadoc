@@ -33,6 +33,7 @@ use crate::{
 /// Body de `PATCH /v1/cabinet/quotes/:id`. Mêmes lignes que la création
 /// (remplacement complet) ; `deposit_pct` inchangé si absent.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchCabinetQuoteBody {
     pub items: Vec<QuoteItemInput>,
     pub deposit_pct: Option<f64>,

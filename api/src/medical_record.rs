@@ -63,6 +63,7 @@ pub struct MedicalRecordResponse {
 
 /// Corps de `PATCH /v1/cabinet/patients/:id/medical-record`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchMedicalRecordBody {
     pub allergies: Option<Vec<serde_json::Value>>,
     pub treatments: Option<Vec<serde_json::Value>>,

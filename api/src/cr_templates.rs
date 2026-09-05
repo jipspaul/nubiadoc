@@ -157,6 +157,7 @@ pub async fn create_cr_template(
 
 /// Corps de `PATCH /v1/cabinet/cr-templates/:id`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchCrTemplateBody {
     pub ccam_code: Option<String>,
     pub title: Option<String>,
