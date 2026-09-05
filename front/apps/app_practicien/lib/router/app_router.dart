@@ -19,6 +19,7 @@ import '../features/devis/devis_page.dart';
 import '../features/ordonnances/ordonnance_new_page.dart';
 import '../features/ordonnances/ordonnances_page.dart';
 import '../features/login/login_page.dart';
+import '../features/notification_prefs/notification_prefs_page.dart';
 import '../features/patients/patients_page.dart';
 import '../features/cabinet/cabinet_info_cubit.dart';
 import '../features/cabinet/cabinet_info_page.dart';
@@ -56,6 +57,7 @@ class AppRouter {
   static const a2uiDemo = '/a2ui-demo';
   static const registerPro = '/register-pro';
   static const cabinetSetup = '/cabinet-setup';
+  static const notificationPreferences = '/notification-preferences';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -124,6 +126,10 @@ class AppRouter {
             create: (_) => GetIt.instance<CabinetInfoCubit>(),
             child: const CabinetInfoPage(),
           ),
+        ),
+        GoRoute(
+          path: notificationPreferences,
+          builder: (_, __) => const NotificationPrefsPage(),
         ),
         // #6286 — le `ProShell` enveloppe désormais TOUTES les autres
         // destinations de nav via `StatefulShellRoute.indexedStack` (une

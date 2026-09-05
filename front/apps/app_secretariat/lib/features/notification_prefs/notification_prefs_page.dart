@@ -3,19 +3,19 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
-import 'pharma_notification_prefs_cubit.dart';
+import 'notification_prefs_cubit.dart';
 
-/// Écran « Préférences de notifications » pro, accessible depuis le ⚙ du
-/// panneau cloche (#6265). Un switch in-app par catégorie pertinente pour le
-/// rôle pharmacie + un switch email pour les catégories qui le supportent.
-class PharmaNotificationPrefsPage extends StatelessWidget {
-  const PharmaNotificationPrefsPage({super.key});
+/// Écran « Préférences de notifications » pro, accessible depuis le ⚙ de la
+/// barre latérale (#6341). Un switch in-app + un switch push par catégorie
+/// pertinente pour le rôle secrétariat, et un switch e-mail en plus pour les
+/// catégories qui le supportent côté API (rdv/messagerie/devis).
+class NotificationPrefsPage extends StatelessWidget {
+  const NotificationPrefsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) =>
-          GetIt.instance<PharmaNotificationPrefsCubit>()..load(),
+      create: (_) => GetIt.instance<NotificationPrefsCubit>()..load(),
       child: Scaffold(
         appBar: AppBar(title: const Text('Préférences de notifications')),
         body: const _PrefsBody(),
@@ -29,51 +29,68 @@ class _PrefsBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<PharmaNotificationPrefsCubit,
-        PharmaNotificationPrefsState>(
-      listenWhen: (_, s) => s is PharmaNotificationPrefsError,
+    return BlocConsumer<NotificationPrefsCubit, NotificationPrefsState>(
+      listenWhen: (_, s) => s is NotificationPrefsError,
       listener: (context, state) {
-        if (state is PharmaNotificationPrefsError) {
+        if (state is NotificationPrefsError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.message)),
           );
         }
       },
       builder: (context, state) {
-        if (state is PharmaNotificationPrefsLoading) {
+        if (state is NotificationPrefsLoading) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (state is PharmaNotificationPrefsError) {
+        if (state is NotificationPrefsError) {
           return NubiaErrorWidget(
             message: state.message,
-            onRetry: () =>
-                context.read<PharmaNotificationPrefsCubit>().load(),
+            onRetry: () => context.read<NotificationPrefsCubit>().load(),
           );
         }
-        if (state is PharmaNotificationPrefsLoaded) {
+        if (state is NotificationPrefsLoaded) {
           final p = state.prefs;
-          final cubit = context.read<PharmaNotificationPrefsCubit>();
+          final cubit = context.read<NotificationPrefsCubit>();
           final locked = state.saving;
           return ListView(
-            key: const Key('pharma_notif_prefs_list'),
+            key: const Key('notif_prefs_list'),
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
               _CategoryCard(
-                cardKey: const Key('pharma_notif_block_messagerie'),
+                cardKey: const Key('notif_block_rdv'),
+                icon: Icons.event_outlined,
+                title: 'Rendez-vous',
+                inAppSubtitle: 'Demandes de rendez-vous et de rappel',
+                inAppKey: const Key('notif_inapp_rdv'),
+                inAppValue: p.inappRdv,
+                onInAppChanged:
+                    locked ? null : (v) => cubit.save(p.copyWith(inappRdv: v)),
+                emailKey: const Key('notif_email_rdv'),
+                emailValue: p.emailRdv,
+                onEmailChanged:
+                    locked ? null : (v) => cubit.save(p.copyWith(emailRdv: v)),
+                pushKey: const Key('notif_push_rdv'),
+                pushValue: p.pushRdv,
+                onPushChanged:
+                    locked ? null : (v) => cubit.save(p.copyWith(pushRdv: v)),
+              ),
+              const SizedBox(height: 16),
+              _CategoryCard(
+                cardKey: const Key('notif_block_messagerie'),
                 icon: Icons.forum_outlined,
                 title: 'Messagerie',
-                inAppKey: const Key('pharma_notif_inapp_messagerie'),
                 inAppSubtitle: 'Nouveaux messages du patient ou du cabinet',
+                inAppKey: const Key('notif_inapp_messagerie'),
                 inAppValue: p.inappMessagerie,
                 onInAppChanged: locked
                     ? null
                     : (v) => cubit.save(p.copyWith(inappMessagerie: v)),
-                emailKey: const Key('pharma_notif_email_messagerie'),
+                emailKey: const Key('notif_email_messagerie'),
                 emailValue: p.emailMessagerie,
                 onEmailChanged: locked
                     ? null
                     : (v) => cubit.save(p.copyWith(emailMessagerie: v)),
-                pushKey: const Key('pharma_notif_push_messagerie'),
+                pushKey: const Key('notif_push_messagerie'),
                 pushValue: p.pushMessagerie,
                 onPushChanged: locked
                     ? null
@@ -81,34 +98,34 @@ class _PrefsBody extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               _CategoryCard(
-                cardKey: const Key('pharma_notif_block_devis'),
+                cardKey: const Key('notif_block_devis'),
                 icon: Icons.request_quote_outlined,
                 title: 'Devis',
                 inAppSubtitle: 'Devis envoyés, acceptés ou refusés',
-                inAppKey: const Key('pharma_notif_inapp_devis'),
+                inAppKey: const Key('notif_inapp_devis'),
                 inAppValue: p.inappDevis,
                 onInAppChanged:
                     locked ? null : (v) => cubit.save(p.copyWith(inappDevis: v)),
-                emailKey: const Key('pharma_notif_email_devis'),
+                emailKey: const Key('notif_email_devis'),
                 emailValue: p.emailDevis,
                 onEmailChanged:
                     locked ? null : (v) => cubit.save(p.copyWith(emailDevis: v)),
-                pushKey: const Key('pharma_notif_push_devis'),
+                pushKey: const Key('notif_push_devis'),
                 pushValue: p.pushDevis,
                 onPushChanged:
                     locked ? null : (v) => cubit.save(p.copyWith(pushDevis: v)),
               ),
               const SizedBox(height: 16),
               _CategoryCard(
-                cardKey: const Key('pharma_notif_block_stock'),
+                cardKey: const Key('notif_block_stock'),
                 icon: Icons.inventory_2_outlined,
                 title: 'Demandes de stock',
                 inAppSubtitle: 'Ruptures et demandes de réapprovisionnement',
-                inAppKey: const Key('pharma_notif_inapp_stock'),
+                inAppKey: const Key('notif_inapp_stock'),
                 inAppValue: p.inappStock,
                 onInAppChanged:
                     locked ? null : (v) => cubit.save(p.copyWith(inappStock: v)),
-                pushKey: const Key('pharma_notif_push_stock'),
+                pushKey: const Key('notif_push_stock'),
                 pushValue: p.pushStock,
                 onPushChanged:
                     locked ? null : (v) => cubit.save(p.copyWith(pushStock: v)),
@@ -124,8 +141,7 @@ class _PrefsBody extends StatelessWidget {
 
 /// Bloc carte : une catégorie de notification, un switch in-app et, si
 /// [emailKey]/[pushKey] sont fournis, un switch email et/ou push en plus
-/// (mêmes catégories que l'API expose le canal correspondant, cf. #6257 et
-/// #6322 pour le push).
+/// (mêmes catégories que l'API expose le canal correspondant).
 class _CategoryCard extends StatelessWidget {
   const _CategoryCard({
     required this.cardKey,

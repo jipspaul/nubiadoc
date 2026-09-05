@@ -18,6 +18,7 @@ import '../features/consultation_clinique/ccam_picker.dart';
 import '../features/consultation_clinique/api_get_acts_use_case.dart';
 import '../features/stock/stock_bloc.dart';
 import '../features/lab_work/lab_work_orders_bloc.dart';
+import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/stock/stock_inventory_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
@@ -179,6 +180,13 @@ void registerPro(GetIt gi) {
     () => LabWorkOrdersBloc(
       list: gi<ListLabWorkOrdersUseCase>(),
       updateStatus: gi<UpdateLabWorkOrderStatusUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<NotificationPrefsCubit>(
+    () => NotificationPrefsCubit(
+      get: gi<GetProNotificationPreferencesUseCase>(),
+      update: gi<UpdateProNotificationPreferencesUseCase>(),
     ),
   );
 }

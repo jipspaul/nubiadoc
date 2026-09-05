@@ -18,6 +18,13 @@ class ProNotificationPreferences extends Equatable {
   final bool emailMessagerie;
   final bool emailDevis;
 
+  final bool pushRdv;
+  final bool pushMessagerie;
+  final bool pushDevis;
+  final bool pushStock;
+  final bool pushLabo;
+  final bool pushVisites;
+
   const ProNotificationPreferences({
     required this.inappRdv,
     required this.inappMessagerie,
@@ -28,6 +35,12 @@ class ProNotificationPreferences extends Equatable {
     required this.emailRdv,
     required this.emailMessagerie,
     required this.emailDevis,
+    required this.pushRdv,
+    required this.pushMessagerie,
+    required this.pushDevis,
+    required this.pushStock,
+    required this.pushLabo,
+    required this.pushVisites,
   });
 
   /// Défauts avant le premier chargement (miroir des défauts serveur).
@@ -40,7 +53,13 @@ class ProNotificationPreferences extends Equatable {
         inappVisites = true,
         emailRdv = false,
         emailMessagerie = false,
-        emailDevis = false;
+        emailDevis = false,
+        pushRdv = true,
+        pushMessagerie = true,
+        pushDevis = true,
+        pushStock = true,
+        pushLabo = true,
+        pushVisites = true;
 
   ProNotificationPreferences copyWith({
     bool? inappRdv,
@@ -52,6 +71,12 @@ class ProNotificationPreferences extends Equatable {
     bool? emailRdv,
     bool? emailMessagerie,
     bool? emailDevis,
+    bool? pushRdv,
+    bool? pushMessagerie,
+    bool? pushDevis,
+    bool? pushStock,
+    bool? pushLabo,
+    bool? pushVisites,
   }) {
     return ProNotificationPreferences(
       inappRdv: inappRdv ?? this.inappRdv,
@@ -63,6 +88,12 @@ class ProNotificationPreferences extends Equatable {
       emailRdv: emailRdv ?? this.emailRdv,
       emailMessagerie: emailMessagerie ?? this.emailMessagerie,
       emailDevis: emailDevis ?? this.emailDevis,
+      pushRdv: pushRdv ?? this.pushRdv,
+      pushMessagerie: pushMessagerie ?? this.pushMessagerie,
+      pushDevis: pushDevis ?? this.pushDevis,
+      pushStock: pushStock ?? this.pushStock,
+      pushLabo: pushLabo ?? this.pushLabo,
+      pushVisites: pushVisites ?? this.pushVisites,
     );
   }
 
@@ -77,5 +108,11 @@ class ProNotificationPreferences extends Equatable {
         emailRdv,
         emailMessagerie,
         emailDevis,
+        pushRdv,
+        pushMessagerie,
+        pushDevis,
+        pushStock,
+        pushLabo,
+        pushVisites,
       ];
 }
