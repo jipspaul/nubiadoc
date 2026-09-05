@@ -599,7 +599,8 @@ async fn dashboard_signed_quote_with_pending_payment_deducts_not_adds() {
         "un seul devis signé encore dû, un seul item to_pay attendu"
     );
     assert_eq!(
-        to_pay[0]["quote_id"], quote_id.to_string(),
+        to_pay[0]["quote_id"],
+        quote_id.to_string(),
         "l'item to_pay doit référencer le devis, pas le paiement"
     );
     assert_eq!(
