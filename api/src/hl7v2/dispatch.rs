@@ -32,7 +32,7 @@ use integrations_hl7v2::{
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use crate::hl7v2::siu;
+use crate::hl7v2::{adt, siu};
 
 /// Pourquoi un message a été rejeté (ACK `AR`/`AE`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -282,15 +282,11 @@ async fn process_message(
     // sous-type précis (A28, S12, ...) est discriminé dans chaque module.
     let message_group = message_type.split('^').next().unwrap_or(message_type);
     match message_group {
-        // TODO(B8): bloqué sur `crates/core/crypto` (chiffrement INS) —
-        // création/màj patient hors scope tant que ce socle n'existe pas.
-        "ADT" => {
-            tracing::debug!(
-                message_type,
-                "hl7v2 dispatch: stub ADT (B8 bloqué sur crypto)"
-            );
-            Ok(())
-        }
+        // B8 (#3927) : synchronisation du référentiel patient — A28 crée,
+        // A31/A08 mettent à jour (résolution par INS, chiffré via core-crypto).
+        "ADT" => adt::handle(pool, cabinet_id, message, message_type)
+            .await
+            .map_err(|e| e.to_string()),
         "SIU" => siu::handle(pool, cabinet_id, partner_id, message, message_type)
             .await
             .map_err(|e| e.to_string()),
