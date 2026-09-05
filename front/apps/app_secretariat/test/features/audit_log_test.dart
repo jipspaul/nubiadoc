@@ -87,4 +87,38 @@ void main() {
 
     expect(find.byKey(const Key('audit_log_forbidden')), findsOneWidget);
   });
+
+  testWidgets(
+      '#6561 : accès refusé → « Filtrer »/« Réinitialiser » désactivés',
+      (tester) async {
+    final bloc = MockAuditLogBloc();
+    when(() => bloc.state)
+        .thenReturn(const AuditLogForbidden('Accès réservé.'));
+    await tester.pumpWidget(_wrap(bloc));
+
+    final applyButton = tester.widget<FilledButton>(
+      find.byKey(const Key('audit_log_apply_filters')),
+    );
+    final resetButton = tester.widget<TextButton>(
+      find.byKey(const Key('audit_log_reset_filters')),
+    );
+    expect(applyButton.onPressed, isNull);
+    expect(resetButton.onPressed, isNull);
+  });
+
+  testWidgets('état Loaded : « Filtrer »/« Réinitialiser » restent actifs',
+      (tester) async {
+    final bloc = MockAuditLogBloc();
+    when(() => bloc.state).thenReturn(const AuditLogLoaded([]));
+    await tester.pumpWidget(_wrap(bloc));
+
+    final applyButton = tester.widget<FilledButton>(
+      find.byKey(const Key('audit_log_apply_filters')),
+    );
+    final resetButton = tester.widget<TextButton>(
+      find.byKey(const Key('audit_log_reset_filters')),
+    );
+    expect(applyButton.onPressed, isNotNull);
+    expect(resetButton.onPressed, isNotNull);
+  });
 }
