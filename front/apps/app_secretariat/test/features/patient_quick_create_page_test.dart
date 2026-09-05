@@ -9,8 +9,10 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_secretariat/features/patients/patient_quick_create_page.dart';
 import 'package:app_secretariat/features/patients/patients_bloc.dart';
@@ -38,6 +40,49 @@ void main() {
           child: const PatientQuickCreatePage(),
         ),
       );
+
+  final createdPatient = CabinetPatient(
+    id: 'p1',
+    cabinetId: 'cab1',
+    firstName: 'Marie',
+    lastName: 'Curie',
+    createdAt: DateTime(2026, 1, 1),
+  );
+
+  /// Reproduit la pile de `GoRouter` selon le point d'entrée : `fromUrl:
+  /// true` place `/patients/new` en unique page (deep-link direct, #6373),
+  /// `fromUrl: false` empile `/patients` puis `/patients/new` (chemin
+  /// `patients_page.dart` via `context.push`).
+  Widget buildRoutedPage({required bool fromUrl}) {
+    final router = GoRouter(
+      initialLocation: fromUrl ? '/patients/new' : '/patients',
+      routes: [
+        // Deux routes top-level indépendantes, comme dans `AppRouter` réel :
+        // `/patients` vit dans le `StatefulShellRoute`, `/patients/new` est
+        // une route à part (#5154) — pas de relation parent/enfant entre les
+        // deux, donc pas de page empilée sous `/patients/new` quand on y
+        // arrive directement par l'URL.
+        GoRoute(
+          path: '/patients',
+          builder: (_, __) => const Scaffold(body: Text('Liste patients')),
+        ),
+        GoRoute(
+          path: '/patients/new',
+          builder: (_, __) => BlocProvider<PatientsBloc>.value(
+            value: bloc,
+            child: const PatientQuickCreatePage(),
+          ),
+        ),
+      ],
+    );
+    if (!fromUrl) {
+      router.push('/patients/new');
+    }
+    return MaterialApp.router(
+      theme: NubiaTheme.light,
+      routerConfig: router,
+    );
+  }
 
   group('PatientQuickCreatePage — formulaire vide', () {
     testWidgets('le bouton de soumission est désactivé', (tester) async {
@@ -173,6 +218,40 @@ void main() {
         find.text('Nom et prénom sont obligatoires.'),
         findsOneWidget,
       );
+    });
+  });
+
+  group('PatientQuickCreatePage — après création réussie (#6373)', () {
+    testWidgets(
+        'atteint par l\'URL (pas de pile à dépiler) : redirige vers la '
+        'liste des patients au lieu de laisser un écran blanc',
+        (tester) async {
+      whenListen(
+        bloc,
+        Stream.fromIterable([PatientsCreateSuccess(createdPatient)]),
+        initialState: const PatientsInitial(),
+      );
+      await tester.pumpWidget(buildRoutedPage(fromUrl: true));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Liste patients'), findsOneWidget);
+      expect(find.byType(PatientQuickCreatePage), findsNothing);
+    });
+
+    testWidgets(
+        'atteint depuis l\'app (pile avec /patients dessous) : dépile avec '
+        'le patient créé en résultat',
+        (tester) async {
+      whenListen(
+        bloc,
+        Stream.fromIterable([PatientsCreateSuccess(createdPatient)]),
+        initialState: const PatientsInitial(),
+      );
+      await tester.pumpWidget(buildRoutedPage(fromUrl: false));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Liste patients'), findsOneWidget);
+      expect(find.byType(PatientQuickCreatePage), findsNothing);
     });
   });
 }
