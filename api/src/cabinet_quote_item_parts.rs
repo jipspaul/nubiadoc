@@ -39,6 +39,7 @@ use crate::{
 /// Body de `PATCH /v1/cabinet/quotes/:id/items/:item_id/parts`. Au moins un
 /// des deux champs doit être fourni ; l'autre reste inchangé.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchQuoteItemPartsBody {
     pub amo_part_cents: Option<i64>,
     pub amc_part_cents: Option<i64>,

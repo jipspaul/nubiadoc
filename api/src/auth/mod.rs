@@ -1201,6 +1201,7 @@ pub async fn get_cabinet(
 
 /// Corps de la requête `PATCH /v1/cabinet`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchCabinetBody {
     pub name: Option<String>,
     pub address: Option<String>,
@@ -1849,6 +1850,7 @@ impl FromRequestParts<AppState> for NurseMemberClaims {
 
 /// Corps de la requête `PATCH /v1/cabinet/provider`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchProviderBody {
     bio: Option<String>,
     specialite: Option<String>,
@@ -2508,6 +2510,7 @@ pub struct ProVerificationResponse {
 
 /// Corps de la requête `PATCH /v1/cabinet/members/{user_id}`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchCabinetMemberBody {
     role: Option<String>,
 }
@@ -2719,6 +2722,7 @@ pub struct PatchAccountAddress {
 
 /// Corps de la requête `PATCH /v1/account`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchAccountBody {
     first_name: Option<String>,
     last_name: Option<String>,
@@ -3077,6 +3081,7 @@ pub struct PatchCoverageMutuelle {
 
 /// Corps de la requête `PATCH /v1/account/coverage`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchCoverageBody {
     regime_obligatoire: Option<String>,
     nss: Option<String>,
@@ -4554,6 +4559,7 @@ pub async fn post_account_dependents(
 
 /// Corps de la couverture pour `PATCH /v1/account/dependents/{id}`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchDependentCoverageBody {
     regime_obligatoire: Option<String>,
     nss: Option<String>,
@@ -4565,6 +4571,7 @@ pub struct PatchDependentCoverageBody {
 
 /// Corps de la requête `PATCH /v1/account/dependents/{id}`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchDependentBody {
     first_name: Option<String>,
     last_name: Option<String>,
@@ -4577,7 +4584,8 @@ pub struct PatchDependentBody {
 ///
 /// Vérifie la tutelle active (`account_guardianship`). Champs absents → non modifiés.
 /// Si `coverage` présent : upsert `patient_coverage` lié au proche.
-/// Champs inconnus dans le body → ignorés (pas de 422, §spec issue #321).
+/// Champ inconnu dans le body → `400` (`deny_unknown_fields`, cf. #6548/#6567 :
+/// évite un PATCH silencieusement sans effet sur un champ mal nommé).
 /// Modification auditée : `action:'update_dependent'` (§07 §4.6).
 pub async fn patch_account_dependent(
     State(state): State<AppState>,

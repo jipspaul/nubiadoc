@@ -390,6 +390,7 @@ async fn sync_plan_status_from_phases(
 
 /// Corps de `PATCH /v1/cabinet/treatment-plans/:planId/phases/:phaseId`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchTreatmentPhaseBody {
     pub status: String,
 }

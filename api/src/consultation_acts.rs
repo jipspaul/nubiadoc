@@ -160,6 +160,7 @@ pub async fn list_consultation_acts(
 
 /// Corps de `PATCH /v1/cabinet/consultations/:id/acts/:act_id`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchActBody {
     pub label: Option<String>,
     pub tooth: Option<String>,

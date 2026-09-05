@@ -40,6 +40,7 @@ pub struct CreateSecretariatBody {
 
 /// Corps de `PATCH /v1/cabinet/secretariats/:id`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchSecretariatBody {
     pub name: Option<String>,
 }
@@ -707,6 +708,7 @@ pub async fn provision_staff(
 
 /// Corps de `PATCH /v1/cabinet/membership/:user_id/permissions`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchMembershipPermissionsBody {
     /// `Some(false)` retire l'accès facturation (#4081) ; `Some(true)` ou
     /// absence de clé revient au comportement par défaut (autorisé par le
