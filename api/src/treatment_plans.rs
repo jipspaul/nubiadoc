@@ -62,6 +62,16 @@ pub struct TreatmentPlanItem {
     pub current_step: i64,
     pub total_cost_cents: i64,
     pub remaining_cents: i64,
+    /// Devis envoyé et non signé qui porte sur une phase de ce plan, s'il y en
+    /// a un — fait sortir le plan de « EN COURS » vers la section « À VOTRE
+    /// DÉCISION » côté front (#6503 : le détail (`get_treatment_plan`, #6485)
+    /// exposait déjà ces champs mais la liste ne les a jamais portés, rendant
+    /// la section structurellement inatteignable puisque le front la peuple
+    /// depuis `plan.pendingQuoteId` de la liste, pas du détail).
+    pub pending_quote_id: Option<Uuid>,
+    pub pending_quote_label: Option<String>,
+    pub pending_quote_received_at: Option<String>,
+    pub pending_quote_patient_share_cents: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -256,6 +266,57 @@ pub async fn list_treatment_plans(
             .map_err(|_| AppError::Internal)?;
         let remaining_cents = total_cost_cents - total_amo_cents - total_amc_cents;
 
+        // Devis en attente (#6503) : même condition que le détail
+        // (`get_treatment_plan` ci-dessous, #6485) — un devis `sent` non
+        // signé couvrant une phase du plan — mais agrégé au niveau du plan
+        // (un seul, le plus anciennement envoyé) plutôt que par phase, la
+        // liste n'affichant qu'une carte par plan (#5291).
+        let pending_quote_row = sqlx::query(
+            "SELECT q.id AS quote_id, q.sent_at, \
+                    (SELECT qi2.label FROM quote_item qi2 \
+                     WHERE qi2.quote_id = q.id ORDER BY qi2.id LIMIT 1) AS label, \
+                    (COALESCE(SUM((qi.unit_amount * 100)::bigint), 0) \
+                        - COALESCE(SUM(COALESCE((qi.amo_part * 100)::bigint, 0)), 0) \
+                        - COALESCE(SUM(COALESCE((qi.amc_part * 100)::bigint, 0)), 0))::bigint \
+                        AS patient_share_cents \
+             FROM quote_item qi \
+             JOIN quote q ON q.id = qi.quote_id \
+             JOIN treatment_phase tp3 ON tp3.id = qi.phase_id \
+             WHERE tp3.plan_id = $1 AND q.status = 'sent' AND q.deleted_at IS NULL \
+             GROUP BY q.id, q.sent_at \
+             ORDER BY q.sent_at ASC NULLS LAST \
+             LIMIT 1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        let (
+            pending_quote_id,
+            pending_quote_label,
+            pending_quote_received_at,
+            pending_quote_patient_share_cents,
+        ) = match pending_quote_row {
+            Some(prow) => {
+                let quote_id: Uuid = prow.try_get("quote_id").map_err(|_| AppError::Internal)?;
+                let sent_at: Option<chrono::DateTime<chrono::Utc>> =
+                    prow.try_get("sent_at").map_err(|_| AppError::Internal)?;
+                let label: Option<String> =
+                    prow.try_get("label").map_err(|_| AppError::Internal)?;
+                let patient_share_cents: i64 = prow
+                    .try_get("patient_share_cents")
+                    .map_err(|_| AppError::Internal)?;
+                (
+                    Some(quote_id),
+                    label,
+                    sent_at.map(|dt| dt.to_rfc3339()),
+                    Some(patient_share_cents),
+                )
+            }
+            None => (None, None, None, None),
+        };
+
         data.push(TreatmentPlanItem {
             id,
             title,
@@ -266,6 +327,10 @@ pub async fn list_treatment_plans(
             current_step,
             total_cost_cents,
             remaining_cents,
+            pending_quote_id,
+            pending_quote_label,
+            pending_quote_received_at,
+            pending_quote_patient_share_cents,
         });
     }
 
