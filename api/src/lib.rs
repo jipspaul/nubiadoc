@@ -87,6 +87,7 @@ mod dental_chart;
 mod devices;
 mod documents;
 mod fcm;
+mod file_scan;
 mod health;
 pub mod hl7v2;
 mod implant_passport;
