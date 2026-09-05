@@ -196,12 +196,35 @@ class _OffersTab extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(o.patientDisplayName,
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(o.patientDisplayName,
+                            style: Theme.of(context).textTheme.titleMedium),
+                      ),
+                      Text(
+                        NubiaMoney.formatCents(o.estimatedPriceCents),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 4),
                   Text(o.requestedActs.map(homeCareActLabel).join(' · ')),
                   Text('${o.address['city'] ?? ''} ${o.address['postal_code'] ?? ''}',
                       style: Theme.of(context).textTheme.bodySmall),
+                  if (o.notes != null && o.notes!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      o.notes!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontStyle: FontStyle.italic,
+                          ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Row(
                     children: [
