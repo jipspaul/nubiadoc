@@ -195,9 +195,11 @@ pub async fn list_cabinet_patients(
     let sql = format!(
         "SELECT p.id, p.first_name, p.last_name, p.birth_date, p.created_at, p.contact, \
                 (( \
-                   COALESCE((SELECT SUM(total_amount) FROM quote \
-                             WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
-                               AND status = 'signed' AND deleted_at IS NULL), 0) \
+                   COALESCE((SELECT SUM(qi.qty * qi.unit_amount \
+                                       - COALESCE(qi.amo_part, 0) - COALESCE(qi.amc_part, 0)) \
+                             FROM quote q JOIN quote_item qi ON qi.quote_id = q.id \
+                             WHERE q.patient_id = p.id AND q.cabinet_id = p.cabinet_id \
+                               AND q.status = 'signed' AND q.deleted_at IS NULL), 0) \
                    - \
                    COALESCE((SELECT SUM(amount) FROM payment \
                              WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
