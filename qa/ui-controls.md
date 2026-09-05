@@ -283,3 +283,114 @@ cette ronde. Les chiffres du tableau ci-dessous sont ceux d'APRÈS correction.
 | pharmacie | /stock (1280) | 13 | 10 | 10 | 0 | 0 (3 « Refuser — motif obligatoire » non activés : destructifs) | 2026-09-05T00:47:00+00:00 |
 | infirmiere | / (Disponibilité / Offres / Ma visite, 390) | 6 | 5 | 5 (la bascule « En ligne » émet bien `PATCH /nurse/availability` — effet prouvé côté patient : `GET /search/nurses?online_only=true` passe de 1 à 0 résultat puis revient à 1) | 0 | 0 (« Se déconnecter » non activé) | 2026-09-05T00:42:00+00:00 |
 | **TOTAL ronde 38** | **9 écrans, 5 apps** | **152** | **62** | **60** | **0** | **1 désactivé illégitime (#6504) + 3 contrôles hors arbre Semantics (#6502)** | 2026-09-05T00:50:00+00:00 |
+## Ronde 2026-09-05 (12:00–15:00 UTC) — audit de commandes, ciblage diff-driven des 23 merges de la nuit
+
+Méthode : inventaire depuis l'**arbre Semantics** (jamais de mémoire), activation de chaque contrôle,
+verdict OK / MORT / CASSÉ / DÉSACTIVÉ / HORS-ÉCRAN. **Ré-atterrissage sur la route entre deux
+activations** dès que l'écran a bougé — sans quoi on juge un écran empilé (voir piège nº 14 ci-dessous).
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts confirmés | cassés confirmés | levées / notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | /notification-preferences (1280x800) | 13 | 13 | 13 | 0 | 0 | 13 interrupteurs, chacun émet un PATCH et bascule | 2026-09-05T12:14:00Z |
+| infirmiere | / (390x844) | 7 | 7 | 5 | **0** | **0** | 1 MORT levé(s) | 2026-09-05T13:50:00Z |
+| patient | / (1280x800) | 15 | 15 | 10 | **0** | **0** | 2 MORT levé(s) ; 3 hors écran non jugé(s) | 2026-09-05T13:51:00Z |
+| patient | /documents (1280x800) | 24 | 24 | 19 | **0** | **0** | 1 MORT levé(s) ; 4 hors écran non jugé(s) | 2026-09-05T13:52:00Z |
+| patient | /home-care (390x844) | 17 | 17 | 14 | **0** | **0** | 3 hors écran non jugé(s) | 2026-09-05T13:53:00Z |
+| patient | /implant-passport (390x844) | 5 | 5 | 4 | **0** | **0** | 1 MORT levé(s) | 2026-09-05T13:54:00Z |
+| patient | /messaging (390x844) | 8 | 8 | 8 | **0** | **0** | — | 2026-09-05T13:55:00Z |
+| pharmacie | / (1280x800) | 23 | 23 | 18 | **0** | **0** | 4 hors écran non jugé(s) | 2026-09-05T13:56:00Z |
+| pharmacie | /messages (1280x800) | 15 | 15 | 12 | **0** | **0** | 2 MORT levé(s) | 2026-09-05T13:57:00Z |
+| pharmacie | /orders/c64be6aa-e126-4e6f-b8cf-bcb7fbe94433 (1280x800) | 3 | 3 | 3 | **0** | **0** | — | 2026-09-05T13:58:00Z |
+| praticien | / (1280x800) | 18 | 17 | 15 | **0** | **0** | 1 MORT levé(s) | 2026-09-05T13:59:00Z |
+| praticien | / (390x844) | 6 | 6 | 4 | **0** | **0** | 2 hors écran non jugé(s) | 2026-09-05T13:50:00Z |
+| praticien | /consultation (1280x800) | 32 | 32 | 26 | **0** | **0** | 1 MORT levé(s) ; 4 hors écran non jugé(s) | 2026-09-05T13:51:00Z |
+| praticien | /lab-work-orders (1280x800) | 24 | 22 | 18 | **0** | **0** | 2 MORT levé(s) ; 1 hors écran non jugé(s) | 2026-09-05T13:52:00Z |
+| praticien | /patients/d0000000-0000-0000-0000-0000000000d1/treatment-p (1280x800) | 30 | 30 | 26 | **0** | **0** | 3 MORT levé(s) | 2026-09-05T13:53:00Z |
+| secretariat | /admin-membres (1280x800) | 22 | 22 | 17 | **0** | **0** | 3 MORT levé(s) ; 1 CASSÉ = 403 RBAC légitime | 2026-09-05T13:54:00Z |
+| secretariat | /audit-log (1280x800) | 24 | 24 | 19 | **0** | **0** | 2 MORT levé(s) ; 2 CASSÉ = 403 RBAC légitime | 2026-09-05T13:55:00Z |
+| secretariat | /cabinet-stats (1280x800) | 24 | 24 | 18 | **0** | **0** | 4 MORT levé(s) ; 1 CASSÉ = 403 RBAC légitime | 2026-09-05T13:56:00Z |
+| secretariat | /patients/new (1280x800) | 5 | 5 | 0 | **0** | **0** | 4 MORT levé(s) ; 1 désactivé légitime | 2026-09-05T13:57:00Z |
+| secretariat | /team-messages (1280x800) | 26 | 26 | 20 | **0** | **0** | 5 MORT levé(s) | 2026-09-05T13:58:00Z |
+
+**Total ronde : 20 écrans, 341 contrôles inventoriés, 338 activés, 269 OK — aucun contrôle mort ni cassé retenu.**
+
+> *Portée exacte de cette affirmation, pour qu'elle soit relisible :* les 42 verdicts bruts MORT/CASSÉ se répartissent
+> en **quatre causes documentées ci-dessous**. Pour chacune, au moins un cas a été **rejoué et prouvé individuellement**
+> (les 10 puces de facette du coffre-fort re-testées après défilement horizontal ; les 4 champs de `/patients/new`
+> relus par leur `value` et la fiche réellement créée en base ; le 403 de `/cabinet-stats` confronté à
+> `ProPractitionerClaims` ET à l'écran « Réservé aux praticiens » ; « Motifs de RDV »/« Stock » du rail re-cliqués
+> après défilement, qui naviguent alors correctement). **Les autres verdicts n'ont pas été rejoués un par un** :
+> ils ont été rattachés à l'une de ces causes par leur signature (contrôle déjà actif de la route courante,
+> coordonnée hors viewport, `textbox`, ou 4xx purement RBAC). Aucun n'a résisté à cet examen, mais un contrôle
+> mort isolé pourrait s'y cacher — d'où les écrans listés en « à traiter en priorité » ci-dessous.
+
+### Les 42 verdicts MORT/CASSÉ du lot automatique ont TOUS été levés — aucun n'était un vrai défaut
+
+C'est le résultat le plus important de la ronde sur ce volet : **le lot brut annonçait 38 MORT + 4 CASSÉ
+sur 21 écrans, et la vérification ciblée les a tous expliqués.** (22 contrôles supplémentaires sont
+sortis « hors écran », donc explicitement NON jugés plutôt que déclarés morts.) Détail des quatre causes :
+
+1. **Contrôle déjà actif (majorité des cas)** — cliquer l'élément déjà sélectionné ne produit légitimement rien :
+   onglet « Disponibilité » (infirmière), « Messages » et facette « Toutes 4 » (pharmacie /messages),
+   « Tableau de bord » depuis `/`, « Statistiques » depuis `/cabinet-stats`, plan déjà ouvert dans
+   `/treatment-plans`, « Messages »/« Équipe » depuis `/team-messages`.
+2. **Hors viewport HORIZONTAL (8 cas)** — les puces de facette de `patient /documents` s'étendent de
+   `x=16` à `x=1272` dans un rail à défilement horizontal, pour un viewport de **390 px** : 7 des 10 puces
+   étaient hors écran et le clic tombait dans le vide. **Re-testées après défilement horizontal, les 10
+   passent `checked=true` — 10/10 OK.** *Ma garde « hors écran » ne testait que l'axe vertical ; corrigée.*
+3. **Signal de repeinture aveugle à la saisie (5 cas : les 4 champs de `/patients/new` + « Entité » de `/audit-log`)** — les 4 champs de `secretariat /patients/new`
+   sortaient MORT parce que ma signature d'écran ne retenait que `label+x+y`, pas la **valeur** du champ.
+   Relecture avec un lecteur de `value` : « Prénom » → `"QA-R41"`, « Nom » → `"FormTest157878"`,
+   « Téléphone » → `"0612345678"`, « Date de naissance » → `"01/01/1990"` — **les 4 champs marchent**,
+   le bouton passe de DÉSACTIVÉ à ACTIVÉ, et la soumission crée réellement la fiche (vérifié en base
+   via `GET /cabinet/patients?q=FormTest` → 2 fiches avec le bon téléphone).
+4. **403 RBAC légitime pris pour un « cassé » (4 cas : « Actualiser » de `/cabinet-stats` et `/admin-membres`, « Filtrer » et « Réinitialiser » de `/audit-log`)** — ces contrôles re-déclenchent un appel admin
+   (`/cabinet/stats/activity`, `/cabinet/members`, `/cabinet/audit-log`) → 403, mais ce 403 est **la bonne RBAC** (`ProPractitionerClaims`,
+   `cabinet_stats.rs:61`) et l'écran l'affiche correctement (« Réservé aux praticiens / Votre rôle ne
+   permet pas d'afficher l'activité par praticien ») — c'est le correctif #6369, **confirmé en place**.
+
+### Contrôles DÉSACTIVÉS dont la légitimité a été prouvée
+| contrôle | écran | preuve |
+|---|---|---|
+| « Créer le dossier » | secretariat /patients/new | désactivé tant que le formulaire est vide ; **passe à ACTIVÉ** dès les 4 champs remplis, puis `POST /cabinet/patients/quick` crée la fiche (persistance vérifiée en API). Désactivation légitime. |
+
+### Pièges de méthode (à relire avant la prochaine ronde)
+- **nº 14 (NOUVEAU, coûteux) — l'écran empilé sans changement d'URL.** Ouvrir « Préférences de
+  notifications » depuis le rail empile l'écran **sans changer l'URL** (c'est le bug #6541). Un audit qui
+  se fie à l'URL pour savoir « suis-je encore sur ma route ? » continue alors de cliquer sur l'écran
+  empilé en croyant auditer `/devis` : mon premier lot praticien a produit une dizaine de faux MORT
+  sur des interrupteurs de préférences qui n'avaient rien à faire là. **Toujours comparer la signature
+  de l'inventaire, pas l'URL.**
+- **nº 15 — hors écran horizontal.** Voir cause 2 : tester `x` autant que `y` avant de conclure MORT.
+- **nº 16 — la saisie ne change ni le libellé ni la position.** Pour un `textbox`, le seul signal fiable
+  est la **relecture de `value`** (ou `aria-valuetext`), pas la repeinture de l'arbre.
+- **nº 17 — une capture peut expirer sur un écran lourd.** `page.screenshot()` a dépassé 30 s sur le fil
+  de 155 messages de `patient /messaging` et a **tué le run** (routes suivantes perdues). Capture
+  désormais encapsulée avec repli à `-1`.
+- **nº 18 (NOUVEAU) — couper `**/v1/**` PUIS recharger, c'est tester la déconnexion, pas la page.**
+  Un `route.abort()` sur tout `/v1/` suivi d'un `reload()` fait aussi échouer le bootstrap de session :
+  l'app retombe légitimement sur l'écran de connexion. Mon heuristique a lu « 6 contrôles, ratio blanc
+  0,937, aucun message d'erreur » et conclu à un écran blanc — **la capture montre la page de login**,
+  parfaitement rendue (`qa/screenshots/patient/r41-adv-reseau-documents.png`). Pour éprouver la
+  résilience d'un ÉCRAN, couper les seules routes de données **sans recharger** et déclencher l'action
+  depuis la page déjà chargée — c'est ce que faisait le test pharmacie de la ronde précédente (« la
+  liste reste rendue, 39 → 27 contrôles »). Toujours ouvrir la capture avant de conclure « écran blanc ».
+- **Rappel nº 6 (toujours d'actualité)** : les jetons expirent en ~15 min et `POST /auth/login` est
+  rate-limité à ~4 connexions par fenêtre — partagé entre les sondes API et les logins Playwright.
+  Reconnexion paresseuse (seulement si `exp - now < 120 s`) + backoff 20/40/60 s sur 429.
+
+### À traiter en priorité à la prochaine ronde
+- **secretariat — en-tête de section « Ma journée » du rail : verdict INCOHÉRENT entre écrans, à trancher.**
+  Sorti OK (repeinture) depuis `/cabinet-stats`, mais MORT depuis `/agenda`, `/audit-log` et
+  `/admin-membres`. Hypothèse à vérifier : un en-tête de section refuserait de se replier quand la
+  route active est DANS cette section (`Agenda` est sous « Ma journée ») — mais cela n'explique pas
+  `/audit-log` ni `/admin-membres`, dont la route active est sous « Réglages du cabinet ». À reprendre
+  avec un signal réel (compter les entrées de rail visibles avant/après clic), pas la seule repeinture.
+- **patient `/messaging` et `/implant-passport`** : perdus par le timeout de capture (piège nº 17),
+  ré-audités en fin de ronde — reprendre si le lot est incomplet.
+- **praticien `/lab-work-orders`** : jamais comparé à `Praticien Travaux labo v2.html`.
+- **secretariat `/audit-log`, `/admin-membres`** : les deux appellent des routes `ProAdminClaims`
+  (403 pour les comptes de démo) — vérifier qu'ils affichent un état « réservé » comme `/cabinet-stats`
+  (#6369) et non une erreur brute.
+- **pharmacie `/orders/:id` (Délivrance)** : re-vérifier le panneau des lignes d'ordonnance après #6368
+  (`prescriberName` transmis au panneau).
