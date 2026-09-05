@@ -754,21 +754,28 @@ class _ConsentMetaRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          GestureDetector(
-            key: Key('consent_details_${consent.purpose}'),
-            onTap: () => NubiaBottomSheet.show<void>(
-              context: context,
-              child: _ConsentDetailsSheet(
-                consent: consent,
-                legalBasis: legalBasis,
-                recipientName: recipientName,
+          Semantics(
+            button: true,
+            label: 'Détails',
+            container: true,
+            child: GestureDetector(
+              key: Key('consent_details_${consent.purpose}'),
+              onTap: () => NubiaBottomSheet.show<void>(
+                context: context,
+                child: _ConsentDetailsSheet(
+                  consent: consent,
+                  legalBasis: legalBasis,
+                  recipientName: recipientName,
+                ),
               ),
-            ),
-            child: Text(
-              'Détails',
-              style: textStyle?.copyWith(
-                color: NubiaColors.brand700,
-                fontWeight: FontWeight.w600,
+              child: ExcludeSemantics(
+                child: Text(
+                  'Détails',
+                  style: textStyle?.copyWith(
+                    color: NubiaColors.brand700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ),
