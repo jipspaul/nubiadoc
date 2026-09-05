@@ -119,12 +119,13 @@ async fn quote_list_and_detail_expose_practitioner_name() {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO provider (id, practitioner_id, cabinet_id, display_name) \
-             VALUES ($1, $2, $3, 'Dr Amélie Rousseau')",
+            "INSERT INTO provider (id, practitioner_id, cabinet_id, user_id, display_name) \
+             VALUES ($1, $2, $3, $4, 'Dr Amélie Rousseau')",
         )
         .bind(provider_id)
         .bind(prac_id)
         .bind(cabinet_id)
+        .bind(prac_user_id)
         .execute(&mut *tx)
         .await
         .unwrap();
