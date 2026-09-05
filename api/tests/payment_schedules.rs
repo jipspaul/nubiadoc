@@ -446,3 +446,54 @@ async fn list_payment_schedules_empty_returns_empty_data() {
 
     cleanup_fixtures(&db, &f).await;
 }
+
+/// #4729 / #5669 : rejouer le POST payment-schedule qui a déjà engagé tout le
+/// reste-à-charge ne doit PAS créer un second échéancier — la garde #5669
+/// (échéanciers actifs déduits du reste-dû) le refuse en 422.
+#[tokio::test]
+async fn create_schedule_replay_full_share_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, "signed").await;
+    let prac_token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    let body = json!({
+        "installments": [
+            {"date": "2026-08-01", "amount_cents": 7500},
+            {"date": "2026-09-01", "amount_cents": 7500}
+        ]
+    })
+    .to_string();
+    let mk_req = || {
+        Request::builder()
+            .method("POST")
+            .uri(format!(
+                "/v1/cabinet/quotes/{}/payment-schedule",
+                f.quote_id
+            ))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {prac_token}"))
+            .body(Body::from(body.clone()))
+            .unwrap()
+    };
+
+    let first = app(make_state(app_pool().await))
+        .oneshot(mk_req())
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    let replay = app(make_state(app_pool().await))
+        .oneshot(mk_req())
+        .await
+        .unwrap();
+    assert_eq!(
+        replay.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "le rejeu du même échéancier ne doit pas ré-engager le patient"
+    );
+
+    cleanup_fixtures(&db, &f).await;
+}
