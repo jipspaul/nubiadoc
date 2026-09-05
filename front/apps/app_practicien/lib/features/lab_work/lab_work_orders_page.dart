@@ -584,6 +584,7 @@ class _LabWorkOrderInfo extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             Text(
               NubiaMoney.formatCents(order.purchasePriceCents),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
