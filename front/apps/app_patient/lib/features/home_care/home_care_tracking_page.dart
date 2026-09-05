@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'home_care_models.dart';
 import 'home_care_tracking_cubit.dart';
 
@@ -39,7 +40,10 @@ class HomeCareTrackingBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Suivi de la visite')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Suivi de la visite'),
+      ),
       body: BlocBuilder<HomeCareTrackingCubit, HomeCareTrackingState>(
         builder: (context, state) {
           switch (state) {
