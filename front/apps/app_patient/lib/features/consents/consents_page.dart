@@ -68,9 +68,11 @@ const _kConsentDescriptions = <String, String>{
       "met en forme. L'enregistrement n'est pas conservé.",
 };
 
-/// Seule finalité dont le retrait passe par une feuille de confirmation
-/// (maquette design-v2, #5211/#5212) : les autres bascules restent
-/// immédiates, comme avant.
+/// Finalité pharmacie : seule à afficher un encart « commande en cours »
+/// dans la feuille de retrait (#5212) et un chip destinataire sur sa carte
+/// (#5209) — les autres finalités révocables partagent la même feuille de
+/// retrait générique ([_ConsentWithdrawalSheet], #6501) mais sans ces deux
+/// blocs spécifiques à la pharmacie.
 const _kPharmacySharingPurpose = 'partage_pharmacie';
 
 /// Base légale des finalités librement révocables (à l'opposé de
@@ -189,23 +191,89 @@ const _kLockedConsentPurposes = <String, String>{
   'data_processing': 'Base légale : exécution du contrat',
 };
 
-/// Bascule un consentement — sauf le retrait du partage pharmacie, qui
-/// passe d'abord par une feuille de confirmation (#5211) signalant le cas
-/// particulier d'une commande déjà transmise (#5212).
+/// Retirer une finalité coupe un service et doit d'abord passer par une
+/// feuille de confirmation qui en annonce les conséquences (maquette
+/// design-v2, panneau ②, principe n°2, #6501) — ne s'applique qu'au retrait
+/// (`!granted`) : accorder à nouveau reste immédiat. Les finalités
+/// verrouillées ([_kLockedConsentPurposes]) n'ont pas de bascule active et
+/// n'atteignent jamais cette fonction.
 void _handleToggle(BuildContext context, String purpose, bool granted) {
-  if (purpose == _kPharmacySharingPurpose && !granted) {
+  if (!granted) {
     final cubit = context.read<ConsentsCubit>();
     NubiaBottomSheet.show<void>(
       context: context,
       child: BlocProvider.value(
         value: cubit,
-        child: const _PharmacyWithdrawalSheet(),
+        child: _ConsentWithdrawalSheet(purpose: purpose),
       ),
     );
     return;
   }
   context.read<ConsentsCubit>().toggle(purpose, granted);
 }
+
+/// Conséquences du retrait de chaque finalité librement révocable (maquette
+/// design-v2, panneau ②, principe n°2, #6501), affichées par
+/// [_ConsentWithdrawalSheet] dans les blocs « Ce qui change » / « Ce qui ne
+/// change pas ». Doit couvrir toutes les finalités hors
+/// [_kLockedConsentPurposes], seules à ne jamais atteindre la feuille.
+const _kConsentWithdrawalImpact =
+    <String, ({List<String> changes, List<String> unchanged})>{
+  'partage_pharmacie': (
+    changes: [
+      'Vos prochaines ordonnances ne seront plus transmises à votre '
+          'pharmacie.',
+      'Vous devrez présenter votre ordonnance papier ou le PDF de votre '
+          'application.',
+    ],
+    unchanged: [
+      'Vos ordonnances passées restent dans vos documents.',
+      'Vos rendez-vous et votre suivi de soins sont inchangés.',
+    ],
+  ),
+  'partage_confrere': (
+    changes: [
+      "Un autre praticien ne pourra plus consulter votre dossier s'il "
+          'vous prend en charge.',
+      'En cas de second avis, urgence ou remplacement, il devra vous '
+          "demander l'accès.",
+    ],
+    unchanged: [
+      'Votre praticien habituel garde accès à votre dossier.',
+      'Vos rendez-vous et votre suivi de soins sont inchangés.',
+    ],
+  ),
+  'ia_scribe': (
+    changes: [
+      'Votre praticien ne pourra plus dicter son compte-rendu à '
+          "l'assistance IA pendant vos consultations.",
+      'Il devra saisir son compte-rendu manuellement.',
+    ],
+    unchanged: [
+      'Vos comptes-rendus déjà enregistrés restent dans votre dossier.',
+      'Vos rendez-vous et votre suivi de soins sont inchangés.',
+    ],
+  ),
+  'marketing': (
+    changes: [
+      'Vous ne recevrez plus les nouveautés du cabinet ni les offres de '
+          'prévention.',
+    ],
+    unchanged: [
+      'Vos rappels de rendez-vous restent envoyés normalement.',
+      'Vos rendez-vous et votre suivi de soins sont inchangés.',
+    ],
+  ),
+};
+
+/// Repli si une finalité absente de [_kConsentWithdrawalImpact] atteignait
+/// la feuille — ne devrait pas arriver (seules les finalités librement
+/// révocables ont une bascule active), mais jamais un bloc vide et
+/// silencieux sur un écran RGPD.
+const _kDefaultWithdrawalImpact = (
+  changes: ['Ce consentement sera immédiatement retiré.'],
+  unchanged: ['Vos autres consentements restent inchangés.'],
+);
 
 class ConsentsPage extends StatelessWidget {
   const ConsentsPage({super.key});
@@ -1058,28 +1126,33 @@ class _RightsSection extends StatelessWidget {
   }
 }
 
-/// Feuille de confirmation du retrait du partage pharmacie (maquette
-/// design-v2 `patient-consentements.png`, écran 2, #5211) : sépare ce qui
-/// change de ce qui ne change pas avant que le retrait ne soit confirmé —
-/// le geste ne doit plus être immédiat et silencieux. Porte aussi l'encart
-/// conditionnel « commande en cours » (#5212).
-class _PharmacyWithdrawalSheet extends StatefulWidget {
-  const _PharmacyWithdrawalSheet();
+/// Feuille de confirmation du retrait d'une finalité librement révocable
+/// (maquette design-v2, panneau ②, #5211/#6501) : sépare ce qui change de ce
+/// qui ne change pas avant que le retrait ne soit confirmé — le geste ne
+/// doit plus être immédiat et silencieux, quelle que soit la finalité.
+/// L'encart conditionnel « commande en cours » (#5212) ne s'affiche que
+/// pour le partage pharmacie, seule finalité concernée par une commande.
+class _ConsentWithdrawalSheet extends StatefulWidget {
+  const _ConsentWithdrawalSheet({required this.purpose});
+
+  final String purpose;
 
   @override
-  State<_PharmacyWithdrawalSheet> createState() =>
-      _PharmacyWithdrawalSheetState();
+  State<_ConsentWithdrawalSheet> createState() =>
+      _ConsentWithdrawalSheetState();
 }
 
-class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
+class _ConsentWithdrawalSheetState extends State<_ConsentWithdrawalSheet> {
   late final Future<String?> _pendingOrderRef =
-      context.read<ConsentsCubit>().pendingPharmacyOrderRef();
+      widget.purpose == _kPharmacySharingPurpose
+          ? context.read<ConsentsCubit>().pendingPharmacyOrderRef()
+          : Future.value(null);
   bool _submitting = false;
 
   Future<void> _confirm() async {
     setState(() => _submitting = true);
     final cubit = context.read<ConsentsCubit>();
-    await cubit.toggle(_kPharmacySharingPurpose, false);
+    await cubit.toggle(widget.purpose, false);
     if (!mounted) return;
     final state = cubit.state;
     // Échec (hors ligne, etc.) : le SnackBar `toggleError` de la page
@@ -1097,6 +1170,9 @@ class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = theme.extension<NubiaTokens>()!;
+    final label = _kConsentLabels[widget.purpose] ?? _kUnknownConsentLabel;
+    final impact = _kConsentWithdrawalImpact[widget.purpose] ??
+        _kDefaultWithdrawalImpact;
     // Contenu potentiellement plus haut que l'écran (encart commande en
     // cours + les deux blocs d'impact) : scrollable pour ne jamais déborder
     // (même motif que `_BookingPanel`, `appointments_page.dart`, #5337).
@@ -1107,7 +1183,7 @@ class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Retirer le partage avec votre pharmacie ?',
+            'Retirer « $label » ?',
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
@@ -1133,15 +1209,7 @@ class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
             title: 'Ce qui change',
             icon: Icons.cancel,
             iconColor: tokens.dangerFg,
-            // Nom de la pharmacie non exposé côté front patient (même limite
-            // que `_kDataControllerName` ci-dessus, #5214) : formulation
-            // générique plutôt qu'un nom inventé.
-            items: const [
-              'Vos prochaines ordonnances ne seront plus transmises à '
-                  'votre pharmacie.',
-              'Vous devrez présenter votre ordonnance papier ou le PDF de '
-                  'votre application.',
-            ],
+            items: impact.changes,
           ),
           const SizedBox(height: 16),
           _ConsentImpactSection(
@@ -1149,10 +1217,7 @@ class _PharmacyWithdrawalSheetState extends State<_PharmacyWithdrawalSheet> {
             title: 'Ce qui ne change pas',
             icon: Icons.check_circle,
             iconColor: tokens.successFg,
-            items: const [
-              'Vos ordonnances passées restent dans vos documents.',
-              'Vos rendez-vous et votre suivi de soins sont inchangés.',
-            ],
+            items: impact.unchanged,
           ),
           const SizedBox(height: 24),
           NubiaButton(
