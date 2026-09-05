@@ -39,7 +39,12 @@ use crate::AppState;
 /// `/v1/...` sans route d'API correspondante doit répondre 404, pas être
 /// rendu par le tunnel public (#6556).
 async fn reject_v1_prefix(request: Request, next: Next) -> Response {
-    let first_segment = request.uri().path().trim_start_matches('/').split('/').next();
+    let first_segment = request
+        .uri()
+        .path()
+        .trim_start_matches('/')
+        .split('/')
+        .next();
     if first_segment == Some("v1") {
         return StatusCode::NOT_FOUND.into_response();
     }
