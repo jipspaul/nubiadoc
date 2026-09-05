@@ -344,11 +344,21 @@ async fn patch_empty_body_is_noop_and_does_not_notify() {
 
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
-    let motif: String = sqlx::query_scalar("SELECT motif FROM appointment WHERE id = $1")
-        .bind(appt_id)
-        .fetch_one(&seed_db)
+    // `appointment` est en RLS FORCE (0011_rls_policies.sql) : même `nubia_seed`
+    // (NOBYPASSRLS) doit poser `app.current_cabinet_id` pour lire la ligne,
+    // sinon la policy fail-closed renvoie 0 ligne et `fetch_one` paniquerait.
+    let mut tx = seed_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
         .await
         .unwrap();
+    let motif: String = sqlx::query_scalar("SELECT motif FROM appointment WHERE id = $1")
+        .bind(appt_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.rollback().await.ok();
     assert_eq!(motif, "détartrage", "le motif ne doit pas avoir bougé");
 
     let notif_count: i64 = sqlx::query_scalar(
