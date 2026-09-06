@@ -403,35 +403,37 @@ class _PrefRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (icon != null) ...[
-          Icon(icon, size: 20, color: cs.primary),
-          const SizedBox(width: 8),
-        ],
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: textTheme.bodyLarge),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: textTheme.bodySmall?.copyWith(
-                  color: cs.onSurfaceVariant,
+    return MergeSemantics(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 20, color: cs.primary),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: textTheme.bodyLarge),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        NubiaToggle(
-          key: rowKey,
-          value: value,
-          onChanged: locked ? null : onChanged,
-        ),
-      ],
+          const SizedBox(width: 12),
+          NubiaToggle(
+            key: rowKey,
+            value: value,
+            onChanged: locked ? null : onChanged,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -454,37 +456,39 @@ class _LockedPrefRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Flexible(child: Text(title, style: textTheme.bodyLarge)),
-                  const SizedBox(width: 8),
-                  const _PrefBadge(
-                    badgeKey: Key('notif_appointments_locked_badge'),
-                    icon: Icons.lock,
-                    label: 'Toujours activé',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return MergeSemantics(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(child: Text(title, style: textTheme.bodyLarge)),
+                    const SizedBox(width: 8),
+                    const _PrefBadge(
+                      badgeKey: Key('notif_appointments_locked_badge'),
+                      icon: Icons.lock,
+                      label: 'Toujours activé',
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        NubiaToggle(key: rowKey, value: true, onChanged: null),
-      ],
+          const SizedBox(width: 12),
+          NubiaToggle(key: rowKey, value: true, onChanged: null),
+        ],
+      ),
     );
   }
 }
@@ -510,43 +514,45 @@ class _PendingApiPrefRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      title,
-                      style: textTheme.bodyLarge
-                          ?.copyWith(color: tokens.textTertiary),
+    return MergeSemantics(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: textTheme.bodyLarge
+                            ?.copyWith(color: tokens.textTertiary),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  const _PrefBadge(
-                    icon: Icons.hourglass_empty,
-                    label: 'Bientôt disponible',
+                    const SizedBox(width: 8),
+                    const _PrefBadge(
+                      icon: Icons.hourglass_empty,
+                      label: 'Bientôt disponible',
+                    ),
+                  ],
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: tokens.textTertiary),
                   ),
                 ],
-              ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  style:
-                      textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
-                ),
               ],
-            ],
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        NubiaToggle(key: rowKey, value: false, onChanged: null),
-      ],
+          const SizedBox(width: 12),
+          NubiaToggle(key: rowKey, value: false, onChanged: null),
+        ],
+      ),
     );
   }
 }
