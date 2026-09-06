@@ -258,8 +258,9 @@ class _NotificationTile extends StatelessWidget {
     final (background, foreground) = _colorsFor(notification.type);
     final deepLink = notification.deepLink;
     final hasAction = deepLink != null && deepLink.isNotEmpty;
-    final action =
-        hasAction ? _actionFor(notification.type, notification.kind) : null;
+    final action = hasAction
+        ? _actionFor(notification.type, notification.kind, notification.status)
+        : null;
     return ListTile(
       key: Key('notif_${notification.id}'),
       leading: Container(
@@ -351,6 +352,7 @@ class _NotificationTile extends StatelessWidget {
   static ({String label, IconData icon, NubiaButtonVariant variant}) _actionFor(
     NotificationType type,
     String? kind,
+    String? status,
   ) {
     if (kind != null && kind.startsWith('pharmacy_quote')) {
       return (
@@ -360,11 +362,7 @@ class _NotificationTile extends StatelessWidget {
       );
     }
     return switch (type) {
-      NotificationType.other => (
-          label: 'Afficher mon code',
-          icon: Icons.qr_code_2,
-          variant: NubiaButtonVariant.primary,
-        ),
+      NotificationType.other => _orderActionFor(kind, status),
       NotificationType.message => (
           label: 'Répondre',
           icon: Icons.reply,
@@ -383,6 +381,40 @@ class _NotificationTile extends StatelessWidget {
       NotificationType.payment => (
           label: 'Voir la facture',
           icon: Icons.receipt_outlined,
+          variant: NubiaButtonVariant.secondary,
+        ),
+    };
+  }
+
+  /// Action des notifications de commande pharmacie (`order_received`,
+  /// `order_status_changed`, + kinds legacy `pharmacy_order_*` qui encodent
+  /// le statut dans le `kind` lui-même) — #6610 : le code de retrait
+  /// (`pickup_qr_image`) n'existe que pour une commande `ready`
+  /// (`qa/route-manifest.md`), donc « Afficher mon code » ne doit s'afficher
+  /// que dans ce cas précis, jamais pour une commande pas encore prête ou
+  /// déjà retirée/annulée.
+  static ({String label, IconData icon, NubiaButtonVariant variant})
+      _orderActionFor(String? kind, String? status) {
+    final effectiveStatus = switch (kind) {
+      'pharmacy_order_preparing' => 'preparing',
+      'pharmacy_order_ready' => 'ready',
+      'pharmacy_order_picked_up' => 'picked_up',
+      _ => status,
+    };
+    return switch (effectiveStatus) {
+      'ready' => (
+          label: 'Afficher mon code',
+          icon: Icons.qr_code_2,
+          variant: NubiaButtonVariant.primary,
+        ),
+      'picked_up' || 'cancelled' || 'rejected' => (
+          label: 'Voir la commande',
+          icon: Icons.receipt_long_outlined,
+          variant: NubiaButtonVariant.secondary,
+        ),
+      _ => (
+          label: 'Suivre ma commande',
+          icon: Icons.local_shipping_outlined,
           variant: NubiaButtonVariant.secondary,
         ),
     };

@@ -26,6 +26,14 @@ class AppNotification extends Equatable {
   /// in tests that don't need deep-linking).
   final String? kind;
 
+  /// Raw `data.status` string from the API (ex. `preparing`/`ready`/
+  /// `picked_up` pour les commandes pharmacie) — cf. `api/src/pharmacy/
+  /// orders.rs`. Sert à discriminer l'action affichée sous une notification
+  /// dont le libellé dépend de l'état réel (#6610 : « Afficher mon code »
+  /// n'a de sens que si la commande est `ready`). `null` quand `data` ne
+  /// porte pas de statut.
+  final String? status;
+
   const AppNotification({
     required this.id,
     required this.type,
@@ -35,6 +43,7 @@ class AppNotification extends Equatable {
     required this.createdAt,
     this.deepLink,
     this.kind,
+    this.status,
   });
 
   AppNotification copyWith({bool? read}) {
@@ -47,6 +56,7 @@ class AppNotification extends Equatable {
       createdAt: createdAt,
       deepLink: deepLink,
       kind: kind,
+      status: status,
     );
   }
 

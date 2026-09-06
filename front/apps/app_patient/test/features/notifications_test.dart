@@ -47,6 +47,7 @@ AppNotification _actionableNotif(
   NotificationType type, {
   required String deepLink,
   String? kind,
+  String? status,
 }) =>
     AppNotification(
       id: id,
@@ -57,6 +58,7 @@ AppNotification _actionableNotif(
       createdAt: DateTime(2026, 6, 21),
       deepLink: deepLink,
       kind: kind,
+      status: status,
     );
 
 // ---------------------------------------------------------------------------
@@ -322,13 +324,15 @@ void main() {
     });
 
     testWidgets(
-        'une notification pharmacie prête (other) affiche un bouton '
-        'primaire « Afficher mon code »', (tester) async {
+        'une notification pharmacie prête (other, status=ready) affiche un '
+        'bouton primaire « Afficher mon code »', (tester) async {
       final bloc = MockNotificationsBloc();
       when(() => bloc.state).thenReturn(
         NotificationsLoaded([
           _actionableNotif('1', NotificationType.other,
-              deepLink: '/pharmacy/orders/42'),
+              deepLink: '/pharmacy/orders/42',
+              kind: 'order_status_changed',
+              status: 'ready'),
         ]),
       );
 
@@ -341,6 +345,55 @@ void main() {
       final button =
           tester.widget<NubiaButton>(find.byKey(const Key('notif_action_1')));
       expect(button.variant, NubiaButtonVariant.primary);
+    });
+
+    // Régression #6610 : les 3 statuts d'une commande partageaient tous le
+    // même libellé « Afficher mon code », y compris une commande pas encore
+    // prête ou déjà retirée — menant vers un écran sans le moindre code.
+    testWidgets(
+        'une commande en préparation (other, status=preparing) affiche '
+        '« Suivre ma commande », pas « Afficher mon code »', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          _actionableNotif('1', NotificationType.other,
+              deepLink: '/pharmacy/orders/42',
+              kind: 'order_status_changed',
+              status: 'preparing'),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.text('Suivre ma commande'), findsOneWidget);
+      expect(find.text('Afficher mon code'), findsNothing);
+      final button =
+          tester.widget<NubiaButton>(find.byKey(const Key('notif_action_1')));
+      expect(button.variant, NubiaButtonVariant.secondary);
+    });
+
+    testWidgets(
+        'une commande déjà retirée (other, status=picked_up) affiche '
+        '« Voir la commande », pas « Afficher mon code »', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          _actionableNotif('1', NotificationType.other,
+              deepLink: '/pharmacy/orders/42',
+              kind: 'order_status_changed',
+              status: 'picked_up'),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.text('Voir la commande'), findsOneWidget);
+      expect(find.text('Afficher mon code'), findsNothing);
+      final button =
+          tester.widget<NubiaButton>(find.byKey(const Key('notif_action_1')));
+      expect(button.variant, NubiaButtonVariant.secondary);
     });
 
     testWidgets(
