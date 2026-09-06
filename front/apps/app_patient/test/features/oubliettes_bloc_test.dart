@@ -8,10 +8,12 @@ import 'package:app_patient/features/oubliettes/oubliettes_bloc.dart';
 
 class _MockGetDocuments extends Mock implements GetDocumentsUseCase {}
 
-Document _doc(String id, String name, DateTime at) => Document(
+Document _doc(String id, String name, DateTime at,
+        {DocumentCategory category = DocumentCategory.other}) =>
+    Document(
       id: id,
       name: name,
-      category: DocumentCategory.other,
+      category: category,
       createdAt: at,
       fileSizeBytes: 1024,
       mimeType: 'application/pdf',
@@ -29,8 +31,10 @@ void main() {
     build: () {
       when(() => getDocuments(category: any(named: 'category'))).thenAnswer(
         (_) async => Right([
-          _doc('a', 'Ordonnance Dr Martin', DateTime(2026, 6, 19)),
-          _doc('b', 'Radio panoramique', DateTime(2026, 6, 18)),
+          _doc('a', 'ordonnance-f5e41471.pdf', DateTime(2026, 6, 19),
+              category: DocumentCategory.prescription),
+          _doc('b', 'radio-48c4a8df.pdf', DateTime(2026, 6, 18),
+              category: DocumentCategory.xray),
         ]),
       );
       return build();
@@ -40,11 +44,9 @@ void main() {
       const OubliettesLoading(),
       OubliettesLoaded([
         OublietteItem(
-            id: 'a',
-            title: 'Ordonnance Dr Martin',
-            seenAt: DateTime(2026, 6, 19)),
+            id: 'a', title: 'Ordonnance du 19 juin', seenAt: DateTime(2026, 6, 19)),
         OublietteItem(
-            id: 'b', title: 'Radio panoramique', seenAt: DateTime(2026, 6, 18)),
+            id: 'b', title: 'Radio du 18 juin', seenAt: DateTime(2026, 6, 18)),
       ]),
     ],
   );
