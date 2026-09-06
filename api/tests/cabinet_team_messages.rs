@@ -98,7 +98,8 @@ struct Fixtures {
     user_id: Uuid,
 }
 
-/// Insère cabinet + app_user (secretary, pas de fiche practitioner/provider).
+/// Insère cabinet + app_user (secretary, pas de fiche practitioner/provider)
+/// + son `cabinet_membership` (role secretary, #6543 : source de `sender_role`).
 async fn insert_fixtures(db: &PgPool) -> Fixtures {
     let cabinet_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
@@ -126,6 +127,14 @@ async fn insert_fixtures(db: &PgPool) -> Fixtures {
     .execute(&mut *tx)
     .await
     .unwrap();
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role) VALUES ($1, $2, 'secretary')",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
     tx.commit().await.unwrap();
 
     Fixtures {
@@ -142,6 +151,11 @@ async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
         .await
         .ok();
     sqlx::query("DELETE FROM cabinet_messages WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet_membership WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
         .await
@@ -392,15 +406,80 @@ async fn colleague_sees_message_in_shared_thread() {
         .iter()
         .find(|m| m["body"] == "QA-teamproof-marker-777")
         .expect("le message du collègue doit être visible dans le fil partagé");
-    // Le collègue n'a pas de fiche provider et l'email de l'émetteur n'est
-    // pas visible sous RLS depuis ce viewer → fallback littéral, pas de 500.
-    assert_eq!(item["sender_name"], "Membre du cabinet");
+    // #6543 : le nom de l'émetteur est résolu par sender (GUC repositionné
+    // par auteur), pas par viewer — visible même sans fiche provider.
+    assert!(item["sender_name"].as_str().unwrap().contains("team-msg+"));
+    assert_eq!(item["sender_role"], "Secrétaire");
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(colleague_id)
         .execute(&db)
         .await
         .ok();
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 4ter (#6543) : secrétaire avec prénom/nom → nom lisible + pastille ──
+// Repro exacte de l'issue : sans fiche provider, sender_name partait
+// jusqu'ici sur l'e-mail brut, et sender_role n'existait pas dans le contrat.
+
+#[tokio::test]
+async fn secretary_with_name_gets_readable_name_and_role_label() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    sqlx::query("UPDATE app_user SET first_name = $1, last_name = $2 WHERE id = $3")
+        .bind("Sonia")
+        .bind("Accueil")
+        .bind(f.user_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    let token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+
+    let post_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "body": "QA-team-role-marker" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_resp.status(), StatusCode::CREATED);
+
+    let get_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/messages")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    let item = data
+        .iter()
+        .find(|m| m["body"] == "QA-team-role-marker")
+        .expect("message présent dans le fil");
+    // Nom lisible, pas l'e-mail technique.
+    assert_eq!(item["sender_name"], "Sonia Accueil");
+    assert_eq!(item["sender_role"], "Secrétaire");
+
     cleanup_fixtures(&db, &f).await;
 }
 
