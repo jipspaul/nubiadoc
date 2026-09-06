@@ -75,9 +75,7 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
         // l'écran (inexistant) pour accepter/refuser. `app_patient` liste tous
         // ses devis sur une seule route (pas de détail par id, cf.
         // `PharmacyQuotesRepository.list()`), d'où un deep-link sans id.
-        "pharmacy_quote_sent" | "pharmacy_quote_reminder" => {
-            Some("/pharmacy/quotes".to_string())
-        }
+        "pharmacy_quote_sent" | "pharmacy_quote_reminder" => Some("/pharmacy/quotes".to_string()),
         _ => None,
     }
 }
