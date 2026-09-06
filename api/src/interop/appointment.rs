@@ -698,6 +698,7 @@ pub async fn create_appointment(
 /// entièrement (un `PUT` laisserait entendre que `start`/`end`/`participant`
 /// sont aussi mis à jour, ce qui n'est pas le cas dans cette première tranche).
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FhirAppointmentStatusPatch {
     pub status: String,
 }
