@@ -291,8 +291,7 @@ void main() {
       expect(find.byKey(const Key('card_messages')), findsOneWidget);
     });
 
-    testWidgets(
-        'formate un gros montant avec séparateur de milliers (#6166)',
+    testWidgets('formate un gros montant avec séparateur de milliers (#6166)',
         (tester) async {
       const bigSummary = DashboardSummary(
         upcomingAppointments: 0,
@@ -511,27 +510,29 @@ void main() {
       final authCubit = MockAuthCubit();
       when(() => authCubit.state).thenReturn(const AuthUnauthenticated());
 
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) => MultiBlocProvider(
+              providers: [
+                BlocProvider.value(value: bloc),
+                BlocProvider<AuthCubit>(create: (_) => authCubit),
+              ],
+              child: const Scaffold(body: HomePage()),
+            ),
+          ),
+          GoRoute(
+            path: '/documents',
+            builder: (_, __) => const Scaffold(body: Text('Documents')),
+          ),
+        ],
+      );
+
       await tester.pumpWidget(MaterialApp.router(
         theme: NubiaTheme.light,
-        routerConfig: GoRouter(
-          initialLocation: '/',
-          routes: [
-            GoRoute(
-              path: '/',
-              builder: (_, __) => MultiBlocProvider(
-                providers: [
-                  BlocProvider.value(value: bloc),
-                  BlocProvider<AuthCubit>(create: (_) => authCubit),
-                ],
-                child: const Scaffold(body: HomePage()),
-              ),
-            ),
-            GoRoute(
-              path: '/documents',
-              builder: (_, __) => const Scaffold(body: Text('Documents')),
-            ),
-          ],
-        ),
+        routerConfig: router,
       ));
       await tester.pumpAndSettle();
 
@@ -539,6 +540,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Documents'), findsOneWidget);
+      // #6236 : la tuile utilisait `context.push`, dont go_router n'écrit
+      // jamais l'uri exposée au `RouteInformationProvider` (elle reste celle
+      // de la dernière navigation déclarative) — l'URL du navigateur ne
+      // bougeait donc jamais et un F5 ramenait silencieusement à l'accueil.
+      expect(
+          router.routeInformationProvider.value.uri.toString(), '/documents');
     });
 
     testWidgets(

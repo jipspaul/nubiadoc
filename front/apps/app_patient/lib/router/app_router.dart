@@ -285,8 +285,15 @@ class AppRouter {
         ),
         GoRoute(
           path: documents,
-          builder: (_, __) => Scaffold(
-            appBar: AppBar(title: const Text('Mes documents')),
+          // #6236 : accessible via `context.go` (URL bookmarkable) —
+          // `canPop()` y est donc systématiquement faux, comme pour un
+          // deep-link direct (même pattern que `financial`/`oubliettes`/
+          // `reviews` ci-dessous).
+          builder: (context, __) => Scaffold(
+            appBar: AppBar(
+              leading: backOrHomeLeading(context),
+              title: const Text('Mes documents'),
+            ),
             body: const DocumentsPage(),
           ),
         ),

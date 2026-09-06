@@ -6,6 +6,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
+import '../../router/back_or_home_leading.dart';
 import 'dependents_cubit.dart';
 
 class DependentsPage extends StatelessWidget {
@@ -16,7 +17,12 @@ class DependentsPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => GetIt.instance<DependentsCubit>()..load(),
       child: Scaffold(
+        // #6236 : accessible via `context.go` (URL bookmarkable) — `canPop()`
+        // y est donc systématiquement faux, comme pour un deep-link direct
+        // (même pattern que `financial`/`oubliettes`/`reviews` dans
+        // `app_router.dart`).
         appBar: AppBar(
+          leading: backOrHomeLeading(context),
           title: BlocBuilder<DependentsCubit, DependentsState>(
             builder: (context, state) {
               return Column(
