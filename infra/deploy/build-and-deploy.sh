@@ -11,10 +11,10 @@
 #   2. assemble l'image API (COPY-only, amd64) -> tar
 #   3. flutter build web x3 (API_BASE_URL baké au build)
 #   4. provisionne le LXC (podman) si besoin
-#   5. pousse binaire/image, migrations, seed, bundles web
-#   6. applique (opt-in, cf. CADDY_HOST) le bloc Caddy reservation.doc.nubia-link.com
+#   5. applique (opt-in, cf. CADDY_HOST) le bloc Caddy reservation.doc.nubia-link.com
 #      sur l'hôte Caddy hors LXC ; échec dur si le domaine ne sert PAS de TLS,
-#      AVANT de toucher au LXC (#6188, #6379, #6553 — cf. étape 6/8 ci-dessous)
+#      AVANT de toucher au LXC (#6188, #6379, #6553, #6632 — cf. étape 5/8 ci-dessous)
+#   6. pousse binaire/image, migrations, seed, bundles web
 #   7. lance deploy.sh sur le LXC (run de la stack)
 #   8. health-check TLS best-effort des domaines publics
 set -euo pipefail
@@ -118,25 +118,7 @@ build_front app_infirmiere  infirmiere
 say "4/8 provision LXC (idempotent)"
 SSH 'sh -s' < "$ROOT/infra/deploy/provision.sh"
 
-say "5/8 envoi des artefacts"
-# scripts + nginx.conf
-SCP "$ROOT/infra/deploy/deploy.sh" "$ROOT/infra/deploy/bootstrap-db.sh" \
-    "$ROOT/infra/deploy/migrate.sh" "$ROOT/infra/deploy/seed.sh" \
-    "$ROOT/infra/deploy/nginx.conf" "${SSH_USER}@${HOST}:/opt/nubia/"
-# contexte image API (binaire musl statique + Dockerfile) -> build sur le LXC
-SSH 'rm -rf /opt/nubia/api-ctx && mkdir -p /opt/nubia/api-ctx'
-tar czf - -C "$OUT/api-ctx" . | SSH 'tar xzf - -C /opt/nubia/api-ctx'
-# migrations + seed
-SSH 'rm -rf /opt/nubia/migrations /opt/nubia/seed && mkdir -p /opt/nubia/migrations /opt/nubia/seed'
-tar czf - -C "$ROOT/db/migrations" . | SSH 'tar xzf - -C /opt/nubia/migrations'
-tar czf - -C "$ROOT/db/seed" . | SSH 'tar xzf - -C /opt/nubia/seed'
-# bundles flutter
-for d in patient praticien secretary pharmacie infirmiere; do
-  SSH "rm -rf /opt/nubia/www/$d && mkdir -p /opt/nubia/www/$d"
-  tar czf - -C "$OUT/www-$d" . | SSH "tar xzf - -C /opt/nubia/www/$d"
-done
-
-say "6/8 application auto du bloc Caddy reservation.doc.nubia-link.com (hôte Caddy, opt-in)"
+say "5/8 application auto du bloc Caddy reservation.doc.nubia-link.com (hôte Caddy, opt-in)"
 # #6116/#6139/#6160/#6162 : ce bloc est un template à coller à la main sur
 # l'hôte Caddy (hors LXC, hors périmètre du reste de ce script) — récidive x4
 # faute d'un mécanisme d'application automatique. Si CADDY_HOST/CADDY_USER/
@@ -161,22 +143,44 @@ CADDY_HOST="${CADDY_HOST:-}" CADDY_USER="${CADDY_USER:-}" CADDY_PASSWORD="${CADD
 # chance d'être agi dessus (cf. postmortem #3493, déjà cité ci-dessus).
 #
 # #6553 (8e récidive #6116/#6139/#6160/#6162/#6188/#6317/#6379) : ce garde-fou
-# était placé APRÈS l'étape « déploiement distant » (SSH + restart des
-# conteneurs, cf. deploy.sh) — l'API était donc déjà poussée et redémarrée
-# quand ce `curl` s'exécutait. Le `exit 1` ne faisait alors que rougir le
-# badge a posteriori, sans jamais empêcher quoi que ce soit : la dérive était
-# déjà actée, et un lecteur pressé pouvait croire (à tort) qu'AUCUNE partie du
-# déploiement n'avait eu lieu. Ce check ne dépend d'aucun état du LXC (le
-# handshake TLS testé ici est servi par l'hôte Caddy externe, indépendamment
-# de deploy.sh) : il peut donc s'exécuter en amont, comme un VRAI pré-vol
-# bloquant (même logique que le pré-vol de joignabilité SSH du LXC, cf.
-# .forgejo/workflows/deploy.yml) — le déploiement LXC ne démarre plus du tout
-# tant que ce domaine public reste TLS-mort.
+# était placé APRÈS l'étape « envoi des artefacts » — les bundles web étaient
+# donc déjà poussés vers /opt/nubia/www (servis en LECTURE DIRECTE par nginx
+# via bind-mount, cf. deploy.sh, effet immédiat SANS attendre le restart de
+# conteneur) quand ce `curl` s'exécutait. Un `exit 1` à ce stade laissait donc
+# les 5 fronts déjà en ligne au nouveau commit pendant que l'API restait au
+# binaire précédent (le rebuild/restart `nubia-api` n'a lieu qu'à l'étape
+# « déploiement distant », jamais atteinte) — dérive front/back de plusieurs
+# heures (#6632). Ce check ne dépend d'aucun état du LXC (le handshake TLS
+# testé ici est servi par l'hôte Caddy externe, indépendamment de deploy.sh
+# et de l'envoi des artefacts) : il peut donc s'exécuter EN AMONT de tout
+# transfert vers le LXC, comme un VRAI pré-vol bloquant (même logique que le
+# pré-vol de joignabilité SSH du LXC, cf. .forgejo/workflows/deploy.yml) — ni
+# les fronts ni l'API ne sont touchés tant que ce domaine public reste
+# TLS-mort, garantissant un environnement live cohérent (tout à l'ancien
+# commit) plutôt qu'un skew front/API.
 RESERVATION_CODE="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' https://reservation.doc.nubia-link.com/ 2>/dev/null || true)"
 if [ -z "$RESERVATION_CODE" ] || [ "$RESERVATION_CODE" = "000" ]; then
-  echo "::error::reservation.doc.nubia-link.com injoignable en TLS après application du bloc Caddy — collage/vérification manuel requis (cf. infra/deploy/Caddyfile.snippet). 8e récidive du même symptôme (#6116, #6139, #6160, #6162, #6188, #6317, #6379, #6553) : déploiement LXC NON DÉMARRÉ (API non touchée) pour forcer l'action humaine avant toute dérive supplémentaire."
+  echo "::error::reservation.doc.nubia-link.com injoignable en TLS après application du bloc Caddy — collage/vérification manuel requis (cf. infra/deploy/Caddyfile.snippet). 8e récidive du même symptôme (#6116, #6139, #6160, #6162, #6188, #6317, #6379, #6553, #6632) : déploiement LXC NON DÉMARRÉ (ni fronts ni API touchés) pour forcer l'action humaine avant toute dérive supplémentaire."
   exit 1
 fi
+
+say "6/8 envoi des artefacts"
+# scripts + nginx.conf
+SCP "$ROOT/infra/deploy/deploy.sh" "$ROOT/infra/deploy/bootstrap-db.sh" \
+    "$ROOT/infra/deploy/migrate.sh" "$ROOT/infra/deploy/seed.sh" \
+    "$ROOT/infra/deploy/nginx.conf" "${SSH_USER}@${HOST}:/opt/nubia/"
+# contexte image API (binaire musl statique + Dockerfile) -> build sur le LXC
+SSH 'rm -rf /opt/nubia/api-ctx && mkdir -p /opt/nubia/api-ctx'
+tar czf - -C "$OUT/api-ctx" . | SSH 'tar xzf - -C /opt/nubia/api-ctx'
+# migrations + seed
+SSH 'rm -rf /opt/nubia/migrations /opt/nubia/seed && mkdir -p /opt/nubia/migrations /opt/nubia/seed'
+tar czf - -C "$ROOT/db/migrations" . | SSH 'tar xzf - -C /opt/nubia/migrations'
+tar czf - -C "$ROOT/db/seed" . | SSH 'tar xzf - -C /opt/nubia/seed'
+# bundles flutter
+for d in patient praticien secretary pharmacie infirmiere; do
+  SSH "rm -rf /opt/nubia/www/$d && mkdir -p /opt/nubia/www/$d"
+  tar czf - -C "$OUT/www-$d" . | SSH "tar xzf - -C /opt/nubia/www/$d"
+done
 
 say "7/8 déploiement distant"
 SSH "PUBLIC_API_BASE='$API_BASE' YOUSIGN_API_KEY='$YOUSIGN_API_KEY' \
