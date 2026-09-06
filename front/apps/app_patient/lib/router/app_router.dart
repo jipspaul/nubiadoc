@@ -52,6 +52,8 @@ import '../features/referring_doctor/referring_doctor_search_page.dart';
 import '../features/pharmacy_orders/order_detail_page.dart';
 import '../features/pharmacy_orders/orders_page.dart';
 import '../features/pharmacy_orders/send_prescription_page.dart';
+import '../features/pharmacy_quotes/pharmacy_quotes_bloc.dart';
+import '../features/pharmacy_quotes/pharmacy_quotes_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/dependents/dependents_page.dart';
 import '../features/consents/consents_page.dart';
@@ -220,6 +222,20 @@ class AppRouter {
           path: '/pharmacy/orders/:id',
           builder: (_, state) =>
               PatientOrderDetailPage(orderId: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: '/pharmacy/quotes',
+          builder: (context, __) => BlocProvider(
+            create: (_) => GetIt.instance<PharmacyQuotesBloc>()
+              ..add(const PharmacyQuotesRequested()),
+            child: Scaffold(
+              appBar: AppBar(
+                leading: backOrHomeLeading(context),
+                title: const Text('Devis pharmacie'),
+              ),
+              body: const PharmacyQuotesPage(),
+            ),
+          ),
         ),
         GoRoute(
           path: treatmentPlans,

@@ -258,7 +258,8 @@ class _NotificationTile extends StatelessWidget {
     final (background, foreground) = _colorsFor(notification.type);
     final deepLink = notification.deepLink;
     final hasAction = deepLink != null && deepLink.isNotEmpty;
-    final action = hasAction ? _actionFor(notification.type) : null;
+    final action =
+        hasAction ? _actionFor(notification.type, notification.kind) : null;
     return ListTile(
       key: Key('notif_${notification.id}'),
       leading: Container(
@@ -341,9 +342,23 @@ class _NotificationTile extends StatelessWidget {
   /// Bouton d'action sous le corps de la notification (maquette design-v2) :
   /// libellé + icône par famille, primaire pour la pharmacie (`other`,
   /// commandes click-and-collect), secondaire pour les autres.
+  ///
+  /// Les devis d'officine (`kind` préfixé `pharmacy_quote_`) partagent le
+  /// bucket [NotificationType.payment] avec les devis dentaires (#6580) —
+  /// distingués ici par `kind` pour pointer vers le bon écran/libellé
+  /// (« Voir le devis » → `/pharmacy/quotes`, pas « Voir la facture » →
+  /// `/financial`).
   static ({String label, IconData icon, NubiaButtonVariant variant}) _actionFor(
     NotificationType type,
+    String? kind,
   ) {
+    if (kind != null && kind.startsWith('pharmacy_quote')) {
+      return (
+        label: 'Voir le devis',
+        icon: Icons.receipt_long_outlined,
+        variant: NubiaButtonVariant.secondary,
+      );
+    }
     return switch (type) {
       NotificationType.other => (
           label: 'Afficher mon code',

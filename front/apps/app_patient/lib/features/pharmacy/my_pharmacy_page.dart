@@ -74,6 +74,13 @@ class MyPharmacyBody extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     NubiaButton(
+                      key: const Key('my_pharmacy_quotes_button'),
+                      label: 'Mes devis pharmacie',
+                      variant: NubiaButtonVariant.secondary,
+                      onPressed: () => context.push('/pharmacy/quotes'),
+                    ),
+                    const SizedBox(height: 8),
+                    NubiaButton(
                       key: const Key('change_pharmacy_button'),
                       label: 'Changer de pharmacie',
                       variant: NubiaButtonVariant.secondary,

@@ -46,6 +46,7 @@ AppNotification _actionableNotif(
   String id,
   NotificationType type, {
   required String deepLink,
+  String? kind,
 }) =>
     AppNotification(
       id: id,
@@ -55,6 +56,7 @@ AppNotification _actionableNotif(
       read: false,
       createdAt: DateTime(2026, 6, 21),
       deepLink: deepLink,
+      kind: kind,
     );
 
 // ---------------------------------------------------------------------------
@@ -360,6 +362,28 @@ void main() {
       final button =
           tester.widget<NubiaButton>(find.byKey(const Key('notif_action_1')));
       expect(button.variant, NubiaButtonVariant.secondary);
+    });
+
+    testWidgets(
+        'un devis d\'officine « À signer » (payment/pharmacy_quote_sent) '
+        'affiche « Voir le devis », pas « Voir la facture » (#6580 — jusqu\'ici '
+        'aucun deep_link n\'était dérivé, donc aucun bouton du tout)',
+        (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          _actionableNotif('1', NotificationType.payment,
+              deepLink: '/pharmacy/quotes', kind: 'pharmacy_quote_sent'),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_action_1')), findsOneWidget);
+      expect(find.text('Voir le devis'), findsOneWidget);
+      expect(find.text('Voir la facture'), findsNothing);
+      expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
     });
 
     testWidgets(
