@@ -21,6 +21,9 @@ import 'package:app_secretariat/pro_config.dart';
 class _MockCabinetQuotesRepository extends Mock
     implements CabinetQuotesRepository {}
 
+class _MockCabinetPatientsRepository extends Mock
+    implements CabinetPatientsRepository {}
+
 class _MockDevisBloc extends MockBloc<DevisEvent, DevisState>
     implements DevisBloc {}
 
@@ -576,6 +579,24 @@ void main() {
           getQuote: GetCabinetQuoteUseCase(repo),
           sendQuote: SendCabinetQuoteUseCase(repo),
         ),
+      );
+      // #6590 : le volet résout aussi le téléphone patient (CTA « Appeler »)
+      // via ce use case — sans l'enregistrer ici, l'ouverture lève un GetIt
+      // StateError.
+      final patientsRepo = _MockCabinetPatientsRepository();
+      when(() => patientsRepo.getById(any())).thenAnswer(
+        (_) async => Right(
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Julie',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ),
+      );
+      GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
+        () => GetCabinetPatientUseCase(patientsRepo),
       );
       addTearDown(GetIt.instance.reset);
 
@@ -1501,6 +1522,7 @@ void main() {
   group('DevisPage — volet latéral', () {
     late _MockDevisBloc bloc;
     late _MockCabinetQuotesRepository repo;
+    late _MockCabinetPatientsRepository patientsRepo;
 
     final quote = CabinetQuote(
       id: 'q1',
@@ -1514,10 +1536,22 @@ void main() {
       createdAt: DateTime(2026, 8, 4),
     );
 
+    final patientWithPhone = CabinetPatient(
+      id: 'p1',
+      cabinetId: 'c1',
+      firstName: 'Julie',
+      lastName: 'Martin',
+      createdAt: DateTime(2026, 1, 1),
+      phone: '+33600000001',
+    );
+
     setUp(() {
       bloc = _MockDevisBloc();
       repo = _MockCabinetQuotesRepository();
       when(() => repo.getById(any())).thenAnswer((_) async => Right(quote));
+      patientsRepo = _MockCabinetPatientsRepository();
+      when(() => patientsRepo.getById('p1'))
+          .thenAnswer((_) async => Right(patientWithPhone));
       // Le volet (#5089) possède son propre DevisBloc (factory GetIt,
       // cf. pro_di.dart) pour ne pas interférer avec le bloc de la liste —
       // sans ça, l'ouvrir lève un GetIt StateError.
@@ -1527,6 +1561,11 @@ void main() {
           getQuote: GetCabinetQuoteUseCase(repo),
           sendQuote: SendCabinetQuoteUseCase(repo),
         ),
+      );
+      // #6590 : le CTA « Appeler » résout le téléphone via ce use case
+      // (`GetCabinetPatientUseCase`, déjà utilisé par `patients_page.dart`).
+      GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
+        () => GetCabinetPatientUseCase(patientsRepo),
       );
       addTearDown(GetIt.instance.reset);
     });
@@ -1655,13 +1694,49 @@ void main() {
     });
 
     testWidgets(
-        'le CTA Appeler est désactivé — CabinetQuote n\'expose pas de '
-        'téléphone patient', (tester) async {
+        '#6590 : le CTA Appeler est activé quand le téléphone du patient '
+        'est servi par GetCabinetPatientUseCase', (tester) async {
       tester.view.physicalSize = const Size(1360, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      final callButton = tester.widget<OutlinedButton>(
+        find.descendant(
+          of: find.byKey(const Key('btn_call_devis_secretariat')),
+          matching: find.byType(OutlinedButton),
+        ),
+      );
+      expect(callButton.onPressed, isNotNull);
+    });
+
+    testWidgets(
+        '#6590 : le CTA Appeler reste désactivé quand le patient n\'a '
+        'réellement aucun téléphone (état métier, pas un onPressed en dur)',
+        (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => patientsRepo.getById('p1')).thenAnswer(
+        (_) async => Right(
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Julie',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ),
+      );
       when(() => bloc.state).thenReturn(DevisLoaded([quote]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();

@@ -503,7 +503,7 @@ StatusPillVariant _sheetStatusVariant(CabinetQuoteStatus status) {
 String _formatSheetDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/'
     '${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-class _DevisSheetBody extends StatelessWidget {
+class _DevisSheetBody extends StatefulWidget {
   const _DevisSheetBody({
     required this.quote,
     required this.onClose,
@@ -515,7 +515,47 @@ class _DevisSheetBody extends StatelessWidget {
   final bool sending;
 
   @override
+  State<_DevisSheetBody> createState() => _DevisSheetBodyState();
+}
+
+/// Résout le téléphone du patient via `GetCabinetPatientUseCase` (#6590) :
+/// `CabinetQuote` n'en porte pas, mais le secrétariat y a déjà accès sur
+/// `GET /v1/cabinet/patients/:id`, au même titre que la fiche patient
+/// (`patients_page.dart`).
+class _DevisSheetBodyState extends State<_DevisSheetBody> {
+  String? _patientPhone;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPatientPhone();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DevisSheetBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.quote.patientId != widget.quote.patientId) {
+      _patientPhone = null;
+      _loadPatientPhone();
+    }
+  }
+
+  Future<void> _loadPatientPhone() async {
+    final result = await GetIt.instance<GetCabinetPatientUseCase>()(
+      widget.quote.patientId,
+    );
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (patient) => setState(() => _patientPhone = patient.phone),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final quote = widget.quote;
+    final onClose = widget.onClose;
+    final sending = widget.sending;
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
 
@@ -615,15 +655,18 @@ class _DevisSheetBody extends StatelessWidget {
                         .add(DevisSendRequested(quote.id)),
               ),
               const SizedBox(height: 8),
-              const NubiaButton(
-                key: Key('btn_call_devis_secretariat'),
+              NubiaButton(
+                key: const Key('btn_call_devis_secretariat'),
                 label: 'Appeler',
                 icon: Icons.call_outlined,
                 variant: NubiaButtonVariant.secondary,
                 size: NubiaButtonSize.lg,
-                // #5089 : `CabinetQuote` n'expose pas de téléphone patient —
-                // CTA visible mais désactivé plutôt qu'un numéro inventé.
-                onPressed: null,
+                // #6590 : le numéro est résolu depuis la fiche patient
+                // (`_loadPatientPhone`) — grisé seulement tant qu'il est
+                // réellement indisponible, jamais en dur.
+                onPressed: (_patientPhone == null || _patientPhone!.isEmpty)
+                    ? null
+                    : () => callPhoneNumber(_patientPhone!),
               ),
             ],
           ),
