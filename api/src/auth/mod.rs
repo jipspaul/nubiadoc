@@ -270,6 +270,13 @@ pub(crate) enum AppError {
     /// forme que le payload de succès) pour que le front affiche l'encart
     /// de non-correspondance sans re-fetch.
     PickupOrderMismatch(serde_json::Value),
+    /// `POST /v1/cabinet/slots` (#6237) : le créneau demandé chevauche une
+    /// `provider_unavailability` déclarée (congés, formation) du praticien —
+    /// distinct d'un chevauchement réel de créneau/RDV (`SlotTaken`), sinon
+    /// le secrétariat voit « créneau déjà pris » sur un agenda vide sans
+    /// moyen de savoir que le praticien est indisponible. Le `Value` porte
+    /// `starts_at`/`ends_at`/`reason` de la période déclarée.
+    ProviderUnavailable(serde_json::Value),
 }
 
 impl IntoResponse for AppError {
@@ -556,6 +563,11 @@ impl IntoResponse for AppError {
             AppError::PickupOrderMismatch(order) => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "pickup_order_mismatch", "order": order})),
+            )
+                .into_response(),
+            AppError::ProviderUnavailable(unavailability) => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "provider_unavailable", "unavailability": unavailability})),
             )
                 .into_response(),
         }

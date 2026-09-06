@@ -426,6 +426,142 @@ async fn create_slot_overlap_returns_409_slot_taken() {
     teardown(&db, &f).await;
 }
 
+// ── Test 5 : chevauchement provider_unavailability → 409 provider_unavailable
+// (#6237 : avant, ce cas remontait le même `slot_taken` qu'un vrai
+// chevauchement de créneau — indiscernable pour le secrétariat d'un agenda
+// pourtant vide.) ─────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn create_slot_overlapping_provider_unavailability_returns_409_provider_unavailable() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "unavailability").await;
+    let provider_id = Uuid::new_v4();
+    let provider_user_id = Uuid::new_v4();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) \
+             VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(provider_user_id)
+        .bind(format!(
+            "slots-create-unavailability-provider+{provider_user_id}@nubia.test"
+        ))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO provider (id, practitioner_id, cabinet_id, user_id, display_name) \
+             VALUES ($1, $2, $3, $4, 'Dr Slots Unavailability')",
+        )
+        .bind(provider_id)
+        .bind(f.prac_id)
+        .bind(f.cabinet_id)
+        .bind(provider_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO provider_unavailability (id, provider_id, starts_at, ends_at, reason) \
+             VALUES ($1, $2, '2035-09-01T00:00:00Z', '2035-09-30T23:59:59Z', 'QA vacation test')",
+        )
+        .bind(Uuid::new_v4())
+        .bind(provider_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let token = make_pro_jwt(Uuid::new_v4(), f.cabinet_id, "secretary");
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/slots")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "practitioner_id": f.prac_id,
+                        "starts_at": "2035-09-04T06:03:00Z",
+                        "ends_at": "2035-09-04T06:08:00Z",
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        v["code"], "provider_unavailable",
+        "l'indisponibilité déclarée doit avoir un code distinct de slot_taken"
+    );
+    assert_eq!(v["unavailability"]["reason"], "QA vacation test");
+    assert!(v["unavailability"]["starts_at"].is_string());
+    assert!(v["unavailability"]["ends_at"].is_string());
+
+    let db_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM availability_slot WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(
+        db_count, 0,
+        "aucun créneau créé sur l'indisponibilité praticien"
+    );
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM provider_unavailability WHERE provider_id = $1")
+            .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM provider WHERE id = $1")
+            .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(provider_user_id)
+        .execute(&db)
+        .await
+        .ok();
+
+    teardown(&db, &f).await;
+}
+
 // ── Test 6 : starts_at dans le passé → 422 (#3808) ───────────────────────────
 
 #[tokio::test]

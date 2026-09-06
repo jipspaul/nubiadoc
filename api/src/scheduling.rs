@@ -9,6 +9,7 @@ use axum::{
 };
 use chrono::TimeZone;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::{Acquire, Row};
 use uuid::Uuid;
 
@@ -2572,8 +2573,13 @@ pub async fn create_cabinet_slot(
     // pouvait être créé (puis publié en ligne) en pleine période de vacances
     // déclarée du praticien : listé `is_available:true` alors que la
     // réservation effective se heurte à un 409 slot_taken.
+    //
+    // #6237 : ce chevauchement n'est PAS un conflit de créneau (l'agenda peut
+    // être entièrement vide) — renvoyer `slot_taken` rendait le vrai motif
+    // (indisponibilité déclarée) invisible pour le secrétariat. Code dédié
+    // `provider_unavailable`, avec la période/motif déjà lus pour la garde.
     let overlapping_unavailability = sqlx::query(
-        "SELECT 1 FROM provider_unavailability pu \
+        "SELECT pu.starts_at, pu.ends_at, pu.reason FROM provider_unavailability pu \
          JOIN provider prov ON prov.id = pu.provider_id \
          WHERE prov.practitioner_id = $1 \
            AND pu.starts_at < $2 \
@@ -2585,8 +2591,17 @@ pub async fn create_cabinet_slot(
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
-    if overlapping_unavailability.is_some() {
-        return Err(AppError::SlotTaken);
+    if let Some(row) = overlapping_unavailability {
+        let unavail_starts_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+        let unavail_ends_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("ends_at").map_err(|_| AppError::Internal)?;
+        let reason: Option<String> = row.try_get("reason").map_err(|_| AppError::Internal)?;
+        return Err(AppError::ProviderUnavailable(json!({
+            "starts_at": unavail_starts_at.to_rfc3339(),
+            "ends_at": unavail_ends_at.to_rfc3339(),
+            "reason": reason,
+        })));
     }
 
     let slot_id = Uuid::new_v4();
