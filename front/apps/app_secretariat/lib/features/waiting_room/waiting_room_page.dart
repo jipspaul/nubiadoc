@@ -223,7 +223,18 @@ class WaitingRoomPage extends StatelessWidget {
                   builder: (context, state) => state is WaitingRoomLoaded
                       ? Row(
                           children: [
-                            Flexible(
+                            // La pastille de fraîcheur n'a besoin que de sa
+                            // largeur intrinsèque (~120px) : lui donner un
+                            // `Flexible` de flex égal à celui de la barre de
+                            // KPI forçait un partage 50/50 qui rabotait les
+                            // trois libellés même quand la largeur abondait
+                            // (récidive de #6428, #6430 n'avait traité que
+                            // la Row interne). Le ratio 2:1 rend l'essentiel
+                            // de l'espace à la barre de KPI tout en gardant
+                            // la pastille `Flexible` (jamais de débordement,
+                            // même sur une largeur de test très étroite).
+                            Expanded(
+                              flex: 2,
                               child:
                                   WaitingRoomKpiBar(entries: state.entries),
                             ),
