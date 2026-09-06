@@ -24,6 +24,34 @@ void main() {
       expect(dto.estimatedWaitMinutes, 26);
     });
 
+    // #6611 : les maquettes design-v2 veulent le nom complet dans le héros,
+    // la file et le bouton d'appel — `patient_name_initials` reste réservé à
+    // la pastille avatar. L'API renvoie désormais les deux champs.
+    test('fromJson préfère patient_name (nom complet) à patient_name_initials',
+        () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name': 'Marc Dubois',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+      });
+      expect(dto.patientName, 'Marc Dubois');
+    });
+
+    test('fromJson retombe sur patient_name_initials si patient_name absent',
+        () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+      });
+      expect(dto.patientName, 'MD');
+    });
+
     test('fromJson préfère encore id si présent (compat future)', () {
       final dto = WaitingRoomEntryDto.fromJson({
         'id': 'entry-id-explicite',

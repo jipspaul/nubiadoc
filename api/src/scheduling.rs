@@ -523,7 +523,13 @@ pub struct WaitingRoomEntry {
     /// complet (#6241, #6549 : absent ici, le repli du DTO front neutralisait
     /// la garde et renvoyait vers la liste).
     pub patient_id: Uuid,
-    /// Nom complet (pro/admin) ou initiales (secrétariat) — cloisonnement clinique RBAC.
+    /// Nom complet du patient — pour le héros « patient suivant », les lignes de
+    /// la file et le libellé du bouton d'appel (« Appeler Marc Dubois »), les
+    /// initiales n'étant que la pastille avatar. Prescrit par les deux maquettes
+    /// design-v2 (praticien ET secrétariat) — #6611.
+    pub patient_name: String,
+    /// Initiales du patient (pastille avatar `NubiaInitials`), pour TOUT rôle
+    /// (#3893).
     pub patient_name_initials: String,
     pub checkin_at: Option<String>,
     pub wait_minutes: i64,
@@ -553,7 +559,8 @@ pub struct WaitingRoomResponse {
 /// (les deux endpoints doivent partager le même périmètre — #4869).
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
-/// Cloisonnement clinique : secrétariat reçoit initiales du patient, pro reçoit nom complet.
+/// Nom complet du patient exposé à tout rôle pro (`patient_name`) ; les initiales
+/// (`patient_name_initials`) restent un champ séparé, réservé à l'avatar (#6611).
 /// R10 : secrétaires scopées au secrétariat JWT (`secretariat_id`).
 pub async fn get_waiting_room(
     State(state): State<AppState>,
@@ -682,6 +689,15 @@ pub async fn get_waiting_room(
                 ),
                 _ => String::new(),
             };
+            // Nom complet séparé de la pastille avatar — #6611 : les maquettes
+            // design-v2 veulent le nom complet dans le héros/la file/le bouton
+            // d'appel pour TOUT rôle, les initiales restant confinées à l'avatar.
+            let patient_name = match (first.as_deref(), last.as_deref()) {
+                (Some(f), Some(l)) => format!("{f} {l}"),
+                (Some(f), None) => f.to_string(),
+                (None, Some(l)) => l.to_string(),
+                (None, None) => String::new(),
+            };
 
             let status = if db_status == "in_progress" {
                 "in_consultation".to_string()
@@ -692,6 +708,7 @@ pub async fn get_waiting_room(
             Ok(WaitingRoomEntry {
                 appointment_id,
                 patient_id,
+                patient_name,
                 patient_name_initials,
                 checkin_at: checkin_at.map(|dt| dt.to_rfc3339()),
                 wait_minutes,

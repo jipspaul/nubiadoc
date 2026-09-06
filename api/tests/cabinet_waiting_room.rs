@@ -298,6 +298,13 @@ async fn waiting_room_pro_sees_initials() {
         "JD",
         "un champ nommé patient_name_initials doit contenir des initiales, même pour le praticien"
     );
+    // #6611 : les maquettes design-v2 (héros/file/bouton d'appel) veulent le
+    // nom complet, distinct des initiales qui restent la pastille avatar.
+    assert_eq!(
+        data[0]["patient_name"].as_str().unwrap(),
+        "Jean Dupont",
+        "patient_name doit contenir le nom complet pour le praticien"
+    );
     assert!(
         data[0].get("wait_minutes").is_some(),
         "wait_minutes doit être présent"
@@ -399,7 +406,15 @@ async fn waiting_room_secretary_sees_initials() {
     assert_eq!(
         data[0]["patient_name_initials"].as_str().unwrap(),
         "MD",
-        "le secrétariat doit voir les initiales uniquement"
+        "le secrétariat doit voir les initiales uniquement dans patient_name_initials"
+    );
+    // #6611 : la maquette design-v2 secrétariat veut aussi le nom complet
+    // (héros/file/bouton « Appeler Marie Dupont »), les initiales étant
+    // réservées à l'avatar.
+    assert_eq!(
+        data[0]["patient_name"].as_str().unwrap(),
+        "Marie Dupont",
+        "patient_name doit contenir le nom complet, y compris pour le secrétariat"
     );
 
     cleanup(&db, f.cabinet_id, f.prac_user_id).await;
