@@ -29,6 +29,7 @@ import '../features/notifications/notifications_bloc.dart';
 import '../features/oubliettes/oubliettes_bloc.dart';
 import '../features/pharmacy/my_pharmacy_cubit.dart';
 import '../features/pharmacy/pharmacy_search_cubit.dart';
+import '../features/pharmacy_quotes/pharmacy_quotes_bloc.dart';
 import '../features/referring_doctor/referring_doctor_cubit.dart';
 import '../features/referring_doctor/referring_doctor_search_cubit.dart';
 import '../features/pharmacy_orders/orders_bloc.dart';
@@ -53,6 +54,13 @@ void registerPatient(GetIt gi) {
 
   gi.registerFactory<PharmacySearchCubit>(
     () => PharmacySearchCubit(search: gi<SearchPharmaciesUseCase>()),
+  );
+
+  gi.registerFactory<PharmacyQuotesBloc>(
+    () => PharmacyQuotesBloc(
+      list: gi<ListPharmacyQuotesUseCase>(),
+      decide: gi<DecidePharmacyQuoteUseCase>(),
+    ),
   );
 
   gi.registerFactory<ReferringDoctorCubit>(

@@ -70,6 +70,14 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
             let id = data.get("conversation_id")?.as_str()?;
             Some(format!("/messages/{id}"))
         }
+        // Devis d'officine (pharmacie → patient) — #6580 : jusqu'ici `None`,
+        // donc aucune action sous la notification et aucun moyen d'atteindre
+        // l'écran (inexistant) pour accepter/refuser. `app_patient` liste tous
+        // ses devis sur une seule route (pas de détail par id, cf.
+        // `PharmacyQuotesRepository.list()`), d'où un deep-link sans id.
+        "pharmacy_quote_sent" | "pharmacy_quote_reminder" => {
+            Some("/pharmacy/quotes".to_string())
+        }
         _ => None,
     }
 }
@@ -643,5 +651,23 @@ mod tests {
     fn message_received_without_conversation_id_yields_no_deep_link() {
         let data = serde_json::json!({ "type": "cabinet" });
         assert!(derive_deep_link("message_received", &data).is_none());
+    }
+
+    #[test]
+    fn pharmacy_quote_sent_derives_quotes_list_deep_link() {
+        let data = serde_json::json!({ "pharmacy_quote_id": "8258d93e", "status": "sent" });
+        assert_eq!(
+            derive_deep_link("pharmacy_quote_sent", &data),
+            Some("/pharmacy/quotes".to_string())
+        );
+    }
+
+    #[test]
+    fn pharmacy_quote_reminder_derives_quotes_list_deep_link() {
+        let data = serde_json::json!({ "pharmacy_quote_id": "8258d93e", "status": "sent" });
+        assert_eq!(
+            derive_deep_link("pharmacy_quote_reminder", &data),
+            Some("/pharmacy/quotes".to_string())
+        );
     }
 }
