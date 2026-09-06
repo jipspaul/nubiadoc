@@ -93,7 +93,7 @@ class _HomeScaffoldState extends State<_HomeScaffold> {
             tooltip: 'Préférences de notifications',
             icon: const Icon(Icons.settings_outlined),
             onPressed: () =>
-                context.push(AppRouter.notificationPreferences),
+                context.go(AppRouter.notificationPreferences),
           ),
           IconButton(
             tooltip: 'Se déconnecter',
