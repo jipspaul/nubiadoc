@@ -410,6 +410,38 @@ void main() {
     });
 
     testWidgets(
+        'status in_consultation — pastille En consultation, pas En attente — #6636',
+        (tester) async {
+      // Libellé plus long que "En attente" — surface élargie (cf. autres
+      // suites waiting_room) pour ne pas déborder la ligne à 800px par défaut.
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            practitionerId: 'pr-1',
+            practitionerName: 'Dr A. Rousseau',
+            status: 'in_consultation',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('En consultation'), findsOneWidget);
+      expect(find.text('En attente'), findsNothing);
+    });
+
+    testWidgets(
         'colonne Estimation — valeur non nulle affichée en "~N min" — #5169',
         (tester) async {
       when(() => bloc.state).thenReturn(

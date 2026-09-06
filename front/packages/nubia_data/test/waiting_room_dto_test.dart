@@ -205,5 +205,40 @@ void main() {
       expect(domain.practitionerId, isNull);
       expect(domain.practitionerName, isNull);
     });
+
+    // #6636 : `status` n'était jamais parsé — la pastille de la salle
+    // d'attente restait figée sur « En attente » pour tout le monde.
+    test('fromJson mappe status (checked_in ou in_consultation)', () {
+      final checkedIn = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+      });
+      expect(checkedIn.status, 'checked_in');
+      expect(checkedIn.toDomain().status, 'checked_in');
+
+      final inConsultation = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'in_consultation',
+      });
+      expect(inConsultation.status, 'in_consultation');
+      expect(inConsultation.toDomain().status, 'in_consultation');
+    });
+
+    test('fromJson tolère status absent (pas de crash)', () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+      });
+      expect(dto.status, isNull);
+      expect(dto.toDomain().status, isNull);
+    });
   });
 }

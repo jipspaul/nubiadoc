@@ -363,6 +363,15 @@ class _WaitingEntryTile extends StatelessWidget {
     // Urgence sans rendez-vous : aucun praticien attribué (#5171).
     final bool isUnassigned = entry.appointmentId == null;
 
+    // #6636 : pastille pilotée par `status` (API), plus par un littéral —
+    // sinon un patient déjà `in_consultation` s'affiche comme s'il attendait.
+    final (String statusLabel, StatusPillVariant statusVariant) =
+        switch (entry.status) {
+      'in_consultation' => ('En consultation', StatusPillVariant.progress),
+      _ when isUnassigned => ('Sans RDV', StatusPillVariant.warning),
+      _ => ('En attente', StatusPillVariant.info),
+    };
+
     // Tête de file (#5165) : liseré émeraude à gauche, jamais un fond de
     // ligne — le fond entrerait en concurrence avec la couleur du retard.
     final bool isNext = position == 1;
@@ -386,10 +395,8 @@ class _WaitingEntryTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               StatusPill(
-                label: isUnassigned ? 'Sans RDV' : 'En attente',
-                variant: isUnassigned
-                    ? StatusPillVariant.warning
-                    : StatusPillVariant.info,
+                label: statusLabel,
+                variant: statusVariant,
               ),
               if (isUnassigned) ...[
                 const SizedBox(height: 4),

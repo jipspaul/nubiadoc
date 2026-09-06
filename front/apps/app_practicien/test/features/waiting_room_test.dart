@@ -684,6 +684,55 @@ void main() {
     });
 
     testWidgets(
+        'status in_consultation : pastille En consultation, pas la durée '
+        'd\'attente — #6636', (tester) async {
+      final inConsultationEntry = WaitingRoomEntry(
+        id: 'wr-3',
+        cabinetId: 'cab-1',
+        patientId: 'pat-3',
+        patientName: 'Jean Dupont',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 32)),
+        practitionerId: 'prac-me',
+        practitionerName: 'Vous',
+        status: 'in_consultation',
+      );
+      when(() => mockList())
+          .thenAnswer((_) async => Right([inConsultationEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'prac-me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-3')),
+          matching: find.text('En consultation'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-3')),
+          matching: find.text('Plus de 30 min'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
         'entrée attribuée en tête de file : le bouton déclenche l\'appel',
         (tester) async {
       when(() => mockList()).thenAnswer((_) async => Right([assignedEntry]));
