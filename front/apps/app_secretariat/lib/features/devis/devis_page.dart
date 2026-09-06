@@ -11,6 +11,7 @@ import 'devis_state.dart';
 import 'widgets/devis_kpis.dart';
 import 'widgets/devis_status_facets.dart';
 import 'widgets/devis_table.dart';
+import 'widgets/quote_timeline.dart';
 
 /// Écran "Devis" côté secrétariat — liste des devis du cabinet.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
@@ -352,12 +353,11 @@ QuoteCardStatus mapQuoteStatus(CabinetQuoteStatus status) {
   }
 }
 
-/// Volet latéral droit du détail d'un devis (design-v2, #5089) — scaffold
-/// uniquement : en-tête (n° + statut + fermeture), identité patient et CTA.
-/// Les blocs internes (ventilation, suivi) restent dans `DevisDetailPage`
-/// (#5090/#5091), qui reste la page pleine accessible par navigation directe
-/// vers `/devis/:id` (note « keep » de la maquette — le volet la double sans
-/// la remplacer).
+/// Volet latéral droit du détail d'un devis (design-v2, #5089) : en-tête
+/// (n° + statut + fermeture), identité patient, ventilation « Reste à charge
+/// patient » (#5091), suivi (#5090) et CTA. Remplace la navigation vers la
+/// page pleine `/devis/:id` (#6589) : la sélection d'une ligne n'y menait
+/// plus depuis #5089, laissant ces blocs inatteignables.
 ///
 /// Possède son propre `DevisBloc` (factory GetIt, cf. `pro_di.dart`) pour ne
 /// pas interférer avec l'état `DevisLoaded` de la liste portée par le bloc
@@ -558,6 +558,7 @@ class _DevisSheetBodyState extends State<_DevisSheetBody> {
     final sending = widget.sending;
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
+    final hasItems = quote.items != null && quote.items!.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -632,6 +633,29 @@ class _DevisSheetBodyState extends State<_DevisSheetBody> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                // Ventilation AMO/AMC (#5091, #6589) : même calcul et même
+                // vocabulaire que l'app Patient (VentilationBar). Omise si le
+                // back n'a pas renvoyé les lignes du devis. Pas de `caption`
+                // ici (contrairement à `DevisDetailPage`) : le nom du
+                // patient est déjà porté par l'en-tête d'identité ci-dessus.
+                AmountHeader(
+                  label: 'Reste à charge patient · sur '
+                      '${NubiaMoney.formatCents(quote.totalCents)}',
+                  amount: NubiaMoney.formatCents(quote.patientShareCents),
+                ),
+                if (hasItems) ...[
+                  const SizedBox(height: 16),
+                  VentilationBar(
+                    amoCents: quote.items!.amoShareTotalCents,
+                    amcCents: quote.items!.amcShareTotalCents,
+                    racCents: quote.patientShareCents,
+                    racLabel: 'Reste à charge',
+                  ),
+                ],
+                const SizedBox(height: 16),
+                // Bloc « Suivi » (#5090, #6589) : où en est ce devis ?
+                QuoteTimeline(quote: quote),
                 const SizedBox(height: 16),
                 const _DevisSheetConfidentialityNotice(),
               ],
