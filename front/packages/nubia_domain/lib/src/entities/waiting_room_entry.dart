@@ -10,6 +10,9 @@ class WaitingRoomEntry extends Equatable {
   final String? appointmentId;
   final DateTime arrivedAt;
   final int? estimatedWaitMinutes;
+  /// `checked_in` (en salle d'attente) ou `in_consultation` (au fauteuil) —
+  /// cf. `api/src/scheduling.rs` (#6636 : jamais parsé, pastille figée).
+  final String? status;
   /// Motif admin du RDV (ex. "Détartrage") — pas de motif clinique (#5172).
   final String? reason;
   /// Motif du RDV pour anticiper l'acte en un coup d'œil (ex. "Pose de
@@ -31,6 +34,7 @@ class WaitingRoomEntry extends Equatable {
     this.appointmentId,
     required this.arrivedAt,
     this.estimatedWaitMinutes,
+    this.status,
     this.reason,
     this.appointmentReason,
     this.appointmentTime,
