@@ -57,6 +57,10 @@ void main() {
     final router = GoRouter(
       initialLocation: fromUrl ? '/patients/new' : '/patients',
       routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, __) => const Scaffold(body: Text('Accueil')),
+        ),
         // Deux routes top-level indépendantes, comme dans `AppRouter` réel :
         // `/patients` vit dans le `StatefulShellRoute`, `/patients/new` est
         // une route à part (#5154) — pas de relation parent/enfant entre les
@@ -252,6 +256,62 @@ void main() {
 
       expect(find.text('Liste patients'), findsOneWidget);
       expect(find.byType(PatientQuickCreatePage), findsNothing);
+    });
+  });
+
+  group('PatientQuickCreatePage — sortie de l\'écran (#6546)', () {
+    testWidgets(
+        'atteint par l\'URL directe (pas de pile) : le bouton retour est '
+        'présent et replie vers l\'accueil', (tester) async {
+      when(() => bloc.state).thenReturn(const PatientsInitial());
+      await tester.pumpWidget(buildRoutedPage(fromUrl: true));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('btn_appbar_back')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('btn_appbar_back')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Accueil'), findsOneWidget);
+    });
+
+    testWidgets(
+        'atteint depuis l\'app (pile avec /patients dessous) : le bouton '
+        'retour dépile vers la liste', (tester) async {
+      when(() => bloc.state).thenReturn(const PatientsInitial());
+      // Pousse `/patients/new` après le premier pump (et non avant, comme
+      // `buildRoutedPage`) : c'est nécessaire ici pour que `GoRouter`
+      // construise réellement une pile à deux pages et que `canPop()`
+      // renvoie `true`, condition de la branche testée.
+      final router = GoRouter(
+        initialLocation: '/patients',
+        routes: [
+          GoRoute(
+            path: '/patients',
+            builder: (_, __) => const Scaffold(body: Text('Liste patients')),
+          ),
+          GoRoute(
+            path: '/patients/new',
+            builder: (_, __) => BlocProvider<PatientsBloc>.value(
+              value: bloc,
+              child: const PatientQuickCreatePage(),
+            ),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+      router.push('/patients/new');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('btn_appbar_back')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('btn_appbar_back')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Liste patients'), findsOneWidget);
     });
   });
 }

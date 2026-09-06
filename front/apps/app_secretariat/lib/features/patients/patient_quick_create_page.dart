@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../router/app_router.dart';
+import '../../router/back_or_home_leading.dart';
 import 'patients_bloc.dart';
 import 'patients_event.dart';
 import 'patients_state.dart';
@@ -99,7 +100,10 @@ class _PatientQuickCreatePageState extends State<PatientQuickCreatePage> {
         final loading = state is PatientsCreating || _submitting;
         return Scaffold(
           key: const Key('patient_quick_create_scaffold'),
-          appBar: AppBar(title: const Text('Nouveau patient')),
+          appBar: AppBar(
+            title: const Text('Nouveau patient'),
+            leading: backOrHomeLeading(context),
+          ),
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
