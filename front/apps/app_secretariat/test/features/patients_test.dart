@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -720,8 +721,7 @@ void main() {
           (_) async => const Right([
             PatientAlert(
               kind: 'unpaid_invoice',
-              message:
-                  'Solde impayé de 148,50 € depuis la facture du 22/07.',
+              message: 'Solde impayé de 148,50 € depuis la facture du 22/07.',
             ),
             PatientAlert(
               kind: 'missed_appointment',
@@ -784,6 +784,77 @@ void main() {
           find.byKey(const Key('patient_sheet_alerts_banner')),
           findsNothing,
         );
+      });
+
+      // ── Raccourcis clavier (#6558) — maquette design-v2, pied de tableau :
+      // le CallbackShortcuts n'avait aucun Focus dans son sous-arbre, donc
+      // ni ↑/↓/⏎/`/` ni ⌘N n'atteignaient jamais leur callback.
+      group('raccourcis clavier (#6558)', () {
+        testWidgets('↑ ↓ change la sélection', (tester) async {
+          tester.view.physicalSize = const Size(1360, 900);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+          await tester.pumpWidget(buildPage());
+          await tester.pumpAndSettle();
+
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('patient_sheet_p1')), findsOneWidget);
+
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('patient_sheet_p2')), findsOneWidget);
+          expect(find.byKey(const Key('patient_sheet_p1')), findsNothing);
+
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('patient_sheet_p1')), findsOneWidget);
+        });
+
+        testWidgets('⏎ ouvre la fiche de la première ligne', (tester) async {
+          tester.view.physicalSize = const Size(1360, 900);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+          await tester.pumpWidget(buildPage());
+          await tester.pumpAndSettle();
+
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+
+          expect(find.byKey(const Key('patient_sheet_p1')), findsOneWidget);
+        });
+
+        testWidgets('/ place le focus dans le champ de recherche',
+            (tester) async {
+          tester.view.physicalSize = const Size(1360, 900);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+          await tester.pumpWidget(buildPage());
+          await tester.pumpAndSettle();
+
+          final searchField = tester.widget<TextField>(
+            find.byWidgetPredicate(
+              (w) =>
+                  w is TextField &&
+                  w.decoration?.hintText == 'Rechercher un patient',
+            ),
+          );
+          expect(searchField.focusNode!.hasFocus, isFalse);
+
+          await tester.sendKeyEvent(LogicalKeyboardKey.slash);
+          await tester.pumpAndSettle();
+
+          expect(searchField.focusNode!.hasFocus, isTrue);
+        });
       });
     });
 
