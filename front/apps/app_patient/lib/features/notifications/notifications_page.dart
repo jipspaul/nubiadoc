@@ -80,27 +80,38 @@ class NotificationsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<NotificationsBloc, NotificationsState>(
-      builder: (context, state) => switch (state) {
-        NotificationsInitial() || NotificationsLoading() => const Center(
-          key: Key('notifications_loading'),
-          child: CircularProgressIndicator(),
-        ),
-        NotificationsError(:final message) => NubiaErrorWidget(
-          key: const Key('notifications_error'),
-          message: message,
-          onRetry: () => context.read<NotificationsBloc>().add(
-            const NotificationsLoadRequested(),
-          ),
-        ),
-        NotificationsEmpty() => const NubiaEmptyState(
-          key: Key('notifications_empty'),
-          icon: Icons.notifications_off,
-          title: 'Aucune notification',
-          subtitle: 'Vous êtes à jour',
-        ),
-        NotificationsLoaded loaded => _NotificationsContent(state: loaded),
+    return BlocListener<NotificationsBloc, NotificationsState>(
+      listenWhen: (_, current) =>
+          current is NotificationsLoaded && current.actionError != null,
+      listener: (context, state) {
+        if (state is NotificationsLoaded && state.actionError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.actionError!)),
+          );
+        }
       },
+      child: BlocBuilder<NotificationsBloc, NotificationsState>(
+        builder: (context, state) => switch (state) {
+          NotificationsInitial() || NotificationsLoading() => const Center(
+            key: Key('notifications_loading'),
+            child: CircularProgressIndicator(),
+          ),
+          NotificationsError(:final message) => NubiaErrorWidget(
+            key: const Key('notifications_error'),
+            message: message,
+            onRetry: () => context.read<NotificationsBloc>().add(
+              const NotificationsLoadRequested(),
+            ),
+          ),
+          NotificationsEmpty() => const NubiaEmptyState(
+            key: Key('notifications_empty'),
+            icon: Icons.notifications_off,
+            title: 'Aucune notification',
+            subtitle: 'Vous êtes à jour',
+          ),
+          NotificationsLoaded loaded => _NotificationsContent(state: loaded),
+        },
+      ),
     );
   }
 }

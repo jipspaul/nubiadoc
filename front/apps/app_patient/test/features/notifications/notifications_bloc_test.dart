@@ -123,7 +123,8 @@ void main() {
     );
 
     blocTest<NotificationsBloc, NotificationsState>(
-      'émet Error si repo.markRead retourne un Left(Failure)',
+      'émet Loaded avec actionError et rollback si repo.markRead retourne '
+      'un Left(Failure) — la liste reste affichée (pas de NotificationsError)',
       build: makeBloc,
       seed: () => NotificationsLoaded([_notif('1')]),
       setUp: () => when(() => repo.markRead('1'))
@@ -131,7 +132,10 @@ void main() {
       act: (bloc) => bloc.add(const NotificationMarkReadRequested('1')),
       expect: () => [
         NotificationsLoaded([_notif('1', read: true)]),
-        const NotificationsError('Erreur serveur'),
+        NotificationsLoaded(
+          [_notif('1')],
+          actionError: 'Erreur serveur',
+        ),
       ],
     );
   });
@@ -159,7 +163,8 @@ void main() {
     );
 
     blocTest<NotificationsBloc, NotificationsState>(
-      'émet Error si repo.markAllRead retourne un Left(Failure)',
+      'émet Loaded avec actionError et rollback si repo.markAllRead retourne '
+      'un Left(Failure) — la liste reste affichée (pas de NotificationsError)',
       build: makeBloc,
       seed: () => NotificationsLoaded([_notif('1')]),
       setUp: () => when(() => repo.markAllRead())
@@ -167,7 +172,10 @@ void main() {
       act: (bloc) => bloc.add(const NotificationMarkAllReadRequested()),
       expect: () => [
         NotificationsLoaded([_notif('1', read: true)]),
-        const NotificationsError('Erreur serveur'),
+        NotificationsLoaded(
+          [_notif('1')],
+          actionError: 'Erreur serveur',
+        ),
       ],
     );
   });
