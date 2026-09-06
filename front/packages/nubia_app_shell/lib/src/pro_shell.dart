@@ -408,19 +408,28 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
   /// le `ListView` scrollable de la barre latérale (`_buildDesktop`) — un
   /// lecteur d'écran ne voyait aucune des ~13 entrées malgré un rendu et un
   /// clic fonctionnels.
+  ///
+  /// `excludeSemantics: true` écarte aussi la sémantique du [Badge] de
+  /// charge de travail construit par [_iconWithBadge] : [badgeCount], quand
+  /// renseigné et non nul, est donc concaténé au [label] du nœud englobant
+  /// (#6555) — même motif que la cloche de notifications
+  /// (`ProNotificationsBell`, « Notifications 46 »).
   Widget _sidebarEntry(
     BuildContext context, {
     required Widget icon,
     required String label,
     required bool selected,
     required VoidCallback onTap,
+    int? badgeCount,
   }) {
     final color = selected ? Colors.white : _sidebarText;
+    final semanticLabel =
+        badgeCount != null && badgeCount > 0 ? '$label, $badgeCount' : label;
     return Semantics(
       container: true,
       excludeSemantics: true,
       button: true,
-      label: label,
+      label: semanticLabel,
       selected: selected,
       onTap: onTap,
       child: Material(
@@ -625,6 +634,7 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                               label: rows[i].destination!.label,
                               selected: i == rowIndex,
                               onTap: () => _selectRow(destinations, rows, i),
+                              badgeCount: rows[i].destination!.badgeCount,
                             )
                           else
                             _sidebarGroupHeader(
