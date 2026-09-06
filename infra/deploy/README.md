@@ -50,13 +50,16 @@ préféré dès que les `SCW_*` ci-dessus sont réellement renseignées.
 Variables optionnelles `CADDY_HOST` / `CADDY_USER` (défaut `root`) / `CADDY_PASSWORD` /
 `CADDY_SSH_PORT` (défaut `22`) / `CADDY_CONFIG_PATH` (défaut `/etc/caddy/Caddyfile`) :
 si `CADDY_HOST` est renseigné, le bloc Caddy `reservation.doc.nubia-link.com` (cf.
-`Caddyfile.snippet`) est poussé et rechargé automatiquement sur l'hôte Caddy en fin de
-déploiement (`apply-reservation-caddy.sh`, #6162). Sans `CADDY_HOST`, cette étape est
-sautée (no-op) — le collage manuel du snippet complet reste alors nécessaire, cf.
-section suivante. Dans ce cas (no-op), `build-and-deploy.sh` vérifie en plus que
-`reservation.doc.nubia-link.com` répond bien en TLS et **fait échouer le
-déploiement** si ce n'est pas le cas (#6188, 5e récidive du même symptôme) —
-contrairement au health-check général de la section suivante, best-effort.
+`Caddyfile.snippet`) est poussé et rechargé automatiquement sur l'hôte Caddy
+**avant** le déploiement du LXC (`apply-reservation-caddy.sh`, #6162). Sans
+`CADDY_HOST`, cette étape est sautée (no-op) — le collage manuel du snippet complet
+reste alors nécessaire, cf. section suivante. Dans tous les cas (secret renseigné ou
+non), `build-and-deploy.sh` vérifie ensuite que `reservation.doc.nubia-link.com`
+répond bien en TLS et **fait échouer le déploiement AVANT de toucher au LXC** si ce
+n'est pas le cas (#6188, #6379, #6553 — 8e récidive du même symptôme) —
+contrairement au health-check général de la section suivante, best-effort. Ce
+pré-vol est placé avant le déploiement (et non après, comme avant #6553) pour ne
+plus pousser/redémarrer l'API alors que le tunnel de réservation reste TLS-mort.
 
 ## Déploiement automatique (CI)
 

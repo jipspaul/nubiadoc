@@ -12,10 +12,10 @@
 #   3. flutter build web x3 (API_BASE_URL baké au build)
 #   4. provisionne le LXC (podman) si besoin
 #   5. pousse binaire/image, migrations, seed, bundles web
-#   6. lance deploy.sh sur le LXC (run de la stack)
-#   7. applique (opt-in, cf. CADDY_HOST) le bloc Caddy reservation.doc.nubia-link.com
-#      sur l'hôte Caddy hors LXC ; échec dur si le domaine ne sert PAS de TLS
-#      après coup, que CADDY_HOST soit provisionné ou non (#6188, #6379)
+#   6. applique (opt-in, cf. CADDY_HOST) le bloc Caddy reservation.doc.nubia-link.com
+#      sur l'hôte Caddy hors LXC ; échec dur si le domaine ne sert PAS de TLS,
+#      AVANT de toucher au LXC (#6188, #6379, #6553 — cf. étape 6/8 ci-dessous)
+#   7. lance deploy.sh sur le LXC (run de la stack)
 #   8. health-check TLS best-effort des domaines publics
 set -euo pipefail
 
@@ -136,12 +136,7 @@ for d in patient praticien secretary pharmacie infirmiere; do
   tar czf - -C "$OUT/www-$d" . | SSH "tar xzf - -C /opt/nubia/www/$d"
 done
 
-say "6/8 déploiement distant"
-SSH "PUBLIC_API_BASE='$API_BASE' YOUSIGN_API_KEY='$YOUSIGN_API_KEY' \
-  SCW_ACCESS_KEY='$SCW_ACCESS_KEY' SCW_SECRET_KEY='$SCW_SECRET_KEY' SCW_BUCKET='$SCW_BUCKET' \
-  sh /opt/nubia/deploy.sh"
-
-say "7/8 application auto du bloc Caddy reservation.doc.nubia-link.com (hôte Caddy, opt-in)"
+say "6/8 application auto du bloc Caddy reservation.doc.nubia-link.com (hôte Caddy, opt-in)"
 # #6116/#6139/#6160/#6162 : ce bloc est un template à coller à la main sur
 # l'hôte Caddy (hors LXC, hors périmètre du reste de ce script) — récidive x4
 # faute d'un mécanisme d'application automatique. Si CADDY_HOST/CADDY_USER/
@@ -164,11 +159,29 @@ CADDY_HOST="${CADDY_HOST:-}" CADDY_USER="${CADDY_USER:-}" CADDY_PASSWORD="${CADD
 # RÉSULTAT OBSERVABLE (le domaine sert-il du TLS ?) dans TOUS les cas, que
 # CADDY_HOST soit vide ou non : un badge rouge est le seul signal qui a une
 # chance d'être agi dessus (cf. postmortem #3493, déjà cité ci-dessus).
+#
+# #6553 (8e récidive #6116/#6139/#6160/#6162/#6188/#6317/#6379) : ce garde-fou
+# était placé APRÈS l'étape « déploiement distant » (SSH + restart des
+# conteneurs, cf. deploy.sh) — l'API était donc déjà poussée et redémarrée
+# quand ce `curl` s'exécutait. Le `exit 1` ne faisait alors que rougir le
+# badge a posteriori, sans jamais empêcher quoi que ce soit : la dérive était
+# déjà actée, et un lecteur pressé pouvait croire (à tort) qu'AUCUNE partie du
+# déploiement n'avait eu lieu. Ce check ne dépend d'aucun état du LXC (le
+# handshake TLS testé ici est servi par l'hôte Caddy externe, indépendamment
+# de deploy.sh) : il peut donc s'exécuter en amont, comme un VRAI pré-vol
+# bloquant (même logique que le pré-vol de joignabilité SSH du LXC, cf.
+# .forgejo/workflows/deploy.yml) — le déploiement LXC ne démarre plus du tout
+# tant que ce domaine public reste TLS-mort.
 RESERVATION_CODE="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' https://reservation.doc.nubia-link.com/ 2>/dev/null || true)"
 if [ -z "$RESERVATION_CODE" ] || [ "$RESERVATION_CODE" = "000" ]; then
-  echo "::error::reservation.doc.nubia-link.com injoignable en TLS après application du bloc Caddy — collage/vérification manuel requis (cf. infra/deploy/Caddyfile.snippet). 7e récidive du même symptôme (#6116, #6139, #6160, #6162, #6188, #6317, #6379) : déploiement bloqué pour forcer l'action humaine."
+  echo "::error::reservation.doc.nubia-link.com injoignable en TLS après application du bloc Caddy — collage/vérification manuel requis (cf. infra/deploy/Caddyfile.snippet). 8e récidive du même symptôme (#6116, #6139, #6160, #6162, #6188, #6317, #6379, #6553) : déploiement LXC NON DÉMARRÉ (API non touchée) pour forcer l'action humaine avant toute dérive supplémentaire."
   exit 1
 fi
+
+say "7/8 déploiement distant"
+SSH "PUBLIC_API_BASE='$API_BASE' YOUSIGN_API_KEY='$YOUSIGN_API_KEY' \
+  SCW_ACCESS_KEY='$SCW_ACCESS_KEY' SCW_SECRET_KEY='$SCW_SECRET_KEY' SCW_BUCKET='$SCW_BUCKET' \
+  sh /opt/nubia/deploy.sh"
 
 say "8/8 health-check TLS des domaines publics (Caddy hôte, best-effort)"
 # #6116/#6139/#6160 : le bloc Caddy dédié à reservation.doc.nubia-link.com est
