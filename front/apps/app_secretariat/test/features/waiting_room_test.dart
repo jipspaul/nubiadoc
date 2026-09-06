@@ -774,6 +774,32 @@ void main() {
     });
 
     testWidgets(
+        'action call-next désactivée pendant actionInProgress — anti '
+        'double-clic #6637', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded(
+          [
+            WaitingRoomEntry(
+              id: 'e2',
+              cabinetId: 'c1',
+              patientId: 'p2',
+              patientName: 'Paul Martin',
+              arrivedAt: DateTime(2026, 6, 20, 8, 0),
+            ),
+          ],
+          actionInProgress: true,
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets(
         'le libellé de l\'action call-next nomme la tête de file — #5164',
         (tester) async {
       when(() => bloc.state).thenReturn(
@@ -1209,6 +1235,33 @@ void main() {
 
       verify(() => bloc.add(const WaitingRoomCallRequested('e2'))).called(1);
       verifyNever(() => bloc.add(const WaitingRoomCallRequested('e1')));
+    });
+
+    testWidgets(
+        'bouton Appeler de ligne désactivé pendant actionInProgress — anti '
+        'double-clic #6637', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded(
+          [
+            WaitingRoomEntry(
+              id: 'e1',
+              cabinetId: 'c1',
+              patientId: 'p1',
+              patientName: 'Marie Curie',
+              appointmentId: 'appt-1',
+              arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            ),
+          ],
+          actionInProgress: true,
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_entry_call_button_e1')),
+      );
+      expect(button.onPressed, isNull);
     });
   });
 
