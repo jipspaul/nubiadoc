@@ -76,6 +76,11 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
         // ses devis sur une seule route (pas de détail par id, cf.
         // `PharmacyQuotesRepository.list()`), d'où un deep-link sans id.
         "pharmacy_quote_sent" | "pharmacy_quote_reminder" => Some("/pharmacy/quotes".to_string()),
+        // Devis du cabinet (#6609, jumeau de #6580 côté officine) : même
+        // raisonnement, `AppRouter.financial` liste tous les devis du
+        // cabinet sans route de détail par id (cf. `cabinet_quotes.rs` et
+        // `quote_relance_dispatch.rs` qui n'émettent que `quote_id` en data).
+        "quote_received" | "quote_relance" => Some("/financial".to_string()),
         _ => None,
     }
 }
@@ -666,6 +671,24 @@ mod tests {
         assert_eq!(
             derive_deep_link("pharmacy_quote_reminder", &data),
             Some("/pharmacy/quotes".to_string())
+        );
+    }
+
+    #[test]
+    fn quote_received_derives_financial_deep_link() {
+        let data = serde_json::json!({ "quote_id": "8258d93e" });
+        assert_eq!(
+            derive_deep_link("quote_received", &data),
+            Some("/financial".to_string())
+        );
+    }
+
+    #[test]
+    fn quote_relance_derives_financial_deep_link() {
+        let data = serde_json::json!({ "quote_id": "8258d93e" });
+        assert_eq!(
+            derive_deep_link("quote_relance", &data),
+            Some("/financial".to_string())
         );
     }
 }

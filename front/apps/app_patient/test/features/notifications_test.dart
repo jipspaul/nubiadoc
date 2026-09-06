@@ -440,6 +440,28 @@ void main() {
     });
 
     testWidgets(
+        'un devis du cabinet (payment/quote_received) affiche « Voir le '
+        'devis », pas « Voir la facture » (#6609 — jumeau de #6580 côté '
+        'cabinet, jusqu\'ici aucun deep_link n\'était dérivé, donc aucun '
+        'bouton du tout)', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          _actionableNotif('1', NotificationType.payment,
+              deepLink: '/financial', kind: 'quote_received'),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_action_1')), findsOneWidget);
+      expect(find.text('Voir le devis'), findsOneWidget);
+      expect(find.text('Voir la facture'), findsNothing);
+      expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
+    });
+
+    testWidgets(
         'le tap sur le bouton (pas le corps) navigue vers la route résolue '
         'et marque la notification comme lue', (tester) async {
       final bloc = MockNotificationsBloc();
