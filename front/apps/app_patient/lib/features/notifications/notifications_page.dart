@@ -365,7 +365,10 @@ class _NotificationTile extends StatelessWidget {
     String? kind,
     String? status,
   ) {
-    if (kind != null && kind.startsWith('pharmacy_quote')) {
+    if (kind != null &&
+        (kind.startsWith('pharmacy_quote') ||
+            kind == 'quote_received' ||
+            kind == 'quote_relance')) {
       return (
         label: 'Voir le devis',
         icon: Icons.receipt_long_outlined,
