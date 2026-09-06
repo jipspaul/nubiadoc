@@ -18,17 +18,25 @@ final class NotificationsLoading extends NotificationsState {
 
 final class NotificationsLoaded extends NotificationsState {
   final List<AppNotification> notifications;
+  final String? actionError;
 
-  const NotificationsLoaded(this.notifications);
+  const NotificationsLoaded(this.notifications, {this.actionError});
 
   int get unreadCount => notifications.where((n) => !n.read).length;
 
-  NotificationsLoaded copyWith({List<AppNotification>? notifications}) {
-    return NotificationsLoaded(notifications ?? this.notifications);
+  NotificationsLoaded copyWith({
+    List<AppNotification>? notifications,
+    String? actionError,
+    bool clearActionError = false,
+  }) {
+    return NotificationsLoaded(
+      notifications ?? this.notifications,
+      actionError: clearActionError ? null : (actionError ?? this.actionError),
+    );
   }
 
   @override
-  List<Object?> get props => [notifications];
+  List<Object?> get props => [notifications, actionError];
 }
 
 final class NotificationsEmpty extends NotificationsState {

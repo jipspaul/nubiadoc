@@ -42,19 +42,26 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
     final current = state;
     if (current is! NotificationsLoaded) return;
 
-    final updated = current.notifications.map((n) {
+    final original = current.notifications;
+    final updated = original.map((n) {
       return n.id == event.notificationId ? n.copyWith(read: true) : n;
     }).toList();
-    emit(current.copyWith(notifications: updated));
+    emit(current.copyWith(notifications: updated, clearActionError: true));
 
     try {
       final result = await _repository.markRead(event.notificationId);
       result.fold(
-        (failure) => safeEmit(NotificationsError(failure.message)),
+        (failure) => safeEmit(current.copyWith(
+          notifications: original,
+          actionError: failure.message,
+        )),
         (_) {},
       );
     } catch (e) {
-      safeEmit(NotificationsError(e.toString()));
+      safeEmit(current.copyWith(
+        notifications: original,
+        actionError: e.toString(),
+      ));
     }
   }
 
@@ -65,18 +72,25 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
     final current = state;
     if (current is! NotificationsLoaded) return;
 
+    final original = current.notifications;
     final updated =
-        current.notifications.map((n) => n.copyWith(read: true)).toList();
-    emit(current.copyWith(notifications: updated));
+        original.map((n) => n.copyWith(read: true)).toList();
+    emit(current.copyWith(notifications: updated, clearActionError: true));
 
     try {
       final result = await _repository.markAllRead();
       result.fold(
-        (failure) => safeEmit(NotificationsError(failure.message)),
+        (failure) => safeEmit(current.copyWith(
+          notifications: original,
+          actionError: failure.message,
+        )),
         (_) {},
       );
     } catch (e) {
-      safeEmit(NotificationsError(e.toString()));
+      safeEmit(current.copyWith(
+        notifications: original,
+        actionError: e.toString(),
+      ));
     }
   }
 }
