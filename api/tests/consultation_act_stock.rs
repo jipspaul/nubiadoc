@@ -269,7 +269,9 @@ async fn delete_act(state: AppState, session_id: Uuid, token: &str, act_id: Uuid
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri(format!("/v1/cabinet/consultations/{session_id}/acts/{act_id}"))
+                .uri(format!(
+                    "/v1/cabinet/consultations/{session_id}/acts/{act_id}"
+                ))
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
