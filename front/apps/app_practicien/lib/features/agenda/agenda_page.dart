@@ -109,7 +109,8 @@ Future<void> _showCreateSeriesFlow(BuildContext context) async {
     AuthAuthenticated(:final session) => session,
     _ => null,
   };
-  if (session == null) return;
+  final practitionerId = session?.practitionerId;
+  if (practitionerId == null) return;
 
   final agendaBloc = context.read<AgendaBloc>();
   final result = await showDialog<CreateAppointmentSeriesResult>(
@@ -120,7 +121,7 @@ Future<void> _showCreateSeriesFlow(BuildContext context) async {
 
   agendaBloc.add(
     AgendaSeriesCreateRequested(
-      practitionerId: session.userId,
+      practitionerId: practitionerId,
       patientId: patient.id,
       motif: result.motif,
       occurrences: result.occurrences,
