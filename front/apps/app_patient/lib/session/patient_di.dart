@@ -34,6 +34,7 @@ import '../features/referring_doctor/referring_doctor_cubit.dart';
 import '../features/referring_doctor/referring_doctor_search_cubit.dart';
 import '../features/pharmacy_orders/orders_bloc.dart';
 import '../features/pharmacy_orders/send_prescription_cubit.dart';
+import '../features/prescriptions/prescriptions_cubit.dart';
 import '../features/treatment_plans/treatment_plans_bloc.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/reviews/reviews_bloc.dart';
@@ -104,6 +105,13 @@ void registerPatient(GetIt gi) {
       listPrescriptions: gi<ListMyPrescriptionsUseCase>(),
       getMyPharmacy: gi<GetMyPharmacyUseCase>(),
       createOrder: gi<CreatePharmacyOrderUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<PrescriptionsCubit>(
+    () => PrescriptionsCubit(
+      listPrescriptions: gi<ListMyPrescriptionsUseCase>(),
+      getDocumentSignedUrl: gi<GetDocumentSignedUrlUseCase>(),
     ),
   );
 
