@@ -132,13 +132,12 @@ pub async fn list_cabinet_team_messages(
             .await
             .map_err(|_| AppError::Internal)?;
 
-        let user_row = sqlx::query(
-            "SELECT first_name, last_name, email FROM app_user WHERE id = $1",
-        )
-        .bind(sender_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
+        let user_row =
+            sqlx::query("SELECT first_name, last_name, email FROM app_user WHERE id = $1")
+                .bind(sender_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
 
         if let Some(row) = user_row {
             let first_name: Option<String> =
@@ -172,8 +171,7 @@ pub async fn list_cabinet_team_messages(
             let provider_display_name: Option<String> = r
                 .try_get("provider_display_name")
                 .map_err(|_| AppError::Internal)?;
-            let role: Option<String> =
-                r.try_get("sender_role").map_err(|_| AppError::Internal)?;
+            let role: Option<String> = r.try_get("sender_role").map_err(|_| AppError::Internal)?;
 
             let sender_name = provider_display_name
                 .or_else(|| resolved_names.get(&sender_id).cloned())
