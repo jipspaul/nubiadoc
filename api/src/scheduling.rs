@@ -1040,7 +1040,10 @@ pub struct CreateCabinetAppointmentResponse {
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT, jamais du body.
 /// RLS scopé via `app.current_cabinet_id` : vérifie que le patient appartient
-/// au cabinet (404 sinon). Le créneau est résolu depuis `availability_slot`.
+/// au cabinet (404 sinon). Le créneau est résolu depuis `availability_slot` :
+/// absence (jamais existé, autre cabinet, supprimé) → `404 not_found` ;
+/// existant mais non réservable (`status <> 'open'` ou indispo praticien)
+/// → `409 slot_taken`.
 /// Contrainte d'exclusion DB (23P01) → `409 slot_taken`.
 /// Statut initial : `"requested"`.
 pub async fn create_cabinet_appointment(
@@ -1072,9 +1075,24 @@ pub async fn create_cabinet_appointment(
     let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
 
     // Résout le créneau pour starts_at / ends_at / practitioner_id.
-    // status = 'open' : un créneau blocked (indispo praticien) ou held (hold
-    // patient actif) ne doit pas être réservable par un walk-in cabinet, au
-    // même titre que claim_and_hold_slot() côté patient.
+    // Étape 1 : existence (id + cabinet_id + non supprimé) -> 404 si absent,
+    // qu'il n'ait jamais existé ou qu'il appartienne à un autre cabinet
+    // (anti-énumération, même code que le cas patient ci-dessus).
+    // Étape 2 : réservabilité — status = 'open' : un créneau blocked (indispo
+    // praticien) ou held (hold patient actif) ne doit pas être réservable par
+    // un walk-in cabinet, au même titre que claim_and_hold_slot() côté
+    // patient -> 409 slot_taken si le créneau existe mais n'est plus libre.
+    sqlx::query(
+        "SELECT id FROM availability_slot \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(body.slot_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
     let slot_row = sqlx::query(
         "SELECT starts_at, ends_at, practitioner_id \
          FROM availability_slot \
