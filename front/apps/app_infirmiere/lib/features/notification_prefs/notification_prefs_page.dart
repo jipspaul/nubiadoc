@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'notification_prefs_cubit.dart';
 
 /// Écran « Préférences de notifications » pro, accessible depuis le ⚙ de la
@@ -17,7 +18,10 @@ class NotificationPrefsPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => GetIt.instance<NotificationPrefsCubit>()..load(),
       child: Scaffold(
-        appBar: AppBar(title: const Text('Préférences de notifications')),
+        appBar: AppBar(
+          leading: backOrHomeLeading(context),
+          title: const Text('Préférences de notifications'),
+        ),
         body: const _PrefsBody(),
       ),
     );
