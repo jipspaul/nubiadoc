@@ -376,6 +376,7 @@ class _ThreadViewState extends State<_ThreadView> {
                       key: const Key('messaging_send_button'),
                       icon: Icons.send,
                       onPressed: _send,
+                      semanticLabel: 'Envoyer le message',
                     ),
             ],
           ),

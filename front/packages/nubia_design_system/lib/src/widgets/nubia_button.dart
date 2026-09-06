@@ -48,11 +48,14 @@ class NubiaButton extends StatelessWidget {
     this.icon,
     this.isLoading = false,
   })  : _iconOnly = false,
-        _diameter = 0;
+        _diameter = 0,
+        _semanticLabel = null;
 
   /// Variante icône seule, circulaire (ex : envoi de message) — sans label.
   ///
   /// [diameter] : diamètre du cercle (42 par défaut).
+  /// [semanticLabel] : nom accessible annoncé par les lecteurs d'écran,
+  /// puisqu'une icône seule n'a aucun texte à exposer à l'arbre Semantics.
   const NubiaButton.icon({
     super.key,
     required IconData this.icon,
@@ -60,10 +63,12 @@ class NubiaButton extends StatelessWidget {
     this.variant = NubiaButtonVariant.primary,
     this.isLoading = false,
     double diameter = 42,
+    String? semanticLabel,
   })  : label = '',
         size = NubiaButtonSize.md,
         _iconOnly = true,
-        _diameter = diameter;
+        _diameter = diameter,
+        _semanticLabel = semanticLabel;
 
   final String label;
   final VoidCallback? onPressed;
@@ -73,6 +78,7 @@ class NubiaButton extends StatelessWidget {
   final bool isLoading;
   final bool _iconOnly;
   final double _diameter;
+  final String? _semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +91,7 @@ class NubiaButton extends StatelessWidget {
         variant: variant,
         isLoading: isLoading,
         diameter: _diameter,
+        semanticLabel: _semanticLabel,
       );
     }
 
@@ -315,6 +322,7 @@ class _IconOnlyBtn extends StatelessWidget {
     required this.variant,
     required this.isLoading,
     required this.diameter,
+    this.semanticLabel,
   });
 
   final IconData icon;
@@ -322,6 +330,7 @@ class _IconOnlyBtn extends StatelessWidget {
   final NubiaButtonVariant variant;
   final bool isLoading;
   final double diameter;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -330,7 +339,7 @@ class _IconOnlyBtn extends StatelessWidget {
     final Color background = destructive ? cs.error : cs.primary;
     final Color foreground = destructive ? cs.onError : cs.onPrimary;
 
-    return SizedBox(
+    final Widget button = SizedBox(
       width: diameter,
       height: diameter,
       child: FilledButton(
@@ -355,6 +364,9 @@ class _IconOnlyBtn extends StatelessWidget {
             : Icon(icon, size: diameter * 0.48),
       ),
     );
+
+    if (semanticLabel == null) return button;
+    return Tooltip(message: semanticLabel!, child: button);
   }
 }
 
