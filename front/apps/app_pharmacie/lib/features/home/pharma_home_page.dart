@@ -28,7 +28,12 @@ import '../stock/stock_page.dart';
 /// La destination « Commandes » affiche la file (lot F4) ; les autres
 /// destinations gardent le placeholder du shell (lots F5–F6).
 class PharmaHomePage extends StatelessWidget {
-  const PharmaHomePage({super.key});
+  const PharmaHomePage({super.key, this.orderId});
+
+  /// Commande ouverte via `/orders/:id` (#6627) — non nul uniquement quand
+  /// cette instance vient de cette route. Pilote la sélection dans
+  /// [OrdersScreen] tout en gardant le rail sur la destination « Commandes ».
+  final String? orderId;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +55,12 @@ class PharmaHomePage extends StatelessWidget {
       // (navigation directe / reload / retour navigateur, #4813), et
       // `onNavigate` pousse l'URL via `context.go` quand l'utilisateur
       // clique une destination dans le rail/drawer.
-      currentRoute: GoRouterState.of(context).uri.path,
+      // #6627 — `/orders/:id` reste rattachée à la destination « Commandes »
+      // (l'URL ne matche `PharmaConfig.ordersRoute` qu'à l'exact), sinon plus
+      // aucune entrée du rail ne serait sélectionnée pendant la délivrance.
+      currentRoute: orderId != null
+          ? PharmaConfig.ordersRoute
+          : GoRouterState.of(context).uri.path,
       onNavigate: (destination) => context.go(destination.route),
       notificationRepository: GetIt.instance<NotificationRepository>(),
       // Lookup tolérant : les harnais de test enregistrent le repository
@@ -99,7 +109,7 @@ class PharmaHomePage extends StatelessWidget {
                   ..add(const PharmaMessagingConversationsLoadRequested()),
               ),
             ],
-            child: const OrdersScreen(),
+            child: OrdersScreen(selectedOrderId: orderId),
           );
         }
         if (destination.route == '/stock') {
