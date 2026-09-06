@@ -475,6 +475,7 @@ pub async fn list_cabinet_reviews(
 
 /// Corps de la requête `PATCH /v1/cabinet/reviews/:id`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModerateReviewBody {
     /// `published` ou `rejected` (transition depuis `pending`, cf. policy RLS `review_app_update`).
     pub status: String,

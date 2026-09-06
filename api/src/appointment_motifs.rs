@@ -154,6 +154,7 @@ pub async fn create_appointment_motif(
 
 /// Corps de la requête `PATCH /v1/cabinet/appointment-motifs/:id`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateAppointmentMotifBody {
     pub label: Option<String>,
     pub default_duration_minutes: Option<i32>,
