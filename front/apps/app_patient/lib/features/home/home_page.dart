@@ -406,9 +406,10 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconColor: cs.primary,
                   title: 'Mes ordonnances',
                   subtitle: null,
-                  // Pas de route ordonnances dédiée aujourd'hui (#5201) —
-                  // cible à confirmer avec le PO, on n'invente pas d'écran.
-                  onTap: null,
+                  // #6232 : l'API sert déjà la liste (GET
+                  // /v1/account/prescriptions) — `go()`, pas `push()` (cf.
+                  // hero_appointment_card.dart).
+                  onTap: () => context.go(AppRouter.prescriptions),
                 ),
               ),
               const SizedBox(width: 12),

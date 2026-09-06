@@ -19,6 +19,7 @@ import '../features/financial/financial_state.dart';
 import '../features/financial/widgets/financial_format_utils.dart';
 import '../features/documents/documents_page.dart';
 import '../features/home_care/home_care_request_page.dart';
+import '../features/prescriptions/prescriptions_page.dart';
 import '../features/home_care/home_care_requests_page.dart';
 import '../features/home_care/home_care_tracking_page.dart';
 import '../features/treatment_plans/treatment_plan_detail_page.dart';
@@ -85,6 +86,7 @@ class AppRouter {
   static const appointments = '/appointments';
   static const mesRdv = '/mes-rdv';
   static const documents = '/documents';
+  static const prescriptions = '/prescriptions';
   static const financial = '/financial';
   static const treatmentPlans = '/treatment-plans';
   static const profile = '/profile';
@@ -295,6 +297,19 @@ class AppRouter {
               title: const Text('Mes documents'),
             ),
             body: const DocumentsPage(),
+          ),
+        ),
+        GoRoute(
+          path: prescriptions,
+          // Même agencement que `documents` ci-dessus : `go()` depuis la
+          // tuile « Accès rapide » de l'accueil (#6232), `canPop()` donc
+          // faux.
+          builder: (context, __) => Scaffold(
+            appBar: AppBar(
+              leading: backOrHomeLeading(context),
+              title: const Text('Mes ordonnances'),
+            ),
+            body: const PrescriptionsPage(),
           ),
         ),
         GoRoute(
