@@ -614,7 +614,6 @@ class _DocumentCard extends StatelessWidget {
     final metaParts = [
       if (issuer != null && issuer.trim().isNotEmpty) issuer else label,
       if (size != null) size,
-      _formatShortDate(doc.createdAt),
     ];
     final meta = metaParts.join(' · ');
     final isNew = _isNew;

@@ -1,8 +1,11 @@
 // Issue #5218 — la carte document n'affichait pas de repère temporel : un
 // patient qui cherche « l'ordonnance de la semaine dernière » n'avait aucune
-// date. La date de dépôt (createdAt) devient le dernier élément de la méta,
-// au format court FR (ex. « 10 août »), y compris quand la taille est
-// inconnue (pas de « 0 Ko »).
+// date. La date de dépôt (createdAt) est affichée au format court FR
+// (ex. « 10 août ») dans le titre de la carte (« Ordonnance du 10 août »).
+// Issue #6545 — elle n'est plus dupliquée dans la méta (qui ellipsait sur
+// toutes les cartes au viewport mobile cible) : la méta reste
+// « émetteur · taille », y compris quand la taille est inconnue (pas de
+// « 0 Ko »).
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,8 +63,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('la date de dépôt est affichée au format court FR',
-      (tester) async {
+  testWidgets(
+      'la date de dépôt est affichée au format court FR dans le titre, '
+      'pas dans la méta', (tester) async {
     await pump(
       tester,
       [
@@ -73,11 +77,13 @@ void main() {
       ],
     );
 
+    expect(find.textContaining('Ordonnance du 10 août'), findsOneWidget);
     expect(find.textContaining('Ordonnance · 100 Ko · 10 août'),
-        findsOneWidget);
+        findsNothing);
+    expect(find.textContaining('Ordonnance · 100 Ko'), findsOneWidget);
   });
 
-  testWidgets('taille inconnue → la date reste affichée sans « 0 Ko »',
+  testWidgets('taille inconnue → pas de « 0 Ko » dans la méta',
       (tester) async {
     await pump(
       tester,
@@ -85,6 +91,6 @@ void main() {
     );
 
     expect(find.textContaining('0 Ko'), findsNothing);
-    expect(find.textContaining('Ordonnance · 10 août'), findsOneWidget);
+    expect(find.textContaining('Ordonnance du 10 août'), findsOneWidget);
   });
 }

@@ -344,8 +344,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('0 Ko'), findsNothing);
-      // Le libellé de catégorie et la date restent affichés, sans taille.
-      expect(find.textContaining('Ordonnance · 1 janv.'), findsOneWidget);
+      // Le titre porte la date ; sans taille ni émetteur, la méta retombe
+      // sur le seul libellé de catégorie.
+      expect(find.textContaining('Ordonnance du 1 janv.'), findsOneWidget);
     });
   });
 
