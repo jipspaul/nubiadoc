@@ -191,6 +191,68 @@ void main() {
       );
     });
 
+    test(
+        'préfère le nom complet du RDV du jour aux initiales renvoyées par '
+        'la salle d\'attente (#6576)', () async {
+      final arrivedAt = DateTime.now().subtract(const Duration(minutes: 507));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/appointments',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer((invocation) async {
+        final params = invocation.namedArguments[#queryParameters]
+            as Map<String, dynamic>?;
+        if (params?['status'] == 'requested') {
+          return fakeResponse(const []);
+        }
+        return fakeResponse([
+          {
+            'id': 'appt-1',
+            'patient_id': 'pat-1',
+            'patient_name': 'Marc Dubois',
+            'practitioner_id': 'prac-1',
+            'practitioner_name': 'Dr. Marin',
+            'starts_at': '2026-09-05T14:11:00.000Z',
+            'duration_minutes': 20,
+            'motif': 'Contrôle',
+            'status': 'in_progress',
+          },
+        ]);
+      });
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/waiting-room',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse([
+            {
+              'appointment_id': 'appt-1',
+              'patient_id': 'pat-1',
+              // Reproduit le payload live de #6576 : `/cabinet/waiting-room`
+              // ne renvoie que les initiales, jamais le nom complet.
+              'patient_name_initials': 'MD',
+              'checkin_at': arrivedAt.toIso8601String(),
+            },
+          ]));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/conversations',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+
+      final summary = await CabinetDashboardApi(apiClient).getSummary();
+
+      expect(
+        summary.nextPatientName,
+        'Marc Dubois',
+        reason: 'le héros doit afficher le nom complet, comme la liste '
+            '"Journée" alimentée par le même RDV, pas les initiales de la '
+            'salle d\'attente',
+      );
+    });
+
     test('nextPatient est absent quand la salle d\'attente est vide', () async {
       when(
         () => dio.get<Map<String, dynamic>>(
