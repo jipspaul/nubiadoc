@@ -250,11 +250,13 @@ pub(crate) enum AppError {
     /// couple (requester, email/téléphone) — contrôle applicatif, comme
     /// `DuplicateDependent`.
     DuplicateAccessRequest,
-    /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` (#4481) : l'acte
-    /// est référencé par un `stock_movement` ou un `sterilized_pouch` (FK
-    /// composite `(consultation_act_id, cabinet_id)` sans `ON DELETE`,
-    /// migrations 0190/0192) — pré-vérifié pour éviter de laisser remonter
-    /// la violation FK Postgres (23503) en 500.
+    /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` (#4481, restreint
+    /// à `sterilized_pouch` par #6618 — un `stock_movement` est désormais
+    /// défait plutôt que de bloquer, cf. `consultation_act_stock::reverse_stock_consumption`) :
+    /// l'acte est référencé par une pochette de stérilisation (FK composite
+    /// `(consultation_act_id, cabinet_id)` sans `ON DELETE`, migration 0190)
+    /// — pré-vérifié pour éviter de laisser remonter la violation FK
+    /// Postgres (23503) en 500.
     ActLinkedToStock,
     /// `POST /v1/account/visit-requests` (#5724) : le patient a déjà une
     /// demande de visite infirmière active (index unique partiel, migration
