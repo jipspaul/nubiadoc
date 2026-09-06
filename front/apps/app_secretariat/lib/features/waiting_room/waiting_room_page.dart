@@ -103,6 +103,7 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
                     itemBuilder: (_, i) => _WaitingEntryTile(
                       entry: entries[i],
                       position: i + 1,
+                      actionInProgress: state.actionInProgress,
                     ),
                   ),
                 ),
@@ -190,7 +191,9 @@ class WaitingRoomPage extends StatelessWidget {
   static void _callNext(BuildContext context) {
     final bloc = context.read<WaitingRoomBloc>();
     final state = bloc.state;
-    if (state is WaitingRoomLoaded && state.entries.isNotEmpty) {
+    if (state is WaitingRoomLoaded &&
+        state.entries.isNotEmpty &&
+        !state.actionInProgress) {
       bloc.add(const WaitingRoomCallNextRequested());
     }
   }
@@ -249,6 +252,7 @@ class WaitingRoomPage extends StatelessWidget {
               builder: (context, state) {
                 final hasPatients =
                     state is WaitingRoomLoaded && state.entries.isNotEmpty;
+                final canCall = hasPatients && !state.actionInProgress;
                 final label = hasPatients
                     ? NubiaL10n.callNextNamed(state.entries.first.patientName)
                     : NubiaL10n.callNext;
@@ -258,7 +262,7 @@ class WaitingRoomPage extends StatelessWidget {
                     key: const Key('waiting_room_call_next_button'),
                     label: label,
                     icon: Icons.skip_next,
-                    onPressed: hasPatients ? () => _callNext(context) : null,
+                    onPressed: canCall ? () => _callNext(context) : null,
                   ),
                 );
               },
@@ -327,10 +331,18 @@ class _FreshnessIndicatorState extends State<_FreshnessIndicator> {
 }
 
 class _WaitingEntryTile extends StatelessWidget {
-  const _WaitingEntryTile({required this.entry, required this.position});
+  const _WaitingEntryTile({
+    required this.entry,
+    required this.position,
+    required this.actionInProgress,
+  });
 
   final WaitingRoomEntry entry;
   final int position;
+
+  /// Une action (appel suivant/ligne) est déjà en cours côté back — désactive
+  /// le bouton « Appeler » de la ligne pour éviter le double-appel (#6637).
+  final bool actionInProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -406,9 +418,11 @@ class _WaitingEntryTile extends StatelessWidget {
               variant: isNext
                   ? NubiaButtonVariant.primary
                   : NubiaButtonVariant.secondary,
-              onPressed: () => context
-                  .read<WaitingRoomBloc>()
-                  .add(WaitingRoomCallRequested(entry.id)),
+              onPressed: actionInProgress
+                  ? null
+                  : () => context
+                      .read<WaitingRoomBloc>()
+                      .add(WaitingRoomCallRequested(entry.id)),
             ),
           ],
         ],
