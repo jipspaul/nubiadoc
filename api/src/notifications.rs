@@ -81,6 +81,16 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
         // cabinet sans route de détail par id (cf. `cabinet_quotes.rs` et
         // `quote_relance_dispatch.rs` qui n'émettent que `quote_id` en data).
         "quote_received" | "quote_relance" => Some("/financial".to_string()),
+        // Demande d'avis post-consultation (#4152, émise par
+        // `consultations::complete_consultation`) — #6624 : jusqu'ici `None`,
+        // donc aucune action sous la notification et aucun moyen d'atteindre
+        // l'écran de saisie. `/reviews` accepte déjà `providerId` en query
+        // (liste en lecture seule) ; `appointmentId` bascule le front sur le
+        // formulaire de soumission (cf. `ReviewsPage` côté app_patient).
+        "review_request" => {
+            let id = data.get("appointment_id")?.as_str()?;
+            Some(format!("/reviews?appointmentId={id}"))
+        }
         _ => None,
     }
 }
@@ -690,5 +700,21 @@ mod tests {
             derive_deep_link("quote_relance", &data),
             Some("/financial".to_string())
         );
+    }
+
+    #[test]
+    fn review_request_derives_reviews_submit_deep_link() {
+        let appointment_id = uuid::Uuid::new_v4();
+        let data = serde_json::json!({ "appointment_id": appointment_id });
+        assert_eq!(
+            derive_deep_link("review_request", &data),
+            Some(format!("/reviews?appointmentId={appointment_id}"))
+        );
+    }
+
+    #[test]
+    fn review_request_without_appointment_id_yields_no_deep_link() {
+        let data = serde_json::json!({});
+        assert!(derive_deep_link("review_request", &data).is_none());
     }
 }

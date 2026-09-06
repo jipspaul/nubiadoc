@@ -77,6 +77,14 @@ Widget _wrapReviews(ReviewsBloc bloc) => MaterialApp(
       ),
     );
 
+Widget _wrapReviewSubmitForm(ReviewsBloc bloc, {String appointmentId = 'appt-1'}) =>
+    MaterialApp(
+      home: BlocProvider.value(
+        value: bloc,
+        child: Scaffold(body: ReviewsPage(appointmentId: appointmentId)),
+      ),
+    );
+
 Widget _wrapNotifications(NotificationsBloc bloc) => MaterialApp(
       theme: NubiaTheme.light,
       home: BlocProvider.value(
@@ -242,6 +250,81 @@ void main() {
             .having((s) => s.message, 'message', 'Erreur réseau.'),
       ],
     );
+  });
+
+  // --------------------------------------------------------------------------
+  // Tests — ReviewsPage(appointmentId: ...) — formulaire de soumission (#6624)
+  // --------------------------------------------------------------------------
+
+  group('ReviewsPage submit form', () {
+    testWidgets('affiche le formulaire sans appel réseau', (tester) async {
+      final bloc = _makeReviewsBloc(
+        getProviderReviews: mockGetReviews,
+        submitReview: mockSubmitReview,
+      );
+
+      await tester.pumpWidget(_wrapReviewSubmitForm(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('reviews_submit_form')), findsOneWidget);
+      verifyNever(() => mockGetReviews(any()));
+    });
+
+    testWidgets('bouton envoyer désactivé tant qu\'aucune note n\'est choisie',
+        (tester) async {
+      final bloc = _makeReviewsBloc(
+        getProviderReviews: mockGetReviews,
+        submitReview: mockSubmitReview,
+      );
+
+      await tester.pumpWidget(_wrapReviewSubmitForm(bloc));
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('reviews_submit_button')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('sélectionner une note puis envoyer dispatch ReviewSubmitRequested',
+        (tester) async {
+      when(() => mockSubmitReview(
+            appointmentId: any(named: 'appointmentId'),
+            rating: any(named: 'rating'),
+            comment: any(named: 'comment'),
+            idempotencyKey: any(named: 'idempotencyKey'),
+          )).thenAnswer((_) async => Right(_review));
+
+      final bloc = _makeReviewsBloc(
+        getProviderReviews: mockGetReviews,
+        submitReview: mockSubmitReview,
+      );
+
+      await tester.pumpWidget(_wrapReviewSubmitForm(bloc, appointmentId: 'appt-9'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('reviews_submit_star_4')));
+      await tester.pump();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('reviews_submit_button')),
+      );
+      expect(button.onPressed, isNotNull);
+
+      await tester.tap(find.byKey(const Key('reviews_submit_button')));
+      await tester.pumpAndSettle();
+
+      final captured = verify(() => mockSubmitReview(
+            appointmentId: captureAny(named: 'appointmentId'),
+            rating: captureAny(named: 'rating'),
+            comment: captureAny(named: 'comment'),
+            idempotencyKey: captureAny(named: 'idempotencyKey'),
+          )).captured;
+      expect(captured[0], 'appt-9');
+      expect(captured[1], 4);
+
+      expect(find.byKey(const Key('reviews_submit_success')), findsOneWidget);
+    });
   });
 
   // --------------------------------------------------------------------------

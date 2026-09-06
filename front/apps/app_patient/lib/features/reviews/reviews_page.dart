@@ -7,32 +7,23 @@ import 'reviews_bloc.dart';
 import 'reviews_event.dart';
 import 'reviews_state.dart';
 
-/// Page affichant les avis d'un prestataire et permettant d'en soumettre un.
+/// Page affichant les avis d'un prestataire, ou le formulaire de saisie d'un
+/// nouvel avis quand [appointmentId] est fourni (arrivée via le deep-link de
+/// la notification `review_request`, #6624).
 ///
 /// Doit être placée dans un [BlocProvider<ReviewsBloc>].
-/// Le caller ajoute [ReviewsLoadRequested] via le callback `create` du BlocProvider.
+/// Le caller ajoute [ReviewsLoadRequested] via le callback `create` du
+/// BlocProvider (uniquement en mode liste — pas d'appel réseau nécessaire
+/// pour afficher un formulaire vierge).
 class ReviewsPage extends StatelessWidget {
-  const ReviewsPage({super.key});
+  const ReviewsPage({super.key, this.appointmentId});
+
+  final String? appointmentId;
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ReviewsBloc, ReviewsState>(
       builder: (context, state) {
-        if (state is ReviewsInitial || state is ReviewsLoading) {
-          return const Center(
-            key: Key('reviews_loading'),
-            child: CircularProgressIndicator(),
-          );
-        }
-        if (state is ReviewsError) {
-          return NubiaErrorWidget(
-            key: const Key('reviews_error'),
-            message: state.message,
-            onRetry: () => context
-                .read<ReviewsBloc>()
-                .add(ReviewsLoadRequested(state.providerId)),
-          );
-        }
         if (state is ReviewSubmitting) {
           return const Center(
             key: Key('reviews_submitting'),
@@ -51,11 +42,115 @@ class ReviewsPage extends StatelessWidget {
             child: Text(state.message),
           );
         }
+        if (appointmentId != null) {
+          return _ReviewSubmitForm(appointmentId: appointmentId!);
+        }
+        if (state is ReviewsInitial || state is ReviewsLoading) {
+          return const Center(
+            key: Key('reviews_loading'),
+            child: CircularProgressIndicator(),
+          );
+        }
+        if (state is ReviewsError) {
+          return NubiaErrorWidget(
+            key: const Key('reviews_error'),
+            message: state.message,
+            onRetry: () => context
+                .read<ReviewsBloc>()
+                .add(ReviewsLoadRequested(state.providerId)),
+          );
+        }
         if (state is ReviewsLoaded) {
           return _ReviewsContent(reviews: state.reviews);
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Formulaire de saisie d'un avis (note 1-5 + commentaire optionnel) pour un
+/// rendez-vous donné — appelle `POST /v1/reviews` via [ReviewSubmitRequested].
+class _ReviewSubmitForm extends StatefulWidget {
+  const _ReviewSubmitForm({required this.appointmentId});
+
+  final String appointmentId;
+
+  @override
+  State<_ReviewSubmitForm> createState() => _ReviewSubmitFormState();
+}
+
+class _ReviewSubmitFormState extends State<_ReviewSubmitForm> {
+  final _commentController = TextEditingController();
+  int _rating = 0;
+
+  // Généré une seule fois par formulaire : un nouveau tap sur "Envoyer"
+  // (ex. après échec réseau) doit rejouer la même clé pour rester idempotent.
+  late final String _idempotencyKey =
+      '${widget.appointmentId}-review-${DateTime.now().microsecondsSinceEpoch}';
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      key: const Key('reviews_submit_form'),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            "Comment s'est passé votre rendez-vous ?",
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(5, (i) {
+              final value = i + 1;
+              return IconButton(
+                key: Key('reviews_submit_star_$value'),
+                iconSize: 32,
+                icon: Icon(
+                  value <= _rating ? Icons.star : Icons.star_border,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                onPressed: () => setState(() => _rating = value),
+              );
+            }),
+          ),
+          const SizedBox(height: 16),
+          NubiaTextField(
+            key: const Key('reviews_submit_comment'),
+            controller: _commentController,
+            label: 'Commentaire (optionnel)',
+            variant: NubiaTextFieldVariant.multiline,
+          ),
+          const SizedBox(height: 20),
+          NubiaButton(
+            key: const Key('reviews_submit_button'),
+            label: 'Envoyer mon avis',
+            onPressed: _rating == 0
+                ? null
+                : () => context.read<ReviewsBloc>().add(
+                      ReviewSubmitRequested(
+                        appointmentId: widget.appointmentId,
+                        rating: _rating,
+                        comment: _commentController.text.trim().isEmpty
+                            ? null
+                            : _commentController.text.trim(),
+                        idempotencyKey: _idempotencyKey,
+                      ),
+                    ),
+          ),
+        ],
+      ),
     );
   }
 }
