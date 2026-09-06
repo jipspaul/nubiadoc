@@ -365,6 +365,17 @@ class _NotificationTile extends StatelessWidget {
     String? kind,
     String? status,
   ) {
+    // Demande d'avis post-consultation (#6624) : partage le bucket
+    // NotificationType.message (cf. NotificationDto._parseType) avec les
+    // messages, distinguée ici par `kind` pour pointer vers le formulaire de
+    // saisie plutôt que la messagerie.
+    if (kind == 'review_request') {
+      return (
+        label: 'Donner mon avis',
+        icon: Icons.rate_review_outlined,
+        variant: NubiaButtonVariant.primary,
+      );
+    }
     if (kind != null &&
         (kind.startsWith('pharmacy_quote') ||
             kind == 'quote_received' ||

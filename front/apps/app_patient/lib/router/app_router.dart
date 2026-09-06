@@ -433,15 +433,23 @@ class AppRouter {
           path: reviews,
           builder: (context, state) {
             final providerId = state.uri.queryParameters['providerId'] ?? '';
+            // `appointmentId` (deep-link `review_request`, #6624) bascule sur
+            // le formulaire de soumission : pas de liste à charger dans ce cas.
+            final appointmentId = state.uri.queryParameters['appointmentId'];
             return BlocProvider(
-              create: (_) => GetIt.instance<ReviewsBloc>()
-                ..add(ReviewsLoadRequested(providerId)),
+              create: (_) {
+                final bloc = GetIt.instance<ReviewsBloc>();
+                if (appointmentId == null) {
+                  bloc.add(ReviewsLoadRequested(providerId));
+                }
+                return bloc;
+              },
               child: Scaffold(
                 appBar: AppBar(
                   leading: backOrHomeLeading(context),
                   title: const Text('Avis'),
                 ),
-                body: const ReviewsPage(),
+                body: ReviewsPage(appointmentId: appointmentId),
               ),
             );
           },
