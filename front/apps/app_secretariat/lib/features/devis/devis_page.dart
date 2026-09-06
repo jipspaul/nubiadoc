@@ -190,26 +190,13 @@ class _DevisPageState extends State<DevisPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const DevisTableHeader(),
                 Expanded(
-                  child: filteredQuotes.isEmpty
-                      ? const NubiaEmptyState(
-                          icon: Icons.search_off,
-                          title: 'Aucun résultat',
-                          subtitle:
-                              'Aucun devis ne correspond à ce filtre.',
-                        )
-                      : ListView.builder(
-                          itemCount: filteredQuotes.length,
-                          itemBuilder: (ctx, i) => DevisTableRow(
-                            quote: filteredQuotes[i],
-                            onTap: () => _selectQuote(filteredQuotes[i].id),
-                            active:
-                                _selectedQuoteId == filteredQuotes[i].id,
-                            actionLoading:
-                                sendingId == filteredQuotes[i].id,
-                          ),
-                        ),
+                  child: DevisTable(
+                    quotes: filteredQuotes,
+                    onQuoteTap: _selectQuote,
+                    selectedQuoteId: _selectedQuoteId,
+                    sendingQuoteId: sendingId,
+                  ),
                 ),
               ],
             );
