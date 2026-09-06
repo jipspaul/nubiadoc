@@ -1629,6 +1629,95 @@ void main() {
     });
 
     testWidgets(
+        '#6589 : le volet porte la ventilation « Reste à charge patient » et '
+        'le bloc « Suivi » de la maquette, sans passer par /devis/:id',
+        (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      final sheet = find.byKey(const Key('devis_sheet_q1'));
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.textContaining('Reste à charge patient · sur'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.text(NubiaMoney.formatCents(quote.patientShareCents)),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.byKey(const Key('quote_timeline'))),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.text('Devis créé')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        '#6589 : la barre de ventilation AMO/AMC se rend dans le volet '
+        'quand le devis porte ses lignes', (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final quoteWithItems = CabinetQuote(
+        id: 'q1',
+        quoteRef: 'q1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Julie Martin',
+        totalCents: 43592,
+        patientShareCents: 14850,
+        status: CabinetQuoteStatus.sent,
+        createdAt: DateTime(2026, 8, 4),
+        items: const [
+          QuoteLineItem(
+            id: 'l1',
+            label: 'Acte 1',
+            totalCents: 43592,
+            amoShareCents: 16566,
+            amcShareCents: 12176,
+            patientShareCents: 14850,
+          ),
+        ],
+      );
+      when(() => repo.getById(any()))
+          .thenAnswer((_) async => Right(quoteWithItems));
+      when(() => bloc.state).thenReturn(DevisLoaded([quoteWithItems]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      final sheet = find.byKey(const Key('devis_sheet_q1'));
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.byKey(const Key('ventilation_bar')),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
         '#6579 : volet ouvert sur une largeur disponible étroite (1029px, '
         'soit 1280 − rail) — l\'en-tête Patient reste horizontal et le nom '
         'patient n\'est pas tronqué à une lettre', (tester) async {
