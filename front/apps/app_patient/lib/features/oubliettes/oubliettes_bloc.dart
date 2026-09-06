@@ -114,7 +114,7 @@ class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState>
               .take(_recentLimit)
               .map((d) => OublietteItem(
                     id: d.id,
-                    title: d.name,
+                    title: _title(d),
                     seenAt: d.createdAt,
                   ))
               .toList();
@@ -124,5 +124,60 @@ class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState>
     } catch (_) {
       safeEmit(const OubliettesError('Erreur lors du chargement.'));
     }
+  }
+
+  // Titre lisible pour le patient : jamais le nom de fichier technique
+  // (souvent un UUID généré par la chaîne d'ingestion, ex.
+  // « ordonnance-<uuid>.pdf », indiscernable des autres) — composé à partir
+  // de la catégorie et de la date de dépôt, comme sur l'écran documents
+  // (#6527).
+  static String _title(Document d) =>
+      '${_categoryLabel(d.category)} du ${_formatShortDate(d.createdAt)}';
+}
+
+const _shortMonthsFr = [
+  'janv.',
+  'févr.',
+  'mars',
+  'avr.',
+  'mai',
+  'juin',
+  'juil.',
+  'août',
+  'sept.',
+  'oct.',
+  'nov.',
+  'déc.',
+];
+
+String _formatShortDate(DateTime date) =>
+    '${date.day} ${_shortMonthsFr[date.month - 1]}';
+
+String _categoryLabel(DocumentCategory category) {
+  switch (category) {
+    case DocumentCategory.quote:
+      return 'Devis';
+    case DocumentCategory.invoice:
+      return 'Facture';
+    case DocumentCategory.prescription:
+      return 'Ordonnance';
+    case DocumentCategory.xray:
+      return 'Radio';
+    case DocumentCategory.cbct:
+      return 'CBCT';
+    case DocumentCategory.photo:
+      return 'Photo';
+    case DocumentCategory.report:
+      return 'Compte-rendu';
+    case DocumentCategory.consent:
+      return 'Consentement';
+    case DocumentCategory.instructions:
+      return 'Consigne';
+    case DocumentCategory.mutualCard:
+      return 'Carte mutuelle';
+    case DocumentCategory.vitalCard:
+      return 'Carte vitale';
+    case DocumentCategory.other:
+      return 'Autre';
   }
 }
