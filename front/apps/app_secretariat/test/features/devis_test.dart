@@ -1431,6 +1431,11 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
+      // #6579 : la table défile désormais horizontalement sous sa largeur
+      // minimale (912px) — la surface de test par défaut (800px) est plus
+      // étroite, la colonne Action n'est donc pas dans le viewport initial.
+      await tester.ensureVisible(find.text('Envoyer'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Envoyer'));
       await tester.pumpAndSettle();
 
@@ -1451,6 +1456,9 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
+      // #6579 : cf. commentaire équivalent du test « Envoyer » ci-dessus.
+      await tester.ensureVisible(find.text('Relancer'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Relancer'));
       await tester.pumpAndSettle();
 
@@ -1576,6 +1584,49 @@ void main() {
         find.text(
           'Cloisonnement secrétariat : les montants et le statut sont '
           "visibles, le détail clinique des actes ne l'est pas.",
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        '#6579 : volet ouvert sur une largeur disponible étroite (1029px, '
+        'soit 1280 − rail) — l\'en-tête Patient reste horizontal et le nom '
+        'patient n\'est pas tronqué à une lettre', (tester) async {
+      tester.view.physicalSize = const Size(1100, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: SizedBox(
+            width: 1029,
+            child: BlocProvider<DevisBloc>.value(
+              value: bloc,
+              child: const DevisPage(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('devis_sheet_q1')), findsOneWidget);
+      // Avant #6579 : la colonne Patient (Expanded) tombait à 0/négatif à
+      // cette largeur, faisant rendre l'en-tête verticalement (une lettre
+      // par ligne, ~130px de haut au lieu de ~24px) et tronquant le nom
+      // patient à une lettre.
+      final headerHeight = tester.getSize(find.byType(DevisTableHeader)).height;
+      expect(headerHeight, lessThan(60));
+      expect(
+        find.descendant(
+          of: find.byType(DevisTableRow),
+          matching: find.text('Julie Martin'),
         ),
         findsOneWidget,
       );
