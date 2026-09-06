@@ -30,6 +30,7 @@ use crate::{
         ProSecretaryPlusClaims,
     },
     notify,
+    pharmacy::quotes::expire_sent_quotes_for_order,
     realtime::WsHub,
     AppState, JobDispatcher, StorageSigner,
 };
@@ -1037,6 +1038,10 @@ struct Transition<'a> {
     update_sql: &'a str,
     action: &'a str,
     reason: Option<&'a str>,
+    /// La commande devient terminale (`rejected`) : tout devis d'officine
+    /// encore `sent` ancré dessus doit expirer dans la même transaction,
+    /// sinon il reste indécidable à vie côté patient (#6588).
+    expire_quotes: bool,
 }
 
 async fn pharmacy_transition(
@@ -1053,6 +1058,7 @@ async fn pharmacy_transition(
         update_sql,
         action,
         reason,
+        expire_quotes,
     } = t;
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
@@ -1087,6 +1093,10 @@ async fn pharmacy_transition(
     };
 
     let order = order_from_row(&row)?;
+
+    if expire_quotes {
+        expire_sent_quotes_for_order(&mut tx, order_id).await?;
+    }
 
     // Audit dans le journal du cabinet d'origine (valeurs DB, jamais client).
     let anchors =
@@ -1178,6 +1188,7 @@ pub async fn accept_pharmacy_order(
             ),
             action: "accept_pharmacy_order",
             reason: None,
+            expire_quotes: false,
         },
     )
     .await?;
@@ -1209,6 +1220,7 @@ pub async fn ready_pharmacy_order(
             ),
             action: "ready_pharmacy_order",
             reason: None,
+            expire_quotes: false,
         },
     )
     .await?;
@@ -1255,6 +1267,7 @@ pub async fn reject_pharmacy_order(
             ),
             action: "reject_pharmacy_order",
             reason: Some(reason),
+            expire_quotes: true,
         },
     )
     .await?;
@@ -1303,6 +1316,16 @@ pub async fn cancel_account_order(
     };
 
     let order = order_from_row(&row)?;
+
+    // Ancre le GUC pharmacie pour satisfaire la policy RLS pharmacie de
+    // pharmacy_quote (le patient n'a pas le droit d'y écrire `expired` — même
+    // schéma que le GUC cabinet ci-dessous pour audit_log).
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(order.pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    expire_sent_quotes_for_order(&mut tx, id).await?;
 
     let cabinet_id: Uuid = sqlx::query("SELECT cabinet_id FROM pharmacy_order WHERE id = $1")
         .bind(id)
@@ -1625,6 +1648,8 @@ pub async fn pickup_scan(
     .map_err(|_| AppError::Internal)?;
 
     let order = order_from_row(&row)?;
+
+    expire_sent_quotes_for_order(&mut tx, order.id).await?;
 
     let anchors =
         sqlx::query("SELECT cabinet_id, patient_account_id FROM pharmacy_order WHERE id = $1")

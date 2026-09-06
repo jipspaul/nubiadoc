@@ -543,3 +543,163 @@ async fn create_on_terminal_order_returns_409() {
         assert_eq!(body["code"], "invalid_status");
     }
 }
+
+// ── Tests (#6588) : la commande d'ancrage devient terminale APRÈS l'envoi du
+// devis → celui-ci doit sortir de `sent` (vers `expired`) au lieu de rester
+// indéfiniment "à signer" alors qu'`accept`/`refuse` répondent tous deux 409
+// (aucune route de sortie, ni patient ni pharmacie) ──────────────────────────
+
+/// Crée un devis (1 ligne quelconque) sur `order_id` et l'envoie : draft → sent.
+async fn send_quote(pharmacist: &str, order_id: Uuid) -> String {
+    let (status, quote) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        pharmacist,
+        Some(json!({"order_id": order_id,
+                    "items": [{"label": "X", "qty": 1, "unit_price_cents": 100}]})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {quote}");
+    let id = quote["id"].as_str().unwrap().to_string();
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{id}/send"),
+        pharmacist,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    id
+}
+
+#[tokio::test]
+async fn picked_up_order_expires_pending_quote() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharmacist = pharma_jwt(fx.pharmacy_id, "pharmacist");
+    let member = pharma_jwt(fx.pharmacy_id, "preparator");
+    let patient = patient_jwt(fx.user_id, fx.account_id);
+
+    let id = send_quote(&pharmacist, fx.order_id).await;
+
+    // received → preparing → ready, puis retrait (parcours normal).
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/accept", fx.order_id),
+        &member,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/ready", fx.order_id),
+        &member,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, token_body) = call(
+        "GET",
+        &format!("/v1/account/orders/{}/pickup-token", fx.order_id),
+        &patient,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let token = token_body["token"].as_str().unwrap().to_string();
+
+    let (status, order) = call(
+        "POST",
+        "/v1/pharmacy/orders/pickup-scan",
+        &member,
+        Some(json!({"token": token, "expected_order_id": fx.order_id})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {order}");
+    assert_eq!(order["status"], "picked_up");
+
+    // Le devis ne doit plus rester "sent" — sinon Accepter/Refuser restent
+    // peints actifs côté patient (PharmacyQuote.isDecidable) alors que les
+    // deux répondent 409 à vie.
+    let (status, list) = call("GET", "/v1/account/pharmacy-quotes", &patient, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let quote = list["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|q| q["id"] == id)
+        .unwrap();
+    assert_eq!(quote["status"], "expired", "body: {quote}");
+    assert!(quote["decided_at"].is_string());
+}
+
+#[tokio::test]
+async fn rejected_order_expires_pending_quote() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharmacist = pharma_jwt(fx.pharmacy_id, "pharmacist");
+    let patient = patient_jwt(fx.user_id, fx.account_id);
+
+    let id = send_quote(&pharmacist, fx.order_id).await;
+
+    let (status, order) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/reject", fx.order_id),
+        &pharmacist,
+        Some(json!({"reason": "Rupture de stock"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {order}");
+    assert_eq!(order["status"], "rejected");
+
+    let (status, list) = call("GET", "/v1/account/pharmacy-quotes", &patient, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let quote = list["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|q| q["id"] == id)
+        .unwrap();
+    assert_eq!(quote["status"], "expired", "body: {quote}");
+}
+
+#[tokio::test]
+async fn cancelled_order_expires_pending_quote() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharmacist = pharma_jwt(fx.pharmacy_id, "pharmacist");
+    let patient = patient_jwt(fx.user_id, fx.account_id);
+
+    let id = send_quote(&pharmacist, fx.order_id).await;
+
+    let (status, order) = call(
+        "POST",
+        &format!("/v1/account/orders/{}/cancel", fx.order_id),
+        &patient,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {order}");
+    assert_eq!(order["status"], "cancelled");
+
+    let (status, list) = call("GET", "/v1/account/pharmacy-quotes", &patient, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let quote = list["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|q| q["id"] == id)
+        .unwrap();
+    assert_eq!(quote["status"], "expired", "body: {quote}");
+}
