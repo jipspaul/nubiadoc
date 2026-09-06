@@ -271,10 +271,14 @@ pub async fn complete_consultation(
             // calendrier de relance J+3/J+7.
             // #6204 : appointment_id posé dès la création — restitue la
             // facture du RDV dans GET /v1/appointments (chip « Facture »).
+            // #6573 : practitioner_id (praticien de la séance clôturée, déjà
+            // vérifié plus haut) posé dès la création — sans quoi ce devis,
+            // pourtant le plus fréquent, restait anonyme (practitioner_name
+            // null) côté patient malgré #6570.
             "INSERT INTO quote \
              (cabinet_id, patient_id, status, total_amount, currency, sent_at, \
-              billed_to_account_id, appointment_id) \
-             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR', now(), $4, $5) \
+              billed_to_account_id, appointment_id, practitioner_id) \
+             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR', now(), $4, $5, $6) \
              RETURNING id",
         )
         .bind(claims.cabinet_id)
@@ -282,6 +286,7 @@ pub async fn complete_consultation(
         .bind(total_cents)
         .bind(billed_to_account_id)
         .bind(appointment_id)
+        .bind(practitioner_id)
         .fetch_one(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;

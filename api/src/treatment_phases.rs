@@ -235,13 +235,29 @@ pub async fn create_treatment_phase(
             .map(|act| i64::from(act.amount_cents))
             .sum();
 
+        // Praticien émetteur (#6563/#6573) : même résolution que
+        // cabinet_quotes.rs::create_cabinet_quote — `NULL` si le créateur n'a
+        // pas de fiche `practitioner` (rôles admin/manager autorisés par
+        // `ProPractitionerClaims` mais non cliniciens).
+        let practitioner_id: Option<Uuid> =
+            sqlx::query("SELECT id FROM practitioner WHERE cabinet_id = $1 AND user_id = $2")
+                .bind(claims.cabinet_id)
+                .bind(claims.sub)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+                .map(|row| row.try_get("id"))
+                .transpose()
+                .map_err(|_| AppError::Internal)?;
+
         let quote_id: Uuid = sqlx::query(
-            "INSERT INTO quote (cabinet_id, patient_id, status, total_amount, currency) \
-             VALUES ($1, $2, 'draft', $3::numeric / 100, 'EUR') RETURNING id",
+            "INSERT INTO quote (cabinet_id, patient_id, status, total_amount, currency, practitioner_id) \
+             VALUES ($1, $2, 'draft', $3::numeric / 100, 'EUR', $4) RETURNING id",
         )
         .bind(claims.cabinet_id)
         .bind(patient_id)
         .bind(total_cents)
+        .bind(practitioner_id)
         .fetch_one(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?
