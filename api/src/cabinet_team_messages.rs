@@ -7,6 +7,8 @@
 //! staff voit tous les messages), cohérent avec le schéma minimal de la
 //! table (`sender_id`, `body`, pas de `recipient_id`/`thread_id`).
 
+use std::collections::HashMap;
+
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -21,16 +23,32 @@ use crate::{
     AppState,
 };
 
+/// Libellé humain (design-v2) pour un `cabinet_membership.role` (#6543).
+/// `None` pour un rôle inconnu/absent (sender ayant quitté le cabinet) :
+/// le front n'affiche alors pas de pastille.
+fn role_label(role: &str) -> &'static str {
+    match role {
+        "practitioner" | "doctor" => "Praticien",
+        "secretary" => "Secrétaire",
+        "manager" => "Manager",
+        "admin" => "Administrateur",
+        _ => "Membre du cabinet",
+    }
+}
+
 /// Un message interne d'équipe.
 #[derive(Serialize)]
 pub struct CabinetTeamMessageItem {
     pub id: Uuid,
     pub sender_id: Uuid,
-    /// `provider.display_name` du praticien émetteur, sinon son email si
-    /// visible (RLS `app_user` self-only, #4416 — souvent indisponible pour
-    /// un collègue), sinon `"Membre du cabinet"` (le secrétariat/admin n'a
-    /// pas de fiche `provider`).
+    /// `provider.display_name` du praticien émetteur, sinon prénom/nom
+    /// (`app_user`, #6543 — RLS self-only contournée via `current_user_id`
+    /// positionné par sender comme dans `get_cabinet_members`), sinon
+    /// `"Membre du cabinet"`.
     pub sender_name: String,
+    /// Libellé de rôle (#6543, pastille design-v2) — `None` si le sender n'a
+    /// plus de `cabinet_membership` actif dans ce cabinet.
+    pub sender_role: Option<String>,
     pub body: String,
     pub created_at: String,
 }
@@ -69,30 +87,18 @@ pub async fn list_cabinet_team_messages(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // #4416 : `app_user` porte une RLS stricte self-only (user_self_select,
-    // 0045_platform_rls.sql — `id = app.current_user_id`), donc INVISIBLE
-    // pour tout sender autre que le viewer lui-même — un INNER JOIN dessus
-    // éliminait TOUTES les lignes (liste toujours vide, messagerie
-    // write-only). Positionner le GUC au viewer courant permet au moins de
-    // résoudre SON PROPRE email dans le fil (cas fréquent : on relit ce
-    // qu'on vient d'envoyer) ; RLS ne peut pas être élargie à "tout le
-    // cabinet" sans une policy dédiée (hors périmètre de ce fix).
-    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
-        .bind(claims.sub.to_string())
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
-    // LEFT JOIN (pas INNER) : `au` reste NULL pour les collègues (RLS
-    // toujours self-only), d'où le dernier fallback littéral dans le
-    // COALESCE pour ne jamais planter sur `sender_name` (colonne NOT NULL).
+    // `provider.display_name` couvre les praticiens ; `cabinet_membership`
+    // donne le rôle pour la pastille (#6543). Le nom des non-praticiens
+    // (secrétariat/admin) est résolu ensuite via `app_user`, ligne par ligne
+    // (cf. boucle ci-dessous).
     let rows = sqlx::query(
         "SELECT cm.id, cm.sender_id, cm.body, cm.created_at, \
-                COALESCE(prov.display_name, au.email::text, 'Membre du cabinet') AS sender_name \
+                prov.display_name AS provider_display_name, \
+                cmb.role AS sender_role \
          FROM cabinet_messages cm \
-         LEFT JOIN app_user au ON au.id = cm.sender_id \
          LEFT JOIN practitioner p ON p.user_id = cm.sender_id AND p.cabinet_id = cm.cabinet_id \
          LEFT JOIN provider prov ON prov.practitioner_id = p.id AND prov.cabinet_id = cm.cabinet_id \
+         LEFT JOIN cabinet_membership cmb ON cmb.user_id = cm.sender_id AND cmb.cabinet_id = cm.cabinet_id \
          WHERE cm.cabinet_id = $1 AND cm.deleted_at IS NULL \
          ORDER BY cm.created_at ASC \
          LIMIT $2",
@@ -103,6 +109,57 @@ pub async fn list_cabinet_team_messages(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // #4416/#6543 : `app_user` porte une RLS stricte self-only
+    // (user_self_select, 0045_platform_rls.sql — `id = app.current_user_id`),
+    // donc invisible pour tout sender autre que le viewer courant. Même
+    // contournement que `get_cabinet_members` : on repositionne le GUC par
+    // sender avant de lire son nom, avec un cache pour ne le faire qu'une
+    // fois par auteur distinct du fil.
+    let mut resolved_names: HashMap<Uuid, String> = HashMap::new();
+    for sender_id in rows
+        .iter()
+        .map(|r| r.try_get::<Uuid, _>("sender_id"))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| AppError::Internal)?
+    {
+        if resolved_names.contains_key(&sender_id) {
+            continue;
+        }
+
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(sender_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let user_row =
+            sqlx::query("SELECT first_name, last_name, email FROM app_user WHERE id = $1")
+                .bind(sender_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+
+        if let Some(row) = user_row {
+            let first_name: Option<String> =
+                row.try_get("first_name").map_err(|_| AppError::Internal)?;
+            let last_name: Option<String> =
+                row.try_get("last_name").map_err(|_| AppError::Internal)?;
+            let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
+
+            let full_name = [first_name, last_name]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" ");
+            let name = if full_name.trim().is_empty() {
+                email
+            } else {
+                full_name
+            };
+            resolved_names.insert(sender_id, name);
+        }
+    }
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let data = rows
@@ -110,10 +167,21 @@ pub async fn list_cabinet_team_messages(
         .map(|r| {
             let created_at: chrono::DateTime<chrono::Utc> =
                 r.try_get("created_at").map_err(|_| AppError::Internal)?;
+            let sender_id: Uuid = r.try_get("sender_id").map_err(|_| AppError::Internal)?;
+            let provider_display_name: Option<String> = r
+                .try_get("provider_display_name")
+                .map_err(|_| AppError::Internal)?;
+            let role: Option<String> = r.try_get("sender_role").map_err(|_| AppError::Internal)?;
+
+            let sender_name = provider_display_name
+                .or_else(|| resolved_names.get(&sender_id).cloned())
+                .unwrap_or_else(|| "Membre du cabinet".to_string());
+
             Ok(CabinetTeamMessageItem {
                 id: r.try_get("id").map_err(|_| AppError::Internal)?,
-                sender_id: r.try_get("sender_id").map_err(|_| AppError::Internal)?,
-                sender_name: r.try_get("sender_name").map_err(|_| AppError::Internal)?,
+                sender_id,
+                sender_name,
+                sender_role: role.map(|role| role_label(&role).to_string()),
                 body: r.try_get("body").map_err(|_| AppError::Internal)?,
                 created_at: created_at.to_rfc3339(),
             })
