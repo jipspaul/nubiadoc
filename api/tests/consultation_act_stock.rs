@@ -264,6 +264,23 @@ async fn cleanup_fixture(db: &PgPool, f: &Fixture) {
         .ok();
 }
 
+async fn delete_act(state: AppState, session_id: Uuid, token: &str, act_id: Uuid) -> StatusCode {
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!(
+                    "/v1/cabinet/consultations/{session_id}/acts/{act_id}"
+                ))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    response.status()
+}
+
 async fn post_act(state: AppState, session_id: Uuid, token: &str, ccam_code: &str) -> StatusCode {
     let response = app(state)
         .oneshot(
@@ -437,6 +454,100 @@ async fn mapped_act_insufficient_stock_returns_422() {
         .unwrap();
     let quantity_on_hand: i32 = item_row.try_get("quantity_on_hand").unwrap();
     assert_eq!(quantity_on_hand, 1, "le stock ne doit pas être décrémenté");
+
+    cleanup_fixture(&db, &f).await;
+}
+
+// ── Suppression d'un acte consommateur de stock → mouvement inverse (#6618) ─
+
+#[tokio::test]
+async fn deleting_consumption_linked_act_restores_stock() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixture(&db, "del", true, 5).await;
+    let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    let status = post_act(
+        AppState {
+            db: app_pool().await,
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        },
+        f.session_id,
+        &token,
+        &f.ccam_code,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let act_row = sqlx::query("SELECT id FROM consultation_act WHERE appointment_id = $1")
+        .bind(f.appt_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let act_id: Uuid = act_row.try_get("id").unwrap();
+
+    let item_row = sqlx::query("SELECT quantity_on_hand FROM stock_item WHERE id = $1")
+        .bind(f.stock_item_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let quantity_on_hand: i32 = item_row.try_get("quantity_on_hand").unwrap();
+    assert_eq!(quantity_on_hand, 3, "consommation initiale : 5 -> 3");
+
+    let status = delete_act(
+        AppState {
+            db: app_pool().await,
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        },
+        f.session_id,
+        &token,
+        act_id,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::NO_CONTENT,
+        "un acte consommateur de stock doit rester supprimable (#6618, plus de 409 permanent)"
+    );
+
+    let count_row =
+        sqlx::query("SELECT count(*)::int AS n FROM consultation_act WHERE appointment_id = $1")
+            .bind(f.appt_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    let n: i32 = count_row.try_get("n").unwrap();
+    assert_eq!(n, 0, "l'acte doit bien être supprimé");
+
+    let item_row = sqlx::query("SELECT quantity_on_hand FROM stock_item WHERE id = $1")
+        .bind(f.stock_item_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let quantity_on_hand: i32 = item_row.try_get("quantity_on_hand").unwrap();
+    assert_eq!(
+        quantity_on_hand, 5,
+        "la suppression doit rendre le stock consommé (mouvement inverse)"
+    );
+
+    let movement_count_row = sqlx::query(
+        "SELECT count(*)::int AS n FROM stock_movement \
+         WHERE cabinet_id = $1 AND stock_item_id = $2",
+    )
+    .bind(f.cabinet_id)
+    .bind(f.stock_item_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let movement_n: i32 = movement_count_row.try_get("n").unwrap();
+    assert_eq!(
+        movement_n, 2,
+        "consommation initiale + mouvement inverse, tous deux conservés (traçabilité)"
+    );
 
     cleanup_fixture(&db, &f).await;
 }
