@@ -87,6 +87,7 @@ pub async fn get_patient_alerts(
              - \
              COALESCE((SELECT SUM(amount) FROM payment \
                        WHERE patient_id = $1 AND cabinet_id = $2 \
+                         AND quote_id IS NOT NULL \
                          AND status IN ('pending', 'paid')), 0) \
            ) * 100)::bigint AS balance_due_cents, \
            (SELECT MIN(signed_at) FROM quote \

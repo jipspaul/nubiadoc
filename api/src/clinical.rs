@@ -203,6 +203,7 @@ pub async fn list_cabinet_patients(
                    - \
                    COALESCE((SELECT SUM(amount) FROM payment \
                              WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                               AND quote_id IS NOT NULL \
                                AND status IN ('pending', 'paid')), 0) \
                  ) * 100)::bigint AS balance_due_cents, \
                 (SELECT count(*)::bigint FROM appointment \
@@ -218,6 +219,7 @@ pub async fn list_cabinet_patients(
                     - \
                     COALESCE((SELECT SUM(amount) FROM payment \
                               WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                                AND quote_id IS NOT NULL \
                                 AND status IN ('pending', 'paid')), 0) \
                   ) > 0 \
                   AND EXISTS (SELECT 1 FROM quote \

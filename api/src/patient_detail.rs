@@ -221,6 +221,11 @@ pub async fn get_cabinet_patient(
     // d'échéancier #4644 (payment_schedules.rs) et que patient_share_cents
     // (cabinet_quotes.rs). Sur le brut, un patient ayant tout réglé restait
     // débiteur de la part assurance à vie.
+    // #6554 : `quote_id IS NOT NULL` exclut les paiements de devis d'OFFICINE
+    // (`pharmacy_quote_id` renseigné, `quote_id` NULL — #3505) — même patient
+    // et même cabinet_id (résolu via pharmacy_order.cabinet_id), mais sans
+    // rapport avec la dette envers CE cabinet dentaire. Sans ce filtre,
+    // chaque achat en pharmacie créditait à tort le solde du cabinet.
     let balance_row = sqlx::query(
         "SELECT (( \
            COALESCE((SELECT SUM(qi.qty * qi.unit_amount \
@@ -231,6 +236,7 @@ pub async fn get_cabinet_patient(
            - \
            COALESCE((SELECT SUM(amount) FROM payment \
                      WHERE patient_id = $1 AND cabinet_id = $2 \
+                       AND quote_id IS NOT NULL \
                        AND status IN ('pending', 'paid')), 0) \
          ) * 100)::bigint AS balance_due_cents",
     )
