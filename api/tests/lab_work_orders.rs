@@ -538,7 +538,7 @@ async fn list_excludes_orders_without_care_relationship() {
     let f = seed(&db).await;
     let owner_token = make_practitioner_token(f.user_id, f.cabinet_id);
 
-    let (status, created) = call(
+    let (status, _created) = call(
         state_with(app_pool().await),
         "POST",
         "/v1/cabinet/lab-work-orders",
