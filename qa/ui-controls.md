@@ -947,3 +947,17 @@ Conformément à la leçon de méthode ci-dessus, **chaque** verdict négatif a 
 | **BACK du navigateur au milieu d'un flux** | patient, tunnel de réservation, étape « grille du jour » | **DÉFAUT — #6718.** Le « Retour » de l'app revient bien à la recherche (contrôle positif) ; le BACK du navigateur, depuis la même étape, sort vers `/` et le « suivant » ne rattrape pas. |
 | **Coupure réseau pendant une action** | patient `/messaging`, ouverture d'une conversation avec `route.abort()` | **DÉFAUT — #6717.** 9 nœuds → 1 : la liste des 8 conversations est détruite. « Réessayer » n'émet **aucune** requête (`onRetry: () => context.pop()`). |
 | **Réseau rétabli puis rechargement** | patient `/messaging` | **CORRECT** — l'écran se rétablit intégralement (n=9), aucune erreur résiduelle. |
+
+### Ronde 2026-09-07 — total consolidé des 3 vagues
+
+| | inventoriés | activés | OK | morts | cassés | désactivés |
+|---|---|---|---|---|---|---|
+| **TOTAL RONDE (25 écrans, 5 apps, 2 viewports)** | **384** | **372** | **231** | **136** | **5** | **12** |
+
+> **Lecture des 136 « morts »** : **≈ 130 sont l'artefact de bord** déjà documenté (rect dont le `y`
+> dépasse la hauteur du viewport — 90 sur le seul `/pharmacy/send`, qui empile 104 cartes d'ordonnance
+> dans 844 px, 16 sur `/agenda`, 4 sur `/devis`, 2 par écran ailleurs). Les morts **réels** de la ronde
+> sont ceux déjà filés : les 10 cartes de `/oubliettes` (#6710) et « Réessayer » de la messagerie qui
+> n'émet aucune requête (#6717). Les 5 « cassés » sont tous des **403 volontaires** (garde §14 relation
+> de soin sur `/patients` praticien, `cabinet/stats/activity` réservé aux praticiens) ou du bruit
+> d'infra hors produit.
