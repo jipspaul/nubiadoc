@@ -44,29 +44,24 @@ class DependentsPage extends StatelessWidget {
           ),
         ),
         body: const _DependentsBody(),
-        floatingActionButton: Builder(
-          builder: (context) => FloatingActionButton.extended(
-            key: const Key('add_dependent_fab'),
-            onPressed: () => _openAddSheet(context),
-            icon: const Icon(Icons.person_add_alt_1),
-            label: const Text('Ajouter'),
-          ),
-        ),
       ),
     );
   }
+}
 
-  Future<void> _openAddSheet(BuildContext context) async {
-    final cubit = context.read<DependentsCubit>();
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => BlocProvider.value(
-        value: cubit,
-        child: const _AddDependentSheet(),
-      ),
-    );
-  }
+/// Ouvre le formulaire d'ajout d'un proche — partagé par [_AddDependentRow]
+/// (rangée dans le flux) et le bouton de l'état vide, désormais que l'action
+/// n'est plus un `FloatingActionButton` posé au-dessus du corps (#6652).
+Future<void> _openAddDependentSheet(BuildContext context) async {
+  final cubit = context.read<DependentsCubit>();
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => BlocProvider.value(
+      value: cubit,
+      child: const _AddDependentSheet(),
+    ),
+  );
 }
 
 String _dependentsSubtitle(int managedCount, int pendingCount) {
@@ -96,11 +91,19 @@ class _DependentsBody extends StatelessWidget {
         }
         if (state is DependentsLoaded) {
           if (state.dependents.isEmpty && state.pendingAccessRequests.isEmpty) {
-            return const NubiaEmptyState(
-              key: Key('dependents_empty'),
+            return NubiaEmptyState(
+              key: const Key('dependents_empty'),
               icon: Icons.people_outline,
               title: 'Aucun proche',
               subtitle: 'Ajoutez un enfant ou un proche que vous gérez.',
+              action: Builder(
+                builder: (context) => NubiaButton(
+                  key: const Key('add_dependent_fab'),
+                  label: 'Ajouter un proche',
+                  icon: Icons.person_add_alt_1,
+                  onPressed: () => _openAddDependentSheet(context),
+                ),
+              ),
             );
           }
           return ListView(
@@ -123,13 +126,15 @@ class _DependentsBody extends StatelessWidget {
                     ],
                   ],
                 ),
+                const _AddDependentRow(key: Key('add_dependent_fab')),
                 if (state.dependents
                     .any((d) => d.relationship == DependentRelationship.enfant))
                   const Padding(
                     padding: EdgeInsets.fromLTRB(16, 4, 16, 16),
                     child: _MajorityNotice(),
                   ),
-              ],
+              ] else
+                const _AddDependentRow(key: Key('add_dependent_fab')),
               if (state.pendingAccessRequests.isNotEmpty) ...[
                 const _SectionHeader('DEMANDES ENVOYÉES'),
                 for (final request in state.pendingAccessRequests)
@@ -303,6 +308,53 @@ class _SectionHeader extends StatelessWidget {
           color: tokens.textTertiary,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
+}
+
+/// Rangée « Ajouter un proche », dans le flux de la liste (maquette
+/// design-v2, `Patient Documents et Proches v2.html`, écran 2, classe
+/// `.addb`) — remplace l'ancien `FloatingActionButton` qui recouvrait la
+/// mention légale de majorité en bas de liste (#6652).
+class _AddDependentRow extends StatelessWidget {
+  const _AddDependentRow({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: InkWell(
+        onTap: () => _openAddDependentSheet(context),
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          width: double.infinity,
+          child: CustomPaint(
+            foregroundPainter:
+                const _DashedRRectPainter(color: NubiaColors.n300, radius: 14),
+            child: Container(
+              height: 52,
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.person_add_alt_1,
+                      size: 20, color: tokens.textTertiary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Ajouter un proche',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: NubiaColors.n600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
