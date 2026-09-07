@@ -53,6 +53,11 @@ pub struct PatientAdminSection {
     /// Proches gérés par ce patient (#4091) — même conditions.
     pub dependents: Vec<GuardianshipLink>,
     pub created_at: String,
+    /// Date du dernier RDV honoré (`status = 'done'`), #6701 — même formule
+    /// que `list_cabinet_patients` (`clinical.rs`). `null` si le patient n'a
+    /// aucun RDV `done`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_visit_at: Option<String>,
 }
 
 /// Réponse complète praticien (admin + données cliniques).
@@ -275,6 +280,21 @@ pub async fn get_cabinet_patient(
         .try_get("no_show_count")
         .map_err(|_| AppError::Internal)?;
 
+    // Dernière visite (#6701) : même formule que `list_cabinet_patients`
+    // (`clinical.rs`) — MAX des RDV honorés (`status = 'done'`).
+    let last_visit_row = sqlx::query(
+        "SELECT MAX(starts_at) AS last_visit_at FROM appointment \
+         WHERE patient_id = $1 AND cabinet_id = $2 AND status = 'done'",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let last_visit_at: Option<chrono::DateTime<chrono::Utc>> = last_visit_row
+        .try_get("last_visit_at")
+        .map_err(|_| AppError::Internal)?;
+
     // Tuteurs/dépendants (#4091) : entité plateforme, nécessite un compte
     // lié (comme satisfaction/coverage ci-dessus) — vides sinon.
     let (guardians, dependents) = match patient_account_id {
@@ -295,6 +315,7 @@ pub async fn get_cabinet_patient(
         guardians,
         dependents,
         created_at: created_at.to_rfc3339(),
+        last_visit_at: last_visit_at.map(|dt| dt.to_rfc3339()),
     };
 
     // Secrétaire : retourne uniquement la partie administrative (R.4127-72).

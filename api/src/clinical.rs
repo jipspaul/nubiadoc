@@ -66,6 +66,13 @@ pub struct PatientItem {
     /// `GET /cabinet/appointments?filter=upcoming` (`appointments_read.rs`).
     /// Alimente le filtre rapide "Sans RDV à venir" côté Flutter.
     pub has_upcoming_appointment: bool,
+    /// Date du dernier RDV honoré (`status = 'done'`), #6701 — le champ était
+    /// lu par le DTO front (`cabinet_patients_dto.dart`) depuis #4044/#5112
+    /// sans jamais avoir été projeté côté API : colonne « Dernière visite »
+    /// structurellement vide (30 lignes/30). `null` si le patient n'a aucun
+    /// RDV `done`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_visit_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -241,7 +248,10 @@ pub async fn list_cabinet_patients(
                        AND a.starts_at < now() + interval '1 day') \
                       OR (a.starts_at > now() AND a.status IN ('requested', 'confirmed')) \
                     ) \
-                ) AS has_upcoming_appointment \
+                ) AS has_upcoming_appointment, \
+                (SELECT MAX(a.starts_at) FROM appointment a \
+                 WHERE a.patient_id = p.id AND a.cabinet_id = p.cabinet_id \
+                   AND a.status = 'done') AS last_visit_at \
          FROM patient p \
          WHERE p.deleted_at IS NULL\
          {filter_clause}{sec_clause} \
@@ -321,6 +331,9 @@ pub async fn list_cabinet_patients(
         let has_upcoming_appointment: bool = row
             .try_get("has_upcoming_appointment")
             .map_err(|_| AppError::Internal)?;
+        let last_visit_at: Option<chrono::DateTime<chrono::Utc>> = row
+            .try_get("last_visit_at")
+            .map_err(|_| AppError::Internal)?;
 
         last_created_at = Some(created_at);
         last_id = Some(id);
@@ -336,6 +349,7 @@ pub async fn list_cabinet_patients(
             no_show_count,
             has_active_alerts,
             has_upcoming_appointment,
+            last_visit_at: last_visit_at.map(|dt| dt.to_rfc3339()),
         });
     }
 
