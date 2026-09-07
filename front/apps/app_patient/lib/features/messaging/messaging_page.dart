@@ -77,7 +77,9 @@ class _MessagingBody extends StatelessWidget {
           return NubiaErrorWidget(
             key: const Key('messaging_thread_error'),
             message: state.message,
-            onRetry: () => context.pop(),
+            onRetry: () => context
+                .read<MessagingBloc>()
+                .add(MessagingThreadRequested(state.conversationId)),
           );
         }
         return const SizedBox.shrink();
