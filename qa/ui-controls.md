@@ -864,3 +864,28 @@ Conformément à la leçon de méthode ci-dessus, **chaque** verdict négatif a 
 > S'y ajoute une cause de faux « CASSÉ » : les **403 de la garde §14 « relation de soin »** (praticien ouvrant un patient jamais suivi), qui sont volontaires **et** correctement expliqués à l'écran.
 > 6. **Page légitimement clairsemée** — un écran 404 ou un état vide correct fait monter le ratio de pixels near-white au-dessus du seuil `0.92` du détecteur d'« écran blanc ». Vérifié cette ronde : `/orders` (pharmacie) et `/zzz-inexistant` donnent `white=0.992` **avec** une page « Page introuvable » complète et un CTA « Retour à l'accueil ». **Le ratio de blanc ne suffit jamais seul** : le croiser avec le nombre de contrôles inventoriés ET une lecture de la capture avant de conclure au blank-canvas.
 
+### Ronde 2026-09-07 (13:20–13:45 UTC) — 3e lot : écrans jamais parcourus + états RBAC
+
+| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/devis` (1280×800) | 55 | 34 | 31 | 0 réel (2 onglets actifs + 1 champ de recherche) | 0 | 2026-09-07T13:45:00Z — 3e vague — écran le plus dense du secrétariat. |
+| secretariat | `/team-messages` (Messagerie interne, 1280×800) | 31 | 25 | 21 | 2 réels (`Épingler`, `Joindre un patient, un devis…`) + 2 onglets actifs | 0 | 2026-09-07T13:45:00Z — **2 stubs à snackbar → #6702** (« Épingler ce message : à venir », « Joindre un objet du produit au message »). Vérifiés en direct : 0 requête, 0 repeinture, 0 téléchargement, 0 `window.open`, non grisés. |
+| secretariat | `/cabinet-payouts` (Encaissements, 1280×800) | 26 | 23 | 19 | 1 réel (`Connecter Stripe`) + 1 désactivé légitime + 2 onglets actifs | 0 | 2026-09-07T13:45:00Z — **`Connecter Stripe` = stub → #6702.** **`Exporter (CSV)` porte `aria-disabled=true` : désactivation LÉGITIME** — `onPressed: payouts.isEmpty ? null : _exportPayoutsCsv(...)` (`cabinet_payouts_page.dart:64`). Contrôle négatif utile : les deux boutons sont côte à côte, un seul est un stub. |
+| secretariat | `/liste-attente` (Demandes de créneau, 1280×800) | 22 | 19 | 17 | 0 réel (2 onglets actifs) | 0 | 2026-09-07T13:45:00Z — 3e vague. |
+| secretariat | `/bookable-slots` (Créneaux ouverts, 1280×800) | 30 | 26 | 21 | 0 réel (1 en-tête de section repliable + 3 sous-entrées masquées par son repli) | 0 réel | 2026-09-07T13:45:00Z — Le « CASSÉ » unique était **`Statistiques` → 403** : intentionnel et **remarquablement bien dégradé** (cf. ci-dessous). `Créer un créneau`, `Tous les praticiens`, `Toutes les dates` répondent. |
+| secretariat | `/cabinet-stats` (Pilotage du cabinet, 1280×800) | 27 | 1 | 1 | 0 | 0 (403 volontaire) | 2026-09-07T13:45:00Z — **Dégradation partielle exemplaire, à citer en référence** : les 4 cartes de KPI s'affichent (CA encaissé 6 225,01 € / Reste à encaisser 45 858,79 € / Taux de transformation 68 % / Devis 192-282) et **seule** la section « Activité par praticien » est verrouillée, avec cadenas + « Réservé aux praticiens — Votre rôle ne permet pas d'afficher l'activité par praticien. » L'écran n'est ni vide ni en erreur. |
+| secretariat | `/audit-log` (Journal d'accès, 1280×800) | 26 | 0 | 0 | — | 0 (403 volontaire) | 2026-09-07T13:45:00Z — Entrée **absente du rail** pour un secrétaire (donc non proposée) ; l'accès direct par URL rend cadenas + « Accès réservé aux administrateurs » + « Le journal d'accès n'est visible que par les rôles admin/manager du cabinet. » `ProAdminOrManagerClaims` (`audit_log.rs:63`). Conforme. |
+| praticien | `/ordonnances` (1280×800) | 19 | 16 | 15 | 0 réel (onglet actif) | 0 | 2026-09-07T13:45:00Z — 3e vague. |
+| praticien | `/devis` (1280×800) | 27 | 21 | 20 | 0 réel (onglet actif) | 0 | 2026-09-07T13:45:00Z — 3e vague. |
+| praticien | `/stock` (1280×800) | 21 | 17 | 16 | 0 réel (onglet actif) | 0 | 2026-09-07T13:45:00Z — 3e vague. |
+| praticien | `/messages` (1280×800) | 27 | 23 | 22 | 0 réel (onglet actif) | 0 | 2026-09-07T13:45:00Z — 3e vague. |
+| praticien | `/team-messages` (1280×800) | 21 | 17 | 16 | 0 réel (onglet actif) | 0 | 2026-09-07T13:45:00Z — 3e vague. **0 erreur console sur les 5 écrans praticien de cette vague.** |
+| pharmacie | `/` (File des commandes, **1440×900**) | 37 | 19 | 19 | 0 | 0 | 2026-09-07T13:45:00Z — 2e viewport bouclé : `Délivrer` navigue vers `/orders/:id/pickup`, les 4 facettes (Toutes 59 / Reçues 11 / En préparation 4 / Prêtes 44) et la recherche répondent. |
+| pharmacie + patient | routes inconnues → **écran 404** | 1 | 1 | 1 | 0 | 0 | 2026-09-07T13:45:00Z — `/orders`, `/zzz-inexistant` : `white=0.992` mais **page complète** « Page introuvable » + CTA « Retour à l'accueil ». Faux positif du seuil de blank-canvas (6e angle mort). |
+
+**Total 3e lot : 370 inventoriés, 242 activés, 219 OK.**
+
+**TOTAL DE LA RONDE (3 lots) : 1 149 contrôles inventoriés, 692 activés, sur 5 apps aux 2 viewports.**
+
+> **Inventaire exhaustif du motif « CTA-stub à snackbar »** (extraction sur les 5 apps, motif `onPressed: () => …showSnackBar(` sans autre effet) : **7 occurrences sur 3 apps** — `Nouveau bon` (#6695), `Prévenir le praticien` (#6696), puis `Connecter Stripe`, `Attribuer`, `Épingler`, `Joindre un patient, un devis…`, `Télécharger l'app` (**#6702**). Aucune autre app n'en porte. C'est la **seule famille de « boutons morts » réellement présente dans le produit** : tous les autres verdicts MORT de la ronde se sont révélés être des faux positifs d'outillage ou des désactivations légitimes.
+
