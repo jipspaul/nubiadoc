@@ -255,6 +255,12 @@ pub struct SearchProvidersQuery {
     pub pmr: Option<bool>,
     pub languages: Option<String>,
     pub accepts_new: Option<bool>,
+    /// Alias de `accepts_new` (#6700) : le champ de *réponse* s'appelle
+    /// `accepts_new_patients` (`ProviderItem` ci-dessous) — sans cet alias,
+    /// un client qui refiltre avec le nom qu'il vient de lire en sortie
+    /// voit son filtre silencieusement jeté par `Query<…>` (pas de
+    /// `deny_unknown_fields`) : 200 avec la liste entière, sans aucun signal.
+    pub accepts_new_patients: Option<bool>,
     pub available: Option<String>,
     pub tiers_payant: Option<bool>,
     pub sort: Option<String>,
@@ -497,6 +503,9 @@ pub async fn search_slots(
         crate::text_validation::reject_nul_byte(languages)?;
     }
     let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
+    // #6700 : `accepts_new` (nom attendu, cf. docs/12) et `accepts_new_patients`
+    // (nom du champ de réponse) filtrent tous les deux la même colonne.
+    let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
         params.near.as_deref(),
         params.place.as_deref(),
@@ -593,7 +602,7 @@ pub async fn search_slots(
     // praticien au milieu de sa liste de créneaux).
     //
     // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
-    // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new  $10=languages
+    // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new(+alias accepts_new_patients)  $10=languages
     // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
     // $15=tiers_payant  $16=provider_id  $17=date
     let from_where_clause = format!(
@@ -659,7 +668,7 @@ pub async fn search_slots(
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
         .bind(params.pmr) // $8
-        .bind(params.accepts_new) // $9
+        .bind(effective_accepts_new) // $9
         .bind(lang_filter.clone()) // $10
         .bind(bbox_min_lng) // $11
         .bind(bbox_min_lat) // $12
@@ -683,7 +692,7 @@ pub async fn search_slots(
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
         .bind(params.pmr) // $8
-        .bind(params.accepts_new) // $9
+        .bind(effective_accepts_new) // $9
         .bind(lang_filter) // $10
         .bind(bbox_min_lng) // $11
         .bind(bbox_min_lat) // $12
@@ -790,6 +799,9 @@ pub async fn search_providers(
         crate::text_validation::reject_nul_byte(languages)?;
     }
     let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
+    // #6700 : `accepts_new` (nom attendu, cf. docs/12) et `accepts_new_patients`
+    // (nom du champ de réponse) filtrent tous les deux la même colonne.
+    let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
         params.near.as_deref(),
         params.place.as_deref(),
@@ -872,7 +884,7 @@ pub async fn search_providers(
     };
 
     // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
-    // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new  $10=languages
+    // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new(+alias accepts_new_patients)  $10=languages
     // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
     // $15=tiers_payant  $16=per_page  $17=offset
     //
@@ -949,7 +961,7 @@ pub async fn search_providers(
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
         .bind(params.pmr) // $8
-        .bind(params.accepts_new) // $9
+        .bind(effective_accepts_new) // $9
         .bind(lang_filter.clone()) // $10
         .bind(bbox_min_lng) // $11
         .bind(bbox_min_lat) // $12
@@ -971,7 +983,7 @@ pub async fn search_providers(
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
         .bind(params.pmr) // $8
-        .bind(params.accepts_new) // $9
+        .bind(effective_accepts_new) // $9
         .bind(lang_filter) // $10
         .bind(bbox_min_lng) // $11
         .bind(bbox_min_lat) // $12

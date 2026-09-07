@@ -305,7 +305,7 @@
 | GET | `/v1/specialties` | public | Spécialités (`?profession_id=`). |
 | GET | `/v1/acts` | public | Actes/motifs (`?specialty_id=`). |
 
-`GET /v1/search/providers` — query : `q?`, `specialty?`, `near?=lat,lng` **ou** `place?` (géocodé), `radius_km?`, `bbox?` (carte), facettes `sector?`, `tiers_payant?`, `teleconsult?`, `pmr?`, `languages?`, `accepts_new?`, `available?=today|week`, `sort?=relevance|distance|next_slot|rating`, pagination. → `{ data:[{ provider_id, display_name, specialty, sector, distance_m?, next_slot_at?, rating_avg, geo, is_listed:true }], facets:{…}, page:{…} }`. **Seuls les `provider` `is_listed=true` (donc `rpps_verified`)** apparaissent (`05` §9.3, `07` §4.7). `place` → géocodage service EU.
+`GET /v1/search/providers` — query : `q?`, `specialty?`, `near?=lat,lng` **ou** `place?` (géocodé), `radius_km?`, `bbox?` (carte), facettes `sector?`, `tiers_payant?`, `teleconsult?`, `pmr?`, `languages?`, `accepts_new?` (alias `accepts_new_patients?` — nom du champ écho en sortie, #6700), `available?=today|week`, `sort?=relevance|distance|next_slot|rating`, pagination. → `{ data:[{ provider_id, display_name, specialty, sector, distance_m?, next_slot_at?, rating_avg, geo, is_listed:true }], facets:{…}, page:{…} }`. **Seuls les `provider` `is_listed=true` (donc `rpps_verified`)** apparaissent (`05` §9.3, `07` §4.7). `place` → géocodage service EU.
 
 `GET /v1/search/slots` — mêmes filtres + renvoie par praticien ses **prochains créneaux** : `{ data:[{ provider_id, display_name, distance_m, first_slot_at, slots:[{slot_id, starts_at}] }] }`. Trié par `first_slot_at`.
 
