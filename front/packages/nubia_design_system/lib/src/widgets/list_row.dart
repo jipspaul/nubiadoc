@@ -10,6 +10,7 @@ import 'package:nubia_design_system/src/theme/nubia_tokens.dart';
 /// un badge / une valeur / un chevron.
 ///
 /// - [title] : texte principal.
+/// - [titleMaxLines] : nombre de lignes max du titre avant ellipse (défaut 1).
 /// - [subtitle] : texte secondaire optionnel (tronqué sur une ligne).
 /// - [subtitleWidget] : remplace [subtitle] par un widget libre (ex. texte
 ///   multi-ligne avec tonalité de couleur) quand un simple `String` ne
@@ -23,6 +24,7 @@ class ListRow extends StatelessWidget {
   const ListRow({
     super.key,
     required this.title,
+    this.titleMaxLines = 1,
     this.subtitle,
     this.subtitleWidget,
     this.leading,
@@ -33,6 +35,7 @@ class ListRow extends StatelessWidget {
   });
 
   final String title;
+  final int titleMaxLines;
   final String? subtitle;
   final Widget? subtitleWidget;
   final Widget? leading;
@@ -65,7 +68,7 @@ class ListRow extends StatelessWidget {
                       Flexible(
                         child: Text(
                           title,
-                          maxLines: 1,
+                          maxLines: titleMaxLines,
                           overflow: TextOverflow.ellipsis,
                           style: textTheme.titleMedium?.copyWith(
                             color: cs.onSurface,
