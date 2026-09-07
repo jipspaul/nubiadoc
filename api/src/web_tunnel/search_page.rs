@@ -97,6 +97,7 @@ pub async fn search_page(
         pmr: None,
         languages: None,
         accepts_new: None,
+        accepts_new_patients: None,
         available: None,
         tiers_payant: None,
         sort: None,
