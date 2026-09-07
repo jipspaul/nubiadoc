@@ -173,10 +173,10 @@ async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
         .ok();
 }
 
-// ── Test 1 : POST puis GET → message présent avec sender_name = email ────────
+// ── Test 1 : POST puis GET → message présent avec repli "Membre du cabinet" ──
 
 #[tokio::test]
-async fn post_then_get_returns_message_with_sender_email_fallback() {
+async fn post_then_get_returns_message_with_generic_fallback_name() {
     if !db_available() {
         return;
     }
@@ -227,8 +227,9 @@ async fn post_then_get_returns_message_with_sender_email_fallback() {
         .find(|m| m["id"] == message_id)
         .expect("message présent dans le fil");
     assert_eq!(item["body"], "Réunion d'équipe à 12h30.");
-    // Pas de fiche provider pour cette secrétaire → repli sur l'email.
-    assert!(item["sender_name"].as_str().unwrap().contains("team-msg+"));
+    // Pas de fiche provider ni de prénom/nom pour cette secrétaire (#6714) →
+    // repli sur le libellé générique documenté, jamais sur l'e-mail.
+    assert_eq!(item["sender_name"], "Membre du cabinet");
 
     cleanup_fixtures(&db, &f).await;
 }
@@ -408,7 +409,8 @@ async fn colleague_sees_message_in_shared_thread() {
         .expect("le message du collègue doit être visible dans le fil partagé");
     // #6543 : le nom de l'émetteur est résolu par sender (GUC repositionné
     // par auteur), pas par viewer — visible même sans fiche provider.
-    assert!(item["sender_name"].as_str().unwrap().contains("team-msg+"));
+    // #6714 : sans prénom/nom, repli générique, jamais l'e-mail.
+    assert_eq!(item["sender_name"], "Membre du cabinet");
     assert_eq!(item["sender_role"], "Secrétaire");
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")

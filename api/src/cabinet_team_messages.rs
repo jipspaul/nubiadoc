@@ -115,7 +115,7 @@ pub async fn list_cabinet_team_messages(
     // contournement que `get_cabinet_members` : on repositionne le GUC par
     // sender avant de lire son nom, avec un cache pour ne le faire qu'une
     // fois par auteur distinct du fil.
-    let mut resolved_names: HashMap<Uuid, String> = HashMap::new();
+    let mut resolved_names: HashMap<Uuid, Option<String>> = HashMap::new();
     for sender_id in rows
         .iter()
         .map(|r| r.try_get::<Uuid, _>("sender_id"))
@@ -133,31 +133,27 @@ pub async fn list_cabinet_team_messages(
             .map_err(|_| AppError::Internal)?;
 
         let user_row =
-            sqlx::query("SELECT first_name, last_name, email FROM app_user WHERE id = $1")
+            sqlx::query("SELECT first_name, last_name FROM app_user WHERE id = $1")
                 .bind(sender_id)
                 .fetch_optional(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?;
 
-        if let Some(row) = user_row {
-            let first_name: Option<String> =
-                row.try_get("first_name").map_err(|_| AppError::Internal)?;
-            let last_name: Option<String> =
-                row.try_get("last_name").map_err(|_| AppError::Internal)?;
-            let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
-
+        let name = user_row.and_then(|row| {
+            let first_name: Option<String> = row.try_get("first_name").ok()?;
+            let last_name: Option<String> = row.try_get("last_name").ok()?;
             let full_name = [first_name, last_name]
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>()
                 .join(" ");
-            let name = if full_name.trim().is_empty() {
-                email
-            } else {
-                full_name
-            };
-            resolved_names.insert(sender_id, name);
-        }
+            // Ne pas retenir l'e-mail comme nom (#6714) : `None` ici laisse
+            // jouer le repli documenté "Membre du cabinet" (ligne ~178) au
+            // lieu de court-circuiter avec une donnée d'identification que
+            // le fil n'a pas à exposer à toute l'équipe.
+            (!full_name.trim().is_empty()).then_some(full_name)
+        });
+        resolved_names.insert(sender_id, name);
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
@@ -174,7 +170,7 @@ pub async fn list_cabinet_team_messages(
             let role: Option<String> = r.try_get("sender_role").map_err(|_| AppError::Internal)?;
 
             let sender_name = provider_display_name
-                .or_else(|| resolved_names.get(&sender_id).cloned())
+                .or_else(|| resolved_names.get(&sender_id).cloned().flatten())
                 .unwrap_or_else(|| "Membre du cabinet".to_string());
 
             Ok(CabinetTeamMessageItem {
