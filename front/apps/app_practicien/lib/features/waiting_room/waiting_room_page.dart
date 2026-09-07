@@ -605,7 +605,7 @@ class _RoomPacePanel extends StatelessWidget {
               subtitle:
                   'RDV de ${_NextPatientHeroCard._formatTime(scheduledAt)}'
                   ' appelé à ${_NextPatientHeroCard._formatTime(calledAt)}',
-              value: '${delayMinutes >= 0 ? '+' : ''}$delayMinutes min',
+              value: '${delayMinutes.abs()} min',
               valueColor:
                   delayMinutes < 0 ? tokens.successFg : tokens.warningFg,
             ),
