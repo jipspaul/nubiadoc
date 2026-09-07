@@ -13,7 +13,7 @@ use axum::Json;
 use uuid::Uuid;
 
 use crate::marketplace::{
-    get_provider, search_providers, search_slots, SearchProvidersQuery, SlotRef,
+    get_provider, search_providers, search_slots, ProviderProfile, SearchProvidersQuery, SlotRef,
 };
 use crate::AppState;
 
@@ -136,25 +136,7 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
         .collect::<Vec<_>>()
         .join(" · ");
 
-    let context = if !city.is_empty() {
-        format!(
-            "{name} exerce{sector} à {city}{tp}.",
-            name = escape(&h1),
-            sector = profile
-                .sector
-                .as_deref()
-                .map(|s| format!(" en secteur {}", escape(s)))
-                .unwrap_or_default(),
-            city = escape(city),
-            tp = if profile.tiers_payant.unwrap_or(false) {
-                " et pratique le tiers payant"
-            } else {
-                ""
-            },
-        )
-    } else {
-        format!("Profil du praticien {}.", escape(&h1))
-    };
+    let context = render_context(&profile, &h1, city);
 
     let title = format!("{h1} — Nubia");
     let body = format!(
@@ -171,6 +153,45 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
     );
 
     page(&title, &body).into_response()
+}
+
+/// Paragraphe de contexte de la fiche praticien (#6721) : la `bio` quand
+/// elle existe (texte le plus riche disponible), sinon repli sur "exerce à
+/// {city}" quand une adresse est connue, sinon la tautologie minimale — puis
+/// dans tous les cas les faits pratiques déjà servis par l'API (secteur,
+/// tiers payant, accès PMR) que la maquette affiche en badges.
+fn render_context(profile: &ProviderProfile, h1: &str, city: &str) -> String {
+    let intro = match profile.bio.as_deref().map(str::trim) {
+        Some(bio) if !bio.is_empty() => escape(bio),
+        _ if !city.is_empty() => format!(
+            "{name} exerce{sector} à {city}.",
+            name = escape(h1),
+            sector = profile
+                .sector
+                .as_deref()
+                .map(|s| format!(" en secteur {}", escape(s)))
+                .unwrap_or_default(),
+            city = escape(city),
+        ),
+        _ => format!("Profil du praticien {}.", escape(h1)),
+    };
+
+    let mut facts = Vec::new();
+    if let Some(sector) = profile.sector.as_deref() {
+        facts.push(format!("Secteur {}", escape(sector)));
+    }
+    if profile.tiers_payant.unwrap_or(false) {
+        facts.push("tiers payant accepté".to_string());
+    }
+    if profile.pmr.unwrap_or(false) {
+        facts.push("accès PMR".to_string());
+    }
+
+    if facts.is_empty() {
+        intro
+    } else {
+        format!("{intro} {}.", facts.join(" · "))
+    }
 }
 
 /// Agenda de la fiche praticien : tous les jours à créneaux ouverts,
@@ -250,5 +271,60 @@ mod tests {
             search_term_from_slug("dr-amelie-rousseau-dentiste-paris"),
             Some("amelie")
         );
+    }
+
+    fn mk_profile() -> ProviderProfile {
+        ProviderProfile {
+            provider_id: Uuid::nil(),
+            display_name: "Dr Amélie Dubois".to_string(),
+            specialty: None,
+            profession: None,
+            sector: None,
+            rpps_verified: true,
+            is_listed: true,
+            bio: None,
+            languages: None,
+            address: None,
+            geo: None,
+            tiers_payant: None,
+            teleconsult: None,
+            pmr: None,
+            establishment_id: None,
+            rating_avg: None,
+            review_count: 0,
+        }
+    }
+
+    #[test]
+    fn context_uses_bio_and_facts_even_without_address() {
+        let profile = ProviderProfile {
+            bio: Some("Esthétique dentaire, blanchiment, facettes. Opéra / 9e.".to_string()),
+            sector: Some("1".to_string()),
+            tiers_payant: Some(true),
+            pmr: Some(true),
+            ..mk_profile()
+        };
+        let context = render_context(&profile, "Dr Amélie Dubois", "");
+        assert!(context.contains("Esthétique dentaire"));
+        assert!(context.contains("Secteur 1"));
+        assert!(context.contains("tiers payant accepté"));
+        assert!(context.contains("accès PMR"));
+    }
+
+    #[test]
+    fn context_falls_back_to_city_sentence_without_bio() {
+        let profile = ProviderProfile {
+            sector: Some("2".to_string()),
+            ..mk_profile()
+        };
+        let context = render_context(&profile, "Dr Hugo Marin", "Lyon");
+        assert!(context.contains("exerce en secteur 2 à Lyon"));
+    }
+
+    #[test]
+    fn context_falls_back_to_tautology_when_nothing_else_is_known() {
+        let profile = mk_profile();
+        let context = render_context(&profile, "Dr Amélie Dubois", "");
+        assert_eq!(context, "Profil du praticien Dr Amélie Dubois.");
     }
 }
