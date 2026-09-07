@@ -146,7 +146,7 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
   <p>{context}</p>
 </div>
 {agenda}
-<p><a href="/appointments?providerId={provider_id}">Prendre rendez-vous</a></p>"#,
+<p><a href="/reservation/confirmer?providerId={provider_id}">Prendre rendez-vous</a></p>"#,
         h1 = escape(&h1),
         subtitle = escape(&subtitle),
         provider_id = profile.provider_id,
@@ -299,7 +299,7 @@ fn render_agenda(provider_id: Uuid, slots: &[SlotRef]) -> String {
                 .iter()
                 .map(|(hhmm, slot_id)| {
                     format!(
-                        r#"<a class="chip" href="/appointments?providerId={provider_id}&amp;slotId={slot_id}">{hhmm}</a>"#,
+                        r#"<a class="chip" href="/reservation/confirmer?providerId={provider_id}&amp;slotId={slot_id}">{hhmm}</a>"#,
                     )
                 })
                 .collect::<Vec<_>>()

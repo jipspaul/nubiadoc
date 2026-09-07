@@ -373,7 +373,7 @@ fn render_slots_block(provider_id: Uuid, slots: &[SlotRef], provider_href: &str)
                 .take(GRID_SLOTS_PER_DAY)
                 .map(|(hhmm, slot_id)| {
                     format!(
-                        r#"<a class="chip" href="/appointments?providerId={provider_id}&amp;slotId={slot_id}">{hhmm}</a>"#,
+                        r#"<a class="chip" href="/reservation/confirmer?providerId={provider_id}&amp;slotId={slot_id}">{hhmm}</a>"#,
                     )
                 })
                 .collect::<Vec<_>>()
