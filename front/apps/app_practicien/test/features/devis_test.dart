@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart' hide State;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -178,6 +179,26 @@ void main() {
         isA<DevisSendFailure>(),
       ],
     );
+
+    // #6672 — le CTA « Générer le devis de la phase N » du plan de
+    // traitement ouvrait la liste des devis de TOUT le cabinet (autres
+    // patients compris) au lieu de rester scopé au patient du plan ouvert.
+    blocTest<DevisBloc, DevisState>(
+      'DevisListRequested(patientId: ...) filtre la liste sur ce patient',
+      build: () {
+        when(() => mockList(patientId: any(named: 'patientId')))
+            .thenAnswer((_) async => Right([_draftQuote]));
+        return _makeBloc(list: mockList, getById: mockGet);
+      },
+      act: (bloc) => bloc.add(const DevisListRequested(patientId: 'pat-1')),
+      expect: () => [
+        const DevisLoading(),
+        DevisListLoaded([_draftQuote]),
+      ],
+      verify: (_) {
+        verify(() => mockList(patientId: 'pat-1')).called(1);
+      },
+    );
   });
 
   group('DevisBody (widget)', () {
@@ -255,6 +276,34 @@ void main() {
       when(() => bloc.state).thenReturn(DevisSent(_sentQuote));
       await tester.pumpWidget(_wrap(bloc));
       expect(find.byKey(const Key('devis_sent')), findsOneWidget);
+    });
+  });
+
+  group('DevisPage', () {
+    setUp(() {
+      GetIt.instance.registerFactory<DevisBloc>(
+        () => _makeBloc(list: mockList, getById: mockGet),
+      );
+      addTearDown(GetIt.instance.reset);
+    });
+
+    // #6672 — la route `/devis` reçoit désormais `?patientId=` depuis le CTA
+    // contextuel du plan de traitement : la liste chargée par `DevisPage`
+    // doit rester scopée à ce patient plutôt que de tomber sur le cabinet
+    // entier.
+    testWidgets(
+        'patientId fourni → scope la liste initiale à ce patient plutôt '
+        'qu\'au cabinet entier', (tester) async {
+      when(() => mockList(patientId: any(named: 'patientId')))
+          .thenAnswer((_) async => Right([_draftQuote]));
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: const Scaffold(body: DevisPage(patientId: 'pat-1')),
+      ));
+      await tester.pumpAndSettle();
+
+      verify(() => mockList(patientId: 'pat-1')).called(1);
     });
   });
 }

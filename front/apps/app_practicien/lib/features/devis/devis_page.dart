@@ -16,14 +16,20 @@ import 'devis_state.dart';
 ///
 /// Doit être placé sous un [BlocProvider<DevisBloc>] (fourni par [DevisPage] ou
 /// le parent).
+///
+/// [patientId] non nul (query param `?patientId=` de la route, #6672) ⇒ la
+/// liste initiale est scopée à ce seul patient, au lieu du cabinet entier —
+/// cas du CTA « Générer le devis de la phase N » du plan de traitement.
 class DevisPage extends StatelessWidget {
-  const DevisPage({super.key});
+  const DevisPage({super.key, this.patientId});
+
+  final String? patientId;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) =>
-          GetIt.instance<DevisBloc>()..add(const DevisListRequested()),
+      create: (_) => GetIt.instance<DevisBloc>()
+        ..add(DevisListRequested(patientId: patientId)),
       child: const DevisBody(),
     );
   }

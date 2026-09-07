@@ -15,6 +15,12 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
   final GetCabinetQuoteUseCase _getById;
   final SendCabinetQuoteUseCase _send;
 
+  /// Patient sur lequel la liste est filtrée (#6672), mémorisé pour qu'un
+  /// [DevisListRequested] sans `patientId` (retour depuis le détail, retry
+  /// après erreur) reste scopé au même patient plutôt que de retomber sur le
+  /// cabinet entier.
+  String? _patientId;
+
   DevisBloc({
     required ListCabinetQuotesUseCase list,
     required GetCabinetQuoteUseCase getById,
@@ -33,9 +39,10 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
     DevisListRequested event,
     Emitter<DevisState> emit,
   ) async {
+    if (event.patientId != null) _patientId = event.patientId;
     emit(const DevisLoading());
     try {
-      final result = await _list();
+      final result = await _list(patientId: _patientId);
       result.fold(
         (failure) => emit(DevisError(failure.message)),
         (quotes) => emit(DevisListLoaded(quotes)),
