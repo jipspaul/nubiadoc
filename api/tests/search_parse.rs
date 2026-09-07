@@ -132,6 +132,35 @@ async fn parse_keywords_available_saturday() {
     assert_eq!(v["query"]["available"], "saturday");
 }
 
+/// #6656 : « demain » → available=tomorrow, 200 (seul mot de date ignoré jusqu'ici).
+#[tokio::test]
+async fn parse_keywords_available_demain() {
+    if !db_available() {
+        return;
+    }
+
+    let response = app(state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/search/parse")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"q":"dentiste demain"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["query"]["available"], "tomorrow");
+    assert!(v["interpretation"].as_str().unwrap().contains("demain"));
+}
+
 /// #4484 : ville connue de KNOWN_CITY_COORDS (réellement filtrée par
 /// search_providers) → interprétation « près de <ville> ».
 #[tokio::test]
