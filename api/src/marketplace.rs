@@ -344,8 +344,8 @@ pub struct SearchSlotsResponse {
 
 /// Fragment SQL du filtre `available` sur `sl.starts_at` (constantes hardcodées,
 /// jamais de données utilisateur interpolées). Vocabulaire aligné sur celui émis
-/// par `detect_available` (`/search/parse`) : `today`, `week`/`this_week`, et les
-/// noms de jours anglais (`monday`…`sunday`).
+/// par `detect_available` (`/search/parse`) : `today`, `tomorrow`, `week`/`this_week`,
+/// et les noms de jours anglais (`monday`…`sunday`).
 fn available_time_clause(available: Option<&str>) -> &'static str {
     match available {
         Some("today") => {
@@ -353,6 +353,10 @@ fn available_time_clause(available: Option<&str>) -> &'static str {
               AND sl.starts_at < date_trunc('day', now()) + interval '1 day'"
         }
         Some("week") | Some("this_week") => " AND sl.starts_at < now() + interval '7 days'",
+        Some("tomorrow") => {
+            " AND sl.starts_at >= date_trunc('day', now()) + interval '1 day' \
+              AND sl.starts_at < date_trunc('day', now()) + interval '2 days'"
+        }
         Some("monday") => " AND EXTRACT(DOW FROM sl.starts_at) = 1",
         Some("tuesday") => " AND EXTRACT(DOW FROM sl.starts_at) = 2",
         Some("wednesday") => " AND EXTRACT(DOW FROM sl.starts_at) = 3",
@@ -1526,10 +1530,13 @@ async fn keyword_parse(db: &sqlx::PgPool, raw: &str) -> (ParsedQuery, String) {
     (query, interpretation)
 }
 
-/// Détecte une disponibilité (« ce soir », « cette semaine », un jour de semaine…).
+/// Détecte une disponibilité (« ce soir », « demain », « cette semaine », un jour de semaine…).
 fn detect_available(lower: &str) -> Option<String> {
     if lower.contains("ce soir") || lower.contains("aujourd'hui") || lower.contains("aujourdhui") {
         return Some("today".to_string());
+    }
+    if lower.contains("demain") {
+        return Some("tomorrow".to_string());
     }
     if lower.contains("cette semaine") {
         return Some("this_week".to_string());
@@ -1708,6 +1715,7 @@ fn build_interpretation(query: &ParsedQuery, specialty_label: Option<&str>) -> S
 fn available_fr(a: &str) -> String {
     let day = match a {
         "today" => "aujourd'hui",
+        "tomorrow" => "demain",
         "this_week" => "cette semaine",
         "monday" => "lundi",
         "tuesday" => "mardi",
@@ -1747,7 +1755,7 @@ async fn llm_parse(db: &sqlx::PgPool, raw: &str, api_key: &str) -> Option<(Parse
          - place : quartier/ville mentionné ou null\n\
          - near : null\n\
          - sector : \"1\" si le patient veut du conventionné / pas cher / secteur 1, sinon null\n\
-         - available : \"today\", \"this_week\", ou un jour (\"monday\"..\"sunday\") ou null\n\
+         - available : \"today\", \"tomorrow\", \"this_week\", ou un jour (\"monday\"..\"sunday\") ou null\n\
          - teleconsult : true si téléconsultation/visio/à distance, sinon null\n\
          - interpretation : phrase courte en français résumant la demande"
     );
