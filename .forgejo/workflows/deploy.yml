@@ -34,7 +34,10 @@ on:
       - 'design/**'
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  # v2 (2026-09-07) : le suffixe -v2 abandonne l'ancien groupe, empoisonné par
+  # un run zombie (task 34043, runner mort dessous, jamais zombie-reapé par
+  # Forgejo) qui bloquait indéfiniment toute la file de deploy.
+  group: deploy-v2-${{ github.ref }}
   # Postmortem 2026-06-27 : avec `cancel-in-progress: true`, Forgejo Actions
   # cancel le run en cours avant d'évaluer `paths-ignore` sur le nouveau push.
   # Quand le QA agent met à jour `qa/explored-paths.md` (paths-ignore matched),
