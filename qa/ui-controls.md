@@ -892,3 +892,33 @@ Conformément à la leçon de méthode ci-dessus, **chaque** verdict négatif a 
 
 **COUVERTURE UI DE LA RONDE — COMPLÈTE : les 5 apps parcourues aux 2 viewports.**
 
+
+## Ronde 2026-09-07 (18:00–22:00 UTC) — 4e lot, ciblage diff-driven de #6704/#6702
+
+> **Piège de mesure neuf, à retenir** : sur `/salle-attente` (secrétariat), un `Timer.periodic` de **15 s**
+> (`waiting_room_page.dart:53-60`) émet `GET /cabinet/waiting-room` en continu. L'auditeur qui compte
+> « une requête après le clic » y voit un effet et classe **OK** un contrôle inerte. C'est ce qui est
+> arrivé à « Prévenir le praticien » (stub connu, **#6696**) et au 2ᵉ « Appeler » de la file dans le
+> lot automatique ci-dessous : leur `net` ne contient QUE le tick périodique. **8ᵉ angle mort de
+> l'auditeur** — sur un écran à rafraîchissement automatique, ne compter que les requêtes *autres*
+> que celles de la boucle de rafraîchissement.
+
+| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/salle-attente` (1280×800) | 7 | 7 | 5 réels | 2 non concluants (`Prévenir le praticien` = stub #6696, 2ᵉ `Appeler` = ligne hors tête de file) | 0 | 2026-09-07T22:00:00Z — **`Appeler Marc Dubois` : `POST /cabinet/waiting-room/call-next` → 200 `{"called": false}` traité comme un succès, aucun retour visuel → #6707.** KPI/bandeau comptant les `in_consultation` → #6708. Colonne « Estimation » recopiant l'attente écoulée → #6713. |
+| secretariat | `/cabinet-payouts` (Encaissements, 1280×800) | 7 | 5 | 5 | 0 | 0 | 2026-09-07T22:00:00Z — **Correctif #6702 confirmé live** : `Connecter Stripe` porte `aria-disabled=true` et son `Tooltip` (« Connexion Stripe indisponible pour l'instant. ») est **exposé dans l'arbre Semantics**. `Exporter (CSV)` désactivé en septembre (0 virement) et **actif en juillet** (3 virements) → désactivation conditionnelle correcte. Mécanique du sélecteur de mois **prouvée** (Sept 0 → Juil 3 lignes). Incohérence « écart cumulé » → #6712. |
+| secretariat | `/team-messages` (Messagerie interne, 1280×800) | 4 (hors rail) | 2 | 2 | 0 | 0 | 2026-09-07T22:00:00Z — **Correctif #6702 confirmé live** : `Joindre un patient, un devis…` et `Épingler` sont `aria-disabled=true` avec leurs Tooltips. `Mentionner` et `Envoyer` répondent. Auteur rendu comme adresse e-mail → #6714. |
+| secretariat | `/agenda` (grille semaine, 1280×800) | 50 | 50 | 34 | 16 (artefact de bord : rects à `y` 850-1000 dans un viewport de 800) | 0 | 2026-09-07T22:00:00Z — Les 34 OK couvrent `Nouveau RDV`, navigation de semaine, `Aujourd'hui`, les 2 filtres praticien et 24 pastilles de créneau (chacune → `GET /cabinet/patients`). Les 16 « morts » sont tous à `y > 800` : **même angle mort que le lot du 2026-09-07 matin**, non filés. |
+| secretariat | `/devis` (1280×800) | 20 | 20 | 16 | 4 (même artefact `y > 800`) | 0 | 2026-09-07T22:00:00Z — `Relancer` émet réellement `POST /cabinet/quotes/:id/send` (5 devis relancés), `PDF` ouvre le détail (`GET /cabinet/quotes/:id` + `GET /cabinet/patients/:id`), les 4 facettes et le tri répondent. |
+| praticien | `/consultation` (liste des séances, 1280×800) | 22 | 22 | 18 | 4 (artefact `y > 800`) | 0 | 2026-09-07T22:00:00Z — **1re fois auditée**. Les 3 facettes (En cours / Terminée / Annulée) répondent ; **chaque ligne de séance ouvre `/consultation?id=…`** avec `GET /cabinet/consultations/:id` + `dental-chart` + `favorite-acts`. Rail (Inventaire / Labo / Messagerie interne) correct. |
+| praticien | `/stock-inventory` (Inventaire, 1280×800) | 17 | 17 | 14 | 2 (onglet actif + artefact) | 1 | 2026-09-07T22:00:00Z — **1re fois auditée**. |
+| pharmacie | `/` (File des commandes, 1280×800) | 15 | 15 | 14 | 0 | 1 | 2026-09-07T22:00:00Z — Les 4 facettes chiffrées (Toutes 59 / Reçues 11 / En préparation 4 / Prêtes 44) et les 8 `Délivrer` naviguent vers `/orders/:id/pickup`. |
+| patient | `/oubliettes` (390×844) | 1 | 1 | 1 | — | 0 | 2026-09-07T22:00:00Z — **1 seul contrôle sur tout l'écran** : les 10 cartes de documents n'ont AUCUN rôle Semantics et 3 clics réels ne produisent rien → **#6710**. 15 `GET /documents` en cascade pour 10 lignes → **#6711**. |
+| patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-09-07T22:00:00Z — Sans `?providerId=`, état vide légitime « Aucun avis pour ce prestataire. » (`app_router.dart:435` lit `providerId` en query). `Retour` ramène à `/`. |
+| patient | `/implant-passport` (390×844) | 5 | 5 | 4 | 1 (5ᵉ carte, `y` hors viewport) | 0 | 2026-09-07T22:00:00Z — Chaque carte ouvre la fiche complète (« En place depuis 0 mois », « Exporter cette fiche »). |
+| patient | `/profile/consents` (390×844) | 8 | 7 | 6 | 1 (dernier `Détails`, hors viewport) | 0 | 2026-09-07T22:00:00Z — `Soins` est **désactivé légitimement** (« Nécessaire au service · Non modifiable »). `Partage avec ma pharmacie` bascule et émet `GET /account/orders`. |
+| patient | `/profile/referring-doctor` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-09-07T22:00:00Z — « Dr Hugo Marin · Implantologie · 12 rue de la République, 69002 Lyon » ; `Changer de médecin traitant` ouvre la recherche. |
+| patient | `/pharmacy` (Ma pharmacie, 390×844) | 7 | 7 | 7 | 0 | 0 | 2026-09-07T22:00:00Z — **1re fois auditée**. `Envoyer une ordonnance` (`GET /account/prescriptions` + `/account/pharmacy`), `Suivre mes commandes` (`GET /account/orders`), `Mes devis pharmacie` (`GET /account/pharmacy-quotes`), `Itinéraire`, `Appeler`, `Changer de pharmacie` : 7/7 répondent. |
+| patient | `/appointments` → **tunnel de réservation complet** (390×844) | 41 → 59 → 5 | parcours métier complet | OK | 0 | 0 | 2026-09-07T22:00:00Z — **Parcours métier bout-en-bout joué en UI** : carte praticien (rail 3 jours) → grille jour (rail `MAR 8 · 15 dispo` … `VEN 11 · 5 dispo`, Matin/Après-midi) → `POST /slots/:id/hold` → `Continuer` → feuille modale (bénéficiaire, récap + `Modifier`, puces de motif, rappels, compte à rebours de blocage) → `Contrôle` remplit le champ Motif → `Confirmer le rendez-vous` → **`POST 201 /bookings`** → écran « Demande de rendez-vous envoyée ». **Correctif #6702 confirmé** : `Télécharger l'app` `aria-disabled=true`, Tooltip « Téléchargement bientôt disponible. » exposé. |
+| infirmiere | `/` (Disponibilité / Offres / Ma visite, 390×844) | 5 | 5 | 5 | 0 | 0 | 2026-09-07T22:00:00Z — 5/5. La bascule `En ligne` émet `PATCH 200 /nurse/availability` ; état restauré `is_online: true` en fin de ronde (vérifié via `GET /nurse/profile`). Onglet `Offres` → « Aucune offre — Les demandes de visite proches apparaîtront ici. » |
+| **TOTAL RONDE** | **15 écrans** | **166** | **163** | **133** | **28 (dont 26 artefacts de bord `y > viewport`)** | **2** | 2026-09-07T22:00:00Z |
