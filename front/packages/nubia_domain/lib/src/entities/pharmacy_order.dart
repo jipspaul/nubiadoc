@@ -63,6 +63,18 @@ class PharmacyOrder extends Equatable {
   final String? orderRef;
   final String? prescriberName;
   final String? prescriberPractice;
+
+  /// RPPS du prescripteur — `null` tant que le back ne le résout pas (#6716,
+  /// ordonnances antérieures à la snapshot RPPS sur `pharmacy_order`).
+  final String? prescriberRpps;
+
+  /// Date de prescription (signature de l'ordonnance) — `null` tant que le
+  /// back ne la résout pas (#6716).
+  final DateTime? prescribedAt;
+
+  /// Fin de validité de l'ordonnance pour la délivrance — `null` tant que le
+  /// back ne la résout pas (#6716).
+  final DateTime? validUntil;
   final String prescriptionId;
   final PharmacyOrderStatus status;
   final String? rejectionReason;
@@ -104,6 +116,9 @@ class PharmacyOrder extends Equatable {
     this.orderRef,
     this.prescriberName,
     this.prescriberPractice,
+    this.prescriberRpps,
+    this.prescribedAt,
+    this.validUntil,
     required this.prescriptionId,
     required this.status,
     this.rejectionReason,

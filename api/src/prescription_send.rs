@@ -59,7 +59,7 @@ pub async fn send_prescription(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT patient_id, practitioner_id, status, document_id \
+        "SELECT patient_id, practitioner_id, status, document_id, signed_at, created_at \
          FROM prescription \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
@@ -76,6 +76,13 @@ pub async fn send_prescription(
         .map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let document_id: Option<Uuid> = row.try_get("document_id").map_err(|_| AppError::Internal)?;
+    // Date de prescription snapshotée sur la commande (#6716) : `signed_at`,
+    // ou `created_at` à défaut.
+    let signed_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("signed_at").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+    let prescribed_at = signed_at.unwrap_or(created_at);
 
     // Seul le praticien prescripteur peut envoyer sa propre ordonnance à la
     // pharmacie (même garde que sign_prescription). #3684.
@@ -141,10 +148,10 @@ pub async fn send_prescription(
     let patient_display_name =
         crate::pharmacy::orders::minimized_patient_name(&mut tx, patient_id).await?;
 
-    // Prescripteur (Dr + cabinet), snapshoté maintenant (#6253) — le GUC
-    // cabinet est déjà posé (ligne 54), le praticien envoie sa propre
-    // ordonnance depuis son propre cabinet.
-    let (prescriber_name, prescriber_practice) =
+    // Prescripteur (Dr + cabinet + RPPS), snapshoté maintenant (#6253, RPPS
+    // #6716) — le GUC cabinet est déjà posé (ligne 54), le praticien envoie
+    // sa propre ordonnance depuis son propre cabinet.
+    let (prescriber_name, prescriber_practice, prescriber_rpps) =
         crate::pharmacy::orders::prescriber_identity(&mut tx, claims.cabinet_id, practitioner_id)
             .await?;
 
@@ -184,8 +191,8 @@ pub async fn send_prescription(
         "INSERT INTO pharmacy_order \
          (pharmacy_id, cabinet_id, patient_account_id, prescription_id, document_id, \
           created_by_kind, created_by, consent_record_id, pharmacy_name, patient_display_name, \
-          prescriber_name, prescriber_practice) \
-         VALUES ($1, $2, $3, $4, $5, 'practitioner', $6, $7, $8, $9, $10, $11) \
+          prescriber_name, prescriber_practice, prescriber_rpps, prescribed_at) \
+         VALUES ($1, $2, $3, $4, $5, 'practitioner', $6, $7, $8, $9, $10, $11, $12, $13) \
          RETURNING {}",
         crate::pharmacy::orders::ORDER_COLUMNS,
     ))
@@ -200,6 +207,8 @@ pub async fn send_prescription(
     .bind(&patient_display_name)
     .bind(&prescriber_name)
     .bind(&prescriber_practice)
+    .bind(&prescriber_rpps)
+    .bind(prescribed_at)
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| match &e {

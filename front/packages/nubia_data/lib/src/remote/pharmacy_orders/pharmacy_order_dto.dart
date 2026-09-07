@@ -12,6 +12,9 @@ class PharmacyOrderDto {
   final String? orderRef;
   final String? prescriberName;
   final String? prescriberPractice;
+  final String? prescriberRpps;
+  final String? prescribedAt;
+  final String? validUntil;
   final String prescriptionId;
   final String status;
   final String? rejectionReason;
@@ -45,6 +48,9 @@ class PharmacyOrderDto {
     this.orderRef,
     this.prescriberName,
     this.prescriberPractice,
+    this.prescriberRpps,
+    this.prescribedAt,
+    this.validUntil,
     required this.prescriptionId,
     required this.status,
     this.rejectionReason,
@@ -72,6 +78,9 @@ class PharmacyOrderDto {
         orderRef: json['order_ref'] as String?,
         prescriberName: json['prescriber_name'] as String?,
         prescriberPractice: json['prescriber_practice'] as String?,
+        prescriberRpps: json['prescriber_rpps'] as String?,
+        prescribedAt: json['prescribed_at'] as String?,
+        validUntil: json['valid_until'] as String?,
         prescriptionId: json['prescription_id'] as String? ?? '',
         status: json['status'] as String? ?? 'received',
         rejectionReason: json['rejection_reason'] as String?,
@@ -109,6 +118,9 @@ class PharmacyOrderDto {
       orderRef: orderRef,
       prescriberName: prescriberName,
       prescriberPractice: prescriberPractice,
+      prescriberRpps: prescriberRpps,
+      prescribedAt: prescribedAt != null ? DateTime.parse(prescribedAt!) : null,
+      validUntil: validUntil != null ? DateTime.parse(validUntil!) : null,
       prescriptionId: prescriptionId,
       status: parseStatus(status),
       rejectionReason: rejectionReason,

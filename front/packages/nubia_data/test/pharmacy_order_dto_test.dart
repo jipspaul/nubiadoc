@@ -44,4 +44,36 @@ void main() {
       expect(order.lineCount, 1);
     });
   });
+
+  group('PharmacyOrderDto.prescriberRpps/prescribedAt/validUntil (#6716)', () {
+    final baseJson = {
+      'id': 'o1',
+      'pharmacy_id': 'p1',
+      'prescription_id': 'rx1',
+      'status': 'received',
+      'received_at': '2026-08-01T10:00:00Z',
+      'updated_at': '2026-08-01T10:05:00Z',
+    };
+
+    test('champs absents → null, pas d’erreur de parsing', () {
+      final order = PharmacyOrderDto.fromJson(baseJson).toDomain();
+
+      expect(order.prescriberRpps, isNull);
+      expect(order.prescribedAt, isNull);
+      expect(order.validUntil, isNull);
+    });
+
+    test('champs présents → mappés (RPPS texte, dates parsées)', () {
+      final order = PharmacyOrderDto.fromJson({
+        ...baseJson,
+        'prescriber_rpps': '10 004 219 887',
+        'prescribed_at': '2026-08-10T00:00:00Z',
+        'valid_until': '2026-11-10T00:00:00Z',
+      }).toDomain();
+
+      expect(order.prescriberRpps, '10 004 219 887');
+      expect(order.prescribedAt, DateTime.parse('2026-08-10T00:00:00Z'));
+      expect(order.validUntil, DateTime.parse('2026-11-10T00:00:00Z'));
+    });
+  });
 }
