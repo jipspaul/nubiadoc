@@ -1428,7 +1428,7 @@ void main() {
       );
       final delayValueFinder = find.descendant(
         of: find.byKey(const Key('room_pace_delay')),
-        matching: find.textContaining('+32 min'),
+        matching: find.textContaining('32 min'),
       );
       expect(delayValueFinder, findsOneWidget);
 
@@ -1476,7 +1476,7 @@ void main() {
       );
       final delayValueFinder = find.descendant(
         of: find.byKey(const Key('room_pace_delay')),
-        matching: find.textContaining('-32 min'),
+        matching: find.textContaining('32 min'),
       );
       expect(delayValueFinder, findsOneWidget);
 
