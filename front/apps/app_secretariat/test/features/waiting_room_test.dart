@@ -1016,6 +1016,60 @@ void main() {
       expect(overThirtyValue.style?.color, NubiaTokens.light.dangerFg);
     });
 
+    testWidgets(
+        'entrées in_consultation exclues des KPI et de l\'alerte — 0 patient '
+        'attend réellement — #6708', (tester) async {
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marc Dubois',
+            arrivedAt: now.subtract(const Duration(minutes: 1084)),
+            status: 'in_consultation',
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marc Dubois',
+            arrivedAt: now.subtract(const Duration(minutes: 1084)),
+            status: 'in_consultation',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_count')),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_average')),
+          matching: find.text('0 min'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_kpi_over_thirty')),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('waiting_room_alert_banner')),
+        findsNothing,
+      );
+    });
+
     testWidgets('file vide → KPI à 0 / 0 min / 0, pas de division par zéro',
         (tester) async {
       when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
