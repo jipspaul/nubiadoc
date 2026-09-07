@@ -91,6 +91,15 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
             let id = data.get("appointment_id")?.as_str()?;
             Some(format!("/reviews?appointmentId={id}"))
         }
+        // Suivi de visite à domicile (#6623, 3e jumeau de #6580/#6609) :
+        // `nurse::visits::notify_patient_of` émet déjà `visit_request_id` en
+        // data pour les 4 statuts du cycle de vie (accepted/en_route/arrived/
+        // done), et `/home-care/{id}` (HomeCareTrackingPage) existe déjà côté
+        // front — même schéma que `order_*` ci-dessus.
+        "visit_status_changed" => {
+            let id = data.get("visit_request_id")?.as_str()?;
+            Some(format!("/home-care/{id}"))
+        }
         _ => None,
     }
 }
