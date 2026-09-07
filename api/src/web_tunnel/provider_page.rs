@@ -17,7 +17,7 @@ use crate::marketplace::{
 };
 use crate::AppState;
 
-use super::html::{escape, page};
+use super::html::{escape, page, tunnel_base_url, PageMeta};
 use super::search_page::group_slots_by_day;
 use super::slug::slugify;
 
@@ -43,7 +43,7 @@ fn search_term_from_slug(slug: &str) -> Option<&str> {
 
 pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<String>) -> Response {
     let Some(term) = search_term_from_slug(&slug) else {
-        return not_found();
+        return not_found(&slug);
     };
 
     let params = SearchProvidersQuery {
@@ -77,12 +77,12 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
         .into_iter()
         .find(|p| slug.starts_with(&slugify(&p.display_name)))
     else {
-        return not_found();
+        return not_found(&slug);
     };
 
     let profile = match get_provider(State(state.clone()), Path(matched.provider_id)).await {
         Ok(Json(profile)) => profile,
-        Err(_) => return not_found(),
+        Err(_) => return not_found(&slug),
     };
 
     // Agenda de la fiche (#6318) : `search_slots`, MÊME fonction que l'API
@@ -152,7 +152,92 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
         provider_id = profile.provider_id,
     );
 
-    page(&title, &body).into_response()
+    // Canonical = le MÊME slug que celui produit pour la carte de résultat
+    // (`render_card`, `search_page.rs`) : plusieurs variantes de slug
+    // résolvent ici par préfixe (cf. doc du handler) — sans un canonical
+    // pointant vers une URL unique, chaque variante serait un doublon
+    // structurel (#6720).
+    let canonical_path = format!(
+        "/{}",
+        slug_for(&profile.display_name, profile.specialty.as_deref(), None)
+    );
+    let canonical_url = format!("{}{canonical_path}", tunnel_base_url());
+    let meta = PageMeta::new(provider_description(&profile, &h1, city), canonical_path)
+        .og_type("profile")
+        .json_ld(provider_json_ld(&profile, &canonical_url, city));
+
+    page(&title, &meta, &body).into_response()
+}
+
+/// Texte brut (pas de HTML) du `<meta name="description">`/`og:description`
+/// — même hiérarchie de repli que [`render_context`] (bio, sinon phrase
+/// ville/secteur, sinon tautologie) mais sans échappement HTML : `page()`
+/// échappe une seule fois pour l'attribut, échapper ici doublerait les
+/// entités (`&` → `&amp;amp;`).
+fn provider_description(profile: &ProviderProfile, h1: &str, city: &str) -> String {
+    if let Some(bio) = profile
+        .bio
+        .as_deref()
+        .map(str::trim)
+        .filter(|b| !b.is_empty())
+    {
+        return bio.to_string();
+    }
+    if !city.is_empty() {
+        return format!(
+            "Prendre rendez-vous avec {h1}{sector} à {city} sur Nubia.",
+            sector = profile
+                .sector
+                .as_deref()
+                .map(|s| format!(", secteur {s}"))
+                .unwrap_or_default(),
+        );
+    }
+    format!("Prendre rendez-vous avec {h1} sur Nubia.")
+}
+
+/// JSON-LD `Physician` (schema.org) — le signal qui produit les résultats
+/// enrichis (adresse, avis) d'un annuaire de santé local (#6720). N'inclut
+/// que les champs réellement connus : pas de `null` inventé pour un champ
+/// absent (adresse partielle, aucun avis publié).
+fn provider_json_ld(profile: &ProviderProfile, canonical_url: &str, city: &str) -> String {
+    let mut root = serde_json::Map::new();
+    root.insert("@context".into(), serde_json::json!("https://schema.org"));
+    root.insert("@type".into(), serde_json::json!("Physician"));
+    root.insert("name".into(), serde_json::json!(profile.display_name));
+    root.insert("url".into(), serde_json::json!(canonical_url));
+    if let Some(specialty) = profile.specialty.as_deref() {
+        root.insert("medicalSpecialty".into(), serde_json::json!(specialty));
+    }
+
+    if let Some(address) = profile.address.as_ref() {
+        let mut addr = serde_json::Map::new();
+        addr.insert("@type".into(), serde_json::json!("PostalAddress"));
+        if let Some(street) = address.get("rue").and_then(|v| v.as_str()) {
+            addr.insert("streetAddress".into(), serde_json::json!(street));
+        }
+        if let Some(postal) = address.get("cp").and_then(|v| v.as_str()) {
+            addr.insert("postalCode".into(), serde_json::json!(postal));
+        }
+        if !city.is_empty() {
+            addr.insert("addressLocality".into(), serde_json::json!(city));
+        }
+        addr.insert("addressCountry".into(), serde_json::json!("FR"));
+        root.insert("address".into(), serde_json::Value::Object(addr));
+    }
+
+    if let Some(rating_avg) = profile.rating_avg.filter(|_| profile.review_count > 0) {
+        root.insert(
+            "aggregateRating".into(),
+            serde_json::json!({
+                "@type": "AggregateRating",
+                "ratingValue": rating_avg,
+                "reviewCount": profile.review_count,
+            }),
+        );
+    }
+
+    serde_json::Value::Object(root).to_string()
 }
 
 /// Paragraphe de contexte de la fiche praticien (#6721) : la `bio` quand
@@ -230,14 +315,22 @@ fn render_agenda(provider_id: Uuid, slots: &[SlotRef]) -> String {
     format!(r#"<div class="slots">{days_html}</div>"#)
 }
 
-fn not_found() -> Response {
+/// `noindex` (#6720) : une fiche introuvable n'a aucun contenu propre à
+/// classer — le `404` HTTP suffit déjà à écarter la page, la balise évite en
+/// plus qu'un moteur la garde indexée après un slug devenu invalide.
+fn not_found(slug: &str) -> Response {
     let body = r#"<h1>Praticien introuvable</h1>
 <div class="context">
   <p>Ce profil n'existe pas ou n'est plus référencé dans l'annuaire Nubia.</p>
 </div>"#;
+    let meta = PageMeta::new(
+        "Ce profil n'existe pas ou n'est plus référencé dans l'annuaire Nubia.",
+        format!("/{slug}"),
+    )
+    .robots("noindex");
     (
         StatusCode::NOT_FOUND,
-        page("Praticien introuvable — Nubia", body),
+        page("Praticien introuvable — Nubia", &meta, body),
     )
         .into_response()
 }
