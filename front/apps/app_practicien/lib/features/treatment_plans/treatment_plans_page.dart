@@ -85,6 +85,8 @@ class _TreatmentPlansBody extends StatelessWidget {
                     ),
                   TreatmentPlansLoaded(:final plans, :final busy) =>
                     _PlansSplitView(
+                      patientId:
+                          context.read<TreatmentPlansCubit>().patientId,
                       plans: plans,
                       busy: busy,
                       onNewPlan: () => _promptNewPlan(context),
@@ -123,11 +125,13 @@ class _TreatmentPlansBody extends StatelessWidget {
 /// le premier plan est sélectionné par défaut.
 class _PlansSplitView extends StatefulWidget {
   const _PlansSplitView({
+    required this.patientId,
     required this.plans,
     required this.busy,
     required this.onNewPlan,
   });
 
+  final String patientId;
   final List<TreatmentPlan> plans;
   final bool busy;
   final VoidCallback onNewPlan;
@@ -202,7 +206,16 @@ class _PlansSplitViewState extends State<_PlansSplitView> {
               CoverageColumn(
                 key: Key('treatment_plan_coverage_${selected.id}'),
                 plan: selected,
-                onGenerateQuote: () => context.push(AppRouter.devis),
+                // #6672 — le CTA porte désormais le numéro de la phase mais
+                // ouvrait encore la liste de devis de TOUT le cabinet : on
+                // la scope au patient du plan ouvert (filtre `patientId`
+                // supporté côté API, #4419/#5572). `go` (pas `push`) car
+                // `/devis` appartient à une autre `StatefulShellBranch` que
+                // `/patients/...` — même convention que la nav latérale
+                // (`PracticienShell`), et seul `go` fait suivre l'URL par le
+                // navigateur.
+                onGenerateQuote: () => context
+                    .go('${AppRouter.devis}?patientId=${widget.patientId}'),
               ),
           ],
         );

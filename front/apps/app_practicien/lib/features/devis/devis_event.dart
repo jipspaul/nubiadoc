@@ -9,8 +9,18 @@ abstract class DevisEvent extends Equatable {
 }
 
 /// Charge (ou recharge) la liste des devis du cabinet.
+///
+/// [patientId] non nul ⇒ filtre côté serveur (`patient_id`, #4419/#5572) sur
+/// ce seul patient, au lieu du cabinet entier (#6672 : le CTA « Générer le
+/// devis de la phase N » du plan de traitement doit rester scopé au patient
+/// dont le plan est ouvert).
 class DevisListRequested extends DevisEvent {
-  const DevisListRequested();
+  final String? patientId;
+
+  const DevisListRequested({this.patientId});
+
+  @override
+  List<Object?> get props => [patientId];
 }
 
 /// Ouvre le détail d'un devis (récupère les lignes d'actes complètes).

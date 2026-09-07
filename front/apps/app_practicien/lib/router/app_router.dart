@@ -224,8 +224,10 @@ class AppRouter {
             StatefulShellBranch(routes: [
               GoRoute(
                 path: devis,
-                builder: (_, __) => const Scaffold(
-                  body: DevisPage(),
+                builder: (_, state) => Scaffold(
+                  body: DevisPage(
+                    patientId: state.uri.queryParameters['patientId'],
+                  ),
                 ),
               ),
             ]),
