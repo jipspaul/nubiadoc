@@ -837,3 +837,29 @@ Conformément à la leçon de méthode ci-dessus, **chaque** verdict négatif a 
 
 > **Deux angles morts de l'auditeur corrigés/consignés cette ronde** : (1) un contrôle dont le `rect` sort du viewport **en X** était cliqué à des coordonnées hors écran → faux « MORT » ; `R48_audit.js` fait désormais défiler la rangée horizontalement avant de juger, et classe `SKIP` s'il reste hors champ. (2) Une **snackbar** Flutter et un **sélecteur de fichier** n'apparaissent ni dans l'arbre Semantics interrogé, ni en requête, ni en navigation : un contrôle qui n'en produit qu'un est signalé MORT à tort. À vérifier à la main avant tout rapport.
 
+### Ronde 2026-09-07 (12:00–13:20 UTC) — 2e lot : seconds viewports + écrans denses
+
+| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | `/` (Accueil, **1280×800**) | 21 | 13 | 11 | 0 (après vérification) | 0 | 2026-09-07T13:20:00Z — 2e viewport. `Accueil` = onglet actif. **`Itinéraire` classé MORT à tort aux DEUX viewports** : le clic ouvre bien Google Maps — `window.open` intercepté = `https://www.google.com/maps/search/?api=1&query=12+rue+de+la+République%2C+69002+Lyon`, avec ouverture réelle d'un onglet. Un `window.open` externe n'émet ni requête `/v1/`, ni navigation, ni repeinture → 4e angle mort de l'auditeur. |
+| patient | `/mes-rdv` (**1280×800**) | 9 | 5 | 4 | 1 (onglet actif) | 0 | 2026-09-07T13:20:00Z — 2e viewport. |
+| patient | `/documents` (**1280×800**) | 39 | 21 | 20 | 1 (`Tous 292`, facette active) | 0 | 2026-09-07T13:20:00Z — 2e viewport ; les facettes sont ici toutes dans le viewport (pas de défilement horizontal à 1280). |
+| patient | `/financial` (390×844) | 11 | 8 | 8 | 0 | 0 | 2026-09-07T13:20:00Z |
+| praticien | `/` (Tableau de bord, **390×844**) | 5 | 2 | 2 | 0 | 0 | 2026-09-07T13:20:00Z — 2e viewport. L'app praticien (tablette/PC d'abord) se replie correctement en mobile : rail remplacé par « Ouvrir le menu de navigation ». Densité attendue, pas un défaut. |
+| praticien | `/waiting-room` (**390×844 et 1280×800**) | 4 | 4 | 3 | 0 (après vérification) | 0 | 2026-09-07T13:20:00Z — **`Appeler suivant` n'est pas mort : il porte `aria-disabled=true` aux deux viewports**, la file ayant été vidée par mes propres tests X5/B4. Désactivation **légitime** (rien à appeler). 5e angle mort : l'auditeur clique sans lire `aria-disabled` et conclut MORT au lieu de DÉSACTIVÉ. |
+| praticien | `/patients` (**390×844**) | 4 | 3 | 3 | 0 | 0 | 2026-09-07T13:20:00Z — 2e viewport. |
+| secretariat | `/agenda` (grille semaine, 1280×800) | 100 | 76 | 62 | 2 onglets actifs + 12 vérifiés non morts | 0 | 2026-09-07T13:20:00Z — Écran le plus dense de la ronde. **Les cartes de RDV et les pastilles de créneau libre ne sont PAS mortes** : un clic sur une carte ouvre le volet de détail à droite (repeinture confirmée), un clic sur une pastille « 10:00 » émet `GET /cabinet/patients?page=1` (ouverture du choix de patient). Les 14 « MORT » du lot automatique = 2 onglets actifs + 12 contrôles jugés sur une signature Semantics prise trop tôt. **Le vrai défaut de cet écran est dans le volet, pas dans la grille → #6697.** |
+| secretariat | `/patients` (Fiches patients, 1280×800) | 42 | 0 | 0 | — | — | 2026-09-07T13:20:00Z — Écran **comparé à sa maquette** (cf. `design-v2.md`) sans audit bouton-par-bouton cette ronde — audité en profondeur le 2026-09-05 (#6558). Constat de donnée neuf : colonne « Dernière visite » vide sur 30/30 → **#6701**. |
+| secretariat | `/stock` (1280×800) | 40 | 0 | 0 | — | — | 2026-09-07T13:20:00Z — Écran comparé à sa maquette cette ronde ; audit de contrôles couvert le 2026-09-04. |
+| pharmacie | `/` + `/orders` (**1440×900**) | 0 | 0 | 0 | — | — | 2026-09-07T13:20:00Z — 2e viewport lancé en fin de ronde — parcours non terminé dans le budget, à reprendre en tête de la prochaine ronde. |
+
+**Total 2e lot : 275 inventoriés, 132 activés, 113 OK.** **Total de la ronde (2 lots) : 798 contrôles inventoriés, 486 activés.**
+
+> **Angles morts de l'auditeur — liste consolidée après cette ronde.** Sur 2 rondes de vérification manuelle systématique, **2 verdicts « MORT » sur 16 étaient de vrais défauts**. Les 5 causes de faux positifs, à écarter AVANT de rapporter :
+> 1. **Hors viewport en X** — rangée à défilement horizontal (facettes `/documents`) : clic hors écran. *Corrigé dans `R48_audit.js` (scroll horizontal puis re-inventaire, sinon SKIP).*
+> 2. **Snackbar** — `ScaffoldMessenger.showSnackBar` n'apparaît pas dans l'arbre Semantics interrogé : ni requête, ni navigation, ni repeinture. C'est le cas des stubs #6695 / #6696, qui sont donc des « stubs », pas des « morts ».
+> 3. **Sélecteur de fichier** — `FilePicker` (avatar patient) : se détecte uniquement par l'événement Playwright `filechooser`.
+> 4. **`window.open` externe** — « Itinéraire » ouvre Google Maps : se détecte en instrumentant `window.open` et l'événement `page`/`popup`.
+> 5. **`aria-disabled=true`** — « Appeler suivant » sur une file vide : l'auditeur clique sans lire l'attribut et conclut MORT. **Un contrôle désactivé doit être classé DÉSACTIVÉ puis jugé légitime ou non contre le code**, jamais MORT.
+> S'y ajoute une cause de faux « CASSÉ » : les **403 de la garde §14 « relation de soin »** (praticien ouvrant un patient jamais suivi), qui sont volontaires **et** correctement expliqués à l'écran.
+
