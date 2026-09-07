@@ -7,6 +7,7 @@
 //! `main.rs` sont hors périmètre (lot B10) — ici, uniquement la logique de
 //! dispatch pure, appelable une fois qu'on dispose d'une empreinte de
 //! certificat client et d'un message déjà parsé.
+pub mod adt;
 pub mod dispatch;
 pub mod listener;
 pub mod siu;
