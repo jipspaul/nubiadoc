@@ -12,8 +12,9 @@
 #   3. flutter build web x3 (API_BASE_URL baké au build)
 #   4. provisionne le LXC (podman) si besoin
 #   5. applique (opt-in, cf. CADDY_HOST) le bloc Caddy reservation.doc.nubia-link.com
-#      sur l'hôte Caddy hors LXC ; échec dur si le domaine ne sert PAS de TLS,
-#      AVANT de toucher au LXC (#6188, #6379, #6553, #6632 — cf. étape 5/8 ci-dessous)
+#      sur l'hôte Caddy hors LXC (#6188, #6379, #6553, #6632 — cf. étape 5/8 ci-dessous ;
+#      #6649 : ce domaine externe, hors périmètre des 5 fronts + API, ne bloque PLUS
+#      le déploiement — surveillance non bloquante déplacée en 8/8)
 #   6. pousse binaire/image, migrations, seed, bundles web
 #   7. lance deploy.sh sur le LXC (run de la stack)
 #   8. health-check TLS best-effort des domaines publics
@@ -130,39 +131,30 @@ say "5/8 application auto du bloc Caddy reservation.doc.nubia-link.com (hôte Ca
 CADDY_HOST="${CADDY_HOST:-}" CADDY_USER="${CADDY_USER:-}" CADDY_PASSWORD="${CADDY_PASSWORD:-}" \
   bash "$ROOT/infra/deploy/apply-reservation-caddy.sh"
 
-# #6379 (7e récidive #6116/#6139/#6160/#6162/#6188/#6317) : cette vérification
-# n'était gardée QUE par `if [ -z "$CADDY_HOST" ]` (#6188), donc elle ne se
-# déclenchait que quand le secret n'était PAS provisionné. Dès que CADDY_HOST
-# est configuré, apply-reservation-caddy.sh peut sortir 0 (un des `reload`
-# a réussi, cf. sa propre correction #6317) sans que le domaine serve
-# réellement du TLS (bloc appliqué sur un Caddy sans certificat valide,
-# vhost écrasé après coup, etc.) — plus AUCUN contrôle bloquant ne portait
-# alors sur reservation.doc.nubia-link.com. On teste donc maintenant le
-# RÉSULTAT OBSERVABLE (le domaine sert-il du TLS ?) dans TOUS les cas, que
-# CADDY_HOST soit vide ou non : un badge rouge est le seul signal qui a une
-# chance d'être agi dessus (cf. postmortem #3493, déjà cité ci-dessus).
+# #6379 (7e récidive #6116/#6139/#6160/#6162/#6188/#6317) : constat historique
+# — apply-reservation-caddy.sh peut sortir 0 (un des `reload` a réussi, cf. sa
+# propre correction #6317) sans que le domaine serve réellement du TLS (bloc
+# appliqué sur un Caddy sans certificat valide, vhost écrasé après coup,
+# etc.), donc son seul code retour ne suffit pas à garantir l'état réel.
+# Ceci avait alors motivé un test du RÉSULTAT OBSERVABLE (curl TLS) ICI même,
+# rendu bloquant par #6553 puis #6632 — désactivé par #6649 ci-dessous, le
+# suivi du résultat observable se fait maintenant en 8/8 (non bloquant).
 #
-# #6553 (8e récidive #6116/#6139/#6160/#6162/#6188/#6317/#6379) : ce garde-fou
-# était placé APRÈS l'étape « envoi des artefacts » — les bundles web étaient
-# donc déjà poussés vers /opt/nubia/www (servis en LECTURE DIRECTE par nginx
-# via bind-mount, cf. deploy.sh, effet immédiat SANS attendre le restart de
-# conteneur) quand ce `curl` s'exécutait. Un `exit 1` à ce stade laissait donc
-# les 5 fronts déjà en ligne au nouveau commit pendant que l'API restait au
-# binaire précédent (le rebuild/restart `nubia-api` n'a lieu qu'à l'étape
-# « déploiement distant », jamais atteinte) — dérive front/back de plusieurs
-# heures (#6632). Ce check ne dépend d'aucun état du LXC (le handshake TLS
-# testé ici est servi par l'hôte Caddy externe, indépendamment de deploy.sh
-# et de l'envoi des artefacts) : il peut donc s'exécuter EN AMONT de tout
-# transfert vers le LXC, comme un VRAI pré-vol bloquant (même logique que le
-# pré-vol de joignabilité SSH du LXC, cf. .forgejo/workflows/deploy.yml) — ni
-# les fronts ni l'API ne sont touchés tant que ce domaine public reste
-# TLS-mort, garantissant un environnement live cohérent (tout à l'ancien
-# commit) plutôt qu'un skew front/API.
-RESERVATION_CODE="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' https://reservation.doc.nubia-link.com/ 2>/dev/null || true)"
-if [ -z "$RESERVATION_CODE" ] || [ "$RESERVATION_CODE" = "000" ]; then
-  echo "::error::reservation.doc.nubia-link.com injoignable en TLS après application du bloc Caddy — collage/vérification manuel requis (cf. infra/deploy/Caddyfile.snippet). 8e récidive du même symptôme (#6116, #6139, #6160, #6162, #6188, #6317, #6379, #6553, #6632) : déploiement LXC NON DÉMARRÉ (ni fronts ni API touchés) pour forcer l'action humaine avant toute dérive supplémentaire."
-  exit 1
-fi
+# #6649 (9e récidive #6116/#6139/#6160/#6162/#6188/#6317/#6379/#6553/#6632) :
+# le garde-fou introduit par #6632 (pré-vol bloquant ICI, avant tout transfert)
+# empêchait bien le skew front/API décrit dans son postmortem — mais
+# reservation.doc.nubia-link.com est un domaine EXTERNE, sans rapport avec le
+# code des 5 fronts + API déployés par ce script (son bloc Caddy dépend d'un
+# collage manuel sur un hôte hors périmètre, cf. CADDY_HOST ci-dessus, qui
+# n'est toujours pas provisionné). Le garder bloquant transforme une panne
+# externe, hors du contrôle de la CI, en arrêt total et permanent du
+# déploiement : 9 récidives plus tard, plus AUCUN correctif front/API ne part
+# en prod, y compris ceux sans aucun rapport avec la réservation (8 correctifs
+# mergés perdus, #6649). La cohérence front/API reste garantie PAR AILLEURS
+# (étapes 6+7 ci-dessous restent séquentielles et non interrompues par ce
+# domaine) ; seule la dépendance dure à ce domaine externe est retirée. Le
+# suivi de ce domaine reste visible (non-bloquant, `::warning::`) à l'étape
+# 8/8 via verify-public-tls.sh, sans plus jamais empêcher le reste de partir.
 
 say "6/8 envoi des artefacts"
 # scripts + nginx.conf
