@@ -151,6 +151,19 @@ void registerSendToPharmacyStub() {
   );
 }
 
+/// Colonne de contexte PC (#6625) : `_PrescriptionFormState` résout
+/// `ListPrescriptionsUseCase` via GetIt, même pattern que
+/// `registerMedicalRecordStub` ci-dessus — vide par défaut (re-stubbable
+/// par test).
+void registerListPrescriptionsStub() {
+  when(() => _prescriptionRepo.listPrescriptions(any()))
+      .thenAnswer((_) async => const Right([]));
+  if (GetIt.instance.isRegistered<ListPrescriptionsUseCase>()) return;
+  GetIt.instance.registerFactory<ListPrescriptionsUseCase>(
+    () => ListPrescriptionsUseCase(_prescriptionRepo),
+  );
+}
+
 const _item = PrescriptionItem(
   label: 'Amoxicilline 500mg',
   posology: '1 comprimé matin et soir',
@@ -273,6 +286,7 @@ void main() {
     registerCabinetPatientStub();
     registerSendToPharmacyStub();
     registerMedicationReferenceStub();
+    registerListPrescriptionsStub();
   });
 
   group('OrdonnanceNewBody', () {
@@ -505,9 +519,15 @@ void main() {
     });
 
     testWidgets(
-        'tablette large (1258×834) → composition et aperçu côte à côte, '
-        'volet aperçu ~458 px (#4998)', (tester) async {
-      tester.view.physicalSize = const Size(1258, 834);
+        'tablette large (fenêtre 1258×834) → composition et aperçu côte à '
+        'côte, pas de colonne de contexte, volet aperçu ~458 px (#4998, '
+        '#6625)', (tester) async {
+      // Largeur *disponible* pour ce widget = fenêtre − chrome fixe de
+      // `ProShell` (250 px de rail + 1 px de séparateur, #5138) : ce test
+      // ne monte pas `ProShell`, donc `physicalSize` équivaut directement à
+      // la largeur reçue par le `LayoutBuilder` — 1258 − 251 = 1007, sous
+      // le seuil 3 colonnes (#6625, 1189 px).
+      tester.view.physicalSize = const Size(1007, 834);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -518,6 +538,7 @@ void main() {
       expect(find.byKey(const Key('ordonnance_form')), findsOneWidget);
       expect(
           find.byKey(const Key('ordonnance_document_preview')), findsOneWidget);
+      expect(find.byKey(const Key('ordonnance_context_column')), findsNothing);
 
       final previewWidth = tester
           .getSize(find.byKey(const Key('ordonnance_document_preview')))
@@ -530,6 +551,73 @@ void main() {
           .getTopLeft(find.byKey(const Key('ordonnance_document_preview')))
           .dx;
       expect(previewLeft, greaterThan(formLeft));
+    });
+
+    testWidgets(
+        'PC large (fenêtre 1440×900) → colonne de contexte (allergies, '
+        'traitements en cours, dernières ordonnances) + composition + '
+        'aperçu compact 392 px (#6625, maquette "Ecrans PC")', (tester) async {
+      when(() => _medicalRecordRepo.getMedicalRecord('patient-1')).thenAnswer(
+        (_) async => const Right(
+          MedicalRecordSummary(
+            allergies: ['Pénicilline', 'Latex'],
+            treatments: [
+              'FLUINDIONE 20 mg — AVK depuis le 12/03 · Dr Ferrand',
+              'LÉVOTHYROXINE 75 µg — depuis 2019 · Dr Ferrand',
+            ],
+          ),
+        ),
+      );
+      when(() => _prescriptionRepo.listPrescriptions('patient-1')).thenAnswer(
+        (_) async => Right([
+          Prescription(
+            id: 'presc-old-1',
+            patientId: 'patient-1',
+            items: const [_item, _item],
+            status: PrescriptionStatus.signed,
+            createdAt: DateTime(2026, 7, 22),
+          ),
+          Prescription(
+            id: 'presc-old-2',
+            patientId: 'patient-1',
+            items: const [_item],
+            status: PrescriptionStatus.signed,
+            createdAt: DateTime(2026, 7, 4),
+          ),
+        ]),
+      );
+
+      // Même convention que le test tablette ci-dessus : 1440 − 251
+      // (chrome `ProShell`) = 1189, largeur disponible ciblée par la
+      // maquette PC design-v2.
+      tester.view.physicalSize = const Size(1189, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      // Le bandeau horizontal disparaît : les allergies vivent désormais
+      // dans la colonne de contexte.
+      expect(find.byKey(const Key('allergies_banner')), findsNothing);
+      expect(
+          find.byKey(const Key('ordonnance_context_column')), findsOneWidget);
+      expect(find.text('Allergies au dossier'), findsOneWidget);
+      expect(find.textContaining('Pénicilline'), findsOneWidget);
+      expect(find.text('Traitements en cours'), findsOneWidget);
+      expect(
+        find.textContaining('FLUINDIONE 20 mg'),
+        findsOneWidget,
+      );
+      expect(find.text('3 dernières ordonnances'), findsOneWidget);
+      expect(find.textContaining('22/07'), findsOneWidget);
+      expect(find.textContaining('04/07'), findsOneWidget);
+
+      final previewWidth = tester
+          .getSize(find.byKey(const Key('ordonnance_document_preview')))
+          .width;
+      expect(previewWidth, closeTo(392, 1));
     });
 
     testWidgets('écran étroit → pas de volet aperçu, formulaire pleine largeur',
@@ -570,8 +658,8 @@ void main() {
       expect(find.byKey(const Key('item_card_1')), findsOneWidget);
       // La ligne ajoutée porte déjà la référence choisie (#4989) : nom + forme
       // galénique affichés, plus de champ libre à re-saisir.
-      final addedRow = tester
-          .widget<ListRow>(find.byKey(const Key('item_1_label')));
+      final addedRow =
+          tester.widget<ListRow>(find.byKey(const Key('item_1_label')));
       expect(addedRow.title, 'Amoxicilline');
       expect(addedRow.subtitle, 'comprimé dispersible');
     });
@@ -597,8 +685,7 @@ void main() {
       // La sélection remplace la recherche par le nom + la forme galénique,
       // sans champ de saisie libre.
       expect(find.byKey(const Key('item_0_label_search')), findsNothing);
-      final row =
-          tester.widget<ListRow>(find.byKey(const Key('item_0_label')));
+      final row = tester.widget<ListRow>(find.byKey(const Key('item_0_label')));
       expect(row.title, 'Amoxicilline');
       expect(row.subtitle, 'comprimé dispersible');
     });
@@ -943,14 +1030,11 @@ void main() {
       expect(find.text('Partir d\'un modèle'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
 
-      expect(
-          find.byKey(const Key('template_card_tmpl-1')), findsOneWidget);
-      expect(find.text('Antalgique post-opératoire palier 1'),
-          findsOneWidget);
+      expect(find.byKey(const Key('template_card_tmpl-1')), findsOneWidget);
+      expect(find.text('Antalgique post-opératoire palier 1'), findsOneWidget);
       expect(find.text('Standard · 1 ligne'), findsOneWidget);
 
-      expect(
-          find.byKey(const Key('template_card_tmpl-2')), findsOneWidget);
+      expect(find.byKey(const Key('template_card_tmpl-2')), findsOneWidget);
       expect(find.text('Post-extraction'), findsOneWidget);
       expect(find.text('Cabinet · 2 lignes'), findsOneWidget);
     });
@@ -964,8 +1048,7 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
 
-      await tester
-          .ensureVisible(find.byKey(const Key('template_card_tmpl-2')));
+      await tester.ensureVisible(find.byKey(const Key('template_card_tmpl-2')));
       await tester.tap(find.byKey(const Key('template_card_tmpl-2')));
       await tester.pumpAndSettle();
 
