@@ -3,7 +3,7 @@ import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/document.dart';
 
 abstract class DocumentRepository {
-  Future<Either<Failure, List<Document>>> getAll();
+  Future<Either<Failure, List<Document>>> getAll({int? limit});
   Future<Either<Failure, List<Document>>> getByCategory(
       DocumentCategory category);
 

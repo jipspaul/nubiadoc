@@ -101,8 +101,9 @@ class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState>
   ) async {
     emit(const OubliettesLoading());
     try {
-      // Documents récents du coffre-fort (GET /v1/documents, tri date desc).
-      final result = await _getDocuments();
+      // Documents récents du coffre-fort : une seule page de _recentLimit
+      // documents (GET /v1/documents?limit=10, tri date desc côté API).
+      final result = await _getDocuments(limit: _recentLimit);
       result.fold(
         (failure) => safeEmit(OubliettesError(failure.message)),
         (documents) {
@@ -111,7 +112,6 @@ class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState>
             return;
           }
           final items = documents
-              .take(_recentLimit)
               .map((d) => OublietteItem(
                     id: d.id,
                     title: _title(d),
