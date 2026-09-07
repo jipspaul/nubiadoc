@@ -440,6 +440,12 @@ class _UpcomingGroupedList extends StatelessWidget {
         ),
       );
     }
+    // #6704 : réserve la hauteur du bouton flottant « Prendre un rendez-vous »
+    // (56 + marge) — sans cette marge il recouvre la dernière carte de la
+    // liste, qui devient illisible et son action inatteignable.
+    slivers.add(
+      const SliverToBoxAdapter(child: SizedBox(height: 88)),
+    );
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: slivers,
@@ -594,7 +600,9 @@ class _HistoryGroupedList extends StatelessWidget {
     }
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      // #6704 : marge basse = hauteur du bouton flottant « Prendre un
+      // rendez-vous », qui recouvrirait sinon la dernière carte.
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
       children: children,
     );
   }
