@@ -885,7 +885,7 @@ Conformément à la leçon de méthode ci-dessus, **chaque** verdict négatif a 
 
 **Total 3e lot : 370 inventoriés, 242 activés, 219 OK.**
 
-**TOTAL DE LA RONDE (3 lots) : 1 149 contrôles inventoriés, 692 activés, sur 5 apps aux 2 viewports.**
+**TOTAL DE LA RONDE (3 lots + 2e viewport infirmière) : 1 181 contrôles inventoriés  747 activés  sur 5 apps aux 2 viewports.**
 
 > **Inventaire exhaustif du motif « CTA-stub à snackbar »** (extraction sur les 5 apps, motif `onPressed: () => …showSnackBar(` sans autre effet) : **7 occurrences sur 3 apps** — `Nouveau bon` (#6695), `Prévenir le praticien` (#6696), puis `Connecter Stripe`, `Attribuer`, `Épingler`, `Joindre un patient, un devis…`, `Télécharger l'app` (**#6702**). Aucune autre app n'en porte. C'est la **seule famille de « boutons morts » réellement présente dans le produit** : tous les autres verdicts MORT de la ronde se sont révélés être des faux positifs d'outillage ou des désactivations légitimes.
 | infirmiere | `/` + `/notification-preferences` (**1280×800**) | 13 | 9 | 8 | 0 réel (onglet actif) | 0 | 2026-09-07T13:50:00Z — 2e viewport, dernier trou de couverture comblé. L'app **s'étire correctement** au format PC (en-tête pleine largeur, section « Disponibilité » + bascule `En ligne` à droite, barre de 3 onglets en pied) : ce n'est pas une colonne mobile centrée dans du vide. `white=0.991` **uniquement** parce que l'onglet Disponibilité ne porte qu'un seul contrôle — 7e cas de faux positif du seuil de blank-canvas. La bascule émet bien `PATCH /nurse/availability`. Aucun écart de token. |
