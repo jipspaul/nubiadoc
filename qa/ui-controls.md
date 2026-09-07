@@ -643,7 +643,7 @@ Semantics juste avant le clic. Plus généralement, un verdict MORT sur un contr
 d'apparaître à la suite d'une autre interaction doit être rejoué à froid avant d'être écrit.
 S'ajoute aux pièges nº 24 (coordonnées périmées après `goBack`) et nº 25 (`aria-disabled` légitime).
 
-### Ronde 2026-09-07 (00:00–02:50 UTC) — 5 apps, écrans jamais audités + mécaniques ciblées
+### Ronde 2026-09-07 (00:00–01:28 UTC) — 5 apps, écrans jamais audités + mécaniques ciblées
 
 > **Contexte indispensable** : les 5 fronts sont figés au commit `0744df0` (18:43 UTC) et l'API à
 > un binaire antérieur — le pipeline de déploiement est **bloqué** (#6649). Aucun symptôme
@@ -706,30 +706,30 @@ séance…">`). Un auditeur qui ne lit que `[role]`/`[aria-label]` conclut « é
 alors que l'utilisateur voit un message parfaitement clair. Toujours redescendre au DOM brut
 `flt-semantics` **et** à la capture avant de rapporter une absence de retour visuel.
 
-### Second lot de la même ronde (01:00–02:00 UTC) — 12 écrans de plus, 5 apps
+### Second lot de la même ronde (00:50–01:15 UTC) — 12 écrans de plus, 5 apps
 
 | app | écran/route (viewport) | inventoriés | activés | OK | morts | cassés | notes | last_check |
 |---|---|---|---|---|---|---|---|---|
 | praticien | `/patients` (1280) | 35 | 27 | 15 | 1 | **11 → 0 confirmés** | **Écran jamais audité.** Les 11 « CASSÉ » sont **tous des 403 légitimes** : la garde « relation de soin » (§14, #4974/#6210) sur les blocs cliniques d'un patient que ce praticien n'a jamais suivi. **Vérifié écran à écran** : `/patients/15a67def` (sans relation) rend « Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible. » via `PatientAccessDeniedNotice`, et sert quand même identité, solde, journal, RDV, étiquettes et documents ; `/patients/d0000000` (avec relation) rend le dossier complet, **0 requête en erreur**. En API : `GET /cabinet/patients/:id` → **200 pour les 44 patients**, seuls les sous-endpoints cliniques renvoient 403 hors relation de soin. Le « MORT » est le rail de la page courante. | 2026-09-07T01:20:00Z |
 | praticien | `/ordonnances` (1280) | 19 | 16 | 15 | 1 | 0 | **Écran jamais audité.** « Choisir un patient » émet sa requête. Le « MORT » est le rail de la page courante. | 2026-09-07T01:12:00Z |
-| praticien | `/lab-work-orders` (1280) | 30 | 19 | 16-17 | 2 | **1 confirmé** | **Écran jamais audité — et il donne le 2e P1 de la ronde.** « Programmer la pose » émet `PATCH /cabinet/lab-work-orders/:id {"status":"fitted"}` → **403** (relation de soin) et **l'écran passe de 30 à 21 contrôles**, la liste des 26 bons disparaît au profit d'un `NubiaErrorWidget` plein écran + « Réessayer » → **#6657 (P1)**. Sur les 3 bons non finaux, **aucune transition n'aboutit** (1 × 403, 2 × 409 `returned`→`sent`). Les 2 « MORT » sont le rail de la page courante et « Nouveau bon » (qui affiche une snackbar « bientôt disponible », `lab_work_orders_page.dart:140-146` — volontaire). | 2026-09-07T01:41:00Z |
+| praticien | `/lab-work-orders` (1280) | 30 | 19 | 16-17 | 2 | **1 confirmé** | **Écran jamais audité — et il donne le 2e P1 de la ronde.** « Programmer la pose » émet `PATCH /cabinet/lab-work-orders/:id {"status":"fitted"}` → **403** (relation de soin) et **l'écran passe de 30 à 21 contrôles**, la liste des 26 bons disparaît au profit d'un `NubiaErrorWidget` plein écran + « Réessayer » → **#6657 (P1)**. Sur les 3 bons non finaux, **aucune transition n'aboutit** (1 × 403, 2 × 409 `returned`→`sent`). Les 2 « MORT » sont le rail de la page courante et « Nouveau bon » (qui affiche une snackbar « bientôt disponible », `lab_work_orders_page.dart:140-146` — volontaire). | 2026-09-07T01:10:00Z |
 | praticien | `/stock-inventory` (1280) | 42 | 24 | 23 | 1 | 0 | **Écran jamais audité.** 23/24. Le « MORT » est le rail de la page courante. | 2026-09-07T01:14:00Z |
 | secretariat | `/bookable-slots` (1280) | 30 | 26 | 21 | 4 | 1 | **Écran jamais audité.** Les 4 « MORT » sont le groupe repliable « Réglages du cabinet » et 3 de ses entrées (**piège nº 26**, animation) ; le « CASSÉ » est le 403 attendu sur `/cabinet/stats/activity` (#4592/#6369). « Créneaux ouverts » navigue bien vers `/bookable-slots`. | 2026-09-07T01:17:00Z |
 | secretariat | `/cabinet-stats` (1280) | 27 | 23 | 18 | 4 | 1 | **Écran jamais audité.** Mêmes 4 « MORT » (groupe repliable animé) et même 403 bénin. | 2026-09-07T01:19:00Z |
-| patient | `/treatment-plans` (390) | 10 | 7 | **7** | 0 | 0 | 7/7. Chaque plan ouvre son détail (1 à 3 requêtes) ; les libellés portent l'étape et le montant (« Étape 1 sur 2 · Phase 1 · 50 € », « À accepter · Reste à votre charge estimé »). | 2026-09-07T01:30:00Z |
-| patient | `/implant-passport` (390) | 6 | 4 | **4** | 0 | 0 | 4/4. Chaque implant déplie sa fiche (dent FDI, libellé anatomique, marque, date de pose). | 2026-09-07T01:31:00Z |
-| patient | `/oubliettes` (390) | 2 | 1 | 1 | 0 | 0 | `Retour` OK. Le défaut de titre reste ouvert (**#6639**, correctif non déployé — cf. #6649). | 2026-09-07T01:44:00Z |
-| patient | `/documents` (390) | 41 | 22 | 14 | **8 → 0 confirmés** | 0 | Les 8 « MORT » sont des facettes de catégorie **hors cadre** : au repos elles sont posées à x = 408, 501, 594, 689, 843, 998 et 1117 dans un viewport de **390** — l'auditeur cliquait donc à des coordonnées invisibles. La rangée **défile horizontalement** (molette : x passe de 16…1117 à −891…210, pixels modifiés), exactement comme celle de `/appointments`. Les 3 facettes atteignables au repos (`Tous 290`, `Facture 41`, `Ordonnance 199`) répondent, et `Tous 290` est `aria-checked=true` **à bon droit** (déjà sélectionnée). **Aucun contrôle mort.** | 2026-09-07T02:05:00Z |
-| patient | `/appointments` (Réservation, 390) | 32 | — (mécanique design-v2) | — | — | — | Rangée de facettes **défilante horizontalement** : « Généraliste » et « Dentiste » sont hors cadre au repos (x=366 et x=490 pour un viewport de 390) mais **la molette et le glisser les ramènent** (x=157 et x=281 après défilement) et « Dentiste » s'active alors correctement (`aria-checked` false→true + `GET /search/providers?q=dentiste`). **Faux positif évité.** | 2026-09-07T01:36:00Z |
-| **TOTAL 2e LOT** | **12 écrans** | **291** | **204** | **166** | **24** | **14 → 1 confirmé (#6657)** | 13 des 14 « CASSÉ » sont les 403 « relation de soin » du dossier patient, correctement rendus par `PatientAccessDeniedNotice`. | 2026-09-07T02:00:00Z |
-| **TOTAL RONDE 2026-09-07 (2 lots)** | **29 écrans, 5 apps** | **604** | **445** | **346** | **84 → 0 confirmés** | **2 confirmés (#6651, #6657)** | | 2026-09-07T02:00:00Z |
+| patient | `/treatment-plans` (390) | 10 | 7 | **7** | 0 | 0 | 7/7. Chaque plan ouvre son détail (1 à 3 requêtes) ; les libellés portent l'étape et le montant (« Étape 1 sur 2 · Phase 1 · 50 € », « À accepter · Reste à votre charge estimé »). | 2026-09-07T01:05:00Z |
+| patient | `/implant-passport` (390) | 6 | 4 | **4** | 0 | 0 | 4/4. Chaque implant déplie sa fiche (dent FDI, libellé anatomique, marque, date de pose). | 2026-09-07T01:06:00Z |
+| patient | `/oubliettes` (390) | 2 | 1 | 1 | 0 | 0 | `Retour` OK. Le défaut de titre reste ouvert (**#6639**, correctif non déployé — cf. #6649). | 2026-09-07T01:12:00Z |
+| patient | `/documents` (390) | 41 | 22 | 14 | **8 → 0 confirmés** | 0 | Les 8 « MORT » sont des facettes de catégorie **hors cadre** : au repos elles sont posées à x = 408, 501, 594, 689, 843, 998 et 1117 dans un viewport de **390** — l'auditeur cliquait donc à des coordonnées invisibles. La rangée **défile horizontalement** (molette : x passe de 16…1117 à −891…210, pixels modifiés), exactement comme celle de `/appointments`. Les 3 facettes atteignables au repos (`Tous 290`, `Facture 41`, `Ordonnance 199`) répondent, et `Tous 290` est `aria-checked=true` **à bon droit** (déjà sélectionnée). **Aucun contrôle mort.** | 2026-09-07T01:16:00Z |
+| patient | `/appointments` (Réservation, 390) | 32 | — (mécanique design-v2) | — | — | — | Rangée de facettes **défilante horizontalement** : « Généraliste » et « Dentiste » sont hors cadre au repos (x=366 et x=490 pour un viewport de 390) mais **la molette et le glisser les ramènent** (x=157 et x=281 après défilement) et « Dentiste » s'active alors correctement (`aria-checked` false→true + `GET /search/providers?q=dentiste`). **Faux positif évité.** | 2026-09-07T01:08:00Z |
+| **TOTAL 2e LOT** | **12 écrans** | **291** | **204** | **166** | **24** | **14 → 1 confirmé (#6657)** | 13 des 14 « CASSÉ » sont les 403 « relation de soin » du dossier patient, correctement rendus par `PatientAccessDeniedNotice`. | 2026-09-07T01:15:00Z |
+| **TOTAL RONDE 2026-09-07 (2 lots)** | **29 écrans, 5 apps** | **604** | **445** | **346** | **84 → 0 confirmés** | **2 confirmés (#6651, #6657)** | | 2026-09-07T01:15:00Z |
 
-### Troisième lot (02:00–02:40 UTC) — derniers écrans jamais audités
+### Troisième lot (01:15–01:28 UTC) — derniers écrans jamais audités
 
 | app | écran/route (viewport) | inventoriés | activés | OK | morts | cassés | notes | last_check |
 |---|---|---|---|---|---|---|---|---|
-| patient | `/financial` (390) | 11 | 8 | **8** | 0 | 0 | **Écran jamais audité.** 8/8. | 2026-09-07T02:20:00Z |
-| patient | `/pharmacy/quotes` (390) | 8 | 1 | **1** | 0 | 0 | **Écran jamais audité.** 1/1 activable (les 7 autres nœuds sont des conteneurs/textes hors périmètre d'activation). | 2026-09-07T02:22:00Z |
+| patient | `/financial` (390) | 11 | 8 | **8** | 0 | 0 | **Écran jamais audité.** 8/8. | 2026-09-07T01:20:00Z |
+| patient | `/pharmacy/quotes` (390) | 8 | 1 | **1** | 0 | 0 | **Écran jamais audité.** 1/1 activable (les 7 autres nœuds sont des conteneurs/textes hors périmètre d'activation). | 2026-09-07T01:21:00Z |
 
 ### Cas adversariaux — troisième lot
 
