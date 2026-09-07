@@ -613,6 +613,12 @@ void main() {
       expect(find.text('3 dernières ordonnances'), findsOneWidget);
       expect(find.textContaining('22/07'), findsOneWidget);
       expect(find.textContaining('04/07'), findsOneWidget);
+      // Le contenu résumé (libellés) doit accompagner chaque date : sans
+      // lui, trois ordonnances du même jour sont indiscernables (#6724).
+      expect(
+        find.textContaining('Amoxicilline 500mg, Amoxicilline 500mg'),
+        findsOneWidget,
+      );
 
       final previewWidth = tester
           .getSize(find.byKey(const Key('ordonnance_document_preview')))

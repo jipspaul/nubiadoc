@@ -151,8 +151,8 @@ class _TreatmentsCard extends StatelessWidget {
 
 /// « 3 dernières ordonnances » (annotation ① de la maquette) : évite
 /// l'aller-retour vers l'écran `/ordonnances` que la maquette supprime —
-/// date courte + nombre de lignes, sans action (consultation seule, pas de
-/// renouvellement depuis cette colonne).
+/// date courte + nombre de lignes + résumé des libellés, sans action
+/// (consultation seule, pas de renouvellement depuis cette colonne).
 class _RecentPrescriptionsCard extends StatelessWidget {
   const _RecentPrescriptionsCard({required this.prescriptions});
 
@@ -210,6 +210,7 @@ class _RecentPrescriptionRow extends StatelessWidget {
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     final lineCount = prescription.items.length;
     final lines = lineCount > 1 ? '$lineCount lignes' : '$lineCount ligne';
+    final summary = prescription.items.map((item) => item.label).join(', ');
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -218,20 +219,33 @@ class _RecentPrescriptionRow extends StatelessWidget {
               border: Border(bottom: BorderSide(color: NubiaColors.n100)),
             )
           : null,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _shortDate(prescription.createdAt),
-            style: textTheme.bodySmall?.copyWith(color: onSurfaceVariant),
+          Row(
+            children: [
+              Text(
+                _shortDate(prescription.createdAt),
+                style: textTheme.bodySmall?.copyWith(color: onSurfaceVariant),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  lines,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodySmall,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              lines,
+          if (summary.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              summary,
               overflow: TextOverflow.ellipsis,
-              style: textTheme.bodySmall,
+              style: textTheme.bodySmall?.copyWith(color: onSurfaceVariant),
             ),
-          ),
+          ],
         ],
       ),
     );
