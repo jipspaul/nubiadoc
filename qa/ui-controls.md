@@ -802,3 +802,38 @@ Conformément à la leçon de méthode ci-dessus, **chaque** verdict négatif a 
 | **Session laissée inactive au-delà des 900 s du JWT** | infirmière (16 min) puis pharmacie (16 min), et parcours continu pharmacie | **DÉFAUT — #6682 (P0).** Infirmière : 401 → `auth/refresh` → **403** sur `nurse/profile`, `nurse/offers`, `nurse/visits` ; écran sans donnée, sans message, et affichant « Vous êtes hors ligne » alors que le serveur répond `is_online = true`. Pharmacie : se rétablit sur un **rechargement de page** (0 échec) mais tombe de la même façon **en cours de navigation**. Praticien : contrôle **CORRECT**, le refresh conserve `cabinet_id`/`role`/`secretariat_id`. |
 | **Champ inconnu dans un corps de POST** | praticien `POST /v1/cabinet/prescriptions`, patient `POST /v1/account/dependents` | **DÉFAUT — #6677 (P2).** `non_renewable`/`non_substitution` (au lieu de `non_renouvelable`/`non_substitution_reason`) → **201**, mentions légales perdues sans signal ; `is_admin:true` sur un proche → **201**. 93 corps `*Body*` sur 188 structs `Deserialize` sont sans `deny_unknown_fields`. |
 | **Acte de soin répété 200 fois** | patient `POST /v1/account/visit-requests` | **DÉFAUT — #6671 (P1).** Ni dédoublonnage ni plafond : `estimated_price_cents = 502 500` (5 025,00 €) figé sur la demande et poussé à l'infirmière. |
+
+### Ronde 2026-09-07 (12:00–15:30 UTC) — 5/5 apps, 2 viewports
+
+| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | `/` (Accueil, 390×844) | 22 | 15 | 13 | 2 (`Itinéraire`, `Accueil`) | 0 | 2026-09-07T15:30:00Z — `Accueil` = onglet déjà actif (no-op légitime). `Itinéraire` non reconfirmé cette ronde. |
+| patient | `/mes-rdv` (390×844) | 5 | 4 | 3 | 1 (`À venir (20)`) | 0 | 2026-09-07T15:30:00Z — Onglet déjà sélectionné → no-op légitime. |
+| patient | `/messaging` (390×844) | 9 | 8 | 8 | 0 | 0 | 2026-09-07T15:30:00Z — Les 9 contrôles sont les lignes de conversation. **Aucune barre d'onglets, aucun retour → #6694.** |
+| patient | `/documents` (Coffre-fort, 390×844) | 41 | 22 | 14 | 0 (après vérification) | 0 | 2026-09-07T15:30:00Z — **Les 8 « MORT » du 1er passage étaient un artefact d'outil** : les facettes vivent dans une rangée à défilement horizontal, `x` allant jusqu'à 1117 px pour un viewport de 390 → clics hors écran. Rejouées en scrollant la rangée : **les 10 facettes filtrent réellement** (`Tous`→13, `Radio`→7, `CBCT`→2, `Photo`→8, `Compte-rendu`→5, `Consentement`→4, `Carte mutuelle`→12 lignes). Auditeur corrigé (`R48_audit.js`). |
+| patient | `/prescriptions` (390×844) | 17 | 12 | 12 | 0 | 0 | 2026-09-07T15:30:00Z — Les 12 ordonnances ouvrent leur détail (1 requête chacune). |
+| patient | `/financial` (390×844) | 11 | 8 | 8 | 0 | 0 | 2026-09-07T15:30:00Z — 6 devis ouvrent leur détail. |
+| patient | `/notifications` (390×844) | 20 | 15 | 14 | 1 (`Toutes 1123`) | 0 | 2026-09-07T15:30:00Z — Facette déjà active → no-op légitime. |
+| patient | `/profile` (390×844) | 17 | 8 | 7 | 0 (après vérification) | 0 | 2026-09-07T15:30:00Z — `Modifier la photo de profil` classé MORT à tort : le clic **ouvre bien le sélecteur de fichier** (événement `filechooser` capté sur 2 points du rect). Un file picker n'émet ni requête ni repeinture → angle mort de l'auditeur, consigné. |
+| patient | `/profile/dependents` (390×844) | 24 | 17 | 17 | 0 | 0 | 2026-09-07T15:30:00Z |
+| patient | `/treatment-plans` (390×844) | 10 | 7 | 7 | 0 | 0 | 2026-09-07T15:30:00Z |
+| patient | `/home-care` (390×844) | 18 | 14 | 14 | 0 | 0 | 2026-09-07T15:30:00Z |
+| praticien | `/` (Tableau de bord, 1280×800) | 23 | 17 | 16 | 1 (`Tableau de bord`) | 0 | 2026-09-07T15:30:00Z — Onglet actif. `Démarrer la consultation` et `Ouvrir le dossier` naviguent correctement. |
+| praticien | `/waiting-room` (1280×800) | 25 | 20 | 19 | 1 (`Salle d'attente`) | 0 | 2026-09-07T15:30:00Z — Onglet actif. **Les 3 `Appeler` émettent bien leur requête** (2 requêtes chacun). |
+| praticien | `/agenda` (1280×800) | 27 | 21 | 20 | 1 (`Agenda`) | 0 | 2026-09-07T15:30:00Z — Onglet actif. |
+| praticien | `/patients` (1280×800) | 35 | 27 | 15 | 1 (`Patients`) | 11 (403) | 2026-09-07T15:30:00Z — **Les 11 « CASSÉ » sont légitimes** : garde §14 « relation de soin ». Ouvrir un patient jamais suivi → 403 sur `/medical-record`, `/documents`, `/prescriptions` — et **l'UI l'explique** (« Vous n'avez pas encore suivi ce patient — … »). Vérifié contre un patient AVEC relation (Marc Dubois) : 200 partout. |
+| praticien | `/lab-work-orders` (1280×800) | 26 | 18 | 15 | 1 réel (`Nouveau bon`) + 1 onglet actif | 1 (403 §14) | 2026-09-07T15:30:00Z — **`Nouveau bon` = stub → #6695** (snackbar « bientôt disponible », 0 requête sur 2 points de clic, non grisé) alors que `POST /v1/cabinet/lab-work-orders` existe. Le 403 sur `Programmer la pose` est la garde §14 sur un bon d'un patient non suivi (couvert par #6673, mergé non déployé — cf. #6691). |
+| secretariat | `/` (Tableau de bord, 1280×800) | 27 | 23 | 21 | 2 (`Ma journée`, `Tableau de bord`) | 0 | 2026-09-07T15:30:00Z — Onglets actifs. |
+| secretariat | `/salle-attente` (1280×800) | 32 | 24 | 20 | 1 réel (`Prévenir le praticien`) + 3 onglets/déjà-appelés | 0 | 2026-09-07T15:30:00Z — **`Prévenir le praticien` = stub → #6696** : 0 requête, 0 repeinture, non grisé, snackbar « Notification du praticien à venir ». **Contrôle dans la même session : `Appeler` émet bien `POST /cabinet/waiting-room/call-next` + 2 `GET /cabinet/waiting-room`** — donc ni session ni coordonnées en cause. |
+| pharmacie | `/` (File des commandes, 1280×800) | 35 | 18 | 18 | 0 | 0 | 2026-09-07T15:30:00Z |
+| pharmacie | `/devis` (1280×800) | 42 | 22 | 20 | 2 (`Devis`, `Tous (85)`) | 0 | 2026-09-07T15:30:00Z — Onglet + facette déjà actifs. |
+| pharmacie | `/stock` (1280×800) | 14 | 12 | 10 | 2 (`Stock`, `À répondre (0)`) | 0 | 2026-09-07T15:30:00Z — Onglet actif + facette à 0 élément. |
+| pharmacie | `/messages` (1280×800) | 17 | 14 | 12 | 2 (`Messages`, `Toutes 4`) | 0 | 2026-09-07T15:30:00Z — Onglet + facette déjà actifs. |
+| pharmacie | `/notification-preferences` (1280×800) | 13 | 9 | 9 | 0 | 0 | 2026-09-07T15:30:00Z |
+| infirmiere | `/` (3 onglets, 390×844) | 8 | 6 | 5 | 1 (`Disponibilité`) | 0 | 2026-09-07T15:30:00Z — Onglet déjà actif. La bascule `En ligne` émet bien `PATCH /nurse/availability`. |
+| infirmiere | `/notification-preferences` (390×844) | 5 | 3 | 3 | 0 | 0 | 2026-09-07T15:30:00Z — Les 2 bascules persistent (1 requête chacune). |
+
+**Total ronde : 523 contrôles inventoriés, 364 activés, 320 OK.** **2 contrôles morts confirmés** (`Nouveau bon` → #6695, `Prévenir le praticien` → #6696), tous deux des **stubs à snackbar**, pas des boutons non câblés. Tous les autres verdicts « MORT » de l'auditeur se sont révélés être, après vérification manuelle systématique : des onglets/facettes **déjà actifs** (no-op légitime), des contrôles **hors viewport en X** (rangées à défilement horizontal — auditeur corrigé), ou un **sélecteur de fichier** (angle mort du détecteur). Les 12 verdicts « CASSÉ 403 » se sont révélés être la **garde §14 « relation de soin »**, correctement expliquée à l'écran.
+
+> **Deux angles morts de l'auditeur corrigés/consignés cette ronde** : (1) un contrôle dont le `rect` sort du viewport **en X** était cliqué à des coordonnées hors écran → faux « MORT » ; `R48_audit.js` fait désormais défiler la rangée horizontalement avant de juger, et classe `SKIP` s'il reste hors champ. (2) Une **snackbar** Flutter et un **sélecteur de fichier** n'apparaissent ni dans l'arbre Semantics interrogé, ni en requête, ni en navigation : un contrôle qui n'en produit qu'un est signalé MORT à tort. À vérifier à la main avant tout rapport.
+
