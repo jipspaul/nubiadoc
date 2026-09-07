@@ -113,6 +113,9 @@ pub async fn list_lab_work_orders(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #6673 : le correctif #4414 n'avait ajouté la garde §14 que sur le PATCH
+    // (via `ensure_care_relationship`) — la liste remontait les bons de tout
+    // le cabinet sans filtrer sur la relation de soin du praticien appelant.
     let rows = sqlx::query(
         "SELECT lwo.id, lwo.patient_id, \
          p.first_name || ' ' || p.last_name AS patient_display_name, \
@@ -123,9 +126,16 @@ pub async fn list_lab_work_orders(
          JOIN patient p ON p.id = lwo.patient_id \
          LEFT JOIN quote_item qi ON qi.id = lwo.quote_item_id \
          WHERE lwo.cabinet_id = $1 \
+           AND EXISTS ( \
+             SELECT 1 FROM appointment a \
+             JOIN practitioner pr ON pr.id = a.practitioner_id \
+             WHERE a.patient_id = lwo.patient_id AND a.cabinet_id = $1 \
+               AND pr.user_id = $2 AND a.deleted_at IS NULL \
+           ) \
          ORDER BY lwo.sent_at DESC",
     )
     .bind(claims.cabinet_id)
+    .bind(claims.sub)
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
