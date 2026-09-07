@@ -524,11 +524,11 @@ pub async fn create_account_order(
     // Date de prescription snapshotée sur la commande (#6716) : `signed_at`,
     // ou `created_at` à défaut (ordonnance signée avant l'ajout de la
     // signature eIDAS effective).
-    let signed_at: Option<chrono::DateTime<chrono::Utc>> = presc
-        .try_get("signed_at")
+    let signed_at: Option<chrono::DateTime<chrono::Utc>> =
+        presc.try_get("signed_at").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> = presc
+        .try_get("created_at")
         .map_err(|_| AppError::Internal)?;
-    let created_at: chrono::DateTime<chrono::Utc> =
-        presc.try_get("created_at").map_err(|_| AppError::Internal)?;
     let prescribed_at = signed_at.unwrap_or(created_at);
 
     // GUC cabinet posé dès maintenant (pas seulement pour la transition
