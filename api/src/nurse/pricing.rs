@@ -8,6 +8,8 @@
 //! Barème forfaitaire en dur (MVP), même approche que
 //! `requests::ALLOWED_ACTS` : un catalogue configurable viendra plus tard.
 
+use std::collections::HashSet;
+
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
@@ -29,9 +31,13 @@ const ACT_PRICE_CENTS: &[i32] = &[
 
 /// Calcule le prix estimé (frais de déplacement + somme des actes demandés).
 /// Actes hors `ALLOWED_ACTS` ignorés ici (validés en amont par le caller — 422).
+/// Un même acte répété plusieurs fois (#6671 — double-tap, bug client…) ne
+/// décrit aucune réalité clinique supplémentaire : il n'est compté qu'une fois.
 pub(crate) fn estimate_price_cents(requested_acts: &[String]) -> i32 {
+    let mut seen = HashSet::new();
     let acts_total: i32 = requested_acts
         .iter()
+        .filter(|a| seen.insert(a.as_str()))
         .filter_map(|a| ALLOWED_ACTS.iter().position(|x| x == a))
         .map(|idx| ACT_PRICE_CENTS[idx])
         .sum();
@@ -99,5 +105,11 @@ mod tests {
     fn unknown_acts_are_ignored() {
         let acts = vec!["acte_inconnu".to_string()];
         assert_eq!(estimate_price_cents(&acts), CALLOUT_FEE_CENTS);
+    }
+
+    #[test]
+    fn duplicate_acts_are_only_counted_once() {
+        let acts = vec!["perfusion".to_string(); 200];
+        assert_eq!(estimate_price_cents(&acts), CALLOUT_FEE_CENTS + 2500);
     }
 }
