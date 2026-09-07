@@ -1412,6 +1412,54 @@ void main() {
     });
 
     testWidgets(
+        'affiche une avance du prochain patient à appeler en couleur '
+        'success quand le RDV planifié n\'a pas encore commencé',
+        (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final scheduledAt =
+          DateTime.now().add(const Duration(minutes: 32, seconds: 30));
+      final aheadEntries = [
+        WaitingRoomEntry(
+          id: 'wr-1',
+          cabinetId: 'cab-1',
+          patientId: 'pat-1',
+          patientName: 'Camille Moreau',
+          arrivedAt: DateTime.now(),
+          appointmentTime: scheduledAt,
+        ),
+      ];
+
+      when(() => mockList()).thenAnswer((_) async => Right(aheadEntries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_delay')),
+          matching: find.text('Avance sur le planning'),
+        ),
+        findsOneWidget,
+      );
+      final delayValueFinder = find.descendant(
+        of: find.byKey(const Key('room_pace_delay')),
+        matching: find.textContaining('-32 min'),
+      );
+      expect(delayValueFinder, findsOneWidget);
+
+      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+      final delayValue = tester.widget<Text>(delayValueFinder);
+      expect(delayValue.style?.color, tokens.successFg);
+    });
+
+    testWidgets(
         'n\'affiche aucune ligne de retard quand le prochain patient n\'a '
         'pas de RDV planifié', (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
