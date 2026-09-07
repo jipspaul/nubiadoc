@@ -386,3 +386,59 @@ async fn list_row_exposes_contact() {
 
     cleanup(&seed_db, &f).await;
 }
+
+/// Deux RDV `done` + un `no_show` plus récent → la ligne liste porte
+/// `last_visit_at` au plus récent des `done`, pas du `no_show` (#6701).
+#[tokio::test]
+async fn list_row_exposes_last_visit_at() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let f = insert_fixture(&seed_db, &Uuid::new_v4().to_string()).await;
+    insert_appointment(&seed_db, &f, "2026-05-01T09:00:00Z", "done").await;
+    insert_appointment(&seed_db, &f, "2026-06-15T09:00:00Z", "done").await;
+    insert_appointment(&seed_db, &f, "2026-07-01T09:00:00Z", "no_show").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_admin_token(Uuid::new_v4(), f.cabinet_id);
+    let body = list_patients(app(state), &token).await;
+    let row = find_row(&body, f.patient_id);
+
+    assert_eq!(
+        row["last_visit_at"], "2026-06-15T09:00:00+00:00",
+        "row: {row}"
+    );
+
+    cleanup(&seed_db, &f).await;
+}
+
+/// Aucun RDV `done` → `last_visit_at` absent de la ligne liste.
+#[tokio::test]
+async fn list_row_last_visit_at_absent_without_done_appointment() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let f = insert_fixture(&seed_db, &Uuid::new_v4().to_string()).await;
+    insert_appointment(&seed_db, &f, "2026-05-01T09:00:00Z", "no_show").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_admin_token(Uuid::new_v4(), f.cabinet_id);
+    let body = list_patients(app(state), &token).await;
+    let row = find_row(&body, f.patient_id);
+
+    assert!(row.get("last_visit_at").is_none(), "row: {row}");
+
+    cleanup(&seed_db, &f).await;
+}
