@@ -179,6 +179,8 @@ class _HomeContentState extends State<_HomeContent>
             nextAppointment: nextAppointment,
           ),
         ),
+        const SizedBox(height: 16),
+        _staggered(context, 2, const _BookAppointmentCta()),
         if (heroVisible) const SizedBox(height: 20),
         if (hasShortcuts)
           _staggered(
@@ -368,6 +370,36 @@ class _TodoLeadingIcon extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Icon(icon, size: 20, color: color),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Bouton principal « Prendre un rendez-vous » (#6704).
+///
+/// La recherche de praticien (carte + créneaux, `/appointments`) n'était
+/// atteignable que par l'icône loupe de la barre d'en-tête — aucun libellé,
+/// aucun autre point d'entrée dans toute l'app patient : l'action la plus
+/// importante du produit était invisible. Ce bouton pleine largeur, juste
+/// sous le héros du prochain RDV, la rend évidente ; le tiroir « Mes RDV »
+/// porte le même point d'entrée pour qui part de la liste de ses rendez-vous.
+class _BookAppointmentCta extends StatelessWidget {
+  const _BookAppointmentCta();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        key: const Key('home_book_appointment_cta'),
+        onPressed: () => context.push(AppRouter.appointments),
+        icon: const Icon(Icons.event_available_outlined),
+        label: const Text('Prendre un rendez-vous'),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+      ),
     );
   }
 }
