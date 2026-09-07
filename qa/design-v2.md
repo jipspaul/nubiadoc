@@ -165,3 +165,12 @@ puis rotation sur les plus anciens.
 
 **TOTAL RONDE 2026-09-07 (12:00–13:20) — 9 écrans comparés : 6 conformes / 3 divergents.** Divergences filées : #6694 (P1, mécanique — barre d'onglets absente de `/messaging`), #6697 (P1, mécanique + donnée — volet agenda), #6701 (P2, donnée — colonne « Dernière visite »). Plus une mécanique manquante sur un écran par ailleurs conforme : #6695 (P2, `Nouveau bon`).
 
+### Ronde 2026-09-07 — 3e lot (+2 écrans, **11 au total sur la ronde**)
+
+| app | écran/route | maquette | verdict | divergences | last_check |
+|---|---|---|---|---|---|
+| patient | `/implant-passport` (390×844) | `Patient Passeport implantaire v2.html` | conforme (rendu + données) | Re-comparaison (précédents verdicts DIVERGENT les 2026-09-04 et 09-05). L'écran rend l'encart d'introduction (« Un document à conserver à vie. Il identifie les dispositifs… ») puis **une carte par implant portant les 4 informations de la maquette** : numéro FDI + libellé anatomique (`16 · FDI · Molaire supérieure droite`, `36 · Molaire inférieure gauche`), **marque** (`QA Brand`, `QA-Straumann`, `QATest`) et **date de pose** (`Posé le 31 août 2026`, `9 août 2026`, `1 août 2026`). 6 contrôles inventoriés, aucun écart de token relevé. | 2026-09-07T13:25:00Z |
+| pharmacie + patient | routes inconnues (`/orders`, `/zzz-inexistant`) — **écran 404** | _(pas de maquette dédiée ; évalué contre `03-design-system/01-tokens.md`)_ | conforme | Vérification déclenchée par un `white=0.994` suspect au parcours 1440. **Ce n'est pas un écran blanc** : la page rend l'icône de recherche barrée, le titre « Page introuvable », la phrase « Le lien que vous avez suivi n'existe plus ou a changé. » et un CTA primaire **« Retour à l'accueil »** — sortie de cul-de-sac présente. Identique sur les 2 apps testées. *(Le patient sur une commande inexistante affiche « Réessayer » plutôt qu'un 404 — sortie présente aussi, libellé discutable sur un 404 ; consigné, non filé.)* | 2026-09-07T13:25:00Z |
+
+**TOTAL RONDE 2026-09-07 — 11 écrans comparés : 8 conformes / 3 divergents.**
+

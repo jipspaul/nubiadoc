@@ -862,4 +862,5 @@ Conformément à la leçon de méthode ci-dessus, **chaque** verdict négatif a 
 > 4. **`window.open` externe** — « Itinéraire » ouvre Google Maps : se détecte en instrumentant `window.open` et l'événement `page`/`popup`.
 > 5. **`aria-disabled=true`** — « Appeler suivant » sur une file vide : l'auditeur clique sans lire l'attribut et conclut MORT. **Un contrôle désactivé doit être classé DÉSACTIVÉ puis jugé légitime ou non contre le code**, jamais MORT.
 > S'y ajoute une cause de faux « CASSÉ » : les **403 de la garde §14 « relation de soin »** (praticien ouvrant un patient jamais suivi), qui sont volontaires **et** correctement expliqués à l'écran.
+> 6. **Page légitimement clairsemée** — un écran 404 ou un état vide correct fait monter le ratio de pixels near-white au-dessus du seuil `0.92` du détecteur d'« écran blanc ». Vérifié cette ronde : `/orders` (pharmacie) et `/zzz-inexistant` donnent `white=0.992` **avec** une page « Page introuvable » complète et un CTA « Retour à l'accueil ». **Le ratio de blanc ne suffit jamais seul** : le croiser avec le nombre de contrôles inventoriés ET une lecture de la capture avant de conclure au blank-canvas.
 
