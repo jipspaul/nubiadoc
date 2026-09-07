@@ -172,6 +172,9 @@ class OrderDetailBody extends StatelessWidget {
             onOpenDocument: () =>
                 bloc.add(const OrderDetailDocumentRequested()),
             prescriberName: order.prescriberName,
+            rpps: order.prescriberRpps,
+            prescribedAt: order.prescribedAt,
+            validUntil: order.validUntil,
             preparedLineIndices: preparedLineIndices,
             onLinePreparedChanged: canTogglePrepared
                 ? (index, _) =>

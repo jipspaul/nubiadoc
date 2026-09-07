@@ -905,7 +905,7 @@ pub async fn get_account_prescription(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
-    let (prescriber_name, prescriber_practice) =
+    let (prescriber_name, prescriber_practice, _prescriber_rpps) =
         crate::pharmacy::orders::prescriber_identity(&mut tx, cabinet_id, practitioner_id).await?;
 
     // RLS `prescription_line_patient_read` (0108, étendue par 0243) borne
