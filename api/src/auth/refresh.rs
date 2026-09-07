@@ -14,6 +14,7 @@ use super::{AppError, LoginResponse, PatientClaims, ProClaims, ProRegisterClaims
 
 /// Corps de la requête `POST /v1/auth/refresh`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RefreshBody {
     refresh_token: String,
 }

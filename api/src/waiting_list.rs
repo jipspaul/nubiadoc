@@ -21,6 +21,7 @@ use crate::{
 
 /// Corps de `POST /v1/waiting-list`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateWaitingListBody {
     /// Identifiant du provider (praticien) souhaité.
     pub provider_id: Uuid,

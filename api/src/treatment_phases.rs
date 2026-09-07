@@ -72,6 +72,7 @@ pub struct InlineTreatmentPhaseAct {
 
 /// Corps de `POST /v1/cabinet/treatment-plans/:id/phases`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateTreatmentPhaseBody {
     pub title: String,
     pub position: i32,

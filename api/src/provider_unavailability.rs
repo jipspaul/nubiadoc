@@ -20,6 +20,7 @@ use crate::{
 
 /// Corps de `POST /v1/cabinet/unavailability`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateUnavailabilityBody {
     pub practitioner_id: Uuid,
     pub starts_at: String,

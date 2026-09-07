@@ -30,6 +30,7 @@ fn key_manager_from_env() -> Result<LocalKeyManager, AppError> {
 
 /// Corps de la requête `POST /v1/auth/mfa/verify`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MfaVerifyBody {
     /// Secret TOTP Base32 retourné par `/mfa/enroll`.
     totp_secret: String,

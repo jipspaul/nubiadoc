@@ -43,6 +43,7 @@ pub struct DentalChartResponse {
 
 /// Corps de `PUT /v1/cabinet/patients/:id/dental-chart`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutDentalChartBody {
     pub teeth: Value,
 }

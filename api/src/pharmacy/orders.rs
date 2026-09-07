@@ -425,6 +425,7 @@ pub async fn get_pharmacy_order_items(
 
 /// Body de `POST /v1/account/prescriptions/{id}/order`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateOrderBody {
     pub pharmacy_id: Uuid,
 }
@@ -871,6 +872,7 @@ pub async fn get_account_pharmacy(
 
 /// Body de `PUT /v1/account/pharmacy`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SetPharmacyBody {
     pub pharmacy_id: Uuid,
 }
@@ -1229,6 +1231,7 @@ pub async fn ready_pharmacy_order(
 
 /// Body de `POST /v1/pharmacy/orders/{id}/reject`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RejectOrderBody {
     pub reason: String,
 }
@@ -1518,6 +1521,7 @@ pub async fn get_pickup_token(
 
 /// Body de `POST /v1/pharmacy/orders/pickup-scan`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PickupScanBody {
     pub token: String,
     /// Commande ouverte à l'écran (`/orders/:id/pickup`) — permise par la

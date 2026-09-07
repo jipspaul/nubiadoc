@@ -16,6 +16,7 @@ use crate::{
 
 /// Corps de la requête `POST /v1/bookings`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateBookingBody {
     pub slot_id: Uuid,
     pub hold_token: String,

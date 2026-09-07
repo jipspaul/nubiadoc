@@ -179,6 +179,7 @@ pub async fn list_orthodontic_treatments(
 
 /// Body de `POST /v1/cabinet/patients/:id/orthodontics`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateOrthodonticTreatmentBody {
     #[serde(rename = "type")]
     pub kind: String,
@@ -301,6 +302,7 @@ pub async fn create_orthodontic_treatment(
 
 /// Body de `POST /v1/cabinet/orthodontics/:id/steps`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AddOrthodonticStepBody {
     pub step_number: i32,
     pub kind: String,

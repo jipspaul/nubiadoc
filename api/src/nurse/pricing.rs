@@ -40,6 +40,7 @@ pub(crate) fn estimate_price_cents(requested_acts: &[String]) -> i32 {
 
 /// Corps de `POST /v1/account/visit-requests/estimate`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EstimateVisitBody {
     pub lat: f64,
     pub lng: f64,

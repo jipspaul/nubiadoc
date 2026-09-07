@@ -14,6 +14,7 @@ use super::{AppError, PharmaContextClaims, ProClaims};
 
 /// Corps de la requête `POST /v1/auth/select-pharmacy-context`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SelectPharmacyContextBody {
     pharmacy_id: Uuid,
 }

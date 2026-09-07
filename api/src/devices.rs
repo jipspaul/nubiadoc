@@ -12,6 +12,7 @@ use crate::{auth::AppError, AppState};
 
 /// Corps de la requête `POST /v1/devices`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RegisterDeviceBody {
     pub fcm_token: String,
     pub platform: String,

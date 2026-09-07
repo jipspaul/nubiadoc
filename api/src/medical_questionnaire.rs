@@ -60,6 +60,7 @@ pub struct MedicalQuestionnaireResponse {
 
 /// Corps de `POST /v1/account/medical-questionnaire`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateMedicalQuestionnaireBody {
     pub cabinet_id: Uuid,
     pub payload: Value,

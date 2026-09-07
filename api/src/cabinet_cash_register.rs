@@ -32,6 +32,7 @@ use crate::{
 /// `chrono` (non activée ici, cf. `date_filter` dans `marketplace.rs`) : on
 /// passe par `String` et on parse manuellement.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CloseCashRegisterBody {
     pub closing_date: Option<String>,
 }

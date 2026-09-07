@@ -370,6 +370,7 @@ pub async fn list_cabinet_patients(
 
 /// Corps de la requête `POST /v1/cabinet/patients`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AttachPatientBody {
     /// Identifiant du compte patient plateforme à rattacher au cabinet.
     pub patient_account_id: Uuid,
@@ -551,6 +552,7 @@ pub async fn create_cabinet_patient(
 
 /// Corps de la requête `POST /v1/cabinet/patients/quick`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QuickCreatePatientBody {
     pub first_name: String,
     pub last_name: String,
@@ -952,6 +954,7 @@ fn is_valid_fdi_tooth(code: &str) -> bool {
 
 /// Corps de la requête `POST /v1/cabinet/patients/:id/notes`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AddClinicalNoteBody {
     /// Type de note : `"observation"` ou `"act"`.
     pub note_kind: String,

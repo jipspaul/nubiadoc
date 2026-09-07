@@ -50,6 +50,7 @@ pub struct LoginResponse {
 
 /// Sous-corps cabinet pour `POST /v1/pro/register`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProRegisterCabinetBody {
     raison_sociale: String,
     siret: Option<String>,
@@ -58,6 +59,7 @@ pub struct ProRegisterCabinetBody {
 
 /// Sous-corps praticien pour `POST /v1/pro/register`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProRegisterPractitionerBody {
     first_name: String,
     last_name: String,
@@ -67,6 +69,7 @@ pub struct ProRegisterPractitionerBody {
 
 /// Corps de la requête `POST /v1/pro/register`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProRegisterBody {
     email: String,
     password: String,
@@ -2070,6 +2073,7 @@ pub async fn get_cabinet_members(
 
 /// Corps de la requête `PUT /v1/cabinet/provider/listing`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutListingBody {
     pub online: bool,
 }
@@ -2145,6 +2149,7 @@ pub async fn put_cabinet_provider_listing(
 
 /// Corps de la requête `POST /v1/cabinet/members`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PostCabinetMemberBody {
     email: String,
     role: String,
@@ -2529,6 +2534,7 @@ pub async fn get_account(
 
 /// Corps de la requête `POST /v1/pro/verification`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProVerificationBody {
     id_type: String,
     identifier: String,
@@ -3507,6 +3513,7 @@ pub async fn get_account_referring_doctor(
 
 /// Corps de la requête `PUT /v1/account/referring-doctor`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutReferringDoctorBody {
     /// Référence vers un praticien listé dans l'annuaire Nubia.
     provider_id: Option<Uuid>,
@@ -3709,6 +3716,7 @@ pub struct ConsentItem {
 
 /// Corps de la requête `PUT /v1/account/consents/{purpose}`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutConsentBody {
     granted: bool,
 }
@@ -4353,6 +4361,7 @@ pub async fn get_account_dependent_by_id(
 
 /// Corps de la couverture pour `POST /v1/account/dependents`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PostDependentCoverageBody {
     regime_obligatoire: Option<String>,
     nss: Option<String>,
@@ -4368,6 +4377,7 @@ pub struct PostDependentCoverageBody {
 
 /// Corps de la requête `POST /v1/account/dependents`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PostDependentBody {
     first_name: String,
     last_name: String,
@@ -5134,6 +5144,7 @@ pub async fn pro_verification(
 
 /// Corps de `PUT /v1/account/avatar`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutAvatarBody {
     /// Type MIME (`image/jpeg`, `image/png`, `image/webp`).
     mime: String,
@@ -5347,6 +5358,7 @@ pub async fn get_account_access_requests(
 
 /// Corps de la requête `POST /v1/account/access-requests`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PostAccessRequestBody {
     first_name: String,
     last_name: String,

@@ -19,6 +19,7 @@ use crate::{
 
 /// Corps de la requête `POST /v1/reviews`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateReviewBody {
     pub appointment_id: Uuid,
     /// Note de 1 à 5.

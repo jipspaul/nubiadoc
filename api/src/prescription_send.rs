@@ -23,6 +23,7 @@ use crate::{
 
 /// Body de `POST /v1/cabinet/prescriptions/{id}/send`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SendPrescriptionBody {
     pub pharmacy_id: Uuid,
     /// Canal de recueil du consentement patient (défaut `verbal_in_office`).

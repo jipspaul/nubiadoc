@@ -14,6 +14,7 @@ use crate::{
 
 /// Body de `POST /v1/cabinet/recall-campaigns`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateRecallCampaignBody {
     /// Seuil d'éligibilité : patient sans RDV honoré (`status='done'`)
     /// depuis plus de `months_since_last_appointment` mois (ou jamais).

@@ -51,6 +51,7 @@ impl FromRequestParts<AppState> for UserClaims {
 
 /// Corps de la requête `POST /v1/auth/logout`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LogoutBody {
     refresh_token: Option<String>,
 }

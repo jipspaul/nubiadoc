@@ -28,6 +28,7 @@ use crate::{
 /// n'exposait que `label`+`amount_cents` et ces champs étaient silencieusement
 /// ignorés côté API bien que documentés.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QuoteItemInput {
     pub label: String,
     pub amount_cents: i64,
@@ -39,6 +40,7 @@ pub struct QuoteItemInput {
 
 /// Body de `POST /v1/cabinet/quotes`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateCabinetQuoteBody {
     pub patient_id: Uuid,
     pub items: Vec<QuoteItemInput>,

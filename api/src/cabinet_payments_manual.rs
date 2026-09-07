@@ -45,6 +45,7 @@ const MAX_MANUAL_AMOUNT_CENTS: i64 = 100_000_000;
 
 /// Corps de `POST /v1/cabinet/payments/manual`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ManualPaymentBody {
     pub patient_id: Uuid,
     pub quote_id: Uuid,

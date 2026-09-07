@@ -120,6 +120,7 @@ fn is_valid_fdi_tooth(code: &str) -> bool {
 /// `ccam_code` (acte unique), soit `bundle_code` (groupe, #4115), jamais
 /// les deux, jamais aucun des deux → 422.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AddActBody {
     pub ccam_code: Option<String>,
     pub bundle_code: Option<String>,

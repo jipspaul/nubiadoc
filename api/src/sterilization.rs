@@ -91,6 +91,7 @@ pub async fn list_sterilization_cycles(
 
 /// Body de `POST /v1/cabinet/sterilization-cycles`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateSterilizationCycleBody {
     pub autoclave_ref: String,
     pub cycle_number: i32,
@@ -188,6 +189,7 @@ pub async fn create_sterilization_cycle(
 
 /// Body de `POST /v1/cabinet/sterilization-cycles/:id/pouches`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AddPouchBody {
     pub code: String,
     pub consultation_act_id: Option<Uuid>,

@@ -605,6 +605,7 @@ pub async fn get_treatment_plan(
 
 /// Corps de `POST /v1/cabinet/treatment-plans`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateTreatmentPlanBody {
     pub patient_id: Uuid,
     pub title: String,
