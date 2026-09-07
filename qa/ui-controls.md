@@ -742,3 +742,63 @@ alors que l'utilisateur voit un message parfaitement clair. Toujours redescendre
 | **Scan par un rôle non-pharmacie** | praticien et patient | **403** pour les deux. |
 | **Actions cabinet sur le RDV d'un AUTRE cabinet** | secrétariat + praticien du Cabinet Lyon sur 2 RDV pris chez Dr Amélie Dubois | **CORRECT, 8 refus sur 8** : `confirm`, `start`, `checkin`, `no-show` → **404** (anti-énumération, pas 403) sur les deux RDV ; l'agenda du Cabinet Lyon (18 RDV ce jour) ne les contient pas ; le patient, lui, les lit normalement (200). |
 | **Demande de visite créée alors que l'infirmière est HORS LIGNE** | patient → infirmière | **CORRECT.** `GET /search/nurses?online_only=true` → 0 ; la demande naît `status:"requested"` avec `nurse_id:null` (et non `offered` comme lorsqu'elle est en ligne) ; `GET /nurse/offers` reste vide. **Pas de cul-de-sac** : `cancel` patient → 200. Disponibilité restaurée à `is_online:true` en fin de ronde. |
+
+---
+
+## Ronde 2026-09-07 (06:00–08:30 UTC)
+
+Chromium headless (`/ms-playwright/chromium-1155`), locale `fr-FR`, fuseau `Europe/Paris`.
+Inventaire = arbre Semantics du DOM après activation de l'accessibilité. **Note d'outillage :**
+sur cette version de Flutter web les champs de saisie sont des `<input aria-label>` **hors**
+`flt-semantics`, et les boutons sont des `flt-semantics[role=button]` **sans** `aria-label`
+(libellé porté par `textContent`) — un sélecteur qui ne vise que `flt-semantics[aria-label]`
+ne voit aucun champ et fait échouer le login. Sélecteur utilisé : `flt-semantics[role],
+flt-semantics[flt-tappable], input, textarea, [role=…]`.
+
+| app | écran / route | vp | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/patients/:id/treatment-plans` | 1440×900 | 33 | 33 | 30 | 3 | 0 | 2026-09-07T06:55:00Z |
+| praticien | `/waiting-room` | 1280×800 | 21 | 21 | 20 | 0 | 1 | 2026-09-07T06:51:00Z |
+| praticien | `/lab-work-orders` | 1440×900 | 20 | 3 (ciblés) | 2 | 0 | 1 | 2026-09-07T07:10:00Z |
+| secretariat | `/salle-attente` | 1280×800 | 25 | 25 | 23 | 0 | 2 | 2026-09-07T06:55:00Z |
+| pharmacie | `/` (commandes) | 1280×800 | 23 | 19 | 18 | 1 | 0 | 2026-09-07T07:20:00Z |
+| pharmacie | `/stock` | 1280×800 | 8 | 7 | 6 | 1 | 0 | 2026-09-07T07:20:00Z |
+| pharmacie | `/devis` | 1280×800 | 27 | 22 | 19 | 2 | 1 | 2026-09-07T08:05:00Z |
+| pharmacie | `/messages` | 1280×800 | 15 | 14 | 14 | 0 | 0 | 2026-09-07T07:25:00Z |
+| patient | `/profile/dependents` | 390×844 | 22 | 17 | 17 | 0 | 0 | 2026-09-07T07:20:00Z |
+| patient | `/profile` | 390×844 | 13 | 8 | 8 | 0 | 0 | 2026-09-07T07:55:00Z |
+| patient | `/messaging` | 390×844 | 8 | 8 | 8 | 0 | 0 | 2026-09-07T07:30:00Z |
+| infirmiere | `/` — onglets Disponibilité / Offres / Ma visite | 390×844 | 9 | 9 | 9 | 0 | 0 | 2026-09-07T07:20:00Z |
+| **TOTAL** | 12 écrans | — | **224** | **186** | **174** | **10 bruts → 1 réel** | **5 bruts → 0 réel** | — |
+
+### Les 10 « morts » et 5 « cassés » bruts, un par un — 1 seul défaut réel
+
+Conformément à la leçon de méthode ci-dessus, **chaque** verdict négatif a été rejoué à la main.
+
+| contrôle | verdict brut | après vérification |
+|---|---|---|
+| praticien `/patients/:id/treatment-plans` — « Générer le devis de la phase 1 » | MORT | **Défaut réel, mais pas « mort »** : le clic émet bien `GET /v1/cabinet/quotes` (le premier passage l'avait raté faute de `mouse.move` préalable). Le vrai défaut est la **cible** : liste de devis de tout le cabinet au lieu du devis de la phase → **#6672 (P1)**. |
+| praticien `/patients/:id/treatment-plans` — 2 cartes de plan + « Ajouter une phase » | MORT ×3 | **Artefact d'outillage** : rects à `y=942`, `y=1055` et `y=1079`, **hors** du viewport 900 — le clic tombait à côté. Non reproductible après défilement. |
+| praticien `/waiting-room` — « Messagerie interne » | CASSÉ (500) | **Bruit d'infra hors produit** : `GET /favicon.png → 500 nginx`, aucune requête `/v1/` en échec. La navigation vers `/team-messages` aboutit. |
+| secretariat `/salle-attente` — « Devis, 8 » et « Équipe » | CASSÉ ×2 (403 `/cabinet/stats/activity`) | **Faux positifs.** Le rail de navigation est un arbre à sections dépliables : cliquer un en-tête décale les items suivants, donc les coordonnées mémorisées visaient un autre nœud. Re-testé un par un : « Devis » → `/devis` (200, `cabinet/quotes`), « Équipe » → `/team-messages`, ainsi que Agenda, Salle d'attente, Demandes de créneau, Fiches patients, Prendre un RDV, Encaissements — **9/9 corrects**. *(À noter au passage : la route `/cabinet-stats` existe dans `app_router.dart:260` mais n'a **aucune entrée de navigation**, et `GET /v1/cabinet/stats/activity` répond 403 au secrétariat contre 200 au praticien — écran inatteignable, non filé.)* |
+| pharmacie `/` — 7ᵉ « Délivrer » | MORT | **Artefact de bord** : rect `855,769 89×31`, centre à `y=784` dans un viewport de 800 — clic sur le bord. Les 6 autres « Délivrer » naviguent correctement. |
+| pharmacie `/stock` — « Réessayer » | MORT | **Non reproductible** : rechargé deux fois sur session fraîche, l'écran rend normalement ses 13 contrôles (4 facettes chiffrées + recherche), `GET /v1/pharmacy/stock-requests` → 200. L'état d'erreur venait de la session expirée du parcours long. |
+| pharmacie `/devis` — « Préparer » ×1 puis « Réémettre »/« Relancer » | CASSÉ + MORT ×2 | **Symptôme de #6682, pas un défaut de l'écran.** Sur session fraîche, les 5 premiers CTA (`Préparer` ×3, `Réémettre`, `Préparer`) naviguent tous vers `/orders/:id`. C'est au 6ᵉ, ~15 min après le login, que la séquence 401 → refresh → **403** apparaît et que les boutons suivants deviennent inertes. |
+| patient `/profile` — « Modifier la photo de profil » | MORT | **Faux positif.** Le contrôle ouvre un sélecteur de fichier natif, invisible pour le détecteur (ni navigation, ni requête, ni repaint). Vérifié avec un écouteur `filechooser` : **`FILECHOOSER OPENED`** aux deux points de clic testés. |
+
+**Bilan : 1 défaut réel sur 15 verdicts négatifs bruts** (#6672), 2 renvoyés à #6682, 12 artefacts.
+
+### Cas adversariaux — quatrième lot
+
+| cas | écran / flux | résultat |
+|---|---|---|
+| **Double-clic rapide sur un CTA d'action** | praticien `/lab-work-orders`, « Programmer la pose » | **CORRECT** — un seul `PATCH /v1/cabinet/lab-work-orders/:id` émis pour deux clics. |
+| **Échec d'action et intégrité de la liste** | praticien `/lab-work-orders`, CTA sur un bon sans relation de soin | **CORRECT, #6657 tenu** — le 403 n'efface plus rien : 20 contrôles avant, 20 après, les 2 cartes en place, snackbar « Impossible de mettre à jour le statut. ». *(Le 403 lui-même est un défaut à part : #6673.)* |
+| **Retour arrière navigateur au milieu d'un flux** | praticien `/patients/:id/treatment-plans` → CTA → retour | **CORRECT sur l'état** : retour à l'écran des plans avec ses 33 contrôles et la colonne de couverture. *(L'URL n'avait pas suivi l'écran à l'aller — noté dans #6672.)* |
+| **Coupure réseau pendant une action métier** | praticien `/waiting-room`, `route.abort()` sur `**/v1/**` puis clic « Appeler Marc Dubois » | **CORRECT** — snackbar « Impossible d'appeler le patient suivant. » à **t+1,5 s**, liste conservée, bouton toujours actif, ni spinner infini ni écran blanc. *Piège de mesure : une capture à t+8 s rate la snackbar (durée ~4 s) et fait conclure à tort au silence.* |
+| **Coupure réseau pendant un rechargement** | praticien `/waiting-room` | **CORRECT** — état d'erreur avec bouton « Réessayer ». |
+| **Soumission d'un formulaire à vide** | patient `/profile/dependents`, feuille « Ajouter un proche » | **CORRECT** — « Ajouter » **désactivé** tant que les champs requis sont vides ; aucune requête émise. Désactivation légitime, vérifiée contre le code. |
+| **Texte très long (220 caractères) dans un champ libre** | patient `/profile/dependents`, champ « Prénom » | **CORRECT au rendu** — défilement horizontal du champ, aucun débordement ni chevauchement, la feuille garde sa mise en page. *Réserve : aucun `maxLength` côté client alors que l'API plafonne à 100 (#6653) — l'utilisateur ne l'apprend qu'au 422.* |
+| **Session laissée inactive au-delà des 900 s du JWT** | infirmière (16 min) puis pharmacie (16 min), et parcours continu pharmacie | **DÉFAUT — #6682 (P0).** Infirmière : 401 → `auth/refresh` → **403** sur `nurse/profile`, `nurse/offers`, `nurse/visits` ; écran sans donnée, sans message, et affichant « Vous êtes hors ligne » alors que le serveur répond `is_online = true`. Pharmacie : se rétablit sur un **rechargement de page** (0 échec) mais tombe de la même façon **en cours de navigation**. Praticien : contrôle **CORRECT**, le refresh conserve `cabinet_id`/`role`/`secretariat_id`. |
+| **Champ inconnu dans un corps de POST** | praticien `POST /v1/cabinet/prescriptions`, patient `POST /v1/account/dependents` | **DÉFAUT — #6677 (P2).** `non_renewable`/`non_substitution` (au lieu de `non_renouvelable`/`non_substitution_reason`) → **201**, mentions légales perdues sans signal ; `is_admin:true` sur un proche → **201**. 93 corps `*Body*` sur 188 structs `Deserialize` sont sans `deny_unknown_fields`. |
+| **Acte de soin répété 200 fois** | patient `POST /v1/account/visit-requests` | **DÉFAUT — #6671 (P1).** Ni dédoublonnage ni plafond : `estimated_price_cents = 502 500` (5 025,00 €) figé sur la demande et poussé à l'infirmière. |
