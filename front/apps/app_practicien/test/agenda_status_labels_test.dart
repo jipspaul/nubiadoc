@@ -6,6 +6,8 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -13,17 +15,28 @@ import 'package:app_practicien/features/agenda/agenda_bloc.dart';
 import 'package:app_practicien/features/agenda/agenda_event.dart';
 import 'package:app_practicien/features/agenda/agenda_page.dart';
 import 'package:app_practicien/features/agenda/agenda_state.dart';
+import 'package:app_practicien/session/pro_auth_cubit.dart';
 
 class _MockAgendaBloc extends MockBloc<AgendaEvent, AgendaState>
     implements AgendaBloc {}
 
-AgendaEntry _entryWithStatus(String id, String status) => AgendaEntry(
+class _MockProAuthCubit extends MockCubit<AuthState>
+    implements ProAuthCubit {}
+
+AgendaEntry _entryWithStatus(
+  String id,
+  String status, {
+  String practitionerId = 'prac-1',
+  DateTime? startsAt,
+}) =>
+    AgendaEntry(
       id: id,
       cabinetId: 'cab-1',
-      practitionerId: 'prac-1',
+      practitionerId: practitionerId,
       practitionerName: 'Dr. Dupont',
-      startsAt: DateTime(2026, 6, 16, 9, 0),
-      endsAt: DateTime(2026, 6, 16, 9, 30),
+      startsAt: startsAt ?? DateTime(2026, 6, 16, 9, 0),
+      endsAt: (startsAt ?? DateTime(2026, 6, 16, 9, 0))
+          .add(const Duration(minutes: 30)),
       patientId: 'pat-1',
       patientName: 'Marie Martin',
       motif: 'Détartrage',
@@ -31,7 +44,15 @@ AgendaEntry _entryWithStatus(String id, String status) => AgendaEntry(
       status: status,
     );
 
-Future<void> _pump(WidgetTester tester, AgendaEntry entry) async {
+/// #6651 : le praticien connecté par défaut dans ces tests possède l'entrée
+/// (`practitionerId: 'prac-1'`) — la garde de propriété ajoutée pour
+/// l'issue est donc neutre pour les scénarios de libellé/statut déjà
+/// couverts ici ; elle est exercée explicitement plus bas.
+Future<void> _pump(
+  WidgetTester tester,
+  AgendaEntry entry, {
+  String? sessionPractitionerId = 'prac-1',
+}) async {
   final mockBloc = _MockAgendaBloc();
   final state =
       AgendaLoaded(entries: [entry], weekStart: DateTime(2026, 6, 16));
@@ -41,12 +62,27 @@ Future<void> _pump(WidgetTester tester, AgendaEntry entry) async {
     initialState: state,
   );
 
+  final mockAuthCubit = _MockProAuthCubit();
+  when(() => mockAuthCubit.state).thenReturn(
+    AuthAuthenticated(
+      AuthSession(
+        kind: UserKind.pro,
+        userId: 'user-1',
+        role: ProRole.practitioner,
+        practitionerId: sessionPractitionerId,
+      ),
+    ),
+  );
+
   await tester.pumpWidget(
     MaterialApp(
       theme: NubiaTheme.light,
       home: BlocProvider<AgendaBloc>.value(
         value: mockBloc,
-        child: const Scaffold(body: AgendaBody()),
+        child: BlocProvider<ProAuthCubit>.value(
+          value: mockAuthCubit,
+          child: const Scaffold(body: AgendaBody()),
+        ),
       ),
     ),
   );
@@ -91,5 +127,36 @@ void main() {
     expect(find.text('Confirmé'), findsOneWidget);
     expect(find.byKey(const Key('confirm_ag-confirmed')), findsNothing);
     expect(find.byKey(const Key('start_ag-confirmed')), findsOneWidget);
+  });
+
+  // #6651 — l'agenda praticien liste tout le cabinet (#6213) mais
+  // `POST .../start` (scheduling.rs) rejette un démarrage hors fenêtre
+  // (409 too_early) ou sur le RDV d'un confrère (403 forbidden) : le bouton
+  // ne doit être offert que là où l'appel peut aboutir.
+  testWidgets(
+      'RDV confirmé d\'un confrère : Démarrer absent (403 forbidden côté back)',
+      (tester) async {
+    await _pump(
+      tester,
+      _entryWithStatus('ag-confrere', 'confirmed', practitionerId: 'prac-2'),
+      sessionPractitionerId: 'prac-1',
+    );
+
+    expect(find.byKey(const Key('start_ag-confrere')), findsNothing);
+  });
+
+  testWidgets(
+      'RDV confirmé trop tôt (starts_at - 60min pas atteint) : Démarrer absent '
+      '(409 too_early côté back)', (tester) async {
+    await _pump(
+      tester,
+      _entryWithStatus(
+        'ag-too-early',
+        'confirmed',
+        startsAt: DateTime.now().add(const Duration(hours: 3)),
+      ),
+    );
+
+    expect(find.byKey(const Key('start_ag-too-early')), findsNothing);
   });
 }
