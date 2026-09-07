@@ -71,6 +71,7 @@
 | `/pharmacy/orders/:id` | authed | timeline 4 étapes | QR (`Key('pickup_qr_image')`) SEULEMENT si statut « Prête » |
 | `/` (dashboard) | **authed** | `Key('dashboard_...')` | bandeau d'erreur si testé déconnecté = faux positif |
 | `/appointments` | authed | `Key('search_field')` + carte | recherche annuaire (résultats par défaut au chargement) |
+| `/appointments/slots?providerId=…` | authed | `Key('slots_back')` ou `Key('fiche_praticien_web')` | sous-écran créneaux d'un praticien (#6718) ; route dédiée pour que le back navigateur y revienne au lieu d'éjecter vers `/` |
 | `/book` | authed | recherche/booking | |
 | `/mes-rdv` | authed | liste RDV | |
 | `/rdv/:id/prepare` | authed | préparation RDV | tester avec un id seed |

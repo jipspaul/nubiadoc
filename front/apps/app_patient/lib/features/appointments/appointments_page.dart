@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import '../../session/auth_cubit.dart';
 import 'appointments_bloc.dart';
 import 'appointments_event.dart';
@@ -25,6 +27,8 @@ class AppointmentsPage extends StatefulWidget {
     this.initialQuery,
     this.deepLinkProviderId,
     this.deepLinkSlotId,
+    this.preselectedProvider,
+    this.isProviderSubRoute = false,
     super.key,
   });
 
@@ -44,6 +48,23 @@ class AppointmentsPage extends StatefulWidget {
   /// [deepLinkProviderId], est ignoré (le SSR émet toujours les deux).
   final String? deepLinkProviderId;
   final String? deepLinkSlotId;
+
+  /// #6718 : praticien déjà résolu côté client (carte déjà chargée dans la
+  /// recherche), transmis par la route dédiée `/appointments/:id/slots` via
+  /// `extra` — évite un aller-retour réseau (`GetProviderUseCase`) inutile
+  /// que [deepLinkProviderId] seul imposerait à chaque sélection normale.
+  /// Prioritaire sur [deepLinkProviderId] quand les deux sont fournis.
+  final ProviderResult? preselectedProvider;
+
+  /// #6718 : `true` quand cette page est montée par la route dédiée
+  /// `/appointments/:providerId/slots` plutôt que par `/appointments`
+  /// elle-même — le retour (bouton in-app, système, swipe-back, ET back du
+  /// navigateur) dépile alors cette route au lieu de réinitialiser l'état du
+  /// bloc, pour révéler la recherche restée intacte en dessous. Voir
+  /// `AppRouter` : sans route dédiée, l'historique web n'a rien à dépiler
+  /// pour ce sous-écran et le back navigateur remonte directement à l'écran
+  /// précédent `/appointments` au lieu d'y revenir.
+  final bool isProviderSubRoute;
 
   @override
   State<AppointmentsPage> createState() => _AppointmentsPageState();
@@ -65,6 +86,18 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
   @override
   void initState() {
     super.initState();
+    final preselectedProvider = widget.preselectedProvider;
+    if (preselectedProvider != null) {
+      // #6718 : praticien déjà résolu (route `/appointments/:id/slots`,
+      // sélection normale depuis la recherche) — mêmes créneaux/présélection
+      // que [AppointmentsProviderSelected], sans le fetch réseau que
+      // [AppointmentsDeepLinkRequested] imposerait.
+      context.read<AppointmentsBloc>().add(AppointmentsProviderSelected(
+            preselectedProvider,
+            preselectSlotId: widget.deepLinkSlotId,
+          ));
+      return;
+    }
     final deepLinkProviderId = widget.deepLinkProviderId;
     if (deepLinkProviderId != null) {
       // #6459 : lien de créneau du tunnel SSR — praticien + créneau du lien
@@ -111,9 +144,13 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
               state is AppointmentsSlotsLoaded ||
               state is AppointmentsBookingLoading;
           return PopScope(
-            canPop: !isProviderSubScreen,
+            // #6718 : sur la route dédiée (`isProviderSubRoute`), il y a
+            // toujours une page `/appointments` en dessous à révéler — le pop
+            // est donc laissé passer normalement (bouton in-app, système,
+            // swipe-back, back navigateur y sont tous équivalents).
+            canPop: widget.isProviderSubRoute || !isProviderSubScreen,
             onPopInvokedWithResult: (didPop, result) {
-              if (didPop) return;
+              if (didPop || widget.isProviderSubRoute) return;
               context
                   .read<AppointmentsBloc>()
                   .add(const AppointmentsBackToSearch());
@@ -181,16 +218,38 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
     AppointmentsBookingSuccess state,
   ) async {
     final bloc = context.read<AppointmentsBloc>();
-    final viewAppointments = await Navigator.of(context).push<bool>(
+    final navigator = Navigator.of(context);
+    final viewAppointments = await navigator.push<bool>(
       MaterialPageRoute(
         builder: (_) => BookingConfirmationPage(appointment: state.appointment),
       ),
     );
     if (!mounted) return;
+    if (widget.isProviderSubRoute) {
+      // #6718 : la recherche n'a jamais quitté son état sur la route du
+      // dessous — il suffit de dépiler cette route pour y revenir.
+      if (viewAppointments == true) {
+        widget.onViewMyAppointments?.call();
+      } else {
+        navigator.maybePop();
+      }
+      return;
+    }
     bloc.add(const AppointmentsSearchChanged(''));
     if (viewAppointments == true) {
       widget.onViewMyAppointments?.call();
     }
+  }
+
+  /// #6718 : retour depuis l'étape créneaux — dépile la route dédiée quand
+  /// elle existe ([isProviderSubRoute]), sinon réinitialise l'état du bloc
+  /// (comportement historique, ex. route `/book`).
+  void _handleBack(BuildContext context) {
+    if (widget.isProviderSubRoute) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    context.read<AppointmentsBloc>().add(const AppointmentsBackToSearch());
   }
 
   Widget _buildBody(BuildContext context, AppointmentsState state) {
@@ -212,12 +271,16 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
       );
     }
     if (state is AppointmentsSlotsLoading) {
-      return _SlotsLoadingView(provider: state.provider);
+      return _SlotsLoadingView(
+        provider: state.provider,
+        onBack: () => _handleBack(context),
+      );
     }
     if (state is AppointmentsSlotsLoaded) {
       return _SlotsView(
         state: state,
         onContinue: () => _openBookingSheet(context),
+        onBack: () => _handleBack(context),
       );
     }
     if (state is AppointmentsBookingLoading) {
@@ -650,7 +713,7 @@ class _SearchViewState extends State<_SearchView> {
   /// créneau en ligne » — mène directement à la fiche praticien, sans passer
   /// par le sheet de détail (qui n'a rien à proposer en plus ici).
   void _openProviderProfile(ProviderResult provider) {
-    _bloc.add(AppointmentsProviderSelected(provider));
+    _selectProvider(provider);
   }
 
   /// #5357 : un clic sur une puce créneau du bloc `.slots` de la carte
@@ -658,15 +721,39 @@ class _SearchViewState extends State<_SearchView> {
   /// sheet de détail, l'agenda du praticien se charge avec ce créneau
   /// automatiquement sélectionné.
   void _onSlotTap(ProviderResult provider, Slot slot) {
-    _bloc.add(
-      AppointmentsProviderSelected(provider, preselectSlotId: slot.id),
+    _selectProvider(provider, preselectSlotId: slot.id);
+  }
+
+  /// #6718 : sous un `GoRouter` (app réelle), pousse la route dédiée
+  /// [AppRouter.appointmentsSlots] — l'historique web porte alors l'étape
+  /// créneaux, ce qui permet au back navigateur d'y revenir correctement au
+  /// lieu d'éjecter du tunnel (il n'y avait auparavant aucune entrée
+  /// d'historique pour ce sous-écran, uniquement un état de bloc interne).
+  /// Le praticien déjà résolu est transmis via `extra` pour éviter un
+  /// second appel réseau. Hors `GoRouter` (tests unitaires de cette page,
+  /// montée seule) : comportement historique, l'événement part directement
+  /// sur le bloc courant.
+  void _selectProvider(ProviderResult provider, {String? preselectSlotId}) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) {
+      _bloc.add(
+        AppointmentsProviderSelected(provider, preselectSlotId: preselectSlotId),
+      );
+      return;
+    }
+    final uri = Uri(
+      path: AppRouter.appointmentsSlots,
+      queryParameters: {
+        'providerId': provider.id,
+        if (preselectSlotId != null) 'slotId': preselectSlotId,
+      },
     );
+    router.push(uri.toString(), extra: provider);
   }
 
   /// Détail praticien en NubiaBottomSheet : ProviderCard + tarifs indicatifs
   /// + « Voir les créneaux ».
   void _openProviderSheet(ProviderResult provider) {
-    final bloc = _bloc; // capturé : le sheet est hors de l'arbre BlocProvider.
     NubiaBottomSheet.show(
       context: context,
       child: Column(
@@ -695,7 +782,7 @@ class _SearchViewState extends State<_SearchView> {
             icon: Icons.event_outlined,
             onPressed: () {
               Navigator.of(context).pop();
-              bloc.add(AppointmentsProviderSelected(provider));
+              _selectProvider(provider);
             },
           ),
         ],
@@ -1321,11 +1408,16 @@ class _ClusterBubble extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _SlotsView extends StatelessWidget {
-  const _SlotsView({required this.state, required this.onContinue});
+  const _SlotsView({
+    required this.state,
+    required this.onContinue,
+    required this.onBack,
+  });
   final AppointmentsSlotsLoaded state;
   // #5336 : ouvre la feuille de confirmation — déclenché par `_ContinueBar`,
   // affichée sous la grille une fois un créneau sélectionné.
   final VoidCallback onContinue;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -1341,12 +1433,13 @@ class _SlotsView extends StatelessWidget {
       return LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth >= _kFicheWebBreakpoint) {
-            return _ProviderProfileWebView(state: state);
+            return _ProviderProfileWebView(state: state, onBack: onBack);
           }
           return _SlotsMobileView(
             state: state,
             borderColor: borderColor,
             onContinue: onContinue,
+            onBack: onBack,
           );
         },
       );
@@ -1355,6 +1448,7 @@ class _SlotsView extends StatelessWidget {
       state: state,
       borderColor: borderColor,
       onContinue: onContinue,
+      onBack: onBack,
     );
   }
 }
@@ -1364,8 +1458,9 @@ class _SlotsView extends StatelessWidget {
 /// ([_SlotsLoadingView]) : #5342, ne dépend que de [ProviderResult], monté
 /// immédiatement même avant que les créneaux n'arrivent.
 class _ProviderHeaderRow extends StatelessWidget {
-  const _ProviderHeaderRow({required this.provider});
+  const _ProviderHeaderRow({required this.provider, required this.onBack});
   final ProviderResult provider;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -1377,9 +1472,7 @@ class _ProviderHeaderRow extends StatelessWidget {
             key: const Key('slots_back'),
             icon: const Icon(Icons.arrow_back),
             tooltip: 'Retour',
-            onPressed: () => context
-                .read<AppointmentsBloc>()
-                .add(const AppointmentsBackToSearch()),
+            onPressed: onBack,
           ),
           NubiaAvatar(
             initials: _initialsOf(provider.displayName),
@@ -1490,10 +1583,12 @@ class _SlotsMobileView extends StatelessWidget {
     required this.state,
     required this.borderColor,
     required this.onContinue,
+    required this.onBack,
   });
   final AppointmentsSlotsLoaded state;
   final Color borderColor;
   final VoidCallback onContinue;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -1501,7 +1596,7 @@ class _SlotsMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _ProviderHeaderRow(provider: state.provider),
+        _ProviderHeaderRow(provider: state.provider, onBack: onBack),
         Divider(height: 1, color: borderColor),
         Expanded(
           child: state.slots.isEmpty
@@ -1586,8 +1681,9 @@ class _ContinueBar extends StatelessWidget {
 /// `CircularProgressIndicator` centré (écran blanc au moment le plus
 /// anxiogène de la maquette).
 class _SlotsLoadingView extends StatelessWidget {
-  const _SlotsLoadingView({required this.provider});
+  const _SlotsLoadingView({required this.provider, required this.onBack});
   final ProviderResult provider;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -1597,7 +1693,7 @@ class _SlotsLoadingView extends StatelessWidget {
       key: const Key('slots_loading_skeleton'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _ProviderHeaderRow(provider: provider),
+        _ProviderHeaderRow(provider: provider, onBack: onBack),
         Divider(height: 1, color: borderColor),
         Expanded(
           child: ListView(
@@ -1671,8 +1767,9 @@ String _weekRangeLabel(List<DateTime> days) {
 }
 
 class _ProviderProfileWebView extends StatefulWidget {
-  const _ProviderProfileWebView({required this.state});
+  const _ProviderProfileWebView({required this.state, required this.onBack});
   final AppointmentsSlotsLoaded state;
+  final VoidCallback onBack;
 
   @override
   State<_ProviderProfileWebView> createState() =>
@@ -1694,9 +1791,7 @@ class _ProviderProfileWebViewState extends State<_ProviderProfileWebView> {
           key: const Key('fiche_back'),
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Retour',
-          onPressed: () => context
-              .read<AppointmentsBloc>()
-              .add(const AppointmentsBackToSearch()),
+          onPressed: widget.onBack,
         ),
         _ProfileHero(provider: widget.state.provider, slots: widget.state.slots),
         Padding(

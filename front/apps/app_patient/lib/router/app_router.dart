@@ -107,6 +107,12 @@ class AppRouter {
   static const modifyRdv = '/rdv/:id/modifier';
   static const book = '/book';
 
+  /// #6718 : sous-écran « créneaux » du tunnel de réservation
+  /// (`providerId`/`slotId` en query, comme le lien de créneau du tunnel SSR
+  /// sur [appointments]) — route dédiée pour que l'historique web porte
+  /// cette étape (voir son `GoRoute` ci-dessous).
+  static const appointmentsSlots = '/appointments/slots';
+
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
       initialLocation: splash,
@@ -127,7 +133,10 @@ class AppRouter {
           // #5362 : le tunnel de réservation (recherche → créneau →
           // confirmation) ne demande aucune inscription préalable — le
           // compte se crée à la confirmation, dans le même formulaire.
+          // #6718 : appointmentsSlots en fait partie (même tunnel, route
+          // dédiée pour l'étape créneaux).
           appointments,
+          appointmentsSlots,
           book,
         },
         // signup authentifie l'utilisateur en cours de flow (restore() après
@@ -272,6 +281,37 @@ class AppRouter {
               ),
             ),
           ),
+        ),
+        GoRoute(
+          // #6718 : sous-écran « créneaux » d'un praticien avec sa propre
+          // entrée d'historique (comme `/pharmacy/orders/:id`) — sans elle,
+          // le back navigateur n'avait rien à dépiler pour ce sous-écran et
+          // remontait directement à l'écran précédent `/appointments` au
+          // lieu d'y revenir (le `PopScope` de `AppointmentsPage` n'est
+          // sollicité que par un pop du `Navigator`, jamais par le back
+          // d'historique web). `extra` porte le praticien déjà résolu
+          // (sélection normale depuis la recherche) pour éviter un aller-
+          // retour réseau ; sans lui (lien direct/rechargement de page),
+          // `AppointmentsPage` retombe sur `deepLinkProviderId`.
+          path: appointmentsSlots,
+          builder: (context, state) {
+            final extra = state.extra;
+            return BlocProvider(
+              create: (_) => GetIt.instance<AppointmentsBloc>(),
+              child: Scaffold(
+                body: SafeArea(
+                  child: AppointmentsPage(
+                    deepLinkProviderId: state.uri.queryParameters['providerId'],
+                    deepLinkSlotId: state.uri.queryParameters['slotId'],
+                    preselectedProvider:
+                        extra is ProviderResult ? extra : null,
+                    isProviderSubRoute: true,
+                    onViewMyAppointments: () => context.push(mesRdv),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
         GoRoute(
           path: mesRdv,
