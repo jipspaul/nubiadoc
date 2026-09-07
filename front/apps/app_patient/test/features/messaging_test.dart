@@ -816,6 +816,58 @@ void main() {
     });
   });
 
+  // #6717 — une coupure réseau à l'ouverture d'un fil affichait un bouton
+  // « Réessayer » qui ne réémettait aucune requête (il se contentait de
+  // dépiler la route). `onRetry` doit ré-émettre `MessagingThreadRequested`
+  // avec l'identifiant porté par `MessagingThreadError`.
+  group('MessagingPage — Réessayer après échec réseau à l\'ouverture (#6717)',
+      () {
+    testWidgets(
+        'taper "Réessayer" ré-émet une requête et ouvre le fil demandé',
+        (tester) async {
+      var callCount = 0;
+      when(() => mockGetConversations()).thenAnswer((_) async {
+        callCount++;
+        return callCount == 1
+            ? const Left(NetworkFailure('Pas de connexion Internet.'))
+            : Right([_conv]);
+      });
+      when(() => mockGetMessages(any())).thenAnswer((_) async => Right([_msg]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(const MessagingThreadRequested('conv-1'));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('messaging_thread_error')), findsOneWidget);
+      expect(callCount, 1);
+
+      await tester.tap(find.text('Réessayer'));
+      await tester.pumpAndSettle();
+
+      // La requête a bien été rejouée (pas un simple retour en arrière)…
+      expect(callCount, 2);
+      // …et le fil demandé s'ouvre directement, sans re-clic sur la liste.
+      expect(find.byKey(const Key('messaging_thread_messages')), findsOneWidget);
+      expect(bloc.state, isA<MessagingThreadLoaded>());
+    });
+  });
+
   // #5282 — pièce jointe cliquable liée au coffre documentaire : une carte
   // (icône + titre + sous-ligne + chevron) sous le texte du message, qui
   // navigue vers la feature `documents` au tap.
