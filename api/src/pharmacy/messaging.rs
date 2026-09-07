@@ -203,6 +203,7 @@ pub async fn get_pharmacy_conversation_messages(
 
 /// Corps de `POST /v1/pharmacy/conversations/:id/messages`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SendPharmacyMessageBody {
     pub body: String,
 }

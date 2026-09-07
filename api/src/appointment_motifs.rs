@@ -94,6 +94,7 @@ pub async fn list_appointment_motifs(
 
 /// Corps de la requête `POST /v1/cabinet/appointment-motifs`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateAppointmentMotifBody {
     pub label: String,
     pub default_duration_minutes: Option<i32>,

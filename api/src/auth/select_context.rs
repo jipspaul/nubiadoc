@@ -14,6 +14,7 @@ use super::{AppError, ProClaims, ProRegisterClaims};
 
 /// Corps de la requête `POST /v1/auth/select-context`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SelectContextBody {
     cabinet_id: Uuid,
     secretariat_id: Option<Uuid>,

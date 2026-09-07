@@ -45,6 +45,7 @@ pub struct PeriodontalChartResponse {
 
 /// Corps de `PUT /v1/cabinet/patients/:id/periodontal-chart`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutPeriodontalChartBody {
     pub sites: Value,
     pub indices: Value,

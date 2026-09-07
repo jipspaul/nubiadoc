@@ -828,6 +828,7 @@ pub async fn get_waiting_list(
 
 /// Corps de `POST /v1/cabinet/waiting-list/:id/offer`.
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct OfferSlotBody {
     /// Créneau proposé (ISO 8601 UTC). Optionnel (#4536) : si absent, le
     /// back sélectionne lui-même le prochain `availability_slot` `open` du
@@ -1037,6 +1038,7 @@ pub async fn offer_waiting_list_slot(
 
 /// Corps de la requête `POST /v1/cabinet/appointments`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateCabinetAppointmentBody {
     /// Dossier patient dans le cabinet (FK `patient.id`).
     pub patient_id: Uuid,
@@ -1703,6 +1705,7 @@ pub async fn confirm_appointment(
 
 /// Corps optionnel de `POST /v1/cabinet/appointments/:id/no-show`.
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct NoShowBody {
     pub reason: Option<String>,
 }
@@ -2484,6 +2487,7 @@ pub struct CabinetSlotResponse {
 
 /// Corps de `POST /v1/cabinet/slots`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateSlotBody {
     pub practitioner_id: Uuid,
     pub starts_at: String,
@@ -3048,6 +3052,7 @@ pub struct SlotOnlineResponse {
 /// visible dès la libération du créneau (annulation/no_show → status='open'
 /// mais online_booking resté true, réapparaît dans /search/slots).
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutSlotOnlineBody {
     pub online_booking: bool,
 }

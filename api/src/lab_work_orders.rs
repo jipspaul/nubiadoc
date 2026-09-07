@@ -178,6 +178,7 @@ pub async fn list_lab_work_orders(
 
 /// Body de `POST /v1/cabinet/lab-work-orders`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateLabWorkOrderBody {
     pub patient_id: Uuid,
     pub quote_item_id: Option<Uuid>,

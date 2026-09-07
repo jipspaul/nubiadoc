@@ -567,6 +567,7 @@ pub async fn sign_quote(
 
 /// Corps de `POST /v1/billing/quotes/:id/deposit`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DepositBody {
     pub amount_cents: i64,
     pub method: String,

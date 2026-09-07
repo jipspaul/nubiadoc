@@ -13,6 +13,7 @@ use crate::AppState;
 
 /// Corps de la requête `POST /v1/auth/password/forgot`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ForgotPasswordBody {
     email: String,
 }

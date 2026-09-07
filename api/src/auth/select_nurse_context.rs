@@ -18,6 +18,7 @@ use super::{AppError, NurseContextClaims, ProClaims};
 
 /// Corps de la requête `POST /v1/auth/select-nurse-context`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SelectNurseContextBody {
     nurse_id: Uuid,
 }

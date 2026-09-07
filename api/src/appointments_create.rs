@@ -34,6 +34,7 @@ const APPOINTMENT_REQUESTED_NOTIFY_ROLES: [&str; 1] = ["secretary"];
 
 /// Corps de la requête `POST /v1/appointments`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateAppointmentBody {
     pub provider_id: Uuid,
     pub slot_id: Option<Uuid>,

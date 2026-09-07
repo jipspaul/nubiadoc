@@ -28,6 +28,7 @@ const CALLBACK_REQUESTED_NOTIFY_ROLES: [&str; 1] = ["secretary"];
 
 /// Corps optionnel de `POST /v1/appointments/:id/checkin`.
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct CheckinBody {
     pub qr_code: Option<String>,
 }

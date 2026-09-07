@@ -134,6 +134,7 @@ pub async fn list_payment_schedules(
 /// à la création, non accepté en entrée (cohérence : un échéancier tout
 /// juste créé n'a par construction aucun jalon déjà réglé).
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct InstallmentInput {
     pub date: String,
     pub amount_cents: i64,
@@ -141,6 +142,7 @@ pub struct InstallmentInput {
 
 /// Corps de `POST /v1/cabinet/quotes/:id/payment-schedule`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreatePaymentScheduleBody {
     pub installments: Vec<InstallmentInput>,
     #[serde(default)]

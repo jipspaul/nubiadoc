@@ -1372,6 +1372,7 @@ pub async fn hold_slot(
 
 /// Corps de `POST /v1/search/parse`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ParseSearchBody {
     pub q: String,
 }

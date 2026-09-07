@@ -476,6 +476,7 @@ pub async fn get_conversation_messages(
 
 /// Corps de la requête `POST /v1/conversations/:id/read`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MarkReadBody {
     /// Si fourni, seuls les messages dont l'`id` ≤ `last_read_message_id` sont marqués lus.
     /// Si absent, tous les messages non lus du fil sont marqués lus.
@@ -594,6 +595,7 @@ pub async fn mark_conversation_read(
 
 /// Corps de la requête `POST /v1/conversations/:id/messages`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SendMessageBody {
     pub body: String,
 }
@@ -788,6 +790,7 @@ pub async fn send_message(
 /// Corps de la requête `POST /v1/conversations`.
 /// `cabinet_id` XOR `pharmacy_id` (scope patient_cabinet vs patient_pharmacy).
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateConversationBody {
     pub cabinet_id: Option<Uuid>,
     pub pharmacy_id: Option<Uuid>,

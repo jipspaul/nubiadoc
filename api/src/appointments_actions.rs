@@ -331,6 +331,7 @@ pub async fn patch_appointment(
 
 /// Corps optionnel de `POST /v1/appointments/:id/cancel`.
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct CancelBody {
     pub reason: Option<String>,
 }

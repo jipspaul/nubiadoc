@@ -193,6 +193,7 @@ pub async fn list_cabinet_team_messages(
 
 /// Corps de `POST /v1/cabinet/messages`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SendCabinetTeamMessageBody {
     pub body: String,
 }

@@ -128,6 +128,7 @@ pub(crate) fn visit_from_row(row: &PgRow) -> Result<VisitDto, AppError> {
 
 /// Corps de `POST /v1/account/visit-requests`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateVisitBody {
     pub lat: f64,
     pub lng: f64,

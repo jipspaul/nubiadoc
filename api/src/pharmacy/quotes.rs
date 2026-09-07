@@ -82,6 +82,7 @@ pub struct QuotesResponse {
 
 /// Une ligne du body de création.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QuoteItemInput {
     pub label: String,
     pub qty: i64,
@@ -90,6 +91,7 @@ pub struct QuoteItemInput {
 
 /// Body de `POST /v1/pharmacy/quotes`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateQuoteBody {
     /// Commande à laquelle rattacher le devis (l'identité patient en découle).
     pub order_id: Uuid,

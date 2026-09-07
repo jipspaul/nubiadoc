@@ -457,6 +457,7 @@ pub async fn complete_consultation(
 
 /// Body de `PUT /v1/cabinet/consultations/:id/note`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SetConsultationNoteBody {
     pub note: String,
 }

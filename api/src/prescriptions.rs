@@ -44,6 +44,7 @@ fn validate_structured_posology(value: &serde_json::Value) -> Result<(), AppErro
 
 /// Un item de médicament dans le body de création.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PrescriptionItemInput {
     pub label: String,
     pub form: Option<String>,
@@ -68,6 +69,7 @@ pub struct PrescriptionItemInput {
 
 /// Body de `POST /v1/cabinet/prescriptions`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreatePrescriptionBody {
     pub consultation_id: Option<Uuid>,
     pub patient_id: Uuid,
