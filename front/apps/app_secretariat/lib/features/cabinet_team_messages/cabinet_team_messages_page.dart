@@ -1003,37 +1003,35 @@ class _Composer extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    NubiaButton(
-                      key: const Key('team_message_attach_reference_button'),
-                      label: 'Joindre un patient, un devis…',
-                      icon: Icons.link,
-                      variant: NubiaButtonVariant.secondary,
-                      size: NubiaButtonSize.sm,
-                      onPressed: enabled
-                          ? () => ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Joindre un objet du produit au message : '
-                                    'à venir',
-                                  ),
-                                ),
-                              )
-                          : null,
+                    // #6702 : ni jointure d'objet du produit ni épinglage
+                    // n'ont d'endpoint côté API — des boutons d'apparence
+                    // active qui ne faisaient qu'afficher une snackbar
+                    // « à venir » induisaient en erreur. Grisés avec la
+                    // raison plutôt que retirés du composeur.
+                    Tooltip(
+                      message: "Jointure d'un objet du produit indisponible "
+                          "pour l'instant.",
+                      child: NubiaButton(
+                        key: const Key('team_message_attach_reference_button'),
+                        label: 'Joindre un patient, un devis…',
+                        icon: Icons.link,
+                        variant: NubiaButtonVariant.secondary,
+                        size: NubiaButtonSize.sm,
+                        onPressed: null,
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    NubiaButton(
-                      key: const Key('team_message_pin_button'),
-                      label: 'Épingler',
-                      icon: Icons.push_pin,
-                      variant: NubiaButtonVariant.secondary,
-                      size: NubiaButtonSize.sm,
-                      onPressed: enabled
-                          ? () => ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Épingler ce message : à venir'),
-                                ),
-                              )
-                          : null,
+                    Tooltip(
+                      message: 'Épinglage de message indisponible pour '
+                          "l'instant.",
+                      child: NubiaButton(
+                        key: const Key('team_message_pin_button'),
+                        label: 'Épingler',
+                        icon: Icons.push_pin,
+                        variant: NubiaButtonVariant.secondary,
+                        size: NubiaButtonSize.sm,
+                        onPressed: null,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     NubiaButton(

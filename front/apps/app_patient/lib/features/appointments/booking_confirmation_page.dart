@@ -151,15 +151,19 @@ class BookingConfirmationPage extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                NubiaButton(
-                  key: const Key('booking_confirmation_download_app'),
-                  label: "Télécharger l'app",
-                  variant: NubiaButtonVariant.tertiary,
-                  icon: Icons.smartphone_outlined,
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Lien de téléchargement bientôt disponible.'),
-                    ),
+                // #6702 : aucun lien de téléchargement (app store) n'est
+                // encore disponible — un bouton d'apparence active qui ne
+                // faisait qu'afficher une snackbar « à venir » induisait en
+                // erreur. Grisé avec la raison plutôt que retiré, pour
+                // garder la mise en avant de l'app une fois disponible.
+                Tooltip(
+                  message: 'Téléchargement bientôt disponible.',
+                  child: NubiaButton(
+                    key: const Key('booking_confirmation_download_app'),
+                    label: "Télécharger l'app",
+                    variant: NubiaButtonVariant.tertiary,
+                    icon: Icons.smartphone_outlined,
+                    onPressed: null,
                   ),
                 ),
               ],

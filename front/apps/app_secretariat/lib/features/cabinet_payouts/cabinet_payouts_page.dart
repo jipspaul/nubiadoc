@@ -376,14 +376,19 @@ class _NoPaymentAccountBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          NubiaButton(
-            key: const Key('cabinet_payouts_connect_stripe'),
-            label: 'Connecter Stripe',
-            variant: NubiaButtonVariant.secondary,
-            size: NubiaButtonSize.sm,
-            onPressed: () => NubiaSnackbar.show(
-              context: context,
-              message: 'Connexion Stripe à venir.',
+          // #6702 : la connexion Stripe n'a pas d'intégration côté API —
+          // un bouton d'apparence active qui ne faisait qu'afficher une
+          // snackbar « à venir » induisait en erreur. Grisé avec la raison,
+          // comme « Exporter (CSV) » sur ce même écran quand il n'y a rien
+          // à exporter.
+          Tooltip(
+            message: "Connexion Stripe indisponible pour l'instant.",
+            child: NubiaButton(
+              key: const Key('cabinet_payouts_connect_stripe'),
+              label: 'Connecter Stripe',
+              variant: NubiaButtonVariant.secondary,
+              size: NubiaButtonSize.sm,
+              onPressed: null,
             ),
           ),
         ],

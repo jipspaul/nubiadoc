@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
@@ -52,14 +53,11 @@ void main() {
       expect(find.text("Télécharger l'app"), findsOneWidget);
       expect(find.text('Voir mes RDV'), findsOneWidget);
 
-      await tester.ensureVisible(downloadFinder);
-      await tester.pumpAndSettle();
-      await tester.tap(downloadFinder);
-      await tester.pump();
-      expect(
-        find.text('Lien de téléchargement bientôt disponible.'),
-        findsOneWidget,
-      );
+      // #6702 : aucun lien de téléchargement n'existe encore — le bouton
+      // est grisé plutôt que d'afficher une snackbar « à venir ».
+      final button =
+          tester.widget<NubiaButton>(find.byType(NubiaButton).last);
+      expect(button.onPressed, isNull);
     });
 
     testWidgets('affiche le récapitulatif du rendez-vous', (tester) async {

@@ -411,16 +411,23 @@ class _WaitingEntryTile extends StatelessWidget {
               ),
               if (isUnassigned) ...[
                 const SizedBox(height: 4),
-                NubiaButton(
-                  key: Key('waiting_entry_assign_button_${entry.id}'),
-                  label: 'Attribuer',
-                  icon: Icons.person_add,
-                  size: NubiaButtonSize.sm,
-                  variant: NubiaButtonVariant.secondary,
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Attribution d'un praticien à venir"),
-                    ),
+                // #6702 : aucun endpoint d'attribution de praticien
+                // n'existe côté API — un bouton d'apparence active qui ne
+                // faisait qu'afficher une snackbar « à venir » induisait en
+                // erreur, en particulier ici où il apparaît justement au
+                // moment où une attribution est nécessaire. Grisé avec la
+                // raison plutôt que retiré, pour garder le signal visuel
+                // qu'une action reste à faire sur cette entrée.
+                Tooltip(
+                  message: "Attribution d'un praticien indisponible pour "
+                      "l'instant.",
+                  child: NubiaButton(
+                    key: Key('waiting_entry_assign_button_${entry.id}'),
+                    label: 'Attribuer',
+                    icon: Icons.person_add,
+                    size: NubiaButtonSize.sm,
+                    variant: NubiaButtonVariant.secondary,
+                    onPressed: null,
                   ),
                 ),
               ],
