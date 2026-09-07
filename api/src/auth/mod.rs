@@ -4399,14 +4399,24 @@ pub async fn post_account_dependents(
         return Err(AppError::ValidationError);
     }
 
-    if body.first_name.trim().is_empty() || body.last_name.trim().is_empty() {
+    if body.first_name.trim().is_empty()
+        || body.last_name.trim().is_empty()
+        || body.first_name.chars().count() > 100
+        || body.last_name.chars().count() > 100
+    {
         return Err(AppError::ValidationError);
     }
 
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
         Some(s) => {
             let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
-            if d > chrono::Utc::now().date_naive() {
+            let today = chrono::Utc::now().date_naive();
+            // Borne basse symétrique à la borne haute (#6653) : une naissance il y a
+            // plus de 120 ans est aussi impossible qu'une naissance dans le futur.
+            let min_birth_date = today
+                .checked_sub_months(chrono::Months::new(120 * 12))
+                .ok_or(AppError::ValidationError)?;
+            if d > today || d < min_birth_date {
                 return Err(AppError::ValidationError);
             }
             Some(d)
