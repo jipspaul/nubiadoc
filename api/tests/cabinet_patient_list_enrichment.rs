@@ -411,7 +411,8 @@ async fn list_row_exposes_last_visit_at() {
     let row = find_row(&body, f.patient_id);
 
     assert_eq!(
-        row["last_visit_at"], "2026-06-15T09:00:00+00:00", "row: {row}"
+        row["last_visit_at"], "2026-06-15T09:00:00+00:00",
+        "row: {row}"
     );
 
     cleanup(&seed_db, &f).await;

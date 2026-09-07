@@ -264,7 +264,8 @@ async fn last_visit_at_reflects_most_recent_done_appointment() {
     let body = get_patient(app(state), f.patient_id, &token).await;
 
     assert_eq!(
-        body["last_visit_at"], "2026-06-15T09:00:00+00:00", "body: {body}"
+        body["last_visit_at"], "2026-06-15T09:00:00+00:00",
+        "body: {body}"
     );
 
     cleanup(&seed_db, &f).await;
