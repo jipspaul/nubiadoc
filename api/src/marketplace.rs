@@ -1536,6 +1536,14 @@ fn detect_available(lower: &str) -> Option<String> {
     if lower.contains("ce soir") || lower.contains("aujourd'hui") || lower.contains("aujourdhui") {
         return Some("today".to_string());
     }
+    if lower.contains("après-demain")
+        || lower.contains("apres-demain")
+        || lower.contains("apres demain")
+        || lower.contains("après demain")
+        || lower.contains("surlendemain")
+    {
+        return None;
+    }
     if lower.contains("demain") {
         return Some("tomorrow".to_string());
     }
