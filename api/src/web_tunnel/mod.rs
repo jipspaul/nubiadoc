@@ -18,10 +18,13 @@
 //! `get_provider`) : aucune logique métier dupliquée (#5355).
 
 mod confirm_page;
+mod home_page;
 mod html;
 mod locality;
 mod provider_page;
+mod robots;
 mod search_page;
+mod sitemap;
 mod slug;
 
 use axum::extract::Request;
@@ -53,6 +56,9 @@ async fn reject_v1_prefix(request: Request, next: Next) -> Response {
 
 pub fn router(state: AppState) -> Router {
     Router::new()
+        .route("/", get(home_page::home_page))
+        .route("/robots.txt", get(robots::robots_txt))
+        .route("/sitemap.xml", get(sitemap::sitemap_xml))
         .route("/reservation/confirmer", get(confirm_page::confirm_page))
         .route("/:query_slug/:locality_slug", get(search_page::search_page))
         .route("/:slug", get(provider_page::provider_page))

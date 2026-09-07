@@ -5,7 +5,7 @@
 
 use axum::response::Html;
 
-use super::html::page;
+use super::html::{page, PageMeta};
 
 pub async fn confirm_page() -> Html<String> {
     let body = r#"<h1>Vos informations</h1>
@@ -13,7 +13,15 @@ pub async fn confirm_page() -> Html<String> {
 <div class="context">
   <p>Votre créneau est retenu pendant quelques minutes. Créez votre compte Nubia pour confirmer le rendez-vous — vous pourrez ensuite gérer vos rendez-vous, documents et devis depuis le même compte, sans inscription supplémentaire.</p>
 </div>"#;
-    page("Confirmer votre rendez-vous — Nubia", body)
+    // `noindex` (#6720) : étape transactionnelle liée à un hold en cours, pas
+    // un contenu propre à classer dans un moteur de recherche — cf.
+    // `provider_page::not_found` pour la même logique sur le 404 praticien.
+    let meta = PageMeta::new(
+        "Dernière étape avant la confirmation de votre rendez-vous Nubia.",
+        "/reservation/confirmer",
+    )
+    .robots("noindex, follow");
+    page("Confirmer votre rendez-vous — Nubia", &meta, body)
 }
 
 #[cfg(test)]

@@ -16,7 +16,7 @@ use crate::marketplace::{
 };
 use crate::AppState;
 
-use super::html::{escape, page};
+use super::html::{escape, page, PageMeta};
 use super::locality::{self, label as locality_label, ordinal, titleize, Locality};
 use super::provider_page::slug_for;
 
@@ -201,7 +201,44 @@ pub async fn search_page(
         q = escape(&query_terms),
     );
 
-    page(&title, &body)
+    let mut meta = PageMeta::new(seo_paragraph, format!("/{query_slug}/{locality_slug}"));
+    if !providers.is_empty() {
+        meta = meta.json_ld(item_list_json_ld(&providers));
+    }
+
+    page(&title, &meta, &body)
+}
+
+/// `ItemList` schema.org des praticiens de la page (#6720) — c'est le
+/// signal de données structurées que la page de recherche peut réellement
+/// justifier sans requête supplémentaire : chaque entrée est déjà connue
+/// (`ProviderItem`), le lien pointe vers la fiche praticien réelle.
+fn item_list_json_ld(providers: &[ProviderItem]) -> String {
+    let base = super::html::tunnel_base_url();
+    let items: Vec<serde_json::Value> = providers
+        .iter()
+        .enumerate()
+        .map(|(idx, p)| {
+            let href = slug_for(&p.display_name, p.specialty.as_deref(), None);
+            serde_json::json!({
+                "@type": "ListItem",
+                "position": idx + 1,
+                "url": format!("{base}/{href}"),
+                "item": {
+                    "@type": "Physician",
+                    "name": p.display_name,
+                    "medicalSpecialty": p.specialty,
+                }
+            })
+        })
+        .collect();
+
+    serde_json::json!({
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "itemListElement": items,
+    })
+    .to_string()
 }
 
 fn render_card(p: &ProviderItem, slots: &[SlotRef]) -> String {
