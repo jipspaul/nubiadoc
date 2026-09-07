@@ -102,13 +102,17 @@ class _WaitingRoomKpiStat extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          value,
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: valueColor ?? theme.colorScheme.onSurface,
-            fontFeatures: const [FontFeature.tabularFigures()],
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            softWrap: false,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: valueColor ?? theme.colorScheme.onSurface,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
-          overflow: TextOverflow.ellipsis,
         ),
         Text(
           label,

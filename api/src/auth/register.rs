@@ -83,6 +83,7 @@ fn is_rate_limited(email: &str) -> bool {
 
 /// Corps de la requête `POST /v1/auth/register`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RegisterBody {
     email: String,
     password: String,

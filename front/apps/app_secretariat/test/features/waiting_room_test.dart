@@ -410,6 +410,38 @@ void main() {
     });
 
     testWidgets(
+        'status in_consultation — pastille En consultation, pas En attente — #6636',
+        (tester) async {
+      // Libellé plus long que "En attente" — surface élargie (cf. autres
+      // suites waiting_room) pour ne pas déborder la ligne à 800px par défaut.
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            practitionerId: 'pr-1',
+            practitionerName: 'Dr A. Rousseau',
+            status: 'in_consultation',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('En consultation'), findsOneWidget);
+      expect(find.text('En attente'), findsNothing);
+    });
+
+    testWidgets(
         'colonne Estimation — valeur non nulle affichée en "~N min" — #5169',
         (tester) async {
       when(() => bloc.state).thenReturn(
@@ -771,6 +803,32 @@ void main() {
         find.byKey(const Key('waiting_room_call_next_button')),
       );
       expect(button.onPressed, isNotNull);
+    });
+
+    testWidgets(
+        'action call-next désactivée pendant actionInProgress — anti '
+        'double-clic #6637', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded(
+          [
+            WaitingRoomEntry(
+              id: 'e2',
+              cabinetId: 'c1',
+              patientId: 'p2',
+              patientName: 'Paul Martin',
+              arrivedAt: DateTime(2026, 6, 20, 8, 0),
+            ),
+          ],
+          actionInProgress: true,
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
+      );
+      expect(button.onPressed, isNull);
     });
 
     testWidgets(
@@ -1210,6 +1268,33 @@ void main() {
       verify(() => bloc.add(const WaitingRoomCallRequested('e2'))).called(1);
       verifyNever(() => bloc.add(const WaitingRoomCallRequested('e1')));
     });
+
+    testWidgets(
+        'bouton Appeler de ligne désactivé pendant actionInProgress — anti '
+        'double-clic #6637', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded(
+          [
+            WaitingRoomEntry(
+              id: 'e1',
+              cabinetId: 'c1',
+              patientId: 'p1',
+              patientName: 'Marie Curie',
+              appointmentId: 'appt-1',
+              arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            ),
+          ],
+          actionInProgress: true,
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_entry_call_button_e1')),
+      );
+      expect(button.onPressed, isNull);
+    });
   });
 
   // --- WaitingRoomBloc — appel par ligne (#5166) -------------------------------
@@ -1267,7 +1352,7 @@ void main() {
 
     blocTest<WaitingRoomBloc, WaitingRoomState>(
       'appeler la ligne 3 (e3) ne déclenche aucun appel back — n\'appelle '
-      'pas la ligne 1',
+      'pas la ligne 1, et signale le motif (#6629, plus de clic muet)',
       build: () {
         when(() => repo.callNext()).thenAnswer((_) async => Right(entries[0]));
         return WaitingRoomBloc(
@@ -1277,7 +1362,13 @@ void main() {
       },
       seed: () => WaitingRoomLoaded(entries),
       act: (bloc) => bloc.add(const WaitingRoomCallRequested('e3')),
-      expect: () => <WaitingRoomState>[],
+      expect: () => [
+        WaitingRoomLoaded(
+          entries,
+          actionError:
+              "Seul le patient en tête de file peut être appelé pour l'instant.",
+        ),
+      ],
       verify: (_) {
         verifyNever(() => repo.callNext());
       },

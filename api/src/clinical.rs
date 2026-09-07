@@ -203,6 +203,7 @@ pub async fn list_cabinet_patients(
                    - \
                    COALESCE((SELECT SUM(amount) FROM payment \
                              WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                               AND quote_id IS NOT NULL \
                                AND status IN ('pending', 'paid')), 0) \
                  ) * 100)::bigint AS balance_due_cents, \
                 (SELECT count(*)::bigint FROM appointment \
@@ -218,6 +219,7 @@ pub async fn list_cabinet_patients(
                     - \
                     COALESCE((SELECT SUM(amount) FROM payment \
                               WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
+                                AND quote_id IS NOT NULL \
                                 AND status IN ('pending', 'paid')), 0) \
                   ) > 0 \
                   AND EXISTS (SELECT 1 FROM quote \
@@ -368,6 +370,7 @@ pub async fn list_cabinet_patients(
 
 /// Corps de la requête `POST /v1/cabinet/patients`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AttachPatientBody {
     /// Identifiant du compte patient plateforme à rattacher au cabinet.
     pub patient_account_id: Uuid,
@@ -549,6 +552,7 @@ pub async fn create_cabinet_patient(
 
 /// Corps de la requête `POST /v1/cabinet/patients/quick`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QuickCreatePatientBody {
     pub first_name: String,
     pub last_name: String,
@@ -950,6 +954,7 @@ fn is_valid_fdi_tooth(code: &str) -> bool {
 
 /// Corps de la requête `POST /v1/cabinet/patients/:id/notes`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AddClinicalNoteBody {
     /// Type de note : `"observation"` ou `"act"`.
     pub note_kind: String,

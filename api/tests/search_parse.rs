@@ -132,6 +132,85 @@ async fn parse_keywords_available_saturday() {
     assert_eq!(v["query"]["available"], "saturday");
 }
 
+/// #6656 : « demain » → available=tomorrow, 200 (seul mot de date ignoré jusqu'ici).
+#[tokio::test]
+async fn parse_keywords_available_demain() {
+    if !db_available() {
+        return;
+    }
+
+    let response = app(state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/search/parse")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"q":"dentiste demain"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["query"]["available"], "tomorrow");
+    assert!(v["interpretation"].as_str().unwrap().contains("demain"));
+}
+
+/// #6686 : « après-demain » ne doit PAS être capturé par le `contains("demain")`
+/// de #6656 (« après-demain » contient « demain » comme sous-chaîne). Le
+/// vocabulaire de `available` n'a pas de valeur dédiée pour J+2 : on attend
+/// donc available=null plutôt qu'un faux « tomorrow ».
+#[tokio::test]
+async fn parse_keywords_apres_demain_is_not_tomorrow() {
+    if !db_available() {
+        return;
+    }
+
+    for q in [
+        "dentiste après-demain",
+        "dentiste apres-demain",
+        "dentiste apres demain",
+        "dentiste surlendemain",
+    ] {
+        let response = app(state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/search/parse")
+                    .header("content-type", "application/json")
+                    .body(Body::from(format!(r#"{{"q":"{q}"}}"#)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(
+            v["query"]["available"].is_null(),
+            "« {q} » ne doit pas être interprété comme tomorrow, obtenu : {}",
+            v["query"]["available"]
+        );
+        assert!(
+            !v["interpretation"]
+                .as_str()
+                .unwrap()
+                .contains("disponible demain"),
+            "« {q} » : l'interprétation ne doit pas affirmer « disponible demain », obtenu : {}",
+            v["interpretation"]
+        );
+    }
+}
+
 /// #4484 : ville connue de KNOWN_CITY_COORDS (réellement filtrée par
 /// search_providers) → interprétation « près de <ville> ».
 #[tokio::test]

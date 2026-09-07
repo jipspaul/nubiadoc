@@ -29,10 +29,12 @@ import '../features/notifications/notifications_bloc.dart';
 import '../features/oubliettes/oubliettes_bloc.dart';
 import '../features/pharmacy/my_pharmacy_cubit.dart';
 import '../features/pharmacy/pharmacy_search_cubit.dart';
+import '../features/pharmacy_quotes/pharmacy_quotes_bloc.dart';
 import '../features/referring_doctor/referring_doctor_cubit.dart';
 import '../features/referring_doctor/referring_doctor_search_cubit.dart';
 import '../features/pharmacy_orders/orders_bloc.dart';
 import '../features/pharmacy_orders/send_prescription_cubit.dart';
+import '../features/prescriptions/prescriptions_cubit.dart';
 import '../features/treatment_plans/treatment_plans_bloc.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/reviews/reviews_bloc.dart';
@@ -53,6 +55,13 @@ void registerPatient(GetIt gi) {
 
   gi.registerFactory<PharmacySearchCubit>(
     () => PharmacySearchCubit(search: gi<SearchPharmaciesUseCase>()),
+  );
+
+  gi.registerFactory<PharmacyQuotesBloc>(
+    () => PharmacyQuotesBloc(
+      list: gi<ListPharmacyQuotesUseCase>(),
+      decide: gi<DecidePharmacyQuoteUseCase>(),
+    ),
   );
 
   gi.registerFactory<ReferringDoctorCubit>(
@@ -96,6 +105,13 @@ void registerPatient(GetIt gi) {
       listPrescriptions: gi<ListMyPrescriptionsUseCase>(),
       getMyPharmacy: gi<GetMyPharmacyUseCase>(),
       createOrder: gi<CreatePharmacyOrderUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<PrescriptionsCubit>(
+    () => PrescriptionsCubit(
+      listPrescriptions: gi<ListMyPrescriptionsUseCase>(),
+      getDocumentSignedUrl: gi<GetDocumentSignedUrlUseCase>(),
     ),
   );
 

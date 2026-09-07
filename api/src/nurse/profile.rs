@@ -113,6 +113,7 @@ pub async fn get_nurse_profile(
 
 /// Corps de `PATCH /v1/nurse/availability`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AvailabilityBody {
     /// Bascule en ligne / hors ligne (reçoit ou non des offres).
     pub is_online: Option<bool>,

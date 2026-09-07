@@ -19,6 +19,7 @@ import '../features/financial/financial_state.dart';
 import '../features/financial/widgets/financial_format_utils.dart';
 import '../features/documents/documents_page.dart';
 import '../features/home_care/home_care_request_page.dart';
+import '../features/prescriptions/prescriptions_page.dart';
 import '../features/home_care/home_care_requests_page.dart';
 import '../features/home_care/home_care_tracking_page.dart';
 import '../features/treatment_plans/treatment_plan_detail_page.dart';
@@ -52,6 +53,8 @@ import '../features/referring_doctor/referring_doctor_search_page.dart';
 import '../features/pharmacy_orders/order_detail_page.dart';
 import '../features/pharmacy_orders/orders_page.dart';
 import '../features/pharmacy_orders/send_prescription_page.dart';
+import '../features/pharmacy_quotes/pharmacy_quotes_bloc.dart';
+import '../features/pharmacy_quotes/pharmacy_quotes_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/dependents/dependents_page.dart';
 import '../features/consents/consents_page.dart';
@@ -83,6 +86,7 @@ class AppRouter {
   static const appointments = '/appointments';
   static const mesRdv = '/mes-rdv';
   static const documents = '/documents';
+  static const prescriptions = '/prescriptions';
   static const financial = '/financial';
   static const treatmentPlans = '/treatment-plans';
   static const profile = '/profile';
@@ -222,6 +226,20 @@ class AppRouter {
               PatientOrderDetailPage(orderId: state.pathParameters['id']!),
         ),
         GoRoute(
+          path: '/pharmacy/quotes',
+          builder: (context, __) => BlocProvider(
+            create: (_) => GetIt.instance<PharmacyQuotesBloc>()
+              ..add(const PharmacyQuotesRequested()),
+            child: Scaffold(
+              appBar: AppBar(
+                leading: backOrHomeLeading(context),
+                title: const Text('Devis pharmacie'),
+              ),
+              body: const PharmacyQuotesPage(),
+            ),
+          ),
+        ),
+        GoRoute(
           path: treatmentPlans,
           builder: (_, __) => const PatientTreatmentPlansPage(),
         ),
@@ -269,9 +287,29 @@ class AppRouter {
         ),
         GoRoute(
           path: documents,
-          builder: (_, __) => Scaffold(
-            appBar: AppBar(title: const Text('Mes documents')),
+          // #6236 : accessible via `context.go` (URL bookmarkable) —
+          // `canPop()` y est donc systématiquement faux, comme pour un
+          // deep-link direct (même pattern que `financial`/`oubliettes`/
+          // `reviews` ci-dessous).
+          builder: (context, __) => Scaffold(
+            appBar: AppBar(
+              leading: backOrHomeLeading(context),
+              title: const Text('Mes documents'),
+            ),
             body: const DocumentsPage(),
+          ),
+        ),
+        GoRoute(
+          path: prescriptions,
+          // Même agencement que `documents` ci-dessus : `go()` depuis la
+          // tuile « Accès rapide » de l'accueil (#6232), `canPop()` donc
+          // faux.
+          builder: (context, __) => Scaffold(
+            appBar: AppBar(
+              leading: backOrHomeLeading(context),
+              title: const Text('Mes ordonnances'),
+            ),
+            body: const PrescriptionsPage(),
           ),
         ),
         GoRoute(
@@ -395,15 +433,23 @@ class AppRouter {
           path: reviews,
           builder: (context, state) {
             final providerId = state.uri.queryParameters['providerId'] ?? '';
+            // `appointmentId` (deep-link `review_request`, #6624) bascule sur
+            // le formulaire de soumission : pas de liste à charger dans ce cas.
+            final appointmentId = state.uri.queryParameters['appointmentId'];
             return BlocProvider(
-              create: (_) => GetIt.instance<ReviewsBloc>()
-                ..add(ReviewsLoadRequested(providerId)),
+              create: (_) {
+                final bloc = GetIt.instance<ReviewsBloc>();
+                if (appointmentId == null) {
+                  bloc.add(ReviewsLoadRequested(providerId));
+                }
+                return bloc;
+              },
               child: Scaffold(
                 appBar: AppBar(
                   leading: backOrHomeLeading(context),
                   title: const Text('Avis'),
                 ),
-                body: const ReviewsPage(),
+                body: ReviewsPage(appointmentId: appointmentId),
               ),
             );
           },

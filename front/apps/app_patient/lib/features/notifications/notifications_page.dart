@@ -80,27 +80,38 @@ class NotificationsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<NotificationsBloc, NotificationsState>(
-      builder: (context, state) => switch (state) {
-        NotificationsInitial() || NotificationsLoading() => const Center(
-          key: Key('notifications_loading'),
-          child: CircularProgressIndicator(),
-        ),
-        NotificationsError(:final message) => NubiaErrorWidget(
-          key: const Key('notifications_error'),
-          message: message,
-          onRetry: () => context.read<NotificationsBloc>().add(
-            const NotificationsLoadRequested(),
-          ),
-        ),
-        NotificationsEmpty() => const NubiaEmptyState(
-          key: Key('notifications_empty'),
-          icon: Icons.notifications_off,
-          title: 'Aucune notification',
-          subtitle: 'Vous êtes à jour',
-        ),
-        NotificationsLoaded loaded => _NotificationsContent(state: loaded),
+    return BlocListener<NotificationsBloc, NotificationsState>(
+      listenWhen: (_, current) =>
+          current is NotificationsLoaded && current.actionError != null,
+      listener: (context, state) {
+        if (state is NotificationsLoaded && state.actionError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.actionError!)),
+          );
+        }
       },
+      child: BlocBuilder<NotificationsBloc, NotificationsState>(
+        builder: (context, state) => switch (state) {
+          NotificationsInitial() || NotificationsLoading() => const Center(
+            key: Key('notifications_loading'),
+            child: CircularProgressIndicator(),
+          ),
+          NotificationsError(:final message) => NubiaErrorWidget(
+            key: const Key('notifications_error'),
+            message: message,
+            onRetry: () => context.read<NotificationsBloc>().add(
+              const NotificationsLoadRequested(),
+            ),
+          ),
+          NotificationsEmpty() => const NubiaEmptyState(
+            key: Key('notifications_empty'),
+            icon: Icons.notifications_off,
+            title: 'Aucune notification',
+            subtitle: 'Vous êtes à jour',
+          ),
+          NotificationsLoaded loaded => _NotificationsContent(state: loaded),
+        },
+      ),
     );
   }
 }
@@ -258,7 +269,9 @@ class _NotificationTile extends StatelessWidget {
     final (background, foreground) = _colorsFor(notification.type);
     final deepLink = notification.deepLink;
     final hasAction = deepLink != null && deepLink.isNotEmpty;
-    final action = hasAction ? _actionFor(notification.type) : null;
+    final action = hasAction
+        ? _actionFor(notification.type, notification.kind, notification.status)
+        : null;
     return ListTile(
       key: Key('notif_${notification.id}'),
       leading: Container(
@@ -341,15 +354,40 @@ class _NotificationTile extends StatelessWidget {
   /// Bouton d'action sous le corps de la notification (maquette design-v2) :
   /// libellé + icône par famille, primaire pour la pharmacie (`other`,
   /// commandes click-and-collect), secondaire pour les autres.
+  ///
+  /// Les devis d'officine (`kind` préfixé `pharmacy_quote_`) partagent le
+  /// bucket [NotificationType.payment] avec les devis dentaires (#6580) —
+  /// distingués ici par `kind` pour pointer vers le bon écran/libellé
+  /// (« Voir le devis » → `/pharmacy/quotes`, pas « Voir la facture » →
+  /// `/financial`).
   static ({String label, IconData icon, NubiaButtonVariant variant}) _actionFor(
     NotificationType type,
+    String? kind,
+    String? status,
   ) {
+    // Demande d'avis post-consultation (#6624) : partage le bucket
+    // NotificationType.message (cf. NotificationDto._parseType) avec les
+    // messages, distinguée ici par `kind` pour pointer vers le formulaire de
+    // saisie plutôt que la messagerie.
+    if (kind == 'review_request') {
+      return (
+        label: 'Donner mon avis',
+        icon: Icons.rate_review_outlined,
+        variant: NubiaButtonVariant.primary,
+      );
+    }
+    if (kind != null &&
+        (kind.startsWith('pharmacy_quote') ||
+            kind == 'quote_received' ||
+            kind == 'quote_relance')) {
+      return (
+        label: 'Voir le devis',
+        icon: Icons.receipt_long_outlined,
+        variant: NubiaButtonVariant.secondary,
+      );
+    }
     return switch (type) {
-      NotificationType.other => (
-          label: 'Afficher mon code',
-          icon: Icons.qr_code_2,
-          variant: NubiaButtonVariant.primary,
-        ),
+      NotificationType.other => _orderActionFor(kind, status),
       NotificationType.message => (
           label: 'Répondre',
           icon: Icons.reply,
@@ -368,6 +406,40 @@ class _NotificationTile extends StatelessWidget {
       NotificationType.payment => (
           label: 'Voir la facture',
           icon: Icons.receipt_outlined,
+          variant: NubiaButtonVariant.secondary,
+        ),
+    };
+  }
+
+  /// Action des notifications de commande pharmacie (`order_received`,
+  /// `order_status_changed`, + kinds legacy `pharmacy_order_*` qui encodent
+  /// le statut dans le `kind` lui-même) — #6610 : le code de retrait
+  /// (`pickup_qr_image`) n'existe que pour une commande `ready`
+  /// (`qa/route-manifest.md`), donc « Afficher mon code » ne doit s'afficher
+  /// que dans ce cas précis, jamais pour une commande pas encore prête ou
+  /// déjà retirée/annulée.
+  static ({String label, IconData icon, NubiaButtonVariant variant})
+      _orderActionFor(String? kind, String? status) {
+    final effectiveStatus = switch (kind) {
+      'pharmacy_order_preparing' => 'preparing',
+      'pharmacy_order_ready' => 'ready',
+      'pharmacy_order_picked_up' => 'picked_up',
+      _ => status,
+    };
+    return switch (effectiveStatus) {
+      'ready' => (
+          label: 'Afficher mon code',
+          icon: Icons.qr_code_2,
+          variant: NubiaButtonVariant.primary,
+        ),
+      'picked_up' || 'cancelled' || 'rejected' => (
+          label: 'Voir la commande',
+          icon: Icons.receipt_long_outlined,
+          variant: NubiaButtonVariant.secondary,
+        ),
+      _ => (
+          label: 'Suivre ma commande',
+          icon: Icons.local_shipping_outlined,
           variant: NubiaButtonVariant.secondary,
         ),
     };

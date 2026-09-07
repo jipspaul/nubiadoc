@@ -83,6 +83,7 @@ pub async fn list_stock_items(
 
 /// Body de `POST /v1/cabinet/stock-items`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateStockItemBody {
     pub reference: String,
     pub label: String,
@@ -166,6 +167,7 @@ pub async fn create_stock_item(
 
 /// Body de `POST /v1/cabinet/stock-items/:id/movements`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AddStockMovementBody {
     pub delta: i32,
     pub reason: String,

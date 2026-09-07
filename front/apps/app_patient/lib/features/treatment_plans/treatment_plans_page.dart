@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'treatment_plans_bloc.dart';
 import 'widgets/pending_quote_card.dart';
 import 'widgets/plan_card.dart';
@@ -28,7 +29,14 @@ class PatientTreatmentPlansBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mes plans de soins')),
+      // #6236 : accessible via `context.go` (URL bookmarkable) — `canPop()`
+      // y est donc systématiquement faux, comme pour un deep-link direct
+      // (même pattern que `financial`/`oubliettes`/`reviews` dans
+      // `app_router.dart`).
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Mes plans de soins'),
+      ),
       body: BlocBuilder<PatientTreatmentPlansBloc, PatientTreatmentPlansState>(
         builder: (context, state) {
           switch (state) {

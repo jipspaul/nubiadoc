@@ -348,6 +348,7 @@ pub async fn list_cabinet_conversations(
 
 /// Corps de `POST /v1/cabinet/conversations/:id/messages`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SendCabinetMessageBody {
     pub body: String,
 }

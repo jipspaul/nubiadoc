@@ -77,6 +77,7 @@ pub async fn list_cr_templates(
 
 /// Corps de `POST /v1/cabinet/cr-templates`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateCrTemplateBody {
     pub ccam_code: Option<String>,
     pub title: String,

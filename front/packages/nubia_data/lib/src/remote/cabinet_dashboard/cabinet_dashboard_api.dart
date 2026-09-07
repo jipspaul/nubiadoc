@@ -115,13 +115,23 @@ class CabinetDashboardApi {
 
     // Durée prévue : jointure sur le RDV du jour correspondant
     // (todayAppointments), seul endroit où `duration_minutes` est exposé.
+    //
+    // #6576 : même jointure pour le nom complet du patient — `patientName`
+    // de `nextPatient` vient de `/cabinet/waiting-room`, qui ne renvoie que
+    // `patient_name_initials` ("MD"), d'où le héros affichant des initiales
+    // alors que la liste « Journée » juste en dessous (alimentée par
+    // `todayAppointments`, `patient_name` complet) affiche "Marc Dubois".
     int? nextPatientDurationMinutes;
+    String? nextPatientFullName;
     if (nextPatient?.appointmentId != null) {
       for (final raw in todayAppointments) {
         final appointment =
             CabinetAppointmentDto.fromJson(raw as Map<String, dynamic>);
         if (appointment.id == nextPatient!.appointmentId) {
           nextPatientDurationMinutes = appointment.durationMinutes;
+          if (appointment.patientName.isNotEmpty) {
+            nextPatientFullName = appointment.patientName;
+          }
           break;
         }
       }
@@ -135,7 +145,7 @@ class CabinetDashboardApi {
       weeklyCompletedActs: weeklyCompletedActs,
       weeklyFeesCents: weeklyFeesCents,
       weeklyNoShowCount: weeklyNoShowCount,
-      nextPatientName: nextPatient?.patientName,
+      nextPatientName: nextPatientFullName ?? nextPatient?.patientName,
       nextPatientReason: nextPatient?.reason,
       nextPatientAppointmentTime: nextPatient?.appointmentTime,
       nextPatientDurationMinutes: nextPatientDurationMinutes,

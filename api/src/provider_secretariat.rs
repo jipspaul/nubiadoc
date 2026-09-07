@@ -24,6 +24,7 @@ pub struct ProviderSecretariatItem {
 
 /// Corps de la requête `PUT /v1/cabinet/providers/:id/secretariats`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutProviderSecretatriatsBody {
     pub secretariat_ids: Vec<Uuid>,
 }

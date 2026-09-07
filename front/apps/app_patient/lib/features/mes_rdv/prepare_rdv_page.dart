@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'widgets/prepare_rdv_info_card.dart';
 
 // ── Prefs service (mock-able) ────────────────────────────────────────────────
@@ -111,7 +112,14 @@ class _PrepareRdvPageState extends State<PrepareRdvPage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Préparer mon RDV')),
+        // #6236 : accessible via `context.go` (URL bookmarkable) — `canPop()`
+        // y est donc systématiquement faux, comme pour un deep-link direct
+        // (même pattern que `financial`/`oubliettes`/`reviews` dans
+        // `app_router.dart`).
+        appBar: AppBar(
+          leading: backOrHomeLeading(context),
+          title: const Text('Préparer mon RDV'),
+        ),
         body: const Center(
           key: Key('prepare_rdv_loading'),
           child: CircularProgressIndicator(),
@@ -120,7 +128,10 @@ class _PrepareRdvPageState extends State<PrepareRdvPage> {
     }
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Préparer mon RDV')),
+        appBar: AppBar(
+          leading: backOrHomeLeading(context),
+          title: const Text('Préparer mon RDV'),
+        ),
         body: Center(
           key: const Key('prepare_rdv_error'),
           child: Text(_error!),
@@ -129,7 +140,10 @@ class _PrepareRdvPageState extends State<PrepareRdvPage> {
     }
     final prep = _prep!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Préparer mon RDV')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Préparer mon RDV'),
+      ),
       body: ListView(
         key: const Key('prepare_rdv_list'),
         padding: const EdgeInsets.all(16),

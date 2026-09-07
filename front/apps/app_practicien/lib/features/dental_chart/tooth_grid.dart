@@ -73,7 +73,14 @@ class ToothVisual {
 /// Grille complète : 2 rangées d'arcade (haute puis basse), chacune formée
 /// des deux quadrants côte à côte (droit puis gauche), séparées par une
 /// ligne médiane.
-class ToothGrid extends StatelessWidget {
+///
+/// Les deux arcades ont la même largeur totale : le défilement horizontal
+/// (nécessaire quand la colonne qui héberge la grille est plus étroite que
+/// les 16 dents d'une arcade, ex. colonne centrale de la consultation PC
+/// #4949) est porté une seule fois par la grille entière plutôt que par
+/// arcade, afin que les deux arcades restent alignées anatomiquement
+/// (16 au-dessus de 46, 26 au-dessus de 36) — #6642.
+class ToothGrid extends StatefulWidget {
   const ToothGrid({
     super.key,
     required this.quadrants,
@@ -97,33 +104,66 @@ class ToothGrid extends StatelessWidget {
   final bool Function(String toothCode)? isSelected;
 
   @override
+  State<ToothGrid> createState() => _ToothGridState();
+}
+
+class _ToothGridState extends State<ToothGrid> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
+    final column = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _ArcadeRow(
-          rightCodes: quadrants.upperRight,
-          leftCodes: quadrants.upperLeft,
-          stateFor: stateFor,
-          onTap: onTap,
-          keyPrefix: keyPrefix,
-          toothSize: toothSize,
-          isSelected: isSelected,
+          rightCodes: widget.quadrants.upperRight,
+          leftCodes: widget.quadrants.upperLeft,
+          stateFor: widget.stateFor,
+          onTap: widget.onTap,
+          keyPrefix: widget.keyPrefix,
+          toothSize: widget.toothSize,
+          isSelected: widget.isSelected,
         ),
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 16),
           child: Divider(height: 1, thickness: 1, color: NubiaColors.n200),
         ),
         _ArcadeRow(
-          rightCodes: quadrants.lowerRight,
-          leftCodes: quadrants.lowerLeft,
-          stateFor: stateFor,
-          onTap: onTap,
-          keyPrefix: keyPrefix,
-          toothSize: toothSize,
-          isSelected: isSelected,
+          rightCodes: widget.quadrants.lowerRight,
+          leftCodes: widget.quadrants.lowerLeft,
+          stateFor: widget.stateFor,
+          onTap: widget.onTap,
+          keyPrefix: widget.keyPrefix,
+          toothSize: widget.toothSize,
+          isSelected: widget.isSelected,
         ),
       ],
+    );
+
+    // Une arcade complète (16 dents adulte) peut dépasser la largeur d'une
+    // colonne étroite : défilement horizontal plutôt que débordement,
+    // centré quand tout tient déjà dans la largeur disponible. Un
+    // `Scrollbar` visible signale qu'il reste des dents hors cadre (#6642 —
+    // sans lui rien n'indiquait qu'il fallait défiler).
+    return LayoutBuilder(
+      builder: (context, constraints) => Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Center(child: column),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -151,7 +191,7 @@ class _ArcadeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final row = Row(
+    return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -173,20 +213,6 @@ class _ArcadeRow extends StatelessWidget {
           isSelected: isSelected,
         ),
       ],
-    );
-
-    // Une arcade complète (16 dents adulte) peut dépasser la largeur d'une
-    // colonne étroite (ex. colonne centrale de la consultation PC, #4949,
-    // toothSize 44×50) : défilement horizontal plutôt que débordement,
-    // centré quand tout tient déjà dans la largeur disponible.
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: constraints.maxWidth),
-          child: Center(child: row),
-        ),
-      ),
     );
   }
 }

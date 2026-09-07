@@ -191,6 +191,10 @@ void main() {
       when(() => listUseCase())
           .thenAnswer((_) async => const Right([_implant, secondImplant]));
 
+      // #6560 : bandeau, cartes et pied partagent désormais un unique
+      // défilement ; on agrandit la surface pour tout voir sans scroller.
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -234,6 +238,10 @@ void main() {
         )),
       );
 
+      // #6560 : bandeau, cartes et pied partagent désormais un unique
+      // défilement ; on agrandit la surface pour tout voir sans scroller.
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 

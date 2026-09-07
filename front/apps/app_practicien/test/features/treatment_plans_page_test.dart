@@ -509,8 +509,13 @@ void main() {
     verify(() => createPlan('pat-1', 'Plan blanchiment')).called(1);
   });
 
-  group('en-tête de plan → actions Renommer / Générer le devis', () {
-    testWidgets('deux boutons visibles avec les libellés attendus',
+  group('en-tête de plan → action Renommer', () {
+    // #6626 — le CTA générique « Générer le devis » a quitté l'en-tête
+    // (maquette design-v2, annotation ③) : seul « Renommer » y reste, le
+    // devis se génère désormais depuis la colonne « Couverture financière »
+    // (ou le bandeau devis par phase, déjà couvert par ailleurs).
+    testWidgets(
+        'seul Renommer est visible en en-tête — plus de CTA générique',
         (tester) async {
       when(() => listPlans('pat-1')).thenAnswer(
         (_) async => Right([_planWithPhases]),
@@ -526,10 +531,10 @@ void main() {
       );
       expect(
         find.byKey(const Key('treatment_plan_generate_quote_plan-1')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.text('Renommer'), findsOneWidget);
-      expect(find.text('Générer le devis'), findsOneWidget);
+      expect(find.text('Générer le devis'), findsNothing);
     });
 
     testWidgets('Renommer ouvre le dialogue titre pré-rempli', (tester) async {
@@ -554,10 +559,95 @@ void main() {
       ));
       expect(field.controller?.text, 'Plan implant');
     });
+  });
 
-    testWidgets('Générer le devis navigue vers /devis', (tester) async {
+  group('colonne « Couverture financière » (#6626)', () {
+    final planWithCoverage = TreatmentPlan(
+      id: 'plan-coverage',
+      title: 'Réhabilitation secteur 2',
+      status: 'in_progress',
+      createdAt: DateTime(2026, 1, 5),
+      phases: [
+        TreatmentPhase(
+          id: 'phase-cov-1',
+          position: 1,
+          title: 'Assainissement',
+          status: 'done',
+          quoteRef: TreatmentPhaseQuoteRef(
+            quoteNumber: 'DEV-2041',
+            signedAt: DateTime(2026, 1, 10),
+            depositPaid: true,
+          ),
+          acts: const [
+            TreatmentPhaseAct(id: 'act-cov-1', amountCents: 8242),
+          ],
+        ),
+        TreatmentPhase(
+          id: 'phase-cov-2',
+          position: 2,
+          title: 'Endodontie et reconstitution',
+          status: 'in_progress',
+          quoteRef: TreatmentPhaseQuoteRef(
+            quoteNumber: 'DEV-2041',
+            signedAt: DateTime(2026, 1, 10),
+          ),
+          acts: const [
+            TreatmentPhaseAct(id: 'act-cov-2', amountCents: 35350),
+          ],
+        ),
+        TreatmentPhase(
+          id: 'phase-cov-3',
+          position: 3,
+          title: 'Prothèse d\'usage',
+          status: 'requested',
+          acts: const [
+            TreatmentPhaseAct(id: 'act-cov-3', amountCents: 120000),
+          ],
+        ),
+      ],
+    );
+
+    testWidgets(
+        'largeur ≥ seuil → montants Total/Réalisé/Engagé/Non couvert '
+        'affichés', (tester) async {
       when(() => listPlans('pat-1')).thenAnswer(
-        (_) async => Right([_planWithPhases]),
+        (_) async => Right([planWithCoverage]),
+      );
+
+      await _setSurface(tester);
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final column = find.byKey(const Key('treatment_plan_coverage_column'));
+      expect(column, findsOneWidget);
+      expect(
+        find.descendant(of: column, matching: find.text('1 635,92 €')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: column, matching: find.text('82,42 €')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: column, matching: find.text('435,92 €')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key('treatment_plan_coverage_uncovered_plan-coverage'),
+          ),
+          matching: find.text('1 200,00 €'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'phase non engagée → alerte + CTA contextuel « Générer le devis de '
+        'la phase 3 » naviguant vers /devis', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([planWithCoverage]),
       );
 
       final router = GoRouter(
@@ -581,12 +671,82 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.tap(
-        find.byKey(const Key('treatment_plan_generate_quote_plan-1')),
+      expect(
+        find.byKey(
+          const Key('treatment_plan_coverage_alert_plan-coverage'),
+        ),
+        findsOneWidget,
       );
+      expect(find.textContaining('La phase 3'), findsOneWidget);
+      expect(find.textContaining('73 %'), findsOneWidget);
+
+      final cta = find.byKey(
+        const Key('treatment_plan_coverage_generate_quote_plan-coverage'),
+      );
+      expect(cta, findsOneWidget);
+      expect(find.text('Générer le devis de la phase 3'), findsOneWidget);
+
+      await tester.ensureVisible(cta);
+      await tester.tap(cta);
       await tester.pumpAndSettle();
 
       expect(find.text('devis page'), findsOneWidget);
+    });
+
+    testWidgets('devis rattachés → une ligne DEV-2041 pour les phases 1 et 2',
+        (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([planWithCoverage]),
+      );
+
+      await _setSurface(tester);
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final row = find.byKey(
+        const Key('treatment_plan_coverage_quote_DEV-2041'),
+      );
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.text('DEV-2041')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.textContaining('Phases 1 et 2'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.text('Signé')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('largeur < seuil → colonne absente, layout 2 colonnes conservé',
+        (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([planWithCoverage]),
+      );
+
+      tester.view.physicalSize = const Size(1000, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('treatment_plan_coverage_column')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('treatment_plans_list')), findsOneWidget);
+      expect(
+        find.byKey(const Key('treatment_plan_plan-coverage')),
+        findsOneWidget,
+      );
     });
   });
 

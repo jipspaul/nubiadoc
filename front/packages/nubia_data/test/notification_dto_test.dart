@@ -110,6 +110,22 @@ void main() {
       expect(dto.toDomain().body, 'Corps réel');
     });
 
+    // Régression #6610 : `data.status` doit survivre jusqu'au domaine pour
+    // que l'UI (notifications_page.dart `_actionFor`) puisse discriminer
+    // l'action affichée (ex. « Afficher mon code » réservé au statut ready).
+    test('toDomain() préserve data.status', () {
+      final dto = NotificationDto.fromJson({
+        'id': '1',
+        'kind': 'order_status_changed',
+        'title': 'Titre',
+        'data': {'order_id': 'o1', 'status': 'picked_up'},
+        'is_read': false,
+        'created_at': '2026-01-01T00:00:00Z',
+      });
+
+      expect(dto.toDomain().status, 'picked_up');
+    });
+
     test('body absent + status inconnu -> corps générique non vide', () {
       final dto = NotificationDto.fromJson({
         'id': '1',

@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
+    consultation_act_stock,
     consultation_context::ConsultationActItem,
     AppState,
 };
@@ -342,6 +343,10 @@ pub async fn patch_consultation_act(
 /// (comme `add_consultation_act`) — sinon 403. Séance doit être `in_progress`.
 /// `cabinet_id` extrait du JWT. RLS tenant-scoped.
 /// 404 si séance ou acte absents ou hors tenant.
+/// 409 `act_linked_to_stock` uniquement si une pochette de stérilisation
+/// référence l'acte (#6618) — un mouvement de stock, lui, est défait
+/// (`consultation_act_stock::reverse_stock_consumption`) plutôt que de
+/// bloquer la suppression.
 pub async fn delete_consultation_act(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -396,16 +401,19 @@ pub async fn delete_consultation_act(
         .try_get("appointment_id")
         .map_err(|_| AppError::Internal)?;
 
-    // Refuse proprement (409) si l'acte est référencé par un mouvement de
-    // stock ou une pochette de stérilisation : les FK composites
-    // `(consultation_act_id, cabinet_id)` de `stock_movement` (migration
-    // 0192) et `sterilized_pouch` (migration 0190) n'ont pas de clause
-    // `ON DELETE`, un hard-delete sans ce garde-fou remonte en 500 (23503).
-    let linked_row = sqlx::query(
+    // #6618 : un mouvement de stock n'est plus un verrou définitif — il est
+    // créé automatiquement à l'ajout (`consultation_act_stock::apply_stock_consumption`),
+    // donc tout acte consommateur naissait indélébile (409 permanent, aucune
+    // route pour défaire le mouvement). On rend le stock consommé dans la
+    // même transaction (mouvement inverse), symétrique de l'ajout.
+    //
+    // Reste bloquant (409) : une pochette de stérilisation référence un
+    // objet physique déjà scellé/tracé, pas un simple compteur — rien à
+    // « défaire » automatiquement. FK composite `(consultation_act_id,
+    // cabinet_id)` de `sterilized_pouch` (migration 0190) sans `ON DELETE`,
+    // un hard-delete sans ce garde-fou remonte en 500 (23503).
+    let pouch_row = sqlx::query(
         "SELECT EXISTS(\
-           SELECT 1 FROM stock_movement \
-           WHERE consultation_act_id = $1 AND cabinet_id = $2\
-         ) OR EXISTS(\
            SELECT 1 FROM sterilized_pouch \
            WHERE consultation_act_id = $1 AND cabinet_id = $2\
          )",
@@ -415,10 +423,12 @@ pub async fn delete_consultation_act(
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
-    let linked_to_stock: bool = linked_row.try_get(0).map_err(|_| AppError::Internal)?;
-    if linked_to_stock {
+    let linked_to_pouch: bool = pouch_row.try_get(0).map_err(|_| AppError::Internal)?;
+    if linked_to_pouch {
         return Err(AppError::ActLinkedToStock);
     }
+
+    consultation_act_stock::reverse_stock_consumption(&mut tx, claims.cabinet_id, act_id).await?;
 
     // Supprime l'acte (filtre tenancy).
     let result = sqlx::query(

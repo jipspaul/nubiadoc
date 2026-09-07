@@ -216,8 +216,13 @@ class _HeroAppointmentDetailCard extends StatelessWidget {
                   height: 48,
                   child: OutlinedButton.icon(
                     key: const Key('hero_prepare_button'),
+                    // #6236 : `go()`, pas `push()` — un `push()` imperative ne
+                    // met jamais à jour l'uri exposée au
+                    // `RouteInformationProvider` (elle reste celle de la
+                    // dernière navigation déclarative), donc l'URL du
+                    // navigateur ne bouge jamais et un F5 perd l'écran.
                     onPressed: () =>
-                        context.push('/rdv/${appointment.id}/prepare'),
+                        context.go('/rdv/${appointment.id}/prepare'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
                       side: BorderSide(

@@ -109,7 +109,8 @@ Future<void> _showCreateSeriesFlow(BuildContext context) async {
     AuthAuthenticated(:final session) => session,
     _ => null,
   };
-  if (session == null) return;
+  final practitionerId = session?.practitionerId;
+  if (practitionerId == null) return;
 
   final agendaBloc = context.read<AgendaBloc>();
   final result = await showDialog<CreateAppointmentSeriesResult>(
@@ -120,7 +121,7 @@ Future<void> _showCreateSeriesFlow(BuildContext context) async {
 
   agendaBloc.add(
     AgendaSeriesCreateRequested(
-      practitionerId: session.userId,
+      practitionerId: practitionerId,
       patientId: patient.id,
       motif: result.motif,
       occurrences: result.occurrences,
@@ -685,7 +686,14 @@ class _EntryCard extends StatelessWidget {
                                 ),
                               ),
                     ),
-                  if (entry.isConfirmed || entry.isCheckedIn)
+                  // #6651 : `POST .../start` renvoie 409 too_early tant que
+                  // starts_at - 60min n'est pas atteint (même fenêtre que
+                  // start_consultation côté back, scheduling.rs) et 403
+                  // forbidden si le RDV appartient à un confrère du cabinet
+                  // (l'agenda praticien liste tout le cabinet, #6213) — le
+                  // bouton ne doit donc être offert que là où l'appel peut
+                  // structurellement aboutir.
+                  if (_canStart(context, entry))
                     NubiaButton(
                       key: Key('start_${entry.id}'),
                       size: NubiaButtonSize.sm,
@@ -707,6 +715,26 @@ class _EntryCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// #6651 : reproduit ici les deux gardes que `POST .../start` applique côté
+/// back (`scheduling.rs::start_consultation`) — sinon le bouton est offert
+/// sur des lignes où l'appel échoue systématiquement (409/403).
+/// - Propriété : seul le praticien connecté peut démarrer SES rendez-vous,
+///   même si l'agenda affiche tout le cabinet.
+/// - Fenêtre temporelle : un RDV `confirmed` n'est démarrable qu'à partir de
+///   `starts_at - 60min` (un `checked_in` a déjà passé cette garde au
+///   check-in, pas besoin de la revérifier ici).
+bool _canStart(BuildContext context, AgendaEntry entry) {
+  if (!entry.isConfirmed && !entry.isCheckedIn) return false;
+  final session = switch (context.watch<ProAuthCubit>().state) {
+    AuthAuthenticated(:final session) => session,
+    _ => null,
+  };
+  if (session?.practitionerId != entry.practitionerId) return false;
+  if (entry.isCheckedIn) return true;
+  final earliestStart = entry.startsAt.subtract(const Duration(minutes: 60));
+  return !DateTime.now().isBefore(earliestStart);
 }
 
 // ---------------------------------------------------------------------------

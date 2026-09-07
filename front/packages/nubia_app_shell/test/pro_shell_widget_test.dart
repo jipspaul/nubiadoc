@@ -199,6 +199,39 @@ void main() {
       },
     );
 
+    // #6555 — le compteur peint par le Badge (#5387) est écarté de l'arbre
+    // Semantics par le `excludeSemantics: true` de `_sidebarEntry` (#6192) :
+    // il doit donc être concaténé au label du nœud englobant, comme le fait
+    // déjà `ProNotificationsBell` (« Notifications 46 »).
+    testWidgets(
+      'badgeCount > 0 : le compteur est exposé dans le label Semantics '
+      '(rail desktop)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(
+              config: badgeConfig,
+              session: session,
+              currentRoute: '/agenda',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final withBadge = tester.getSemantics(find.text('Salle d\'attente'));
+        expect(withBadge.label, 'Salle d\'attente, 5');
+
+        // badgeCount == 0 : pas de pastille visible, label inchangé (#5387).
+        final withoutBadge = tester.getSemantics(find.text('Devis'));
+        expect(withoutBadge.label, 'Devis');
+
+        handle.dispose();
+      },
+    );
+
     testWidgets(
       'badgeCount > 0 : badge visible dans le drawer mobile',
       (tester) async {

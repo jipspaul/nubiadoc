@@ -11,12 +11,15 @@
 #   2. assemble l'image API (COPY-only, amd64) -> tar
 #   3. flutter build web x3 (API_BASE_URL baké au build)
 #   4. provisionne le LXC (podman) si besoin
-#   5. pousse binaire/image, migrations, seed, bundles web
-#   6. lance deploy.sh sur le LXC (run de la stack)
-#   7. applique (opt-in, cf. CADDY_HOST) le bloc Caddy reservation.doc.nubia-link.com
-#      sur l'hôte Caddy hors LXC ; échec dur si le domaine ne sert PAS de TLS
-#      après coup, que CADDY_HOST soit provisionné ou non (#6188, #6379)
-#   8. health-check TLS best-effort des domaines publics
+#   5. applique (opt-in, cf. CADDY_HOST) le bloc Caddy reservation.doc.nubia-link.com
+#      sur l'hôte Caddy hors LXC (#6188, #6379, #6553, #6632 — cf. étape 5/8 ci-dessous ;
+#      #6649 : ce domaine externe, hors périmètre des 5 fronts + API, ne bloque PLUS
+#      le déploiement — surveillance déplacée en 8/8)
+#   6. pousse binaire/image, migrations, seed, bundles web
+#   7. lance deploy.sh sur le LXC (run de la stack)
+#   8. health-check TLS des domaines publics : souple si échec généralisé
+#      (probable souci réseau runner), mais échoue FORT si reservation.doc.
+#      nubia-link.com est seul en échec alors que les autres répondent (#6685)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -118,7 +121,50 @@ build_front app_infirmiere  infirmiere
 say "4/8 provision LXC (idempotent)"
 SSH 'sh -s' < "$ROOT/infra/deploy/provision.sh"
 
-say "5/8 envoi des artefacts"
+say "5/8 application auto du bloc Caddy reservation.doc.nubia-link.com (hôte Caddy, opt-in)"
+# #6116/#6139/#6160/#6162 : ce bloc est un template à coller à la main sur
+# l'hôte Caddy (hors LXC, hors périmètre du reste de ce script) — récidive x4
+# faute d'un mécanisme d'application automatique. Si CADDY_HOST/CADDY_USER/
+# CADDY_PASSWORD sont renseignés (secrets optionnels, cf. README), ce script
+# pousse + recharge la config réellement servie ; sinon il no-op (secret non
+# provisionné). PAS de `|| true` ici une fois CADDY_HOST configuré : un échec
+# doit être visible (badge rouge), pas noyé dans un warning best-effort — cf.
+# postmortem #3493 (faux vert pire qu'un rouge honnête).
+CADDY_HOST="${CADDY_HOST:-}" CADDY_USER="${CADDY_USER:-}" CADDY_PASSWORD="${CADDY_PASSWORD:-}" \
+  bash "$ROOT/infra/deploy/apply-reservation-caddy.sh"
+
+# #6379 (7e récidive #6116/#6139/#6160/#6162/#6188/#6317) : constat historique
+# — apply-reservation-caddy.sh peut sortir 0 (un des `reload` a réussi, cf. sa
+# propre correction #6317) sans que le domaine serve réellement du TLS (bloc
+# appliqué sur un Caddy sans certificat valide, vhost écrasé après coup,
+# etc.), donc son seul code retour ne suffit pas à garantir l'état réel.
+# Ceci avait alors motivé un test du RÉSULTAT OBSERVABLE (curl TLS) ICI même,
+# rendu bloquant par #6553 puis #6632 — désactivé par #6649 ci-dessous, le
+# suivi du résultat observable se fait maintenant en 8/8 (bloquant seulement
+# si reservation est seul en échec, cf. #6685 plus bas dans ce fichier).
+#
+# #6649 (9e récidive #6116/#6139/#6160/#6162/#6188/#6317/#6379/#6553/#6632) :
+# le garde-fou introduit par #6632 (pré-vol bloquant ICI, avant tout transfert)
+# empêchait bien le skew front/API décrit dans son postmortem — mais
+# reservation.doc.nubia-link.com est un domaine EXTERNE, sans rapport avec le
+# code des 5 fronts + API déployés par ce script (son bloc Caddy dépend d'un
+# collage manuel sur un hôte hors périmètre, cf. CADDY_HOST ci-dessus, qui
+# n'est toujours pas provisionné). Le garder bloquant transforme une panne
+# externe, hors du contrôle de la CI, en arrêt total et permanent du
+# déploiement : 9 récidives plus tard, plus AUCUN correctif front/API ne part
+# en prod, y compris ceux sans aucun rapport avec la réservation (8 correctifs
+# mergés perdus, #6649). La cohérence front/API reste garantie PAR AILLEURS
+# (étapes 6+7 ci-dessous restent séquentielles et non interrompues par ce
+# domaine) ; seule la dépendance dure à ce domaine externe AVANT transfert est
+# retirée. Le suivi de ce domaine reste visible à l'étape 8/8 via
+# verify-public-tls.sh, APRÈS que 6+7 aient déjà tourné — sans plus jamais
+# empêcher le reste de partir. #6685 (10e récidive) : ce suivi de fin de
+# pipeline était lui-même noyé sous un `|| true` inconditionnel, donc encore
+# skippé en silence en continu ; il échoue maintenant fort (mais seulement à
+# cette dernière étape, sans effet sur 6+7 déjà passées) quand reservation est
+# seul en échec TLS, cf. étape 8/8 ci-dessous.
+
+say "6/8 envoi des artefacts"
 # scripts + nginx.conf
 SCP "$ROOT/infra/deploy/deploy.sh" "$ROOT/infra/deploy/bootstrap-db.sh" \
     "$ROOT/infra/deploy/migrate.sh" "$ROOT/infra/deploy/seed.sh" \
@@ -136,48 +182,40 @@ for d in patient praticien secretary pharmacie infirmiere; do
   tar czf - -C "$OUT/www-$d" . | SSH "tar xzf - -C /opt/nubia/www/$d"
 done
 
-say "6/8 déploiement distant"
+say "7/8 déploiement distant"
 SSH "PUBLIC_API_BASE='$API_BASE' YOUSIGN_API_KEY='$YOUSIGN_API_KEY' \
   SCW_ACCESS_KEY='$SCW_ACCESS_KEY' SCW_SECRET_KEY='$SCW_SECRET_KEY' SCW_BUCKET='$SCW_BUCKET' \
   sh /opt/nubia/deploy.sh"
 
-say "7/8 application auto du bloc Caddy reservation.doc.nubia-link.com (hôte Caddy, opt-in)"
-# #6116/#6139/#6160/#6162 : ce bloc est un template à coller à la main sur
-# l'hôte Caddy (hors LXC, hors périmètre du reste de ce script) — récidive x4
-# faute d'un mécanisme d'application automatique. Si CADDY_HOST/CADDY_USER/
-# CADDY_PASSWORD sont renseignés (secrets optionnels, cf. README), ce script
-# pousse + recharge la config réellement servie ; sinon il no-op (secret non
-# provisionné). PAS de `|| true` ici une fois CADDY_HOST configuré : un échec
-# doit être visible (badge rouge), pas noyé dans un warning best-effort — cf.
-# postmortem #3493 (faux vert pire qu'un rouge honnête).
-CADDY_HOST="${CADDY_HOST:-}" CADDY_USER="${CADDY_USER:-}" CADDY_PASSWORD="${CADDY_PASSWORD:-}" \
-  bash "$ROOT/infra/deploy/apply-reservation-caddy.sh"
-
-# #6379 (7e récidive #6116/#6139/#6160/#6162/#6188/#6317) : cette vérification
-# n'était gardée QUE par `if [ -z "$CADDY_HOST" ]` (#6188), donc elle ne se
-# déclenchait que quand le secret n'était PAS provisionné. Dès que CADDY_HOST
-# est configuré, apply-reservation-caddy.sh peut sortir 0 (un des `reload`
-# a réussi, cf. sa propre correction #6317) sans que le domaine serve
-# réellement du TLS (bloc appliqué sur un Caddy sans certificat valide,
-# vhost écrasé après coup, etc.) — plus AUCUN contrôle bloquant ne portait
-# alors sur reservation.doc.nubia-link.com. On teste donc maintenant le
-# RÉSULTAT OBSERVABLE (le domaine sert-il du TLS ?) dans TOUS les cas, que
-# CADDY_HOST soit vide ou non : un badge rouge est le seul signal qui a une
-# chance d'être agi dessus (cf. postmortem #3493, déjà cité ci-dessus).
-RESERVATION_CODE="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' https://reservation.doc.nubia-link.com/ 2>/dev/null || true)"
-if [ -z "$RESERVATION_CODE" ] || [ "$RESERVATION_CODE" = "000" ]; then
-  echo "::error::reservation.doc.nubia-link.com injoignable en TLS après application du bloc Caddy — collage/vérification manuel requis (cf. infra/deploy/Caddyfile.snippet). 7e récidive du même symptôme (#6116, #6139, #6160, #6162, #6188, #6317, #6379) : déploiement bloqué pour forcer l'action humaine."
-  exit 1
-fi
-
-say "8/8 health-check TLS des domaines publics (Caddy hôte, best-effort)"
+say "8/8 health-check TLS des domaines publics (Caddy hôte)"
 # #6116/#6139/#6160 : le bloc Caddy dédié à reservation.doc.nubia-link.com est
 # un template collé à la main sur l'hôte Caddy (hors LXC, hors périmètre de ce
 # script) et a disparu 3 fois sans que personne ne s'en aperçoive avant un
-# sweep QA, parfois >24h plus tard. `|| true` : un souci DNS/réseau côté
-# runner ne doit pas faire échouer un déploiement par ailleurs réussi — le but
-# ici est la VISIBILITÉ immédiate (log CI), pas de bloquer le déploiement.
-bash "$ROOT/infra/deploy/verify-public-tls.sh" || true
+# sweep QA, parfois >24h plus tard.
+#
+# #6685 (10e récidive, fermée >24h après #6553) : un `|| true` inconditionnel
+# ici transformait TOUJOURS ce contrôle en simple warning noyé dans les logs —
+# y compris quand reservation.doc.nubia-link.com était seul en échec TLS alors
+# que les 5 autres vhosts de la même IP répondaient (preuve que ce n'est pas
+# un souci réseau du runner mais bien le bloc Caddy qui manque à nouveau). Les
+# étapes 6/7 ci-dessus (transfert + déploiement des 5 fronts + API) sont déjà
+# terminées à ce stade : faire échouer CETTE étape ne les annule pas et ne
+# retarde aucun futur déploiement (contrairement au garde-fou bloquant AVANT
+# transfert de #6632, retiré par #6649 car il bloquait aussi les correctifs
+# front/API sans rapport). verify-public-tls.sh distingue donc désormais :
+#   exit 0 : tout va bien.
+#   exit 1 : échec généralisé (probable souci réseau runner) -> reste souple.
+#   exit 2 : reservation seul en échec, les autres domaines répondent -> échec
+#            volontaire (PAS de `|| true`) pour que la récidive reste visible
+#            au lieu de sauter en silence indéfiniment.
+set +e
+bash "$ROOT/infra/deploy/verify-public-tls.sh"
+tls_status=$?
+set -e
+if [ "$tls_status" -eq 2 ]; then
+  echo "::error::reservation.doc.nubia-link.com toujours injoignable en TLS malgré les 5 autres vhosts OK — bloc Caddy manquant sur l'hôte (cf. infra/deploy/Caddyfile.snippet), provisionner CADDY_HOST/CADDY_USER/CADDY_PASSWORD ou coller le bloc à la main. Échec volontaire de cette étape (#6685)."
+  exit 1
+fi
 
 cat <<EOF
 

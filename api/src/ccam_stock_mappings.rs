@@ -79,6 +79,7 @@ pub async fn list_ccam_stock_mappings(
 
 /// Body de `POST /v1/cabinet/ccam-stock-mappings`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateCcamStockMappingBody {
     pub ccam_code: String,
     pub stock_item_id: Uuid,

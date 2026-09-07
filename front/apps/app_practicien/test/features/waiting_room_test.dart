@@ -43,6 +43,14 @@ final _entry = WaitingRoomEntry(
   arrivedAt: DateTime.now().subtract(const Duration(minutes: 10)),
 );
 
+final _otherEntry = WaitingRoomEntry(
+  id: 'wr-2',
+  cabinetId: 'cab-1',
+  patientId: 'pat-2',
+  patientName: 'Paul Martin',
+  arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+);
+
 WaitingRoomBloc _makeBloc({
   required MockListWaitingRoomUseCase list,
   required MockCallNextUseCase callNext,
@@ -300,6 +308,24 @@ void main() {
           actionError: 'Erreur réseau',
         ),
       ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'appeler une entrée hors tête de file ne déclenche aucun appel back '
+      'et signale le motif (#6629, plus de clic muet)',
+      build: () => _makeBloc(list: mockList, callNext: mockCallNext),
+      seed: () => WaitingRoomLoaded(entries: [_entry, _otherEntry]),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('wr-2')),
+      expect: () => [
+        WaitingRoomLoaded(
+          entries: [_entry, _otherEntry],
+          actionError:
+              "Seul le patient en tête de file peut être appelé pour l'instant.",
+        ),
+      ],
+      verify: (_) {
+        verifyNever(() => mockCallNext());
+      },
     );
   });
 
@@ -680,6 +706,55 @@ void main() {
           matching: find.byIcon(Icons.campaign),
         ),
         findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'status in_consultation : pastille En consultation, pas la durée '
+        'd\'attente — #6636', (tester) async {
+      final inConsultationEntry = WaitingRoomEntry(
+        id: 'wr-3',
+        cabinetId: 'cab-1',
+        patientId: 'pat-3',
+        patientName: 'Jean Dupont',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 32)),
+        practitionerId: 'prac-me',
+        practitionerName: 'Vous',
+        status: 'in_consultation',
+      );
+      when(() => mockList())
+          .thenAnswer((_) async => Right([inConsultationEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'prac-me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-3')),
+          matching: find.text('En consultation'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('entry_wr-3')),
+          matching: find.text('Plus de 30 min'),
+        ),
+        findsNothing,
       );
     });
 
@@ -1353,13 +1428,61 @@ void main() {
       );
       final delayValueFinder = find.descendant(
         of: find.byKey(const Key('room_pace_delay')),
-        matching: find.textContaining('+32 min'),
+        matching: find.textContaining('32 min'),
       );
       expect(delayValueFinder, findsOneWidget);
 
       final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
       final delayValue = tester.widget<Text>(delayValueFinder);
       expect(delayValue.style?.color, tokens.warningFg);
+    });
+
+    testWidgets(
+        'affiche une avance du prochain patient à appeler en couleur '
+        'success quand le RDV planifié n\'a pas encore commencé',
+        (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final scheduledAt =
+          DateTime.now().add(const Duration(minutes: 32, seconds: 30));
+      final aheadEntries = [
+        WaitingRoomEntry(
+          id: 'wr-1',
+          cabinetId: 'cab-1',
+          patientId: 'pat-1',
+          patientName: 'Camille Moreau',
+          arrivedAt: DateTime.now(),
+          appointmentTime: scheduledAt,
+        ),
+      ];
+
+      when(() => mockList()).thenAnswer((_) async => Right(aheadEntries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_delay')),
+          matching: find.text('Avance sur le planning'),
+        ),
+        findsOneWidget,
+      );
+      final delayValueFinder = find.descendant(
+        of: find.byKey(const Key('room_pace_delay')),
+        matching: find.textContaining('32 min'),
+      );
+      expect(delayValueFinder, findsOneWidget);
+
+      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+      final delayValue = tester.widget<Text>(delayValueFinder);
+      expect(delayValue.style?.color, tokens.successFg);
     });
 
     testWidgets(

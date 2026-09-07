@@ -21,6 +21,9 @@ import 'package:app_secretariat/pro_config.dart';
 class _MockCabinetQuotesRepository extends Mock
     implements CabinetQuotesRepository {}
 
+class _MockCabinetPatientsRepository extends Mock
+    implements CabinetPatientsRepository {}
+
 class _MockDevisBloc extends MockBloc<DevisEvent, DevisState>
     implements DevisBloc {}
 
@@ -576,6 +579,24 @@ void main() {
           getQuote: GetCabinetQuoteUseCase(repo),
           sendQuote: SendCabinetQuoteUseCase(repo),
         ),
+      );
+      // #6590 : le volet résout aussi le téléphone patient (CTA « Appeler »)
+      // via ce use case — sans l'enregistrer ici, l'ouverture lève un GetIt
+      // StateError.
+      final patientsRepo = _MockCabinetPatientsRepository();
+      when(() => patientsRepo.getById(any())).thenAnswer(
+        (_) async => Right(
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Julie',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ),
+      );
+      GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
+        () => GetCabinetPatientUseCase(patientsRepo),
       );
       addTearDown(GetIt.instance.reset);
 
@@ -1431,6 +1452,11 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
+      // #6579 : la table défile désormais horizontalement sous sa largeur
+      // minimale (912px) — la surface de test par défaut (800px) est plus
+      // étroite, la colonne Action n'est donc pas dans le viewport initial.
+      await tester.ensureVisible(find.text('Envoyer'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Envoyer'));
       await tester.pumpAndSettle();
 
@@ -1451,6 +1477,9 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
+      // #6579 : cf. commentaire équivalent du test « Envoyer » ci-dessus.
+      await tester.ensureVisible(find.text('Relancer'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Relancer'));
       await tester.pumpAndSettle();
 
@@ -1493,6 +1522,7 @@ void main() {
   group('DevisPage — volet latéral', () {
     late _MockDevisBloc bloc;
     late _MockCabinetQuotesRepository repo;
+    late _MockCabinetPatientsRepository patientsRepo;
 
     final quote = CabinetQuote(
       id: 'q1',
@@ -1506,10 +1536,22 @@ void main() {
       createdAt: DateTime(2026, 8, 4),
     );
 
+    final patientWithPhone = CabinetPatient(
+      id: 'p1',
+      cabinetId: 'c1',
+      firstName: 'Julie',
+      lastName: 'Martin',
+      createdAt: DateTime(2026, 1, 1),
+      phone: '+33600000001',
+    );
+
     setUp(() {
       bloc = _MockDevisBloc();
       repo = _MockCabinetQuotesRepository();
       when(() => repo.getById(any())).thenAnswer((_) async => Right(quote));
+      patientsRepo = _MockCabinetPatientsRepository();
+      when(() => patientsRepo.getById('p1'))
+          .thenAnswer((_) async => Right(patientWithPhone));
       // Le volet (#5089) possède son propre DevisBloc (factory GetIt,
       // cf. pro_di.dart) pour ne pas interférer avec le bloc de la liste —
       // sans ça, l'ouvrir lève un GetIt StateError.
@@ -1519,6 +1561,11 @@ void main() {
           getQuote: GetCabinetQuoteUseCase(repo),
           sendQuote: SendCabinetQuoteUseCase(repo),
         ),
+      );
+      // #6590 : le CTA « Appeler » résout le téléphone via ce use case
+      // (`GetCabinetPatientUseCase`, déjà utilisé par `patients_page.dart`).
+      GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
+        () => GetCabinetPatientUseCase(patientsRepo),
       );
       addTearDown(GetIt.instance.reset);
     });
@@ -1581,6 +1628,138 @@ void main() {
       );
     });
 
+    testWidgets(
+        '#6589 : le volet porte la ventilation « Reste à charge patient » et '
+        'le bloc « Suivi » de la maquette, sans passer par /devis/:id',
+        (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      final sheet = find.byKey(const Key('devis_sheet_q1'));
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.textContaining('Reste à charge patient · sur'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.text(NubiaMoney.formatCents(quote.patientShareCents)),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.byKey(const Key('quote_timeline'))),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.text('Devis créé')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        '#6589 : la barre de ventilation AMO/AMC se rend dans le volet '
+        'quand le devis porte ses lignes', (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final quoteWithItems = CabinetQuote(
+        id: 'q1',
+        quoteRef: 'q1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Julie Martin',
+        totalCents: 43592,
+        patientShareCents: 14850,
+        status: CabinetQuoteStatus.sent,
+        createdAt: DateTime(2026, 8, 4),
+        items: const [
+          QuoteLineItem(
+            id: 'l1',
+            label: 'Acte 1',
+            totalCents: 43592,
+            amoShareCents: 16566,
+            amcShareCents: 12176,
+            patientShareCents: 14850,
+          ),
+        ],
+      );
+      when(() => repo.getById(any()))
+          .thenAnswer((_) async => Right(quoteWithItems));
+      when(() => bloc.state).thenReturn(DevisLoaded([quoteWithItems]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      final sheet = find.byKey(const Key('devis_sheet_q1'));
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.byKey(const Key('ventilation_bar')),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        '#6579 : volet ouvert sur une largeur disponible étroite (1029px, '
+        'soit 1280 − rail) — l\'en-tête Patient reste horizontal et le nom '
+        'patient n\'est pas tronqué à une lettre', (tester) async {
+      tester.view.physicalSize = const Size(1100, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: SizedBox(
+            width: 1029,
+            child: BlocProvider<DevisBloc>.value(
+              value: bloc,
+              child: const DevisPage(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('devis_sheet_q1')), findsOneWidget);
+      // Avant #6579 : la colonne Patient (Expanded) tombait à 0/négatif à
+      // cette largeur, faisant rendre l'en-tête verticalement (une lettre
+      // par ligne, ~130px de haut au lieu de ~24px) et tronquant le nom
+      // patient à une lettre.
+      final headerHeight = tester.getSize(find.byType(DevisTableHeader)).height;
+      expect(headerHeight, lessThan(60));
+      expect(
+        find.descendant(
+          of: find.byType(DevisTableRow),
+          matching: find.text('Julie Martin'),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('la croix ferme le volet ; la liste reste affichée',
         (tester) async {
       tester.view.physicalSize = const Size(1360, 900);
@@ -1604,13 +1783,49 @@ void main() {
     });
 
     testWidgets(
-        'le CTA Appeler est désactivé — CabinetQuote n\'expose pas de '
-        'téléphone patient', (tester) async {
+        '#6590 : le CTA Appeler est activé quand le téléphone du patient '
+        'est servi par GetCabinetPatientUseCase', (tester) async {
       tester.view.physicalSize = const Size(1360, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      final callButton = tester.widget<OutlinedButton>(
+        find.descendant(
+          of: find.byKey(const Key('btn_call_devis_secretariat')),
+          matching: find.byType(OutlinedButton),
+        ),
+      );
+      expect(callButton.onPressed, isNotNull);
+    });
+
+    testWidgets(
+        '#6590 : le CTA Appeler reste désactivé quand le patient n\'a '
+        'réellement aucun téléphone (état métier, pas un onPressed en dur)',
+        (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => patientsRepo.getById('p1')).thenAnswer(
+        (_) async => Right(
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Julie',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ),
+      );
       when(() => bloc.state).thenReturn(DevisLoaded([quote]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();

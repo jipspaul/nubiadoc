@@ -41,6 +41,14 @@ class _PatientsPageState extends State<PatientsPage> {
   /// cet id, sans fermer/rouvrir le panneau.
   String? _selectedPatientId;
 
+  /// Focus de la liste (raccourcis ↑/↓/⏎/⌘N) et de la recherche (raccourci
+  /// `/`) — maquette design-v2, pied de tableau. Même pattern que
+  /// stock_page.dart (#5188) et agenda_page.dart (#5082) : sans focus dans
+  /// son sous-arbre, `CallbackShortcuts` ne voit jamais les évènements
+  /// clavier (#6558).
+  final FocusNode _focusNode = FocusNode(debugLabel: 'patients_list');
+  final FocusNode _searchFocusNode = FocusNode(debugLabel: 'patients_search');
+
   void _selectPatient(String patientId) {
     setState(() => _selectedPatientId = patientId);
   }
@@ -89,12 +97,55 @@ class _PatientsPageState extends State<PatientsPage> {
   void initState() {
     super.initState();
     context.read<PatientsBloc>().add(const PatientsLoadRequested());
+    // `autofocus` seul ne suffit pas ici : la route hôte (ModalRoute) prend
+    // le focus initial en premier — demande explicite pour que ↑/↓/⏎/⌘N
+    // fonctionnent dès l'affichage de la liste, sans clic préalable (même
+    // piège que stock_page.dart:83-85).
+    _focusNode.requestFocus();
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _focusNode.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  /// ↑/↓ déplacent la sélection dans la liste, ⏎ ouvre la fiche courante (la
+  /// première si aucune n'est encore sélectionnée), `/` focus la recherche —
+  /// maquette design-v2, pied de tableau (même pattern que
+  /// stock_page.dart et agenda_page.dart, #5082).
+  KeyEventResult _handleKey(KeyEvent event, List<CabinetPatient> patients) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.slash) {
+      if (!_searchFocusNode.hasFocus) {
+        _searchFocusNode.requestFocus();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+    if (patients.isEmpty) return KeyEventResult.ignored;
+    final currentIndex = _selectedPatientId == null
+        ? -1
+        : patients.indexWhere((p) => p.id == _selectedPatientId);
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowDown:
+        final next = (currentIndex + 1).clamp(0, patients.length - 1);
+        _selectPatient(patients[next].id);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowUp:
+        final prev = currentIndex <= 0 ? 0 : currentIndex - 1;
+        _selectPatient(patients[prev].id);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.enter:
+      case LogicalKeyboardKey.numpadEnter:
+        final index = currentIndex < 0 ? 0 : currentIndex;
+        _selectPatient(patients[index].id);
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
   }
 
   /// Recherche serveur débattue (#4043) — 350 ms, même délai que les autres
@@ -193,6 +244,7 @@ class _PatientsPageState extends State<PatientsPage> {
                       children: [
                         Expanded(
                           child: TextField(
+                            focusNode: _searchFocusNode,
                             decoration: const InputDecoration(
                               prefixIcon: Icon(Icons.search),
                               hintText: 'Rechercher un patient',
@@ -279,8 +331,7 @@ class _PatientsPageState extends State<PatientsPage> {
                                 final rowPatient = filteredPatients[i];
                                 return PatientTableRow(
                                   patient: rowPatient,
-                                  selected:
-                                      rowPatient.id == _selectedPatientId,
+                                  selected: rowPatient.id == _selectedPatientId,
                                   onTap: () => _selectPatient(rowPatient.id),
                                 );
                               },
@@ -291,20 +342,25 @@ class _PatientsPageState extends State<PatientsPage> {
                     ),
                 ],
               );
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: listColumn),
-                  if (selectedPatient != null)
-                    SizedBox(
-                      width: 396,
-                      child: _PatientSheet(
-                        key: Key('patient_sheet_${selectedPatient.id}'),
-                        patient: selectedPatient,
-                        onClose: _closePatientSheet,
+              return Focus(
+                focusNode: _focusNode,
+                onKeyEvent: (node, event) =>
+                    _handleKey(event, filteredPatients),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: listColumn),
+                    if (selectedPatient != null)
+                      SizedBox(
+                        width: 396,
+                        child: _PatientSheet(
+                          key: Key('patient_sheet_${selectedPatient.id}'),
+                          patient: selectedPatient,
+                          onClose: _closePatientSheet,
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               );
             }
             if (state is PatientsError) {
@@ -354,8 +410,7 @@ enum _QuickFilter {
     }
   }
 
-  int countIn(List<CabinetPatient> patients) =>
-      patients.where(matches).length;
+  int countIn(List<CabinetPatient> patients) => patients.where(matches).length;
 }
 
 /// Puce de filtre rapide à bascule (design-v2, `.fltr`) : libellé + compteur
@@ -461,7 +516,9 @@ class PatientsTableHeader extends StatelessWidget {
           const SizedBox(width: 40 + 12), // aligné sous l'avatar de la ligne
           Expanded(child: Text('Patient', style: style)),
           const SizedBox(width: _PatientColumns.gap),
-          SizedBox(width: _PatientColumns.contact, child: Text('Contact', style: style)),
+          SizedBox(
+              width: _PatientColumns.contact,
+              child: Text('Contact', style: style)),
           const SizedBox(width: _PatientColumns.gap),
           SizedBox(
             width: _PatientColumns.lastVisit,
@@ -719,8 +776,7 @@ class PatientAlertBadge extends StatelessWidget {
     final pastilles = <_AlertPastilleData>[];
     final balanceDue = patient.balanceDueCents ?? 0;
     if (balanceDue > 0) {
-      pastilles
-          .add(const _AlertPastilleData('Impayé', _AlertSeverity.danger));
+      pastilles.add(const _AlertPastilleData('Impayé', _AlertSeverity.danger));
     } else if (patient.hasActiveAlerts == true) {
       pastilles.add(
         const _AlertPastilleData('Alerte accueil', _AlertSeverity.danger),
@@ -1132,8 +1188,8 @@ class _PatientSheetAlertsBanner extends StatelessWidget {
                   children: [
                     Text(
                       '• ',
-                      style:
-                          textTheme.bodyMedium?.copyWith(color: tokens.dangerFg),
+                      style: textTheme.bodyMedium
+                          ?.copyWith(color: tokens.dangerFg),
                     ),
                     Expanded(
                       child: Text(

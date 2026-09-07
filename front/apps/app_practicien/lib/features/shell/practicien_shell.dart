@@ -116,7 +116,7 @@ class PracticienShell extends StatelessWidget {
           key: const Key('notification_prefs_button'),
           tooltip: 'Préférences de notifications',
           icon: const Icon(Icons.settings_outlined),
-          onPressed: () => context.push(AppRouter.notificationPreferences),
+          onPressed: () => context.go(AppRouter.notificationPreferences),
         ),
       ],
       onSignOut: () => context.read<ProAuthCubit>().signOut(),

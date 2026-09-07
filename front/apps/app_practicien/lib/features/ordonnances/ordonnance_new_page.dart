@@ -7,6 +7,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../session/pro_auth_cubit.dart';
 import 'send_to_pharmacy_cubit.dart';
+import 'widgets/ordonnance_context_column.dart';
 import 'widgets/ordonnance_preview_sheet.dart';
 import 'widgets/prescription_template_picker.dart';
 import 'widgets/send_to_pharmacy_card.dart';
@@ -303,24 +304,56 @@ class _PrescriptionForm extends StatefulWidget {
 /// En dessous, la composition reste seule, pleine largeur.
 const _kOrdonnanceSplitBreakpoint = 900.0;
 
-/// Largeur du volet `.rgt` (aperçu) de la maquette design-v2.
+/// Largeur du chrome fixe de `ProShell` (rail de navigation 250 px + 1 px de
+/// séparateur, #5138) déduite de la largeur de fenêtre visée par une
+/// maquette pour obtenir la largeur *disponible* que reçoit ce
+/// `LayoutBuilder` — même calcul que `kThreeColumnBreakpoint`
+/// (`consultation_layout_breakpoints.dart`, #6386).
+const _kProShellChromeWidth = 251.0;
+
+/// Largeur du volet `.rgt` (aperçu) de la maquette design-v2 (layout 2
+/// colonnes, tablette).
 const _kOrdonnancePreviewWidth = 458.0;
+
+/// Seuil d'apparition de la colonne de contexte (allergies, traitements en
+/// cours, 3 dernières ordonnances) — maquette PC design-v2 (#6625,
+/// `Ecrans PC - Praticien et Pharmacie.html`), fenêtre cible 1440 px, soit
+/// 1440 − 251 (chrome `ProShell`) = 1189 px de largeur disponible.
+const _kOrdonnanceContextBreakpoint = 1440.0 - _kProShellChromeWidth;
+
+/// Largeur du volet aperçu au layout 3 colonnes — rétréci de 458 à 392 px
+/// pour financer la colonne de contexte (maquette, annotation ②).
+const _kOrdonnancePreviewWidthCompact = 392.0;
+
+/// Largeur de la colonne de contexte — même largeur que
+/// `kContextColumnWidth` (consultation au fauteuil), même rôle de colonne
+/// latérale de contexte patient.
+const _kOrdonnanceContextColumnWidth = 288.0;
 
 class _PrescriptionFormState extends State<_PrescriptionForm> {
   final List<_ItemDraft> _items = [_ItemDraft()];
   List<String> _allergies = const [];
+
+  /// Traitements en cours du dossier (#6625, colonne de contexte PC) —
+  /// même réponse que [_loadMedicalRecord] pour les allergies, pas d'appel
+  /// supplémentaire.
+  List<String> _treatments = const [];
   CabinetPatient? _patient;
   List<PrescriptionTemplate> _templates = const [];
   String? _selectedTemplateId;
+
+  /// 3 dernières ordonnances du patient (#6625, colonne de contexte PC).
+  List<Prescription> _recentPrescriptions = const [];
 
   bool get _formValid => _items.isNotEmpty && _items.every((i) => i.isValid);
 
   @override
   void initState() {
     super.initState();
-    _loadAllergies();
+    _loadMedicalRecord();
     _loadPatient();
     _loadTemplates();
+    _loadRecentPrescriptions();
   }
 
   /// #4986 (maquette design-v2) : les modèles sont proposés en tête du
@@ -353,14 +386,40 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
 
   /// Affichage passif uniquement (#4076, ADR-009 §8.6) : jamais de blocage
   /// ni de suggestion d'alternative — un échec de chargement laisse
-  /// simplement le bandeau absent, la saisie n'est jamais impactée.
-  Future<void> _loadAllergies() async {
+  /// simplement le bandeau/la colonne de contexte absents, la saisie n'est
+  /// jamais impactée. Alimente aussi [_treatments] (#6625, colonne de
+  /// contexte PC) depuis la même réponse.
+  Future<void> _loadMedicalRecord() async {
     final result =
         await GetIt.instance<GetMedicalRecordUseCase>()(widget.patientId);
     if (!mounted) return;
     result.fold(
       (_) {},
-      (record) => setState(() => _allergies = record.allergies),
+      (record) => setState(() {
+        _allergies = record.allergies;
+        _treatments = record.treatments;
+      }),
+    );
+  }
+
+  /// Colonne de contexte PC (#6625) : les 3 dernières ordonnances du
+  /// patient, même source que l'écran `/ordonnances`
+  /// (`ListPrescriptionsUseCase`) mais résolue directement ici (comme
+  /// [_loadMedicalRecord]/[_loadPatient]) plutôt que via `OrdonnancesBloc`,
+  /// dont les états pilotent déjà la composition en cours. Triée
+  /// défensivement par date décroissante : l'API ne garantit pas cet ordre.
+  Future<void> _loadRecentPrescriptions() async {
+    if (!GetIt.instance.isRegistered<ListPrescriptionsUseCase>()) return;
+    final result =
+        await GetIt.instance<ListPrescriptionsUseCase>()(widget.patientId);
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (prescriptions) {
+        final sorted = [...prescriptions]
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        setState(() => _recentPrescriptions = sorted.take(3).toList());
+      },
     );
   }
 
@@ -469,34 +528,56 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
       ),
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_allergies.isNotEmpty) _AllergiesBanner(allergies: _allergies),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth < _kOrdonnanceSplitBreakpoint) {
-                return composition;
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: composition),
-                  SizedBox(
-                    width: _kOrdonnancePreviewWidth,
-                    child: OrdonnancePreviewSheet(
-                      patient: _patient,
-                      prescriberName: _prescriberName(context),
-                      items: _items.map((i) => i.toItem()).toList(),
-                    ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // #6625 : au-delà de ce seuil (fenêtre PC design-v2 1440 px), la
+        // colonne de contexte remplace le bandeau allergies horizontal —
+        // ses cartes couvrent déjà les allergies (annotation ①).
+        final showContext =
+            constraints.maxWidth >= _kOrdonnanceContextBreakpoint;
+
+        final Widget content;
+        if (constraints.maxWidth < _kOrdonnanceSplitBreakpoint) {
+          content = composition;
+        } else {
+          content = Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (showContext) ...[
+                SizedBox(
+                  width: _kOrdonnanceContextColumnWidth,
+                  child: OrdonnanceContextColumn(
+                    allergies: _allergies,
+                    treatments: _treatments,
+                    recentPrescriptions: _recentPrescriptions,
                   ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
+                ),
+                const SizedBox(width: 16),
+              ],
+              Expanded(child: composition),
+              SizedBox(
+                width: showContext
+                    ? _kOrdonnancePreviewWidthCompact
+                    : _kOrdonnancePreviewWidth,
+                child: OrdonnancePreviewSheet(
+                  patient: _patient,
+                  prescriberName: _prescriberName(context),
+                  items: _items.map((i) => i.toItem()).toList(),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_allergies.isNotEmpty && !showContext)
+              _AllergiesBanner(allergies: _allergies),
+            Expanded(child: content),
+          ],
+        );
+      },
     );
   }
 }
@@ -1004,8 +1085,7 @@ class _MedicationSearchField extends StatefulWidget {
   final VoidCallback onChanged;
 
   @override
-  State<_MedicationSearchField> createState() =>
-      _MedicationSearchFieldState();
+  State<_MedicationSearchField> createState() => _MedicationSearchFieldState();
 }
 
 class _MedicationSearchFieldState extends State<_MedicationSearchField> {

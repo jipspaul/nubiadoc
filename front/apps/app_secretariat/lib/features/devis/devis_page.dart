@@ -11,6 +11,7 @@ import 'devis_state.dart';
 import 'widgets/devis_kpis.dart';
 import 'widgets/devis_status_facets.dart';
 import 'widgets/devis_table.dart';
+import 'widgets/quote_timeline.dart';
 
 /// Écran "Devis" côté secrétariat — liste des devis du cabinet.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
@@ -190,26 +191,13 @@ class _DevisPageState extends State<DevisPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const DevisTableHeader(),
                 Expanded(
-                  child: filteredQuotes.isEmpty
-                      ? const NubiaEmptyState(
-                          icon: Icons.search_off,
-                          title: 'Aucun résultat',
-                          subtitle:
-                              'Aucun devis ne correspond à ce filtre.',
-                        )
-                      : ListView.builder(
-                          itemCount: filteredQuotes.length,
-                          itemBuilder: (ctx, i) => DevisTableRow(
-                            quote: filteredQuotes[i],
-                            onTap: () => _selectQuote(filteredQuotes[i].id),
-                            active:
-                                _selectedQuoteId == filteredQuotes[i].id,
-                            actionLoading:
-                                sendingId == filteredQuotes[i].id,
-                          ),
-                        ),
+                  child: DevisTable(
+                    quotes: filteredQuotes,
+                    onQuoteTap: _selectQuote,
+                    selectedQuoteId: _selectedQuoteId,
+                    sendingQuoteId: sendingId,
+                  ),
                 ),
               ],
             );
@@ -365,12 +353,11 @@ QuoteCardStatus mapQuoteStatus(CabinetQuoteStatus status) {
   }
 }
 
-/// Volet latéral droit du détail d'un devis (design-v2, #5089) — scaffold
-/// uniquement : en-tête (n° + statut + fermeture), identité patient et CTA.
-/// Les blocs internes (ventilation, suivi) restent dans `DevisDetailPage`
-/// (#5090/#5091), qui reste la page pleine accessible par navigation directe
-/// vers `/devis/:id` (note « keep » de la maquette — le volet la double sans
-/// la remplacer).
+/// Volet latéral droit du détail d'un devis (design-v2, #5089) : en-tête
+/// (n° + statut + fermeture), identité patient, ventilation « Reste à charge
+/// patient » (#5091), suivi (#5090) et CTA. Remplace la navigation vers la
+/// page pleine `/devis/:id` (#6589) : la sélection d'une ligne n'y menait
+/// plus depuis #5089, laissant ces blocs inatteignables.
 ///
 /// Possède son propre `DevisBloc` (factory GetIt, cf. `pro_di.dart`) pour ne
 /// pas interférer avec l'état `DevisLoaded` de la liste portée par le bloc
@@ -516,7 +503,7 @@ StatusPillVariant _sheetStatusVariant(CabinetQuoteStatus status) {
 String _formatSheetDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/'
     '${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-class _DevisSheetBody extends StatelessWidget {
+class _DevisSheetBody extends StatefulWidget {
   const _DevisSheetBody({
     required this.quote,
     required this.onClose,
@@ -528,9 +515,50 @@ class _DevisSheetBody extends StatelessWidget {
   final bool sending;
 
   @override
+  State<_DevisSheetBody> createState() => _DevisSheetBodyState();
+}
+
+/// Résout le téléphone du patient via `GetCabinetPatientUseCase` (#6590) :
+/// `CabinetQuote` n'en porte pas, mais le secrétariat y a déjà accès sur
+/// `GET /v1/cabinet/patients/:id`, au même titre que la fiche patient
+/// (`patients_page.dart`).
+class _DevisSheetBodyState extends State<_DevisSheetBody> {
+  String? _patientPhone;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPatientPhone();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DevisSheetBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.quote.patientId != widget.quote.patientId) {
+      _patientPhone = null;
+      _loadPatientPhone();
+    }
+  }
+
+  Future<void> _loadPatientPhone() async {
+    final result = await GetIt.instance<GetCabinetPatientUseCase>()(
+      widget.quote.patientId,
+    );
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (patient) => setState(() => _patientPhone = patient.phone),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final quote = widget.quote;
+    final onClose = widget.onClose;
+    final sending = widget.sending;
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
+    final hasItems = quote.items != null && quote.items!.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -606,6 +634,29 @@ class _DevisSheetBody extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
+                // Ventilation AMO/AMC (#5091, #6589) : même calcul et même
+                // vocabulaire que l'app Patient (VentilationBar). Omise si le
+                // back n'a pas renvoyé les lignes du devis. Pas de `caption`
+                // ici (contrairement à `DevisDetailPage`) : le nom du
+                // patient est déjà porté par l'en-tête d'identité ci-dessus.
+                AmountHeader(
+                  label: 'Reste à charge patient · sur '
+                      '${NubiaMoney.formatCents(quote.totalCents)}',
+                  amount: NubiaMoney.formatCents(quote.patientShareCents),
+                ),
+                if (hasItems) ...[
+                  const SizedBox(height: 16),
+                  VentilationBar(
+                    amoCents: quote.items!.amoShareTotalCents,
+                    amcCents: quote.items!.amcShareTotalCents,
+                    racCents: quote.patientShareCents,
+                    racLabel: 'Reste à charge',
+                  ),
+                ],
+                const SizedBox(height: 16),
+                // Bloc « Suivi » (#5090, #6589) : où en est ce devis ?
+                QuoteTimeline(quote: quote),
+                const SizedBox(height: 16),
                 const _DevisSheetConfidentialityNotice(),
               ],
             ),
@@ -628,15 +679,18 @@ class _DevisSheetBody extends StatelessWidget {
                         .add(DevisSendRequested(quote.id)),
               ),
               const SizedBox(height: 8),
-              const NubiaButton(
-                key: Key('btn_call_devis_secretariat'),
+              NubiaButton(
+                key: const Key('btn_call_devis_secretariat'),
                 label: 'Appeler',
                 icon: Icons.call_outlined,
                 variant: NubiaButtonVariant.secondary,
                 size: NubiaButtonSize.lg,
-                // #5089 : `CabinetQuote` n'expose pas de téléphone patient —
-                // CTA visible mais désactivé plutôt qu'un numéro inventé.
-                onPressed: null,
+                // #6590 : le numéro est résolu depuis la fiche patient
+                // (`_loadPatientPhone`) — grisé seulement tant qu'il est
+                // réellement indisponible, jamais en dur.
+                onPressed: (_patientPhone == null || _patientPhone!.isEmpty)
+                    ? null
+                    : () => callPhoneNumber(_patientPhone!),
               ),
             ],
           ),

@@ -522,3 +522,69 @@ async fn create_no_care_relationship_returns_403() {
         .await
         .ok();
 }
+
+// ── Test (#6673) : GET liste sans relation de soin → bon absent, pas 500 ────
+//
+// Le correctif #4414 n'avait posé la garde §14 que sur le PATCH — la liste
+// remontait tous les bons du cabinet, y compris ceux de patients que le
+// praticien appelant n'a jamais soignés.
+
+#[tokio::test]
+async fn list_excludes_orders_without_care_relationship() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let owner_token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (status, _created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &owner_token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "Labo Dentaire Gamma",
+            "purchase_price_cents": 8000
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let other_user_id = insert_practitioner_without_care_relationship(&db, f.cabinet_id).await;
+    let other_token = make_practitioner_token(other_user_id, f.cabinet_id);
+
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/lab-work-orders",
+        &other_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        list.as_array().unwrap().len(),
+        0,
+        "praticien sans relation de soin ne doit voir aucun bon de ce patient"
+    );
+
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/lab-work-orders",
+        &owner_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list.as_array().unwrap().len(), 1);
+
+    cleanup(&db, &f).await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(other_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}

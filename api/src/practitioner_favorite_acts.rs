@@ -38,6 +38,7 @@ pub struct FavoriteActsResponse {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateFavoriteActBody {
     pub ccam_code: String,
 }

@@ -16,6 +16,7 @@ use super::AppError;
 
 /// Corps de la requête `POST /v1/auth/password/reset`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ResetPasswordBody {
     token: String,
     new_password: String,

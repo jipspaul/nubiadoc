@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'my_pharmacy_cubit.dart';
 import 'widgets/pharmacy_card.dart';
 
@@ -28,7 +29,14 @@ class MyPharmacyBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ma pharmacie')),
+      // #6236 : accessible via `context.go` (URL bookmarkable) autant que via
+      // le tab bar — `canPop()` y est donc systématiquement faux, comme pour
+      // un deep-link direct (même pattern que `financial`/`oubliettes`/
+      // `reviews` dans `app_router.dart`).
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Ma pharmacie'),
+      ),
       body: BlocBuilder<MyPharmacyCubit, MyPharmacyState>(
         builder: (context, state) {
           switch (state) {
@@ -71,6 +79,13 @@ class MyPharmacyBody extends StatelessWidget {
                       label: 'Suivre mes commandes',
                       variant: NubiaButtonVariant.secondary,
                       onPressed: () => context.push('/pharmacy/orders'),
+                    ),
+                    const SizedBox(height: 8),
+                    NubiaButton(
+                      key: const Key('my_pharmacy_quotes_button'),
+                      label: 'Mes devis pharmacie',
+                      variant: NubiaButtonVariant.secondary,
+                      onPressed: () => context.push('/pharmacy/quotes'),
                     ),
                     const SizedBox(height: 8),
                     NubiaButton(

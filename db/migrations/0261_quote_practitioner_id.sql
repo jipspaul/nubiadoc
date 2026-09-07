@@ -1,4 +1,4 @@
--- 0258_quote_practitioner_id.sql
+-- 0261_quote_practitioner_id.sql
 -- #6563 : le patient ne peut distinguer ses devis (titres « Devis du
 -- 05/09/2026 » identiques) et l'écran de signature ne montre aucun émetteur.
 -- `quote` n'a jamais porté de praticien (contrairement à `appointment`,

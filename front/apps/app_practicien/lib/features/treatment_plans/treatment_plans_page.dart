@@ -13,6 +13,7 @@ import '../consultation_clinique/ccam_picker.dart';
 import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
 import 'treatment_status_style.dart';
+import 'widgets/coverage_column.dart';
 import 'widgets/patient_header_bar.dart';
 import 'widgets/phase_acts_list.dart';
 import 'widgets/phase_quote_banner.dart';
@@ -84,6 +85,8 @@ class _TreatmentPlansBody extends StatelessWidget {
                     ),
                   TreatmentPlansLoaded(:final plans, :final busy) =>
                     _PlansSplitView(
+                      patientId:
+                          context.read<TreatmentPlansCubit>().patientId,
                       plans: plans,
                       busy: busy,
                       onNewPlan: () => _promptNewPlan(context),
@@ -122,11 +125,13 @@ class _TreatmentPlansBody extends StatelessWidget {
 /// le premier plan est sélectionné par défaut.
 class _PlansSplitView extends StatefulWidget {
   const _PlansSplitView({
+    required this.patientId,
     required this.plans,
     required this.busy,
     required this.onNewPlan,
   });
 
+  final String patientId;
   final List<TreatmentPlan> plans;
   final bool busy;
   final VoidCallback onNewPlan;
@@ -173,23 +178,48 @@ class _PlansSplitViewState extends State<_PlansSplitView> {
       (plan) => plan.id == _selectedPlanId,
       orElse: () => plans.first,
     );
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _PlansListColumn(
-          plans: plans,
-          selectedPlanId: selected.id,
-          busy: widget.busy,
-          onSelect: (id) => setState(() => _selectedPlanId = id),
-          onNewPlan: widget.onNewPlan,
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: _PlanCard(plan: selected, busy: widget.busy),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // #6626 — colonne « Couverture financière » (maquette design-v2,
+        // écrans PC praticien) : n'apparaît qu'à partir de la largeur
+        // disponible ciblée par la maquette 1440×900 (cf.
+        // kCoverageColumnBreakpoint), jamais via MediaQuery.
+        final showCoverageColumn =
+            constraints.maxWidth >= kCoverageColumnBreakpoint;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _PlansListColumn(
+              plans: plans,
+              selectedPlanId: selected.id,
+              busy: widget.busy,
+              onSelect: (id) => setState(() => _selectedPlanId = id),
+              onNewPlan: widget.onNewPlan,
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: _PlanCard(plan: selected, busy: widget.busy),
+              ),
+            ),
+            if (showCoverageColumn)
+              CoverageColumn(
+                key: Key('treatment_plan_coverage_${selected.id}'),
+                plan: selected,
+                // #6672 — le CTA porte désormais le numéro de la phase mais
+                // ouvrait encore la liste de devis de TOUT le cabinet : on
+                // la scope au patient du plan ouvert (filtre `patientId`
+                // supporté côté API, #4419/#5572). `go` (pas `push`) car
+                // `/devis` appartient à une autre `StatefulShellBranch` que
+                // `/patients/...` — même convention que la nav latérale
+                // (`PracticienShell`), et seul `go` fait suivre l'URL par le
+                // navigateur.
+                onGenerateQuote: () => context
+                    .go('${AppRouter.devis}?patientId=${widget.patientId}'),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -583,6 +613,11 @@ class _PlanCardState extends State<_PlanCard> {
                   ),
                 ),
                 const SizedBox(width: 12),
+                // #6626 — le CTA générique « Générer le devis » a quitté
+                // l'en-tête (maquette design-v2, annotation ③) : il est
+                // désormais contextuel, porté par la phase concernée
+                // (`CoverageColumn`/`PhaseQuoteBanner`), jamais un bouton
+                // générique qui ne dit pas ce qu'il va produire.
                 NubiaButton(
                   key: Key('treatment_plan_rename_${plan.id}'),
                   variant: NubiaButtonVariant.secondary,
@@ -590,14 +625,6 @@ class _PlanCardState extends State<_PlanCard> {
                   icon: Icons.edit,
                   label: 'Renommer',
                   onPressed: busy ? null : () => _promptRename(context),
-                ),
-                const SizedBox(width: 8),
-                NubiaButton(
-                  key: Key('treatment_plan_generate_quote_${plan.id}'),
-                  size: NubiaButtonSize.sm,
-                  icon: Icons.description,
-                  label: 'Générer le devis',
-                  onPressed: busy ? null : () => context.push(AppRouter.devis),
                 ),
               ],
             ),

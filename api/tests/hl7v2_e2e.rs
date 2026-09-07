@@ -144,7 +144,7 @@ impl rustls::client::danger::ServerCertVerifier for AcceptAnyServerCert {
 fn build_adt_a28(sending_facility: &str, receiving_facility: &str, control_id: &str) -> Vec<u8> {
     format!(
         "MSH|^~\\&|SIH|{sending_facility}|NUBIA|{receiving_facility}|20260720101500||ADT^A28|{control_id}|P|2.5\r\
-PID|1||123456^^^{sending_facility}^PI||DUPONT^JEAN||19800101|M\r"
+PID|1||123456^^^{sending_facility}^PI~275056789012345^^^INS-NIR||DUPONT^JEAN||19800101|M\r"
     )
     .into_bytes()
 }
@@ -174,6 +174,14 @@ async fn hl7v2_e2e_known_facility_pair_returns_aa_ack() {
     if !db_available() {
         eprintln!("APP_DATABASE_URL/DATABASE_URL absent — test ignoré (voir doc de module)");
         return;
+    }
+    // B8 : le traitement ADT réel chiffre l'INS — clé maître requise.
+    if std::env::var("KMS_MASTER_KEY").is_err() {
+        use base64::Engine as _;
+        std::env::set_var(
+            "KMS_MASTER_KEY",
+            base64::engine::general_purpose::STANDARD.encode([9u8; 32]),
+        );
     }
 
     let pool = owner_pool().await;
@@ -283,6 +291,16 @@ async fn hl7v2_e2e_known_facility_pair_returns_aa_ack() {
         .ok();
     sqlx::query("DELETE FROM hl7v2_partner WHERE id = $1")
         .bind(partner_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_merge_candidate WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE cabinet_id = $1")
+        .bind(cabinet_id)
         .execute(&pool)
         .await
         .ok();

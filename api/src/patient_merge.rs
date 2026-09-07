@@ -23,6 +23,7 @@ use crate::{
 /// CIBLE (qui survit à la fusion), `source_patient_id` le doublon fusionné
 /// puis soft-supprimé.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MergePatientBody {
     pub source_patient_id: Uuid,
 }

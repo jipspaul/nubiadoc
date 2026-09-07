@@ -599,12 +599,15 @@ class _RoomPacePanel extends StatelessWidget {
             const SizedBox(height: 12),
             _PaceRow(
               key: const Key('room_pace_delay'),
-              label: 'Retard sur le planning',
+              label: delayMinutes < 0
+                  ? 'Avance sur le planning'
+                  : 'Retard sur le planning',
               subtitle:
                   'RDV de ${_NextPatientHeroCard._formatTime(scheduledAt)}'
                   ' appelé à ${_NextPatientHeroCard._formatTime(calledAt)}',
-              value: '${delayMinutes >= 0 ? '+' : ''}$delayMinutes min',
-              valueColor: tokens.warningFg,
+              value: '${delayMinutes.abs()} min',
+              valueColor:
+                  delayMinutes < 0 ? tokens.successFg : tokens.warningFg,
             ),
           ],
         ],
@@ -928,12 +931,16 @@ class _EntryCard extends StatelessWidget {
     // NOT NULL` — 0005_scheduling.sql). La branche « Sans RDV » / « Attribuer »
     // était donc inatteignable et son action un no-op ; retirée tant qu'aucun
     // flux backend (walk-in) ne peut produire cet état.
+    // #6636 : un patient `in_consultation` doit rester distinguable de ceux
+    // qui attendent encore, quelle que soit sa durée d'attente écoulée.
     final (String statusLabel, StatusPillVariant statusVariant) =
-        switch (waitMinutes) {
-      < 15 => ('Moins de 15 min', StatusPillVariant.info),
-      < 30 => ('Plus de 15 min', StatusPillVariant.warning),
-      _ => ('Plus de 30 min', StatusPillVariant.error),
-    };
+        entry.status == 'in_consultation'
+            ? ('En consultation', StatusPillVariant.progress)
+            : switch (waitMinutes) {
+                < 15 => ('Moins de 15 min', StatusPillVariant.info),
+                < 30 => ('Plus de 15 min', StatusPillVariant.warning),
+                _ => ('Plus de 30 min', StatusPillVariant.error),
+              };
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),

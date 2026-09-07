@@ -406,9 +406,10 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconColor: cs.primary,
                   title: 'Mes ordonnances',
                   subtitle: null,
-                  // Pas de route ordonnances dédiée aujourd'hui (#5201) —
-                  // cible à confirmer avec le PO, on n'invente pas d'écran.
-                  onTap: null,
+                  // #6232 : l'API sert déjà la liste (GET
+                  // /v1/account/prescriptions) — `go()`, pas `push()` (cf.
+                  // hero_appointment_card.dart).
+                  onTap: () => context.go(AppRouter.prescriptions),
                 ),
               ),
               const SizedBox(width: 12),
@@ -420,7 +421,8 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconColor: tokens.infoFg,
                   title: 'Mes documents',
                   subtitle: null,
-                  onTap: () => context.push(AppRouter.documents),
+                  // #6236 : `go()`, pas `push()` (cf. hero_appointment_card.dart).
+                  onTap: () => context.go(AppRouter.documents),
                 ),
               ),
             ],
@@ -439,7 +441,8 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconColor: cs.primary,
                   title: 'Ma pharmacie',
                   subtitle: null,
-                  onTap: () => context.push('/pharmacy'),
+                  // #6236 : `go()`, pas `push()` (cf. hero_appointment_card.dart).
+                  onTap: () => context.go('/pharmacy'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -451,7 +454,8 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconColor: cs.primary,
                   title: 'Mes proches',
                   subtitle: null,
-                  onTap: () => context.push(AppRouter.profileDependents),
+                  // #6236 : `go()`, pas `push()` (cf. hero_appointment_card.dart).
+                  onTap: () => context.go(AppRouter.profileDependents),
                 ),
               ),
             ],
@@ -636,7 +640,8 @@ class _TreatmentProgressCard extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.push(AppRouter.treatmentPlans),
+        // #6236 : `go()`, pas `push()` (cf. hero_appointment_card.dart).
+        onTap: () => context.go(AppRouter.treatmentPlans),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(

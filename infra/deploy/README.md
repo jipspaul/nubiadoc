@@ -50,13 +50,16 @@ préféré dès que les `SCW_*` ci-dessus sont réellement renseignées.
 Variables optionnelles `CADDY_HOST` / `CADDY_USER` (défaut `root`) / `CADDY_PASSWORD` /
 `CADDY_SSH_PORT` (défaut `22`) / `CADDY_CONFIG_PATH` (défaut `/etc/caddy/Caddyfile`) :
 si `CADDY_HOST` est renseigné, le bloc Caddy `reservation.doc.nubia-link.com` (cf.
-`Caddyfile.snippet`) est poussé et rechargé automatiquement sur l'hôte Caddy en fin de
-déploiement (`apply-reservation-caddy.sh`, #6162). Sans `CADDY_HOST`, cette étape est
-sautée (no-op) — le collage manuel du snippet complet reste alors nécessaire, cf.
-section suivante. Dans ce cas (no-op), `build-and-deploy.sh` vérifie en plus que
-`reservation.doc.nubia-link.com` répond bien en TLS et **fait échouer le
-déploiement** si ce n'est pas le cas (#6188, 5e récidive du même symptôme) —
-contrairement au health-check général de la section suivante, best-effort.
+`Caddyfile.snippet`) est poussé et rechargé automatiquement sur l'hôte Caddy
+**avant** le déploiement du LXC (`apply-reservation-caddy.sh`, #6162). Sans
+`CADDY_HOST`, cette étape est sautée (no-op) — le collage manuel du snippet complet
+reste alors nécessaire, cf. section suivante. `reservation.doc.nubia-link.com` étant
+un domaine externe, hors périmètre des 5 fronts + API déployés par ce script, son
+état TLS **ne bloque plus le déploiement** (#6649 — 9e récidive du même symptôme :
+le pré-vol bloquant introduit par #6553/#6632 a fini par arrêter TOUT déploiement,
+indéfiniment, dès lors que ce domaine externe reste TLS-mort). Son suivi reste
+visible mais non bloquant (`::warning::`), via le health-check best-effort de la
+section suivante.
 
 ## Déploiement automatique (CI)
 

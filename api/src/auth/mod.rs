@@ -50,6 +50,7 @@ pub struct LoginResponse {
 
 /// Sous-corps cabinet pour `POST /v1/pro/register`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProRegisterCabinetBody {
     raison_sociale: String,
     siret: Option<String>,
@@ -58,6 +59,7 @@ pub struct ProRegisterCabinetBody {
 
 /// Sous-corps praticien pour `POST /v1/pro/register`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProRegisterPractitionerBody {
     first_name: String,
     last_name: String,
@@ -67,6 +69,7 @@ pub struct ProRegisterPractitionerBody {
 
 /// Corps de la requête `POST /v1/pro/register`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProRegisterBody {
     email: String,
     password: String,
@@ -250,11 +253,13 @@ pub(crate) enum AppError {
     /// couple (requester, email/téléphone) — contrôle applicatif, comme
     /// `DuplicateDependent`.
     DuplicateAccessRequest,
-    /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` (#4481) : l'acte
-    /// est référencé par un `stock_movement` ou un `sterilized_pouch` (FK
-    /// composite `(consultation_act_id, cabinet_id)` sans `ON DELETE`,
-    /// migrations 0190/0192) — pré-vérifié pour éviter de laisser remonter
-    /// la violation FK Postgres (23503) en 500.
+    /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` (#4481, restreint
+    /// à `sterilized_pouch` par #6618 — un `stock_movement` est désormais
+    /// défait plutôt que de bloquer, cf. `consultation_act_stock::reverse_stock_consumption`) :
+    /// l'acte est référencé par une pochette de stérilisation (FK composite
+    /// `(consultation_act_id, cabinet_id)` sans `ON DELETE`, migration 0190)
+    /// — pré-vérifié pour éviter de laisser remonter la violation FK
+    /// Postgres (23503) en 500.
     ActLinkedToStock,
     /// `POST /v1/account/visit-requests` (#5724) : le patient a déjà une
     /// demande de visite infirmière active (index unique partiel, migration
@@ -270,6 +275,13 @@ pub(crate) enum AppError {
     /// forme que le payload de succès) pour que le front affiche l'encart
     /// de non-correspondance sans re-fetch.
     PickupOrderMismatch(serde_json::Value),
+    /// `POST /v1/cabinet/slots` (#6237) : le créneau demandé chevauche une
+    /// `provider_unavailability` déclarée (congés, formation) du praticien —
+    /// distinct d'un chevauchement réel de créneau/RDV (`SlotTaken`), sinon
+    /// le secrétariat voit « créneau déjà pris » sur un agenda vide sans
+    /// moyen de savoir que le praticien est indisponible. Le `Value` porte
+    /// `starts_at`/`ends_at`/`reason` de la période déclarée.
+    ProviderUnavailable(serde_json::Value),
 }
 
 impl IntoResponse for AppError {
@@ -556,6 +568,11 @@ impl IntoResponse for AppError {
             AppError::PickupOrderMismatch(order) => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "pickup_order_mismatch", "order": order})),
+            )
+                .into_response(),
+            AppError::ProviderUnavailable(unavailability) => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "provider_unavailable", "unavailability": unavailability})),
             )
                 .into_response(),
         }
@@ -2056,6 +2073,7 @@ pub async fn get_cabinet_members(
 
 /// Corps de la requête `PUT /v1/cabinet/provider/listing`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutListingBody {
     pub online: bool,
 }
@@ -2131,6 +2149,7 @@ pub async fn put_cabinet_provider_listing(
 
 /// Corps de la requête `POST /v1/cabinet/members`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PostCabinetMemberBody {
     email: String,
     role: String,
@@ -2515,6 +2534,7 @@ pub async fn get_account(
 
 /// Corps de la requête `POST /v1/pro/verification`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProVerificationBody {
     id_type: String,
     identifier: String,
@@ -3493,6 +3513,7 @@ pub async fn get_account_referring_doctor(
 
 /// Corps de la requête `PUT /v1/account/referring-doctor`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutReferringDoctorBody {
     /// Référence vers un praticien listé dans l'annuaire Nubia.
     provider_id: Option<Uuid>,
@@ -3695,6 +3716,7 @@ pub struct ConsentItem {
 
 /// Corps de la requête `PUT /v1/account/consents/{purpose}`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutConsentBody {
     granted: bool,
 }
@@ -4339,6 +4361,7 @@ pub async fn get_account_dependent_by_id(
 
 /// Corps de la couverture pour `POST /v1/account/dependents`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PostDependentCoverageBody {
     regime_obligatoire: Option<String>,
     nss: Option<String>,
@@ -4354,6 +4377,7 @@ pub struct PostDependentCoverageBody {
 
 /// Corps de la requête `POST /v1/account/dependents`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PostDependentBody {
     first_name: String,
     last_name: String,
@@ -4385,14 +4409,24 @@ pub async fn post_account_dependents(
         return Err(AppError::ValidationError);
     }
 
-    if body.first_name.trim().is_empty() || body.last_name.trim().is_empty() {
+    if body.first_name.trim().is_empty()
+        || body.last_name.trim().is_empty()
+        || body.first_name.chars().count() > 100
+        || body.last_name.chars().count() > 100
+    {
         return Err(AppError::ValidationError);
     }
 
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
         Some(s) => {
             let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
-            if d > chrono::Utc::now().date_naive() {
+            let today = chrono::Utc::now().date_naive();
+            // Borne basse symétrique à la borne haute (#6653) : une naissance il y a
+            // plus de 120 ans est aussi impossible qu'une naissance dans le futur.
+            let min_birth_date = today
+                .checked_sub_months(chrono::Months::new(120 * 12))
+                .ok_or(AppError::ValidationError)?;
+            if d > today || d < min_birth_date {
                 return Err(AppError::ValidationError);
             }
             Some(d)
@@ -5110,6 +5144,7 @@ pub async fn pro_verification(
 
 /// Corps de `PUT /v1/account/avatar`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutAvatarBody {
     /// Type MIME (`image/jpeg`, `image/png`, `image/webp`).
     mime: String,
@@ -5323,6 +5358,7 @@ pub async fn get_account_access_requests(
 
 /// Corps de la requête `POST /v1/account/access-requests`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PostAccessRequestBody {
     first_name: String,
     last_name: String,

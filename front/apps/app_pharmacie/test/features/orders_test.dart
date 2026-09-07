@@ -3,11 +3,15 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
+import 'package:app_pharmacie/features/order_detail/order_detail_bloc.dart';
+import 'package:app_pharmacie/features/order_detail/order_detail_event.dart';
+import 'package:app_pharmacie/features/order_detail/order_detail_state.dart';
 import 'package:app_pharmacie/features/orders/orders_bloc.dart';
 import 'package:app_pharmacie/features/orders/orders_event.dart';
 import 'package:app_pharmacie/features/orders/orders_page.dart';
@@ -23,6 +27,9 @@ class MockPharmacyOrderEventsPort extends Mock
 
 class MockOrdersBloc extends MockBloc<OrdersEvent, OrdersState>
     implements OrdersBloc {}
+
+class MockOrderDetailBloc extends MockBloc<OrderDetailEvent, OrderDetailState>
+    implements OrderDetailBloc {}
 
 PharmacyOrder order(String id, PharmacyOrderStatus status) =>
     orderAt(id, status, DateTime(2026, 7, 1, 10));
@@ -924,6 +931,44 @@ void main() {
       addTearDown(() => tester.pumpWidget(const SizedBox()));
 
       expect(find.textContaining('CMD-'), findsNothing);
+    });
+  });
+
+  group('OrdersScreen — commande ouverte (#6627)', () {
+    testWidgets(
+        'sur poste large, la file reste affichée à côté du détail — '
+        'le rail (ProShell) et la file du jour ne disparaissent plus quand '
+        'on ouvre une commande', (tester) async {
+      final ordersBloc = MockOrdersBloc();
+      when(() => ordersBloc.state).thenReturn(
+        OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.ready)]),
+      );
+
+      final detailBloc = MockOrderDetailBloc();
+      when(() => detailBloc.state).thenReturn(
+        OrderDetailLoaded(order('o1', PharmacyOrderStatus.ready)),
+      );
+      GetIt.instance.registerFactory<OrderDetailBloc>(() => detailBloc);
+      addTearDown(() => GetIt.instance.unregister<OrderDetailBloc>());
+
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: ordersBloc,
+          child: const OrdersScreen(selectedOrderId: 'o1'),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      // La file (OrdersView) reste visible…
+      expect(find.byKey(const Key('order_row_o1')), findsOneWidget);
+      // … en même temps que le détail de la commande sélectionnée.
+      expect(find.byKey(const Key('order_detail_back')), findsOneWidget);
+      expect(find.byKey(const Key('order_action_scan')), findsOneWidget);
     });
   });
 

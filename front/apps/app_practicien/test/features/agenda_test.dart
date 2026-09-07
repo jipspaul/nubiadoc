@@ -549,8 +549,9 @@ void main() {
         const AuthAuthenticated(
           AuthSession(
             kind: UserKind.pro,
-            userId: 'prac-1',
+            userId: 'user-1',
             role: ProRole.practitioner,
+            practitionerId: 'prac-1',
           ),
         ),
       );

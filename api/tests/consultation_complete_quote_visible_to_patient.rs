@@ -2,6 +2,9 @@
 //! visible côté patient (#4260). `POST /v1/cabinet/consultations/:id/complete`
 //! crée le devis en `status='sent'` (pas `'draft'`) — la policy RLS
 //! `quote_patient_read` (migrations 0134/0175) exige `status <> 'draft'`.
+//! Vérifie aussi (#6573) que ce devis porte `practitioner_id`, comme le
+//! devis créé via `POST /v1/cabinet/quotes` — ce chemin, pourtant le plus
+//! fréquent, restait anonyme (`practitioner_name` null) malgré #6570.
 
 use axum::{
     body::Body,
@@ -83,6 +86,7 @@ struct Fixture {
     patient_account_id: Uuid,
     appt_id: Uuid,
     session_id: Uuid,
+    provider_id: Uuid,
 }
 
 async fn seed(db: &PgPool) -> Fixture {
@@ -94,6 +98,7 @@ async fn seed(db: &PgPool) -> Fixture {
     let patient_id = Uuid::new_v4();
     let appt_id = Uuid::new_v4();
     let session_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
@@ -144,6 +149,17 @@ async fn seed(db: &PgPool) -> Fixture {
         .execute(&mut *tx)
         .await
         .unwrap();
+    sqlx::query(
+        "INSERT INTO provider (id, practitioner_id, cabinet_id, user_id, display_name) \
+         VALUES ($1, $2, $3, $4, 'Dr Hugo Marin')",
+    )
+    .bind(provider_id)
+    .bind(prac_id)
+    .bind(cabinet_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
     sqlx::query(
         "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
          VALUES ($1, $2, 'Patient', 'CompleteQuote', $3)",
@@ -202,6 +218,7 @@ async fn seed(db: &PgPool) -> Fixture {
         patient_account_id,
         appt_id,
         session_id,
+        provider_id,
     }
 }
 
@@ -239,6 +256,11 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .ok();
     sqlx::query("DELETE FROM patient WHERE id = $1")
         .bind(f.patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(f.provider_id)
         .execute(&mut *tx)
         .await
         .ok();
@@ -336,9 +358,17 @@ async fn completed_consultation_quote_is_sent_and_visible_to_patient() {
         .unwrap();
     let list_body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let quotes = list_body["data"].as_array().unwrap();
-    assert!(
-        quotes.iter().any(|q| q["id"] == invoice_id.to_string()),
-        "le devis {invoice_id} doit apparaître dans GET /v1/quotes côté patient : {quotes:?}"
+    let quote = quotes
+        .iter()
+        .find(|q| q["id"] == invoice_id.to_string())
+        .unwrap_or_else(|| {
+            panic!("le devis {invoice_id} doit apparaître dans GET /v1/quotes côté patient : {quotes:?}")
+        });
+    // #6573 : le devis de clôture de consultation doit porter son émetteur,
+    // comme n'importe quel autre devis visible du patient.
+    assert_eq!(
+        quote["practitioner_name"], "Dr Hugo Marin",
+        "le devis {invoice_id} doit exposer practitioner_name : {quote:?}"
     );
 
     cleanup(&db, &f).await;

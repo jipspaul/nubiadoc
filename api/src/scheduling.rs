@@ -9,6 +9,7 @@ use axum::{
 };
 use chrono::{Datelike, TimeZone};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::{Acquire, Row};
 use uuid::Uuid;
 
@@ -567,7 +568,13 @@ pub struct WaitingRoomEntry {
     /// complet (#6241, #6549 : absent ici, le repli du DTO front neutralisait
     /// la garde et renvoyait vers la liste).
     pub patient_id: Uuid,
-    /// Nom complet (pro/admin) ou initiales (secrétariat) — cloisonnement clinique RBAC.
+    /// Nom complet du patient — pour le héros « patient suivant », les lignes de
+    /// la file et le libellé du bouton d'appel (« Appeler Marc Dubois »), les
+    /// initiales n'étant que la pastille avatar. Prescrit par les deux maquettes
+    /// design-v2 (praticien ET secrétariat) — #6611.
+    pub patient_name: String,
+    /// Initiales du patient (pastille avatar `NubiaInitials`), pour TOUT rôle
+    /// (#3893).
     pub patient_name_initials: String,
     pub checkin_at: Option<String>,
     pub wait_minutes: i64,
@@ -597,7 +604,8 @@ pub struct WaitingRoomResponse {
 /// (les deux endpoints doivent partager le même périmètre — #4869).
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
-/// Cloisonnement clinique : secrétariat reçoit initiales du patient, pro reçoit nom complet.
+/// Nom complet du patient exposé à tout rôle pro (`patient_name`) ; les initiales
+/// (`patient_name_initials`) restent un champ séparé, réservé à l'avatar (#6611).
 /// R10 : secrétaires scopées au secrétariat JWT (`secretariat_id`).
 pub async fn get_waiting_room(
     State(state): State<AppState>,
@@ -726,6 +734,15 @@ pub async fn get_waiting_room(
                 ),
                 _ => String::new(),
             };
+            // Nom complet séparé de la pastille avatar — #6611 : les maquettes
+            // design-v2 veulent le nom complet dans le héros/la file/le bouton
+            // d'appel pour TOUT rôle, les initiales restant confinées à l'avatar.
+            let patient_name = match (first.as_deref(), last.as_deref()) {
+                (Some(f), Some(l)) => format!("{f} {l}"),
+                (Some(f), None) => f.to_string(),
+                (None, Some(l)) => l.to_string(),
+                (None, None) => String::new(),
+            };
 
             let status = if db_status == "in_progress" {
                 "in_consultation".to_string()
@@ -736,6 +753,7 @@ pub async fn get_waiting_room(
             Ok(WaitingRoomEntry {
                 appointment_id,
                 patient_id,
+                patient_name,
                 patient_name_initials,
                 checkin_at: checkin_at.map(|dt| dt.to_rfc3339()),
                 wait_minutes,
@@ -855,6 +873,7 @@ pub async fn get_waiting_list(
 
 /// Corps de `POST /v1/cabinet/waiting-list/:id/offer`.
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct OfferSlotBody {
     /// Créneau proposé (ISO 8601 UTC). Optionnel (#4536) : si absent, le
     /// back sélectionne lui-même le prochain `availability_slot` `open` du
@@ -1064,6 +1083,7 @@ pub async fn offer_waiting_list_slot(
 
 /// Corps de la requête `POST /v1/cabinet/appointments`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateCabinetAppointmentBody {
     /// Dossier patient dans le cabinet (FK `patient.id`).
     pub patient_id: Uuid,
@@ -1085,7 +1105,10 @@ pub struct CreateCabinetAppointmentResponse {
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT, jamais du body.
 /// RLS scopé via `app.current_cabinet_id` : vérifie que le patient appartient
-/// au cabinet (404 sinon). Le créneau est résolu depuis `availability_slot`.
+/// au cabinet (404 sinon). Le créneau est résolu depuis `availability_slot` :
+/// absence (jamais existé, autre cabinet, supprimé) → `404 not_found` ;
+/// existant mais non réservable (`status <> 'open'` ou indispo praticien)
+/// → `409 slot_taken`.
 /// Contrainte d'exclusion DB (23P01) → `409 slot_taken`.
 /// Statut initial : `"requested"`.
 pub async fn create_cabinet_appointment(
@@ -1117,9 +1140,24 @@ pub async fn create_cabinet_appointment(
     let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
 
     // Résout le créneau pour starts_at / ends_at / practitioner_id.
-    // status = 'open' : un créneau blocked (indispo praticien) ou held (hold
-    // patient actif) ne doit pas être réservable par un walk-in cabinet, au
-    // même titre que claim_and_hold_slot() côté patient.
+    // Étape 1 : existence (id + cabinet_id + non supprimé) -> 404 si absent,
+    // qu'il n'ait jamais existé ou qu'il appartienne à un autre cabinet
+    // (anti-énumération, même code que le cas patient ci-dessus).
+    // Étape 2 : réservabilité — status = 'open' : un créneau blocked (indispo
+    // praticien) ou held (hold patient actif) ne doit pas être réservable par
+    // un walk-in cabinet, au même titre que claim_and_hold_slot() côté
+    // patient -> 409 slot_taken si le créneau existe mais n'est plus libre.
+    sqlx::query(
+        "SELECT id FROM availability_slot \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(body.slot_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
     let slot_row = sqlx::query(
         "SELECT starts_at, ends_at, practitioner_id \
          FROM availability_slot \
@@ -1709,6 +1747,7 @@ pub async fn confirm_appointment(
 
 /// Corps optionnel de `POST /v1/cabinet/appointments/:id/no-show`.
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct NoShowBody {
     pub reason: Option<String>,
 }
@@ -2490,6 +2529,7 @@ pub struct CabinetSlotResponse {
 
 /// Corps de `POST /v1/cabinet/slots`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateSlotBody {
     pub practitioner_id: Uuid,
     pub starts_at: String,
@@ -2596,8 +2636,13 @@ pub async fn create_cabinet_slot(
     // pouvait être créé (puis publié en ligne) en pleine période de vacances
     // déclarée du praticien : listé `is_available:true` alors que la
     // réservation effective se heurte à un 409 slot_taken.
+    //
+    // #6237 : ce chevauchement n'est PAS un conflit de créneau (l'agenda peut
+    // être entièrement vide) — renvoyer `slot_taken` rendait le vrai motif
+    // (indisponibilité déclarée) invisible pour le secrétariat. Code dédié
+    // `provider_unavailable`, avec la période/motif déjà lus pour la garde.
     let overlapping_unavailability = sqlx::query(
-        "SELECT 1 FROM provider_unavailability pu \
+        "SELECT pu.starts_at, pu.ends_at, pu.reason FROM provider_unavailability pu \
          JOIN provider prov ON prov.id = pu.provider_id \
          WHERE prov.practitioner_id = $1 \
            AND pu.starts_at < $2 \
@@ -2609,8 +2654,17 @@ pub async fn create_cabinet_slot(
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
-    if overlapping_unavailability.is_some() {
-        return Err(AppError::SlotTaken);
+    if let Some(row) = overlapping_unavailability {
+        let unavail_starts_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+        let unavail_ends_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("ends_at").map_err(|_| AppError::Internal)?;
+        let reason: Option<String> = row.try_get("reason").map_err(|_| AppError::Internal)?;
+        return Err(AppError::ProviderUnavailable(json!({
+            "starts_at": unavail_starts_at.to_rfc3339(),
+            "ends_at": unavail_ends_at.to_rfc3339(),
+            "reason": reason,
+        })));
     }
 
     let slot_id = Uuid::new_v4();
@@ -3040,6 +3094,7 @@ pub struct SlotOnlineResponse {
 /// visible dès la libération du créneau (annulation/no_show → status='open'
 /// mais online_booking resté true, réapparaît dans /search/slots).
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PutSlotOnlineBody {
     pub online_booking: bool,
 }

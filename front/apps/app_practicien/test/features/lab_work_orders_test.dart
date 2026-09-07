@@ -426,5 +426,34 @@ void main() {
       expect(find.byType(SnackBar), findsOneWidget);
       expect(find.text('Erreur réseau'), findsOneWidget);
     });
+
+    testWidgets(
+        'un changement de statut échoué conserve la liste affichée et '
+        'signale l\'erreur par snackbar (#6657)', (tester) async {
+      await _setSurface(tester);
+      final mockList = MockListLabWorkOrdersUseCase();
+      final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
+      when(() => mockList()).thenAnswer((_) async => const Right([_sentOrder]));
+      when(() => mockUpdateStatus('order-1', 'try_in'))
+          .thenAnswer((_) async => const Left(_FakeFailure('forbidden')));
+
+      final bloc = LabWorkOrdersBloc(
+        list: mockList,
+        updateStatus: mockUpdateStatus,
+      );
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('lab_work_order_advance_order-1')));
+      await tester.pump();
+
+      // La liste reste affichée : pas de plein écran `NubiaErrorWidget`.
+      expect(find.byKey(const Key('lab_work_order_order-1')), findsOneWidget);
+      expect(find.byType(NubiaErrorWidget), findsNothing);
+
+      // Une seule surface d'erreur : la snackbar.
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('forbidden'), findsOneWidget);
+    });
   });
 }

@@ -34,6 +34,7 @@ pub struct SecretariatItem {
 
 /// Corps de `POST /v1/cabinet/secretariats`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateSecretariatBody {
     pub name: String,
 }
@@ -56,6 +57,7 @@ pub struct SecretariatMemberItem {
 
 /// Corps de `POST /v1/cabinet/secretariats/:id/members`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AddSecretariatMemberBody {
     pub user_id: Uuid,
     pub role: String,
@@ -516,6 +518,7 @@ pub async fn remove_secretariat_member(
 
 /// Corps de `POST /v1/cabinet/secretariats/:id/staff`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProvisionStaffBody {
     pub email: String,
     /// Rôle dans le secrétariat : `secretary` ou `manager`.

@@ -151,6 +151,7 @@ pub async fn list_patient_tags(
 
 /// Corps de la requête `POST /v1/cabinet/patients/:id/tags`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreatePatientTagBody {
     pub label: String,
     pub color: Option<String>,

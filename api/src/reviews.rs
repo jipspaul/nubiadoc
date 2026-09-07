@@ -19,6 +19,7 @@ use crate::{
 
 /// Corps de la requête `POST /v1/reviews`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateReviewBody {
     pub appointment_id: Uuid,
     /// Note de 1 à 5.
@@ -475,6 +476,7 @@ pub async fn list_cabinet_reviews(
 
 /// Corps de la requête `PATCH /v1/cabinet/reviews/:id`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModerateReviewBody {
     /// `published` ou `rejected` (transition depuis `pending`, cf. policy RLS `review_app_update`).
     pub status: String,

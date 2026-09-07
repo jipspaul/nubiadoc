@@ -9,6 +9,7 @@ class WaitingRoomEntryDto {
   final String? appointmentId;
   final String arrivedAt;
   final int? estimatedWaitMinutes;
+  final String? status;
   final String? reason;
   final String? appointmentReason;
   final String? appointmentTime;
@@ -24,6 +25,7 @@ class WaitingRoomEntryDto {
     this.appointmentId,
     required this.arrivedAt,
     this.estimatedWaitMinutes,
+    this.status,
     this.reason,
     this.appointmentReason,
     this.appointmentTime,
@@ -43,8 +45,11 @@ class WaitingRoomEntryDto {
             '',
         cabinetId: (json['cabinet_id'] as String?) ?? '',
         patientId: (json['patient_id'] as String?) ?? '',
-        patientName: (json['patient_name_initials'] as String?) ??
-            (json['patient_name'] as String?) ??
+        // #6611 : le nom complet (`patient_name`) prime sur les initiales
+        // (`patient_name_initials`, réservées à la pastille avatar) — sinon le
+        // héros/la file/le bouton d'appel affichent « MD » au lieu du nom.
+        patientName: (json['patient_name'] as String?) ??
+            (json['patient_name_initials'] as String?) ??
             '',
         appointmentId: json['appointment_id'] as String?,
         arrivedAt: (json['checkin_at'] as String?) ??
@@ -52,6 +57,7 @@ class WaitingRoomEntryDto {
             DateTime.now().toIso8601String(),
         estimatedWaitMinutes: (json['wait_minutes'] as num?)?.toInt() ??
             (json['estimated_wait_minutes'] as num?)?.toInt(),
+        status: json['status'] as String?,
         reason: json['motif'] as String?,
         appointmentReason: (json['motif'] as String?) ??
             (json['appointment_reason'] as String?),
@@ -76,6 +82,7 @@ class WaitingRoomEntryDto {
         appointmentId: appointmentId,
         arrivedAt: DateTime.parse(arrivedAt),
         estimatedWaitMinutes: estimatedWaitMinutes,
+        status: status,
         reason: reason,
         appointmentReason: appointmentReason,
         appointmentTime:

@@ -44,6 +44,7 @@ fn validate_structured_posology(value: &serde_json::Value) -> Result<(), AppErro
 
 /// Un item de médicament dans le body de création.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PrescriptionItemInput {
     pub label: String,
     pub form: Option<String>,
@@ -68,6 +69,7 @@ pub struct PrescriptionItemInput {
 
 /// Body de `POST /v1/cabinet/prescriptions`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreatePrescriptionBody {
     pub consultation_id: Option<Uuid>,
     pub patient_id: Uuid,
@@ -376,7 +378,8 @@ pub async fn sign_prescription(
 
     // Lignes de l'ordonnance — nécessaires au rendu du PDF.
     let item_rows = sqlx::query(
-        "SELECT label, form, posology, duration, quantity \
+        "SELECT label, form, posology, duration, quantity, \
+                non_substitution_reason, non_renouvelable \
          FROM prescription_item \
          WHERE prescription_id = $1 AND cabinet_id = $2",
     )
@@ -394,13 +397,18 @@ pub async fn sign_prescription(
                 posology: r.try_get("posology").map_err(|_| AppError::Internal)?,
                 duration: r.try_get("duration").map_err(|_| AppError::Internal)?,
                 quantity: r.try_get("quantity").map_err(|_| AppError::Internal)?,
-                // Non nécessaires au rendu PDF (render_prescription_pdf n'imprime
-                // que label/form/posology/duration/quantity) — pas de colonne
-                // supplémentaire à sélectionner ici.
+                // Non nécessaire au rendu PDF (pas de decomposition affichée) —
+                // pas de colonne supplémentaire à sélectionner ici.
                 structured_posology: None,
                 product_reference: None,
-                non_substitution_reason: None,
-                non_renouvelable: false,
+                // #6676 : mentions légales affichées par `render_prescription_pdf`
+                // — seul canal pharmacien restant si `/items` n'est pas consulté.
+                non_substitution_reason: r
+                    .try_get("non_substitution_reason")
+                    .map_err(|_| AppError::Internal)?,
+                non_renouvelable: r
+                    .try_get("non_renouvelable")
+                    .map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -980,6 +988,12 @@ fn render_prescription_pdf(
         line.push_str(&format!(" - {}", item.duration));
         if let Some(quantity) = &item.quantity {
             line.push_str(&format!(" - QSP {}", quantity));
+        }
+        if let Some(reason) = &item.non_substitution_reason {
+            line.push_str(&format!(" - Non substituable ({})", reason));
+        }
+        if item.non_renouvelable {
+            line.push_str(" - Non renouvelable");
         }
         lines.push(line);
     }

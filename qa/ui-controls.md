@@ -545,3 +545,260 @@ la ronde précédente.
 | secretariat | `/devis` (1280) | ~24 | 9 | 9 | 0 | 0 | Les 3 puces de filtre portent leur compteur (À signer 52 / Brouillons 74 / Signés 74) et basculent. Recherche « Patient, n° de devis… » fonctionnelle. | 2026-09-05T21:22:00+00:00 |
 | secretariat | `/messages` (1280) | — | — | — | — | — | Lancé en fin de ronde, non terminé — **à reprendre en priorité à la prochaine ronde**. | — |
 | **TOTAL RONDE (4 lots)** | **~42 écrans** | **~760** | **~254** | **~230** | **0** | **3** | | |
+
+### Ronde 2026-09-06 (12:00–13:05 UTC) — ciblage diff-driven des merges du matin (#6236, #6580, #6588, #6579/#6589/#6590)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | notes | last_check |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/pharmacy/quotes` (390) — **écran neuf #6580** | 7 | 7 | 5 | 0 | **2** | Premier audit de l'écran livré ce matin. `Retour` OK. Les 3 cartes « À signer » exposent `Accepter`/`Refuser` **non désactivés** ; sur un devis dont la commande est déjà `picked_up`, les deux répondent **409** et la carte reste décidable → **#6607**. La carte « Expiré » n'expose aucune action (correct). | 2026-09-06T13:05:00+00:00 |
+| patient | `/documents` (390) | 25 | 14 | 12 | 0 | 0 | Puces de facettes (`Tous 284`, `Facture 41`, `Ordonnance 193`, `Radio 7`, `CBCT 2`, `Photo 8`, `Compte-rendu 5`, `Consentement 4`, `Consigne 4`, `Carte mutuelle 20`) **toutes vérifiées manuellement** : le clic filtre réellement (`aria-checked` false→true, la liste passe d'Ordonnances à Factures). La rangée déborde du viewport mais **défile** (molette + drag) → facettes atteignables, pas un bug. Méta de carte conforme depuis #6545. | 2026-09-06T13:05:00+00:00 |
+| patient | `/notifications` (390) | 19 | 8 | 8 | 0 | 0 | « Tout marquer lu », 4 puces de famille et boutons d'action tous actifs. **Mais** : `Afficher mon code` est rendu sur les 3 états de commande (préparation/prête/retirée) et mène à un écran sans code → **#6610** ; la notif `quote_received` n'a aucun bouton d'action → **#6609**. Échec réseau sur une action = écran effacé → **#6613**. | 2026-09-06T13:05:00+00:00 |
+| patient | `/messaging` + fil « Cabinet Lyon » (390) | 9 + 8 | 6 | 6 | 0 | 0 | Le bouton d'envoi existe (`role=button` @340,725 42x42) et **fonctionne** (POST /conversations/:id/messages) mais n'a **aucun nom accessible** (`aria-label` null, texte vide) → **#6614**. Puces de réponse rapide (`Proposer un créneau`, `Merci !`, `Je rappelle`) correctement nommées. Texte de 475 caractères : aucun débordement du viewport. | 2026-09-06T13:05:00+00:00 |
+| patient | `/mes-rdv`, `/profile`, `/treatment-plans`, `/implant-passport`, `/profile/consents`, `/appointments`, `/pharmacy`, `/profile/dependents` (390) | 73 | 64 | 61 | 3 | 0 | Second lot, harnais corrigé (voir note de méthode). Les 3 « MORT » sont des onglets/filtres **déjà sélectionnés** (`À venir (20)` etc.) — comportement légitime, vérifié. | 2026-09-06T13:05:00+00:00 |
+| praticien | `/agenda`, `/waiting-room`, `/patients`, `/ordonnances`, `/messages`, `/consultation`, `/notification-preferences` (1280) | 161 | 101 | 94 | 6 | 1 | Les 6 « MORT » sont tous des entrées du rail de navigation **de la page courante** (auto-navigation) — légitimes. L'unique « CASSÉ » (401 sur `PATCH /me/notification-preferences`) est une **expiration de session en cours de run**, pas un défaut produit. Salle d'attente : divergence design-v2 sur le nom du patient → **#6611**. | 2026-09-06T13:05:00+00:00 |
+| secretariat | `/devis`, `/salle-attente`, `/agenda`, `/patients`, `/liste-attente`, `/bookable-slots`, `/messages`, `/notification-preferences` (1280) | 215 | 123 | 109 | 12 | 2 | `/devis` re-vérifié après #6579/#6589/#6590 : table stable, titres `DEV-xxxx` distincts, nom patient complet + pastille d'initiales. « MORT » = rail/filtres déjà actifs ; « CASSÉ » = 401 d'expiration de session. | 2026-09-06T13:05:00+00:00 |
+| secretariat | `/`, `/stock`, `/team-messages`, `/cabinet-payouts`, `/appointments` (1280) | 136 | 77 | 68 | 8 | 1 | Second lot. Mêmes catégories de faux positifs (rail courant, filtre actif). | 2026-09-06T13:05:00+00:00 |
+| pharmacie | `/` (file), `/stock`, `/devis`, `/messages`, `/notification-preferences` (1280) | 87 | 64 | 51 | 13 | 0 | File des commandes conforme à sa maquette (KPI 10+4+43 = 57 cohérents avec les puces). « MORT » = rail courant + puces de filtre déjà sélectionnées. | 2026-09-06T13:05:00+00:00 |
+| infirmiere | `/` (Disponibilité/Offres/Ma visite) + `/notification-preferences` (390) | 10 | 9 | 7 | 2 | 0 | 5e app parcourue. Interrupteur « En ligne » fonctionnel (PATCH /nurse/availability). Les 2 « MORT » = onglet `Disponibilité` déjà actif + l'interrupteur relu avant repeinture. Écran très blanc (ratio 0.973) mais **pas** un canvas vide : arbre Semantics complet + rendu correct (vérifié au screenshot) — faux positif classique du ratio near-white sur écran minimal. | 2026-09-06T13:05:00+00:00 |
+| **TOTAL RONDE 2026-09-06 (7 lots, 38 écrans, 5 apps)** | **38 écrans** | **737** | **473** | **408** | **55** | **10** | **MORT/CASSÉ confirmés après vérification manuelle : 0 mort, 2 cassés** (`Accepter`/`Refuser` de #6607). Les 53 autres « MORT » sont des rails/onglets/filtres déjà actifs, les 8 autres « CASSÉ » des 401 d'expiration de session en cours de run. | 2026-09-06T13:05:00+00:00 |
+| praticien | `/` (Tableau de bord, 1280) | 18 | 8 | 7 | 1 | 0 | Rail complet + ⌘K + cloche + tuiles « Confirmations en attente 2 » / « Messages non lus 34 ». Le « MORT » est l'entrée de rail de la page courante. Lot interrompu ensuite (contention navigateur en fin de ronde) — `/devis`, `/stock`, `/inventaire`, `/labo`, `/messagerie-interne`, `/ordonnances/new` **restent à auditer, à reprendre en priorité**. | 2026-09-06T13:07:00+00:00 |
+| pharmacie | `/orders/:id` (Délivrance, 1280) | 4 | 4 | **4** | 0 | 0 | `Retour`, `Créer un devis`, `Scanner le retrait`, `Voir l'original` — tous actifs et conformes au statut `ready`. Ratio near-white 0.962 signalé « canvas vide » par le détecteur : **faux positif** (page de détail avec grande zone vide sous le contenu), rendu vérifié au screenshot. | 2026-09-06T13:07:00+00:00 |
+| praticien | `/devis`, `/stock` + 3 URL erronées (`/labo`, `/inventaire`, `/messagerie-interne`) (1280) | 45 | 27 | 25 | 2 | 0 | Les 2 « MORT » sont les entrées de rail de la page courante. **Les 3 URL inexistantes rendent un écran « Page introuvable » propre** (illustration + « Le lien que vous avez suivi n'existe plus ou a changé. » + CTA « Retour à l'accueil ») — **comportement correct**, pas un défaut. Les vraies routes sont `/stock-inventory`, `/lab-work-orders`, `/team-messages`. | 2026-09-06T13:30:00+00:00 |
+| praticien | `/stock-inventory`, `/lab-work-orders`, `/team-messages` (1280) | 67 | 36 | 34 | 2 | 0 | Les 3 écrans manquants de la ronde sont désormais audités. « MORT » = rail de la page courante (`Inventaire`, `Labo`). Aucun contrôle cassé. | 2026-09-06T13:30:00+00:00 |
+| secretariat | `/`, `/salle-attente`, `/devis`, `/patients` **au viewport 390x844** | 67 | — (audit de mise en page) | — | — | — | **Contrôle inter-viewport** (l'app est spécifiée PC 1280). `/devis` : **13 contrôles hors viewport** — les colonnes `Reste à charge`, `Statut`, `Échéance` et toute la colonne `Action` (`Relancer`/`Envoyer`/`PDF`, à x=801-896 pour 390 px de large) sont rognées, **sans défilement horizontal** (molette et drag vérifiés, sans effet). **Mais mitigation trouvée** : taper une ligne ouvre le volet de détail qui, lui, expose « Relancer le patient » et « Appeler » **dans** le viewport → les actions restent atteignables. Dégradation responsive, **pas un cul-de-sac** → non rapporté. Les 3 autres écrans ne débordent pas. | 2026-09-06T13:30:00+00:00 |
+| patient | `/`, `/pharmacy/quotes`, `/documents`, `/mes-rdv` **au viewport 1280x800** | 81 | — (audit de mise en page) | — | — | — | **Contrôle inter-viewport** (app mobile-first). Aucun débordement horizontal, aucune cible tactile < 24 px. Ratio near-white > 0.92 sur 3 écrans : le contenu reste en colonne étroite centrée et la largeur n'est pas exploitée — **choix mobile-first assumé**, arbre Semantics complet (39 nœuds sur `/documents`), pas un canvas vide. | 2026-09-06T13:30:00+00:00 |
+
+
+### Ronde 2026-09-06 (18:00–20:05 UTC) — 5 apps, ciblage diff-driven (#6611 salle d'attente, #6613/#6620 notifications, #6609/#6622 deep-link)
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts | cassés | notes | last_check |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/waiting-room` (1280) | 25 | 20 | 18 | 2 | 0 | Les 2 « MORT » sont l'entrée de rail de la page courante et la cloche (voir la note de méthode nº 24 ci-dessous : **faux positif levé**, la cloche marche). `Appeler MD`, `Ouvrir le dossier`, `Actualiser` tous actifs. | 2026-09-06T18:20:00Z |
+| secretariat | `/salle-attente` (1280, file de 3 puis 5 patients) | 24→30 | 20 + 15 (rail rejoué) + 4 (boutons de ligne) | 34 | **2 confirmés** | 0 | **Les 2 MORTS sont réels et filés (#6629)** : le bouton `Appeler` des lignes 2 et 3 — clic → `reqs=[]`, `http=[]`, 30 contrôles avant **et** après, URL inchangée, aucun message. Le même bouton sur la **ligne 1** émet `POST /cabinet/waiting-room/call-next` + refresh. Rail rejoué au harnais propre : 15/15 destinations correctes (`Encaissements`→`/cabinet-payouts`, `Devis`→`/devis`, `Fiches patients`→`/patients`…) ; les 5 « MORT » du rail sont les **en-têtes de section** (`Ma journée`, `Patients`, `Facturation`, `Messages`, `Réglages`) qui ne naviguent pas — légitime. | 2026-09-06T19:05:00Z |
+| patient | `/notifications` (390) | 20 | 8 | 8 | 0 | 0 | « Tout marquer lu », 4 puces, tuiles et boutons d'action. **2 tuiles sans aucune action** → #6623 (`visit_status_changed`) et #6624 (`review_request`). Adversarial `route.abort()` sur `read-all` : **la liste survit** (20 contrôles avant **et** après) → **#6620 confirmé corrigé**. | 2026-09-06T18:35:00Z |
+| patient | `/home-care` (390) | 18 | 14 | **14** | 0 | 0 | 14/14. Chaque carte de visite ouvre son détail (1 requête). | 2026-09-06T19:45:00Z |
+| patient | `/home-care/new` (390) | 13 | 12 | 12 | 0 | 0 | **5 « MORT » du premier passage entièrement levés** — voir piège nº 25. Les 2 boutons sont `aria-disabled=true` **à juste titre** sur formulaire vide (`home_care_request_page.dart:144` et `:163`), et les 4 champs texte sortent MORT par limite du harnais (la signature Semantics ne contient pas la *valeur* d'un `textbox`). **Parcours métier complet rejoué avec géolocalisation accordée** : cocher un acte active « Obtenir un devis » → `POST /account/visit-requests/estimate` → « Confirmer la demande » s'active → `POST /account/visit-requests` → navigation vers `/home-care/<id>`. **Rien de cassé.** | 2026-09-06T20:15:00Z |
+| patient | `/prescriptions` (390) | 17 | 12 | **12** | 0 | 0 | 12/12, chaque ordonnance ouvre son détail. Libellés de statut corrects (`Signée`, `Transmise à une pharmacie`). | 2026-09-06T19:50:00Z |
+| patient | `/reviews`, `/home-care/:id` (390) | 1 + 2 | 3 | 3 | 0 | 0 | `/home-care/:id` rend bien la visite (« Visite terminée / Injection / Infirmière : Camille Infirmière / 43,00 € ») — c'est la **cible de deep-link manquante** de #6623. `/reviews` rend un état vide **en lecture seule** (« Aucun avis pour ce prestataire. ») : aucun champ de saisie → #6624. | 2026-09-06T18:25:00Z |
+| infirmiere | `/` (3 onglets Disponibilité / Offres / Ma visite) + `/notification-preferences` (390) | 8 + 5 | 3 + 3 + 1 (cloche) | 7 | 0 | 0 | **5e app parcourue.** Les 3 onglets basculent, l'interrupteur « En ligne » émet `PATCH /nurse/availability`, les 2 bascules de préférences émettent leur requête. Les 3 onglets ont un **état vide correct** (« Aucune offre… », « Aucune visite en cours / Acceptez une offre pour démarrer une visite. ») — invisibles aux Semantics (texte simple), vérifiés **au screenshot**. | 2026-09-06T18:45:00Z |
+| praticien | `/ordonnances/new`, `/patients/:id/treatment-plans` (**1440**) | 48 + 37 | — (audit de mise en page design-v2) | — | — | — | Inventaire pris pour la comparaison à `Ecrans PC` (cf. `design-v2.md`) → #6625, #6626. | 2026-09-06T19:15:00Z |
+| pharmacie | `/` (file), `/orders/:id`, `/messages` (**1440**) | 37 + 5 + 17 | — (audit de mise en page design-v2) | — | — | — | Inventaire pris pour la comparaison à `Ecrans PC` / `Pharmacie Messagerie v2` → #6627, #6635. | 2026-09-06T19:20:00Z |
+| 4 apps pro | cloche « Notifications » (praticien, secrétariat, pharmacie 1280 ; infirmière 390) | 4 | 4 | **4** | 0 | 0 | Voir piège nº 24. Les 3 apps PC ouvrent un panneau qui émet `GET /notifications` + `GET /notifications?unread_only=true&limit=1` et expose `Tout marquer lu` + `Fermer` + les notifications. L'infirmière ouvre un panneau au **bon état vide** (« Aucune notification / Les nouvelles offres apparaîtront ici. ») sans requête — sa liste est chargée à la construction de la page (`infirmiere_home_page.dart:35-38`), c'est correct. | 2026-09-06T19:00:00Z |
+| **TOTAL RONDE 2026-09-06 (18:00–20:05), 1er lot** | **15 écrans, 5 apps** | **~277** | **~115** | **~110** | **2 confirmés (#6629)** | **0 confirmé** | | 2026-09-06T20:30:00Z |
+
+### Cas adversariaux joués cette ronde
+
+| cas | écran | résultat |
+|---|---|---|
+| **Coupure réseau pendant une action** (`route.abort()` sur `/v1/notifications/read-all` et `/:id/read`) | patient `/notifications` | **DIGNE.** 20 contrôles avant, **20 après** ; la liste n'est pas effacée, seule une `ERR_FAILED` apparaît en console. **#6620 confirmé corrigé en live.** |
+| **Double-clic rapide sur une action métier** | secrétariat `/salle-attente`, bouton « Appeler MD » | **DÉFAUT → #6637 (P1).** Deux `POST /cabinet/waiting-room/call-next` partent, **tous deux 2xx**, et **deux patients** passent `checked_in`→`in_consultation` (KS `8aaa4373` **et** MD `9a1f8624`) sur un seul geste. `onPressed` ne garde que sur `entries.isNotEmpty` (`waiting_room_page.dart:261`) alors que `state.actionInProgress` existe déjà (`waiting_room_state.dart:42`). |
+| **Formulaire soumis vide** | patient `/home-care/new` | **CORRECT.** Les deux CTA sont `aria-disabled=true` tant que le formulaire est invalide ; ils s'activent exactement quand le code le prescrit (acte coché → devis ; devis obtenu + adresse valide → confirmation). Aucun 500, aucun submit silencieux. |
+| **Retour navigateur au milieu d'un flux** | secrétariat `/devis` (volet de détail) | Non concluant cette ronde : aucune ligne `DEV-` trouvée dans le laps du test. À rejouer. |
+| **Permission navigateur refusée puis accordée** | patient `/home-care/new` | **CORRECT, et leçon de méthode** : sans géolocalisation, « Obtenir un devis » reste en `isLoading` et **aucune requête ne part** — ce qui se lit comme un bouton mort. Avec `permissions:['geolocation']` + `geolocation:{45.7578,4.8320}`, le flux complet passe. **Ne jamais conclure « mort » sur cet écran sans accorder la position.** |
+
+### Nouveaux pièges de méthode (nº 24 et nº 25) — deux faux positifs évités de justesse cette ronde
+
+- **nº 24 — coordonnées PÉRIMÉES après `goBack()`.** L'auditeur v1 réutilisait l'inventaire pris **avant** la première navigation ; après un `page.goBack()` la mise en page a bougé, et les clics suivants tombaient à côté. Symptôme trompeur : le rail secrétariat semblait mener aux **mauvaises routes** (« Encaissements » → `/bookable-slots`, « Messages » → `/appointment-motifs`, « Patients, 34 » → `/stock`) — c'eût été un P1 spectaculaire. **Rejoué avec un rechargement propre de la route avant CHAQUE clic : 15/15 destinations correctes.** L'auditeur v2 (`R46_audit2.js`) ré-inventorie et re-cherche le contrôle par (libellé, position) avant chaque activation, et recharge la route s'il ne le retrouve pas. Même cause pour la cloche sortie « MORT » sur 2 apps : elle ouvre en réalité un panneau parfaitement fonctionnel.
+- **nº 25 — un `aria-disabled=true` légitime ressemble à un bouton mort.** Trois contrôles sortis MORT cette ronde étaient simplement désactivés à bon droit (les 2 CTA de `/home-care/new` sur formulaire vide). **Réflexe** : lire `aria-disabled` sur l'élément `role=button` **lui-même** — et non sur le `group` parent, dont le libellé concatène tout l'écran et dont le `dis` vaut toujours `null`. Corollaire : filtrer l'inventaire sur `role==='button' && w<380` avant de chercher un CTA par libellé.
+
+### Second lot (19:05–20:05 UTC) — écrans jamais audités + mécaniques design-v2
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts | cassés | notes | last_check |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/prescriptions` (390) | 17 | 12 | **12** | 0 | 0 | 12/12, chaque ordonnance ouvre son détail. Statuts lisibles (`Signée`, `Transmise à une pharmacie`). | 2026-09-06T19:06:00Z |
+| patient | `/pharmacy/orders` (390) | 17 | 13 | **13** | 0 | 0 | 13/13. Chaque commande ouvre son suivi (2 à 4 requêtes). Les deux officines sont distinguées (« Pharmacie du Rhône » / « Grande Pharmacie de la Part-Dieu ») et les statuts sont variés et corrects (Prête / Reçue / En préparation / Retirée). | 2026-09-06T19:25:00Z |
+| patient | `/oubliettes` (390) | 2 | 1 | 1 | 0 | 0 | Écran jamais audité. `Retour` OK. **Contenu défaillant** : 7 cartes titrées par leur nom de fichier UUID → **#6639**. | 2026-09-06T19:33:00Z |
+| patient | `/profile/referring-doctor` (390) | 2 | 1 | 1 | 0 | 0 | « Changer de médecin traitant » actif. | 2026-09-06T19:26:00Z |
+| patient | `/profile/notifications` (390) | 17 | 10 | 6 | 4 | 0 | Les 3 canaux (`Notification`/`E-mail`/`SMS`) et les bascules actives émettent bien leur requête. Les 4 « MORT » sont des bascules **`aria-disabled=true` à bon droit** (« Toujours activé », « Bientôt disponible ») — faux positifs levés. **Vrai défaut trouvé ailleurs** : 8 bascules sur 10 sans nom accessible → **#6640**. | 2026-09-06T19:28:00Z |
+| secretariat | `/appointment-motifs` (1280) | 27 | 23 | 19 | 3 | 1 | Écran jamais audité. Les 3 « MORT » et le « CASSÉ » sont tous des **faux positifs levés** : en-têtes de section repliables, entrée de rail de la page courante, et le 403 attendu sur `/cabinet/stats/activity`. | 2026-09-06T19:15:00Z |
+| secretariat | `/liste-attente`, `/audit-log`, `/admin-membres` (1280) | ~22 + 25 | ~40 | ~34 | 6 | 0 | Écrans jamais audités. Rail complet fonctionnel. Les « MORT » sont des en-têtes de section et, sur `/admin-membres`, les onglets `Membres`/`Secrétariats` d'un écran **RBAC-refusé** au secrétariat (403 en série, cf. #6561 déjà traité). | 2026-09-06T19:20:00Z |
+| secretariat | rail, groupe « Réglages du cabinet » (1280) | 4 | 4 | **4** | 0 | 0 | Re-vérification ciblée après une alerte : `Statistiques`, `Créneaux ouverts`, `Motifs de RDV` et `Stock` naviguent tous correctement dès qu'on laisse 3 s à l'animation de dépliage (cf. piège nº 26). | 2026-09-06T19:50:00Z |
+| praticien | `/consultation?id=` (1280x834) | 61 | ~8 (mécanique ciblée) | 8 | 0 | 0 | Parcours métier complet : sélection de dent (surlignage vert), clic sur acte favori → dialogue pré-rempli au tarif CCAM, « Ajouter » → `POST …/acts` → **l'encart « Actes de la séance » se remplit** (0 → 1). Défaut de mise en page trouvé : **10 dents sur 32 hors cadre** → **#6642**. | 2026-09-06T19:32:00Z |
+| praticien + secretariat | palette ⌘K | 2 | 2 | **2** | 0 | 0 | ⌘K ouvre, la saisie filtre et type les résultats, Échap referme proprement. 1 écart déjà consigné (1er résultat ≠ « Demander à Nubia »). | 2026-09-06T19:45:00Z |
+| **TOTAL RONDE 2026-09-06 (2 lots, 24 écrans, 5 apps)** | **24 écrans** | **~440** | **~215** | **~200** | **2 confirmés** | **0 confirmé** | **13 verdicts MORT/CASSÉ sur 15 se sont révélés être des faux positifs après vérification manuelle** (voir pièges nº 24, 25, 26). | 2026-09-06T20:05:00Z |
+
+### Cas adversariaux — second lot
+
+| cas | écran | résultat |
+|---|---|---|
+| **Scan d'un jeton de retrait sur la MAUVAISE commande** | pharmacie, `POST /pharmacy/orders/pickup-scan` | **CORRECT, et l'invariant tient.** → **409 `pickup_order_mismatch`**, et **les deux commandes restent `ready`** : aucune écriture n'a lieu avant la comparaison (garantie de #6349, vérifiée des deux côtés). |
+| **Double scan du même jeton de retrait** | pharmacie | **CORRECT.** 1er scan → 200 + le patient voit `picked_up`/`picked_up_at` ; 2e scan → **409 `invalid_status`** (usage unique). |
+| **Rejeu d'une `Idempotency-Key` avec un corps différent** | patient, `POST /payments/intent` | **CORRECT.** Même clé + même corps → **même `payment_id` et même `client_secret`** ; même clé + corps différent → **409 `idempotency_key_conflict`**. |
+| **Permission navigateur refusée** | patient `/home-care/new` | Voir piège de méthode : sans géolocalisation le CTA reste en `isLoading` sans émettre de requête — indiscernable d'un bouton mort. |
+
+### Nouveau piège de méthode nº 26 — l'animation d'un groupe repliable
+
+**Le faux positif le plus coûteux de la ronde**, à deux doigts d'être filé en P1. L'entrée de rail
+« Stock » du secrétariat est sortie **MORT sur trois exécutions indépendantes** (clic → URL
+inchangée, 0 requête, 0 erreur), ce qui aurait signifié que `/stock` — qui fonctionne parfaitement
+en URL directe — n'est atteignable par aucune navigation.
+
+**Cause réelle** : le groupe « Réglages du cabinet » est **repliable et animé** (#5139). Le
+harnais dépliait le groupe, attendait 2,2 s, relisait les Semantics puis cliquait — mais
+l'animation n'était pas finie et la rangée n'était plus à la position lue. Avec **3 s**, les
+4 entrées du groupe naviguent correctement.
+
+**Réflexe** : après avoir déplié/replié un conteneur animé, attendre ≥ 3 s **et** relire les
+Semantics juste avant le clic. Plus généralement, un verdict MORT sur un contrôle qui vient
+d'apparaître à la suite d'une autre interaction doit être rejoué à froid avant d'être écrit.
+S'ajoute aux pièges nº 24 (coordonnées périmées après `goBack`) et nº 25 (`aria-disabled` légitime).
+
+### Ronde 2026-09-07 (00:00–01:28 UTC) — 5 apps, écrans jamais audités + mécaniques ciblées
+
+> **Contexte indispensable** : les 5 fronts sont figés au commit `0744df0` (18:43 UTC) et l'API à
+> un binaire antérieur — le pipeline de déploiement est **bloqué** (#6649). Aucun symptôme
+> imputable aux 8 correctifs mergés après 18:55 n'est compté ici comme régression.
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts | cassés | notes | last_check |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/coverage-setup` (390) | 9 | 8 | 5 | 3 | 0 | **Écran jamais audité.** Les 3 « MORT » sont le `radiogroup` conteneur, le radio **déjà sélectionné** (« Régime général » — pas de repeinture) et un `textbox` (limite de harnais, la signature Semantics ne porte pas la valeur). `AME` et `CSS` repeignent correctement. | 2026-09-07T00:18:00Z |
+| patient | `/rdv/:id/prepare` (390) | 3 | 2 | 1 | 1 | 0 | **Écran jamais audité.** Rend correctement la préparation (`GET /appointments/:id/preparation`) : « Dr Claire Lefèvre / 12 rue de la République / Parking disponible / Accès PMR / Rappel Lun 7 sep à 10:00 / Carte Vitale ». `Retour` OK, la case « Carte Vitale » est le 1 « MORT » (bascule sans changement de signature Semantics). | 2026-09-07T00:19:00Z |
+| patient | `/pharmacy/search` (390) | 2 | 2 | **2** | 0 | 0 | **Écran jamais audité.** 2/2. | 2026-09-07T00:19:00Z |
+| patient | `/rdv/:id/modifier` (390) | 51 | 42 | 1 | 41 | 0 | **Écran jamais audité — et le plus gros piège de la ronde (nº 27, ci-dessous).** Les 41 « MORT » sont **tous expliqués** : 5 créneaux `aria-disabled=true` **à bon droit** (préavis 24 h, `modify_rdv_bloc.dart::_withReschedulePreavis`) et 36 sélections de créneau que l'auditeur ne sait pas voir (la sélection ne change **que des pixels**). **Rejoué à la main avec comparaison de captures** : cliquer un créneau à J+1 modifie l'image **et fait apparaître « Confirmer la modification »**. Mécanique conforme. | 2026-09-07T00:19:00Z |
+| patient | `/profile/dependents` + feuille « Ajouter un proche » (390) | 25 + 9 | 34 | 33 | 1 | 0 | **43 comptes gérés, liste entièrement défilable** (15 × molette 700 px jusqu'au fond, vérifié par égalité de captures consécutives). Feuille d'ajout : `Prénom`, `Nom`, `Enfant`/`Conjoint`/`Autre`, `Date de naissance`, `Ajouter`. Le seul « MORT » est le CTA `aria-disabled=true` **à bon droit** sur formulaire vide. **Défaut trouvé** : le FAB masque la mention légale en bas de liste → **#6652**. | 2026-09-07T00:40:00Z |
+| praticien | `/agenda` (1280) | 30 | 24 | 21 | 2 | **1 confirmé** | Rail 13/13 correct. Le « CASSÉ » est **réel et central** : « Démarrer » → `409 too_early`. Rejoué en ciblé : **3 boutons « Démarrer » à l'écran, 3 échecs** (2 × 409, 1 × 403 sur le RDV d'un confrère) → **#6651 (P1)**. Les 2 « MORT » sont l'entrée de rail de la page courante et « Confirmer » (hors viewport après défilement, non concluant). | 2026-09-07T00:32:00Z |
+| praticien | `/devis` (1280) | 27 | 21 | 20 | 1 | 0 | **Écran jamais audité.** Le « MORT » est l'entrée de rail de la page courante. | 2026-09-07T00:22:00Z |
+| praticien | `/messages` (1280) | 27 | 23 | **22** | 1 | 0 | **Écran jamais audité.** Idem, rail de la page courante. | 2026-09-07T00:25:00Z |
+| praticien | `/waiting-room` (**1440**, file de 3 patients réellement mise en place) | 20 (vide) → 29 (peuplé) | — (comparaison design-v2) | — | — | — | Re-shooté après 3 `POST /cabinet/appointments/:id/checkin` pour rendre la comparaison utile. Défauts : « Retard sur le planning −426 min » en couleur d'alerte → **#6655** ; héros/CTA/file en « MD » → **preuve (d) de #6649**, pas une récidive de #6611. | 2026-09-07T00:56:00Z |
+| secretariat | `/devis/:id` (1280) | 23 | 19 | 18 | 1 | 0 | **Écran jamais audité** (volet de détail atteint par URL directe). Le « MORT » est l'en-tête de section « Facturation » du rail. | 2026-09-07T00:20:00Z |
+| secretariat | `/appointments` (Prendre un RDV, 1280) | 27 | 23 | 20 | 3 | 0 | **Écran jamais audité.** Les 3 « MORT » : en-tête de section « Patients », entrée de rail de la page courante, et la facette « Tous » **déjà sélectionnée**. | 2026-09-07T00:22:00Z |
+| secretariat | `/onboard` (1280) | 28 | 24 | 22 | 2 | 0 | **Écran jamais audité.** `/onboard` est dans `authRoutes` (`app_router.dart:91`) : un compte connecté est **redirigé vers `/`** par `buildAuthGuard` — comportement correct, pas un écran mort. Les 2 « MORT » sont l'en-tête « Ma journée » et l'entrée « Tableau de bord » de la page courante. Les 6 CTA du tableau de bord (`Ouvrir l'agenda`, `Appeler` ×2, `Relancer`, `Ouvrir` ×2) émettent tous leur requête. | 2026-09-07T00:24:00Z |
+| pharmacie | `/notification-preferences` (1280) | 13 | 9 | **9** | 0 | 0 | **Écran jamais audité.** 9/9 : les 9 bascules (Messagerie / Devis / Demandes de stock × app/e-mail/push) émettent chacune leur `PATCH`. | 2026-09-07T00:21:00Z |
+| pharmacie | `/devis` (1280) | 42 | 22 | 20 | 2 | 0 | Les 2 « MORT » : entrée de rail de la page courante et facette « Tous (81) » **déjà sélectionnée**. | 2026-09-07T00:23:00Z |
+| pharmacie | `/stock` (1280) | 18 | 13 | 11 | 2 | 0 | Idem : rail de la page courante + facette « À répondre (1) » déjà active. | 2026-09-07T00:24:00Z |
+| pharmacie | `/` et `/orders/:id` et `/messages` (1280 et **1440**) | 35 + 38 + 17 | — (comparaison design-v2) | — | — | — | Inventaires pris pour la comparaison aux maquettes. Défaut : seuil de l'alerte « À traiter » tronqué **aux deux viewports** → **#6654**. `/orders/:id` : les **lignes de l'ordonnance sont bien visibles** (« Ordonnance — 1 ligne », posologie, badge « Substituable ») et le rail + la file du jour sont conservés (correctif #6627 confirmé en live). | 2026-09-07T00:41:00Z |
+| infirmiere | `/` (3 onglets) et `/notification-preferences` (390) | 8 + 5 | 9 | **8** | 1 | 0 | **5ᵉ app parcourue.** Le seul « MORT » est l'onglet « Disponibilité » **déjà actif**. Les 2 bascules de préférences émettent leur requête. | 2026-09-07T00:26:00Z |
+| **TOTAL RONDE 2026-09-07** | **17 écrans, 5 apps** | **313** | **241** | **180** | **60 → 0 confirmés après triage** | **1 confirmé (#6651)** | Les 60 verdicts « MORT » sont **tous** expliqués : 36 sélections de créneau invisibles aux Semantics (piège nº 27), 8 `aria-disabled` légitimes, 11 entrées de rail de la page courante / en-têtes de section, 5 facettes déjà sélectionnées. | 2026-09-07T01:00:00Z |
+
+### Cas adversariaux joués cette ronde
+
+| cas | écran | résultat |
+|---|---|---|
+| **Formulaire soumis à vide** | patient, feuille « Ajouter un proche » | **CORRECT.** Le CTA « Ajouter » est `aria-disabled=true` tant que prénom/nom/relation ne sont pas renseignés. Aucun envoi silencieux, aucun 500. |
+| **Texte très long (245 caractères) dans les champs libres** | patient, feuille « Ajouter un proche » | **CORRECT côté mise en page** : après saisie de 245 caractères dans `Prénom`, **aucun élément hors cadre** (`x<0` ou `x+w>390`), 9 contrôles avant comme après. **Mais l'API l'accepte** (`first_name` de 300 caractères → 201) → **#6653**. |
+| **Retour navigateur au milieu d'un flux** | patient, `/profile/dependents` → feuille ouverte → `goBack()` | **CORRECT.** Retour propre à l'accueil, écran entièrement rendu (héros « Bonjour Marc Dubois », « À faire 3 », barre d'onglets), 0 erreur console. *Piège levé* : l'arbre Semantics ressort **vide** après `goBack()` parce que Flutter désactive `semanticsEnabled` à la navigation — ne jamais conclure « écran blanc » sans capture. |
+| **Double clic rapide sur une action métier** | praticien `/agenda`, bouton « Démarrer » | **Pas de double effet** : les deux clics produisent chacun un `POST …/start` refusé (`409 too_early`), l'état serveur des 3 RDV est inchangé après. Le défaut est ailleurs (affordance) → #6651. |
+| **Transition hors ordre / rejeu, sur 5 machines à états** | visite à domicile, commande pharmacie, demande de stock, devis cabinet, devis d'officine | **CORRECT partout.** 14 transitions interdites testées → **14 × 409** (`invalid_status`), 0 acceptée à tort. Aucun cul-de-sac : chaque ressource conserve une sortie (`cancel` patient possible jusqu'à `arrived` inclus sur une visite ; `complete` verrouille la consultation et l'ajout d'acte postérieur est refusé). |
+| **Jeton forgé / altéré / `alg:none`** | API, `/v1/account` | **CORRECT.** 401 dans les 4 variantes (signature altérée, `alg:none`, header sans `Bearer`, header absent). |
+
+### Nouveau piège de méthode nº 27 — une sélection qui ne change que des pixels
+
+**Le plus gros faux positif de la ronde** : `/rdv/:id/modifier` est sorti **41 MORT sur 42
+activés**, ce qui aurait signifié qu'aucun créneau n'est sélectionnable et que la
+reprogrammation patient est morte — un P1 spectaculaire.
+
+**Cause réelle** : l'auditeur juge « MORT » quand il n'observe ni navigation, ni requête, ni
+changement de la signature Semantics (`label + aria-checked`). Or un `SlotChip` sélectionné ne
+navigue pas, n'émet **aucune requête** (la sélection est locale au bloc) et **ne porte pas
+`aria-checked`** — seule sa couleur change. Le seul créneau sorti « OK » est celui qui a fait
+apparaître un contrôle **nouveau** (« Confirmer la modification »), donc modifié la signature.
+
+**Réflexe** : sur un écran de sélection (créneaux, dents, facettes, cases à cocher peintes),
+comparer **les captures d'écran avant/après le clic**, pas la signature Semantics. Vérification
+faite ici : `Buffer.compare(avant, après) === 0` sur les 2 créneaux `aria-disabled` (vraiment
+inertes, à bon droit) et **`!== 0`** sur le créneau à J+1, qui fait de surcroît apparaître le CTA
+de confirmation. S'ajoute aux pièges nº 24 (coordonnées périmées), nº 25 (`aria-disabled`
+légitime) et nº 26 (animation d'un groupe repliable).
+
+**Corollaire nº 27 bis** : un `SnackBar` Flutter est bien dans le DOM mais **sans `role` ni
+`aria-label`** (`<flt-semantics role=null aria=null txt="Il est trop tôt pour démarrer cette
+séance…">`). Un auditeur qui ne lit que `[role]`/`[aria-label]` conclut « échec silencieux »
+alors que l'utilisateur voit un message parfaitement clair. Toujours redescendre au DOM brut
+`flt-semantics` **et** à la capture avant de rapporter une absence de retour visuel.
+
+### Second lot de la même ronde (00:50–01:15 UTC) — 12 écrans de plus, 5 apps
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts | cassés | notes | last_check |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/patients` (1280) | 35 | 27 | 15 | 1 | **11 → 0 confirmés** | **Écran jamais audité.** Les 11 « CASSÉ » sont **tous des 403 légitimes** : la garde « relation de soin » (§14, #4974/#6210) sur les blocs cliniques d'un patient que ce praticien n'a jamais suivi. **Vérifié écran à écran** : `/patients/15a67def` (sans relation) rend « Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible. » via `PatientAccessDeniedNotice`, et sert quand même identité, solde, journal, RDV, étiquettes et documents ; `/patients/d0000000` (avec relation) rend le dossier complet, **0 requête en erreur**. En API : `GET /cabinet/patients/:id` → **200 pour les 44 patients**, seuls les sous-endpoints cliniques renvoient 403 hors relation de soin. Le « MORT » est le rail de la page courante. | 2026-09-07T01:20:00Z |
+| praticien | `/ordonnances` (1280) | 19 | 16 | 15 | 1 | 0 | **Écran jamais audité.** « Choisir un patient » émet sa requête. Le « MORT » est le rail de la page courante. | 2026-09-07T01:12:00Z |
+| praticien | `/lab-work-orders` (1280) | 30 | 19 | 16-17 | 2 | **1 confirmé** | **Écran jamais audité — et il donne le 2e P1 de la ronde.** « Programmer la pose » émet `PATCH /cabinet/lab-work-orders/:id {"status":"fitted"}` → **403** (relation de soin) et **l'écran passe de 30 à 21 contrôles**, la liste des 26 bons disparaît au profit d'un `NubiaErrorWidget` plein écran + « Réessayer » → **#6657 (P1)**. Sur les 3 bons non finaux, **aucune transition n'aboutit** (1 × 403, 2 × 409 `returned`→`sent`). Les 2 « MORT » sont le rail de la page courante et « Nouveau bon » (qui affiche une snackbar « bientôt disponible », `lab_work_orders_page.dart:140-146` — volontaire). | 2026-09-07T01:10:00Z |
+| praticien | `/stock-inventory` (1280) | 42 | 24 | 23 | 1 | 0 | **Écran jamais audité.** 23/24. Le « MORT » est le rail de la page courante. | 2026-09-07T01:14:00Z |
+| secretariat | `/bookable-slots` (1280) | 30 | 26 | 21 | 4 | 1 | **Écran jamais audité.** Les 4 « MORT » sont le groupe repliable « Réglages du cabinet » et 3 de ses entrées (**piège nº 26**, animation) ; le « CASSÉ » est le 403 attendu sur `/cabinet/stats/activity` (#4592/#6369). « Créneaux ouverts » navigue bien vers `/bookable-slots`. | 2026-09-07T01:17:00Z |
+| secretariat | `/cabinet-stats` (1280) | 27 | 23 | 18 | 4 | 1 | **Écran jamais audité.** Mêmes 4 « MORT » (groupe repliable animé) et même 403 bénin. | 2026-09-07T01:19:00Z |
+| patient | `/treatment-plans` (390) | 10 | 7 | **7** | 0 | 0 | 7/7. Chaque plan ouvre son détail (1 à 3 requêtes) ; les libellés portent l'étape et le montant (« Étape 1 sur 2 · Phase 1 · 50 € », « À accepter · Reste à votre charge estimé »). | 2026-09-07T01:05:00Z |
+| patient | `/implant-passport` (390) | 6 | 4 | **4** | 0 | 0 | 4/4. Chaque implant déplie sa fiche (dent FDI, libellé anatomique, marque, date de pose). | 2026-09-07T01:06:00Z |
+| patient | `/oubliettes` (390) | 2 | 1 | 1 | 0 | 0 | `Retour` OK. Le défaut de titre reste ouvert (**#6639**, correctif non déployé — cf. #6649). | 2026-09-07T01:12:00Z |
+| patient | `/documents` (390) | 41 | 22 | 14 | **8 → 0 confirmés** | 0 | Les 8 « MORT » sont des facettes de catégorie **hors cadre** : au repos elles sont posées à x = 408, 501, 594, 689, 843, 998 et 1117 dans un viewport de **390** — l'auditeur cliquait donc à des coordonnées invisibles. La rangée **défile horizontalement** (molette : x passe de 16…1117 à −891…210, pixels modifiés), exactement comme celle de `/appointments`. Les 3 facettes atteignables au repos (`Tous 290`, `Facture 41`, `Ordonnance 199`) répondent, et `Tous 290` est `aria-checked=true` **à bon droit** (déjà sélectionnée). **Aucun contrôle mort.** | 2026-09-07T01:16:00Z |
+| patient | `/appointments` (Réservation, 390) | 32 | — (mécanique design-v2) | — | — | — | Rangée de facettes **défilante horizontalement** : « Généraliste » et « Dentiste » sont hors cadre au repos (x=366 et x=490 pour un viewport de 390) mais **la molette et le glisser les ramènent** (x=157 et x=281 après défilement) et « Dentiste » s'active alors correctement (`aria-checked` false→true + `GET /search/providers?q=dentiste`). **Faux positif évité.** | 2026-09-07T01:08:00Z |
+| **TOTAL 2e LOT** | **12 écrans** | **291** | **204** | **166** | **24** | **14 → 1 confirmé (#6657)** | 13 des 14 « CASSÉ » sont les 403 « relation de soin » du dossier patient, correctement rendus par `PatientAccessDeniedNotice`. | 2026-09-07T01:15:00Z |
+| **TOTAL RONDE 2026-09-07 (2 lots)** | **29 écrans, 5 apps** | **604** | **445** | **346** | **84 → 0 confirmés** | **2 confirmés (#6651, #6657)** | | 2026-09-07T01:15:00Z |
+
+### Troisième lot (01:15–01:28 UTC) — derniers écrans jamais audités
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts | cassés | notes | last_check |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/financial` (390) | 11 | 8 | **8** | 0 | 0 | **Écran jamais audité.** 8/8. | 2026-09-07T01:20:00Z |
+| patient | `/pharmacy/quotes` (390) | 8 | 1 | **1** | 0 | 0 | **Écran jamais audité.** 1/1 activable (les 7 autres nœuds sont des conteneurs/textes hors périmètre d'activation). | 2026-09-07T01:21:00Z |
+
+### Cas adversariaux — troisième lot
+
+| cas | écran / flux | résultat |
+|---|---|---|
+| **Scan d'un jeton de retrait sur la MAUVAISE commande** | pharmacie, `POST /pharmacy/orders/pickup-scan` | **CORRECT, invariant #6349 vérifié des deux côtés.** → **409 `pickup_order_mismatch`** (avec la commande réellement visée par le jeton dans le corps de réponse, pour que le pharmacien la reconnaisse) et **les deux commandes restent `ready`** : aucune écriture avant la comparaison. |
+| **Jeton de retrait inventé (64 caractères)** | pharmacie | **404 `not_found`** — pas de fuite sur l'existence de la commande. |
+| **Code court au lieu du jeton complet** | pharmacie | **200** — c'est la porte de secours « QR illisible ou caméra indisponible ? Saisir le code de retrait » prescrite par `Pharmacie Delivrance v2.html` : `short_code` (`CQTT-JR5M`) est accepté au même titre que le jeton de 64 caractères. **Mécanique design-v2 vérifiée.** |
+| **Rejeu du même jeton après retrait** | pharmacie | **409 `invalid_status`** (usage unique). Le patient voit `picked_up` + `picked_up_at` et reçoit `order_status_changed{status:"picked_up"}`. |
+| **Scan par un rôle non-pharmacie** | praticien et patient | **403** pour les deux. |
+| **Actions cabinet sur le RDV d'un AUTRE cabinet** | secrétariat + praticien du Cabinet Lyon sur 2 RDV pris chez Dr Amélie Dubois | **CORRECT, 8 refus sur 8** : `confirm`, `start`, `checkin`, `no-show` → **404** (anti-énumération, pas 403) sur les deux RDV ; l'agenda du Cabinet Lyon (18 RDV ce jour) ne les contient pas ; le patient, lui, les lit normalement (200). |
+| **Demande de visite créée alors que l'infirmière est HORS LIGNE** | patient → infirmière | **CORRECT.** `GET /search/nurses?online_only=true` → 0 ; la demande naît `status:"requested"` avec `nurse_id:null` (et non `offered` comme lorsqu'elle est en ligne) ; `GET /nurse/offers` reste vide. **Pas de cul-de-sac** : `cancel` patient → 200. Disponibilité restaurée à `is_online:true` en fin de ronde. |
+
+---
+
+## Ronde 2026-09-07 (06:00–08:30 UTC)
+
+Chromium headless (`/ms-playwright/chromium-1155`), locale `fr-FR`, fuseau `Europe/Paris`.
+Inventaire = arbre Semantics du DOM après activation de l'accessibilité. **Note d'outillage :**
+sur cette version de Flutter web les champs de saisie sont des `<input aria-label>` **hors**
+`flt-semantics`, et les boutons sont des `flt-semantics[role=button]` **sans** `aria-label`
+(libellé porté par `textContent`) — un sélecteur qui ne vise que `flt-semantics[aria-label]`
+ne voit aucun champ et fait échouer le login. Sélecteur utilisé : `flt-semantics[role],
+flt-semantics[flt-tappable], input, textarea, [role=…]`.
+
+| app | écran / route | vp | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/patients/:id/treatment-plans` | 1440×900 | 33 | 33 | 30 | 3 | 0 | 2026-09-07T06:55:00Z |
+| praticien | `/waiting-room` | 1280×800 | 21 | 21 | 20 | 0 | 1 | 2026-09-07T06:51:00Z |
+| praticien | `/lab-work-orders` | 1440×900 | 20 | 3 (ciblés) | 2 | 0 | 1 | 2026-09-07T07:10:00Z |
+| secretariat | `/salle-attente` | 1280×800 | 25 | 25 | 23 | 0 | 2 | 2026-09-07T06:55:00Z |
+| pharmacie | `/` (commandes) | 1280×800 | 23 | 19 | 18 | 1 | 0 | 2026-09-07T07:20:00Z |
+| pharmacie | `/stock` | 1280×800 | 8 | 7 | 6 | 1 | 0 | 2026-09-07T07:20:00Z |
+| pharmacie | `/devis` | 1280×800 | 27 | 22 | 19 | 2 | 1 | 2026-09-07T08:05:00Z |
+| pharmacie | `/messages` | 1280×800 | 15 | 14 | 14 | 0 | 0 | 2026-09-07T07:25:00Z |
+| patient | `/profile/dependents` | 390×844 | 22 | 17 | 17 | 0 | 0 | 2026-09-07T07:20:00Z |
+| patient | `/profile` | 390×844 | 13 | 8 | 8 | 0 | 0 | 2026-09-07T07:55:00Z |
+| patient | `/messaging` | 390×844 | 8 | 8 | 8 | 0 | 0 | 2026-09-07T07:30:00Z |
+| infirmiere | `/` — onglets Disponibilité / Offres / Ma visite | 390×844 | 9 | 9 | 9 | 0 | 0 | 2026-09-07T07:20:00Z |
+| **TOTAL** | 12 écrans | — | **224** | **186** | **174** | **10 bruts → 1 réel** | **5 bruts → 0 réel** | — |
+
+### Les 10 « morts » et 5 « cassés » bruts, un par un — 1 seul défaut réel
+
+Conformément à la leçon de méthode ci-dessus, **chaque** verdict négatif a été rejoué à la main.
+
+| contrôle | verdict brut | après vérification |
+|---|---|---|
+| praticien `/patients/:id/treatment-plans` — « Générer le devis de la phase 1 » | MORT | **Défaut réel, mais pas « mort »** : le clic émet bien `GET /v1/cabinet/quotes` (le premier passage l'avait raté faute de `mouse.move` préalable). Le vrai défaut est la **cible** : liste de devis de tout le cabinet au lieu du devis de la phase → **#6672 (P1)**. |
+| praticien `/patients/:id/treatment-plans` — 2 cartes de plan + « Ajouter une phase » | MORT ×3 | **Artefact d'outillage** : rects à `y=942`, `y=1055` et `y=1079`, **hors** du viewport 900 — le clic tombait à côté. Non reproductible après défilement. |
+| praticien `/waiting-room` — « Messagerie interne » | CASSÉ (500) | **Bruit d'infra hors produit** : `GET /favicon.png → 500 nginx`, aucune requête `/v1/` en échec. La navigation vers `/team-messages` aboutit. |
+| secretariat `/salle-attente` — « Devis, 8 » et « Équipe » | CASSÉ ×2 (403 `/cabinet/stats/activity`) | **Faux positifs.** Le rail de navigation est un arbre à sections dépliables : cliquer un en-tête décale les items suivants, donc les coordonnées mémorisées visaient un autre nœud. Re-testé un par un : « Devis » → `/devis` (200, `cabinet/quotes`), « Équipe » → `/team-messages`, ainsi que Agenda, Salle d'attente, Demandes de créneau, Fiches patients, Prendre un RDV, Encaissements — **9/9 corrects**. *(À noter au passage : la route `/cabinet-stats` existe dans `app_router.dart:260` mais n'a **aucune entrée de navigation**, et `GET /v1/cabinet/stats/activity` répond 403 au secrétariat contre 200 au praticien — écran inatteignable, non filé.)* |
+| pharmacie `/` — 7ᵉ « Délivrer » | MORT | **Artefact de bord** : rect `855,769 89×31`, centre à `y=784` dans un viewport de 800 — clic sur le bord. Les 6 autres « Délivrer » naviguent correctement. |
+| pharmacie `/stock` — « Réessayer » | MORT | **Non reproductible** : rechargé deux fois sur session fraîche, l'écran rend normalement ses 13 contrôles (4 facettes chiffrées + recherche), `GET /v1/pharmacy/stock-requests` → 200. L'état d'erreur venait de la session expirée du parcours long. |
+| pharmacie `/devis` — « Préparer » ×1 puis « Réémettre »/« Relancer » | CASSÉ + MORT ×2 | **Symptôme de #6682, pas un défaut de l'écran.** Sur session fraîche, les 5 premiers CTA (`Préparer` ×3, `Réémettre`, `Préparer`) naviguent tous vers `/orders/:id`. C'est au 6ᵉ, ~15 min après le login, que la séquence 401 → refresh → **403** apparaît et que les boutons suivants deviennent inertes. |
+| patient `/profile` — « Modifier la photo de profil » | MORT | **Faux positif.** Le contrôle ouvre un sélecteur de fichier natif, invisible pour le détecteur (ni navigation, ni requête, ni repaint). Vérifié avec un écouteur `filechooser` : **`FILECHOOSER OPENED`** aux deux points de clic testés. |
+
+**Bilan : 1 défaut réel sur 15 verdicts négatifs bruts** (#6672), 2 renvoyés à #6682, 12 artefacts.
+
+### Cas adversariaux — quatrième lot
+
+| cas | écran / flux | résultat |
+|---|---|---|
+| **Double-clic rapide sur un CTA d'action** | praticien `/lab-work-orders`, « Programmer la pose » | **CORRECT** — un seul `PATCH /v1/cabinet/lab-work-orders/:id` émis pour deux clics. |
+| **Échec d'action et intégrité de la liste** | praticien `/lab-work-orders`, CTA sur un bon sans relation de soin | **CORRECT, #6657 tenu** — le 403 n'efface plus rien : 20 contrôles avant, 20 après, les 2 cartes en place, snackbar « Impossible de mettre à jour le statut. ». *(Le 403 lui-même est un défaut à part : #6673.)* |
+| **Retour arrière navigateur au milieu d'un flux** | praticien `/patients/:id/treatment-plans` → CTA → retour | **CORRECT sur l'état** : retour à l'écran des plans avec ses 33 contrôles et la colonne de couverture. *(L'URL n'avait pas suivi l'écran à l'aller — noté dans #6672.)* |
+| **Coupure réseau pendant une action métier** | praticien `/waiting-room`, `route.abort()` sur `**/v1/**` puis clic « Appeler Marc Dubois » | **CORRECT** — snackbar « Impossible d'appeler le patient suivant. » à **t+1,5 s**, liste conservée, bouton toujours actif, ni spinner infini ni écran blanc. *Piège de mesure : une capture à t+8 s rate la snackbar (durée ~4 s) et fait conclure à tort au silence.* |
+| **Coupure réseau pendant un rechargement** | praticien `/waiting-room` | **CORRECT** — état d'erreur avec bouton « Réessayer ». |
+| **Soumission d'un formulaire à vide** | patient `/profile/dependents`, feuille « Ajouter un proche » | **CORRECT** — « Ajouter » **désactivé** tant que les champs requis sont vides ; aucune requête émise. Désactivation légitime, vérifiée contre le code. |
+| **Texte très long (220 caractères) dans un champ libre** | patient `/profile/dependents`, champ « Prénom » | **CORRECT au rendu** — défilement horizontal du champ, aucun débordement ni chevauchement, la feuille garde sa mise en page. *Réserve : aucun `maxLength` côté client alors que l'API plafonne à 100 (#6653) — l'utilisateur ne l'apprend qu'au 422.* |
+| **Session laissée inactive au-delà des 900 s du JWT** | infirmière (16 min) puis pharmacie (16 min), et parcours continu pharmacie | **DÉFAUT — #6682 (P0).** Infirmière : 401 → `auth/refresh` → **403** sur `nurse/profile`, `nurse/offers`, `nurse/visits` ; écran sans donnée, sans message, et affichant « Vous êtes hors ligne » alors que le serveur répond `is_online = true`. Pharmacie : se rétablit sur un **rechargement de page** (0 échec) mais tombe de la même façon **en cours de navigation**. Praticien : contrôle **CORRECT**, le refresh conserve `cabinet_id`/`role`/`secretariat_id`. |
+| **Champ inconnu dans un corps de POST** | praticien `POST /v1/cabinet/prescriptions`, patient `POST /v1/account/dependents` | **DÉFAUT — #6677 (P2).** `non_renewable`/`non_substitution` (au lieu de `non_renouvelable`/`non_substitution_reason`) → **201**, mentions légales perdues sans signal ; `is_admin:true` sur un proche → **201**. 93 corps `*Body*` sur 188 structs `Deserialize` sont sans `deny_unknown_fields`. |
+| **Acte de soin répété 200 fois** | patient `POST /v1/account/visit-requests` | **DÉFAUT — #6671 (P1).** Ni dédoublonnage ni plafond : `estimated_price_cents = 502 500` (5 025,00 €) figé sur la demande et poussé à l'infirmière. |

@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'implant_passport_cubit.dart';
 
@@ -90,224 +91,51 @@ class _ImplantPassportBody extends StatelessWidget {
           );
         }
         if (state is ImplantPassportLoaded) {
-          return Column(
-            children: [
-              Expanded(
-                child: state.implants.isEmpty
-                    ? const NubiaEmptyState(
-                        key: Key('implant_passport_empty'),
-                        icon: Icons.medical_information_outlined,
-                        title: 'Aucun implant enregistré',
-                        subtitle:
-                            'Vos implants apparaîtront ici après leur pose.',
-                      )
-                    : Column(
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
-                            child: _ImplantPassportIntroBanner(),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                            child: _ImplantGroupHeader(
-                              count: state.implants.length,
-                            ),
-                          ),
-                          Expanded(
-                            child: ListView.separated(
-                              key: const Key('implant_passport_list'),
-                              padding:
-                                  const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                              itemCount: state.implants.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 12),
-                              itemBuilder: (context, index) {
-                                final theme = Theme.of(context);
-                                final implant = state.implants[index];
-                                final toothPosition = implant.toothPosition;
-                                final anatomicalName =
-                                    toothLabelFromFdi(toothPosition);
-                                final manufacturerModelText = [
-                                  if (implant.manufacturer != null)
-                                    implant.manufacturer!,
-                                  if (implant.model != null) implant.model!,
-                                ].join(' · ');
-                                // L'API ne sert que `brand` (pas encore de
-                                // fabricant/modèle distincts) : à défaut, on
-                                // affiche la marque pour identifier le
-                                // dispositif (passeport à présenter avant IRM).
-                                // Si le titre de la carte est déjà la marque
-                                // (pas de nom anatomique), pas de doublon.
-                                final manufacturerModel =
-                                    manufacturerModelText.isNotEmpty
-                                        ? manufacturerModelText
-                                        : (anatomicalName != null
-                                            ? implant.brand
-                                            : '');
-                                final infoRows = <Widget>[
-                                  if (implant.placementDate != null)
-                                    _ImplantInfoRow(
-                                      label: 'Posé le',
-                                      value: NubiaDate.dayLong(
-                                          implant.placementDate!),
-                                    ),
-                                  if (implant.lotNumber != null)
-                                    _ImplantInfoRow(
-                                      label: 'N° de lot',
-                                      value: implant.lotNumber!,
-                                      monospace: true,
-                                    ),
-                                  if (implant.practitioner != null)
-                                    _ImplantInfoRow(
-                                      label: 'Praticien',
-                                      value: implant.practitioner!,
-                                    ),
-                                ];
-                                return NubiaCard(
-                                  key: Key('implant_${implant.id}'),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          if (toothPosition != null &&
-                                              anatomicalName != null)
-                                            Container(
-                                              width: 56,
-                                              height: 56,
-                                              alignment: Alignment.center,
-                                              decoration: BoxDecoration(
-                                                color: NubiaColors.brand50,
-                                                border: Border.all(
-                                                    color:
-                                                        NubiaColors.brand100),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Text(
-                                                    toothPosition,
-                                                    style: theme
-                                                        .textTheme.titleMedium
-                                                        ?.copyWith(
-                                                      color:
-                                                          NubiaColors.brand800,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    'FDI',
-                                                    style: theme
-                                                        .textTheme.labelSmall
-                                                        ?.copyWith(
-                                                      color:
-                                                          NubiaColors.brand700,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            )
-                                          else
-                                            const Icon(Icons
-                                                .medical_information_outlined),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  anatomicalName ??
-                                                      implant.brand,
-                                                  style: theme
-                                                      .textTheme.titleMedium
-                                                      ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w600),
-                                                ),
-                                                if (manufacturerModel
-                                                    .isNotEmpty)
-                                                  Text(
-                                                    manufacturerModel,
-                                                    style: theme
-                                                        .textTheme.bodyMedium
-                                                        ?.copyWith(
-                                                            color: NubiaColors
-                                                                .n500),
-                                                  ),
-                                                if (infoRows.isNotEmpty)
-                                                  Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                            top: 4),
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: infoRows,
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      InkWell(
-                                        key: Key(
-                                            'implant_detail_link_${implant.id}'),
-                                        onTap: () => context.push(
-                                          '/implant-passport/${implant.id}',
-                                          extra: implant,
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              'Voir la fiche complète',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .labelLarge
-                                                  ?.copyWith(
-                                                      color:
-                                                          NubiaColors.brand700),
-                                            ),
-                                            const Icon(Icons.chevron_right,
-                                                color: NubiaColors.brand700),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ExportPassportCard(
-                      implantCount: state.implants.length,
-                      onExport: () =>
-                          context.read<ImplantPassportCubit>().export(),
-                    ),
-                    const SizedBox(height: 12),
-                    const _LegalTraceabilityNotice(),
-                  ],
+          final implants = state.implants;
+          // #6560 : un unique défilement (en-tête, cartes et pied confondus)
+          // au lieu d'un bandeau/titre figés au-dessus et d'un pied figé en
+          // dessous d'une zone de liste à hauteur contrainte — ce qui
+          // rognait les cartes et les faisait passer sous le pied opaque.
+          if (implants.isEmpty) {
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                const NubiaEmptyState(
+                  key: Key('implant_passport_empty'),
+                  icon: Icons.medical_information_outlined,
+                  title: 'Aucun implant enregistré',
+                  subtitle: 'Vos implants apparaîtront ici après leur pose.',
                 ),
+                const SizedBox(height: 16),
+                _ExportPassportCard(
+                  implantCount: 0,
+                  onExport: () =>
+                      context.read<ImplantPassportCubit>().export(),
+                ),
+                const SizedBox(height: 12),
+                const _LegalTraceabilityNotice(),
+              ],
+            );
+          }
+          return ListView(
+            key: const Key('implant_passport_list'),
+            padding: const EdgeInsets.all(16),
+            children: [
+              const _ImplantPassportIntroBanner(),
+              const SizedBox(height: 20),
+              _ImplantGroupHeader(count: implants.length),
+              const SizedBox(height: 12),
+              for (var i = 0; i < implants.length; i++) ...[
+                if (i > 0) const SizedBox(height: 12),
+                _ImplantCard(implant: implants[i]),
+              ],
+              const SizedBox(height: 24),
+              _ExportPassportCard(
+                implantCount: implants.length,
+                onExport: () => context.read<ImplantPassportCubit>().export(),
               ),
+              const SizedBox(height: 12),
+              const _LegalTraceabilityNotice(),
             ],
           );
         }
@@ -394,6 +222,142 @@ class _ImplantGroupHeader extends StatelessWidget {
         const SizedBox(width: 8),
         NubiaBadge.count(count: count),
       ],
+    );
+  }
+}
+
+/// Carte d'un implant individuel dans la liste (extraite de l'ancien
+/// `itemBuilder` lors du passage à un défilement unique, #6560).
+class _ImplantCard extends StatelessWidget {
+  const _ImplantCard({required this.implant});
+
+  final ImplantItem implant;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final toothPosition = implant.toothPosition;
+    final anatomicalName = toothLabelFromFdi(toothPosition);
+    final manufacturerModelText = [
+      if (implant.manufacturer != null) implant.manufacturer!,
+      if (implant.model != null) implant.model!,
+    ].join(' · ');
+    // L'API ne sert que `brand` (pas encore de fabricant/modèle distincts) :
+    // à défaut, on affiche la marque pour identifier le dispositif
+    // (passeport à présenter avant IRM). Si le titre de la carte est déjà la
+    // marque (pas de nom anatomique), pas de doublon.
+    final manufacturerModel = manufacturerModelText.isNotEmpty
+        ? manufacturerModelText
+        : (anatomicalName != null ? implant.brand : '');
+    final infoRows = <Widget>[
+      if (implant.placementDate != null)
+        _ImplantInfoRow(
+          label: 'Posé le',
+          value: NubiaDate.dayLong(implant.placementDate!),
+        ),
+      if (implant.lotNumber != null)
+        _ImplantInfoRow(
+          label: 'N° de lot',
+          value: implant.lotNumber!,
+          monospace: true,
+        ),
+      if (implant.practitioner != null)
+        _ImplantInfoRow(
+          label: 'Praticien',
+          value: implant.practitioner!,
+        ),
+    ];
+    return NubiaCard(
+      key: Key('implant_${implant.id}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (toothPosition != null && anatomicalName != null)
+                Container(
+                  width: 56,
+                  height: 56,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: NubiaColors.brand50,
+                    border: Border.all(color: NubiaColors.brand100),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        toothPosition,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: NubiaColors.brand800,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        'FDI',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: NubiaColors.brand700,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                const Icon(Icons.medical_information_outlined),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      anatomicalName ?? implant.brand,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    if (manufacturerModel.isNotEmpty)
+                      Text(
+                        manufacturerModel,
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: NubiaColors.n500),
+                      ),
+                    if (infoRows.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: infoRows,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          InkWell(
+            key: Key('implant_detail_link_${implant.id}'),
+            onTap: () => context.push(
+              '/implant-passport/${implant.id}',
+              extra: implant,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'Voir la fiche complète',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(color: NubiaColors.brand700),
+                ),
+                const Icon(Icons.chevron_right, color: NubiaColors.brand700),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

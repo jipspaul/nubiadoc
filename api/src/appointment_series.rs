@@ -26,12 +26,14 @@ use crate::{auth::AppError, auth::ProSecretaryPlusClaims, AppState};
 /// directement : `chrono` n'a pas la feature `serde` activée dans ce crate
 /// (cf. `PatchCabinetAppointmentBody` dans `scheduling.rs`, même pattern).
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OccurrenceInput {
     pub starts_at: String,
     pub ends_at: String,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateAppointmentSeriesBody {
     pub practitioner_id: Uuid,
     pub patient_id: Uuid,

@@ -28,6 +28,7 @@ use crate::{
 /// un RDV réel ne peut pas être auto-assigné sans horaire (contrainte DB
 /// `appointment_no_overlap`, `starts_at`/`ends_at`/`practitioner_id` NOT NULL).
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConvertConversationBody {
     pub slot_id: Uuid,
 }

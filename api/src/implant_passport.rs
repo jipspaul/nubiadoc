@@ -432,6 +432,7 @@ pub async fn list_cabinet_implants(
 
 /// Corps de `POST /v1/cabinet/patients/:id/implants`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateImplantBody {
     pub brand: String,
     pub implant_ref: String,

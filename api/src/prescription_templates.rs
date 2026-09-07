@@ -29,6 +29,7 @@ use crate::{
 /// (`prescriptions::PrescriptionItemInput`), dupliquée ici en local pour
 /// éviter de dépendre de `prescriptions.rs` (fichier déjà au plafond).
 #[derive(Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct TemplateItemInput {
     pub label: String,
     pub form: Option<String>,
@@ -117,6 +118,7 @@ pub async fn list_prescription_templates(
 
 /// Body de `POST /v1/cabinet/prescription-templates`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreatePrescriptionTemplateBody {
     pub label: String,
     pub items: Vec<TemplateItemInput>,
@@ -234,6 +236,7 @@ pub async fn create_prescription_template(
 
 /// Body de `POST /v1/cabinet/prescriptions/:id/apply-template`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ApplyTemplateBody {
     pub template_id: Uuid,
 }

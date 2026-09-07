@@ -35,6 +35,7 @@ fn unique_violation_constraint(e: &sqlx::Error) -> Option<String> {
 
 /// Corps de `POST /v1/payments/intent`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PaymentIntentBody {
     pub quote_id: Uuid,
     pub kind: String,
@@ -374,6 +375,7 @@ pub async fn create_payment_intent(
 
 /// Corps de `POST /v1/payments/pharmacy-quote-intent`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PharmacyQuotePaymentIntentBody {
     pub pharmacy_quote_id: Uuid,
     pub method: String,

@@ -6,7 +6,6 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import '../features/home/pharma_home_page.dart';
 import '../features/login/login_page.dart';
 import '../features/notification_prefs/pharma_notification_prefs_page.dart';
-import '../features/order_detail/order_detail_page.dart';
 import '../features/pickup_scan/pickup_scan_page.dart';
 
 class AppRouter {
@@ -57,9 +56,13 @@ class AppRouter {
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
         GoRoute(path: orders, builder: (_, __) => const PharmaHomePage()),
         GoRoute(
+          // #6627 — rendue au sein de PharmaHomePage (rail + file du jour)
+          // au lieu d'une page nue : ouvrir une commande ne doit plus faire
+          // disparaître ni le rail ni la file, sur le modèle des autres
+          // routes de navigation ci-dessous.
           path: '/orders/:id',
           builder: (_, state) =>
-              OrderDetailPage(orderId: state.pathParameters['id']!),
+              PharmaHomePage(orderId: state.pathParameters['id']),
         ),
         GoRoute(
           path: '/orders/:id/pickup',

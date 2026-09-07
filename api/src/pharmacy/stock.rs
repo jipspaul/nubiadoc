@@ -96,6 +96,7 @@ pub struct StockRequestsResponse {
 
 /// Une ligne du body de création.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StockItemInput {
     pub label: String,
     pub qty: i64,
@@ -104,6 +105,7 @@ pub struct StockItemInput {
 
 /// Body de `POST /v1/cabinet/stock-requests`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateStockRequestBody {
     pub pharmacy_id: Uuid,
     pub items: Vec<StockItemInput>,
@@ -382,6 +384,7 @@ pub async fn list_pharmacy_stock_requests(
 
 /// Body optionnel de `POST /v1/pharmacy/stock-requests/{id}/accept|reject`.
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct RespondStockBody {
     pub note: Option<String>,
 }

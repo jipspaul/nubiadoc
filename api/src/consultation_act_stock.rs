@@ -96,3 +96,74 @@ pub async fn apply_stock_consumption(
 
     Ok(())
 }
+
+/// Défait la consommation de stock appliquée par [`apply_stock_consumption`]
+/// pour l'acte `consultation_act_id` qui va être supprimé (#6618).
+///
+/// Avant #6618, `delete_consultation_act` refusait (409 `act_linked_to_stock`)
+/// dès qu'un `stock_movement` référençait l'acte : un acte consommateur de
+/// stock devenait indélébile, faute de route pour défaire son mouvement. Ici,
+/// pour chaque mouvement `consumption` de l'acte, on crédite `stock_item`
+/// du même delta (mouvement inverse `adjustment`, traçable) puis on détache
+/// le mouvement d'origine de l'acte (`consultation_act_id = NULL`) plutôt que
+/// de le supprimer, pour préserver l'historique. Le détachement est
+/// nécessaire : la FK composite `(consultation_act_id, cabinet_id)` de
+/// `stock_movement` (migration 0192) n'a pas de clause `ON DELETE`, un
+/// hard-delete de l'acte remonterait sinon en 500 (23503).
+pub async fn reverse_stock_consumption(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    cabinet_id: Uuid,
+    consultation_act_id: Uuid,
+) -> Result<(), AppError> {
+    let movements = sqlx::query(
+        "SELECT stock_item_id, delta FROM stock_movement \
+         WHERE consultation_act_id = $1 AND cabinet_id = $2 AND reason = 'consumption'",
+    )
+    .bind(consultation_act_id)
+    .bind(cabinet_id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    for row in movements {
+        let stock_item_id: Uuid = row
+            .try_get("stock_item_id")
+            .map_err(|_| AppError::Internal)?;
+        let delta: i32 = row.try_get("delta").map_err(|_| AppError::Internal)?;
+
+        sqlx::query(
+            "INSERT INTO stock_movement \
+             (cabinet_id, stock_item_id, delta, reason, consultation_act_id) \
+             VALUES ($1, $2, $3, 'adjustment', NULL)",
+        )
+        .bind(cabinet_id)
+        .bind(stock_item_id)
+        .bind(-delta)
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        sqlx::query(
+            "UPDATE stock_item SET quantity_on_hand = quantity_on_hand - $1 \
+             WHERE id = $2 AND cabinet_id = $3",
+        )
+        .bind(delta)
+        .bind(stock_item_id)
+        .bind(cabinet_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    sqlx::query(
+        "UPDATE stock_movement SET consultation_act_id = NULL \
+         WHERE consultation_act_id = $1 AND cabinet_id = $2",
+    )
+    .bind(consultation_act_id)
+    .bind(cabinet_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    Ok(())
+}

@@ -20,6 +20,31 @@ class _DevisColumns {
   static const double statut = 150;
   static const double echeance = 122;
   static const double action = 108;
+
+  /// Largeur minimale de la colonne Patient (#6579) — sous ce seuil,
+  /// l'`Expanded` tombe à 0/négatif : l'en-tête se rend verticalement
+  /// (une lettre par ligne, aucun `overflow` sur ce `Text`) et le nom
+  /// patient est tronqué à une seule lettre. Choisie pour garder avatar
+  /// (40px) + un nom courant lisible sans ellipse prématurée.
+  static const double patientMin = 200;
+
+  /// Largeur minimale de la table entière (6 colonnes + espaces + padding
+  /// horizontal, #6579) : en dessous, [DevisTable] défile horizontalement
+  /// plutôt que d'écraser la colonne Patient — c'est ce qui se produit
+  /// quand le volet latéral de détail (392px) s'ouvre entre 1280 et
+  /// ~1520px de largeur de fenêtre.
+  static const double minTotalWidth = devis +
+      gap +
+      patientMin +
+      gap +
+      resteACharge +
+      gap +
+      statut +
+      gap +
+      echeance +
+      gap +
+      action +
+      32;
 }
 
 /// En-tête de colonnes du tableau devis (design-v2, #5086) : « Devis |
@@ -43,7 +68,14 @@ class DevisTableHeader extends StatelessWidget {
         children: [
           SizedBox(width: _DevisColumns.devis, child: Text('Devis', style: style)),
           const SizedBox(width: _DevisColumns.gap),
-          Expanded(child: Text('Patient', style: style)),
+          Expanded(
+            child: Text(
+              'Patient',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
+          ),
           const SizedBox(width: _DevisColumns.gap),
           SizedBox(
             width: _DevisColumns.resteACharge,
@@ -60,6 +92,68 @@ class DevisTableHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Tableau devis complet — en-tête + lignes (design-v2, #5086), défilant
+/// horizontalement en dessous de [_DevisColumns.minTotalWidth] (#6579) au
+/// lieu d'écraser la colonne Patient. En-tête et lignes sont panées d'un
+/// seul bloc (même [SingleChildScrollView] horizontal) pour rester alignés
+/// pendant le défilement ; la [ListView] interne garde son propre
+/// défilement vertical, sur l'axe orthogonal.
+class DevisTable extends StatelessWidget {
+  const DevisTable({
+    super.key,
+    required this.quotes,
+    required this.onQuoteTap,
+    this.selectedQuoteId,
+    this.sendingQuoteId,
+  });
+
+  final List<CabinetQuote> quotes;
+  final ValueChanged<String> onQuoteTap;
+  final String? selectedQuoteId;
+  final String? sendingQuoteId;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth < _DevisColumns.minTotalWidth
+            ? _DevisColumns.minTotalWidth
+            : constraints.maxWidth;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: width,
+            height: constraints.maxHeight,
+            child: Column(
+              children: [
+                const DevisTableHeader(),
+                Expanded(
+                  child: quotes.isEmpty
+                      ? const NubiaEmptyState(
+                          icon: Icons.search_off,
+                          title: 'Aucun résultat',
+                          subtitle:
+                              'Aucun devis ne correspond à ce filtre.',
+                        )
+                      : ListView.builder(
+                          itemCount: quotes.length,
+                          itemBuilder: (ctx, i) => DevisTableRow(
+                            quote: quotes[i],
+                            onTap: () => onQuoteTap(quotes[i].id),
+                            active: selectedQuoteId == quotes[i].id,
+                            actionLoading: sendingQuoteId == quotes[i].id,
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

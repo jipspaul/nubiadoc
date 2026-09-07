@@ -103,6 +103,7 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
                     itemBuilder: (_, i) => _WaitingEntryTile(
                       entry: entries[i],
                       position: i + 1,
+                      actionInProgress: state.actionInProgress,
                     ),
                   ),
                 ),
@@ -190,7 +191,9 @@ class WaitingRoomPage extends StatelessWidget {
   static void _callNext(BuildContext context) {
     final bloc = context.read<WaitingRoomBloc>();
     final state = bloc.state;
-    if (state is WaitingRoomLoaded && state.entries.isNotEmpty) {
+    if (state is WaitingRoomLoaded &&
+        state.entries.isNotEmpty &&
+        !state.actionInProgress) {
       bloc.add(const WaitingRoomCallNextRequested());
     }
   }
@@ -220,7 +223,18 @@ class WaitingRoomPage extends StatelessWidget {
                   builder: (context, state) => state is WaitingRoomLoaded
                       ? Row(
                           children: [
-                            Flexible(
+                            // La pastille de fraîcheur n'a besoin que de sa
+                            // largeur intrinsèque (~120px) : lui donner un
+                            // `Flexible` de flex égal à celui de la barre de
+                            // KPI forçait un partage 50/50 qui rabotait les
+                            // trois libellés même quand la largeur abondait
+                            // (récidive de #6428, #6430 n'avait traité que
+                            // la Row interne). Le ratio 2:1 rend l'essentiel
+                            // de l'espace à la barre de KPI tout en gardant
+                            // la pastille `Flexible` (jamais de débordement,
+                            // même sur une largeur de test très étroite).
+                            Expanded(
+                              flex: 2,
                               child:
                                   WaitingRoomKpiBar(entries: state.entries),
                             ),
@@ -249,6 +263,7 @@ class WaitingRoomPage extends StatelessWidget {
               builder: (context, state) {
                 final hasPatients =
                     state is WaitingRoomLoaded && state.entries.isNotEmpty;
+                final canCall = hasPatients && !state.actionInProgress;
                 final label = hasPatients
                     ? NubiaL10n.callNextNamed(state.entries.first.patientName)
                     : NubiaL10n.callNext;
@@ -258,7 +273,7 @@ class WaitingRoomPage extends StatelessWidget {
                     key: const Key('waiting_room_call_next_button'),
                     label: label,
                     icon: Icons.skip_next,
-                    onPressed: hasPatients ? () => _callNext(context) : null,
+                    onPressed: canCall ? () => _callNext(context) : null,
                   ),
                 );
               },
@@ -327,10 +342,18 @@ class _FreshnessIndicatorState extends State<_FreshnessIndicator> {
 }
 
 class _WaitingEntryTile extends StatelessWidget {
-  const _WaitingEntryTile({required this.entry, required this.position});
+  const _WaitingEntryTile({
+    required this.entry,
+    required this.position,
+    required this.actionInProgress,
+  });
 
   final WaitingRoomEntry entry;
   final int position;
+
+  /// Une action (appel suivant/ligne) est déjà en cours côté back — désactive
+  /// le bouton « Appeler » de la ligne pour éviter le double-appel (#6637).
+  final bool actionInProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -350,6 +373,15 @@ class _WaitingEntryTile extends StatelessWidget {
 
     // Urgence sans rendez-vous : aucun praticien attribué (#5171).
     final bool isUnassigned = entry.appointmentId == null;
+
+    // #6636 : pastille pilotée par `status` (API), plus par un littéral —
+    // sinon un patient déjà `in_consultation` s'affiche comme s'il attendait.
+    final (String statusLabel, StatusPillVariant statusVariant) =
+        switch (entry.status) {
+      'in_consultation' => ('En consultation', StatusPillVariant.progress),
+      _ when isUnassigned => ('Sans RDV', StatusPillVariant.warning),
+      _ => ('En attente', StatusPillVariant.info),
+    };
 
     // Tête de file (#5165) : liseré émeraude à gauche, jamais un fond de
     // ligne — le fond entrerait en concurrence avec la couleur du retard.
@@ -374,10 +406,8 @@ class _WaitingEntryTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               StatusPill(
-                label: isUnassigned ? 'Sans RDV' : 'En attente',
-                variant: isUnassigned
-                    ? StatusPillVariant.warning
-                    : StatusPillVariant.info,
+                label: statusLabel,
+                variant: statusVariant,
               ),
               if (isUnassigned) ...[
                 const SizedBox(height: 4),
@@ -406,9 +436,11 @@ class _WaitingEntryTile extends StatelessWidget {
               variant: isNext
                   ? NubiaButtonVariant.primary
                   : NubiaButtonVariant.secondary,
-              onPressed: () => context
-                  .read<WaitingRoomBloc>()
-                  .add(WaitingRoomCallRequested(entry.id)),
+              onPressed: actionInProgress
+                  ? null
+                  : () => context
+                      .read<WaitingRoomBloc>()
+                      .add(WaitingRoomCallRequested(entry.id)),
             ),
           ],
         ],

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../order_detail/order_detail_page.dart';
 import 'orders_bloc.dart';
 import 'orders_event.dart';
 import 'orders_state.dart';
@@ -14,26 +15,42 @@ import 'widgets/order_row.dart';
 import 'widgets/orders_aside.dart';
 import 'widgets/orders_kpis.dart';
 
-/// Corps de l'écran « Commandes » — file (tableau) + colonne latérale
-/// « À traiter », consommable dans le bodyBuilder du ProShell. L'aside se
-/// replie sous [_asideBreakpoint] de largeur disponible.
+/// Corps de l'écran « Commandes » — file (tableau) + colonne latérale.
+/// Consommable dans le bodyBuilder du ProShell. L'aside (ou le détail d'une
+/// commande, cf. [selectedOrderId]) se replie sous [_asideBreakpoint] de
+/// largeur disponible.
 class OrdersScreen extends StatelessWidget {
-  const OrdersScreen({super.key});
+  const OrdersScreen({super.key, this.selectedOrderId});
+
+  /// Commande ouverte via `/orders/:id` (#6627). Non nul : la file reste
+  /// affichée dans la colonne de gauche pendant que le détail occupe la
+  /// colonne de droite — le pharmacien passe d'une commande à l'autre sans
+  /// perdre la file (maquette design-v2, « File du jour »). `null` (défaut) :
+  /// comportement inchangé (aside « À traiter »).
+  final String? selectedOrderId;
 
   static const _asideBreakpoint = 900.0;
 
   @override
   Widget build(BuildContext context) {
+    final orderId = selectedOrderId;
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < _asideBreakpoint) {
-          return const OrdersView();
+          return orderId == null
+              ? const OrdersView()
+              : OrderDetailPage(orderId: orderId);
         }
-        return const Row(
+        return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: OrdersView()),
-            SizedBox(width: 320, child: OrdersAside()),
+            const Expanded(child: OrdersView()),
+            SizedBox(
+              width: orderId == null ? 320 : 480,
+              child: orderId == null
+                  ? const OrdersAside()
+                  : OrderDetailPage(orderId: orderId),
+            ),
           ],
         );
       },

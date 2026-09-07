@@ -9,18 +9,34 @@ class NotificationApi {
 
   NotificationApi(ApiClient client) : _dio = client.dio;
 
+  /// GET /v1/notifications — pagine jusqu'à épuisement (`page.next_cursor`,
+  /// cf. api/src/notifications.rs::list_notifications) : sans ça, seules les
+  /// 20 notifications les plus récentes (défaut serveur) sont visibles,
+  /// même pattern que `BillingApi.getQuotes()` (#6381).
   Future<List<NotificationDto>> getNotifications({
     bool unreadOnly = false,
   }) async {
-    // GET /v1/notifications → { data: [...], page }
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/notifications',
-      queryParameters: unreadOnly ? {'unread_only': true} : null,
-    );
-    final data = (response.data?['data'] as List<dynamic>? ?? []);
-    return data
-        .map((e) => NotificationDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final result = <NotificationDto>[];
+    String? cursor;
+    do {
+      // GET /v1/notifications → { data: [...], page }
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/notifications',
+        queryParameters: {
+          if (unreadOnly) 'unread_only': true,
+          'limit': 100,
+          if (cursor != null) 'cursor': cursor,
+        },
+      );
+      final data = (response.data?['data'] as List<dynamic>? ?? []);
+      result.addAll(
+        data.map((e) => NotificationDto.fromJson(e as Map<String, dynamic>)),
+      );
+      cursor =
+          (response.data?['page'] as Map<String, dynamic>?)?['next_cursor']
+              as String?;
+    } while (cursor != null);
+    return result;
   }
 
   /// Total des notifications non lues du porteur du token — `page.unread_count`,

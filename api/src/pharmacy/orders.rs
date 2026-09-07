@@ -30,6 +30,7 @@ use crate::{
         ProSecretaryPlusClaims,
     },
     notify,
+    pharmacy::quotes::expire_sent_quotes_for_order,
     realtime::WsHub,
     AppState, JobDispatcher, StorageSigner,
 };
@@ -342,7 +343,9 @@ pub async fn get_pharmacy_order_document(
 
 /// Une ligne d'ordonnance minimisée pour la vue pharmacie (#4876) — molécule,
 /// forme, posologie, durée, quantité : rien de clinique au-delà (pas d'id,
-/// pas de lien patient).
+/// pas de lien patient). `non_substitution_reason`/`non_renouvelable`
+/// (#6676) : mentions légales dont le pharmacien est l'unique destinataire
+/// (décision de substitution / refus de renouvellement).
 #[derive(Serialize)]
 pub struct OrderItemDto {
     pub label: String,
@@ -350,6 +353,8 @@ pub struct OrderItemDto {
     pub posology: String,
     pub duration: String,
     pub quantity: Option<String>,
+    pub non_substitution_reason: Option<String>,
+    pub non_renouvelable: bool,
 }
 
 /// Réponse de `GET /v1/pharmacy/orders/{id}/items`.
@@ -394,7 +399,8 @@ pub async fn get_pharmacy_order_items(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(
-        "SELECT label, form, posology, duration, quantity \
+        "SELECT label, form, posology, duration, quantity, \
+                non_substitution_reason, non_renouvelable \
          FROM prescription_item WHERE prescription_id = $1",
     )
     .bind(prescription_id)
@@ -413,6 +419,12 @@ pub async fn get_pharmacy_order_items(
                 posology: row.try_get("posology").map_err(|_| AppError::Internal)?,
                 duration: row.try_get("duration").map_err(|_| AppError::Internal)?,
                 quantity: row.try_get("quantity").map_err(|_| AppError::Internal)?,
+                non_substitution_reason: row
+                    .try_get("non_substitution_reason")
+                    .map_err(|_| AppError::Internal)?,
+                non_renouvelable: row
+                    .try_get("non_renouvelable")
+                    .map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -424,6 +436,7 @@ pub async fn get_pharmacy_order_items(
 
 /// Body de `POST /v1/account/prescriptions/{id}/order`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateOrderBody {
     pub pharmacy_id: Uuid,
 }
@@ -790,7 +803,8 @@ pub async fn get_account_order(
     // `app.current_account_id` (posés ci-dessus) — même requête que
     // `get_pharmacy_order_items`.
     let item_rows = sqlx::query(
-        "SELECT label, form, posology, duration, quantity \
+        "SELECT label, form, posology, duration, quantity, \
+                non_substitution_reason, non_renouvelable \
          FROM prescription_item WHERE prescription_id = $1",
     )
     .bind(order.prescription_id)
@@ -809,6 +823,12 @@ pub async fn get_account_order(
                 posology: row.try_get("posology").map_err(|_| AppError::Internal)?,
                 duration: row.try_get("duration").map_err(|_| AppError::Internal)?,
                 quantity: row.try_get("quantity").map_err(|_| AppError::Internal)?,
+                non_substitution_reason: row
+                    .try_get("non_substitution_reason")
+                    .map_err(|_| AppError::Internal)?,
+                non_renouvelable: row
+                    .try_get("non_renouvelable")
+                    .map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -870,6 +890,7 @@ pub async fn get_account_pharmacy(
 
 /// Body de `PUT /v1/account/pharmacy`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SetPharmacyBody {
     pub pharmacy_id: Uuid,
 }
@@ -1037,6 +1058,10 @@ struct Transition<'a> {
     update_sql: &'a str,
     action: &'a str,
     reason: Option<&'a str>,
+    /// La commande devient terminale (`rejected`) : tout devis d'officine
+    /// encore `sent` ancré dessus doit expirer dans la même transaction,
+    /// sinon il reste indécidable à vie côté patient (#6588).
+    expire_quotes: bool,
 }
 
 async fn pharmacy_transition(
@@ -1053,6 +1078,7 @@ async fn pharmacy_transition(
         update_sql,
         action,
         reason,
+        expire_quotes,
     } = t;
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
@@ -1087,6 +1113,10 @@ async fn pharmacy_transition(
     };
 
     let order = order_from_row(&row)?;
+
+    if expire_quotes {
+        expire_sent_quotes_for_order(&mut tx, order_id).await?;
+    }
 
     // Audit dans le journal du cabinet d'origine (valeurs DB, jamais client).
     let anchors =
@@ -1178,6 +1208,7 @@ pub async fn accept_pharmacy_order(
             ),
             action: "accept_pharmacy_order",
             reason: None,
+            expire_quotes: false,
         },
     )
     .await?;
@@ -1209,6 +1240,7 @@ pub async fn ready_pharmacy_order(
             ),
             action: "ready_pharmacy_order",
             reason: None,
+            expire_quotes: false,
         },
     )
     .await?;
@@ -1217,6 +1249,7 @@ pub async fn ready_pharmacy_order(
 
 /// Body de `POST /v1/pharmacy/orders/{id}/reject`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RejectOrderBody {
     pub reason: String,
 }
@@ -1255,6 +1288,7 @@ pub async fn reject_pharmacy_order(
             ),
             action: "reject_pharmacy_order",
             reason: Some(reason),
+            expire_quotes: true,
         },
     )
     .await?;
@@ -1303,6 +1337,16 @@ pub async fn cancel_account_order(
     };
 
     let order = order_from_row(&row)?;
+
+    // Ancre le GUC pharmacie pour satisfaire la policy RLS pharmacie de
+    // pharmacy_quote (le patient n'a pas le droit d'y écrire `expired` — même
+    // schéma que le GUC cabinet ci-dessous pour audit_log).
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(order.pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    expire_sent_quotes_for_order(&mut tx, id).await?;
 
     let cabinet_id: Uuid = sqlx::query("SELECT cabinet_id FROM pharmacy_order WHERE id = $1")
         .bind(id)
@@ -1495,6 +1539,7 @@ pub async fn get_pickup_token(
 
 /// Body de `POST /v1/pharmacy/orders/pickup-scan`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PickupScanBody {
     pub token: String,
     /// Commande ouverte à l'écran (`/orders/:id/pickup`) — permise par la
@@ -1625,6 +1670,8 @@ pub async fn pickup_scan(
     .map_err(|_| AppError::Internal)?;
 
     let order = order_from_row(&row)?;
+
+    expire_sent_quotes_for_order(&mut tx, order.id).await?;
 
     let anchors =
         sqlx::query("SELECT cabinet_id, patient_account_id FROM pharmacy_order WHERE id = $1")
