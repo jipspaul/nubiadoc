@@ -8,10 +8,12 @@ class DocumentApi {
   DocumentApi(ApiClient client) : _dio = client.dio;
 
   // Pagination par cursor côté API (limit défaut 20, cf. api/src/documents.rs
-  // `list_documents`) : on suit `page.next_cursor` jusqu'à épuisement pour
-  // ramener le coffre-fort complet plutôt que les 20 documents les plus récents.
-  Future<List<DocumentDto>> getAll() async {
-    return _getAllPages(const {});
+  // `list_documents`) : sans [limit], on suit `page.next_cursor` jusqu'à
+  // épuisement pour ramener le coffre-fort complet plutôt que les 20
+  // documents les plus récents. Avec [limit], une seule page est demandée
+  // (écrans qui n'affichent qu'un nombre borné de documents récents).
+  Future<List<DocumentDto>> getAll({int? limit}) async {
+    return _getAllPages(const {}, limit: limit);
   }
 
   Future<List<DocumentDto>> getByCategory(String category) async {
@@ -19,8 +21,9 @@ class DocumentApi {
   }
 
   Future<List<DocumentDto>> _getAllPages(
-    Map<String, dynamic> queryParameters,
-  ) async {
+    Map<String, dynamic> queryParameters, {
+    int? limit,
+  }) async {
     final result = <DocumentDto>[];
     String? cursor;
     do {
@@ -28,6 +31,7 @@ class DocumentApi {
         '/documents',
         queryParameters: {
           ...queryParameters,
+          if (limit != null) 'limit': limit,
           if (cursor != null) 'cursor': cursor,
         },
       );
@@ -35,6 +39,7 @@ class DocumentApi {
       result.addAll(
         data.map((e) => DocumentDto.fromJson(e as Map<String, dynamic>)),
       );
+      if (limit != null) break;
       cursor = (response.data!['page'] as Map<String, dynamic>?)?['next_cursor']
           as String?;
     } while (cursor != null);

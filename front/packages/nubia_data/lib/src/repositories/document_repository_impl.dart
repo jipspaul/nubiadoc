@@ -11,9 +11,9 @@ class DocumentRepositoryImpl implements DocumentRepository {
   const DocumentRepositoryImpl(this._api);
 
   @override
-  Future<Either<Failure, List<Document>>> getAll() async {
+  Future<Either<Failure, List<Document>>> getAll({int? limit}) async {
     try {
-      final dtos = await _api.getAll();
+      final dtos = await _api.getAll(limit: limit);
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du chargement des documents.'));

@@ -29,7 +29,8 @@ void main() {
   blocTest<OubliettesBloc, OubliettesState>(
     'charge les documents récents et les mappe en OublietteItem',
     build: () {
-      when(() => getDocuments(category: any(named: 'category'))).thenAnswer(
+      when(() => getDocuments(
+            category: any(named: 'category'), limit: any(named: 'limit'))).thenAnswer(
         (_) async => Right([
           _doc('a', 'ordonnance-f5e41471.pdf', DateTime(2026, 6, 19),
               category: DocumentCategory.prescription),
@@ -54,7 +55,8 @@ void main() {
   blocTest<OubliettesBloc, OubliettesState>(
     'liste vide → OubliettesEmpty',
     build: () {
-      when(() => getDocuments(category: any(named: 'category')))
+      when(() => getDocuments(
+            category: any(named: 'category'), limit: any(named: 'limit')))
           .thenAnswer((_) async => const Right([]));
       return build();
     },
@@ -65,7 +67,8 @@ void main() {
   blocTest<OubliettesBloc, OubliettesState>(
     'échec usecase → OubliettesError',
     build: () {
-      when(() => getDocuments(category: any(named: 'category'))).thenAnswer(
+      when(() => getDocuments(
+            category: any(named: 'category'), limit: any(named: 'limit'))).thenAnswer(
           (_) async =>
               const Left(ServerFailure(message: 'boom', statusCode: 500)));
       return build();
