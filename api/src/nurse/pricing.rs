@@ -43,7 +43,6 @@ pub(crate) fn estimate_price_cents(requested_acts: &[String]) -> i32 {
 pub struct EstimateVisitBody {
     pub lat: f64,
     pub lng: f64,
-    #[serde(default)]
     pub requested_acts: Vec<String>,
 }
 
@@ -55,8 +54,9 @@ pub struct EstimateVisitResponse {
 
 /// `POST /v1/account/visit-requests/estimate` — prix indicatif avant demande
 /// (#6117). lat/lng réservés à une tarification par zone géographique future
-/// (pas utilisés par le barème forfaitaire v1). Acte inconnu → 422 (même
-/// validation qu'à la création, `requests::create_visit_request`).
+/// (pas utilisés par le barème forfaitaire v1). Liste vide/absente ou acte
+/// inconnu → 422 (même validation qu'à la création,
+/// `requests::create_visit_request` — #6650).
 pub async fn estimate_visit_price(
     _claims: PatientAccountClaims,
     Json(body): Json<EstimateVisitBody>,
@@ -66,10 +66,11 @@ pub async fn estimate_visit_price(
         lng = body.lng,
         "visit price estimate requested"
     );
-    if !body
-        .requested_acts
-        .iter()
-        .all(|a| ALLOWED_ACTS.contains(&a.as_str()))
+    if body.requested_acts.is_empty()
+        || !body
+            .requested_acts
+            .iter()
+            .all(|a| ALLOWED_ACTS.contains(&a.as_str()))
     {
         return Err(AppError::ValidationError);
     }
