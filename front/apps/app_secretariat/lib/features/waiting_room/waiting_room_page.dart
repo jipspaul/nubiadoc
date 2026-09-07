@@ -20,6 +20,9 @@ const int _criticalWaitThresholdMinutes = 30;
 WaitingRoomEntry? _mostOverdueEntry(List<WaitingRoomEntry> entries) {
   WaitingRoomEntry? mostOverdue;
   for (final entry in entries) {
+    // #6708 : un patient déjà `in_consultation` n'attend plus, il ne doit
+    // pas déclencher l'alerte.
+    if (!entry.isWaiting) continue;
     if (entry.waitSoFar.inMinutes < _criticalWaitThresholdMinutes) continue;
     if (mostOverdue == null || entry.waitSoFar > mostOverdue.waitSoFar) {
       mostOverdue = entry;

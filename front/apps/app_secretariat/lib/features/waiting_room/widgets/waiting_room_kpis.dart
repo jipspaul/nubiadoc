@@ -13,19 +13,22 @@ class WaitingRoomKpis {
   });
 
   factory WaitingRoomKpis.fromEntries(List<WaitingRoomEntry> entries) {
-    if (entries.isEmpty) {
+    // #6708 : seules les entrées qui attendent réellement (`checked_in`)
+    // comptent — un patient `in_consultation` n'attend plus.
+    final waiting = entries.where((e) => e.isWaiting).toList();
+    if (waiting.isEmpty) {
       return const WaitingRoomKpis(
         waitingCount: 0,
         averageWaitMinutes: 0,
         overThirtyCount: 0,
       );
     }
-    final waitMinutes = entries.map((e) => e.waitSoFar.inMinutes).toList();
+    final waitMinutes = waiting.map((e) => e.waitSoFar.inMinutes).toList();
     final averageWaitMinutes =
         (waitMinutes.reduce((a, b) => a + b) / waitMinutes.length).round();
     final overThirtyCount = waitMinutes.where((m) => m >= 30).length;
     return WaitingRoomKpis(
-      waitingCount: entries.length,
+      waitingCount: waiting.length,
       averageWaitMinutes: averageWaitMinutes,
       overThirtyCount: overThirtyCount,
     );

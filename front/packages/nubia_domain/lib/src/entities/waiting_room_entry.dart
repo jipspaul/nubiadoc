@@ -45,6 +45,11 @@ class WaitingRoomEntry extends Equatable {
 
   Duration get waitSoFar => DateTime.now().difference(arrivedAt);
 
+  /// `true` sauf si le statut vaut explicitement `in_consultation` (déjà au
+  /// fauteuil, n'attend plus) — cf. #6708. `status` absent (avant #6636, ou
+  /// valeur inattendue) est traité comme « en attente », par prudence.
+  bool get isWaiting => status != 'in_consultation';
+
   @override
   List<Object?> get props => [id];
 }
