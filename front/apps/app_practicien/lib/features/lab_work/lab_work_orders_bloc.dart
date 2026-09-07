@@ -54,7 +54,13 @@ class LabWorkOrdersBloc extends Bloc<LabWorkOrdersEvent, LabWorkOrdersState>
     emit(LabWorkOrdersLoaded(current.orders, updatingId: event.orderId));
     final result = await _updateStatus(event.orderId, event.status);
     result.fold(
-      (failure) => safeEmit(LabWorkOrdersError(failure.message)),
+      // Comme pour le chargement (#5067), l'échec d'une action de ligne ne
+      // doit pas faire disparaître la liste déjà affichée : on la conserve
+      // et on signale l'erreur via `errorMessage` (snackbar), pas de
+      // `NubiaErrorWidget` plein écran pour un échec qui ne concerne qu'une
+      // seule ligne (#6657).
+      (failure) => safeEmit(LabWorkOrdersLoaded(current.orders,
+          errorMessage: failure.message)),
       (newStatus) => safeEmit(LabWorkOrdersLoaded([
         for (final order in current.orders)
           if (order.id == event.orderId)
