@@ -71,6 +71,7 @@ class OrdersAside extends StatelessWidget {
             ListRow(
               leading: Icon(entry.icon, color: entry.iconColor),
               title: entry.title,
+              titleMaxLines: entry.titleMaxLines,
               subtitle: entry.subtitle,
               trailing: NubiaBadge.count(
                 count: entry.badgeCount,
@@ -97,6 +98,7 @@ class _AsideEntry {
     required this.subtitle,
     required this.badgeCount,
     required this.badgeVariant,
+    this.titleMaxLines = 1,
   });
 
   final IconData icon;
@@ -105,6 +107,7 @@ class _AsideEntry {
   final String subtitle;
   final int badgeCount;
   final NubiaBadgeVariant badgeVariant;
+  final int titleMaxLines;
 }
 
 /// « Commandes en attente > 2 h » — même seuil que l'escalade de la file
@@ -118,6 +121,11 @@ _AsideEntry? _waitingEntry(List<PharmacyOrder> orders, NubiaTokens tokens) {
     icon: Icons.schedule,
     iconColor: tokens.dangerFg,
     title: 'Commandes en attente > 2 h',
+    // Libellé le plus long de la colonne : le panneau (320 px, largeur fixe,
+    // cf. orders_page.dart) ne laisse qu'~214 px au titre une fois icône et
+    // pastille de compte déduites, insuffisant pour le seuil sur une ligne
+    // (#6654). Deux lignes évitent de tronquer la seule info chiffrée.
+    titleMaxLines: 2,
     subtitle: count == 1 ? '1 patient concerné' : '$count patients concernés',
     badgeCount: count,
     badgeVariant: NubiaBadgeVariant.error,
