@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -33,6 +34,11 @@ class AuthUnauthenticated extends AuthState {
 /// `POST /v1/auth/select-nurse-context` pour obtenir un token `kind:nurse`
 /// (les endpoints `/v1/nurse/*` l'exigent). Le backend expose déjà les deux.
 class InfirmiereAuthCubit extends Cubit<AuthState> {
+  /// Dernier `nurse_id` sélectionné — permet de re-scoper le token après un
+  /// refresh (le refresh renvoie un token de login `kind:"pro"`, qui serait
+  /// rejeté en 403 par /v1/nurse/*). Voir [reselectContext].
+  String? _selectedNurseId;
+
   InfirmiereAuthCubit({
     required LoginUseCase login,
     required LogoutUseCase logout,
@@ -55,9 +61,6 @@ class InfirmiereAuthCubit extends Cubit<AuthState> {
   /// Après le login (token `kind:pro`), échange contre un token `kind:nurse` :
   /// GET /v1/nurse/memberships → POST /v1/auth/select-nurse-context {nurse_id}.
   /// Sans ce token, les endpoints /v1/nurse/* renvoient 403.
-  ///
-  /// TODO(nubia): re-scoper après un refresh (le refresh redonne un token pro à
-  /// l'expiration ~15min) — cf. hook onTokensRefreshed de l'app pharmacie.
   Future<void> _applyNurseContext() async {
     try {
       final mem = await _api.dio.get<List<dynamic>>('/nurse/memberships');
@@ -72,10 +75,34 @@ class InfirmiereAuthCubit extends Cubit<AuthState> {
       if (token == null) return;
       final refresh = await _tokenStorage.getRefreshToken() ?? '';
       await _tokenStorage.saveTokens(access: token, refresh: refresh);
+      _selectedNurseId = nurseId as String?;
     } catch (_) {
       // Non bloquant : l'utilisateur reste connecté (kind:pro) même si le
       // select-context échoue ; l'UI signalera les 403 sur /nurse/*.
     }
+  }
+
+  /// Re-scope le token courant sur le contexte infirmier après un refresh.
+  ///
+  /// Branché sur `AuthInterceptor.onTokensRefreshed` (cf. hook côté app
+  /// pharmacie) : le refresh réécrit un token de login `kind:"pro"` en
+  /// storage ; on l'échange contre un JWT `kind:"nurse"` via le [plainDio]
+  /// fourni (sans interceptors — pas de réentrance sur le refresh en cours).
+  /// No-op tant qu'aucun contexte n'a été sélectionné.
+  Future<void> reselectContext(Dio plainDio) async {
+    final nurseId = _selectedNurseId;
+    if (nurseId == null) return;
+    final access = await _tokenStorage.getAccessToken();
+    if (access == null || access.isEmpty) return;
+    final response = await plainDio.post<Map<String, dynamic>>(
+      '/auth/select-nurse-context',
+      data: {'nurse_id': nurseId},
+      options: Options(headers: {'Authorization': 'Bearer $access'}),
+    );
+    final token = response.data?['access_token'] as String?;
+    if (token == null || token.isEmpty) return;
+    final refresh = await _tokenStorage.getRefreshToken();
+    await _tokenStorage.saveTokens(access: token, refresh: refresh ?? '');
   }
 
   Future<void> restore() async {

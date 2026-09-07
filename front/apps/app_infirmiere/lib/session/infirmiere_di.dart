@@ -18,6 +18,12 @@ void registerInfirmiere(GetIt gi) {
     ),
   );
 
+  // Le refresh réécrit un token de login kind:"pro" : on re-scope
+  // immédiatement le contexte infirmier sinon /v1/nurse/* casse en 403
+  // au bout des 900 s de vie du JWT nurse.
+  gi<AuthInterceptor>().onTokensRefreshed = (plainDio) =>
+      gi<InfirmiereAuthCubit>().reselectContext(plainDio);
+
   gi.registerFactory<NurseCubit>(() => NurseCubit(gi<ApiClient>()));
 
   gi.registerFactory<NotificationsBloc>(
