@@ -83,15 +83,24 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
   /// La tête de file peut être appelée : c'est équivalent à « appeler le
   /// suivant ». Cibler une autre entrée nécessite un endpoint back dédié qui
   /// n'existe pas encore (`CallNextUseCase` n'appelle que la tête de file) :
-  /// en attendant, la demande est ignorée sans réordonner ni appeler
-  /// personne d'autre.
+  /// en attendant, la demande est refusée avec un `actionError` explicite
+  /// (#6629 — le bouton reste actif sur chaque ligne comme dans la maquette,
+  /// mais ne doit plus jamais rester muet : la même bannière que pour un
+  /// échec réseau prévient l'utilisateur plutôt que d'ignorer le clic en
+  /// silence).
   Future<void> _onCallRequested(
     WaitingRoomCallRequested event,
     Emitter<WaitingRoomState> emit,
   ) async {
     final current = state;
     if (current is! WaitingRoomLoaded || current.entries.isEmpty) return;
-    if (current.entries.first.id != event.entryId) return;
+    if (current.entries.first.id != event.entryId) {
+      safeEmit(current.copyWith(
+        actionError:
+            "Seul le patient en tête de file peut être appelé pour l'instant.",
+      ));
+      return;
+    }
     await _onCallNext(const WaitingRoomCallNextRequested(), emit);
   }
 }

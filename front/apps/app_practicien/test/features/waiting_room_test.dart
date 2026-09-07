@@ -43,6 +43,14 @@ final _entry = WaitingRoomEntry(
   arrivedAt: DateTime.now().subtract(const Duration(minutes: 10)),
 );
 
+final _otherEntry = WaitingRoomEntry(
+  id: 'wr-2',
+  cabinetId: 'cab-1',
+  patientId: 'pat-2',
+  patientName: 'Paul Martin',
+  arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+);
+
 WaitingRoomBloc _makeBloc({
   required MockListWaitingRoomUseCase list,
   required MockCallNextUseCase callNext,
@@ -300,6 +308,24 @@ void main() {
           actionError: 'Erreur réseau',
         ),
       ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'appeler une entrée hors tête de file ne déclenche aucun appel back '
+      'et signale le motif (#6629, plus de clic muet)',
+      build: () => _makeBloc(list: mockList, callNext: mockCallNext),
+      seed: () => WaitingRoomLoaded(entries: [_entry, _otherEntry]),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('wr-2')),
+      expect: () => [
+        WaitingRoomLoaded(
+          entries: [_entry, _otherEntry],
+          actionError:
+              "Seul le patient en tête de file peut être appelé pour l'instant.",
+        ),
+      ],
+      verify: (_) {
+        verifyNever(() => mockCallNext());
+      },
     );
   });
 

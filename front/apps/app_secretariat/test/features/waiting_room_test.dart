@@ -1352,7 +1352,7 @@ void main() {
 
     blocTest<WaitingRoomBloc, WaitingRoomState>(
       'appeler la ligne 3 (e3) ne déclenche aucun appel back — n\'appelle '
-      'pas la ligne 1',
+      'pas la ligne 1, et signale le motif (#6629, plus de clic muet)',
       build: () {
         when(() => repo.callNext()).thenAnswer((_) async => Right(entries[0]));
         return WaitingRoomBloc(
@@ -1362,7 +1362,13 @@ void main() {
       },
       seed: () => WaitingRoomLoaded(entries),
       act: (bloc) => bloc.add(const WaitingRoomCallRequested('e3')),
-      expect: () => <WaitingRoomState>[],
+      expect: () => [
+        WaitingRoomLoaded(
+          entries,
+          actionError:
+              "Seul le patient en tête de file peut être appelé pour l'instant.",
+        ),
+      ],
       verify: (_) {
         verifyNever(() => repo.callNext());
       },
