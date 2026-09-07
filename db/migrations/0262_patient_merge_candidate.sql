@@ -1,4 +1,4 @@
--- 0258_patient_merge_candidate.sql
+-- 0262_patient_merge_candidate.sql
 -- Lot A5 (#3916) : détection de doublons du référentiel patient.
 --
 -- 1. `patient.ins_hash` : empreinte DÉTERMINISTE de l'INS (SHA-256 salée par

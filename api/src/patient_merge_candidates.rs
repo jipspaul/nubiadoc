@@ -1,7 +1,7 @@
 //! Détection de doublons du référentiel patient (lot A5, #3916).
 //!
 //! Quoi : empreinte déterministe de l'INS (`patient.ins_hash`, migration
-//! 0258) + flagging des paires de patients d'un même cabinet partageant un
+//! 0262) + flagging des paires de patients d'un même cabinet partageant un
 //! INS (`patient_merge_candidate`) + endpoints cabinet de revue humaine.
 //! Quand : le flagging est appelé par le chemin ADT (B8, `hl7v2::adt`)
 //! après chaque création/màj portant un INS ; la revue par le cabinet via
