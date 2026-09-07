@@ -599,12 +599,15 @@ class _RoomPacePanel extends StatelessWidget {
             const SizedBox(height: 12),
             _PaceRow(
               key: const Key('room_pace_delay'),
-              label: 'Retard sur le planning',
+              label: delayMinutes < 0
+                  ? 'Avance sur le planning'
+                  : 'Retard sur le planning',
               subtitle:
                   'RDV de ${_NextPatientHeroCard._formatTime(scheduledAt)}'
                   ' appelé à ${_NextPatientHeroCard._formatTime(calledAt)}',
               value: '${delayMinutes >= 0 ? '+' : ''}$delayMinutes min',
-              valueColor: tokens.warningFg,
+              valueColor:
+                  delayMinutes < 0 ? tokens.successFg : tokens.warningFg,
             ),
           ],
         ],
