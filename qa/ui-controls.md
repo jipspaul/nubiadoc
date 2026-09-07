@@ -642,3 +642,66 @@ l'animation n'était pas finie et la rangée n'était plus à la position lue. A
 Semantics juste avant le clic. Plus généralement, un verdict MORT sur un contrôle qui vient
 d'apparaître à la suite d'une autre interaction doit être rejoué à froid avant d'être écrit.
 S'ajoute aux pièges nº 24 (coordonnées périmées après `goBack`) et nº 25 (`aria-disabled` légitime).
+
+### Ronde 2026-09-07 (00:00–02:50 UTC) — 5 apps, écrans jamais audités + mécaniques ciblées
+
+> **Contexte indispensable** : les 5 fronts sont figés au commit `0744df0` (18:43 UTC) et l'API à
+> un binaire antérieur — le pipeline de déploiement est **bloqué** (#6649). Aucun symptôme
+> imputable aux 8 correctifs mergés après 18:55 n'est compté ici comme régression.
+
+| app | écran/route (viewport) | inventoriés | activés | OK | morts | cassés | notes | last_check |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/coverage-setup` (390) | 9 | 8 | 5 | 3 | 0 | **Écran jamais audité.** Les 3 « MORT » sont le `radiogroup` conteneur, le radio **déjà sélectionné** (« Régime général » — pas de repeinture) et un `textbox` (limite de harnais, la signature Semantics ne porte pas la valeur). `AME` et `CSS` repeignent correctement. | 2026-09-07T00:18:00Z |
+| patient | `/rdv/:id/prepare` (390) | 3 | 2 | 1 | 1 | 0 | **Écran jamais audité.** Rend correctement la préparation (`GET /appointments/:id/preparation`) : « Dr Claire Lefèvre / 12 rue de la République / Parking disponible / Accès PMR / Rappel Lun 7 sep à 10:00 / Carte Vitale ». `Retour` OK, la case « Carte Vitale » est le 1 « MORT » (bascule sans changement de signature Semantics). | 2026-09-07T00:19:00Z |
+| patient | `/pharmacy/search` (390) | 2 | 2 | **2** | 0 | 0 | **Écran jamais audité.** 2/2. | 2026-09-07T00:19:00Z |
+| patient | `/rdv/:id/modifier` (390) | 51 | 42 | 1 | 41 | 0 | **Écran jamais audité — et le plus gros piège de la ronde (nº 27, ci-dessous).** Les 41 « MORT » sont **tous expliqués** : 5 créneaux `aria-disabled=true` **à bon droit** (préavis 24 h, `modify_rdv_bloc.dart::_withReschedulePreavis`) et 36 sélections de créneau que l'auditeur ne sait pas voir (la sélection ne change **que des pixels**). **Rejoué à la main avec comparaison de captures** : cliquer un créneau à J+1 modifie l'image **et fait apparaître « Confirmer la modification »**. Mécanique conforme. | 2026-09-07T00:19:00Z |
+| patient | `/profile/dependents` + feuille « Ajouter un proche » (390) | 25 + 9 | 34 | 33 | 1 | 0 | **43 comptes gérés, liste entièrement défilable** (15 × molette 700 px jusqu'au fond, vérifié par égalité de captures consécutives). Feuille d'ajout : `Prénom`, `Nom`, `Enfant`/`Conjoint`/`Autre`, `Date de naissance`, `Ajouter`. Le seul « MORT » est le CTA `aria-disabled=true` **à bon droit** sur formulaire vide. **Défaut trouvé** : le FAB masque la mention légale en bas de liste → **#6652**. | 2026-09-07T00:40:00Z |
+| praticien | `/agenda` (1280) | 30 | 24 | 21 | 2 | **1 confirmé** | Rail 13/13 correct. Le « CASSÉ » est **réel et central** : « Démarrer » → `409 too_early`. Rejoué en ciblé : **3 boutons « Démarrer » à l'écran, 3 échecs** (2 × 409, 1 × 403 sur le RDV d'un confrère) → **#6651 (P1)**. Les 2 « MORT » sont l'entrée de rail de la page courante et « Confirmer » (hors viewport après défilement, non concluant). | 2026-09-07T00:32:00Z |
+| praticien | `/devis` (1280) | 27 | 21 | 20 | 1 | 0 | **Écran jamais audité.** Le « MORT » est l'entrée de rail de la page courante. | 2026-09-07T00:22:00Z |
+| praticien | `/messages` (1280) | 27 | 23 | **22** | 1 | 0 | **Écran jamais audité.** Idem, rail de la page courante. | 2026-09-07T00:25:00Z |
+| praticien | `/waiting-room` (**1440**, file de 3 patients réellement mise en place) | 20 (vide) → 29 (peuplé) | — (comparaison design-v2) | — | — | — | Re-shooté après 3 `POST /cabinet/appointments/:id/checkin` pour rendre la comparaison utile. Défauts : « Retard sur le planning −426 min » en couleur d'alerte → **#6655** ; héros/CTA/file en « MD » → **preuve (d) de #6649**, pas une récidive de #6611. | 2026-09-07T00:56:00Z |
+| secretariat | `/devis/:id` (1280) | 23 | 19 | 18 | 1 | 0 | **Écran jamais audité** (volet de détail atteint par URL directe). Le « MORT » est l'en-tête de section « Facturation » du rail. | 2026-09-07T00:20:00Z |
+| secretariat | `/appointments` (Prendre un RDV, 1280) | 27 | 23 | 20 | 3 | 0 | **Écran jamais audité.** Les 3 « MORT » : en-tête de section « Patients », entrée de rail de la page courante, et la facette « Tous » **déjà sélectionnée**. | 2026-09-07T00:22:00Z |
+| secretariat | `/onboard` (1280) | 28 | 24 | 22 | 2 | 0 | **Écran jamais audité.** `/onboard` est dans `authRoutes` (`app_router.dart:91`) : un compte connecté est **redirigé vers `/`** par `buildAuthGuard` — comportement correct, pas un écran mort. Les 2 « MORT » sont l'en-tête « Ma journée » et l'entrée « Tableau de bord » de la page courante. Les 6 CTA du tableau de bord (`Ouvrir l'agenda`, `Appeler` ×2, `Relancer`, `Ouvrir` ×2) émettent tous leur requête. | 2026-09-07T00:24:00Z |
+| pharmacie | `/notification-preferences` (1280) | 13 | 9 | **9** | 0 | 0 | **Écran jamais audité.** 9/9 : les 9 bascules (Messagerie / Devis / Demandes de stock × app/e-mail/push) émettent chacune leur `PATCH`. | 2026-09-07T00:21:00Z |
+| pharmacie | `/devis` (1280) | 42 | 22 | 20 | 2 | 0 | Les 2 « MORT » : entrée de rail de la page courante et facette « Tous (81) » **déjà sélectionnée**. | 2026-09-07T00:23:00Z |
+| pharmacie | `/stock` (1280) | 18 | 13 | 11 | 2 | 0 | Idem : rail de la page courante + facette « À répondre (1) » déjà active. | 2026-09-07T00:24:00Z |
+| pharmacie | `/` et `/orders/:id` et `/messages` (1280 et **1440**) | 35 + 38 + 17 | — (comparaison design-v2) | — | — | — | Inventaires pris pour la comparaison aux maquettes. Défaut : seuil de l'alerte « À traiter » tronqué **aux deux viewports** → **#6654**. `/orders/:id` : les **lignes de l'ordonnance sont bien visibles** (« Ordonnance — 1 ligne », posologie, badge « Substituable ») et le rail + la file du jour sont conservés (correctif #6627 confirmé en live). | 2026-09-07T00:41:00Z |
+| infirmiere | `/` (3 onglets) et `/notification-preferences` (390) | 8 + 5 | 9 | **8** | 1 | 0 | **5ᵉ app parcourue.** Le seul « MORT » est l'onglet « Disponibilité » **déjà actif**. Les 2 bascules de préférences émettent leur requête. | 2026-09-07T00:26:00Z |
+| **TOTAL RONDE 2026-09-07** | **17 écrans, 5 apps** | **313** | **241** | **180** | **60 → 0 confirmés après triage** | **1 confirmé (#6651)** | Les 60 verdicts « MORT » sont **tous** expliqués : 36 sélections de créneau invisibles aux Semantics (piège nº 27), 8 `aria-disabled` légitimes, 11 entrées de rail de la page courante / en-têtes de section, 5 facettes déjà sélectionnées. | 2026-09-07T01:00:00Z |
+
+### Cas adversariaux joués cette ronde
+
+| cas | écran | résultat |
+|---|---|---|
+| **Formulaire soumis à vide** | patient, feuille « Ajouter un proche » | **CORRECT.** Le CTA « Ajouter » est `aria-disabled=true` tant que prénom/nom/relation ne sont pas renseignés. Aucun envoi silencieux, aucun 500. |
+| **Texte très long (245 caractères) dans les champs libres** | patient, feuille « Ajouter un proche » | **CORRECT côté mise en page** : après saisie de 245 caractères dans `Prénom`, **aucun élément hors cadre** (`x<0` ou `x+w>390`), 9 contrôles avant comme après. **Mais l'API l'accepte** (`first_name` de 300 caractères → 201) → **#6653**. |
+| **Retour navigateur au milieu d'un flux** | patient, `/profile/dependents` → feuille ouverte → `goBack()` | **CORRECT.** Retour propre à l'accueil, écran entièrement rendu (héros « Bonjour Marc Dubois », « À faire 3 », barre d'onglets), 0 erreur console. *Piège levé* : l'arbre Semantics ressort **vide** après `goBack()` parce que Flutter désactive `semanticsEnabled` à la navigation — ne jamais conclure « écran blanc » sans capture. |
+| **Double clic rapide sur une action métier** | praticien `/agenda`, bouton « Démarrer » | **Pas de double effet** : les deux clics produisent chacun un `POST …/start` refusé (`409 too_early`), l'état serveur des 3 RDV est inchangé après. Le défaut est ailleurs (affordance) → #6651. |
+| **Transition hors ordre / rejeu, sur 5 machines à états** | visite à domicile, commande pharmacie, demande de stock, devis cabinet, devis d'officine | **CORRECT partout.** 14 transitions interdites testées → **14 × 409** (`invalid_status`), 0 acceptée à tort. Aucun cul-de-sac : chaque ressource conserve une sortie (`cancel` patient possible jusqu'à `arrived` inclus sur une visite ; `complete` verrouille la consultation et l'ajout d'acte postérieur est refusé). |
+| **Jeton forgé / altéré / `alg:none`** | API, `/v1/account` | **CORRECT.** 401 dans les 4 variantes (signature altérée, `alg:none`, header sans `Bearer`, header absent). |
+
+### Nouveau piège de méthode nº 27 — une sélection qui ne change que des pixels
+
+**Le plus gros faux positif de la ronde** : `/rdv/:id/modifier` est sorti **41 MORT sur 42
+activés**, ce qui aurait signifié qu'aucun créneau n'est sélectionnable et que la
+reprogrammation patient est morte — un P1 spectaculaire.
+
+**Cause réelle** : l'auditeur juge « MORT » quand il n'observe ni navigation, ni requête, ni
+changement de la signature Semantics (`label + aria-checked`). Or un `SlotChip` sélectionné ne
+navigue pas, n'émet **aucune requête** (la sélection est locale au bloc) et **ne porte pas
+`aria-checked`** — seule sa couleur change. Le seul créneau sorti « OK » est celui qui a fait
+apparaître un contrôle **nouveau** (« Confirmer la modification »), donc modifié la signature.
+
+**Réflexe** : sur un écran de sélection (créneaux, dents, facettes, cases à cocher peintes),
+comparer **les captures d'écran avant/après le clic**, pas la signature Semantics. Vérification
+faite ici : `Buffer.compare(avant, après) === 0` sur les 2 créneaux `aria-disabled` (vraiment
+inertes, à bon droit) et **`!== 0`** sur le créneau à J+1, qui fait de surcroît apparaître le CTA
+de confirmation. S'ajoute aux pièges nº 24 (coordonnées périmées), nº 25 (`aria-disabled`
+légitime) et nº 26 (animation d'un groupe repliable).
+
+**Corollaire nº 27 bis** : un `SnackBar` Flutter est bien dans le DOM mais **sans `role` ni
+`aria-label`** (`<flt-semantics role=null aria=null txt="Il est trop tôt pour démarrer cette
+séance…">`). Un auditeur qui ne lit que `[role]`/`[aria-label]` conclut « échec silencieux »
+alors que l'utilisateur voit un message parfaitement clair. Toujours redescendre au DOM brut
+`flt-semantics` **et** à la capture avant de rapporter une absence de retour visuel.
