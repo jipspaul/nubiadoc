@@ -68,6 +68,16 @@ module `api/src/web_tunnel/` — et **3 défauts dont un P0** en sont sortis imm
 | x10-asymetrie-nurse-display-name | 2026-09-07T19:45:00Z | observation (non filée) | Sur la **même** visite, `nurse_display_name` vaut `"Camille Infirmière"` dans la vue **patient** et `null` dans la vue **infirmière** (`/nurse/offers` et les réponses de transition). Asymétrie de sérialisation sans conséquence d'usage (l'infirmière connaît son nom) — consignée, non rapportée. |
 | ui-patient-plans-et-home-care | 2026-09-07T19:45:00Z | OK | `/treatment-plans` (390) : 9 contrôles, 7 OK, 2 « morts » = les 2 dernières cartes hors viewport (artefact de bord). `/home-care` (390) : 17 contrôles, la visite créée ci-dessus visible avec son prix. Une route inexistante rend l'écran 404 complet (1 contrôle, `white=0.976` — **7ᵉ faux positif du seuil de blank-canvas**, déjà documenté). |
 
+#### Ronde 2026-09-07, 4e vague (19:45–19:55 UTC) — écrans PC 1440 et derniers écrans jamais audités
+
+| scénario | last_check | last_status | brief |
+|---|---|---|---|
+| verif-6625-3e-colonne-ordonnance-1440 | 2026-09-07T19:55:00Z | OK (correctif confirmé) | À **1440×900**, `/ordonnances/new?patientId=` rend bien ses **3 colonnes** : contexte à gauche (allergies réelles, traitements en cours, historique), composition au centre (17 modèles), et **« Aperçu de l'ordonnance » à droite** avec le bloc praticien/patient et « Ordonnance à signer · 0 médicament(s) ». La régression de #6625 ne se reproduit pas. |
+| ordonnance-historique-sans-contenu | 2026-09-07T19:55:00Z | **bug** | Dans cette même colonne, « 3 dernières ordonnances » n'affiche que `07/09 · 1 ligne` ×3 — trois lignes identiques. `ordonnance_context_column.dart:211-232` tient `prescription.items` et n'en lit que `.length`. L'API sert bien les `label`. → **#6724** |
+| ui-rdv-prepare-et-modifier | 2026-09-07T19:55:00Z | OK | **2 écrans jamais audités.** `/rdv/:id/prepare` (390) rend « Dr Hugo Marin · 12 rue de la République, 69002 Lyon · Parking disponible · Accès PMR · Rappel Mar 8 sep à 10:00 · Carte Vitale » — cohérent avec `GET /appointments/:id/preparation`. `/rdv/:id/modifier` (390) rend la grille de créneaux de reprogrammation (45 contrôles, jours et heures réels). |
+| ui-praticien-notification-preferences | 2026-09-07T19:55:00Z | OK | **1er audit.** 12 contrôles, 9 OK, 3 « morts » = les dernières bascules hors viewport (artefact de bord). Sections Rendez-vous / Messagerie / Devis / Travaux de laboratoire, chacune avec ses 3 canaux (application / e-mail / push). |
+| garde-relation-de-soin-patients | 2026-09-07T19:55:00Z | OK (garde confirmée) | Sur `/patients` praticien, **11 des 20 contrôles** renvoient 403 sur `/medical-record`, `/documents` et `/prescriptions` : c'est la garde §14 « relation de soin » appliquée aux patients jamais suivis par le praticien connecté. **Comportement attendu**, l'UI l'explique, et un patient AVEC relation (Marc Dubois) répond 200 partout. |
+
 #### Ronde 2026-09-06 (12:00–13:05 UTC) — ciblage diff-driven des 33 merges depuis le registre du 2026-09-05 19:20
 
 > **Note de déploiement (importante pour la lecture des résultats)** : l'API live servait, pendant cette ronde,
