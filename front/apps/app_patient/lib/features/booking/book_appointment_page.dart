@@ -14,7 +14,7 @@ class BookAppointmentPage extends StatelessWidget {
       create: (_) => GetIt.instance<AppointmentsBloc>(),
       child: Scaffold(
         key: const Key('book_appointment_scaffold'),
-        appBar: AppBar(title: const Text('Booker un RDV')),
+        appBar: AppBar(title: const Text('Prendre un rendez-vous')),
         body: const AppointmentsPage(),
       ),
     );

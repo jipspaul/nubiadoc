@@ -30,7 +30,7 @@ void main() {
   });
 
   testWidgets(
-      'tap FAB "Booker un RDV" navigue vers /book et affiche le formulaire',
+      'tap FAB "Prendre un rendez-vous" navigue vers /book et affiche le formulaire',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/mes-rdv',
@@ -42,7 +42,7 @@ void main() {
               key: const Key('book_rdv_fab'),
               onPressed: () => context.go('/book'),
               icon: const Icon(Icons.add),
-              label: const Text('Booker un RDV'),
+              label: const Text('Prendre un rendez-vous'),
             ),
             body: const SizedBox(),
           ),
