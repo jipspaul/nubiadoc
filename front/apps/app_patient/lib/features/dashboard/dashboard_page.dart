@@ -141,6 +141,19 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
         },
+        // #6737 : le bouton de prise de RDV appartient au Scaffold de
+        // l'onglet « Mes RDV » — pas à MesRdvPage, qui est aussi rendue par
+        // la route `/mes-rdv` (laquelle fournit déjà son propre bouton) : un
+        // bouton posé dans la page se dédoublait sur ce chemin. Ici, un seul
+        // propriétaire par chemin de navigation.
+        floatingActionButton: _index == 1
+            ? FloatingActionButton.extended(
+                key: const Key('mes_rdv_tab_book_fab'),
+                onPressed: () => context.push(AppRouter.appointments),
+                icon: const Icon(Icons.event_available_outlined),
+                label: const Text('Prendre un rendez-vous'),
+              )
+            : null,
         bottomNavigationBar: BlocSelector<MessagingBloc, MessagingState, int>(
           selector: (s) => s is MessagingConversationsLoaded
               ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
