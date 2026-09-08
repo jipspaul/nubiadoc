@@ -1015,3 +1015,66 @@ restent ceux qui ont été filés (#6710, #6717), pas le volume brut.
 | **Texte très long via l'API, rendu dans l'UI** | pharmacie `/orders/:id` | **DÉFAUT — #6736.** Un libellé de 1 281 caractères (accepté en 201, aucun plafond serveur) occupe 16 lignes et pousse posologie, puce « Substituable » et les **3 actions du comptoir** sous la ligne de flottaison. |
 | **Double action / transitions concurrentes** | API ordonnances, stock, visites infirmière | **CORRECT.** Double `order` d'une même ordonnance → 409 `already_ordered` ; double `accept` d'une visite → 409 `invalid_status` ; double `accept` d'une demande de stock → 409 `invalid_status` ; `POST /notifications/:id/read` deux fois → 200 idempotent, `unread_count` inchangé. |
 | **Saisie invalide / payload malformé** | `POST /v1/cabinet/prescriptions` | **CORRECT** sur 7 cas sur 8 : items vide, label vide, posology vide, duration vide, `patient_id` malformé, champ inconnu → **422** ; patient d'un autre cabinet → **404**. Seul manque le plafond de longueur (#6736). |
+
+### Ronde 2026-09-08 — 2e lot (détecteur corrigé : verdict à l'empreinte de capture)
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/` (Tableau de bord) | 1280×800 | 18 | 15 | 15 | 0 | 0 | 2026-09-08T00:52:00Z |
+| praticien | `/agenda` | 1280×800 | 25 | 15 | 15 | 0 | 0 | 2026-09-08T00:56:00Z |
+| praticien | `/waiting-room` | 1280×800 | 18 | 15 | 15 | 0 | 0 | 2026-09-08T01:02:00Z |
+| praticien | `/patients` | 1280×800 | 32 | 15 | 15 | 0 | 0 | 2026-09-08T01:06:00Z |
+| secretariat | `/agenda` | 1280×800 | 66 | 10 | 10 | 0 | 0 | 2026-09-08T00:55:00Z |
+| secretariat | `/salle-attente` | 1280×800 | 23 | 10 | 10 | 0 | 0 | 2026-09-08T00:58:00Z |
+| secretariat | `/devis` | 1280×800 | 39 | 10 | 10 | 0 | 0 | 2026-09-08T01:01:00Z |
+| secretariat | `/stock` | 1280×800 | 37 | 10 | 10 | 0 | 0 | 2026-09-08T01:08:00Z |
+| secretariat | `/team-messages` | 1280×800 | 26 | 10 | 10 | 0 | 0 | 2026-09-08T01:11:00Z |
+| pharmacie | `/devis` | 1280×800 | 27 | 9 | 9 | 0 | 0 | 2026-09-08T01:03:00Z |
+| pharmacie | `/messages` | 1280×800 | 15 | 9 | 9 | 0 | 0 | 2026-09-08T01:05:00Z |
+| patient | `/documents` | 390×844 | 25 | 10 | 10 | 0 | 0 | 2026-09-08T00:57:00Z |
+| patient | `/financial` | 390×844 | 10 | 8 | 8 | 0 | 0 | 2026-09-08T00:59:00Z |
+| patient | `/appointments` | 390×844 | 27 | 10 | 10 | 0 | 0 | 2026-09-08T01:00:00Z |
+| patient | `/profile/dependents` | 390×844 | 22 | 4 | 4 | 0 | 0 | 2026-09-08T00:53:00Z |
+| patient | `/treatment-plans` | 390×844 | 9 | 9 | 9 | 0 | 0 | 2026-09-08T01:07:00Z |
+| patient | `/notifications` | 390×844 | 20 | 10 | 10 | 0 | 0 | 2026-09-08T01:09:00Z |
+| infirmiere | onglets Disponibilité / Offres / Ma visite | 390×844 | 7 | 3 (les 3 onglets) | 3 | 0 | 0 | 2026-09-08T01:00:00Z |
+| **TOTAL 2e lot (18 écrans)** | | | **446** | **182** | **182** | **0** | **0** | |
+
+> **Cumul de la ronde : 29 écrans, 5 apps, 2 viewports — 661 contrôles inventoriés, 276 activés, 276 OK, 0 mort confirmé, 0 cassé.**
+
+#### Deux artefacts de mesure, désormais tous deux caractérisés
+
+1. **Repeinture jugée au nombre de nœuds `flt-semantics`** (corrigé cette ronde, cf. section précédente) : 13 faux « MORT ».
+2. **Contrôles hors du viewport en HORIZONTAL** — c'est l'essentiel de « l'artefact de bord » des rondes précédentes. Sur `/documents` à 390 px, la rangée de facettes est un `ListView` horizontal dont **7 puces sur 10 démarrent au-delà de x=390** :
+
+   ```
+   [checkbox] "Tous 294"          @16,128   visible
+   [checkbox] "Facture 41"        @141,128  visible
+   [checkbox] "Ordonnance 203"    @255,128  visible
+   [checkbox] "Radio 7"           @411,128  HORS ÉCRAN
+   [checkbox] "CBCT 2"            @503,128  HORS ÉCRAN
+   … jusqu'à "Carte mutuelle 20"  @1120,128 HORS ÉCRAN
+   ```
+
+   Cliquer à `x=546` sur un viewport large de 390 ne peut rien produire → faux « MORT ».
+   **Vérifié : ces puces sont bien atteignables.** Une roulette horizontale (`mouse.wheel(600, 0)`)
+   ramène « Consentement 4 » de `@845,128` à `@0,128`, donc à l'écran. Ce n'est pas un défaut
+   d'accessibilité : c'est un défilement horizontal normal que le détecteur ne pratiquait pas.
+   → l'auditeur doit défiler **horizontalement** avant de conclure, comme il le fait déjà verticalement.
+
+#### Point d'accessibilité vérifié (pas un défaut)
+
+Le bouton d'envoi de la messagerie patient n'apparaissait pas dans l'inventaire : son **nom accessible**
+et son **rôle** sont portés par deux nœuds frères de même rect —
+`{aria-label:"Envoyer le message", role:""}` et `{aria-label:"", role:"button", flt-tappable}` @340,725 42×42.
+C'est la forme normale de l'arbre Semantics de Flutter ; le contrôle est bien nommé. C'est le **filtre de
+l'auditeur** (rôle ET libellé sur le même nœud) qui était trop strict.
+
+### Cas adversariaux — 2e lot
+
+| cas | écran | verdict |
+|---|---|---|
+| **Double-submit d'un envoi de message** | patient, fil « Cabinet Lyon » | **CORRECT** — deux clics immédiats sur « Envoyer le message » → **exactement 1** `POST /conversations/:id/messages`, aucun 4xx, aucune erreur console. |
+| **Défilement profond (46 proches)** | patient `/profile/dependents` | **CORRECT** — ratio de blanc mesuré à 0 / 2 000 / 4 000 / 6 000 / 8 000 / 10 000 px : **0,889 → 0,826 → 0,826 → 0,829 → 0,831 → 0,831**, nœuds Semantics présents en continu, 0 erreur console, et le retour en haut restaure l'état initial à l'identique (0,889 / 31 nœuds). *Une capture blanche relevée en cours de route était un artefact de `screenshot()` pris en pleine repeinture, sans `animations:'disabled'` — pas un canvas vide.* |
+| **Coupure réseau puis rechargement** | pharmacie `/`, infirmiere `/` | **Comportement déjà consigné (2026-09-07), confirmé sur 2 apps de plus, non filé.** Le rechargement hors ligne fait échouer la restauration de session → l'app affiche **le formulaire de connexion** (ce n'est donc pas un écran blanc : ratio 0,978 avec les 4 contrôles du formulaire). Au retour du réseau, l'app **récupère intégralement sans redemander d'identifiants** (pharmacie : 4 → 23 contrôles). L'app infirmière, elle, conserve sa coque (en-tête + 3 onglets + bascule) et vide seulement son contenu. |
+| **Payloads hostiles sur 10 écritures clés** | API | **8 corrects, 2 lacunes filées.** Corrects : corps de message vide → 422 ; `qty` négative et `qty` = 10¹⁵ sur une demande de stock → 422 ; prix négatif et `qty` = 0 sur un devis pharmacie → 422 ; acte inconnu sur une visite → 422 ; créneau inexistant → 409 ; praticien inexistant → 404. Lacunes : **latitude 999 acceptée en 201** (#6740) et **octet NUL accepté dans le corps d'un message** (#6741). |

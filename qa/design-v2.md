@@ -221,3 +221,18 @@ puis rotation sur les plus anciens.
 | conformes | 2 (praticien 2 colonnes ; infirmière tokens) |
 | divergents | 5 — dont **4 filés cette ronde** (#6733, #6734, #6735, #6737) et 1 déjà consigné (patient `/messaging`) |
 | verdicts **corrigés** par cette ronde | `praticien /ordonnances/new` annotation ③ : **DIVERGENT (2026-09-07) → conforme** grâce à #6724 |
+
+### Ronde 2026-09-08 — 2e lot
+
+| app | écran/route | maquette | verdict | divergences | last_check |
+|---|---|---|---|---|---|
+| patient | `/treatment-plans` (Mes plans de soins, 390×844) | `Patient Mon plan de soins v2.html`, écran ① | **DIVERGENT (structure)** — *déjà consigné les 2026-09-04 et 2026-09-05, **non re-filé*** | **Conforme** : titre « Mes plans de soins », section « EN COURS » avec pastille d'état, barre de progression, « Étape X sur Y · Phase … », montant aligné à droite ; section « À VOTRE DÉCISION · 2 devis en attente » avec cartes ambrées « À accepter », « Reste à votre charge estimé », montant, « Devis reçu le … » et « Consulter » — cette moitié-là est très fidèle. **Divergences inchangées** : pas de sous-titre « N en cours · N terminé » ; les cartes ne portent **ni le praticien ni la date de proposition** (la maquette montre « Dr Amélie Rousseau · proposé le 22 juillet ») ; pas de ligne « Prochaine séance · mardi 11 août, 14:30 » ni d'action « Voir » par carte. Lot de refonte non commencé, pas une régression de la ronde. | 2026-09-08T01:12:00Z |
+
+### Bilan design-v2 consolidé de la ronde
+
+| | valeur |
+|---|---|
+| **écrans comparés à LEUR maquette** | **8** (quota ≥ 5 largement atteint) |
+| conformes | 2 |
+| divergents | 6 — dont **4 filés** (#6733, #6734, #6735, #6737) et 2 déjà consignés (patient `/messaging`, patient `/treatment-plans`) |
+| verdict **corrigé** par cette ronde | `praticien /ordonnances/new` annotation ③ : **DIVERGENT (2026-09-07) → conforme** grâce à #6724 |
