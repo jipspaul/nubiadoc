@@ -1078,3 +1078,70 @@ l'auditeur** (rôle ET libellé sur le même nœud) qui était trop strict.
 | **Défilement profond (46 proches)** | patient `/profile/dependents` | **CORRECT** — ratio de blanc mesuré à 0 / 2 000 / 4 000 / 6 000 / 8 000 / 10 000 px : **0,889 → 0,826 → 0,826 → 0,829 → 0,831 → 0,831**, nœuds Semantics présents en continu, 0 erreur console, et le retour en haut restaure l'état initial à l'identique (0,889 / 31 nœuds). *Une capture blanche relevée en cours de route était un artefact de `screenshot()` pris en pleine repeinture, sans `animations:'disabled'` — pas un canvas vide.* |
 | **Coupure réseau puis rechargement** | pharmacie `/`, infirmiere `/` | **Comportement déjà consigné (2026-09-07), confirmé sur 2 apps de plus, non filé.** Le rechargement hors ligne fait échouer la restauration de session → l'app affiche **le formulaire de connexion** (ce n'est donc pas un écran blanc : ratio 0,978 avec les 4 contrôles du formulaire). Au retour du réseau, l'app **récupère intégralement sans redemander d'identifiants** (pharmacie : 4 → 23 contrôles). L'app infirmière, elle, conserve sa coque (en-tête + 3 onglets + bascule) et vide seulement son contenu. |
 | **Payloads hostiles sur 10 écritures clés** | API | **8 corrects, 2 lacunes filées.** Corrects : corps de message vide → 422 ; `qty` négative et `qty` = 10¹⁵ sur une demande de stock → 422 ; prix négatif et `qty` = 0 sur un devis pharmacie → 422 ; acte inconnu sur une visite → 422 ; créneau inexistant → 409 ; praticien inexistant → 404. Lacunes : **latitude 999 acceptée en 201** (#6740) et **octet NUL accepté dans le corps d'un message** (#6741). |
+
+## Ronde 2026-09-08 (06:00–10:00 UTC)
+
+### ⚠️ Confirmation de la leçon de méthode : 100 % des « MORT » étaient encore des faux positifs
+
+Sur cette ronde l'auditeur a signalé **12 contrôles MORT**. **Les 12 re-vérifiés un par un se sont
+révélés fonctionnels.** Deux pièges, dont un NOUVEAU :
+
+1. **Hors viewport** (déjà connu) — les MORT sont systématiquement les DERNIERS contrôles de la liste,
+   à `y > 844` : le clic n'atteint rien. Vus sur `/prescriptions` (4), `/home-care` (4 sur 5),
+   `/financial` (2), pharmacie `/devis` (4).
+2. **NOUVEAU — rect du GROUPE au lieu du BOUTON.** Sur `/profile/referring-doctor`, l'arbre porte
+   `group @0,56 390x196` (qui contient le texte « Changer de médecin traitant ») **et**
+   `button @16,192 358x44`. Un sélecteur par libellé attrape le groupe : le clic tombe au centre du
+   groupe (195,154), dans le vide → 3 clics, 0 requête, 0 repeinture, verdict « MORT ». Ciblé sur le
+   **rect du bouton**, le même contrôle ouvre la boîte de dialogue « Rechercher un praticien Nubia ».
+   → **filtrer sur `role==='button'` avant de résoudre le rect**, jamais sur le libellé seul.
+
+Corollaire de méthode appliqué cette ronde : **aucun MORT n'a été filé sans re-vérification ciblée**.
+C'est ce qui a évité 2 faux findings P1 (« Changer de médecin traitant » et « Nouvelle demande »).
+
+### Écrans audités
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | `/mes-rdv` (390) + onglet Mes RDV du shell | 15 / 7 | 4 | 4 | 0 | 0 | 2026-09-08T06:15:00Z |
+| patient | `/book` vs `/appointments` (390) | 29 / 30 | 2 | 1 | 0 | 1 | 2026-09-08T06:20:00Z |
+| patient | `/prescriptions` (390) | 17 | 16 | 12 | 0 (4 hors viewport) | 0 | 2026-09-08T07:15:00Z |
+| patient | `/profile/referring-doctor` (390) | 2 | 1 | 1 | 0 | 0 | 2026-09-08T07:42:00Z |
+| patient | `/home-care` (390) | 18 | 17 | 13 | 0 (4 hors viewport) | 0 | 2026-09-08T07:44:00Z |
+| patient | `/financial` (390) | 11 | 10 | 8 | 0 (2 hors viewport) | 0 (1 × 401 = jeton expiré en cours de run, pas un défaut) | 2026-09-08T07:25:00Z |
+| patient | `/appointments` tunnel étapes 1→2→3 (390) | 29 / 37 / 37 | 8 | 8 | 0 | 0 | 2026-09-08T07:05:00Z |
+| patient | `/pharmacy/orders/:id` états **rejetée** et **annulée** (390) | 5 / 3 | 4 | 4 | 0 | 0 | 2026-09-08T07:38:00Z |
+| secretariat | `/team-messages` (1280) | 33 | 7 | 4 | 0 | 0 | 2026-09-08T06:12:00Z |
+| secretariat | `/stock` (1280) | 40 | 13 | 13 | 0 | 0 | 2026-09-08T06:30:00Z |
+| secretariat | `/liste-attente` (1280) | 22 | 2 | 1 | 0 | 0 | 2026-09-08T06:32:00Z |
+| secretariat | `/appointment-motifs` (1280) | 27 | 2 | 1 | 0 | 0 | 2026-09-08T06:33:00Z |
+| pharmacie | `/devis` (1280) | 42 | 19 | 19 | 0 (4 hors viewport) | 0 | 2026-09-08T06:55:00Z |
+| pharmacie | `/stock` (1280) | 14 | 5 | 4 | 0 | 0 | 2026-09-08T06:57:00Z |
+| pharmacie | `/messages` (1280) | 17 | 8 | 7 | 0 | 0 | 2026-09-08T06:58:00Z |
+| praticien | `/lab-work-orders` (1280) | 24 | 5 | 5 | 0 | 0 | 2026-09-08T06:40:00Z |
+| infirmiere | `/` (390, 3 onglets) | 8 | 7 | 6 | 0 | 0 | 2026-09-08T06:22:00Z |
+| infirmiere | `/notification-preferences` (390) | 5 | 3 | 3 | 0 | 0 | 2026-09-08T06:24:00Z |
+
+**Total ronde : ~130 contrôles activés, 0 mort confirmé, 0 cassé confirmé.**
+Deux contrôles se sont révélés défaillants non pas par inertie mais par leur **effet** :
+« Prendre un rendez-vous » de `/mes-rdv` (mène à un cul-de-sac, **#6744**) et « Nouveau devis »
+pharmacie (navigation muette, **#6746**) — un contrôle qui « répond » n'est pas pour autant correct.
+
+### Cas adversariaux — ronde 2026-09-08
+
+| cas | écran | verdict |
+|---|---|---|
+| **Double-submit sur « Confirmer le rendez-vous »** | patient, tunnel de réservation étape 3 | **CORRECT** — deux clics à 80 ms d'intervalle → **exactement 1** `POST /v1/bookings`, aucun 4xx. Vérifié aussi côté serveur : **1 seul** RDV créé (`6b538083…`, motif « Détartrage », 2026-09-10 09:00, `requested`) et **0 doublon** (même praticien + même horaire) sur les **454** RDV vivants du compte. |
+| **BACK du navigateur au milieu du tunnel** | patient, étape 3 ouverte | **CORRECT** — la feuille modale se referme, retour sur `/appointments` avec la recherche intacte (ratio de blanc 0,262, praticiens et facettes présents) ; 2e BACK → `/`. Aucun état incohérent, aucun écran blanc. |
+| **Texte de 250 caractères dans « Motif »** | patient, étape 3 | **CORRECT** — champ 366×56 contenu dans les 390 px, **0 nœud débordant** du viewport, CTA activé normalement. |
+| **Coupure réseau (`route.abort` sur `**/v1/**`) puis rechargement** | patient `/mes-rdv` | **DÉFAUT — filé cette ronde (#6750).** Comportement déjà consigné le 2026-09-07 mais **jamais filé** ; root-causé cette fois : `auth_cubit.dart:59` émet `AuthUnauthenticated` pour **toute** `Failure`, réseau compris → l'app affiche le formulaire de connexion à un utilisateur dont les jetons sont intacts (vérifié dans `localStorage` pendant la panne, et retour connecté sans ressaisie au rétablissement). `NetworkFailure`/`OfflineFailure` existent pourtant déjà dans `failure.dart:14,84`. |
+
+### Pistes ouvertes puis ÉCARTÉES après vérification (ronde 2026-09-08)
+
+| piste | verdict |
+|---|---|
+| praticien `/patients` : 11 fiches sur 15 signalées **CASSÉ** (403 sur `medical-record` + `documents` au clic) | **Aucun défaut.** Écart voulu et documenté : la fiche dégrade en 200-administratif (`patient_detail.rs:127-130`, #3767) là où `medical_record.rs:137-154` applique la garde RLS §14. Et **l'écran l'explique** : bandeau cadenassé « Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible. » *Mon détecteur de « message explicatif » cherchait « non accessible » et ratait l'élision « n'est pas accessible » — corriger la regex, pas le produit.* |
+| patient `/profile/referring-doctor` : « Changer de médecin traitant » **MORT** | **Aucun défaut** — rect du groupe cliqué au lieu du bouton (cf. leçon de méthode ci-dessus). Ciblé correctement, il ouvre la boîte de dialogue « Rechercher un praticien Nubia ». |
+| patient `/home-care` : « Nouvelle demande » **MORT** | **Aucun défaut** — hors viewport. Après défilement, il ouvre le formulaire de demande (soins, adresse, « Obtenir un devis », « Confirmer la demande »). |
+| patient `/appointments` étape 3 : CTA « Confirmer » à `y=1902` sur un viewport de 844, molette sans effet | **Aucun blocage.** La feuille défile bien : molette **positionnée au centre du contenu** (195,500) → le CTA remonte à `y=685`. Mon premier essai laissait le curseur sur une zone non défilante. Le tunnel n'est pas bloqué. |
+| secretariat `/stock` : 9 contrôles **MORT** (puces de filtre + lignes) | **Aucun défaut** — un dialog ouvert par « Nouvelle demande » avalait les clics suivants. Re-testées isolément, les 4 puces filtrent réellement : « Acceptées » → 8 lignes `Acceptée`, « Honorées » → 8 `Honorée`, « Refusées » → 7 `Refusée`, « Envoyées » → 4 lignes distinctes. |
