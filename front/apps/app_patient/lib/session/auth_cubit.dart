@@ -25,6 +25,15 @@ class AuthLoading extends AuthState {
   const AuthLoading();
 }
 
+/// #6750 : `restore()` n'a pas pu confirmer la session (réseau/serveur), mais
+/// le token stocké n'a pas été invalidé — distinct de [AuthUnauthenticated]
+/// pour que l'écran de démarrage propose « Réessayer » au lieu de renvoyer
+/// vers le login un patient encore authentifié.
+class AuthRestoreFailed extends AuthState {
+  const AuthRestoreFailed(this.message);
+  final String message;
+}
+
 /// Drives patient login/logout using the shared [LoginUseCase] + [GetAccountUseCase].
 class AuthCubit extends Cubit<AuthState> with SafeEmitMixin<AuthState> {
   AuthCubit({
@@ -56,11 +65,16 @@ class AuthCubit extends Cubit<AuthState> with SafeEmitMixin<AuthState> {
       }
       final result = await _getAccount();
       result.fold(
-        (_) => safeEmit(const AuthUnauthenticated()),
+        // Seul un vrai rejet du token (401) prouve que la session n'est
+        // plus valide. Toute autre Failure (réseau, serveur, parsing…) est
+        // une panne transitoire : la session doit survivre (#6750).
+        (failure) => failure is UnauthorizedFailure
+            ? safeEmit(const AuthUnauthenticated())
+            : safeEmit(AuthRestoreFailed(failure.message)),
         (account) => safeEmit(AuthAuthenticated(_sessionFrom(account))),
       );
     } catch (_) {
-      safeEmit(const AuthUnauthenticated());
+      safeEmit(AuthRestoreFailed(const NetworkFailure().message));
     }
   }
 

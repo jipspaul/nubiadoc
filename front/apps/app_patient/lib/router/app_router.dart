@@ -67,6 +67,7 @@ import '../features/messaging/messaging_page.dart';
 import '../features/reviews/reviews_bloc.dart';
 import '../features/reviews/reviews_event.dart';
 import '../features/reviews/reviews_page.dart';
+import '../session/auth_cubit.dart';
 import 'back_or_home_leading.dart';
 
 /// Patient router. Route names are app-owned; the auth guard is the shared
@@ -164,8 +165,20 @@ class AppRouter {
       routes: [
         GoRoute(
           path: splash,
-          builder: (_, __) =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
+          // #6750 : une coupure réseau pendant AuthCubit.restore() ne doit
+          // pas se voir comme un spinner infini (token jamais confirmé ni
+          // invalidé) — on propose Réessayer plutôt que de rediriger vers le
+          // login un patient encore authentifié.
+          builder: (_, __) => Scaffold(
+            body: BlocBuilder<AuthCubit, AuthState>(
+              builder: (context, state) => state is AuthRestoreFailed
+                  ? NubiaErrorWidget(
+                      message: state.message,
+                      onRetry: () => context.read<AuthCubit>().restore(),
+                    )
+                  : const Center(child: CircularProgressIndicator()),
+            ),
+          ),
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
         GoRoute(

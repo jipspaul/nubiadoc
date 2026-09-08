@@ -116,4 +116,74 @@ void main() {
       },
     );
   });
+
+  group('restore', () {
+    blocTest<AuthCubit, AuthState>(
+      'pas de token stocké → Unauthenticated',
+      build: buildCubit,
+      setUp: () {
+        when(() => tokenStorage.getAccessToken()).thenAnswer((_) async => null);
+      },
+      act: (cubit) => cubit.restore(),
+      expect: () => [isA<AuthUnauthenticated>()],
+    );
+
+    blocTest<AuthCubit, AuthState>(
+      'token stocké + getAccount() OK → Authenticated',
+      build: buildCubit,
+      setUp: () {
+        when(() => tokenStorage.getAccessToken())
+            .thenAnswer((_) async => 'a-valid-token');
+      },
+      act: (cubit) => cubit.restore(),
+      expect: () => [isA<AuthAuthenticated>()],
+    );
+
+    blocTest<AuthCubit, AuthState>(
+      'token stocké + getAccount() 401 → Unauthenticated (session réellement invalide)',
+      build: buildCubit,
+      setUp: () {
+        when(() => tokenStorage.getAccessToken())
+            .thenAnswer((_) async => 'a-valid-token');
+        when(() => getAccount())
+            .thenAnswer((_) async => const Left(UnauthorizedFailure()));
+      },
+      act: (cubit) => cubit.restore(),
+      expect: () => [isA<AuthUnauthenticated>()],
+    );
+
+    // #6750 : une coupure réseau pendant restore() ne doit pas être traitée
+    // comme un logout — le token n'a rien prouvé d'invalide, il ne faut pas
+    // renvoyer le patient vers le login.
+    blocTest<AuthCubit, AuthState>(
+      'token stocké + getAccount() échec réseau → AuthRestoreFailed, pas Unauthenticated',
+      build: buildCubit,
+      setUp: () {
+        when(() => tokenStorage.getAccessToken())
+            .thenAnswer((_) async => 'a-valid-token');
+        when(() => getAccount())
+            .thenAnswer((_) async => const Left(NetworkFailure()));
+      },
+      act: (cubit) => cubit.restore(),
+      expect: () => [
+        isA<AuthRestoreFailed>().having(
+          (s) => s.message,
+          'message',
+          const NetworkFailure().message,
+        ),
+      ],
+    );
+
+    blocTest<AuthCubit, AuthState>(
+      'token stocké + getAccount() lève une exception → AuthRestoreFailed',
+      build: buildCubit,
+      setUp: () {
+        when(() => tokenStorage.getAccessToken())
+            .thenAnswer((_) async => 'a-valid-token');
+        when(() => getAccount()).thenThrow(Exception('boom'));
+      },
+      act: (cubit) => cubit.restore(),
+      expect: () => [isA<AuthRestoreFailed>()],
+    );
+  });
 }
