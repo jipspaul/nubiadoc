@@ -8,7 +8,6 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../router/app_router.dart';
 import 'appointment_formatting.dart';
 import 'mes_rdv_bloc.dart';
 import 'mes_rdv_event.dart';
@@ -59,26 +58,12 @@ class _MesRdvBody extends StatelessWidget {
             );
           }
           if (state is MesRdvLoaded) {
-            // #6704 : le bouton « Prendre un rendez-vous » flotte au-dessus
-            // de la liste (cet écran vit dans le Scaffold du shell, donc pas
-            // de floatingActionButton disponible ici) — la prise de RDV
-            // n'était atteignable que par l'icône loupe non libellée.
-            return Stack(
-              children: [
-                _LoadedView(state: state),
-                Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: FloatingActionButton.extended(
-                    key: const Key('mes_rdv_book_appointment_cta'),
-                    heroTag: 'mes_rdv_book_cta',
-                    onPressed: () => context.push(AppRouter.appointments),
-                    icon: const Icon(Icons.event_available_outlined),
-                    label: const Text('Prendre un rendez-vous'),
-                  ),
-                ),
-              ],
-            );
+            // #6737 : PAS de bouton flottant ici — la route `/mes-rdv` en
+            // fournit déjà un dans le Scaffold du shell (`book_rdv_fab`,
+            // app_router.dart). En ajouter un second (#6704) les superposait
+            // sur la même bande. Seule la marge basse de la liste reste, pour
+            // que le bouton du shell ne recouvre pas la dernière carte.
+            return _LoadedView(state: state);
           }
           return const SizedBox.shrink();
         },

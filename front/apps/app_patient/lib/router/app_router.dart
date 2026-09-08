@@ -319,8 +319,11 @@ class AppRouter {
             floatingActionButton: FloatingActionButton.extended(
               key: const Key('book_rdv_fab'),
               onPressed: () => context.go(AppRouter.book),
-              icon: const Icon(Icons.add),
-              label: const Text('Booker un RDV'),
+              icon: const Icon(Icons.event_available_outlined),
+              // #6737 : libellé métier, pas l'anglicisme « Booker » — même
+              // formulation que le bouton de l'accueil (#6704), pour que le
+              // patient reconnaisse la même action aux deux endroits.
+              label: const Text('Prendre un rendez-vous'),
             ),
             body: const MesRdvPage(),
           ),
