@@ -30,6 +30,7 @@ plan d'exécution réaliste.
 | [`14-decision-terminal-paiement-cb.md`](./14-decision-terminal-paiement-cb.md) | **Décision** : lecteur de paiement mobile (Stripe Terminal vs SumUp) pour l'encaissement CB au fauteuil — coût matériel, frais de transaction, compatibilité avec l'intégration Stripe existante (stub, pas encore live), recommandation. |
 | [`15-decision-sesam-vitale.md`](./15-decision-sesam-vitale.md) | **Décision** : architecture de facturation SESAM-Vitale (build propre vs middleware FSE tiers vs hors périmètre) — état réel du code (aucune télétransmission aujourd'hui), recommandation par défaut : rester hors périmètre V1, critères de révision. |
 | [`16-decision-tiers-payant.md`](./16-decision-tiers-payant.md) | **Décision** : fournisseur de tiers payant télétransmis AMO/AMC (agrégateur dédié vs couplé au middleware FSE vs saisie déclarative actuelle) — recommandation par défaut : différer, critères de révision. |
+| [`ateliers/`](./ateliers/README.md) | **Journal des ateliers produit** avec les associés et experts métier. Le `README` du dossier porte l'état courant (décisions `D-nn`, arbitrages en attente `Q-nn`, actions ouvertes `A-nn`) ; un compte rendu par séance. Point d'entrée pour savoir où en est le cadrage produit.
 
 > Design & UX : voir [`../design/`](../design/) — design system, user stories (dont marketplace), flux et **maquettes HTML** (`design/mockups/nubia-maquettes.html` + `nubia-marketplace.html`).
 
