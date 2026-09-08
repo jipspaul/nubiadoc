@@ -961,3 +961,57 @@ Conformément à la leçon de méthode ci-dessus, **chaque** verdict négatif a 
 > n'émet aucune requête (#6717). Les 5 « cassés » sont tous des **403 volontaires** (garde §14 relation
 > de soin sur `/patients` praticien, `cabinet/stats/activity` réservé aux praticiens) ou du bruit
 > d'infra hors produit.
+
+## Ronde 2026-09-08 (00:00–02:30 UTC) — audit de commandes, 5 apps, verdicts re-prouvés au pixel
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | `/` (Accueil) | 390×844 | 17 | 16 | 16 | 0 | 0 | 0 | 2026-09-08T00:38:00Z |
+| patient | `/mes-rdv` | 390×844 | 7 | 4 | 4 | 0 | 0 | 0 | 2026-09-08T00:45:00Z |
+| patient | `/messaging` | 390×844 | 8 | 1 | 1 | 0 | 0 | 0 | 2026-09-08T00:45:00Z |
+| patient | `/profile` | 390×844 | 12 | 12 | 12 | 0 | 0 | 0 | 2026-09-08T01:25:00Z |
+| patient | `/appointments` (+ sous-écran créneaux) | 390×844 | 27 | 6 | 6 | 0 | 0 | 0 | 2026-09-08T00:30:00Z |
+| praticien | `/ordonnances/new?patientId=` | 1440×900 | 45 | 4 | 4 | 0 | 0 | 0 | 2026-09-08T00:28:00Z |
+| secretariat | `/` (Tableau de bord) | 1280×800 | 28 | 16 | 16 | 0 | 0 | 0 | 2026-09-08T01:15:00Z |
+| pharmacie | `/` (File des commandes) | 1280×800 | 23 | 13 | 13 | 0 | 0 | 0 | 2026-09-08T01:20:00Z |
+| pharmacie | `/stock` | 1280×800 | 13 | 11 | 11 | 0 | 0 | 0 | 2026-09-08T02:05:00Z |
+| pharmacie | `/orders/:id` (Délivrance) | 1280×800 | 28 | 5 | 5 | 0 | 0 | 0 | 2026-09-08T00:20:00Z |
+| infirmiere | `/` (Disponibilité) | 390×844 | 7 | 6 | 6 | 0 | 0 | 1 (déconnexion, non activé) | 2026-09-08T00:31:00Z |
+| **TOTAL RONDE (11 écrans, 5 apps, 2 viewports)** | | | **215** | **94** | **94** | **0** | **0** | **1** |
+
+### ⚠️ Correction de méthode — d'où venaient les « morts » des rondes précédentes
+
+Le détecteur utilisé jusqu'ici jugeait un contrôle **MORT** quand, après le clic, il n'observait
+ni changement d'URL, ni requête `/v1/`, ni variation du **nombre de nœuds `flt-semantics`**.
+Ce troisième critère est **insuffisant** : une bascule, un filtre, un onglet ou une sélection
+repeignent l'écran **sans changer le nombre de nœuds**. Résultat : des contrôles parfaitement
+fonctionnels étaient déclarés morts.
+
+**13 candidats « MORT » ont été rejoués un par un cette ronde, avec comparaison de l'empreinte
+md5 de la capture d'écran avant/après. Les 13 sont vivants :**
+
+| candidat | app / écran | preuve du contraire |
+|---|---|---|
+| `Modifier la photo de profil` | patient `/profile` | ouvre bien un sélecteur de fichier — **1 événement `filechooser`** capté par Playwright. Aucun pixel ne bouge : c'est le comportement normal d'un `<input type=file>`, pas un bouton mort. |
+| `Authentification biométrique` | patient `/profile` | `aria-checked` **false → true → false**, pixels modifiés. Aucune requête `/v1/` : bascule locale, cohérent. |
+| `Toutes` / `Reçues` / `En préparation` / `Prêtes` | pharmacie `/` | les 4 filtres repeignent la liste (`aria-checked` bascule). Le filtrage côté API est par ailleurs **correct** : `?status=received|preparing|ready|picked_up` renvoie exactement les bons sous-ensembles, `?status=zzz` → 422. |
+| `À répondre (0)` / `Refusées (10)` / `Stock` | pharmacie `/stock` | pixels modifiés à chaque clic. |
+| `Ma journée` / `Tableau de bord` | secretariat `/` | pixels modifiés (bascule de section sans changement d'URL). |
+| `Itinéraire` | patient `/` | navigue vers `/home-care/<visit_id>`. |
+| `Notifications` / `Mes ordonnances` | patient `/` | 12 requêtes `/v1/` pour la première, navigation vers `/prescriptions` pour la seconde. |
+
+**Conséquence pour les rondes suivantes** : le critère de repeinture doit être l'**empreinte de
+capture d'écran**, et l'inventaire doit écouter l'événement `filechooser`. Les deux corrections
+sont désormais dans `w8_lib.js` / `qa-lib.js`. Le chiffre « 136 morts » de la ronde 2026-09-07
+est à lire avec cette réserve **en plus** de l'artefact de bord déjà documenté : les morts réels
+restent ceux qui ont été filés (#6710, #6717), pas le volume brut.
+
+### Cas adversariaux joués cette ronde
+
+| cas | écran | verdict |
+|---|---|---|
+| **BACK navigateur au milieu du tunnel de réservation** | patient `/appointments` → sous-écran créneaux | **CORRECT — correctif #6718 confirmé.** L'ouverture du sous-écran crée bien une entrée d'historique (`history.length` 4 → 5) et le BACK **revient sur `/appointments`** avec ses 21 contrôles de recherche, sans écran blanc ni erreur console. *(Un premier passage avait conclu « éjecté vers `/` » : artefact de ma séquence — j'avais pressé BACK depuis la **feuille** de détail praticien, qui ne pousse pas d'entrée, pas depuis l'écran créneaux. Rejoué proprement, le correctif tient.)* |
+| **Coupure réseau à l'ouverture d'une conversation** (`route.abort` sur `**/v1/conversations/**`) | patient `/messaging` | **CORRECT — correctif #6717 confirmé.** L'échec affiche un état d'erreur portant un bouton `Réessayer` ; le clic **réémet réellement** les requêtes (4 appels : `GET /conversations`, 2× `GET /conversations/:id/messages`, `POST /conversations/:id/read`) et le fil se charge (« Retour », « Proposer un créneau », « Merci ! », « Je rappelle », « Votre message… »). |
+| **Texte très long via l'API, rendu dans l'UI** | pharmacie `/orders/:id` | **DÉFAUT — #6736.** Un libellé de 1 281 caractères (accepté en 201, aucun plafond serveur) occupe 16 lignes et pousse posologie, puce « Substituable » et les **3 actions du comptoir** sous la ligne de flottaison. |
+| **Double action / transitions concurrentes** | API ordonnances, stock, visites infirmière | **CORRECT.** Double `order` d'une même ordonnance → 409 `already_ordered` ; double `accept` d'une visite → 409 `invalid_status` ; double `accept` d'une demande de stock → 409 `invalid_status` ; `POST /notifications/:id/read` deux fois → 200 idempotent, `unread_count` inchangé. |
+| **Saisie invalide / payload malformé** | `POST /v1/cabinet/prescriptions` | **CORRECT** sur 7 cas sur 8 : items vide, label vide, posology vide, duration vide, `patient_id` malformé, champ inconnu → **422** ; patient d'un autre cabinet → **404**. Seul manque le plafond de longueur (#6736). |
