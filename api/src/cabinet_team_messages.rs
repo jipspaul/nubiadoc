@@ -132,12 +132,11 @@ pub async fn list_cabinet_team_messages(
             .await
             .map_err(|_| AppError::Internal)?;
 
-        let user_row =
-            sqlx::query("SELECT first_name, last_name FROM app_user WHERE id = $1")
-                .bind(sender_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
+        let user_row = sqlx::query("SELECT first_name, last_name FROM app_user WHERE id = $1")
+            .bind(sender_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
 
         let name = user_row.and_then(|row| {
             let first_name: Option<String> = row.try_get("first_name").ok()?;
