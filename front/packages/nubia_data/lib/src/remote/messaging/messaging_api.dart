@@ -63,7 +63,27 @@ class MessagingApi {
         if (attachmentIds.isNotEmpty) 'attachment_ids': attachmentIds,
       },
     );
-    return MessageDto.fromJson(response.data!);
+    // #6739 : la création ne renvoie QUE `{message_id}` (SendMessageResponse,
+    // messaging.rs), pas le message complet — `MessageDto.fromJson` levait sur
+    // `id`/`sender`/`created_at` absents, l'erreur devenait un `ParseFailure`
+    // avalé sans message par le bloc, et la bulle n'apparaissait qu'après
+    // réouverture du fil. On reconstruit donc le message envoyé à partir de ce
+    // qu'on sait déjà (l'auteur est forcément le patient, l'horodatage est
+    // celui de l'envoi) quand la réponse est de cette forme courte.
+    final data = response.data ?? const <String, dynamic>{};
+    final shortId = data['message_id'] as String?;
+    if (shortId != null && data['id'] == null) {
+      return MessageDto(
+        id: shortId,
+        conversationId: conversationId,
+        sender: 'patient',
+        text: text,
+        attachmentIds: attachmentIds,
+        urgency: 'normal',
+        sentAt: DateTime.now().toUtc().toIso8601String(),
+      );
+    }
+    return MessageDto.fromJson(data, conversationId: conversationId);
   }
 
   Future<void> markRead(String conversationId) async {
