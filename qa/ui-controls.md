@@ -1361,3 +1361,35 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 |---|---|---|---|---|---|---|---|
 | patient | `/rdv/:id/prepare` (390) | 2 | 2 | 2 | **0** (1 faux positif levé) | 0 | 2026-09-15T20:38:00Z — L'écran « **Préparer mon RDV** » affiche le praticien, l'adresse, « Parking disponible », « Accès PMR » et « Rappel Mer 16 sep à 09:00 », puis **une seule** ligne de checklist : « Carte Vitale ». Elle ressortait MORT (ni `aria-checked`, ni requête) — **vérification au diff de pixels sur son rect (16,278 358×56)** : le clic sur la case **change bien les pixels**, la case se coche. **Non morte.** À consigner tout de même, sans en faire une issue : (a) l'élément est exposé en `role="button"` **sans `aria-checked`**, donc un lecteur d'écran ne peut pas annoncer l'état coché ; (b) le basculement n'émet **aucune requête** et l'état repart décoché au rechargement — cohérent avec le scénario `patient-prepare-rdv-checklist-et-donnees` déjà consigné le 2026-09-02. Témoin de vivacité du pointeur : « Retour » navigue vers `/`. |
 | patient | `/implant-passport` (390) | 6 | 6 | 6 | 0 | 0 | 2026-09-15T20:35:00Z — 2e passage (cf. ledger design-v2) : les 5 cartes d'implant et l'export répondent. |
+
+---
+
+## ✅ BILAN DÉFINITIF — ronde 2026-09-15, 3e vague
+
+*(recalculé sur l'ensemble des journaux de la ronde, doublons de route/viewport dédupliqués)*
+
+| | valeur |
+|---|---|
+| **écrans audités par l'auditeur** | **57** — patient 24, secrétariat 15, praticien 11, pharmacie 5, infirmière 2 |
+| **contrôles inventoriés** | **999** |
+| **contrôles activés et jugés** | **920** |
+| morts **bruts** (détecteur) | 109 |
+| morts **vérifiés** au re-clic isolé | **1** — bascule « En ligne » infirmière (**#6964**, déjà ouverte) |
+| **faux positifs levés** | **108** |
+| cassés | **21** — dont **15** = 403 « relation de soin » volontaires et **correctement affichés**, 5 = 403 RBAC `/cabinet/stats` (#6369), 1 = jeton expiré en cours de lot |
+| captures sauvegardées | **189** dans `qa/screenshots/<rôle>/` |
+
+### Les 5 familles de faux positifs de cette ronde
+
+| famille | occurrences | comment les éviter |
+|---|---|---|
+| **auto-navigation** — entrée de nav de l'écran **courant** | ~30 | ignorer l'entrée dont la route == l'URL courante |
+| **facette / onglet déjà sélectionné** (« Toutes », « Tous », « Membres »…) | ~20 | lire `aria-selected` avant de cliquer |
+| **rail poussé hors de portée** (#6829/#6944) | ~25 | connu ; ne pas recompter |
+| **coordonnées périmées en lot** — après la 1re ouverture, tout le reste du lot ressort MORT | ~25 | re-naviguer entre deux contrôles, ou re-cliquer isolément |
+| **délégation à la plateforme / au canvas** (pièges **nº 17** et **nº 18**) | ~8 | intercepter `window.open`/`filechooser`, et **comparer les pixels** du rect |
+
+> **La leçon de la ronde, en une phrase** : sur une app Flutter web, **l'arbre Semantics dit qui existe,
+> les pixels disent ce qui se passe**. 108 des 109 « morts » détectés étaient des artefacts ; le seul vrai
+> mort (#6964) n'a été confirmé qu'après un balayage de ~170 points de clic **et** un témoin de vivacité
+> du pointeur dans la même session.
