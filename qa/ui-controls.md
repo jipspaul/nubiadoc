@@ -1393,3 +1393,14 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 > les pixels disent ce qui se passe**. 108 des 109 « morts » détectés étaient des artefacts ; le seul vrai
 > mort (#6964) n'a été confirmé qu'après un balayage de ~170 points de clic **et** un témoin de vivacité
 > du pointeur dans la même session.
+
+### Ronde 2026-09-15, 3e vague — 7e lot (2 écrans, **total 59**)
+
+| app | écran/route | inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | `/questionnaire-medical/:cabinetId` (390) | 1 | 0 | — | 0 | 0 | 2026-09-15T20:37:00Z — **1re fois auditée.** L'écran rend « **Avant votre rendez-vous** », le bandeau vert « **Déjà transmis à votre cabinet le 19/08/2026.** », puis les 3 zones (Antécédents médicaux / Allergies / Traitements en cours) et la bascule ALD — **toutes correctement désactivées**, avec la raison affichée. **Désactivation légitime et motivée**, pas un défaut. *(Que le point d'entrée depuis un RDV confirmé mène à « Page introuvable » est **#6888**, déjà ouverte — la route elle-même, avec un `cabinetId` valide, fonctionne.)* |
+| pharmacie | `/orders/:id` (Délivrance, 1280) | 22 | 20 | 20 | **0** (3 faux positifs levés) | 0 | 2026-09-15T20:47:00Z — « Voir l'original » (requête), « Créer un devis » et « Commencer la préparation » répondent. « **Refuser la commande** » ressortait MORT : re-testée **sur une commande au statut `received`**, elle est **OK** — elle ouvre sa boîte de confirmation (« **Motif (obligatoire)** », « Annuler », « Refuser »). Le MORT venait de l'**état devenu obsolète** : l'auditeur avait déjà cliqué « Commencer la préparation » plus haut dans le même lot, faisant passer la commande en `preparing`, statut où le refus n'est **légitimement** plus proposé. **6e famille de faux positif : l'action disparaît parce que le lot a fait avancer la machine à états.** |
+
+> **Correction du bilan** : 59 écrans audités, et la **6e famille de faux positifs** ci-dessus s'ajoute aux
+> cinq déjà listées — quand un lot enchaîne les contrôles d'un même écran transactionnel, les actions
+> conditionnées au statut peuvent disparaître **en cours de lot**. Re-tester sur une ressource au bon statut.
