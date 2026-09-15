@@ -1332,3 +1332,25 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 | morts **vérifiés** | **1** — bascule « En ligne » infirmière (**#6964**, déjà ouverte) |
 | faux positifs levés | **62** |
 | cassés | **20**, dont **15** = 403 « relation de soin » **volontaires et correctement affichés**, 4 = 403 RBAC `/cabinet/stats` (#6369), 1 = jeton périmé en cours de lot |
+
+### Ronde 2026-09-15, 3e vague — 5e lot (6 écrans, **total 52**)
+
+| app | écran/route | inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | `/profile/dependents` (390) | 22 | 18 | 18 | 0 | 0 | 2026-09-15T20:22:00Z — 14 proches listés, actions par ligne actives. |
+| patient | `/pharmacy` (390) | 7 | 7 | 5 | 0 | 0 | 2026-09-15T20:22:00Z — carte « Pharmacie du Rhône » déclarée ; 2 MORT = nav de l'onglet courant. |
+| patient | `/pharmacy/orders` (390) | 16 | 13 | 13 | **0** (12 faux positifs levés) | 0 | 2026-09-15T20:28:00Z — Les 12 cartes de commande ressortaient MORT **en lot**. Re-cliquées **isolément** (3 sur 3) : chacune émet `GET /v1/account/orders/<son id>` et ouvre son détail → **OK**. Artefact de coordonnées périmées après la 1re ouverture. *(L'URL ne bouge pas à l'ouverture du détail — famille #6991, non re-filée ; l'écran de suivi, lui, rend bien sa frise complète, cf. ledger design-v2.)* |
+| patient | `/home-care/new` (390) | 11 | 10 | 6 | 0 | 0 | 2026-09-15T20:23:00Z — formulaire de demande de visite ; 4 MORT = les champs `Adresse` / `Code postal` / `Ville` (textbox pleine largeur, **piège nº 17**) et une case déjà cochée. |
+| secretariat | `/appointments` (1280) | 24 | 23 | 20 | 0 | 0 | 2026-09-15T20:24:00Z — 3 MORT = rail (#6829/#6944) + nav courante. |
+| secretariat | `/team-messages` (1280) | 25 | 22 | 19 | 0 | 0 | 2026-09-15T20:25:00Z — composeur et barre d'outils actifs ; les 2 CTA « à venir » restent correctement grisés (#6702). MORT = rail + onglet courant. |
+
+### Bilan contrôles DE CLÔTURE — ronde 2026-09-15, 3e vague
+
+| | valeur |
+|---|---|
+| **écrans audités** | **52** — patient 21, praticien 11, secrétariat 13, pharmacie 5, infirmière 2 |
+| **contrôles inventoriés / activés** | **≈ 880 / 810** |
+| morts **vérifiés** | **1** — bascule « En ligne » infirmière (**#6964**, déjà ouverte) |
+| faux positifs levés | **~85** — auto-nav, facette déjà active, rail #6829/#6944, champs pleine largeur (nº 17), délégation plateforme (nº 18), coordonnées périmées en lot, jeton expiré |
+| cassés | **20**, dont **15** = 403 « relation de soin » volontaires **et correctement affichés** |
+| couverture des routes UI | **52 / 63** routes déclarées dans les `app_router.dart` des 5 apps (**83 %**), les 11 restantes étant des sous-écrans atteints par scénario ciblé (détail de devis, fiche implant, composeur d'ordonnance, scan de retrait…) |
