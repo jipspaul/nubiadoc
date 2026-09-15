@@ -1256,3 +1256,52 @@ alors que la capture montre clairement **Prénom / Nom / Téléphone / Date de n
 (valeur relue dans le DOM). **Règle** : avant de conclure « champ absent des Semantics », relire avec
 `L.semantics()` sans le filtre, et vérifier sur la capture. Un écran de formulaire ne doit jamais être
 jugé sur `inv()` seul.
+
+### Ronde 2026-09-15, 3e vague — complément : 17 écrans de plus (total **35**)
+
+| app | écran/route | inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| praticien | `/stock` (1280) | 18 | 17 | 16 | 0 | 0 | 2026-09-15T19:05:00Z — 1 MORT = « Stock », l'écran courant (auto-nav). |
+| praticien | `/stock-inventory` (1280) | 28 | 25 | 24 | 0 | 0 | 2026-09-15T19:10:00Z — 1 MORT = « Inventaire », écran courant. |
+| praticien | `/team-messages` (1280) | 17 | 16 | 15 | 0 | 0 | 2026-09-15T19:15:00Z — 1 MORT = « Messagerie interne », écran courant. Les 2 CTA « à venir » restent correctement grisés (#6702). |
+| praticien | `/waiting-room` (1280) | 18 | 16 | 15 | 0 | 0 | 2026-09-15T19:20:00Z — 1 MORT = « Salle d'attente », écran courant. « Appeler suivant » **désactivé à juste titre** (file vide). |
+| praticien | `/ordonnances` + `/ordonnances/new?patientId=` (1280) | 49 | — | — | 0 | 0 | 2026-09-15T19:35:00Z — Parcours métier complet : `/ordonnances` sans patient n'offre que « Choisir un patient » → `/patients` ; le composeur s'ouvre par `/ordonnances/new?patientId=` (produit par `patients_page.dart:446`). **Mécanique vérifiée** : appliquer un modèle remplit l'aperçu (0 → 1 médicament). |
+| secretariat | `/liste-attente` (1280) | 20 | 19 | 17 | 0 | 0 | 2026-09-15T19:12:00Z — 2 MORT = rail (#6829) / en-tête de groupe (#6944). |
+| secretariat | `/appointment-motifs` (1280) | 24 | 23 | 19 | 0 | 1 | 2026-09-15T19:18:00Z — CASSÉ = « Statistiques » → 403 `/cabinet/stats/activity` (#6369). Écriture admin-only (`ProAdminClaims`) : aucune action d'écriture exposée au secrétaire — cohérent. |
+| secretariat | `/admin-secretariats` (1280) | 21 | 20 | 19 | 0 | 0 | 2026-09-15T19:24:00Z — 1 MORT = rail. |
+| secretariat | `/messages` (1280) | 28 | 27 | 26 | **0** (8 faux positifs levés) | 0 | 2026-09-15T20:18:00Z — Les lignes de conversation re-cliquées isolément sont **OK-ui** : chacune émet `GET /cabinet/conversations/:id/messages` et repeint. « Tous » = facette **déjà sélectionnée**. |
+| pharmacie | `/` (File des commandes, 1280) | 22 | 19 | 18 | 0 | 0 | 2026-09-15T19:50:00Z — Facettes, recherche, « Délivrer » par ligne : actifs. MORT = nav courante + facette active. |
+| pharmacie | `/devis` (1280) | 27 | 26 | 24 | 0 | 0 | 2026-09-15T19:56:00Z — 5 facettes à compteur + « Nouveau devis » + action par ligne (`Préparer`/`Voir`) actifs. |
+| pharmacie | `/messages` (1280) | 15 | 14 | 13 | 0 | 0 | 2026-09-15T20:02:00Z — MORT = nav courante + facette active. |
+| patient | `/` (Accueil, 390) | 17 | 14 | 14 | **0** (1 faux positif levé) | 0 | 2026-09-15T20:28:00Z — « Préparer » → `/rdv/:id/prepare`. **« Itinéraire » n'est PAS mort** : il délègue à la plateforme (`openMapsDirections` → `launchUrl`), interception de `window.open` → `https://www.google.com/maps/search/?api=1&query=12+rue+de+la+République%2C+69002+Lyon`, et une page s'ouvre réellement dans le contexte. **#6130 reste fermée à juste titre.** |
+| patient | `/documents` (390) | 26 | 24 | 23 | 0 | 0 | 2026-09-15T20:20:00Z — facettes de catégorie + actions par document. |
+| patient | `/notifications` (390) | 20 | 18 | 17 | 0 | 0 | 2026-09-15T20:22:00Z — « Tout marquer lu » + 4 facettes + actions de deep-link. MORT = facette « Toutes » active. |
+| patient | `/messaging` (390) | 8 | 8 | 8 | 0 | 0 | 2026-09-15T20:25:00Z — les 8 fils s'ouvrent ; **le fil s'ouvre bien en BAS**, sur le message le plus récent (capture `msg_fil_ouvert.png`). |
+| patient | `/book` (390, parcours + BACK) | 23 | — | — | 0 | 0 | 2026-09-15T20:10:00Z — **Adversarial** : choisir un praticien change l'écran (23 → 2 contrôles) **sans publier d'URL** (reste `/book`). Le **BACK** du navigateur éjecte alors vers l'accueil `/` en sautant l'étape, et le **FORWARD ne rattrape pas**. Même cause que **#6991** / **#6718** — non re-filé. |
+
+### Bilan contrôles CONSOLIDÉ de la ronde
+
+| | valeur |
+|---|---|
+| écrans audités | **35** — patient 12, praticien 8, secrétariat 8, pharmacie 5, infirmière 2 |
+| contrôles inventoriés / activés | **576 / 531** |
+| morts **bruts** | 54 |
+| morts **vérifiés** (re-clic isolé) | **1** — bascule « En ligne » infirmière (**#6964**, déjà ouverte) |
+| faux positifs levés | **53** — auto-nav (écran courant), facette déjà sélectionnée, textbox de formulaire désactivé, rail #6829/#6944, jeton périmé en cours de lot, et délégation à la plateforme (piège nº 18) |
+| cassés | 5, tous des 403 RBAC volontaires (#6369) ou un jeton périmé |
+
+### ⚠️ Piège nº 18 (nouveau) — un bouton qui délègue à la plateforme ressort toujours « MORT »
+
+`openMapsDirections` (`nubia_core/lib/src/utils/maps_launcher.dart`) et `callPhoneNumber` appellent
+`launchUrl(..., mode: LaunchMode.externalApplication)`. Sur le **web**, cela ouvre un **nouvel onglet** :
+dans la page courante il n'y a **ni navigation, ni requête `/v1/`, ni repeinture** — les trois signaux du
+détecteur. « Itinéraire » de la carte héros patient ressortait donc MORT alors qu'il **fonctionne**.
+
+**Règle** : avant de conclure MORT sur un bouton d'action externe (itinéraire, appel téléphonique,
+téléchargement, partage), instrumenter la sortie :
+```js
+await p.evaluate(() => { window.__opened=[]; const o=window.open;
+  window.open=function(u,...r){ window.__opened.push(String(u)); return o&&o.apply(this,[u,...r]); }; });
+c.on('page', pg => console.log('nouvelle page', pg.url()));
+// puis relire window.__opened et c.pages() après le clic
+```
