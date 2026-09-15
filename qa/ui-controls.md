@@ -1207,3 +1207,52 @@ ré-authentification automatique, **aucun contrôle n'est mort** sur ce même é
 
 **Cumul final de la ronde : 481 contrôles inventoriés, 470 activés, 407 OK, 41 « morts » (tous du
 1er lot, tous expliqués), 13 « cassés » (12 × 401 transitoire + #6996).**
+
+## Ronde 2026-09-15, 3e vague (18:00–21:00 UTC) — 18 écrans, rotation « jamais audité » puis « plus ancien »
+
+> Sélection : les 2 écrans **jamais audités** (`secretariat /notification-preferences`,
+> `patient /appointments/slots`), puis les plus anciens du ledger (2026-09-05 → 2026-09-07).
+> **242 contrôles inventoriés, 223 activés.** Les 25 verdicts « MORT » bruts ont **tous** été
+> re-cliqués isolément : **0 contrôle réellement mort** en dehors de ceux déjà filés.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/notification-preferences` (1280) | 12 | 12 | 12 | 0 | 0 | 2026-09-15T18:04:00Z — **1re fois auditée.** Les 11 bascules répondent. « Demandes de stock » n'a que 2 canaux (in-app, push) et non 3 : **conforme au schéma**, `email_*` n'existe qu'en `rdv`/`messagerie`/`devis` (`notifications.rs:540-542`). Le « CASSÉ » du bouton « Retour » est l'écran d'arrivée (403 RBAC `/cabinet/members` + `/cabinet/audit-log`), pas ce contrôle. |
+| patient | `/appointments/slots` (390) | 21 | 20 | 20 | **0** (5 faux positifs levés) | 0 | 2026-09-15T18:08:00Z — **1re fois auditée.** Puces de créneau (« 16:30 », « 17:00 », « 17:30 »), « Voir plus de créneaux », 5 bascules de facette, 2 champs : tous actifs. Les 5 « MORT » (`Dr Inès Bernard`, `Dr Hugo Lefevre`, 2 pastilles « 2 », `Voir sa fiche et ses coordonnées`) ressortent **OK-ui** au re-clic isolé. **Mais** `Voir sa fiche et ses coordonnées` mène au tunnel de créneaux vide → **#7022 (P1)**, défaut de destination, pas de contrôle mort. |
+| secretariat | `/audit-log` (1280) | 24 | 21 | 19 | 0 | 0 | 2026-09-15T18:06:00Z — **#6561 corrigée** : « Filtrer » et « Réinitialiser » portent enfin `aria-disabled=true` au lieu de rejouer un 403 silencieux. État « Accès réservé aux administrateurs » toujours correct. MORT = « Ma journée » (en-tête de groupe, **#6944**) et « Entité » (textbox d'un formulaire désactivé, piège nº 16). |
+| secretariat | `/cabinet-stats` (1280) | 24 | 23 | 19 | 0 | 1 | 2026-09-15T18:06:00Z — CASSÉ = « Actualiser » → 403 `/cabinet/stats/activity` (RBAC admin/manager, **#6369**, volontaire). 4 MORT = entrées de rail (**#6829**) + en-tête de groupe (**#6944**). |
+| secretariat | `/bookable-slots` (1280) | 27 | 26 | 22 | 0 | 1 | 2026-09-15T18:07:00Z — « Actualiser », « Tous les praticiens », « Toutes les dates », « Créer un créneau » répondent. Mêmes 4 MORT de rail. |
+| praticien | `/notification-preferences` (1280) | 12 | 12 | 12 | 0 | 0 | 2026-09-15T18:24:00Z — 11 bascules + « Retour », toutes actives. « Travaux de laboratoire » en 2 canaux (in-app, push) : conforme au schéma. |
+| praticien | `/devis` (1280) | 24 | 21 | 21 | **0** (4 faux positifs levés) | 0 | 2026-09-15T18:41:00Z — Les 3 cartes de devis re-cliquées isolément sont **OK-ui** (`GET /v1/cabinet/quotes/:id` → 200, panneau de détail qui s'ouvre). Le « CASSÉ » à **401** du passage en lot était un **jeton périmé en cours de lot** (les access tokens vivent 900 s) — artefact de harnais, pas un défaut produit. |
+| praticien | `/messages` (1280) | 24 | 23 | 22 | 0 | 0 | 2026-09-15T18:26:00Z — 1 MORT = entrée de rail de l'écran courant (auto-nav, piège nº 1). |
+| praticien | `/lab-work-orders` (1280) | 18 | 17 | 16 | 0 | 0 | 2026-09-15T18:27:00Z — « Actualiser » et « Nouveau bon » actifs ; 1 MORT = « Labo », l'écran courant. Les cartes du kanban n'exposent **aucune action** parce que les 26 bons sont au statut terminal `Posé` : `_ADVANCE_LABELS` (`lab_work_orders_page.dart:53-55`) ne définit d'action que pour `sent`/`try_in`/`returned`. **Légitime, pas un manque.** |
+| pharmacie | `/notification-preferences` (1280) | 9 | 9 | 9 | 0 | 0 | 2026-09-15T18:39:00Z — 8 bascules + « Retour ». Pas de catégorie « Rendez-vous » côté officine : cohérent. |
+| pharmacie | `/stock` (1280) | 14 | 13 | 11 | 0 | 0 | 2026-09-15T18:40:00Z — 2 MORT = facette « À répondre (2) » déjà sélectionnée + entrée de nav courante. |
+| patient | `/profile/consents` (390) | 8 | 7 | 7 | **0** (1 faux positif levé) | 0 | 2026-09-15T20:12:00Z — Les 4 boutons « Détails » re-cliqués isolément : **OK-ui** les deux fois testées (19 → 15 et 19 → 17 nœuds, le panneau se déplie). |
+| patient | `/profile/notifications` (390) | 12 | 7 | 7 | 0 | 0 | 2026-09-15T20:10:00Z — bascules de préférences, toutes actives. |
+| patient | `/profile/referring-doctor` (390) | 1 | 1 | 1 | 0 | 0 | 2026-09-15T18:09:00Z — « Déclarer mon médecin traitant » (état vide légitime, aucun médecin déclaré). |
+| patient | `/reviews` (390) | 1 | 1 | 1 | 0 | 0 | 2026-09-15T18:09:00Z — état vide « Aucun avis pour ce prestataire. » Atteint **sans** `providerId`, donc l'état vide est normal. **Le deep link réel fonctionne** : `/reviews?appointmentId=<id>` (celui que sert `review_request`, `notifications.rs:90-93`) rend bien le **formulaire de dépôt** avec « Envoyer mon avis ». |
+| patient | `/oubliettes` (390) | 1 | 1 | 1 | 0 | 0 | 2026-09-15T18:09:00Z — état vide, 1 seul contrôle « Retour ». |
+| infirmiere | `/` (390, 3 onglets) | 7 | 6 | 5 | **1 (réel — #6964)** | 0 | 2026-09-15T18:55:00Z — Les 3 onglets et les 2 boutons d'en-tête répondent. La bascule **« En ligne » est réellement morte dans le sens hors-ligne → en ligne** : balayage du rect complet (24,174 342×48) **au pas de 10×8 px (~170 points)** → **0** `PATCH /v1/nurse/availability`, clic sur le nœud Semantics → 0, focus clavier + Espace → 0 ; **témoin dans la même session** : l'onglet « Offres » repeint et « Préférences de notifications » navigue. Sens **inverse** (en ligne → hors ligne) : **fonctionne** (`{"is_online":false}` émis). Cause = `setOnline` attend la géolocalisation sans timeout → **#6964**, commentée et non re-filée. |
+| infirmiere | `/notification-preferences` (390) | 3 | 3 | 3 | 0 | 0 | 2026-09-15T18:56:00Z — 2 bascules (« Visites ») + « Retour ». |
+
+### Bilan contrôles de la ronde
+
+| | valeur |
+|---|---|
+| écrans audités | **18** (dont **2 jamais audités**) |
+| contrôles inventoriés / activés | **242 / 223** |
+| morts **bruts** | 25 |
+| morts **vérifiés** (re-clic isolé) | **1** — la bascule « En ligne » infirmière (**#6964**, déjà ouverte) |
+| cassés | 4, tous expliqués : 403 RBAC volontaires (#6369/#6561) ou jeton périmé en cours de lot |
+
+### ⚠️ Piège nº 17 (nouveau, ronde 2026-09-15 3e vague) — le garde-fou anti-conteneur mange les champs pleine largeur
+
+`R7x_lib.js::inv()` écarte tout `role=textbox` de plus de **700 px** de large pour éviter de prendre un
+conteneur pour un champ. À **1280 px**, les champs d'un formulaire pleine largeur font **1256 px** : ils
+étaient donc **tous** jetés. Sur `secretariat /patients/new`, l'inventaire filtré rendait « 0 champ »
+alors que la capture montre clairement **Prénom / Nom / Téléphone / Date de naissance**, et la sonde
+**brute** (`L.semantics()`) les rend tous les 4, correctement nommés — la saisie fonctionne
+(valeur relue dans le DOM). **Règle** : avant de conclure « champ absent des Semantics », relire avec
+`L.semantics()` sans le filtre, et vérifier sur la capture. Un écran de formulaire ne doit jamais être
+jugé sur `inv()` seul.
