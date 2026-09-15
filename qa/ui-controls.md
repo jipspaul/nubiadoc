@@ -1078,3 +1078,77 @@ l'auditeur** (rôle ET libellé sur le même nœud) qui était trop strict.
 | **Défilement profond (46 proches)** | patient `/profile/dependents` | **CORRECT** — ratio de blanc mesuré à 0 / 2 000 / 4 000 / 6 000 / 8 000 / 10 000 px : **0,889 → 0,826 → 0,826 → 0,829 → 0,831 → 0,831**, nœuds Semantics présents en continu, 0 erreur console, et le retour en haut restaure l'état initial à l'identique (0,889 / 31 nœuds). *Une capture blanche relevée en cours de route était un artefact de `screenshot()` pris en pleine repeinture, sans `animations:'disabled'` — pas un canvas vide.* |
 | **Coupure réseau puis rechargement** | pharmacie `/`, infirmiere `/` | **Comportement déjà consigné (2026-09-07), confirmé sur 2 apps de plus, non filé.** Le rechargement hors ligne fait échouer la restauration de session → l'app affiche **le formulaire de connexion** (ce n'est donc pas un écran blanc : ratio 0,978 avec les 4 contrôles du formulaire). Au retour du réseau, l'app **récupère intégralement sans redemander d'identifiants** (pharmacie : 4 → 23 contrôles). L'app infirmière, elle, conserve sa coque (en-tête + 3 onglets + bascule) et vide seulement son contenu. |
 | **Payloads hostiles sur 10 écritures clés** | API | **8 corrects, 2 lacunes filées.** Corrects : corps de message vide → 422 ; `qty` négative et `qty` = 10¹⁵ sur une demande de stock → 422 ; prix négatif et `qty` = 0 sur un devis pharmacie → 422 ; acte inconnu sur une visite → 422 ; créneau inexistant → 409 ; praticien inexistant → 404. Lacunes : **latitude 999 acceptée en 201** (#6740) et **octet NUL accepté dans le corps d'un message** (#6741). |
+
+## Ronde 2026-09-15, 2e vague (12:00–15:00 UTC) — 18 écrans, 5 apps
+
+> **Correctif d'outillage de la ronde.** Deux sources de faux « MORT » ont été identifiées et
+> corrigées dans l'auditeur, elles expliquent une partie des « boutons morts » des rondes
+> précédentes :
+> 1. **Signature trop étroite.** Le détecteur comparait l'arbre Semantics **des seuls nœuds
+>    interactifs**. Sur la file d'officine, les facettes « Toutes » et « Prêtes » laissent les
+>    10 mêmes boutons « Délivrer » aux **mêmes coordonnées** — signature identique → « MORT ».
+>    Preuve du contraire : les libellés de **groupe** (les lignes) changent bien
+>    (`Toutes` → CMD-0031/0010/0070…, `En préparation` → CMD-0118/0160/0172… avec « Marquer
+>    prête »), et le md5 de la capture change. La signature inclut désormais **tous** les nœuds,
+>    et un second avis par md5 de capture (`OK-repaint`) tranche les cas restants.
+> 2. **Expiration de session en cours d'audit.** Le jeton d'accès vit ~10 min ; un audit
+>    « chaque bouton » d'un écran en dure plus. L'app rebondit alors sur `/login` et **tous** les
+>    contrôles suivants sont jugés morts à des coordonnées qui ne correspondent plus à rien
+>    (ratio de blanc 0,975 = celui de l'écran de connexion). L'auditeur se ré-authentifie
+>    désormais dès qu'il détecte `/login`. Les lignes ci-dessous marquées *(session expirée)*
+>    portent encore cet artefact et **ne doivent pas être lues comme des défauts**.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | `/` (accueil, 390×844) | 17 | 17 | 12 | 5 (dont 3 hors viewport avant le correctif de défilement, 1 = onglet déjà actif) | 0 | 2026-09-15T12:19:00Z |
+| patient | `/mes-rdv` (390×844) | 7 | 7 | 6 | 1 (onglet « À venir » déjà sélectionné — légitime) | 0 | 2026-09-15T12:32:00Z |
+| patient | `/prescriptions` (390×844) | 16 | 16 | 15 | 0 | 1 (ouverture PDF → écran vidé, **#6996**) | 2026-09-15T12:45:00Z |
+| patient | `/financial` (390×844) | 10 | 10 | 10 | 0 | 0 | 2026-09-15T12:50:00Z |
+| patient | `/home-care` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-09-15T12:52:00Z |
+| patient | `/profile` (390×844) | 12 | 12 | 9 | 2 | 1 (401 transitoire sur `/account/referring-doctor`, rejoué OK) | 2026-09-15T12:58:00Z |
+| patient | détail d'un devis (accueil → « Devis à signer » → carte) | 1 | 1 | 1 | 0 | 0 | 2026-09-15T13:35:00Z |
+| praticien | `/` (tableau de bord, 1280×800) | 20 | 19 | 18 | 1 (« Tableau de bord » = écran courant) | 0 — le 409 `invalid_status` de « Démarrer la consultation » est **conforme** (`clinical_session_repository_impl.dart:44-47`, #3400 : reprise de la séance en cours) | 2026-09-15T12:40:00Z |
+| praticien | `/agenda` (1280×800) | 22 | 21 | 19 | 1 | 1 (401 transitoire) | 2026-09-15T12:52:00Z |
+| praticien | `/waiting-room` (1280×800) | 21 | 20 | 19 | 1 | 0 | 2026-09-15T13:05:00Z |
+| praticien | `/patients/:id/treatment-plans` (1280×800) | 17 | 0 (inventaire seul — comparaison design) | — | — | — | 2026-09-15T14:05:00Z |
+| secretariat | `/` (tableau de bord, 1280×800) | 24 | 23 | 20 | 2 (« Ma journée » + « Tableau de bord » = en-tête de groupe et écran courant) | 1 (401 transitoire sur `/cabinet/quotes`) | 2026-09-15T12:35:00Z |
+| secretariat | `/team-messages` (1280×800) | 26 | 25 | 18 | 5 *(3 = session expirée)* | 0 | 2026-09-15T12:55:00Z |
+| secretariat | `/stock` (1280×800) | 4 | 4 | 2 | 2 *(session expirée — écran ré-audité manuellement ensuite : facette « Envoyées » OK, volet de détail OK, cf. #7019)* | 0 | 2026-09-15T13:00:00Z |
+| pharmacie | `/` (file des commandes, 1280×800) | 23 | 22 | 18 | 4 → **0 après vérification** : « Commandes » = écran courant, « Toutes » = facette déjà active, et « Prêtes »/« En préparation » **filtrent bien** (md5 de capture différent, lignes CMD différentes) | 0 | 2026-09-15T12:33:00Z |
+| pharmacie | `/devis` (1280×800) | 27 | 26 | 20 | 3 | 3 (401 transitoires) | 2026-09-15T12:50:00Z |
+| pharmacie | `/stock` (1280×800) | 14 | 13 | 12 | 1 (nav de l'écran courant) | 0 | 2026-09-15T13:00:00Z |
+| pharmacie | `/messages` (1280×800) | 15 | 14 | 1 | 12 *(session expirée — à ré-auditer)* | 1 | 2026-09-15T13:05:00Z |
+| infirmiere | `/` (Disponibilité / Offres / Ma visite, 390×844) | 7 | 6 | 5 | 1 (onglet déjà actif) | 0 | 2026-09-15T12:30:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-09-15T12:31:00Z |
+
+**Totaux de la ronde : 269 contrôles inventoriés, 259 activés** (10 non activés car destructifs —
+« Se déconnecter »), **196 OK**, **41 « morts » dont 18 tracés à un artefact (session expirée /
+facette déjà active / nav de l'écran courant) et 0 confirmé comme défaut neuf**, **9 « cassés »
+dont 7 sont des 401 transitoires d'expiration de jeton** et 1 est **#6996** (déjà filé).
+
+### Vérification ciblée : #6964 est CORRIGÉ
+
+La bascule « En ligne » de l'app infirmière, rapportée **morte sur le web** (0 requête, 0 message),
+émet désormais bien sa requête :
+```
+clic sur switch "En ligne" @24,174 342x48
+  -> 200 PATCH /v1/nurse/availability
+  -> 200 GET  /v1/nurse/offers        (rafraîchissement de la file d'offres)
+re-clic -> 200 PATCH /v1/nurse/availability
+0 erreur console, 0 réponse >= 400
+```
+Réserve (non filée, à observer) : l'arbre Semantics est **identique avant et après** la bascule —
+le libellé reste « En ligne » sans état, et la phrase d'état en toutes lettres relevée au registre
+du 2026-09-08 (« Vous êtes EN LIGNE — vous recevez les demandes de visite proches. ») n'apparaît
+plus dans l'inventaire. L'effet serveur, lui, est prouvé par l'A/B de `b13-x11` (0 offre hors ligne,
+offre reçue en ligne).
+
+### Cas adversariaux de la ronde
+
+| cas | écran | verdict |
+|---|---|---|
+| **Double-submit** d'un message patient | patient, fil « Cabinet Lyon » | **CORRECT** — 2 clics immédiats → **1 seul** `POST 201 /conversations/:id/messages`. |
+| **Texte très long** (270 car., accents + 200 × « A ») | patient, composeur de message | **CORRECT** — saisie acceptée, écran toujours peint (0,823), bouton « Envoyer le message » actif, envoi propre. |
+| **Coupure réseau** (`route.abort()` sur `*/v1/*`) puis `/splash` | patient | **Comportement de #6981, non re-filé** — l'app renvoie vers `/login` (0,937) au lieu de l'écran « Réessayer ». Cause confirmée cette ronde : le correctif #6750 vit sur la branche `fixer/issue-6750` (99055aa) **non mergée** — il n'est donc pas déployé. |
+| **Défilement d'un volet surchargé** | secrétariat `/stock`, demande à 500 items | **DÉFAUT** — l'action du volet est à 15 360 px ; l'atteindre sort l'en-tête et « Fermer » à −14 660 px. → #7019 |
+| **Payload hors-norme** (1 000 items) | API `POST /cabinet/stock-requests` | **DÉFAUT** — 201, aucun plafond de cardinalité. → #7019 |
