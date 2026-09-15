@@ -264,3 +264,12 @@ puis rotation sur les plus anciens.
 | divergents | 4 — dont **2 filés cette ronde** (#7018, #7019) et 2 déjà consignés (#6814/#6967, #6995/#6923/#6922) |
 | verdict **corrigé** par cette ronde | `patient /mes-rdv` : **DIVERGENT (2026-09-08) → conforme** grâce à #6737/#6743 |
 | première comparaison | `Praticien Plan de traitement v2.html` n'avait été comparée qu'une fois : 2 divergences structurelles neuves y sont relevées (action « Ajouter un acte à cette phase » absente, puce « Devis … · Ouvrir » absente) |
+
+### Ronde 2026-09-15, 2e vague — 7e écran (complément)
+
+| app | écran/route | maquette | verdict | divergences | last_check |
+|---|---|---|---|---|---|
+| secretariat | `/devis` (1280×800) | `Secretariat Devis v2.html` | **DIVERGENT (rendu)** — *c'est exactement **#6938**, déjà ouverte, **non re-filée*** | **Conforme** : la **table** prescrite est bien là, avec ses 6 en-têtes `Devis / Patient / Reste à charge / Statut / Échéance / Action`, les 4 facettes à compteur (« À signer (70) », « Brouillons (39) », « Signés (91) », « Expirés (0) »), le tri « Plus récent d'abord », la recherche « Patient, n° de devis… » et **une action par ligne** conditionnée au statut (`Relancer` pour « À signer », `PDF` pour « Signé ») — exactement la mécanique de la maquette, et le contraste avec `secretariat /stock` (cartes empilées, aucune action de ligne) est net. La colonne Échéance fonctionne pour « À signer » : `Dans 30 jours / 15/10`. **Divergence** : sur une ligne **Signée**, la cellule Échéance ne répète que le mot « Signé » là où la maquette porte « **Signé le 04/08** / acompte réglé ». Vérifié sur un devis créé pendant la ronde : `DEV-0727 ⏎ 15/09/2026 ⏎ MD ⏎ Marc Dubois ⏎ 210,00 € ⏎ Signé ⏎ Signé`. **Root cause confirmée cette ronde** : le DTO cabinet `CabinetQuoteListItem` (`api/src/cabinet_quotes.rs:284-300`) **ne porte aucun `signed_at`** — seulement `created_at`, `expires_at` et `deposit_paid` — alors que le DTO patient, lui, le sert (`GET /v1/billing/quotes/:id` → `"signed_at":"2026-09-15T13:47:42.003207+00:00"` sur ce même devis). Le front n'a donc **aucune date à afficher**. | 2026-09-15T14:25:00Z |
+
+> Bilan design-v2 corrigé de la ronde : **7 écrans comparés** (quota ≥ 5 atteint), 2 conformes,
+> 5 divergents — 2 filés cette ronde (#7018, #7019), 3 déjà consignés (#6814/#6967, #6995/#6923/#6922, #6938).

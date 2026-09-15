@@ -1152,3 +1152,44 @@ offre reçue en ligne).
 | **Coupure réseau** (`route.abort()` sur `*/v1/*`) puis `/splash` | patient | **Comportement de #6981, non re-filé** — l'app renvoie vers `/login` (0,937) au lieu de l'écran « Réessayer ». Cause confirmée cette ronde : le correctif #6750 vit sur la branche `fixer/issue-6750` (99055aa) **non mergée** — il n'est donc pas déployé. |
 | **Défilement d'un volet surchargé** | secrétariat `/stock`, demande à 500 items | **DÉFAUT** — l'action du volet est à 15 360 px ; l'atteindre sort l'en-tête et « Fermer » à −14 660 px. → #7019 |
 | **Payload hors-norme** (1 000 items) | API `POST /cabinet/stock-requests` | **DÉFAUT** — 201, aucun plafond de cardinalité. → #7019 |
+
+### Ronde 2026-09-15, 2e vague — 2e lot (8 écrans, auditeur corrigé)
+
+Ces 8 écrans ont été audités **après** les deux correctifs d'outillage décrits plus haut
+(signature élargie à tous les nœuds + second avis par md5 de capture, et ré-authentification
+automatique sur `/login`). Résultat : **0 contrôle mort sur 175 activés** — la nouvelle catégorie
+`OK-repaint` (l'écran change sans que l'arbre Semantics bouge) capte à elle seule 13 contrôles qui
+auraient été classés « morts » par l'ancien détecteur.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| praticien | `/ordonnances` (1280×800) | 18 | 17 | 17 | **0** | 0 | 2026-09-15T14:05:00Z |
+| praticien | `/lab-work-orders` (1280×800) | 18 | 17 | 16 | **0** | 1 (401 transitoire) | 2026-09-15T14:20:00Z |
+| praticien | `/stock-inventory` (1280×800) | 28 | 27 | 26 | **0** | 1 (401 transitoire) | 2026-09-15T14:45:00Z |
+| secretariat | `/salle-attente` (1280×800) | 22 | 21 | 21 | **0** | 0 | 2026-09-15T14:10:00Z |
+| secretariat | `/liste-attente` (1280×800) | 20 | 19 | 18 | **0** | 1 (401 transitoire) | 2026-09-15T14:30:00Z |
+| secretariat | `/cabinet-payouts` (1280×800) | 24 | 23 | 20 | **0** | 1 (401 transitoire) | 2026-09-15T14:50:00Z |
+| secretariat | `/devis` (1280×800) | 33 | 0 (inventaire seul — comparaison design, cf. #6938) | — | — | — | 2026-09-15T14:25:00Z |
+| patient | `/documents` (390×844) | 25 | 25 | 25 | **0** | 0 | 2026-09-15T14:15:00Z |
+| patient | `/notifications` (390×844) | 20 | 20 | 20 | **0** | 0 | 2026-09-15T14:35:00Z |
+
+**Cumul de la ronde (2 lots) : 444 contrôles inventoriés, 434 activés, 371 OK, 41 « morts » — tous
+du 1er lot, tous tracés à un artefact du détecteur ou à une désactivation légitime — et 13 « cassés »
+dont 12 sont des 401 transitoires d'expiration de jeton et 1 est #6996.**
+
+### Enseignement de la ronde sur les « boutons morts »
+
+Sur **175 contrôles** activés avec le détecteur corrigé, **aucun** n'est mort. Sur les 41 « morts »
+du 1er lot, **0** a survécu à la vérification manuelle : ils se répartissent en onglet/entrée de
+navigation déjà actif (12), facette déjà sélectionnée (2), contrôle hors viewport avant le
+correctif de défilement (3), session expirée (18) et repeinture invisible dans l'arbre Semantics
+(6, désormais `OK-repaint`). **Les rondes précédentes ont donc probablement sur-compté les boutons
+morts** ; le ledger doit être relu avec cette réserve.
+
+### Cas adversariaux — 2e lot
+
+| cas | écran | verdict |
+|---|---|---|
+| **BACK du navigateur au milieu du tunnel de réservation _in-app_** | patient `/appointments` | **DÉFAUT déjà filé (#6718)** — l'étape « créneaux » s'ouvre en boîte de dialogue **sans route propre** (URL figée sur `/appointments`) ; le BACK éjecte vers l'accueil `/` et le FORWARD ne rattrape pas (22 nœuds d'accueil dans les deux sens). |
+| **Rejeu d'un `refresh_token` consommé** | API `/v1/auth/refresh` | **CORRECT et remarquable** — 401 sur le jeton rejoué **et** révocation du jeton courant de la même famille. Contrôle A/B sans rejeu : la chaîne A→B→C passe en 200. Détection de réutilisation conforme à OAuth 2.0 BCP §4.13.2. |
+| **Facettes de la file d'officine** | pharmacie `/` | **CORRECT** — « Reçues », « En préparation » et « Prêtes » filtrent bien (lignes CMD distinctes, md5 de capture distinct) ; c'est le détecteur qui les lisait « mortes ». |
