@@ -1354,3 +1354,10 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 | faux positifs levés | **~85** — auto-nav, facette déjà active, rail #6829/#6944, champs pleine largeur (nº 17), délégation plateforme (nº 18), coordonnées périmées en lot, jeton expiré |
 | cassés | **20**, dont **15** = 403 « relation de soin » volontaires **et correctement affichés** |
 | couverture des routes UI | **52 / 63** routes déclarées dans les `app_router.dart` des 5 apps (**83 %**), les 11 restantes étant des sous-écrans atteints par scénario ciblé (détail de devis, fiche implant, composeur d'ordonnance, scan de retrait…) |
+
+### Ronde 2026-09-15, 3e vague — 6e lot (2 écrans, **total 54**)
+
+| app | écran/route | inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | `/rdv/:id/prepare` (390) | 2 | 2 | 2 | **0** (1 faux positif levé) | 0 | 2026-09-15T20:38:00Z — L'écran « **Préparer mon RDV** » affiche le praticien, l'adresse, « Parking disponible », « Accès PMR » et « Rappel Mer 16 sep à 09:00 », puis **une seule** ligne de checklist : « Carte Vitale ». Elle ressortait MORT (ni `aria-checked`, ni requête) — **vérification au diff de pixels sur son rect (16,278 358×56)** : le clic sur la case **change bien les pixels**, la case se coche. **Non morte.** À consigner tout de même, sans en faire une issue : (a) l'élément est exposé en `role="button"` **sans `aria-checked`**, donc un lecteur d'écran ne peut pas annoncer l'état coché ; (b) le basculement n'émet **aucune requête** et l'état repart décoché au rechargement — cohérent avec le scénario `patient-prepare-rdv-checklist-et-donnees` déjà consigné le 2026-09-02. Témoin de vivacité du pointeur : « Retour » navigue vers `/`. |
+| patient | `/implant-passport` (390) | 6 | 6 | 6 | 0 | 0 | 2026-09-15T20:35:00Z — 2e passage (cf. ledger design-v2) : les 5 cartes d'implant et l'export répondent. |
