@@ -1193,3 +1193,17 @@ morts** ; le ledger doit être relu avec cette réserve.
 | **BACK du navigateur au milieu du tunnel de réservation _in-app_** | patient `/appointments` | **DÉFAUT déjà filé (#6718)** — l'étape « créneaux » s'ouvre en boîte de dialogue **sans route propre** (URL figée sur `/appointments`) ; le BACK éjecte vers l'accueil `/` et le FORWARD ne rattrape pas (22 nœuds d'accueil dans les deux sens). |
 | **Rejeu d'un `refresh_token` consommé** | API `/v1/auth/refresh` | **CORRECT et remarquable** — 401 sur le jeton rejoué **et** révocation du jeton courant de la même famille. Contrôle A/B sans rejeu : la chaîne A→B→C passe en 200. Détection de réutilisation conforme à OAuth 2.0 BCP §4.13.2. |
 | **Facettes de la file d'officine** | pharmacie `/` | **CORRECT** — « Reçues », « En préparation » et « Prêtes » filtrent bien (lignes CMD distinctes, md5 de capture distinct) ; c'est le détecteur qui les lisait « mortes ». |
+
+### Ronde 2026-09-15, 2e vague — 3e lot : ré-audit des écrans victimes de l'expiration de session
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| pharmacie | `/messages` (1280×800) — **ré-audit** | 15 | 14 | 14 | **0** *(contre 12 « morts » au 1er lot)* | 0 | 2026-09-15T15:05:00Z |
+| patient | `/profile/dependents` (390×844) | 22 | 22 | 22 | **0** | 0 | 2026-09-15T15:12:00Z |
+
+Le ré-audit de `pharmacie /messages` **clôt la démonstration** : les 12 « boutons morts » relevés au
+1er lot sur cet écran étaient intégralement dus à l'expiration du jeton en cours d'audit. Avec la
+ré-authentification automatique, **aucun contrôle n'est mort** sur ce même écran.
+
+**Cumul final de la ronde : 481 contrôles inventoriés, 470 activés, 407 OK, 41 « morts » (tous du
+1er lot, tous expliqués), 13 « cassés » (12 × 401 transitoire + #6996).**
