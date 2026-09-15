@@ -1305,3 +1305,30 @@ await p.evaluate(() => { window.__opened=[]; const o=window.open;
 c.on('page', pg => console.log('nouvelle page', pg.url()));
 // puis relire window.__opened et c.pages() après le clic
 ```
+
+### Ronde 2026-09-15, 3e vague — 4e lot (9 écrans de plus, **total 44**)
+
+| app | écran/route | inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | `/mes-rdv` (390) | 8 | 7 | 7 | 0 | 0 | 2026-09-15T19:45:00Z — 1 MORT = onglet « À venir (20) » **déjà sélectionné**. |
+| patient | `/financial` (390) | 10 | 10 | 10 | 0 | 0 | 2026-09-15T19:47:00Z — 9 cartes de devis cabinet, toutes actives. *(Les devis d'**officine** ne sont pas sur cet écran mais sur `/pharmacy/quotes` — vérifié, ce n'est pas un manque.)* |
+| patient | `/home-care` (390) | 1 | 1 | 1 | 0 | 0 | 2026-09-15T20:13:00Z — état vide **légitime** : l'écran charge bien ses données (`GET /account/visit-requests` + `/account`) et n'offre que « Nouvelle demande », toutes les visites de test étant clôturées. |
+| patient | `/profile` (390) | 13 | 13 | 12 | **0** (1 faux positif levé) | 0 | 2026-09-15T20:13:00Z — « Modifier la photo de profil » ressortait MORT : il **ouvre en réalité un sélecteur de fichier** (événement `filechooser` capté, 1 occurrence) → **piège nº 18**. |
+| patient | `/pharmacy/quotes` (390) | 5 | 5 | 5 | **0** (1 faux positif levé) | 0 | 2026-09-15T19:55:00Z — **Parcours X9 côté patient bouclé en UI** : le devis d'officine envoyé 2 s plus tôt s'affiche (« Pharmacie du Rhône · À signer · 1 × QA-R73 UI Orthese · 39,90 € »), et « **Accepter** » **de la bonne carte** émet `POST /account/pharmacy-quotes/:id/accept` → l'état serveur passe à `accepted` avec `decided_at` à la seconde du clic. Le premier « Accepter » testé appartenait à la carte voisine (déjà acceptée) — artefact de ciblage, pas un défaut. |
+| praticien | `/` (Tableau de bord, 1280) | 18 | 17 | 16 | 0 | 0 | 2026-09-15T19:58:00Z — 1 MORT = nav de l'écran courant. |
+| praticien | `/agenda` (1280) | 22 | 21 | 20 | 0 | 0 | 2026-09-15T20:02:00Z — 1 MORT = nav de l'écran courant. |
+| praticien | `/patients` (1280) | 31 | 30 | 14 | 0 | **15 (RBAC volontaire)** | 2026-09-15T20:12:00Z — Les 15 « CASSÉ » sont **tous** le même cas : ouvrir la fiche d'un patient **jamais suivi** déclenche 403 sur `/medical-record`, `/documents` et `/prescriptions` (garde §14 relation de soin). **Ce n'est pas un défaut, et le 403 est désormais correctement affiché** : « *Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible.* » — **#6210 / #6212 / #6434 vérifiées corrigées**. *(Que les 5 actions cliniques restent actives sur cette fiche — Schéma dentaire, Bilan parodontal, Plan de traitement, Créer une ordonnance, Exporter PDF, toutes `dis=null` — est **#6854**, déjà ouverte.)* |
+| secretariat | `/` (Tableau de bord, 1280) | 23 | 22 | 20 | 0 | 0 | 2026-09-15T20:00:00Z — MORT = rail (#6829/#6944). |
+| secretariat | `/agenda` (1280) | 53 | 40 | 38 | 0 | 0 | 2026-09-15T20:05:00Z — **l'écran le plus dense de la ronde** (53 contrôles : grille semaine, navigation de dates, filtres praticien, cellules de créneau). MORT = rail. |
+| pharmacie | `/orders/:id/pickup` (scan de retrait, 1280) | 4 | 4 | 4 | 0 | 0 | 2026-09-15T20:00:00Z — **Adversarial** : « Délivrer » depuis la file mène directement au scan ; caméra absente → repli « saisie manuelle » annoncé ; un code **bidon** (`XXXX-YYYY`) produit un **404 correctement traité** en message digne — « **Code inconnu** · Revérifiez le code sur l'ordonnance et réessayez. » + bouton « Réessayer », le champ restant utilisable. Aucun écran blanc, aucune trace technique brute (hors la ligne « Ressource introuvable. » en petit, redondante mais non bloquante). |
+
+### Bilan contrôles FINAL de la ronde
+
+| | valeur |
+|---|---|
+| écrans audités | **44** — patient 16, praticien 11, secrétariat 10, pharmacie 5, infirmière 2 |
+| contrôles inventoriés / activés | **755 / 692** |
+| morts **bruts** | 63 |
+| morts **vérifiés** | **1** — bascule « En ligne » infirmière (**#6964**, déjà ouverte) |
+| faux positifs levés | **62** |
+| cassés | **20**, dont **15** = 403 « relation de soin » **volontaires et correctement affichés**, 4 = 403 RBAC `/cabinet/stats` (#6369), 1 = jeton périmé en cours de lot |
