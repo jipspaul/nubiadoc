@@ -1404,3 +1404,12 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 > **Correction du bilan** : 59 écrans audités, et la **6e famille de faux positifs** ci-dessus s'ajoute aux
 > cinq déjà listées — quand un lot enchaîne les contrôles d'un même écran transactionnel, les actions
 > conditionnées au statut peuvent disparaître **en cours de lot**. Re-tester sur une ressource au bon statut.
+
+| app | écran/route | inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | `/coverage-setup` (390) | 7 | 7 | 7 | **0** (2 faux positifs levés) | 0 | 2026-09-15T20:49:00Z — **1re fois auditée.** 3 boutons radio (Régime général / AME / CSS), 2 champs et « Enregistrer » / « Plus tard ». Les 2 champs ressortaient MORT : la saisie est **relue dans le DOM** (`"MGENtestMGEN QA-R73QA TestQA43"`), ils fonctionnent — **piège nº 17** pour la 3e fois de la ronde. **Écran total : 60.** |
+
+> **Bilan des faux positifs sur champs de saisie** : 3 écrans de formulaire sur 3 (`secretariat /patients/new`,
+> `patient /home-care/new`, `patient /coverage-setup`) ont rendu leurs `textbox` « MORT » au détecteur, et
+> **les 3 fois la saisie fonctionnait** (valeur relue dans le DOM). La sonde « taper puis mesurer » ne convient
+> pas aux champs : **relire `input.value` est le seul verdict fiable**.
