@@ -352,3 +352,22 @@ puis rotation sur les plus anciens.
 | divergents | **6**, **tous déjà couverts par des issues ouvertes** — #6946/#6712, #6984, #6774/#6924, #6978/#6955, #6941/#6856, + `/treatment-plans` déjà consigné |
 | **écrans sur l'ancienne charte** | **0** |
 | **nouvelles issues design-v2 filées** | **0** — chaque divergence relevée renvoyait à une issue déjà ouverte |
+
+### Ronde 2026-09-15, 3e vague — 4e lot (4 écrans, **total 19**)
+
+| app | écran/route | maquette | verdict | divergences | last_check |
+|---|---|---|---|---|---|
+| secretariat | `/agenda` (1280×800) | `Secretariat Agenda v2.html` | **conforme (structure + mécanique)** — **85 contrôles**, l'écran le plus dense de la ronde | **La mécanique nommée par la consigne — « grille SEMAINE avec les dates portées par les cartes, pas une liste plate » — est vérifiée.** En-têtes de jour **datés** (`LUN 14`, `MAR 15`, `MER 16`, `JEU 17`, `VEN 18`, `SAM 19`) avec le compte de RDV par jour, colonne d'heures (10:00, 11:00, …), cartes de RDV portant patient + motif (« Marc Dubois · QA-R69 B4 », « Marc Dubois · QA-R74 voie-bookings · à confirmer »). Navigation « Semaine précédente » / « Semaine suivante » / « **Aujourd'hui** », filtres par praticien **à compteur** (« Dr Claire Lefèvre · 2 », « Dr Hugo Marin · 41 »), recherche patient et « **Nouveau RDV** » : tous présents et actifs. | 2026-09-15T20:05:00Z |
+| patient | `/` (Accueil, 390×844) | `Patient Accueil v2.html` | **conforme** | Salutation « **Bonjour Marc Dubois** · Mardi 15 septembre », **carte héros** verte design-v2 avec pastille « Demain », date/heure en gros (« Mercredi 16 septembre · 10:00 »), praticien · motif, adresse, et les deux CTA **« Itinéraire »** / **« Préparer »** ; « Prendre un rendez-vous » ; section « **À faire · 2** » (Devis à signer, Reste à charge) ; « **Accès rapide** » (Mes ordonnances, Mes documents, Ma pharmacie, Mes proches, Soins à domicile) ; **barre d'onglets à 5 entrées** (Accueil, Mes RDV, **Messages**, Documents, Profil) conforme à la maquette. *(« Itinéraire » fonctionne — il ouvre Google Maps à la bonne adresse, cf. piège nº 18.)* **Correction de méthode** : l'inventaire Semantics ne rendait que 4 onglets et laissait croire à un « Messages » manquant — la capture montre les 5. | 2026-09-15T20:20:00Z |
+| praticien | `/` (Tableau de bord, 1280×800) | `Praticien Tableau de bord v2.html` | **conforme (partiel)** | Recherche « Acte, patient, ordonnance… ⌘K », compteurs de tête (« Confirmations en attente · 0 », « Messages non lus · 6 ») et bandeau « Ma journée » présents. Le bloc « **PATIENT SUIVANT · EN SALLE D'ATTENTE** » de la maquette n'était pas évaluable : la salle d'attente était **vide** au moment de la capture. À reprendre avec une file peuplée. | 2026-09-15T19:58:00Z |
+| praticien | `/patients/:id` (Dossier patient, 1280×800) | `Praticien Dossier patient v2.html` | **DIVERGENT (structure)** — *c'est **#6813**, déjà ouverte, **non re-filée*** | **Conforme** : en-tête patient avec pastille **ALD**, date de naissance et téléphone ; journal unifié avec ses facettes (Tout / Actes / Documents / Rendez-vous) et « Voir plus d'entrées (1 498 restantes) » ; facettes de catégorie de documents (12 cases) ; actions « Ajouter une étiquette », « Envoyer un document », « Enregistrer les notes », « Schéma dentaire », « Bilan parodontal », « Plan de traitement », « Créer une ordonnance », « Exporter PDF ». **Divergences** : la maquette prescrit une navigation **par onglets** (Journal / Plans de traitement / Documents / Questionnaire médical / Facturation) et un **layout 3 colonnes** avec les panneaux « **Alertes cliniques** » (allergies, AVK, latex) et « **Administratif** » (téléphone, e-mail, mutuelle, solde dû) — l'écran live est en **colonne unique** sans ces panneaux. | 2026-09-15T20:06:00Z |
+
+### Bilan design-v2 DE CLÔTURE
+
+| | valeur |
+|---|---|
+| **écrans comparés à LEUR maquette** | **19** (quota ≥ 5 dépassé ×3,8) |
+| conformes | **12** — dont **5 avec leur mécanique exécutée** : suivi de commande (frise qui avance), ordonnance (aperçu qui se remplit), messagerie (fil ouvert en bas), agenda secrétariat (grille semaine datée), consultation (schéma + actes) |
+| divergents | **7**, **tous déjà couverts par des issues ouvertes** — #6946/#6712, #6984, #6774/#6924, #6978/#6955, #6941/#6856, #6813, + `/treatment-plans` déjà consigné |
+| **écrans sur l'ancienne charte** | **0** |
+| **nouvelles issues design-v2** | **0** — chaque divergence renvoyait à une issue ouverte |
