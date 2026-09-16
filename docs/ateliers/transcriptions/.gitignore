@@ -1,0 +1,14 @@
+# Les transcriptions brutes ne sont PAS versionnées.
+#
+# Elles contiennent des échanges informels non relus : propos sur des personnes
+# nommées (salariés de centres, prestataires), éléments de négociation de parts,
+# noms de clients. Le dépôt est partagé avec des agents et, à terme, avec des
+# tiers — le compte rendu relu (`docs/ateliers/AAAA-MM-JJ-*.md`) est la version
+# publiable, la transcription reste locale.
+#
+# Si une transcription doit absolument être partagée, l'anonymiser d'abord.
+*.txt
+*.md
+*.vtt
+*.srt
+!.gitignore
