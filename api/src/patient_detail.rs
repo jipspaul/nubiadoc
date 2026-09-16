@@ -284,7 +284,8 @@ pub async fn get_cabinet_patient(
     // (`clinical.rs`) — MAX des RDV honorés (`status = 'done'`).
     let last_visit_row = sqlx::query(
         "SELECT MAX(starts_at) AS last_visit_at FROM appointment \
-         WHERE patient_id = $1 AND cabinet_id = $2 AND status = 'done'",
+         WHERE patient_id = $1 AND cabinet_id = $2 AND status = 'done' \
+           AND starts_at <= now()",
     )
     .bind(patient_id)
     .bind(claims.cabinet_id)

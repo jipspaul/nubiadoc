@@ -251,7 +251,7 @@ pub async fn list_cabinet_patients(
                 ) AS has_upcoming_appointment, \
                 (SELECT MAX(a.starts_at) FROM appointment a \
                  WHERE a.patient_id = p.id AND a.cabinet_id = p.cabinet_id \
-                   AND a.status = 'done') AS last_visit_at \
+                   AND a.status = 'done' AND a.starts_at <= now()) AS last_visit_at \
          FROM patient p \
          WHERE p.deleted_at IS NULL\
          {filter_clause}{sec_clause} \
