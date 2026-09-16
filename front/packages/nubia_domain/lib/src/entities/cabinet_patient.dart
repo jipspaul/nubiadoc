@@ -66,6 +66,16 @@ class CabinetPatient extends Equatable {
   /// [hasActiveAlerts].
   final bool? hasUpcomingAppointment;
 
+  /// Nom de la complémentaire santé (`mutuelle.amc`), #7048. `null` si le
+  /// patient n'a pas de compte plateforme lié ou n'a renseigné aucune
+  /// couverture (`patient.mutuelle` n'est jamais écrite par le flux normal,
+  /// cf. issue #3485 — voir `api/src/patient_detail.rs`).
+  final String? mutuelleAmc;
+
+  /// Tiers payant activé pour cette mutuelle (#7048). `false` par défaut
+  /// (absent) — même disponibilité que [mutuelleAmc].
+  final bool mutuelleTiersPayant;
+
   const CabinetPatient({
     required this.id,
     required this.cabinetId,
@@ -83,6 +93,8 @@ class CabinetPatient extends Equatable {
     this.dependents,
     this.hasActiveAlerts,
     this.hasUpcomingAppointment,
+    this.mutuelleAmc,
+    this.mutuelleTiersPayant = false,
   });
 
   /// #4542 : quelques dossiers ont `firstName`/`lastName` vides côté back

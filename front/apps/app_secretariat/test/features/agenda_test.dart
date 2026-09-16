@@ -42,6 +42,9 @@ class MockListCabinetPractitionersUseCase extends Mock
 class MockListCabinetPatientsUseCase extends Mock
     implements ListCabinetPatientsUseCase {}
 
+class MockGetCabinetPatientUseCase extends Mock
+    implements GetCabinetPatientUseCase {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -169,6 +172,7 @@ void main() {
   late MockRescheduleAppointmentUseCase mockReschedule;
   late MockListBookableSlotsUseCase mockListSlots;
   late MockListCabinetPractitionersUseCase mockListPractitioners;
+  late MockGetCabinetPatientUseCase mockGetPatient;
 
   setUp(() {
     mockGetAgenda = MockGetCabinetAgendaUseCase();
@@ -178,8 +182,25 @@ void main() {
     mockReschedule = MockRescheduleAppointmentUseCase();
     mockListSlots = MockListBookableSlotsUseCase();
     mockListPractitioners = MockListCabinetPractitionersUseCase();
+    mockGetPatient = MockGetCabinetPatientUseCase();
     when(() => mockListPractitioners())
         .thenAnswer((_) async => const Right([]));
+    // #7048 : le volet détail résout téléphone/couverture via ce use case
+    // dès qu'un `patientId` est présent sur l'entrée sélectionnée.
+    when(() => mockGetPatient(any())).thenAnswer(
+      (_) async => Right(
+        CabinetPatient(
+          id: 'pat-1',
+          cabinetId: 'cab-1',
+          firstName: 'Marc',
+          lastName: 'Dubois',
+          phone: '+33600000001',
+          createdAt: DateTime(2026, 1, 1),
+          mutuelleAmc: 'MGENtestQA',
+          mutuelleTiersPayant: true,
+        ),
+      ),
+    );
   });
 
   AgendaBloc makeBloc() => _makeBloc(
@@ -483,6 +504,7 @@ void main() {
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
           ));
+      gi.registerFactory<GetCabinetPatientUseCase>(() => mockGetPatient);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -552,6 +574,97 @@ void main() {
       await tester.tap(find.byKey(const Key('agenda_detail_close')));
       await tester.pump();
       expect(panel, findsNothing);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
+        '#7048 : le volet sert Téléphone/Couverture via GetCabinetPatientUseCase '
+        'et active Appeler quand le patient a un numéro', (tester) async {
+      final entry = AgendaEntry(
+        id: 'p-phone',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Amélie Rousseau',
+        startsAt: DateTime(2026, 8, 11, 14, 30),
+        endsAt: DateTime(2026, 8, 11, 15, 0),
+        patientId: 'pat-1',
+        patientName: 'Marc Dubois',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      await pumpWithEntry(tester, entry);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      verify(() => mockGetPatient('pat-1')).called(1);
+
+      final panel = find.byKey(const Key('agenda_detail_panel_p-phone'));
+      expect(
+        find.descendant(of: panel, matching: find.text('+33600000001')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: panel,
+          matching: find.text('MGENtestQA · tiers payant'),
+        ),
+        findsOneWidget,
+      );
+
+      final callButton = tester.widget<NubiaButton>(
+        find.byKey(const Key('call_p-phone')),
+      );
+      expect(callButton.onPressed, isNotNull);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
+        '#7048 : Appeler reste désactivé et Téléphone/Couverture affichent '
+        '« — » quand le patient n\'a ni téléphone ni mutuelle', (tester) async {
+      when(() => mockGetPatient('pat-1')).thenAnswer(
+        (_) async => Right(
+          CabinetPatient(
+            id: 'pat-1',
+            cabinetId: 'cab-1',
+            firstName: 'Marc',
+            lastName: 'Dubois',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ),
+      );
+      final entry = AgendaEntry(
+        id: 'p-nophone',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Amélie Rousseau',
+        startsAt: DateTime(2026, 8, 11, 14, 30),
+        endsAt: DateTime(2026, 8, 11, 15, 0),
+        patientId: 'pat-1',
+        patientName: 'Marc Dubois',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      await pumpWithEntry(tester, entry);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      final panel = find.byKey(const Key('agenda_detail_panel_p-nophone'));
+      expect(
+        find.descendant(
+          of: panel,
+          matching: find.text('—'),
+        ),
+        findsNWidgets(3), // Téléphone, Créé le, Couverture
+      );
+
+      final callButton = tester.widget<NubiaButton>(
+        find.byKey(const Key('call_p-nophone')),
+      );
+      expect(callButton.onPressed, isNull);
 
       await GetIt.instance.reset();
     });
@@ -641,6 +754,7 @@ void main() {
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
           ));
+      gi.registerFactory<GetCabinetPatientUseCase>(() => mockGetPatient);
 
       await tester.pumpWidget(
         MaterialApp(
