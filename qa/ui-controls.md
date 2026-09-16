@@ -1618,3 +1618,73 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 | patient | `/documents` (390) | 26 | 24 | 1 | 0 | 2026-09-16T08:48:00Z — Rotation. Le « mort » est la facette active « Tous 397 » (re-cliquer un filtre déjà sélectionné est un no-op légitime). **Aucun contrôle cassé.** Écart de libellé connu (nom de fichier brut au lieu d'un titre lisible) = **#6372**, déjà ouverte, non re-rapportée. |
 
 > **TOTAL DÉFINITIF DE LA RONDE : 39 écrans · 619 contrôles inventoriés · 579 activés · 0 mort confirmé.**
+
+#### Ronde 2026-09-16 (3e vague, 18:00–19:15 UTC) — dépôt sans `main` exploitable (#7032 toujours ouverte)
+
+> **Écrans jamais audités jusqu'ici** attaqués en priorité (l'Étape 1bis n'a rien livré : aucun commit
+> front depuis le 2026-09-08, seuls des commits de registre QA depuis le dernier `explored-paths.md`).
+> Les deux fiches cliniques du praticien (`dental-chart`, `periodontal-chart`) et
+> `/profile/referring-doctor/search` côté patient n'avaient **jamais** été inventoriées.
+>
+> **Méthode — activation de l'arbre Semantics.** Le placeholder « Enable accessibility » fait 1×1 px à
+> (−1,−1) : un clic souris Playwright ne l'atteint JAMAIS. Seul
+> `document.querySelector('flt-semantics-placeholder').click()` (via `page.evaluate`) construit l'arbre.
+> Corollaire : le canvas CanvasKit vit dans le **shadow root** de `flt-glass-pane` —
+> `document.querySelectorAll('canvas').length` vaut 0 en light DOM, il faut parcourir les `shadowRoot`.
+>
+> **Seuil de blanc.** `whiteRatio > 0.92` produit des faux positifs sur les écrans mobiles clairs :
+> `/profile/referring-doctor/search` (0.943) et l'app infirmière (0.973–0.975) sont **rendues et
+> peuplées** malgré le ratio. Le ratio ne vaut que couplé à l'inventaire (0 contrôle = vrai blanc).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/patients/:id/dental-chart` (**1er audit**, 1280×800) | 52 | 44 | 43 | 0 | 0 | 2026-09-16T18:20:00Z |
+| praticien | `/patients/:id/periodontal-chart` (**1er audit**, 1280×800) | 54 | 24 | 24 | 0 | 0 | 2026-09-16T18:26:00Z |
+| patient | `/profile/referring-doctor/search` (**1er audit**, 390×844) | 17 | 12 | 12 | 0 | 0 | 2026-09-16T18:33:00Z |
+| patient | `/treatment-plans` (390×844) | 9 | 8 | 8 | 0 | 0 | 2026-09-16T18:36:00Z |
+| patient | `/home-care` (390×844) | 1 | 1 | 0 | 0 | 1 | 2026-09-16T18:36:00Z |
+| secretariat | `/` Tableau de bord (1280×800) | 28 | 26 | 26 | 0 | 0 | 2026-09-16T18:40:00Z |
+| secretariat | `/salle-attente` (1280×800) | 21 | 19 | 19 | 0 | 0 | 2026-09-16T18:41:00Z |
+| secretariat | `/agenda` (1280×800) | 83 | 53 | 53 | 0 | 0 | 2026-09-16T18:43:00Z |
+| secretariat | `/liste-attente` (1280×800) | 20 | 19 | 19 | 0 | 0 | 2026-09-16T18:44:00Z |
+| secretariat | `/audit-log` (1280×800) | 24 | 21 | 21 | 0 | 0 | 2026-09-16T18:45:00Z |
+| pharmacie | `/` File des commandes (1280×800) | 23 | 18 | 18 | 0 | 0 | 2026-09-16T18:47:00Z |
+| pharmacie | `/stock` (1280×800) | 14 | 12 | 12 | 0 | 0 | 2026-09-16T18:48:00Z |
+| pharmacie | `/devis` (1280×800) | 27 | 22 | 22 | 0 | 0 | 2026-09-16T18:49:00Z |
+| pharmacie | `/messages` (1280×800) | 15 | 14 | 14 | 0 | 0 | 2026-09-16T18:50:00Z |
+| infirmiere | `/` (Disponibilité / Offres / Ma visite, 390×844) | 8 | 7 | 7 | 0 | 0 | 2026-09-16T19:01:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-09-16T19:01:00Z |
+| **TOTAL ronde** | **16 écrans, 5 apps** | **399** | **303** | **301** | **0** | **1** | 2026-09-16T19:15:00Z |
+
+**Le seul « cassé » est `/home-care` (patient) = #7027, déjà ouverte** (`address` non-objet accepté en
+201 qui fige l'écran : `TypeError: 42: type 'int' is not a subtype of type 'Map<String, dynamic>?'`).
+Non re-rapporté.
+
+##### 7e famille de faux positifs « MORT » : le lot qui laisse un overlay ouvert
+
+Le détecteur a signalé **42 contrôles MORTS**. **Les 42 se sont révélés fonctionnels en
+ré-activation isolée** (écran rechargé avant chaque clic). Cause unique et systématique : le
+**premier** clic du lot ouvre une boîte de dialogue / un panneau latéral modal, et **tous les clics
+suivants du lot frappent la barrière de l'overlay** — d'où « aucun effet observable ».
+
+Cas re-vérifiés un par un, écran fraîchement rechargé :
+
+| contrôle | verdict du lot | verdict isolé | preuve |
+|---|---|---|---|
+| dents `17`, `16`, `48` (schéma dentaire) | MORT | **OK** | ouvre le sélecteur de statut (13 nœuds : `Ignorer`, `Sain`, `Carie`…) |
+| `Dent 15` (bilan parodontal) | MORT | **OK** | déplie 6 champs de sondage `MV/V/DV/DL/L/ML` |
+| `Appeler` ×2, `Relancer`, `Ouvrir` (tdb secrétariat) | MORT | **OK** | naviguent vers agenda / devis / messagerie (200 à l'appui) |
+| carte agenda `Marc Dubois · QA-R69 B4` | MORT | **OK** | ouvre le panneau latéral (`Fermer`, `Marquer arrivé`, `Déplacer`, `Appeler`) |
+| 3 fils « Aucun message » (officine) | MORT | **OK** | `200 GET /v1/pharmacy/conversations/:id/messages`, 21 contrôles après |
+| cartes `/treatment-plans` ×6 (patient) | MORT | **OK** | `200 GET /v1/treatment-plans/:id`, écran de détail rendu |
+| `Dr Camille Laurent` (annuaire médecin traitant) | MORT | **OK** | ouvre le dialogue « Déclarer … ? » |
+| `Préparer` (devis officine) | MORT | **OK** | **navigue** vers `/orders/:id` (200) |
+| onglets infirmière + interrupteur `En ligne` | MORT | **OK** | tabs repeignent ; l'interrupteur émet `PATCH /v1/nurse/availability` **au curseur (à droite)**, pas au centre |
+
+**Règle à appliquer aux prochaines rondes** : ne jamais conclure « MORT » depuis un lot. Tout candidat
+doit être rejoué sur un écran fraîchement rechargé. Le taux de faux positifs reste de **100 %**.
+
+##### Contrôle VISIBLE mais absent de l'arbre (Étape 2a)
+`/patients/:id/dental-chart` : les 32 dents sont bien dans l'arbre, mais leur `aria-label` se réduit au
+numéro FDI — le **statut clinique** (carie / couronne / sain) n'existe que dans la couleur de fond et
+une pastille de 5 px, toutes deux hors arbre. → **#7043** (P2).
