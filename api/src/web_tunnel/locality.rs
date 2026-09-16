@@ -104,6 +104,44 @@ pub fn paris_neighbours(arrondissement: u32) -> Vec<u32> {
         .unwrap_or_default()
 }
 
+/// Centroïde (lat, lng) de chaque mairie d'arrondissement parisien —
+/// utilisé pour filtrer `search_providers` par proximité réelle sur les
+/// pages `/dentiste/paris-Ne` (#7049) : `search_page.rs` ne passait jusque là
+/// que `place=paris` (rayon ville, 20 km), l'arrondissement parsé était
+/// jeté avant la requête et les 20 pages d'arrondissement d'une spécialité
+/// servaient toutes la même liste que `/dentiste/paris`.
+const PARIS_ARRONDISSEMENT_CENTERS: &[(u32, f64, f64)] = &[
+    (1, 48.8626, 2.3363),
+    (2, 48.8688, 2.3411),
+    (3, 48.8630, 2.3600),
+    (4, 48.8534, 2.3579),
+    (5, 48.8445, 2.3471),
+    (6, 48.8496, 2.3335),
+    (7, 48.8561, 2.3122),
+    (8, 48.8718, 2.3079),
+    (9, 48.8767, 2.3376),
+    (10, 48.8760, 2.3600),
+    (11, 48.8592, 2.3800),
+    (12, 48.8352, 2.3862),
+    (13, 48.8322, 2.3560),
+    (14, 48.8323, 2.3255),
+    (15, 48.8422, 2.2933),
+    (16, 48.8637, 2.2769),
+    (17, 48.8874, 2.3072),
+    (18, 48.8925, 2.3444),
+    (19, 48.8871, 2.3831),
+    (20, 48.8632, 2.4009),
+];
+
+/// Coordonnées du centre d'un arrondissement parisien, ou `None` s'il n'est
+/// pas répertorié (ville hors Paris, ou `arrondissement` hors 1-20).
+pub fn paris_arrondissement_center(arrondissement: u32) -> Option<(f64, f64)> {
+    PARIS_ARRONDISSEMENT_CENTERS
+        .iter()
+        .find(|(n, _, _)| *n == arrondissement)
+        .map(|(_, lat, lng)| (*lat, *lng))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -137,5 +175,28 @@ mod tests {
     #[test]
     fn paris_2e_neighbours_match_the_mockup() {
         assert_eq!(paris_neighbours(2), vec![1, 9]);
+    }
+
+    /// #7049 : chacun des 20 arrondissements doit résoudre un centre, et
+    /// des arrondissements différents doivent résoudre des centres
+    /// différents — c'est ce qui permet à `search_page::geo_params_for` de
+    /// filtrer réellement par arrondissement plutôt que de retomber sur la
+    /// même recherche « toute la ville » pour les 20 pages.
+    #[test]
+    fn paris_arrondissement_center_resolves_all_20_distinctly() {
+        let centers: Vec<(f64, f64)> = (1..=20)
+            .map(|n| paris_arrondissement_center(n).unwrap_or_else(|| panic!("arrondissement {n} sans centre")))
+            .collect();
+        for i in 0..centers.len() {
+            for j in (i + 1)..centers.len() {
+                assert_ne!(centers[i], centers[j], "arrondissements {} et {} partagent un centre", i + 1, j + 1);
+            }
+        }
+    }
+
+    #[test]
+    fn paris_arrondissement_center_is_none_outside_1_to_20() {
+        assert_eq!(paris_arrondissement_center(21), None);
+        assert_eq!(paris_arrondissement_center(0), None);
     }
 }
