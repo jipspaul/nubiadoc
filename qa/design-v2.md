@@ -433,3 +433,9 @@ puis rotation sur les plus anciens.
 | **écrans sur l'ancienne charte** | **0** |
 | **régressions design-v2 confirmées corrigées** | **5** — #6386 (colonne Contexte au 1440), #6368 + #6716 (Prescripteur/RPPS/dates en officine), #6719 (liens de créneaux SSR), #6720 (meta/canonical/OG + racine SSR), #6721 (fiche praticien SSR enrichie) |
 | maquettes encore jamais confrontées | `Patient Invitation proche adulte.html` — **bloquée par #7041** (l'écran d'accès est noyé) ; à reprendre dès que #7041 sera corrigée |
+
+### Complément — 8e écran comparé (fin de ronde)
+
+| app | écran/route | maquette | verdict | divergences | last_check |
+|---|---|---|---|---|---|
+| patient | `/financial` → détail d'un devis (390×844) | `Patient Facturation v2.html` | **conforme (rendu + mécanique)** | Atteint par le vrai chemin (liste → clic sur une ligne « À signer »). Tous les éléments prescrits sont là : titre « Plan de soins » + pastille **« À signer »**, « **Total du plan de soins** 77 € », « Dr Hugo Marin · devis du 15/09/2026 », la **décomposition en 3 lignes** (« Assurance Maladie (AMO) », « Mutuelle », « **Reste à votre charge** » en gras), l'encart « **Détail des actes** » avec la ligne et son montant, la mention « **Signature électronique sécurisée (eIDAS)** · devis chiffré et horodaté » avec son cadenas, et le CTA plein largeur « **Signer le devis** ». Seul élément de la maquette absent : le bloc « Alternative reste à charge zéro / 100 % Santé » — **légitime**, ce devis n'a aucune option 100 % Santé (AMO et AMC à 0 €). **Note de méthode** : mon appariement par libellé avait d'abord conclu « AMO/Mutuelle/Reste à charge ABSENTS » — faux, ces textes vivent dans des nœuds `flt-semantics` **sans attribut `role`** que mon filtre d'inventaire écarte (cf. limite d'outillage nº 3 de `ui-controls.md`). Le verdict a été prononcé sur la **capture**, pas sur l'arbre filtré. | 2026-09-16T08:48:00Z |

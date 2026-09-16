@@ -1615,6 +1615,6 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 
 | secretariat | `/devis` (1280) | 39 | 34 | 2 | 0 | 2026-09-16T08:43:00Z — Rotation. Écran le plus dense de la ronde (39 contrôles : facettes, tri, recherche, lignes de devis). Les 2 « morts » sont les en-têtes de groupe de navigation « Facturation » et « Devis, 11 ». **Aucun contrôle cassé.** |
 
-> **TOTAL CUMULÉ DE LA RONDE : 38 écrans · 593 contrôles inventoriés · 555 activés.**
-> Un écran (`patient /documents`) était encore en cours d'audit à la clôture du budget temps :
-> **non compté** ci-dessus, à reprendre en tête de rotation à la prochaine ronde.
+| patient | `/documents` (390) | 26 | 24 | 1 | 0 | 2026-09-16T08:48:00Z — Rotation. Le « mort » est la facette active « Tous 397 » (re-cliquer un filtre déjà sélectionné est un no-op légitime). **Aucun contrôle cassé.** Écart de libellé connu (nom de fichier brut au lieu d'un titre lisible) = **#6372**, déjà ouverte, non re-rapportée. |
+
+> **TOTAL DÉFINITIF DE LA RONDE : 39 écrans · 619 contrôles inventoriés · 579 activés · 0 mort confirmé.**
