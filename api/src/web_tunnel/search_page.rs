@@ -498,12 +498,18 @@ mod tests {
         let (near, place, radius_km) = geo_params_for(&loc);
         assert_eq!(place, None);
         assert_eq!(radius_km, Some(ARRONDISSEMENT_RADIUS_KM));
-        assert!(radius_km.unwrap() < 20.0, "doit être plus serré que le rayon ville");
+        assert!(
+            radius_km.unwrap() < 20.0,
+            "doit être plus serré que le rayon ville"
+        );
         let near = near.expect("un arrondissement connu doit résoudre des coordonnées");
         let mut parts = near.splitn(2, ',');
         let lat: f64 = parts.next().unwrap().parse().unwrap();
         let lng: f64 = parts.next().unwrap().parse().unwrap();
-        assert_eq!((lat, lng), locality::paris_arrondissement_center(13).unwrap());
+        assert_eq!(
+            (lat, lng),
+            locality::paris_arrondissement_center(13).unwrap()
+        );
     }
 
     /// Deux arrondissements distincts doivent résoudre des centres distincts

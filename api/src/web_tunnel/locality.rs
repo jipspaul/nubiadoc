@@ -185,11 +185,20 @@ mod tests {
     #[test]
     fn paris_arrondissement_center_resolves_all_20_distinctly() {
         let centers: Vec<(f64, f64)> = (1..=20)
-            .map(|n| paris_arrondissement_center(n).unwrap_or_else(|| panic!("arrondissement {n} sans centre")))
+            .map(|n| {
+                paris_arrondissement_center(n)
+                    .unwrap_or_else(|| panic!("arrondissement {n} sans centre"))
+            })
             .collect();
         for i in 0..centers.len() {
             for j in (i + 1)..centers.len() {
-                assert_ne!(centers[i], centers[j], "arrondissements {} et {} partagent un centre", i + 1, j + 1);
+                assert_ne!(
+                    centers[i],
+                    centers[j],
+                    "arrondissements {} et {} partagent un centre",
+                    i + 1,
+                    j + 1
+                );
             }
         }
     }
