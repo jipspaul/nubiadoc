@@ -42,6 +42,7 @@ class _LoginPageState extends State<LoginPage> {
                 AuthUnknown() => (false, null as String?),
                 AuthLoading() => (true, null),
                 AuthAuthenticated() => (false, null),
+                AuthRestoreFailed() => (false, null),
                 AuthUnauthenticated(:final message) => (false, message),
               };
               return SingleChildScrollView(

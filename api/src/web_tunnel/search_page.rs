@@ -59,6 +59,33 @@ fn page_subject_label(query_slug: &str) -> String {
     }
 }
 
+/// Rayon (km) appliqué autour du centre d'un arrondissement quand la page
+/// cible en cite un (#7049) — volontairement serré (par contraste avec les
+/// 20 km de `GEO_DEFAULT_RADIUS_KM` pour une recherche ville) : une page
+/// d'arrondissement doit filtrer réellement, pas ré-élargir à tout Paris.
+const ARRONDISSEMENT_RADIUS_KM: f64 = 1.0;
+
+/// `near`/`place`/`radius_km` à passer à `search_providers` pour une
+/// localité donnée (#7049). Une page d'arrondissement (`paris-13e`)
+/// filtrait jusque-là par `place=paris` (rayon ville, 20 km) — l'arrondissement
+/// parsé n'atteignait jamais la requête, si bien que les 20 pages
+/// d'arrondissement d'une spécialité renvoyaient toutes la même liste que la
+/// page ville. Quand le centre de l'arrondissement est connu, on filtre par
+/// proximité à CE centre (rayon serré) plutôt que par la ville entière.
+fn geo_params_for(loc: &Locality) -> (Option<String>, Option<String>, Option<f64>) {
+    match loc
+        .arrondissement
+        .and_then(locality::paris_arrondissement_center)
+    {
+        Some((lat, lng)) => (
+            Some(format!("{lat},{lng}")),
+            None,
+            Some(ARRONDISSEMENT_RADIUS_KM),
+        ),
+        None => (None, Some(loc.city_slug.clone()), None),
+    }
+}
+
 fn related_specialty_slug(specialty_slug: &str) -> &'static str {
     match specialty_slug {
         "dentiste" => "orthodontiste",
@@ -85,12 +112,14 @@ pub async fn search_page(
     let loc_label = locality_label(&loc);
     let query_terms = query_slug.replace('-', " ");
 
+    let (near, place, radius_km) = geo_params_for(&loc);
+
     let params = SearchProvidersQuery {
         q: Some(query_terms.clone()),
         specialty: None,
-        near: None,
-        place: Some(loc.city_slug.clone()),
-        radius_km: None,
+        near,
+        place,
+        radius_km,
         bbox: None,
         sector: None,
         teleconsult: None,
@@ -446,6 +475,51 @@ mod tests {
     fn page_subject_label_keeps_specialty_pluralization_unchanged() {
         assert_eq!(page_subject_label("dentiste"), "Chirurgiens-dentistes");
         assert_eq!(page_subject_label("orthodontiste"), "Orthodontistes");
+    }
+
+    /// #7049 : `/dentiste/paris` (pas d'arrondissement) doit continuer à
+    /// filtrer par ville (rayon 20 km, `place`), comportement inchangé.
+    #[test]
+    fn geo_params_for_city_only_locality_uses_place() {
+        let loc = locality::parse("paris");
+        assert_eq!(
+            geo_params_for(&loc),
+            (None, Some("paris".to_string()), None)
+        );
+    }
+
+    /// #7049 — root cause : `paris-13e` filtrait jusque-là par `place=paris`
+    /// (même rayon ville que `/dentiste/paris`), l'arrondissement parsé
+    /// n'atteignait jamais la requête. Doit désormais filtrer par proximité
+    /// au centre du 13e, avec un rayon serré, PAS par ville.
+    #[test]
+    fn geo_params_for_arrondissement_locality_uses_a_tight_near_radius() {
+        let loc = locality::parse("paris-13e");
+        let (near, place, radius_km) = geo_params_for(&loc);
+        assert_eq!(place, None);
+        assert_eq!(radius_km, Some(ARRONDISSEMENT_RADIUS_KM));
+        assert!(
+            radius_km.unwrap() < 20.0,
+            "doit être plus serré que le rayon ville"
+        );
+        let near = near.expect("un arrondissement connu doit résoudre des coordonnées");
+        let mut parts = near.splitn(2, ',');
+        let lat: f64 = parts.next().unwrap().parse().unwrap();
+        let lng: f64 = parts.next().unwrap().parse().unwrap();
+        assert_eq!(
+            (lat, lng),
+            locality::paris_arrondissement_center(13).unwrap()
+        );
+    }
+
+    /// Deux arrondissements distincts doivent résoudre des centres distincts
+    /// — sinon la requête resterait identique d'une page à l'autre malgré
+    /// le rayon serré (#7049).
+    #[test]
+    fn geo_params_for_distinct_arrondissements_resolve_distinct_centers() {
+        let loc_1er = locality::parse("paris-1er");
+        let loc_20e = locality::parse("paris-20e");
+        assert_ne!(geo_params_for(&loc_1er).0, geo_params_for(&loc_20e).0);
     }
 
     /// #6318 : les pages d'acte atteintes depuis `maillage_links` perdaient
