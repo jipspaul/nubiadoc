@@ -1613,6 +1613,8 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 |---|---|---|---|---|---|---|
 | secretariat | `/salle-attente` (1280) | 21 | 19 | 2 | 0 | 2026-09-16T08:37:00Z — Rotation. Les 2 « morts » sont des en-têtes de groupe de navigation. « **Appeler suivant** » désactivé : **légitimité prouvée côté serveur** — `GET /v1/cabinet/waiting-room` rend **0 patient** et `POST /call-next` rend `{"called": false}`. Les 403 sur `/cabinet/members` et `/cabinet/audit-log` sont la sonde de capacité de l'app (cf. note de la section principale), pas un défaut. |
 
-> **TOTAL CUMULÉ DE LA RONDE : 37 écrans · 554 contrôles inventoriés · 521 activés.**
-> Deux écrans (`secretariat /devis`, `patient /documents`) étaient encore en cours d'audit à la clôture
-> du budget temps : **non comptés** ci-dessus, à reprendre en tête de rotation à la prochaine ronde.
+| secretariat | `/devis` (1280) | 39 | 34 | 2 | 0 | 2026-09-16T08:43:00Z — Rotation. Écran le plus dense de la ronde (39 contrôles : facettes, tri, recherche, lignes de devis). Les 2 « morts » sont les en-têtes de groupe de navigation « Facturation » et « Devis, 11 ». **Aucun contrôle cassé.** |
+
+> **TOTAL CUMULÉ DE LA RONDE : 38 écrans · 593 contrôles inventoriés · 555 activés.**
+> Un écran (`patient /documents`) était encore en cours d'audit à la clôture du budget temps :
+> **non compté** ci-dessus, à reprendre en tête de rotation à la prochaine ronde.
