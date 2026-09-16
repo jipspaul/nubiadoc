@@ -26,6 +26,23 @@ use crate::{
 const VALID_TEST_KINDS: [&str; 2] = ["bowie_dick", "helix"];
 const VALID_STATUSES: [&str; 2] = ["conforme", "non_conforme"];
 
+/// Longueur max (en caractères) des champs texte libres du cycle — pas de
+/// borne auparavant, un `autoclave_ref`/`test_result` de plusieurs milliers
+/// de caractères était accepté (#7047).
+const MAX_AUTOCLAVE_REF_LEN: usize = 100;
+const MAX_TEST_RESULT_LEN: usize = 500;
+
+/// Quand `test_result` est l'un de ces verdicts explicites, `status` doit
+/// s'accorder avec lui — sinon rien n'empêchait un `test_result:"echec"`
+/// d'être enregistré comme cycle `status:"conforme"` (#7047). Les autres
+/// valeurs de `test_result` restent une note libre (ex. "virage complet"),
+/// le champ n'est pas un énuméré fermé.
+const RESULT_REQUIRED_STATUS: [(&str, &str); 3] = [
+    ("conforme", "conforme"),
+    ("non_conforme", "non_conforme"),
+    ("echec", "non_conforme"),
+];
+
 // ── GET/POST /v1/cabinet/sterilization-cycles ────────────────────────────────
 
 /// Un cycle de stérilisation.
@@ -111,8 +128,11 @@ pub struct CreateSterilizationCycleResponse {
 /// `non_conforme` doit pouvoir être tracé au même titre qu'un cycle
 /// conforme, cf. #4138).
 ///
-/// `autoclave_ref` non vide, `cycle_number > 0`, `test_result` non vide,
-/// `test_kind` ∈ `VALID_TEST_KINDS`, `status` ∈ `VALID_STATUSES` → 422 sinon.
+/// `autoclave_ref` non vide (≤ `MAX_AUTOCLAVE_REF_LEN`), `cycle_number > 0`,
+/// `test_result` non vide (≤ `MAX_TEST_RESULT_LEN`), `test_kind` ∈
+/// `VALID_TEST_KINDS`, `status` ∈ `VALID_STATUSES` → 422 sinon. Si
+/// `test_result` est un verdict explicite (`conforme`/`non_conforme`/
+/// `echec`), `status` doit s'accorder avec lui (#7047) → 422 sinon.
 /// `(autoclave_ref, cycle_number)` déjà utilisé dans ce cabinet → `409
 /// sterilization_cycle_number_already_used` (index unique `(cabinet_id,
 /// autoclave_ref, cycle_number)`, migration 0202, #4489 — un cycle_number
@@ -123,9 +143,13 @@ pub async fn create_sterilization_cycle(
     claims: ProSecretaryPlusClaims,
     Json(body): Json<CreateSterilizationCycleBody>,
 ) -> Result<(StatusCode, Json<CreateSterilizationCycleResponse>), AppError> {
-    if body.autoclave_ref.trim().is_empty()
+    let autoclave_ref = body.autoclave_ref.trim();
+    let test_result = body.test_result.trim();
+    if autoclave_ref.is_empty()
         || body.cycle_number <= 0
-        || body.test_result.trim().is_empty()
+        || test_result.is_empty()
+        || autoclave_ref.chars().count() > MAX_AUTOCLAVE_REF_LEN
+        || test_result.chars().count() > MAX_TEST_RESULT_LEN
     {
         return Err(AppError::ValidationError);
     }
@@ -133,6 +157,18 @@ pub async fn create_sterilization_cycle(
         || !VALID_STATUSES.contains(&body.status.as_str())
     {
         return Err(AppError::ValidationError);
+    }
+    // #7047 : `test_result` en "echec"/"conforme"/"non_conforme" doit
+    // s'accorder avec `status` — sinon un test en échec pouvait être
+    // enregistré comme cycle conforme.
+    let normalized_result = test_result.to_lowercase();
+    if let Some(&(_, required_status)) = RESULT_REQUIRED_STATUS
+        .iter()
+        .find(|(result, _)| *result == normalized_result)
+    {
+        if body.status != required_status {
+            return Err(AppError::ValidationError);
+        }
     }
     // #4600 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
     crate::text_validation::reject_nul_byte(&body.autoclave_ref)?;
