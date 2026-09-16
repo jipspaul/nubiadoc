@@ -370,54 +370,64 @@ class AppRouter {
         ),
         GoRoute(
           path: financial,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<FinancialBloc>()
-              ..add(const FinancialLoadRequested()),
-            child: Scaffold(
-              appBar: AppBar(
-                leading: BlocBuilder<FinancialBloc, FinancialState>(
-                  builder: (context, state) {
-                    if (state is FinancialQuoteDetail) {
-                      return IconButton(
-                        key: const Key('btn_appbar_back'),
-                        icon: const Icon(Icons.arrow_back),
-                        tooltip: 'Retour',
-                        onPressed: () => context
-                            .read<FinancialBloc>()
-                            .add(const FinancialBackToList()),
-                      );
-                    }
-                    return backOrHomeLeading(context);
-                  },
-                ),
-                title: BlocBuilder<FinancialBloc, FinancialState>(
-                  builder: (context, state) => Text(
-                    state is FinancialQuoteDetail
-                        ? 'Plan de soins'
-                        : 'Mes devis',
-                  ),
-                ),
-                actions: [
-                  BlocBuilder<FinancialBloc, FinancialState>(
+          // #7045 : `?id=` (émis par `PendingQuoteCard`, `treatment_plan_detail_page`
+          // et `notification_route_resolver`) était construit côté appelant mais
+          // jamais lu ici — la carte « à votre décision » d'un plan de soins
+          // rouvrait systématiquement la liste complète des devis au lieu du
+          // devis ciblé.
+          builder: (_, state) {
+            final quoteId = state.uri.queryParameters['id'];
+            return BlocProvider(
+              create: (_) => GetIt.instance<FinancialBloc>()
+                ..add(quoteId != null
+                    ? FinancialQuoteSelected(quoteId)
+                    : const FinancialLoadRequested()),
+              child: Scaffold(
+                appBar: AppBar(
+                  leading: BlocBuilder<FinancialBloc, FinancialState>(
                     builder: (context, state) {
-                      if (state is! FinancialQuoteDetail) {
-                        return const SizedBox.shrink();
+                      if (state is FinancialQuoteDetail) {
+                        return IconButton(
+                          key: const Key('btn_appbar_back'),
+                          icon: const Icon(Icons.arrow_back),
+                          tooltip: 'Retour',
+                          onPressed: () => context
+                              .read<FinancialBloc>()
+                              .add(const FinancialBackToList()),
+                        );
                       }
-                      final style = QuoteStatusStyle.of(state.quote.status);
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 16),
-                        child: StatusPill(
-                          label: style.label,
-                          variant: style.variant,
-                        ),
-                      );
+                      return backOrHomeLeading(context);
                     },
                   ),
-                ],
+                  title: BlocBuilder<FinancialBloc, FinancialState>(
+                    builder: (context, state) => Text(
+                      state is FinancialQuoteDetail
+                          ? 'Plan de soins'
+                          : 'Mes devis',
+                    ),
+                  ),
+                  actions: [
+                    BlocBuilder<FinancialBloc, FinancialState>(
+                      builder: (context, state) {
+                        if (state is! FinancialQuoteDetail) {
+                          return const SizedBox.shrink();
+                        }
+                        final style = QuoteStatusStyle.of(state.quote.status);
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 16),
+                          child: StatusPill(
+                            label: style.label,
+                            variant: style.variant,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                body: const FinancialPage(),
               ),
-              body: const FinancialPage(),
-            ),
-          ),
+            );
+          },
         ),
         GoRoute(
           path: profile,
