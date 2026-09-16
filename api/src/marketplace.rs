@@ -1579,7 +1579,8 @@ fn detect_available(lower: &str) -> Option<String> {
     None
 }
 
-/// Extrait un lieu depuis « près de X », « autour de X », « à X ».
+/// Extrait un lieu depuis « près de X », « autour de X », « à X », ou la
+/// simple juxtaposition « <mot-clé> <ville> » (ex. « dentiste paris »).
 fn detect_place(raw: &str) -> Option<String> {
     let words: Vec<&str> = raw.split_whitespace().collect();
     let lower: Vec<String> = words.iter().map(|w| w.to_lowercase()).collect();
@@ -1598,13 +1599,23 @@ fn detect_place(raw: &str) -> Option<String> {
             }
         }
 
-        // « à X » : on exige un nom propre (majuscule) et on écarte « à distance ».
-        if (lower[i] == "à" || lower[i] == "a")
-            && i + 1 < n
-            && lower[i + 1] != "distance"
-            && words[i + 1].chars().next().is_some_and(char::is_uppercase)
-        {
+        // « à X » : on écarte seulement « à distance ». Casse indifférente
+        // (#7042 — un clavier mobile ne capitalise pas après « à », et
+        // « près de » accepte déjà les minuscules).
+        if (lower[i] == "à" || lower[i] == "a") && i + 1 < n && lower[i + 1] != "distance" {
             if let Some(p) = clean_place_word(words[i + 1]) {
+                return Some(p);
+            }
+        }
+    }
+
+    // Juxtaposition simple sans préposition (« dentiste paris ») : deviner
+    // n'importe quel dernier mot ferait trop de faux positifs (« dentiste
+    // demain », « dentiste secteur 1 »…), donc on ne reconnaît que les
+    // villes déjà résolues par KNOWN_CITY_COORDS (#7042).
+    for (i, word) in lower.iter().enumerate() {
+        if resolve_place_coords(word).is_some() {
+            if let Some(p) = clean_place_word(words[i]) {
                 return Some(p);
             }
         }
