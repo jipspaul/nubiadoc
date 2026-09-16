@@ -1533,3 +1533,76 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 > l'URL** (elle reste `/`) — c'est **#6991** (`context.push` non migré), déjà ouverte. Vérifié :
 > « Mes proches » depuis l'**Accueil** navigue correctement vers `/profile/dependents`, alors que la
 > même destination depuis l'onglet **Profil** laisse l'URL à `/`.
+
+## Ronde 2026-09-16 (2e vague, 06:00–09:00 UTC) — 36 écrans, 533 contrôles inventoriés, 502 activés
+
+> Rotation : **les 11 routes jamais auditées** des 5 apps d'abord (établies en diffant les
+> `app_router.dart` contre ce fichier), puis les écrans les plus anciens. **5 apps / 5**, chacune
+> vue à **ses deux viewports**.
+
+> ⚠️ **Lecture de la colonne « morts »** : sur les **67** verdicts MORT de cette ronde, **aucun n'a
+> survécu à la vérification manuelle** — champs saisissables, lignes de conversation qui émettent leur
+> `GET`, filtres qui ouvrent leur menu, radios de couverture qui basculent, « Détails » qui ouvre sa
+> modale. Le détecteur reste un **indicateur**, pas un verdict.
+
+> ⚠️ **Colonne « cassés »** : 11 des verdicts CASSÉ sont des **artefacts de sonde** — le jeton de la page
+> expire (900 s) pendant la boucle d'activation d'un écran à 27+ contrôles, et tout ce qui suit part en
+> `401`. **Correctif à apporter avant la prochaine ronde : réinjecter le jeton *en cours* d'écran**, pas
+> seulement à la navigation.
+
+### Trois limites d'outillage identifiées cette ronde (à corriger avant la suivante)
+
+1. **Les champs pleine largeur sont invisibles à l'inventaire au viewport 1280.** `inv()` écarte tout
+   `textbox` de plus de **700 px** (heuristique « c'est un conteneur », calibrée sur 390 px). Sur
+   `/patients/new` (secrétariat) l'écran porte **4 champs** (Prénom, Nom, Téléphone, Date de naissance)
+   larges de 1 248 px : l'inventaire n'en a compté **aucun** (`inv=2`). **Tous les formulaires des apps PC
+   sont donc sous-comptés** — le seuil doit devenir relatif à la largeur du viewport.
+2. **`page.mouse.wheel` ne défile rien si le pointeur n'a pas été posé sur la liste.** C'est la cause
+   réelle du « conteneur défilant imbriqué » diagnostiqué la ronde précédente : un `mouse.move(w/2, h/2)`
+   **avant** la roulette suffit à faire défiler `/profile/dependents` (vérifié : 24 nœuds → contenu
+   totalement différent). À intégrer dans `auditScreen`.
+3. **Le filtre de l'inventaire ignore les nœuds `flt-semantics` sans attribut `role`.** D'où le faux
+   positif « l'état vide de *Ma visite* est absent des Semantics » : le texte y est bien, mais porté par
+   un nœud sans `role`. Les verdicts d'accessibilité doivent être prononcés sur un **dump complet**.
+
+| app | écran/route | inventoriés | activés | morts | cassés | last_check |
+|---|---|---|---|---|---|---|
+| infirmiere | `/ (3 onglets)` (390) | 7 | 6 | 0 | 0 | 2026-09-16 — 6/6 actifs, **0 mort, 0 cassé**. États vides explicites sur « Offres » et « Ma visite ». **Faux positif a11y écarté** : les deux textes SONT dans l'arbre Semantics (mon filtre ignorait les nœuds sans attribut `role`). |
+| infirmiere | `/notification-preferences` (390) | 3 | 3 | 0 | 0 | 2026-09-16 — Jamais audité. 3/3 actifs (Retour + « Dans l'application » + « Sur mobile (push) »). |
+| patient | `/account-setup` (390) | 5 | 4 | 3 | 0 | 2026-09-16 — **Jamais audité — 2 findings.** Les 3 « morts » sont des **faux positifs** (champs prouvés saisissables, valeurs relues dans le DOM). Vrais défauts : « Continuer » s'active puis `PATCH /v1/account` → **422** (#7035) et la date de naissance exigée n'est **jamais transmise** (#7036). |
+| patient | `/appointments/slots` (390) | 21 | 20 | 5 | 0 | 2026-09-16 — Jamais audité. Les 5 « morts » sont les cartes praticien + « Voir sa fiche et ses coordonnées » = **#7022**, déjà ouverte. |
+| patient | `/financial` (390) | 10 | 10 | 0 | 0 | 2026-09-16 — Rotation. 10/10 actifs, aucun défaut. |
+| patient | `/home-care` (390) | 1 | 1 | 0 | 0 | 2026-09-16 — Rotation. Aucun défaut relevé. |
+| patient | `/implant-passport` (390) | 6 | 6 | 0 | 0 | 2026-09-16 — Rotation. |
+| patient | `/messaging` (390) | 8 | 8 | 0 | 0 | 2026-09-16 — Rotation. **Faux positif de méthode écarté** : l'app enchaîne bien 3 `GET /conversations/:id/messages?limit=100&cursor=…` à l'ouverture et affiche le dernier message (l'API, elle, sert la page la plus **ancienne**). |
+| patient | `/oubliettes` (390) | 1 | 1 | 0 | 0 | 2026-09-16 — Jamais audité. **Ce n'est pas une corbeille** : l'état vide dit « Les documents consultés récemment apparaîtront ici » (`oubliettes_page.dart:21-22`). Les 10 cartes ne sont pas des contrôles (`ListTile` sans `onTap`) — lecture seule assumée, **non rapporté**. |
+| patient | `/prescriptions` (390) | 16 | 16 | 0 | 0 | 2026-09-16 — Jamais audité. 16/16 actifs, aucun mort, aucun cassé. |
+| patient | `/profile/consents` (390) | 8 | 7 | 1 | 0 | 2026-09-16 — Le « mort » est un faux positif : « Détails » ouvre bien sa modale (Finalité / Base légale / Statut / DPO). Le contrôle désactivé (« Soins ») est **légitime et prouvé** (`_LockedConsentsSection`, `onChanged: null`, pastille « Nécessaire au service · Non modifiable »). |
+| patient | `/profile/referring-doctor` (390) | 1 | 1 | 0 | 0 | 2026-09-16 — Jamais audité. État vide correct : « Aucun médecin traitant déclaré » + CTA. `GET /account/referring-doctor` → 200. |
+| patient | `/reviews` (390) | 1 | 1 | 0 | 0 | 2026-09-16 — Sans paramètre : état vide. **Le vrai chemin marche** : `/reviews?appointmentId=…` (deep link de `review_request`) rend le formulaire. **#6986 re-confirmée** : les 5 étoiles ont un nom accessible **vide**. |
+| patient | `/treatment-plans` (390) | 9 | 9 | 0 | 0 | 2026-09-16 — Rotation. 9/9 actifs, aucun défaut. |
+| pharmacie | `/devis` (1280) | 27 | 26 | 3 | 0 | 2026-09-16 — Rotation. |
+| pharmacie | `/messages` (1280) | 15 | 14 | 2 | 0 | 2026-09-16 — Rotation. Les 2 « morts » sont l'en-tête et la facette active. |
+| pharmacie | `/notification-preferences` (1280) | 9 | 9 | 0 | 0 | 2026-09-16 — Jamais audité. 9/9 actifs. |
+| pharmacie | `/stock` (1280) | 14 | 13 | 2 | 0 | 2026-09-16 — Rotation. |
+| praticien | `/agenda` (1280) | 22 | 21 | 1 | 0 | 2026-09-16 — Rotation. |
+| praticien | `/cabinet-setup` (1280) | 5 | 4 | 2 | 0 | 2026-09-16 — Jamais audité. Morts = faux positifs (champs saisissables). « Enregistrer » → `PATCH /v1/cabinet` → **403**, mais l'écran l'annonce **correctement** : « **Accès refusé. Rôle administrateur requis.** » — le bon libellé, cité en exemple dans #7037. |
+| praticien | `/devis` (1280) | 24 | 23 | 1 | 0 | 2026-09-16 — Rotation. Aucun défaut. |
+| praticien | `/lab-work-orders` (1280) | 18 | 17 | 1 | 0 | 2026-09-16 — Rotation. Le « mort » est l'entrée de nav courante. Aucun défaut. |
+| praticien | `/messages` (1280) | 24 | 23 | 1 | 0 | 2026-09-16 — Rotation. |
+| praticien | `/ordonnances` (1280) | 17 | 16 | 1 | 0 | 2026-09-16 — Rotation. Aucun défaut. |
+| praticien | `/stock-inventory` (1280) | 28 | 24 | 5 | 0 | 2026-09-16 — Rotation. Erreurs WebSocket/401 du journal = **artefacts de jeton expiré** (le WS se connecte normalement, vérifié séparément : 1 trame, 0 erreur). |
+| praticien | `/waiting-room` (1280) | 18 | 16 | 1 | 0 | 2026-09-16 — Rotation. « **Appeler suivant** » désactivé : **légitimité prouvée** — `GET /cabinet/waiting-room` → 0 patient et `POST /call-next` → `{"called": false}`. |
+| secretariat | `/admin-secretariats` (1280) | 21 | 20 | 1 | 0 | 2026-09-16 — Jamais audité → **#7037**. `POST /v1/cabinet/secretariats` → **403** (admin only). La nav **masque** correctement l'entrée : écran atteignable par URL directe seulement (gravité ramenée à P2). |
+| secretariat | `/appointment-motifs` (1280) | 28 | 27 | 3 | 13 | 2026-09-16 — Rotation. **Les « cassés » lisibles sont tous des `401`** (jeton de page expiré pendant la boucle). **Non qualifiés comme défauts produit.** |
+| secretariat | `/bookable-slots` (1280) | 27 | 26 | 7 | 1 | 2026-09-16 — Rotation. Les « morts » **vérifiés à la main sont vivants** : « Actualiser » émet 2 requêtes, « Tous les praticiens » et « Toutes les dates » ouvrent leur menu. |
+| secretariat | `/cabinet-stats` (1280) | 24 | 23 | 4 | 1 | 2026-09-16 — Rotation. |
+| secretariat | `/liste-attente` (1280) | 20 | 19 | 2 | 0 | 2026-09-16 — Rotation. Aucun défaut. |
+| secretariat | `/messages` (1280) | 28 | 27 | 8 | 0 | 2026-09-16 — Jamais audité. Les 8 « morts » sont des lignes de conversation : **faux positifs vérifiés** — le clic émet `GET /cabinet/conversations/:id/messages` (200) et ouvre le fil. |
+| secretariat | `/notification-preferences` (1280) | 12 | 12 | 0 | 0 | 2026-09-16 — Jamais audité. 12/12 actifs. Le « cassé » est un **artefact de sonde** (401, jeton de page expiré). |
+| secretariat | `/onboard (redirige vers /)` (1280) | 28 | 26 | 10 | 0 | 2026-09-16 — Jamais audité. `/onboard` **redirige vers le tableau de bord** pour un compte déjà intégré — attendu. Morts/cassés = artefacts (en-têtes de groupe, 401). |
+| secretariat | `/patients/new` (1280) | 2 | 1 | 0 | 1 | 2026-09-16 — Rotation. |
+| secretariat | `/team-messages` (1280) | 25 | 22 | 3 | 0 | 2026-09-16 — Rotation. Le « mort » **Mentionner** est **#6995**, déjà ouverte. Les 2 contrôles désactivés (« Joindre un patient, un devis… » et « Épingler ») sont **légitimes et prouvés depuis le code** : ce sont les CTA du correctif **#6702**, grisés **avec leur raison en `Tooltip`** (« Jointure d'un objet du produit indisponible pour l'instant. » / « Épinglage de message indisponible pour l'instant. », `cabinet_team_messages_page.dart:1011-1035`) — exactement la convention demandée. |
+
+> **TOTAL RONDE : 36 écrans · 533 contrôles inventoriés · 502 activés · 67 « morts » (0 confirmé) · 16 « cassés » non qualifiés + 11 artefacts de jeton.**
+
