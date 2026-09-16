@@ -206,6 +206,128 @@ secondes : à merger avant l'installation au centre (semaine 4), pas après.
 | 9-12 | 16/11 – 11/12 | Acompte, refus motivé, prise en charge mutuelle · stabilisation · second centre si Q-09 tranché |
 | 13-15 | 14/12 – 31/12 | Gel, bilan du pilote, préparation des formations de janvier |
 
+### Gantt
+
+Deux vues, en Mermaid (rendu par Forgejo) et en PNG pour les slides
+(`img/2026-09-16-gantt-*.png`). Jours ouvrés, week-ends exclus ; les dates de
+fin glissent donc de un à deux jours par rapport au tableau ci-dessus. En rouge,
+le chemin critique : cadre juridique → feu vert données réelles, et grille CCAM
+→ cotation v1.
+
+**Vue macro, par socle**
+
+```mermaid
+gantt
+    title Pilote en réseau local — vue macro (21/09 → 31/12/2026)
+    dateFormat YYYY-MM-DD
+    axisFormat %d/%m
+    tickInterval 1week
+    excludes weekends
+
+    section Jalons
+    Réunion associés                   :milestone, m0, 2026-09-18, 0d
+    Box v1 chez Nubia                  :milestone, m1, 2026-10-02, 0d
+    Box installée au centre pilote     :milestone, m2, 2026-10-16, 0d
+    Feu vert données réelles           :milestone, crit, m3, 2026-10-19, 0d
+    Cotation v1 utile                  :milestone, crit, m4, 2026-11-13, 0d
+    Gel du pilote                      :milestone, m5, 2026-12-14, 0d
+
+    section Socle 0 · Cadre
+    Cadre juridique et contrat de pilote (Xavier, Abir)  :crit, s0, 2026-09-21, 2026-10-16
+
+    section Socle 1 · Box
+    Bundle, mode box, sauvegardes, monitoring, reprise   :s1, 2026-09-21, 2026-10-16
+    Formation des testeurs                               :s1b, 2026-10-12, 2026-10-16
+
+    section Socle 2 · Cotation
+    Import grille, paniers, plafonds, règles, spec TLA+  :crit, s2, 2026-09-21, 2026-11-13
+    Consolidation sur retours                            :s2b, 2026-11-16, 2026-12-11
+
+    section Socle 3 · Quotidien
+    CR de RDV, salle d'attente, check-list, to-do, dashboard :s3, 2026-10-19, 2026-11-27
+    Spec TLA+ des déclencheurs                           :s3b, 2026-11-16, 2026-12-04
+
+    section Socle 4 · Argent
+    Acompte, refus motivé, prise en charge mutuelle      :s4, 2026-11-16, 2026-12-11
+
+    section Socle 5 · Design
+    Merge des dix branches design                        :s5, 2026-09-21, 2026-10-09
+
+    section Socle 6 · Retours
+    Point hebdo référent + tri des remontées             :s6, 2026-10-19, 2026-12-11
+    Second centre (si Q-09)                              :s6b, 2026-11-30, 2026-12-11
+    Bilan et préparation des formations de janvier       :s6c, 2026-12-14, 2026-12-31
+```
+
+![Gantt macro](img/2026-09-16-gantt-macro.png)
+
+**Vue détaillée, tâches et dépendances**
+
+Lecture : `after x` = la tâche ne démarre qu'à la fin de `x`. Les tâches
+marquées « si Q-nn » n'existent que si l'arbitrage est tranché dans ce sens.
+Capacité : jamais plus de trois chantiers de code en parallèle (box, cotation,
+un troisième), le reste attend.
+
+```mermaid
+gantt
+    title Pilote en réseau local — tâches et dépendances
+    dateFormat YYYY-MM-DD
+    axisFormat %d/%m
+    tickInterval 1week
+    excludes weekends
+
+    section Cadre (Xavier · Abir)
+    Réunion associés                          :milestone, m0, 2026-09-18, 0d
+    A-01 grille CCAM annotée (glissée)        :milestone, crit, a01, 2026-09-18, 0d
+    A-14 centre pilote + référent             :a14, 2026-09-21, 5d
+    A-15 réponses Q-09 / Q-10                 :a15, 2026-09-21, 5d
+    A-13 instruction juridique Q-07 / Q-08    :crit, a13, 2026-09-21, 10d
+    Contrat de pilote + RC pro                :crit, ctr, after a13, 10d
+    Feu vert données réelles                  :milestone, crit, gv, after ctr, 0d
+
+    section Box (Jean-Paul)
+    A-16 bundle installable, mode box, TLS    :a16, 2026-09-21, 10d
+    Box v1 chez Nubia                         :milestone, m1, after a16, 0d
+    A-17 sauvegardes + restauration + MAJ     :a17, after a16, 5d
+    A-18 monitoring OTel + scrubbing PII      :a18, after a16, 10d
+    Reprise de données (fictif → réel)        :imp, after a16, 10d
+    Formation des testeurs                    :form, 2026-10-12, 5d
+    Box installée au centre (données fictives):milestone, m2, 2026-10-16, 0d
+    Bascule données réelles                   :milestone, crit, m3, 2026-10-19, 0d
+
+    section Cotation (Jean-Paul)
+    A-09 format d'import + import grille      :crit, c1, 2026-09-21, 10d
+    panier_sante + plafonds opposables        :crit, c2, after c1, 15d
+    Cohérence panier, prérequis doc, doublons :crit, c3, after c2, 15d
+    A-20 spec TLA+ moteur de règles           :tla1, 2026-10-19, 20d
+    Cotation v1 utile                         :milestone, crit, m4, after c3, 0d
+    Consolidation sur retours                 :c4, after c3, 20d
+
+    section Quotidien (Jean-Paul)
+    Flux CR de RDV sur une vraie journée      :q1, 2026-10-19, 10d
+    Salle d'attente retard + recalcul         :q2, 2026-10-26, 10d
+    Check-list pré-RDV + carte Vitale         :q3, after q2, 10d
+    To-do secrétariat règles cliniques (A-03) :q4, 2026-11-09, 10d
+    Tableau de bord praticien                 :q5, after q4, 10d
+    Rappels présent/absent (si Q-08)          :q6, 2026-11-16, 10d
+    Spec TLA+ des déclencheurs                :tla2, 2026-11-16, 15d
+
+    section Argent (Jean-Paul)
+    Acompte pop-up + refus motivé             :ar1, 2026-11-16, 10d
+    Reprise module prise en charge (si Q-04)  :ar2, 2026-11-23, 15d
+
+    section Design (Jean-Paul)
+    A-19 merge des dix branches design        :d1, 2026-09-21, 15d
+
+    section Retours
+    Point hebdo référent + tri en issues      :r1, 2026-10-19, 40d
+    Second centre + VPN (si Q-09)             :r2, 2026-11-30, 10d
+    Gel du pilote                             :milestone, m5, 2026-12-14, 0d
+    Bilan + préparation formations janvier    :r3, 2026-12-14, 14d
+```
+
+![Gantt détaillé](img/2026-09-16-gantt-detail.png)
+
 ### Ce qu'on ne promet pas pour fin d'année
 
 Dit clairement aux associés pour ne pas le réentendre en décembre :
