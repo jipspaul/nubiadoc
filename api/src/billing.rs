@@ -269,6 +269,11 @@ pub struct QuoteDetail {
     pub deposit_amount_cents: Option<i64>,
     /// Voir `QuoteItem.practitioner_name` (#6563).
     pub practitioner_name: Option<String>,
+    /// PDF du devis signé dans le coffre-fort (`document.category='devis'`),
+    /// posé par `sign_quote` à la transition `sent -> signed`. `null` avant
+    /// signature — condition du CTA « Télécharger le devis signé » côté
+    /// front (#7046).
+    pub document_id: Option<Uuid>,
 }
 
 /// `GET /v1/quotes/:id` — détail d'un devis du patient connecté.
@@ -294,6 +299,7 @@ pub async fn get_quote(
         "SELECT q.id, q.cabinet_id, q.status, q.version, \
                 (q.total_amount * 100)::bigint AS amount_cents, \
                 q.currency, q.signed_at, q.created_at, q.updated_at, q.deposit_pct::double precision AS deposit_pct, \
+                q.document_id, \
                 practitioner_display_name(q.practitioner_id) AS practitioner_name \
          FROM quote q \
          WHERE q.id = $1 AND q.deleted_at IS NULL",
@@ -364,6 +370,9 @@ pub async fn get_quote(
     let practitioner_name: Option<String> = quote_row
         .try_get("practitioner_name")
         .map_err(|_| AppError::Internal)?;
+    let document_id: Option<Uuid> = quote_row
+        .try_get("document_id")
+        .map_err(|_| AppError::Internal)?;
 
     let mut items = Vec::with_capacity(item_rows.len());
     let mut patient_share_total: i64 = 0;
@@ -427,6 +436,7 @@ pub async fn get_quote(
         deposit_pct,
         deposit_amount_cents,
         practitioner_name,
+        document_id,
     }))
 }
 
@@ -446,10 +456,17 @@ pub struct SignQuoteResponse {
 /// Retourne `409` si le devis n'est pas au statut `sent` (`draft`/`refused`/`expired` :
 /// seul un devis envoyé par le cabinet peut être signé).
 /// Met à jour le devis : `status = 'signed'`, `signed_at = now()`.
+/// Génère le PDF du devis signé, l'uploade dans l'Object Storage et pose
+/// `quote.document_id` (`document(category='devis')` — même pattern que
+/// `prescriptions::sign_prescription`) : c'est ce champ que le front
+/// (`quote_detail_view.dart`) attend pour afficher « Télécharger le devis
+/// signé » (#7046 — jusqu'ici jamais serialisé, le CTA n'apparaissait sur
+/// aucun devis).
 /// Retourne `200 { signed: true, signed_at: "...ISO8601..." }` (stub Yousign — pas d'appel réel).
 pub async fn sign_quote(
     State(state): State<AppState>,
     Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
+    Extension(object_storage): Extension<std::sync::Arc<dyn crate::ObjectStorage>>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SignQuoteResponse>, AppError> {
@@ -470,7 +487,8 @@ pub async fn sign_quote(
     // clause billed_to_account_id ne puisse la sauver — cf. #5623).
     // RLS fail-closed : si le devis n'existe pas ou hors tenant → 404.
     let row = sqlx::query(
-        "SELECT q.cabinet_id, q.status, q.signed_at \
+        "SELECT q.cabinet_id, q.patient_id, q.practitioner_id, q.status, q.signed_at, \
+                (q.total_amount * 100)::bigint AS amount_cents, q.currency, q.created_at \
          FROM quote q \
          WHERE q.id = $1 AND q.deleted_at IS NULL",
     )
@@ -481,6 +499,10 @@ pub async fn sign_quote(
     .ok_or(AppError::NotFound)?;
 
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Option<Uuid> = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
     let current_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
 
     // Idempotence : un devis déjà signé est immuable (trigger `quote_signed_immutable`).
@@ -504,22 +526,115 @@ pub async fn sign_quote(
         return Err(AppError::InvalidStatus);
     }
 
-    // Scope cabinet pour l'UPDATE (tenant_isolation policy sur quote).
+    let amount_cents: i64 = row
+        .try_get("amount_cents")
+        .map_err(|_| AppError::Internal)?;
+    let currency: String = row.try_get("currency").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet pour l'UPDATE (tenant_isolation policy sur quote) et la
+    // lecture des lignes du devis (tenant_isolation sur quote_item).
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
+    let item_rows = sqlx::query(
+        "SELECT label, (qty * unit_amount * 100)::bigint AS total_cents \
+         FROM quote_item WHERE quote_id = $1 ORDER BY id",
+    )
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let items: Vec<(String, i64)> = item_rows
+        .iter()
+        .map(|r| {
+            Ok::<_, AppError>((
+                r.try_get("label").map_err(|_| AppError::Internal)?,
+                r.try_get("total_cents").map_err(|_| AppError::Internal)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let patient_row = sqlx::query("SELECT first_name, last_name FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let patient_name = format!(
+        "{} {}",
+        patient_row
+            .try_get::<String, _>("first_name")
+            .map_err(|_| AppError::Internal)?,
+        patient_row
+            .try_get::<String, _>("last_name")
+            .map_err(|_| AppError::Internal)?
+    );
+
+    let practitioner_row =
+        sqlx::query("SELECT COALESCE(practitioner_display_name($1), 'Praticien') AS display_name")
+            .bind(practitioner_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    let practitioner_name: String = practitioner_row
+        .try_get("display_name")
+        .map_err(|_| AppError::Internal)?;
+
+    // Génère le PDF du devis signé puis l'uploade dans l'Object Storage —
+    // même pattern que `prescriptions::sign_prescription` (#4626) :
+    // `storage_key` doit référencer un objet effectivement écrit.
+    let pdf_bytes = render_quote_pdf(
+        id,
+        &patient_name,
+        &practitioner_name,
+        created_at,
+        amount_cents,
+        &currency,
+        &items,
+    );
+    let size_bytes = pdf_bytes.len() as i64;
+    let storage_key = format!("devis/{}.pdf", id);
+    let filename = format!("devis-{}.pdf", id);
+    object_storage
+        .upload(&storage_key, "application/pdf", pdf_bytes.clone())
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let doc_row = sqlx::query(
+        "INSERT INTO document \
+         (cabinet_id, patient_id, category, storage_key, filename, mime_type, \
+          sha256, scan_status, uploaded_by, size_bytes) \
+         VALUES ($1, $2, 'devis', $3, $4, 'application/pdf', \
+                 encode(digest($5, 'sha256'), 'hex'), 'clean', $6, $7) \
+         RETURNING id",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(&storage_key)
+    .bind(&filename)
+    .bind(&pdf_bytes)
+    .bind(claims.sub)
+    .bind(size_bytes)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let document_id: Uuid = doc_row.try_get("id").map_err(|_| AppError::Internal)?;
+
     // Transition stub Yousign : sent → signed.
     let update_row = sqlx::query(
         "UPDATE quote \
-         SET status = 'signed', signed_at = now(), updated_at = now() \
+         SET status = 'signed', signed_at = now(), updated_at = now(), document_id = $3 \
          WHERE id = $1 AND cabinet_id = $2 AND status = 'sent' \
          RETURNING signed_at",
     )
     .bind(id)
     .bind(cabinet_id)
+    .bind(document_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -550,6 +665,7 @@ pub async fn sign_quote(
     tracing::info!(
         account_id = %claims.account_id,
         quote_id = %id,
+        document_id = %document_id,
         "quote signed"
     );
 
@@ -557,6 +673,90 @@ pub async fn sign_quote(
         signed: true,
         signed_at: signed_at.to_rfc3339(),
     }))
+}
+
+/// PDF minimal du devis signé (structure `%PDF-1.4` + objets + stream de
+/// contenu texte), même approche que `prescriptions::render_prescription_pdf`
+/// (#4626) : pas de dépendance externe (crate PDF), contenu réel et non nul
+/// suffisant pour un document ouvrable par n'importe quel lecteur (taille et
+/// hash réels).
+fn render_quote_pdf(
+    quote_id: Uuid,
+    patient_name: &str,
+    practitioner_name: &str,
+    created_at: chrono::DateTime<chrono::Utc>,
+    total_amount_cents: i64,
+    currency: &str,
+    items: &[(String, i64)],
+) -> Vec<u8> {
+    let escape = |s: &str| {
+        s.replace('\\', "\\\\")
+            .replace('(', "\\(")
+            .replace(')', "\\)")
+    };
+
+    let mut lines: Vec<String> = vec![
+        "Devis".to_string(),
+        format!("Patient : {}", patient_name),
+        format!("Praticien : {}", practitioner_name),
+        format!("Date : {}", created_at.to_rfc3339()),
+        format!("Reference : {}", quote_id),
+        String::new(),
+    ];
+    for (label, total_cents) in items {
+        lines.push(format!(
+            "{} - {:.2} {}",
+            label,
+            *total_cents as f64 / 100.0,
+            currency
+        ));
+    }
+    lines.push(String::new());
+    lines.push(format!(
+        "Total : {:.2} {}",
+        total_amount_cents as f64 / 100.0,
+        currency
+    ));
+
+    let mut content = String::from("BT /F1 12 Tf 50 780 Td 14 TL\n");
+    for line in &lines {
+        content.push_str(&format!("({}) Tj T*\n", escape(line)));
+    }
+    content.push_str("ET");
+
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> \
+         /MediaBox [0 0 595 842] /Contents 4 0 R >>"
+            .to_string(),
+        format!(
+            "<< /Length {} >>\nstream\n{}\nendstream",
+            content.len(),
+            content
+        ),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+    ];
+
+    let mut pdf = String::from("%PDF-1.4\n");
+    let mut offsets = Vec::with_capacity(objects.len());
+    for (i, obj) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.push_str(&format!("{} 0 obj\n{}\nendobj\n", i + 1, obj));
+    }
+    let xref_offset = pdf.len();
+    pdf.push_str(&format!("xref\n0 {}\n", objects.len() + 1));
+    pdf.push_str("0000000000 65535 f \n");
+    for off in &offsets {
+        pdf.push_str(&format!("{:010} 00000 n \n", off));
+    }
+    pdf.push_str(&format!(
+        "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{}\n%%EOF",
+        objects.len() + 1,
+        xref_offset
+    ));
+
+    pdf.into_bytes()
 }
 
 // ---------------------------------------------------------------------------
@@ -608,10 +808,18 @@ pub async fn billing_deposit(
 pub async fn billing_confirm_signature(
     State(state): State<AppState>,
     Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
+    Extension(object_storage): Extension<std::sync::Arc<dyn crate::ObjectStorage>>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SignQuoteResponse>, AppError> {
-    sign_quote(State(state), Extension(dispatcher), claims, Path(id)).await
+    sign_quote(
+        State(state),
+        Extension(dispatcher),
+        Extension(object_storage),
+        claims,
+        Path(id),
+    )
+    .await
 }
 
 // ── GET /v1/payments ─────────────────────────────────────────────────────────
