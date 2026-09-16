@@ -298,14 +298,20 @@ class AccountRepositoryImpl implements AccountRepository {
     String? address,
   }) async {
     try {
-      final body = <String, dynamic>{
-        if (providerId != null) 'provider_id': providerId,
-        'name': name,
-        if (specialty != null) 'specialty': specialty,
-        if (phone != null) 'phone': phone,
-        if (email != null) 'email': email,
-        if (address != null) 'address': address,
-      };
+      // `PUT /v1/account/referring-doctor` applique `deny_unknown_fields`
+      // (`api/src/auth/mod.rs` `PutReferringDoctorBody`) : seuls `provider_id`
+      // seul, ou `free_name`/`free_phone`/`free_address`, sont acceptés.
+      // `specialty`/`email` n'ont pas d'équivalent côté API (specialty est
+      // résolue par le backend depuis le provider ; il n'existe pas de
+      // `free_email`) — les envoyer, comme `name`/`phone`/`address` non
+      // préfixés, fait tomber la requête en 422 par `deny_unknown_fields`.
+      final body = providerId != null
+          ? <String, dynamic>{'provider_id': providerId}
+          : <String, dynamic>{
+              'free_name': name,
+              if (phone != null) 'free_phone': phone,
+              if (address != null) 'free_address': address,
+            };
       final dto = await _api.setReferringDoctor(body);
       return Right(dto.toDomain());
     } on DioException catch (e) {
