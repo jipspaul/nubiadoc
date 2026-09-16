@@ -283,6 +283,89 @@ async fn duplicate_cycle_number_returns_409() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 1c (#7047) : `test_result:"echec"` incompatible avec `status:"conforme"` ──
+
+#[tokio::test]
+async fn echec_test_result_rejects_conforme_status() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/sterilization-cycles",
+        &token,
+        Some(json!({
+            "autoclave_ref": "Autoclave-Echec",
+            "cycle_number": 1,
+            "test_kind": "bowie_dick",
+            "test_result": "echec",
+            "status": "conforme"
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un test en échec ne peut pas produire un cycle conforme : {resp}"
+    );
+
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/sterilization-cycles",
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        list.as_array().unwrap().len(),
+        0,
+        "le cycle rejeté ne doit pas être persisté"
+    );
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 1d (#7047) : plafond de longueur sur `autoclave_ref`/`test_result` ──
+
+#[tokio::test]
+async fn oversized_free_text_fields_are_rejected() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/sterilization-cycles",
+        &token,
+        Some(json!({
+            "autoclave_ref": "A".repeat(5000),
+            "cycle_number": 1,
+            "test_kind": "helix",
+            "test_result": "X".repeat(5000),
+            "status": "conforme"
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "des champs texte de 5000 caractères doivent être refusés : {resp}"
+    );
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 1b : GET liste les pochettes d'un cycle (#4354) ─────────────────────
 
 #[tokio::test]
