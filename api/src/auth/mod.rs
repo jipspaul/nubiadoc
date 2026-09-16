@@ -5381,7 +5381,11 @@ pub async fn post_account_access_requests(
     claims: PatientAccountClaims,
     Json(body): Json<PostAccessRequestBody>,
 ) -> Result<(StatusCode, Json<AccessRequestResponse>), AppError> {
-    if body.first_name.trim().is_empty() || body.last_name.trim().is_empty() {
+    if body.first_name.trim().is_empty()
+        || body.last_name.trim().is_empty()
+        || body.first_name.chars().count() > 100
+        || body.last_name.chars().count() > 100
+    {
         return Err(AppError::ValidationError);
     }
     if !ACCESS_REQUEST_RELATIONSHIPS.contains(&body.relationship.as_str()) {
