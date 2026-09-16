@@ -1413,3 +1413,123 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 > `patient /home-care/new`, `patient /coverage-setup`) ont rendu leurs `textbox` « MORT » au détecteur, et
 > **les 3 fois la saisie fonctionnait** (valeur relue dans le DOM). La sonde « taper puis mesurer » ne convient
 > pas aux champs : **relire `input.value` est le seul verdict fiable**.
+
+---
+
+## Ronde 2026-09-16 (1re vague) — 35 écrans, 808 contrôles inventoriés, 764 activés
+
+> Les **5 apps** ont été parcourues (patient 390×844, praticien/secrétariat/pharmacie 1280×800,
+> infirmière 390×844), connectées avec leur compte, chaque contrôle de l'inventaire Semantics
+> activé et jugé.
+>
+> **Bilan brut** : 808 inventoriés · 764 activés · 687 OK · **60 MORT** · **17 CASSÉ** · 6 désactivés ·
+> 3 hors-écran · 29 non activés (destructifs).
+>
+> **Bilan après vérification individuelle de chaque MORT/CASSÉ** — c'est le seul chiffre qui compte :
+> **2 défauts réels** (#7030 champ « Rechercher un document… », #7029 en-tête de groupe du rail) et
+> **2 écrans réellement cassés** (#7027 `/home-care` patient). **Les 73 autres verdicts négatifs sont
+> des faux positifs**, tous re-testés à la main et documentés ci-dessous.
+
+### Familles de faux positifs de CETTE ronde (à intégrer au détecteur)
+
+| # | famille | manifestation | preuve du contraire |
+|---|---|---|---|
+| 18 | **destination de navigation == route courante** | 21 occurrences : « Stock » sur `/stock`, « Agenda » sur `/agenda`, « Labo » sur `/lab-work-orders`… | Le no-op est légitime : la destination est déjà affichée. |
+| 19 | **onglet / facette déjà sélectionné** | `tab "Offres"` sur l'onglet Offres, `switch "Prêtes"` déjà coché | Re-clic = no-op attendu. Les 4 facettes officine testées isolément **fonctionnent** : Toutes 72 → Reçues 10 (8 actions) → En préparation 8 → Prêtes 54 (10 actions), `aria-checked` bascule à chaque fois. |
+| 20 | **403 de sondage de capacité** | `/cabinet/members` et `/cabinet/audit-log` en 403 à **chaque** chargement secrétariat | Volontaire : `members_access_cubit.dart` / `audit_log_access_cubit.dart` **sondent** la route pour décider d'afficher l'entrée de menu. Bruit console, pas un défaut. |
+| 21 | **403 « relation de soin » rendu proprement** | 15 CASSÉ sur `/patients` praticien : `medical-record`, `documents`, `prescriptions` en 403 | L'écran **gère le 403** et affiche « **Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible.** » (capture `praticien/patient-403-QZQA73ZZ.png`). Comportement exemplaire, pas un bug. |
+| 22 | **clic simple vs double-clic sur un champ** | `textbox "Rechercher un patient"` (secrétariat), `"Écrire un message à l'équipe…"` (praticien) | Re-testés : la saisie **passe** et la liste filtre (38 → 25 contrôles). Le verdict fiable reste **relire la valeur ET mesurer l'effet écran**, jamais `document.activeElement` seul. |
+| 23 | **conteneur sans libellé capté par le sélecteur** | 3× `(group) ""` @267,296 237x488 sur `/lab-work-orders`, `(textbox)` de 717×750 sur la file officine | Nœuds d'agrégation, pas des contrôles. À exclure (`role=group` avec enfants, rect > 60 % du viewport). |
+
+### Ledger par écran
+
+| app | écran/route | inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| infirmiere | `/` accueil (390) | 8 | 7 | 7 | 0 | 0 | 2026-09-16T00:11:00Z |
+| infirmiere | `/` onglet Disponibilité (390) | 8 | 7 | 7 | **0** (1 FP : onglet actif) | 0 | 2026-09-16T00:12:00Z — bascule « En ligne » OK (aller/retour vérifié côté API). |
+| infirmiere | `/` onglet Offres (390) | 7→9 | 6→8 | 8 | **0** (1 FP) | 0 | 2026-09-16T01:05:00Z — avec une offre réelle : « Accepter » et « Passer » présents et actifs. |
+| infirmiere | `/` onglet Ma visite (390) | 7→9 | 6→8 | 8 | **0** (1 FP) | 0 | 2026-09-16T01:05:00Z — « Je pars » / « Je suis arrivé·e » / « Visite terminée » enchaînés avec succès. |
+| patient | `/` Accueil (390) | 18 | 17 | 16 | 0 | **1 réel → #7027** | 2026-09-16T00:24:00Z — « Itinéraire » ouvre bien un onglet externe (FP levé) ; « Soins à domicile » lève une exception non rattrapée. |
+| patient | `/mes-rdv` (390) | 15 | 14 | 14 | 0 | 0 | 2026-09-16T00:26:00Z |
+| patient | `/messaging` (390) | 16 | 15 | 15 | 0 | 0 | 2026-09-16T00:28:00Z |
+| patient | `/documents` (390) | 32 | 30 | 29 | **1 réel → #7030** | 0 | 2026-09-16T00:31:00Z — champ de recherche inutilisable **arbre d'accessibilité actif** ; 11 « Télécharger » OK. |
+| patient | `/profile` (390) | 19 | 18 | 18 | 0 | 0 | 2026-09-16T00:33:00Z |
+| patient | `/appointments/slots` (390) | 28 | — | — | — | — | 2026-09-16T01:35:00Z — parcours réservation joué au clic ; troncature de la barre de confirmation → **#7031**. |
+| pharmacie | `/` File des commandes (1280) | 23 | 22 | 22 | **0** (2 FP) | 0 | 2026-09-16T00:45:00Z — 4 facettes re-testées isolément : **toutes fonctionnelles**. |
+| pharmacie | `/stock` (1280) | 14 | 13 | 13 | **0** (1 FP) | 0 | 2026-09-16T00:52:00Z |
+| pharmacie | `/messages` (1280) | 15 | 14 | 14 | **0** (1 FP) | 0 | 2026-09-16T00:55:00Z |
+| pharmacie | `/devis` (1280) | 27 | 26 | 26 | **0** (1 FP) | 0 | 2026-09-16T00:58:00Z |
+| praticien | `/` Tableau de bord (1280) | 18 | 17 | 17 | **0** (1 FP) | 0 | 2026-09-16T00:56:00Z |
+| praticien | `/agenda` (1280) | 22 | 21 | 21 | **0** (1 FP) | 0 | 2026-09-16T01:00:00Z |
+| praticien | `/waiting-room` (1280) | 18 | 16 | 16 | **0** (1 FP) | 0 | 2026-09-16T01:03:00Z — 1 contrôle désactivé (file vide). |
+| praticien | `/patients` (1280) | 32 | 31 | 29 | **0** (2 FP) | **0** (15 FP, cf. famille 21) | 2026-09-16T01:08:00Z |
+| praticien | `/consultation` (1280) | 32 | 31 | 31 | **0** (1 FP) | 0 | 2026-09-16T01:15:00Z — filtre « En cours » **vide à tort** → **#7033**. |
+| praticien | `/ordonnances` (1280) | 17 | 16 | 16 | **0** (1 FP) | 0 | 2026-09-16T01:18:00Z |
+| praticien | `/devis` (1280) | 24 | 23 | 23 | **0** (1 FP) | 0 | 2026-09-16T01:21:00Z |
+| praticien | `/stock` (1280) | 18 | 17 | 17 | **0** (1 FP) | 0 | 2026-09-16T01:24:00Z |
+| praticien | `/stock-inventory` (1280) | 28 | 27 | 27 | **0** (1 FP) | 0 | 2026-09-16T01:27:00Z |
+| praticien | `/lab-work-orders` (1280) | 21 | 20 | 20 | **0** (4 FP : 1 nav + 3 conteneurs) | 0 | 2026-09-16T01:30:00Z — « Nouveau bon » et « Actualiser » répondent. |
+| praticien | `/messages` (1280) | 24 | 23 | 23 | **0** (1 FP) | 0 | 2026-09-16T01:33:00Z |
+| praticien | `/team-messages` (1280) | 18 | 17 | 17 | **0** (2 FP) | 0 | 2026-09-16T01:36:00Z — composeur « Écrire un message à l'équipe… » re-testé : **saisie OK**. |
+| secretariat | `/` Tableau de bord (1280) | 28 | 27 | 26 | **1 réel → #7029** | 0 | 2026-09-16T00:38:00Z |
+| secretariat | `/agenda` (1280) | 89 | 88 | 88 | **0** (14 FP) | 0 | 2026-09-16T01:00:00Z — **l'écran le plus dense de la ronde**. « Nouveau RDV » (⌘N), créneaux libres, « Semaine suivante », cartes de RDV : tous re-testés **fonctionnels**. |
+| secretariat | `/salle-attente` (1280) | 21 | 19 | 18 | **1 (#7029)** | 0 | 2026-09-16T00:47:00Z |
+| secretariat | `/liste-attente` (1280) | 20 | 19 | 18 | **1 (#7029)** | 0 | 2026-09-16T00:50:00Z |
+| secretariat | `/patients` (1280) | 38 | 35 | 34 | **1 (#7029)** | 0 | 2026-09-16T00:53:00Z — champ « Rechercher un patient » re-testé : **OK** (38 → 25). |
+| secretariat | `/appointments` (1280) | 24 | 23 | 22 | **1 (#7029)** | 0 | 2026-09-16T00:56:00Z |
+| secretariat | `/devis` (1280) | 39 | 38 | 37 | **1 (#7029)** | 0 | 2026-09-16T01:00:00Z |
+| secretariat | `/cabinet-payouts` (1280) | 24 | 21 | 20 | **1 (#7029)** | 0 | 2026-09-16T01:20:00Z — « Exporter (CSV) » et « Connecter Stripe » **désactivés à raison** : le 1er faute de virement, le 2d avec le motif documenté #6702 (« Connexion Stripe indisponible pour l'instant. »). |
+| secretariat | `/team-messages` (1280) | 26 | 23 | 22 | **1 (#7029)** | 0 | 2026-09-16T01:24:00Z — 2 CTA « à venir » correctement grisés. |
+
+> **Prochaine ronde — écrans jamais audités** (à prendre en premier) : patient `/implant-passport`,
+> `/treatment-plans`, `/reviews`, `/oubliettes`, `/profile/consents`, `/profile/dependents` ;
+> praticien `/patients/:id/dental-chart` et `/periodontal-chart` ; secrétariat `/admin-membres`,
+> `/admin-secretariats`, `/audit-log`, `/bookable-slots`, `/cabinet-stats`, `/appointment-motifs`,
+> `/onboard` ; infirmière `/notification-preferences` (panneau de notifications non déplié).
+
+### Complément — **2e viewport** (les 2 apps mobile-first passées à 1280×800)
+
+> Exigence « aux DEUX viewports » : patient et infirmière, conçues en 390×844, re-parcourues à
+> **1280×800**. **Bilan cumulé de la ronde : 45 écrans · 954 contrôles inventoriés · 896 activés ·
+> 816 OK.**
+
+| app | écran/route | inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | `/` Accueil (**1280×800**) | 18 | 17 | 16 | 0 | **1 → #7027 (reproduit)** | 2026-09-16T02:35:00Z — mise en page **étirée pleine largeur** (carte héros, lignes « À faire », barre d'onglets) : aucun chevauchement, aucune troncature, aucune régression de mise en page. Le plantage « Soins à domicile » se reproduit **à l'identique** au viewport bureau. |
+| patient | `/mes-rdv` (1280×800) | 15 | 14 | 14 | 0 | 0 | 2026-09-16T02:38:00Z |
+| patient | `/messaging` (1280×800) | 16 | 15 | 15 | 0 | 0 | 2026-09-16T02:41:00Z |
+| patient | `/documents` (1280×800) | 31 | 30 | 29 | **1 → #7030 (reproduit)** | 0 | 2026-09-16T02:44:00Z — le champ de recherche mesure **1256×54** ici et reste inutilisable : **le défaut ne dépend pas du viewport**. |
+| patient | `/profile` (1280×800) | 18 | 17 | 17 | 0 | 0 | 2026-09-16T02:47:00Z |
+| infirmiere | `/` accueil (**1280×800**) | 8 | 6 | 6 | 0 | 0 | 2026-09-16T02:30:00Z — la maquette mobile est **étirée** sur toute la largeur (ratio near-white 0.977). Pas de casse ; app explicitement « soins à domicile, mobile », **non rapporté**. |
+| infirmiere | `/` Disponibilité (1280×800) | 8 | 6 | 6 | 0 | 0 | 2026-09-16T02:31:00Z |
+| infirmiere | `/` Offres (1280×800) | 7 | 5 | 5 | 0 | 0 | 2026-09-16T02:32:00Z |
+| infirmiere | `/` Ma visite (1280×800) | 7 | 5 | 5 | 0 | 0 | 2026-09-16T02:33:00Z |
+
+> **Les deux défauts réels du parcours patient se reproduisent aux deux viewports** (#7027, #7030) —
+> ce ne sont donc pas des artefacts de mise en page mobile. Aucun **nouveau** défaut n'est apparu au
+> viewport bureau sur ces deux apps.
+
+### Complément — 4 sous-écrans du Profil patient (jamais audités auparavant) — **couverture PARTIELLE, assumée**
+
+| app | écran/route | inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| patient | Profil → **Mes proches** (390) | 22 | **1** | 1 | — | 0 | 2026-09-16T02:25:00Z — **non audité : limite d'outillage.** L'écran liste 5 proches et répète **5 fois les mêmes libellés** (« Afficher le menu », « Planifier », « Prendre RDV », « Documents »). Mon relocalisateur apparie par `(rôle, libellé)` et retombe donc toujours sur la 1re occurrence : 21 contrôles déclarés « hors-écran » **à tort**. À reprendre avec un appariement par **rect** et non par libellé. *Défaut a11y candidat, à qualifier la prochaine ronde : 5 boutons « Prendre RDV » au nom accessible identique — un lecteur d'écran ne permet pas de savoir **pour quel proche** on prend le rendez-vous.* |
+| patient | Profil → **Consentements** (390) | 9 | **1** | 1 | — | 0 | 2026-09-16T02:28:00Z — même limite (« Détails » ×3). 1 contrôle légitimement désactivé (consentement « Soins », non modifiable, conforme à `Patient Consentements v2`). |
+| patient | Profil → **Couverture santé** (390) | 8 | 7 | 3 | **4 à qualifier** | 0 | 2026-09-16T02:31:00Z — les 3 radios (Régime général / AME / CSS) + leur `radiogroup` ressortent MORT. **Non filé** : `GET /account/coverage` indique `regime_obligatoire:"css"`, donc le clic sur « CSS » est un no-op légitime ; reste à établir si « Régime général » et « AME » sont inertes ou si l'écran est en lecture seule — et la ronde précédente a déjà classé cet écran comme **piège nº 17** (faux positifs sur champs). **À trancher la prochaine ronde, avec relecture de l'état serveur après clic.** |
+| patient | Profil → **Médecin traitant** (390) | 2 | 1 | 1 | 0 | 0 | 2026-09-16T02:33:00Z — écran quasi vide (`GET /account/referring-doctor` → `{}`, aucun médecin traitant déclaré). État vide correct. |
+
+> **Note de méthode (7e famille de faux positifs) — diagnostic corrigé en fin de ronde.** J'ai
+> d'abord attribué les 21 « hors-écran » de « Mes proches » à l'appariement par libellé (les lignes
+> répètent « Prendre RDV », « Documents », « Afficher le menu »…). J'ai donc modifié le
+> relocalisateur pour apparier par **rectangle corrigé du défilement** plutôt que par libellé, puis
+> **rejoué l'audit : résultat identique (21 hors-écran)**. La cause réelle est donc ailleurs — la
+> liste vit dans un **conteneur défilant imbriqué** que `page.mouse.wheel` ne fait pas défiler
+> depuis le point visé. Correctif à apporter avant la prochaine ronde : viser la roulette **à
+> l'intérieur** du conteneur (ou utiliser `scrollIntoView` sur le nœud Semantics) — sans quoi tout
+> écran à liste longue reste non auditable. L'appariement par rect est conservé : il est correct,
+> simplement insuffisant seul.
+>
+> **Note de navigation** : les lignes du Profil ouvrent bien leur sous-écran mais **sans changer
+> l'URL** (elle reste `/`) — c'est **#6991** (`context.push` non migré), déjà ouverte. Vérifié :
+> « Mes proches » depuis l'**Accueil** navigue correctement vers `/profile/dependents`, alors que la
+> même destination depuis l'onglet **Profil** laisse l'URL à `/`.
