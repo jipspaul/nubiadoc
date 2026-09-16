@@ -3,6 +3,7 @@
 
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
@@ -126,5 +127,33 @@ void main() {
 
     expect(find.byKey(const Key('dental_chart_tooth_55')), findsOneWidget);
     expect(find.byKey(const Key('dental_chart_tooth_11')), findsNothing);
+  });
+
+  testWidgets(
+      'le statut clinique est porté par le libellé accessible, pas '
+      'seulement la couleur (#7043)', (tester) async {
+    when(() => getChart('pat-1')).thenAnswer(
+      (_) async => Right(
+        DentalChart(
+          teeth: const {
+            '11': ToothState(status: 'carie', plan: 'obture'),
+            '21': ToothState(status: 'sain'),
+          },
+          updatedAt: DateTime(2026, 1, 1),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    SemanticsNode nodeOf(String key) =>
+        tester.getSemantics(find.byKey(Key(key)));
+
+    expect(nodeOf('dental_chart_tooth_11').label,
+        'Dent 11 — Carie, plan : Obturée');
+    expect(nodeOf('dental_chart_tooth_21').label, 'Dent 21 — Sain');
+    // Dent sans statut : le libellé reste le numéro FDI seul.
+    expect(nodeOf('dental_chart_tooth_12').label, 'Dent 12');
   });
 }

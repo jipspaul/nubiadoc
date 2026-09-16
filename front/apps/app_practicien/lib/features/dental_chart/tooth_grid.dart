@@ -57,6 +57,7 @@ class ToothVisual {
     required this.background,
     this.borderColor,
     this.statusDot,
+    this.semanticLabel,
   });
 
   /// Fond de la case (`.tth` — blanc/saine, émeraude `--brand600`/séance,
@@ -68,6 +69,13 @@ class ToothVisual {
 
   /// Pastille d'état (`.d`, 5px) — `null` si l'état n'en affiche pas.
   final Color? statusDot;
+
+  /// Libellé accessible complet (ex. « Dent 11 — Carie, plan : Obturée »,
+  /// #7043) — le statut clinique ne doit pas être porté par la seule couleur
+  /// (WCAG 1.4.1). `null` replie sur le numéro FDI seul (grilles où le
+  /// statut n'est pas ce que colore la case, ex. sélecteur de dent de la
+  /// consultation PC).
+  final String? semanticLabel;
 }
 
 /// Grille complète : 2 rangées d'arcade (haute puis basse), chacune formée
@@ -283,40 +291,45 @@ class ToothButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: size.width,
-        height: size.height,
-        decoration: BoxDecoration(
-          color: visual.background,
-          border: Border.all(
-            color: selected
-                ? NubiaColors.n900
-                : (visual.borderColor ?? Colors.grey.shade400),
-            width: selected ? 2.5 : 1,
+    return Semantics(
+      button: true,
+      label: visual.semanticLabel ?? code,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: size.width,
+          height: size.height,
+          decoration: BoxDecoration(
+            color: visual.background,
+            border: Border.all(
+              color: selected
+                  ? NubiaColors.n900
+                  : (visual.borderColor ?? Colors.grey.shade400),
+              width: selected ? 2.5 : 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
           ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        alignment: Alignment.center,
-        child: Stack(
           alignment: Alignment.center,
-          children: [
-            Text(code, style: const TextStyle(fontSize: 11)),
-            if (visual.statusDot != null)
-              Positioned(
-                bottom: 2,
-                child: Container(
-                  width: 5,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: visual.statusDot,
-                    shape: BoxShape.circle,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Text(code, style: const TextStyle(fontSize: 11)),
+              if (visual.statusDot != null)
+                Positioned(
+                  bottom: 2,
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: visual.statusDot,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

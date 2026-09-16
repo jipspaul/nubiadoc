@@ -53,6 +53,21 @@ const Map<String, Color> kToothStatusColors = {
   'fracture': Color(0xFF991B1B),
 };
 
+/// Libellé accessible complet d'une dent (#7043) : le statut clinique
+/// conditionne le plan de soins et ne doit pas être porté par la seule
+/// couleur de la case (WCAG 1.4.1) — cf. `qa/ui-controls.md` #7043.
+String toothSemanticLabel(String code, ToothState? state) {
+  final status = state?.status;
+  if (status == null) return 'Dent $code';
+  final statusLabel = kToothStatusLabels[status] ?? status;
+  final plan = state?.plan;
+  if (plan == null || plan == status) {
+    return 'Dent $code — $statusLabel';
+  }
+  final planLabel = kToothStatusLabels[plan] ?? plan;
+  return 'Dent $code — $statusLabel, plan : $planLabel';
+}
+
 class DentalChartPage extends StatelessWidget {
   const DentalChartPage({super.key, required this.patientId});
 
@@ -153,11 +168,13 @@ class _DentalChartBodyState extends State<_DentalChartBody> {
             quadrants: quadrants,
             keyPrefix: 'dental_chart_tooth',
             stateFor: (code) {
-              final status = teeth[code]?.status;
+              final state = teeth[code];
+              final status = state?.status;
               return ToothVisual(
                 background: status != null
                     ? kToothStatusColors[status] ?? Colors.grey.shade300
                     : Colors.grey.shade100,
+                semanticLabel: toothSemanticLabel(code, state),
               );
             },
             onTap: _pickStatus,
