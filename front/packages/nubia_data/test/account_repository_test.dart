@@ -128,4 +128,56 @@ void main() {
       verify(() => api.revokeAccess('ar-1')).called(1);
     });
   });
+
+  group('setReferringDoctor — #7044', () {
+    const providerDto = ReferringDoctorDto(
+      providerId: '90de0000-0000-4000-8000-000000000011',
+      name: 'Dr Chloé Moreau',
+      specialty: 'Orthodontie',
+    );
+    const freeDto = ReferringDoctorDto(name: 'Dr Hors Annuaire');
+
+    test(
+        'praticien de l\'annuaire → envoie provider_id seul, sans name/'
+        'specialty (que l\'API rejette par deny_unknown_fields)', () async {
+      when(() => api.setReferringDoctor(any()))
+          .thenAnswer((_) async => providerDto);
+
+      await repo.setReferringDoctor(
+        providerId: '90de0000-0000-4000-8000-000000000011',
+        name: 'Dr Chloé Moreau',
+        specialty: 'Orthodontie',
+        address: '1 rue de la Paix, Lyon',
+      );
+
+      final body =
+          verify(() => api.setReferringDoctor(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body, {'provider_id': '90de0000-0000-4000-8000-000000000011'});
+    });
+
+    test(
+        'médecin hors annuaire → envoie free_name/free_phone/free_address, '
+        'jamais name/phone/address/email', () async {
+      when(() => api.setReferringDoctor(any()))
+          .thenAnswer((_) async => freeDto);
+
+      await repo.setReferringDoctor(
+        name: 'Dr Hors Annuaire',
+        phone: '0612345678',
+        email: 'hors-annuaire@example.com',
+        address: '1 rue de la Paix, Lyon',
+      );
+
+      final body =
+          verify(() => api.setReferringDoctor(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body, {
+        'free_name': 'Dr Hors Annuaire',
+        'free_phone': '0612345678',
+        'free_address': '1 rue de la Paix, Lyon',
+      });
+      expect(body.containsKey('email'), isFalse);
+    });
+  });
 }
