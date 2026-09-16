@@ -3,6 +3,7 @@
 - **Participants** : Xavier Barraud, Jean-Paul Jacquot (échange associés ; actions adressées à Abir Talbi)
 - **Objet** : fixer le périmètre minimal du module dentaire et en tirer la roadmap présentée aux associés le **vendredi 2026-09-18**
 - **Périmètre** : logiciel Nubiadoc. Le cadre juridique n'est traité que là où il conditionne le test en centre réel.
+- **Version publiée** : <https://claude.ai/artifact/GRquaSrp2tTFWaGWr5TNpf>
 - **Séance précédente** : [2026-09-08 — cadrage logiciel métier](2026-09-08-cadrage-logiciel-metier.md)
 
 ## 1. En une phrase

@@ -25,7 +25,7 @@ deviennent du code partent en issue Forgejo et le tableau garde le numéro.
 | Date | Sujet | Participants | CR |
 |---|---|---|---|
 | 2026-09-08 | Cadrage produit avec Abir Talbi — priorisation logiciel métier | Xavier Barraud, Jean-Paul Jacquot, Abir Talbi | [CR](2026-09-08-cadrage-logiciel-metier.md) · [version publiée](https://claude.ai/code/artifact/e0016ce3-853e-46df-b7a7-74b8bbc2225f) |
-| 2026-09-16 | Périmètre minimal : tester vite, en réseau local — roadmap pour le 18/09 | Xavier Barraud, Jean-Paul Jacquot | [CR](2026-09-16-perimetre-mvp-reseau-local.md) |
+| 2026-09-16 | Périmètre minimal : tester vite, en réseau local — roadmap pour le 18/09 | Xavier Barraud, Jean-Paul Jacquot | [CR](2026-09-16-perimetre-mvp-reseau-local.md) · [version publiée](https://claude.ai/artifact/GRquaSrp2tTFWaGWr5TNpf) |
 
 Rythme convenu : **tous les mardis 14 h – 16 h**, à partir du 2026-09-15.
 
