@@ -17,6 +17,8 @@ class CabinetPatientDto {
   final List<GuardianshipLink>? dependents;
   final bool? hasActiveAlerts;
   final bool? hasUpcomingAppointment;
+  final String? mutuelleAmc;
+  final bool mutuelleTiersPayant;
 
   const CabinetPatientDto({
     required this.id,
@@ -35,6 +37,8 @@ class CabinetPatientDto {
     this.dependents,
     this.hasActiveAlerts,
     this.hasUpcomingAppointment,
+    this.mutuelleAmc,
+    this.mutuelleTiersPayant = false,
   });
 
   factory CabinetPatientDto.fromJson(Map<String, dynamic> json) {
@@ -47,6 +51,11 @@ class CabinetPatientDto {
     // top-level ni dans `contact`) — reste volontairement non lu ici tant
     // qu'aucune donnée réelle n'existe à mapper.
     final contact = json['contact'] as Map<String, dynamic>? ?? const {};
+    // `GET /v1/cabinet/patients/:id` imbrique la couverture sous `mutuelle`
+    // (`api/src/patient_detail.rs`) : `{"amc": ..., "tiers_payant": ...}` si
+    // un compte plateforme est lié et a renseigné sa couverture, `null`
+    // sinon (#7048).
+    final mutuelle = json['mutuelle'] as Map<String, dynamic>? ?? const {};
     List<GuardianshipLink>? parseLinks(String key) {
       final raw = json[key] as List<dynamic>?;
       if (raw == null) return null;
@@ -87,6 +96,8 @@ class CabinetPatientDto {
       // disponibilité que balanceDueCents/noShowCount ci-dessus.
       hasActiveAlerts: json['has_active_alerts'] as bool?,
       hasUpcomingAppointment: json['has_upcoming_appointment'] as bool?,
+      mutuelleAmc: mutuelle['amc'] as String?,
+      mutuelleTiersPayant: (mutuelle['tiers_payant'] as bool?) ?? false,
     );
   }
 
@@ -120,6 +131,8 @@ class CabinetPatientDto {
         dependents: dependents,
         hasActiveAlerts: hasActiveAlerts,
         hasUpcomingAppointment: hasUpcomingAppointment,
+        mutuelleAmc: mutuelleAmc,
+        mutuelleTiersPayant: mutuelleTiersPayant,
       );
 
   factory CabinetPatientDto.fromDomain(CabinetPatient p) => CabinetPatientDto(
@@ -133,5 +146,7 @@ class CabinetPatientDto {
         socialSecurityNumber: p.socialSecurityNumber,
         lastVisitAt: p.lastVisitAt?.toIso8601String(),
         createdAt: p.createdAt.toIso8601String(),
+        mutuelleAmc: p.mutuelleAmc,
+        mutuelleTiersPayant: p.mutuelleTiersPayant,
       );
 }

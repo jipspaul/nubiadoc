@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -1136,10 +1137,13 @@ StatusPillVariant _statusVariant(AgendaEntry entry) {
 /// RDV `confirmed` (même garde que le back, cf. `cabinet_checkin_appointment`
 /// dans `appointments_checkin.rs`).
 ///
-/// « Appeler » reste désactivé avec un TODO explicite : `AgendaEntry`
-/// n'expose pas le téléphone patient — cf. issue #5079, aucune valeur n'est
-/// inventée pour ce champ back manquant.
-class _AgendaDetailPanel extends StatelessWidget {
+/// « Appeler » résout le téléphone du patient via `GetCabinetPatientUseCase`
+/// (#7048, même pattern que `devis_page.dart` — #6590) : `AgendaEntry` ne
+/// porte que le `patientId`, le volet charge la fiche patient à l'ouverture
+/// pour en tirer téléphone et couverture. « Créé le » reste vide : ni
+/// `GET /cabinet/agenda` ni `GET /cabinet/appointments` n'exposent la date de
+/// création du RDV (vrai manque back, cf. issue #7048).
+class _AgendaDetailPanel extends StatefulWidget {
   const _AgendaDetailPanel({
     required this.entry,
     required this.practitionerNames,
@@ -1157,6 +1161,13 @@ class _AgendaDetailPanel extends StatelessWidget {
   final VoidCallback onConfirm;
   final VoidCallback onCheckin;
   final void Function(DateTime newStartsAt) onReschedule;
+
+  @override
+  State<_AgendaDetailPanel> createState() => _AgendaDetailPanelState();
+}
+
+class _AgendaDetailPanelState extends State<_AgendaDetailPanel> {
+  CabinetPatient? _patient;
 
   static const _weekdays = [
     'Lundi',
@@ -1183,11 +1194,43 @@ class _AgendaDetailPanel extends StatelessWidget {
     'décembre',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadPatient();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AgendaDetailPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entry.patientId != widget.entry.patientId) {
+      _patient = null;
+      _loadPatient();
+    }
+  }
+
+  /// Résout téléphone et couverture via `GetCabinetPatientUseCase` (#7048) :
+  /// `AgendaEntry` ne porte que le `patientId`, la fiche patient est servie
+  /// par `GET /v1/cabinet/patients/:id`, déjà accessible au secrétariat
+  /// (même pattern que `devis_page.dart`, #6590).
+  Future<void> _loadPatient() async {
+    final patientId = widget.entry.patientId;
+    if (patientId == null) return;
+    final result = await GetIt.instance<GetCabinetPatientUseCase>()(
+      patientId,
+    );
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (patient) => setState(() => _patient = patient),
+    );
+  }
+
   String get _dateRangeLabel {
     // Conversion via `.toLocal()` avant de lire heure/minute — évite le
     // piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
-    final start = entry.startsAt.toLocal();
-    final end = entry.endsAt.toLocal();
+    final start = widget.entry.startsAt.toLocal();
+    final end = widget.entry.endsAt.toLocal();
     final weekday = _weekdays[start.weekday - 1];
     final month = _months[start.month - 1];
     final startTime =
@@ -1200,9 +1243,9 @@ class _AgendaDetailPanel extends StatelessWidget {
   Future<void> _pickReschedule(BuildContext context) async {
     final newStartsAt = await showDialog<DateTime>(
       context: context,
-      builder: (_) => _RescheduleDialog(initialStart: entry.startsAt),
+      builder: (_) => _RescheduleDialog(initialStart: widget.entry.startsAt),
     );
-    if (newStartsAt != null) onReschedule(newStartsAt);
+    if (newStartsAt != null) widget.onReschedule(newStartsAt);
   }
 
   Widget _kv(BuildContext context, String label, String value) {
@@ -1229,14 +1272,22 @@ class _AgendaDetailPanel extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
 
+    final entry = widget.entry;
     final practitionerName = entry.practitionerName.isNotEmpty
         ? entry.practitionerName
-        : (practitionerNames[entry.practitionerId] ?? '—');
+        : (widget.practitionerNames[entry.practitionerId] ?? '—');
 
     final subtitleParts = <String>[
       if (entry.motif != null && entry.motif!.isNotEmpty) entry.motif!,
       '${entry.duration.inMinutes} min',
     ];
+
+    final phone = _patient?.phone;
+    final hasPhone = phone != null && phone.isNotEmpty;
+    final amc = _patient?.mutuelleAmc;
+    final coverage = (amc == null || amc.isEmpty)
+        ? '—'
+        : (_patient!.mutuelleTiersPayant ? '$amc · tiers payant' : amc);
 
     return Container(
       key: Key('agenda_detail_panel_${entry.id}'),
@@ -1268,7 +1319,7 @@ class _AgendaDetailPanel extends StatelessWidget {
                   key: const Key('agenda_detail_close'),
                   icon: const Icon(Icons.close),
                   tooltip: 'Fermer',
-                  onPressed: onClose,
+                  onPressed: widget.onClose,
                 ),
               ],
             ),
@@ -1314,9 +1365,12 @@ class _AgendaDetailPanel extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _kv(context, 'Praticien', practitionerName),
-            _kv(context, 'Téléphone', '—'),
+            _kv(context, 'Téléphone', hasPhone ? phone : '—'),
+            // Vrai manque back (#7048) : ni `GET /cabinet/agenda` ni
+            // `GET /cabinet/appointments` n'exposent la date de création du
+            // RDV — voir la doc de classe ci-dessus.
             _kv(context, 'Créé le', '—'),
-            _kv(context, 'Couverture', '—'),
+            _kv(context, 'Couverture', coverage),
             const SizedBox(height: 8),
             if (entry.isPending)
               Padding(
@@ -1327,7 +1381,8 @@ class _AgendaDetailPanel extends StatelessWidget {
                     key: Key('confirm_${entry.id}'),
                     label: 'Confirmer',
                     icon: Icons.check,
-                    onPressed: actionInProgress ? null : onConfirm,
+                    onPressed:
+                        widget.actionInProgress ? null : widget.onConfirm,
                   ),
                 ),
               ),
@@ -1342,9 +1397,9 @@ class _AgendaDetailPanel extends StatelessWidget {
                   // Action nº1 du comptoir (#6411) : n'a de sens que sur un
                   // RDV confirmé — même garde que `cabinet_checkin_appointment`
                   // côté back (409 invalid_status sinon).
-                  onPressed: (actionInProgress || !entry.isConfirmed)
+                  onPressed: (widget.actionInProgress || !entry.isConfirmed)
                       ? null
-                      : onCheckin,
+                      : widget.onCheckin,
                 ),
               ),
             ),
@@ -1357,23 +1412,23 @@ class _AgendaDetailPanel extends StatelessWidget {
                   label: 'Déplacer',
                   icon: Icons.edit_calendar,
                   variant: NubiaButtonVariant.secondary,
-                  onPressed:
-                      actionInProgress ? null : () => _pickReschedule(context),
+                  onPressed: widget.actionInProgress
+                      ? null
+                      : () => _pickReschedule(context),
                 ),
               ),
             ),
-            Tooltip(
-              message: 'Téléphone patient non disponible (donnée back à '
-                  'créer, cf. commentaire de classe).',
-              child: SizedBox(
-                width: double.infinity,
-                child: NubiaButton(
-                  key: Key('call_${entry.id}'),
-                  label: 'Appeler',
-                  icon: Icons.call,
-                  variant: NubiaButtonVariant.tertiary,
-                  onPressed: null,
-                ),
+            SizedBox(
+              width: double.infinity,
+              // #7048 : le numéro est résolu depuis la fiche patient
+              // (`_loadPatient`) — grisé seulement tant qu'il est réellement
+              // indisponible, jamais en dur.
+              child: NubiaButton(
+                key: Key('call_${entry.id}'),
+                label: 'Appeler',
+                icon: Icons.call,
+                variant: NubiaButtonVariant.tertiary,
+                onPressed: hasPhone ? () => callPhoneNumber(phone) : null,
               ),
             ),
           ],
