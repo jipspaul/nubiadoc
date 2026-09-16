@@ -814,6 +814,8 @@ class _PendingRequestTile extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(request.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.titleMedium),
                           const SizedBox(height: 2),
                           Text(
