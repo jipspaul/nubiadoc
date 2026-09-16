@@ -461,6 +461,30 @@ void main() {
       expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
     });
 
+    // Régression #7038 : les visites à domicile partageaient le bucket
+    // NotificationType.appointment (cf. NotificationDto._parseType) et
+    // héritaient donc du libellé/icône « Voir le rendez-vous », alors que
+    // le deep_link (`/home-care/:id`) ouvre une visite de soins à domicile.
+    testWidgets(
+        'une visite à domicile (appointment/visit_status_changed) affiche '
+        '« Voir la visite », pas « Voir le rendez-vous »', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(
+        NotificationsLoaded([
+          _actionableNotif('1', NotificationType.appointment,
+              deepLink: '/home-care/42', kind: 'visit_status_changed'),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_action_1')), findsOneWidget);
+      expect(find.text('Voir la visite'), findsOneWidget);
+      expect(find.text('Voir le rendez-vous'), findsNothing);
+      expect(find.byIcon(Icons.medical_services_outlined), findsOneWidget);
+    });
+
     testWidgets(
         'le tap sur le bouton (pas le corps) navigue vers la route résolue '
         'et marque la notification comme lue', (tester) async {
