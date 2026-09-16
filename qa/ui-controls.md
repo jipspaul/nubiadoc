@@ -1606,3 +1606,13 @@ c.on('page', pg => console.log('nouvelle page', pg.url()));
 
 > **TOTAL RONDE : 36 écrans · 533 contrôles inventoriés · 502 activés · 67 « morts » (0 confirmé) · 16 « cassés » non qualifiés + 11 artefacts de jeton.**
 
+
+### Complément de fin de ronde — écrans audités après la clôture du tableau principal
+
+| app | écran/route | inventoriés | activés | morts | cassés | last_check |
+|---|---|---|---|---|---|---|
+| secretariat | `/salle-attente` (1280) | 21 | 19 | 2 | 0 | 2026-09-16T08:37:00Z — Rotation. Les 2 « morts » sont des en-têtes de groupe de navigation. « **Appeler suivant** » désactivé : **légitimité prouvée côté serveur** — `GET /v1/cabinet/waiting-room` rend **0 patient** et `POST /call-next` rend `{"called": false}`. Les 403 sur `/cabinet/members` et `/cabinet/audit-log` sont la sonde de capacité de l'app (cf. note de la section principale), pas un défaut. |
+
+> **TOTAL CUMULÉ DE LA RONDE : 37 écrans · 554 contrôles inventoriés · 521 activés.**
+> Deux écrans (`secretariat /devis`, `patient /documents`) étaient encore en cours d'audit à la clôture
+> du budget temps : **non comptés** ci-dessus, à reprendre en tête de rotation à la prochaine ronde.
