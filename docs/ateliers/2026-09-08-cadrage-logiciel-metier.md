@@ -55,7 +55,7 @@ Reportés dans le [README](README.md#arbitrages-en-attente) : `Q-01` à `Q-05`.
 | Prothèses et laboratoire | 🟠 | `lab_work_orders` existe. Pas de statut d'expédition labo ni d'alerte « prothèse non livrée la veille » |
 | Messageries | ✅ | Patient ↔ cabinet, interne praticien ↔ secrétariat, pharmacie, support |
 | Statistiques cabinet | 🟠 | Activité et facturation agrégées. Pas de vue praticien « mon CA du jour / du mois / par centre » |
-| Reprise de données | ✅ | `data_import_job` (0168) — la migration depuis Desmos / Veasy est outillée |
+| Reprise de données | ~~✅~~ ⛔ | `data_import_job` (0168) — **corrigé le 16/09** : table de suivi seulement, aucun parseur n'existe (cf. `docs/17-benchmark-dental-pilot.md`). La migration n'est pas outillée |
 | Référentiel mutuelles | 🟠 | Table de référence (0187) + couverture patient avec période. Aucun flux vers un organisme complémentaire |
 | Tiers payant | ⛔ | Déclaratif : AMO/AMC **estimés à 70 %** puis corrigés à la main au retour NOÉMIE papier |
 | Module rejets | ⛔ | Rien. Le module d'Abir (CA facturé / encaissé / rejeté, motifs, par caisse, par praticien) n'a pas d'équivalent |

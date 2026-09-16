@@ -77,8 +77,9 @@ cas. Le LAN retire donc bien ce verrou, **à trois conditions** :
   déjà dans le code (RLS, rôles), à documenter pour le centre.
 - **Responsabilité de l'éditeur** : RC pro (`docs/07` §10.8), contrat de
   pilote qui dit noir sur blanc que Nubia ne voit aucune donnée.
-- **Reprise de données** : importer le fichier Desmos/Veasy dans Nubia
-  (`data_import_job`) met de vraies données dans la box dès le premier jour.
+- **Reprise de données** : importer l'export du logiciel actuel dans Nubia
+  (connecteur DSIO à développer, cf. socle 1) met de vraies données dans la
+  box dès le premier jour.
   C'est précisément le test voulu — et c'est le moment où tout le §4.2 doit
   être en place.
 
@@ -144,11 +145,20 @@ Partir de `infra/deploy`, ne rien réinventer. Existant ~70 %.
 - Partition monitoring : collecteur OpenTelemetry, métriques + logs **après
   scrubbing PII** (`docs/07` §4.4), tunnel sortant vers notre supervision.
   Rien d'autre ne sort.
-- Reprise de données depuis le logiciel actuel du centre (`data_import_job`),
-  validée sur export fictif puis réel.
+- **Reprise de données depuis le logiciel actuel du centre — à développer.**
+  `data_import_job` (0168) n'est qu'une table de suivi ; aucun parseur
+  n'existe (le CR du 08/09 l'avait notée ✅ à tort, corrigé par
+  `docs/17-benchmark-dental-pilot.md`). Connecteur **DSIO** en premier — le
+  format d'échange standard des logiciels dentaires français, il couvre
+  Logos, Desmos, Veasy — puis CSV Doctolib. Sans lui, la box du centre pilote
+  démarre vide.
 
 *Livrable* : box v1 chez Nubia en semaine 2, installée au centre pilote en
-semaine 4 sur données fictives, testeurs onboardés.
+semaine 4 sur données fictives, testeurs onboardés. Le connecteur DSIO est le
+seul chantier de code du socle 1 qui parte de zéro : le démarrer en semaine 1.
+
+*Benchmark* : `docs/17-benchmark-dental-pilot.md` §5.3 liste les ajouts à
+faible effort que la comparaison avec Dental Pilot impose aux socles 3 et 4.
 
 ### Socle 2 — Cotation et règles bloquantes · dès réception de A-01 · continu
 

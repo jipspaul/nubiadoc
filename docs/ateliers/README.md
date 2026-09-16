@@ -85,6 +85,8 @@ Ce qui bloque du travail tant que ce n'est pas tranché.
 | A-18 | Partition monitoring : OpenTelemetry, scrubbing PII des logs (`docs/07` §4.4), tunnel sortant | Jean-Paul | 2026-10-16 | ouvert |
 | A-19 | Merger les dix branches `agent/design-ecran-*` avant l'installation au centre (reprend `A-10`) | Jean-Paul | 2026-10-09 | ouvert |
 | A-20 | Première spec TLA+ : moteur de règles de cotation, dès réception de `A-01` | Jean-Paul | après A-01 | bloqué |
+| A-21 | Connecteur de reprise de données DSIO (puis CSV Doctolib) — rien n'existe hors la table de suivi `data_import_job` ; bloque le démarrage de la box sur données réelles | Jean-Paul | 2026-10-16 | ouvert |
+| A-22 | Demander au centre pilote quel logiciel il utilise et quel export (DSIO ?) il peut produire | Abir | 2026-09-25 | ouvert |
 
 ## Roadmap issue de ces ateliers
 
