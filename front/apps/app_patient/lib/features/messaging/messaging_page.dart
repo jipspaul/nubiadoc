@@ -268,7 +268,13 @@ class _ThreadViewState extends State<_ThreadView> {
                   key: const Key('messaging_back_button'),
                   icon: const Icon(Icons.arrow_back),
                   tooltip: 'Retour',
-                  onPressed: () => context.pop(),
+                  // Fil atteignable par URL directe (deep link, F5) : sur
+                  // `/messaging/:id` seul, la pile est vide et `pop()`
+                  // inconditionnel lève `GoError: There is nothing to pop`
+                  // sans aucune sortie de secours (#7075).
+                  onPressed: () => context.canPop()
+                      ? context.pop()
+                      : context.go(AppRouter.messaging),
                 ),
                 Expanded(
                   child: Text(
