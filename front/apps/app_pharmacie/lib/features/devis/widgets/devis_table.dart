@@ -123,7 +123,7 @@ class DevisTableRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    quote.id,
+                    quote.quoteRef ?? quote.id,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: textTheme.bodyMedium?.copyWith(

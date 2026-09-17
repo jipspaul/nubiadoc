@@ -43,7 +43,7 @@ class DevisDetailSheet extends StatelessWidget {
               children: [
                 Flexible(
                   child: Text(
-                    quote.id,
+                    quote.quoteRef ?? quote.id,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: textTheme.bodyMedium?.copyWith(
