@@ -5,7 +5,7 @@ enum ReviewStatus { pending, published, rejected }
 class Review extends Equatable {
   final String id;
   final String providerId;
-  final String appointmentId;
+  final String? appointmentId;
   final int rating; // 1..5
   final String? comment;
   final String authorName;
@@ -15,7 +15,7 @@ class Review extends Equatable {
   const Review({
     required this.id,
     required this.providerId,
-    required this.appointmentId,
+    this.appointmentId,
     required this.rating,
     this.comment,
     required this.authorName,

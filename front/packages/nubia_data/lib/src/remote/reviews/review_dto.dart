@@ -3,7 +3,7 @@ import 'package:nubia_domain/src/entities/review.dart';
 class ReviewDto {
   final String id;
   final String providerId;
-  final String appointmentId;
+  final String? appointmentId;
   final int rating;
   final String? comment;
   final String authorName;
@@ -13,7 +13,7 @@ class ReviewDto {
   const ReviewDto({
     required this.id,
     required this.providerId,
-    required this.appointmentId,
+    this.appointmentId,
     required this.rating,
     this.comment,
     required this.authorName,
@@ -24,7 +24,7 @@ class ReviewDto {
   factory ReviewDto.fromJson(Map<String, dynamic> json) => ReviewDto(
         id: json['id'] as String,
         providerId: json['provider_id'] as String,
-        appointmentId: json['appointment_id'] as String,
+        appointmentId: json['appointment_id'] as String?,
         rating: (json['rating'] as num).toInt(),
         comment: json['comment'] as String?,
         authorName: json['author_name'] as String,
