@@ -6,6 +6,7 @@ class PharmacyQuoteDto {
   final String? pharmacyName;
   final String? patientDisplayName;
   final String? orderId;
+  final String? quoteRef;
   final List<Map<String, dynamic>> items;
   final int totalCents;
   final String status;
@@ -19,6 +20,7 @@ class PharmacyQuoteDto {
     this.pharmacyName,
     this.patientDisplayName,
     this.orderId,
+    this.quoteRef,
     required this.items,
     required this.totalCents,
     required this.status,
@@ -34,6 +36,7 @@ class PharmacyQuoteDto {
         pharmacyName: json['pharmacy_name'] as String?,
         patientDisplayName: json['patient_display_name'] as String?,
         orderId: json['order_id'] as String?,
+        quoteRef: json['quote_ref'] as String?,
         items: (json['items'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
             .toList(),
@@ -53,6 +56,7 @@ class PharmacyQuoteDto {
         pharmacyName: pharmacyName,
         patientDisplayName: patientDisplayName,
         orderId: orderId,
+        quoteRef: quoteRef,
         items: items
             .map(
               (item) => PharmacyQuoteItem(
