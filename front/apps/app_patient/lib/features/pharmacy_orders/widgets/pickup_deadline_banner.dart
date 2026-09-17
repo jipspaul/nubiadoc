@@ -27,8 +27,9 @@ class PickupDeadlineBanner extends StatelessWidget {
 
     final deadline = order.pickupDeadline ?? readyAt.add(_fallbackWindow);
     final windowDays = deadline.difference(readyAt).inDays;
-    final hh = readyAt.hour.toString().padLeft(2, '0');
-    final mm = readyAt.minute.toString().padLeft(2, '0');
+    final local = readyAt.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
 
     final theme = Theme.of(context);
     final textStyle = theme.textTheme.labelSmall?.copyWith(
