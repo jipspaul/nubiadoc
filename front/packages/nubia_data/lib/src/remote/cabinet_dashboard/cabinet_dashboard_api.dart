@@ -102,11 +102,17 @@ class CabinetDashboardApi {
               s + _filterByPractitioner(dayResults, practitionerId).length,
         );
 
+    // #7116 : filtré par praticien comme todayAppointments/pendingConfirmations
+    // ci-dessus — sinon le hero « Patient suivant » et waitingRoomCount
+    // exposent la salle d'attente de tout le cabinet, y compris les
+    // patients d'un confrère (POST .../start renvoie alors 403).
+    final ownWaitingRoom = _filterByPractitioner(results[1], practitionerId);
+
     // #5045 : hero « Patient suivant » — celui qui attend depuis le plus
     // longtemps dans la salle d'attente déjà chargée ci-dessus (results[1]).
     // Réutilise WaitingRoomEntryDto (nom/motif/heure/attente, fallbacks déjà
     // durcis par #3782/#3861) plutôt que reparser le JSON brut ici.
-    final waitingRoom = results[1]
+    final waitingRoom = ownWaitingRoom
         .map((e) =>
             WaitingRoomEntryDto.fromJson(e as Map<String, dynamic>).toDomain())
         .toList()
@@ -139,7 +145,7 @@ class CabinetDashboardApi {
 
     return CabinetDashboardDto(
       todayAppointments: todayAppointments.length,
-      waitingRoomCount: results[1].length,
+      waitingRoomCount: ownWaitingRoom.length,
       unreadMessages: unread,
       pendingConfirmations: pendingConfirmations.length,
       weeklyCompletedActs: weeklyCompletedActs,
