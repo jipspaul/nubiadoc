@@ -1787,7 +1787,8 @@ une pastille de 5 px, toutes deux hors arbre. → **#7043** (P2).
 | praticien | `/stock-inventory` (1280×800) | 42 | 24 | 23 | 1* | 0 | 2026-09-17T02:12:00Z |
 | patient | `/mes-rdv` (**1280×800**, 1er audit à ce viewport) | 11 | 6 | 5 | 1* | 0 | 2026-09-17T02:22:00Z |
 | patient | `/prescriptions` (**1280×800**, 1er audit à ce viewport) | 16 | 2 | 2 | 0 | 0 | 2026-09-17T02:25:00Z |
-| **TOTAL** | **20 écrans** | **408** | **278** | **255** | **22 bruts → 0 confirmés** | **1** | — |
+| secretariat | `/appointment-motifs` (1280×800) | 27 | 9 | 9 | 0 | 0 | 2026-09-17T02:50:00Z |
+| **TOTAL** | **21 écrans** | **435** | **287** | **264** | **22 bruts → 0 confirmés** | **1** | — |
 
 \* **Les 22 verdicts « MORT » ont TOUS été rejoués et sont TOUS des faux positifs** — le taux de
 faux positifs du détecteur reste de 100 %, comme aux rondes précédentes. Familles identifiées
