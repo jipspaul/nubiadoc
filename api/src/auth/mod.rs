@@ -34,7 +34,7 @@ use uuid::Uuid;
 
 use crate::{
     appointments_response::{format_establishment_address, is_exclusion_violation},
-    AppState, JobDispatcher, StorageClient,
+    AppState, JobDispatcher, StorageSigner,
 };
 
 /// Réponse de `POST /v1/auth/login`.
@@ -3344,7 +3344,7 @@ pub struct CoverageCardResponse {
 pub async fn post_coverage_card(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
-    Extension(storage): Extension<Arc<dyn StorageClient>>,
+    Extension(signer): Extension<Arc<dyn StorageSigner>>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<CoverageCardResponse>), AppError> {
     const MAX_SIZE: usize = 10 * 1024 * 1024;
@@ -3439,8 +3439,11 @@ pub async fn post_coverage_card(
 
     let document_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 
-    // URL signée valable 15 minutes.
-    let signed_url = storage.sign_url(&storage_key, 900);
+    // URL signée valable 15 minutes — signer réel (Scaleway en prod, #4717),
+    // jamais le StorageClient/StubStorageClient hardcodé sur storage.stub (#4835).
+    let signed_url = signer
+        .sign(&storage_key)
+        .ok_or(AppError::UpstreamUnavailable)?;
 
     tracing::info!(
         account_id = %claims.account_id,
