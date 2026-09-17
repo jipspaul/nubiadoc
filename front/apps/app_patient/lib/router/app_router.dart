@@ -115,6 +115,13 @@ class AppRouter {
   static const appointmentsSlots = '/appointments/slots';
 
   static GoRouter create(RouterNotifier notifier) {
+    // #7095 : sans ce flag, go_router ne reflète l'URL du navigateur que
+    // pour les navigations déclaratives (`context.go`) — un `context.push`
+    // (utilisé par tous les écrans de détail) affiche bien l'écran mais ne
+    // touche jamais `location.href` : lien impossible à partager, F5 renvoie
+    // sur la route parente. Ce flag aligne aussi le comportement des `push`
+    // sur celui des `go`.
+    GoRouter.optionURLReflectsImperativeAPIs = true;
     return GoRouter(
       initialLocation: splash,
       refreshListenable: notifier,
