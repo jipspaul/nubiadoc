@@ -37,8 +37,12 @@ class AccountRepositoryImpl implements AccountRepository {
       if (firstName != null) body['first_name'] = firstName;
       if (lastName != null) body['last_name'] = lastName;
       if (phone != null) body['phone'] = phone;
-      // birth_date is immutable after registration; the API rejects it with
-      // a 422 if present, so it must never be included in this body.
+      // The API only accepts birth_date while it is still unset (first-time
+      // onboarding fill) — it rejects it with a 422 once the account already
+      // has one (cf. api/src/auth/mod.rs patch_account).
+      if (dateOfBirth != null) {
+        body['birth_date'] = dateOfBirth.toIso8601String().substring(0, 10);
+      }
       final dto = await _api.updateAccount(body);
       return Right(dto.toDomain());
     } on DioException catch (e) {

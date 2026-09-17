@@ -14,6 +14,13 @@ const _dto = HealthCoverageDto(
   numeroAdherent: '',
 );
 
+const _accountDto = AccountDto(
+  id: 'acc-1',
+  firstName: 'Zoe',
+  lastName: 'Testeur',
+  email: 'zoe@nubia.test',
+);
+
 void main() {
   late MockAccountApi api;
   late AccountRepositoryImpl repo;
@@ -40,6 +47,38 @@ void main() {
           verify(() => api.updateCoverage(captureAny())).captured.single
               as Map<String, dynamic>;
       expect(body['mutuelle'], {'amc': 'QA Mutuelle', 'numero_adherent': ''});
+    });
+  });
+
+  group('updateAccount — birth_date (#7036)', () {
+    test(
+        'dateOfBirth fourni → envoyé dans le corps PATCH au format ISO '
+        'AAAA-MM-JJ, pas silencieusement jeté', () async {
+      when(() => api.updateAccount(any())).thenAnswer((_) async => _accountDto);
+
+      await repo.updateAccount(
+        firstName: 'Zoe',
+        lastName: 'Testeur',
+        phone: '0612345678',
+        dateOfBirth: DateTime(2006, 1, 15),
+      );
+
+      final body =
+          verify(() => api.updateAccount(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body['birth_date'], '2006-01-15');
+    });
+
+    test('dateOfBirth absent → aucune clé birth_date dans le corps PATCH',
+        () async {
+      when(() => api.updateAccount(any())).thenAnswer((_) async => _accountDto);
+
+      await repo.updateAccount(phone: '0612345678');
+
+      final body =
+          verify(() => api.updateAccount(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(body.containsKey('birth_date'), isFalse);
     });
   });
 

@@ -2769,8 +2769,10 @@ pub struct PatchAccountBody {
     address: Option<PatchAccountAddress>,
     /// Présence → `422` : non modifiable via cette route.
     email: Option<Value>,
-    /// Présence → `422` : non modifiable via cette route.
-    birth_date: Option<Value>,
+    /// Réglable une seule fois (compte créé sans date de naissance, cf.
+    /// `POST /v1/auth/register`) : accepté tant que `patient_account.birth_date`
+    /// est encore `NULL`, sinon `422` (#7036).
+    birth_date: Option<String>,
 }
 
 /// Construit le delta JSONB à fusionner dans `contact` à partir de l'adresse fournie.
@@ -2799,18 +2801,39 @@ fn contact_delta(address: Option<&PatchAccountAddress>) -> Value {
 
 /// `PATCH /v1/account` — met à jour les coordonnées du compte patient (partiel, audité).
 ///
-/// Champs absents = non modifiés (COALESCE). `email` et `birth_date` ne sont pas
-/// modifiables ici → `422`. Chaque PATCH génère un log d'audit (`06` E3.1.2).
-/// `patient_account` est hors RLS cabinet : audit_log utilise le nil UUID comme
-/// sentinel cabinet_id de niveau plateforme.
+/// Champs absents = non modifiés (COALESCE). `email` n'est jamais modifiable via
+/// cette route → `422`. `birth_date` est réglable une seule fois : `POST
+/// /v1/auth/register` crée le compte sans date de naissance (§ onboarding
+/// `/account-setup`), donc le premier PATCH qui en fournit une l'enregistre ;
+/// tout PATCH suivant qui en fournit une alors qu'elle est déjà connue → `422`
+/// (#7036, sinon la donnée saisie à l'onboarding serait silencieusement jetée).
+/// Chaque PATCH génère un log d'audit (`06` E3.1.2). `patient_account` est hors
+/// RLS cabinet : audit_log utilise le nil UUID comme sentinel cabinet_id de
+/// niveau plateforme.
 pub async fn patch_account(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Json(body): Json<PatchAccountBody>,
 ) -> Result<Json<AccountResponse>, AppError> {
-    if body.email.is_some() || body.birth_date.is_some() {
+    if body.email.is_some() {
         return Err(AppError::ValidationError);
     }
+
+    let new_birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
+        Some(s) => {
+            let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
+            let today = chrono::Utc::now().date_naive();
+            // Bornes symétriques à celles de `POST /v1/account/dependents` (#6653).
+            let min_birth_date = today
+                .checked_sub_months(chrono::Months::new(120 * 12))
+                .ok_or(AppError::ValidationError)?;
+            if d > today || d < min_birth_date {
+                return Err(AppError::ValidationError);
+            }
+            Some(d)
+        }
+        None => None,
+    };
 
     if body
         .first_name
@@ -2844,9 +2867,9 @@ pub async fn patch_account(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Snapshot avant modification (diff d'audit).
+    // Snapshot avant modification (diff d'audit + garde l'immutabilité de birth_date).
     let old = sqlx::query(
-        "SELECT first_name, last_name, phone FROM patient_account \
+        "SELECT first_name, last_name, phone, birth_date FROM patient_account \
          WHERE id = $1 AND app_user_id = $2 AND deleted_at IS NULL",
     )
     .bind(claims.account_id)
@@ -2859,8 +2882,16 @@ pub async fn patch_account(
     let old_first_name: String = old.try_get("first_name").map_err(|_| AppError::Internal)?;
     let old_last_name: String = old.try_get("last_name").map_err(|_| AppError::Internal)?;
     let old_phone: Option<String> = old.try_get("phone").map_err(|_| AppError::Internal)?;
+    let old_birth_date: Option<chrono::NaiveDate> =
+        old.try_get("birth_date").map_err(|_| AppError::Internal)?;
+
+    if new_birth_date.is_some() && old_birth_date.is_some() {
+        return Err(AppError::ValidationError);
+    }
 
     // Mise à jour + récupération du profil mis à jour (CTE pour inclure email).
+    // `birth_date` via COALESCE(birth_date, …) : ne pose que si encore NULL,
+    // même sous une éventuelle course (double-tap) avec le contrôle ci-dessus.
     let row = sqlx::query(
         "WITH upd AS ( \
            UPDATE patient_account \
@@ -2868,9 +2899,10 @@ pub async fn patch_account(
              first_name = COALESCE($1, first_name), \
              last_name  = COALESCE($2, last_name), \
              phone      = COALESCE($3, phone), \
-             contact    = contact || $4, \
+             birth_date = COALESCE(birth_date, $4), \
+             contact    = contact || $5, \
              updated_at = now() \
-           WHERE id = $5 AND app_user_id = $6 AND deleted_at IS NULL \
+           WHERE id = $6 AND app_user_id = $7 AND deleted_at IS NULL \
            RETURNING id, first_name, last_name, phone, birth_date, created_at, app_user_id \
          ) \
          SELECT u.id, u.first_name, u.last_name, u.phone, u.birth_date, u.created_at, \
@@ -2880,6 +2912,7 @@ pub async fn patch_account(
     .bind(body.first_name.as_deref())
     .bind(body.last_name.as_deref())
     .bind(body.phone.as_deref())
+    .bind(new_birth_date)
     .bind(&delta)
     .bind(claims.account_id)
     .bind(claims.sub)
@@ -2907,6 +2940,12 @@ pub async fn patch_account(
     }
     if body.phone.is_some() && new_phone != old_phone {
         diff.insert("phone".into(), json!({"old": old_phone, "new": new_phone}));
+    }
+    if let Some(d) = new_birth_date.filter(|_| old_birth_date.is_none()) {
+        diff.insert(
+            "birth_date".into(),
+            json!({"old": null, "new": d.to_string()}),
+        );
     }
     if body.address.is_some() {
         diff.insert("address".into(), json!("updated"));
