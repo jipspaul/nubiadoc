@@ -230,7 +230,8 @@ void main() {
             )).thenAnswer(
           (_) async => Left(
             const ValidationFailure(
-                message: 'Nom et prénom sont obligatoires.'),
+                message: 'Certaines informations sont manquantes ou invalides. '
+                    'Merci de vérifier le formulaire.'),
           ),
         );
         return PatientsBloc(
@@ -242,7 +243,9 @@ void main() {
       )),
       expect: () => [
         const PatientsCreating(),
-        const PatientsCreateError('Nom et prénom sont obligatoires.'),
+        const PatientsCreateError(
+            'Certaines informations sont manquantes ou invalides. '
+            'Merci de vérifier le formulaire.'),
       ],
     );
   });

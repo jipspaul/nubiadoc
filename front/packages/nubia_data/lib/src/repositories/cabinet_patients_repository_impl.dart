@@ -69,8 +69,17 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 422) {
+        // `quick_create_patient` renvoie 422 pour plusieurs causes distinctes
+        // (nom/prénom vides, format téléphone invalide, etc. — api/src/clinical.rs
+        // `quick_create_patient`) sans les distinguer dans le corps de réponse
+        // (`{"code":"validation_error"}` uniquement). Affirmer une cause précise
+        // ici serait donc parfois faux (#7232) ; message neutre, cohérent avec
+        // celui du tunnel SSR depuis #7115 (`confirm_page.rs`).
         return const Left(
-          ValidationFailure(message: 'Nom et prénom sont obligatoires.'),
+          ValidationFailure(
+            message: 'Certaines informations sont manquantes ou invalides. '
+                'Merci de vérifier le formulaire.',
+          ),
         );
       }
       if (e.response?.statusCode == 401) {
