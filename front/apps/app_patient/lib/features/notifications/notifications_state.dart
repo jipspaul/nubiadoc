@@ -43,6 +43,17 @@ final class NotificationsEmpty extends NotificationsState {
   const NotificationsEmpty();
 }
 
+/// Total serveur de non-lus (#6279), sans la liste — utilisé par l'accueil
+/// pour la pastille de la cloche, sans payer la pagination complète (#7102).
+final class NotificationsUnreadCountLoaded extends NotificationsState {
+  final int unreadCount;
+
+  const NotificationsUnreadCountLoaded(this.unreadCount);
+
+  @override
+  List<Object?> get props => [unreadCount];
+}
+
 final class NotificationsError extends NotificationsState {
   final String message;
 

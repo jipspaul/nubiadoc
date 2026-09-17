@@ -99,6 +99,35 @@ void main() {
     );
   });
 
+  // ── NotificationsUnreadCountRequested ─────────────────────────────────────
+
+  group('NotificationsUnreadCountRequested', () {
+    blocTest<NotificationsBloc, NotificationsState>(
+      'émet [Loading, UnreadCountLoaded] sans paginer la liste complète',
+      build: makeBloc,
+      setUp: () => when(() => repo.getUnreadCount())
+          .thenAnswer((_) async => const Right(3)),
+      act: (bloc) => bloc.add(const NotificationsUnreadCountRequested()),
+      expect: () => [
+        const NotificationsLoading(),
+        const NotificationsUnreadCountLoaded(3),
+      ],
+      verify: (_) => verifyNever(() => repo.getNotifications()),
+    );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'émet [Loading, Error] quand le repo retourne un Left(Failure)',
+      build: makeBloc,
+      setUp: () => when(() => repo.getUnreadCount())
+          .thenAnswer((_) async => const Left(_serverFailure)),
+      act: (bloc) => bloc.add(const NotificationsUnreadCountRequested()),
+      expect: () => [
+        const NotificationsLoading(),
+        const NotificationsError('Erreur serveur'),
+      ],
+    );
+  });
+
   // ── NotificationMarkReadRequested ─────────────────────────────────────────
 
   group('NotificationMarkReadRequested', () {

@@ -13,6 +13,7 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
       : _repository = repository,
         super(const NotificationsInitial()) {
     on<NotificationsLoadRequested>(_onLoadRequested);
+    on<NotificationsUnreadCountRequested>(_onUnreadCountRequested);
     on<NotificationMarkReadRequested>(_onMarkRead);
     on<NotificationMarkAllReadRequested>(_onMarkAllRead);
   }
@@ -29,6 +30,22 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
         (notifications) => notifications.isEmpty
             ? safeEmit(const NotificationsEmpty())
             : safeEmit(NotificationsLoaded(notifications)),
+      );
+    } catch (e) {
+      safeEmit(NotificationsError(e.toString()));
+    }
+  }
+
+  Future<void> _onUnreadCountRequested(
+    NotificationsUnreadCountRequested event,
+    Emitter<NotificationsState> emit,
+  ) async {
+    emit(const NotificationsLoading());
+    try {
+      final result = await _repository.getUnreadCount();
+      result.fold(
+        (failure) => safeEmit(NotificationsError(failure.message)),
+        (count) => safeEmit(NotificationsUnreadCountLoaded(count)),
       );
     } catch (e) {
       safeEmit(NotificationsError(e.toString()));
