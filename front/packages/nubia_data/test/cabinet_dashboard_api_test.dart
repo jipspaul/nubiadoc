@@ -253,6 +253,54 @@ void main() {
       );
     });
 
+    test(
+        'filtre la salle d\'attente par praticien connecté, comme '
+        'todayAppointments/pendingConfirmations (#7116)', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/appointments',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/waiting-room',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse([
+            {
+              'appointment_id': 'appt-confrere',
+              'patient_id': 'pat-confrere',
+              'patient_name': 'Patient Du Confrere',
+              'practitioner_id': 'prac-2',
+              'checkin_at':
+                  DateTime.now().subtract(const Duration(minutes: 380)).toIso8601String(),
+            },
+          ]));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/conversations',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+
+      final summary = await CabinetDashboardApi(apiClient)
+          .getSummary(practitionerId: 'prac-1');
+
+      expect(
+        summary.nextPatientName,
+        isNull,
+        reason: 'le hero ne doit jamais présenter un patient d\'un autre '
+            'praticien du cabinet — action "Démarrer la consultation" '
+            'sinon 403',
+      );
+      expect(
+        summary.waitingRoomCount,
+        0,
+        reason: 'même filtre que le hero pour le compteur affiché',
+      );
+    });
+
     test('nextPatient est absent quand la salle d\'attente est vide', () async {
       when(
         () => dio.get<Map<String, dynamic>>(
