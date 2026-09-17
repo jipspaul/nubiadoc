@@ -24,7 +24,15 @@ class _AccountSetupPageState extends State<AccountSetupPage> {
   // Le hint affiché ("+33 6 12 34 56 78") contient des espaces : on les
   // retire avant validation, sinon un utilisateur qui suit le format suggéré
   // se retrouve avec un formulaire bloqué (bouton "Continuer" jamais activé).
-  String get _normalizedPhone => _phone.text.replaceAll(RegExp(r'\s+'), '');
+  // L'API n'accepte que l'E.164 (`+33…`) : on convertit ici les formats
+  // `0…`/`0033…` que `_phoneRe` déclare valides, sinon le back renvoie un
+  // 422 alors même que le front a validé le formulaire.
+  String get _normalizedPhone {
+    final digits = _phone.text.replaceAll(RegExp(r'\s+'), '');
+    if (digits.startsWith('0033')) return '+33${digits.substring(4)}';
+    if (digits.startsWith('0')) return '+33${digits.substring(1)}';
+    return digits;
+  }
 
   bool get _phoneValid => _phoneRe.hasMatch(_normalizedPhone);
 
