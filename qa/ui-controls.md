@@ -1899,3 +1899,71 @@ Le « cassé » est **`Statistiques`** : l'entrée navigue bien vers `/cabinet-s
 `Réglages du cabinet` (**#7029**), la destination courante `Créneaux ouverts`, et deux entrées dont
 les coordonnées avaient bougé après le repli de la section. Les 3 contrôles propres à l'écran
 (`Tous les praticiens`, `Toutes les dates`, `Créer un créneau`) répondent tous.
+
+## Ronde 2026-09-17 (06:00–09:xx UTC) — 14 écrans audités, 219 contrôles activés
+
+### ⚠️ Correctif de méthode appliqué CETTE ronde — les « morts » des rondes précédentes étaient sur-comptés
+
+Le détecteur automatique avait **deux défauts de mesure** corrigés en cours de ronde ;
+les chiffres ci-dessous sont ceux d'**après** correction, et ils sont très différents :
+
+1. **Pas de retour à l'écran après une navigation invisible.** Comme aucun écran de détail
+   patient n'écrit son URL (**#7095**), l'ancien détecteur — qui ne re-naviguait que si
+   `location.href` avait changé — restait bloqué sur l'écran de destination après le premier
+   clic : **tous** les contrôles suivants étaient cliqués dans le vide et comptés MORT en
+   cascade. Effet mesuré sur `patient /` : **12 morts avant correctif, 1 après**.
+2. **Empreinte d'écran tronquée à 6 000 caractères** : tout écran long paraissait « inchangé »
+   après un clic. Remplacée par un hash de l'**arbre Semantics complet** (aria-label + texte).
+
+Trois autres sources de faux positifs, confirmées et désormais filtrées :
+
+- **Sondes de capacité** : `403 GET /v1/cabinet/members` et `403 GET /v1/cabinet/audit-log` sont
+  émises à **chaque** chargement du back-office pour masquer les entrées admin-only
+  (`pro_config.dart:42-54`). Les compter faisait passer pour CASSÉ n'importe quel contrôle
+  cliqué au mauvais moment : `secretariat /audit-log` **14 cassés avant filtrage, 0 après**.
+- **Rôle Semantics inattendu** : les facettes de la file pharmacie sont des `role=switch`, pas des
+  `button` — un inventaire filtré sur `button` les déclarait « absentes » alors qu'elles sont là.
+- **Défilement hors zone** : `mouse.wheel` part de (0,0) si le curseur n'a pas été déplacé dans la
+  liste ; l'écran ne défile pas et les contrôles bas paraissent introuvables (faux « `Ajouter un
+  proche` absent » sur `/profile/dependents`, en réalité présent en `role=button` et fonctionnel).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/financial` (390) | 8 | 8 | 8 | 0 | 0 | 0 | 2026-09-17T07:16:00Z |
+| patient | `/pharmacy` (390) | 7 | 7 | 5 | 2 | 0 | 0 | 2026-09-17T07:16:00Z |
+| patient | `/profile` (390) | 8 | 7 | 6 | 1 | 0 | 1 | 2026-09-17T07:16:00Z |
+| pharmacie | `/` (1280) | 19 | 18 | 16 | 2 | 0 | 0 | 2026-09-17T07:16:00Z |
+| pharmacie | `/devis` (1280) | 24 | 20 | 18 | 2 | 0 | 0 | 2026-09-17T07:16:00Z |
+| pharmacie | `/stock` (1280) | 14 | 13 | 11 | 2 | 0 | 0 | 2026-09-17T07:16:00Z |
+| praticien | `/` (1280) | 18 | 17 | 15 | 1 | 1 | 0 | 2026-09-17T07:16:00Z |
+| praticien | `/agenda` (1280) | 22 | 21 | 20 | 1 | 0 | 0 | 2026-09-17T07:16:00Z |
+| praticien | `/lab-work-orders` (1280) | 18 | 17 | 16 | 1 | 0 | 0 | 2026-09-17T07:16:00Z |
+| praticien | `/ordonnances` (1280) | 17 | 16 | 15 | 1 | 0 | 0 | 2026-09-17T07:16:00Z |
+| praticien | `/team-messages` (1280) | 17 | 5 | 5 | 0 | 0 | 0 | 2026-09-17T07:16:00Z |
+| secretariat | `/` (1280) | 27 | 26 | 24 | 2 | 0 | 0 | 2026-09-17T07:16:00Z |
+| secretariat | `/devis` (1280) | 35 | 21 | 19 | 2 | 0 | 0 | 2026-09-17T07:16:00Z |
+| secretariat | `/salle-attente` (1280) | 24 | 23 | 23 | 0 | 0 | 0 | 2026-09-17T07:16:00Z |
+| **TOTAL** | **14 écrans** | **258** | **219** | **201** | **17** | **1** | **1** | 2026-09-17T07:16:00Z |
+
+### Contrôles re-vérifiés à la main (les « morts » résiduels)
+
+Comme aux rondes précédentes, **aucun** des morts résiduels re-testés n'était réellement inerte :
+
+- `patient /pharmacy/orders` — les 16 cartes de commande : le clic **ouvre bien** l'écran « Suivi de
+  commande » (capture `R75_ord_clic_gauche.png`), mais `location.href` ne bouge pas → c'est **#7095**,
+  pas un bouton mort.
+- `patient /documents` — « Télécharger » : émet `GET /v1/documents/:id/download` puis ouvre le PDF
+  signé dans un nouvel onglet (`.../storage/local/devis/….pdf?expires=…&sig=…`). Fonctionnel.
+- `infirmiere /` — les 3 onglets et l'interrupteur « En ligne » : l'interrupteur émet
+  `PATCH /v1/nurse/availability`, **bascule visuellement** (`aria-checked` true→false) et **l'état
+  survit à un F5**. Les onglets changent bien de contenu (`Aucune offre` / `Ma visite`).
+- `secretariat /stock` — `Renouveler` / `Réorienter` / `Voir` : ouvrent le volet de détail sans
+  requête, **repli volontaire et documenté** (`stock_page.dart:810-818`). `Relancer`, la seule action
+  réseau de l'écran, émet bien `POST /cabinet/stock-requests/:id/resend` et résiste au triple-clic.
+- Entrées de navigation de l'écran **courant** : sans effet par conception.
+
+### Écrans audités pour la première fois cette ronde
+
+`patient /pharmacy`, `patient /home-care`, `secretariat /liste-attente`, `secretariat /appointment-motifs`,
+`secretariat /audit-log`, `praticien /ordonnances`, `pharmacie /notification-preferences`,
+`infirmiere /notification-preferences`.
