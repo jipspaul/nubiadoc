@@ -263,27 +263,13 @@ class _StockPageState extends State<StockPage> {
                                           ? 'Aucune demande avec ce statut.'
                                           : 'Aucune demande ne correspond à cette recherche.',
                                     )
-                                  : ListView.builder(
-                                      key: const Key('stock_request_list'),
-                                      padding: const EdgeInsets.all(16),
-                                      itemCount: filtered.length,
-                                      itemBuilder: (context, index) {
-                                        final request = filtered[index];
-                                        return Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 12),
-                                          child: _StockRequestRow(
-                                            request: request,
-                                            selected: request.id == _selectedId,
-                                            resending:
-                                                request.id == resendingId,
-                                            onTap: () => setState(
-                                                () => _selectedId = request.id),
-                                            onResend: () =>
-                                                _onResend(request.id),
-                                          ),
-                                        );
-                                      },
+                                  : _StockTable(
+                                      requests: filtered,
+                                      selectedId: _selectedId,
+                                      resendingId: resendingId,
+                                      onTap: (id) =>
+                                          setState(() => _selectedId = id),
+                                      onResend: _onResend,
                                     ),
                             ),
                             _StockListFooter(
@@ -675,11 +661,247 @@ class _StockRequestRowSkeleton extends StatelessWidget {
   }
 }
 
-/// Ligne « demande de stock » de la liste maître — surlignée (fond
-/// `brand50`/bordure `primary`, cf. [NubiaCardState.selected]) quand
-/// sélectionnée.
-class _StockRequestRow extends StatelessWidget {
-  const _StockRequestRow({
+/// Largeurs des colonnes du tableau des demandes de stock (design-v2,
+/// #7066) — grille maquette `104px minmax(0,1fr) 74px 112px 128px 120px`.
+/// Partagée entre [_StockTableHeader] et [_StockTableRow] pour rester
+/// alignées, même schéma que `_DevisColumns` (`devis_table.dart`).
+class _StockColumns {
+  const _StockColumns._();
+
+  static const double gap = 12;
+  static const double demande = 104;
+  static const double articles = 74;
+
+  /// Élargie à 132px (112px de la maquette ne suffit pas au [StatusPill] du
+  /// libellé le plus long, « Acceptée », sans le faire déborder — même
+  /// ajustement que `_DevisColumns.statut`, #5086).
+  static const double statut = 132;
+  static const double reponse = 128;
+  static const double action = 120;
+
+  /// Largeur minimale de la colonne Pharmacie — sous ce seuil, la table
+  /// défile horizontalement plutôt que d'écraser la colonne (même garde-fou
+  /// que `_DevisColumns.patientMin`, #6579).
+  static const double pharmacieMin = 200;
+
+  static const double minTotalWidth = demande +
+      gap +
+      pharmacieMin +
+      gap +
+      articles +
+      gap +
+      statut +
+      gap +
+      reponse +
+      gap +
+      action +
+      32;
+}
+
+/// En-tête de colonnes de la liste des demandes de stock (design-v2, #7066) :
+/// « Demande | Pharmacie destinataire | Articles | Statut | Réponse |
+/// Action », mots exacts de la maquette `Secretariat Stock v2.html`.
+class _StockTableHeader extends StatelessWidget {
+  const _StockTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final style = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: tokens.textTertiary,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          SizedBox(
+              width: _StockColumns.demande, child: Text('Demande', style: style)),
+          const SizedBox(width: _StockColumns.gap),
+          Expanded(
+            child: Text(
+              'Pharmacie destinataire',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
+          ),
+          const SizedBox(width: _StockColumns.gap),
+          SizedBox(
+            width: _StockColumns.articles,
+            child: Text('Articles', style: style, textAlign: TextAlign.right),
+          ),
+          const SizedBox(width: _StockColumns.gap),
+          SizedBox(width: _StockColumns.statut, child: Text('Statut', style: style)),
+          const SizedBox(width: _StockColumns.gap),
+          SizedBox(width: _StockColumns.reponse, child: Text('Réponse', style: style)),
+          const SizedBox(width: _StockColumns.gap),
+          SizedBox(
+            width: _StockColumns.action,
+            child: Text('Action', style: style, textAlign: TextAlign.right),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Liste des demandes de stock, en tableau (design-v2, #7066) — en-tête +
+/// lignes, défilant horizontalement en dessous de
+/// `_StockColumns.minTotalWidth` au lieu d'écraser la colonne Pharmacie
+/// (même schéma que `DevisTable`).
+class _StockTable extends StatelessWidget {
+  const _StockTable({
+    required this.requests,
+    required this.selectedId,
+    required this.resendingId,
+    required this.onTap,
+    required this.onResend,
+  });
+
+  final List<StockRequest> requests;
+  final String? selectedId;
+  final String? resendingId;
+  final ValueChanged<String> onTap;
+  final ValueChanged<String> onResend;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth < _StockColumns.minTotalWidth
+            ? _StockColumns.minTotalWidth
+            : constraints.maxWidth;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: width,
+            height: constraints.maxHeight,
+            child: Column(
+              children: [
+                const _StockTableHeader(),
+                Expanded(
+                  child: ListView.builder(
+                    key: const Key('stock_request_list'),
+                    itemCount: requests.length,
+                    itemBuilder: (context, index) {
+                      final request = requests[index];
+                      return _StockTableRow(
+                        request: request,
+                        selected: request.id == selectedId,
+                        resending: request.id == resendingId,
+                        onTap: () => onTap(request.id),
+                        onResend: () => onResend(request.id),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Action contextuelle au statut, par ligne (design-v2, #7066, maquette
+/// `.act`) : `Relancer` (envoyée, seule à déclencher un appel réseau —
+/// #5183), `Réceptionner` (acceptée), `Renouveler` (honorée), `Réorienter`
+/// (refusée), `Voir` (annulée). Le back ne fournit aujourd'hui aucune route
+/// cabinet pour réceptionner/renouveler/réorienter (`accept`/`reject`/
+/// `fulfill` sont des routes pharmacie, cf. `api/src/pharmacy/stock.rs`) :
+/// ces quatre actions ouvrent donc le volet détail, comme `Voir` — même
+/// repli que `_rowActionFor` dans `devis_table.dart` pour les statuts sans
+/// action réseau dédiée.
+@immutable
+class _RowAction {
+  const _RowAction(this.label, this.icon, {this.primary = false});
+
+  final String label;
+  final IconData icon;
+
+  /// Emphase visuelle (maquette `.ab.p`) : réservée à `Relancer`, l'unique
+  /// geste réellement actionnable de cet écran.
+  final bool primary;
+}
+
+_RowAction _rowActionFor(StockRequestStatus status) {
+  switch (status) {
+    case StockRequestStatus.sent:
+      return const _RowAction('Relancer', Icons.notifications, primary: true);
+    case StockRequestStatus.accepted:
+      return const _RowAction('Réceptionner', Icons.check);
+    case StockRequestStatus.fulfilled:
+      return const _RowAction('Renouveler', Icons.replay);
+    case StockRequestStatus.rejected:
+      return const _RowAction('Réorienter', Icons.swap_horiz);
+    case StockRequestStatus.cancelled:
+      return const _RowAction('Voir', Icons.visibility);
+  }
+}
+
+/// Contenu de la colonne Réponse (design-v2, #7066, maquette `.rep`) — texte
+/// principal + sous-ligne, dérivés des seuls champs portés par
+/// `StockRequest` (`responseNote`, `respondedAt`, `fulfilledAt` — aucune
+/// donnée inventée, ex. une date de livraison estimée n'existe pas côté
+/// domaine).
+@immutable
+class _ResponseCell {
+  const _ResponseCell({required this.main, this.sub});
+
+  final String main;
+  final String? sub;
+
+  static _ResponseCell of(StockRequest request) {
+    final quotedNote =
+        request.responseNote != null ? '« ${request.responseNote} »' : null;
+    switch (request.status) {
+      case StockRequestStatus.sent:
+        return _ResponseCell(
+          main: 'En attente',
+          sub: _formatWaitingSince(request.createdAt),
+        );
+      case StockRequestStatus.accepted:
+        final respondedAt = request.respondedAt;
+        return _ResponseCell(
+          main: respondedAt != null
+              ? 'Acceptée le ${_formatDayMonth(respondedAt)}'
+              : '—',
+          sub: quotedNote,
+        );
+      case StockRequestStatus.fulfilled:
+        final fulfilledAt = request.fulfilledAt;
+        return _ResponseCell(
+          main: fulfilledAt != null
+              ? 'Reçue le ${_formatDayMonth(fulfilledAt)}'
+              : '—',
+          sub: quotedNote,
+        );
+      case StockRequestStatus.rejected:
+        final respondedAt = request.respondedAt;
+        return _ResponseCell(
+          main: respondedAt != null
+              ? 'Refusée le ${_formatDayMonth(respondedAt)}'
+              : '—',
+          sub: quotedNote,
+        );
+      case StockRequestStatus.cancelled:
+        return _ResponseCell(main: '—', sub: quotedNote);
+    }
+  }
+}
+
+/// Ligne du tableau des demandes de stock (design-v2, #7066) : colonnes
+/// alignées — Demande (date/heure), Pharmacie destinataire (icône + nom +
+/// adresse/téléphone), Articles (cardinalité, `_ResponseCell` pour la
+/// colonne Réponse), Statut (`StatusPill`), Réponse, Action (contextuelle au
+/// statut, `_rowActionFor`). Surlignée (fond `brand50`/bordure gauche
+/// `brand700`, maquette `.row.on`) quand sélectionnée.
+class _StockTableRow extends StatelessWidget {
+  const _StockTableRow({
     required this.request,
     required this.selected,
     required this.resending,
@@ -697,139 +919,223 @@ class _StockRequestRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
+    final action = _rowActionFor(request.status);
+    final response = _ResponseCell.of(request);
 
-    return NubiaCard(
-      key: Key('stock_request_${request.id}'),
-      state: selected ? NubiaCardState.selected : NubiaCardState.interactive,
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Column(
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: _StockColumns.demande,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _formatDayMonth(request.createdAt),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatTime(request.createdAt),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: tokens.textTertiary,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: _StockColumns.gap),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: NubiaColors.brand50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: NubiaColors.brand100),
+                    ),
+                    child: const Icon(
+                      Icons.local_pharmacy,
+                      color: NubiaColors.brand700,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _formatDayMonth(request.createdAt),
-                          style: textTheme.bodySmall?.copyWith(
+                          request.pharmacy?.name ?? request.pharmacyId,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodyMedium?.copyWith(
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w600,
-                            height: 1.1,
-                            fontFeatures: const [FontFeature.tabularFigures()],
                           ),
                         ),
-                        Text(
-                          _formatTime(request.createdAt),
-                          style: textTheme.bodySmall?.copyWith(
-                            fontSize: 11,
-                            height: 1.1,
-                            color: NubiaColors.n500,
-                            fontFeatures: const [FontFeature.tabularFigures()],
+                        if (request.pharmacy?.address != null ||
+                            request.pharmacy?.phone != null) ...[
+                          const SizedBox(height: 1),
+                          Text(
+                            [request.pharmacy?.address, request.pharmacy?.phone]
+                                .whereType<String>()
+                                .join(' · '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall?.copyWith(
+                              fontSize: 11,
+                              color: tokens.textTertiary,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
-                    const SizedBox(width: 10),
-                    Container(
-                      width: 22,
-                      height: 22,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: NubiaColors.brand50,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: NubiaColors.brand100),
-                      ),
-                      child: const Icon(
-                        Icons.local_pharmacy,
-                        color: NubiaColors.brand600,
-                        size: 13,
-                      ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: _StockColumns.gap),
+            SizedBox(
+              width: _StockColumns.articles,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${request.items.length}',
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            request.pharmacy?.name ?? request.pharmacyId,
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (request.pharmacy?.address != null ||
-                              request.pharmacy?.phone != null) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              [request.pharmacy?.address, request.pharmacy?.phone]
-                                  .whereType<String>()
-                                  .join(' · '),
-                              style: textTheme.bodySmall?.copyWith(
-                                fontSize: 11,
-                                color: NubiaColors.n500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    request.items.length > 1 ? 'lignes' : 'ligne',
+                    style: textTheme.bodySmall?.copyWith(
+                      fontSize: 10.5,
+                      color: tokens.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: _StockColumns.gap),
+            SizedBox(
+              width: _StockColumns.statut,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: StatusPill(
+                  label: _statusLabels[request.status]!,
+                  variant: _statusVariants[request.status]!,
+                ),
+              ),
+            ),
+            const SizedBox(width: _StockColumns.gap),
+            SizedBox(
+              width: _StockColumns.reponse,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    response.main,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  if (response.sub != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      response.sub!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        fontSize: 10.5,
+                        color: tokens.textTertiary,
                       ),
                     ),
                   ],
+                ],
+              ),
+            ),
+            const SizedBox(width: _StockColumns.gap),
+            SizedBox(
+              width: _StockColumns.action,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: NubiaButton(
+                    key: Key('stock_action_${request.id}'),
+                    label: action.label,
+                    icon: action.icon,
+                    size: NubiaButtonSize.sm,
+                    variant: action.primary
+                        ? NubiaButtonVariant.primary
+                        : NubiaButtonVariant.secondary,
+                    isLoading: action.primary && resending,
+                    onPressed: action.primary
+                        ? (resending ? null : onResend)
+                        : onTap,
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              StatusPill(
-                label: _statusLabels[request.status]!,
-                variant: _statusVariants[request.status]!,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          for (final item in request.items)
-            Text(
-              '• ${item.quantity} × ${item.label}'
-              '${item.note != null ? ' (${item.note})' : ''}',
-            ),
-          if (request.status == StockRequestStatus.sent) ...[
-            const SizedBox(height: 4),
-            Text(
-              'En attente',
-              style: textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Text(
-              _formatWaitingSince(request.createdAt),
-              style: textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
-            ),
-          ] else if (request.responseNote != null) ...[
-            const SizedBox(height: 4),
-            Text('Note pharmacie : ${request.responseNote}'),
-          ],
-          if (request.status == StockRequestStatus.sent) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: NubiaButton(
-                key: Key('stock_resend_${request.id}'),
-                label: 'Relancer',
-                icon: Icons.notifications,
-                size: NubiaButtonSize.sm,
-                isLoading: resending,
-                onPressed: resending ? null : onResend,
-              ),
             ),
           ],
-        ],
+        ),
       ),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          key: Key('stock_request_${request.id}'),
+          color: selected ? NubiaColors.brand50 : Colors.transparent,
+          // `foregroundDecoration` (pas `decoration`) : peint la bordure
+          // par-dessus le contenu sans lui ajouter de padding implicite,
+          // pour ne pas décaler les colonnes fixes du tableau (même
+          // technique que `DevisTableRow`).
+          foregroundDecoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: selected ? NubiaColors.brand700 : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(onTap: onTap, child: content),
+          ),
+        ),
+        Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+      ],
     );
   }
 }
