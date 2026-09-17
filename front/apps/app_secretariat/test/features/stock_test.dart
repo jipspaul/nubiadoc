@@ -98,10 +98,12 @@ void main() {
 
       final panel = find.byKey(const Key('stock_detail_panel_req-1'));
       expect(panel, findsOneWidget);
-      final card = tester.widget<NubiaCard>(find.byKey(
+      final row = tester.widget<Container>(find.byKey(
         const Key('stock_request_req-1'),
       ));
-      expect(card.state, NubiaCardState.selected);
+      expect(row.color, NubiaColors.brand50);
+      final decoration = row.foregroundDecoration! as BoxDecoration;
+      expect((decoration.border as Border).left.color, NubiaColors.brand700);
 
       // En-tête : date + statut + pharmacie (scopé au panneau — la carte de
       // la liste affiche aussi le nom/adresse de la pharmacie).
@@ -493,8 +495,8 @@ void main() {
       });
 
       testWidgets(
-          'la note pharmacie reste affichée pour les statuts avec réponse',
-          (tester) async {
+          'la note pharmacie apparaît dans la colonne Réponse pour les '
+          'statuts avec réponse', (tester) async {
         final rejectedWithNote = StockRequest(
           id: 'req-rejected',
           pharmacyId: 'pharma-1',
@@ -507,10 +509,7 @@ void main() {
         await tester.pumpWidget(buildPage());
         await tester.pumpAndSettle();
 
-        expect(
-          find.text('Note pharmacie : Rupture fournisseur'),
-          findsOneWidget,
-        );
+        expect(find.text('« Rupture fournisseur »'), findsOneWidget);
         expect(find.text('En attente'), findsNothing);
       });
     });
@@ -518,15 +517,26 @@ void main() {
     // #5183 — action « Relancer » sur les demandes `sent`.
     group('relance d\'une demande sent (#5183)', () {
       testWidgets(
-          'la ligne d\'une demande sent expose un bouton Relancer, absent '
-          'pour les autres statuts', (tester) async {
+          'la ligne d\'une demande sent expose une action Relancer, '
+          'différente pour les autres statuts', (tester) async {
         when(() => bloc.state)
             .thenReturn(StockLoaded([sentRequest, fulfilledRequest]));
         await tester.pumpWidget(buildPage());
         await tester.pumpAndSettle();
 
-        expect(find.byKey(const Key('stock_resend_req-1')), findsOneWidget);
-        expect(find.byKey(const Key('stock_resend_req-2')), findsNothing);
+        final sentAction = find.byKey(const Key('stock_action_req-1'));
+        final fulfilledAction = find.byKey(const Key('stock_action_req-2'));
+        expect(sentAction, findsOneWidget);
+        expect(fulfilledAction, findsOneWidget);
+        expect(
+          find.descendant(of: sentAction, matching: find.text('Relancer')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+              of: fulfilledAction, matching: find.text('Renouveler')),
+          findsOneWidget,
+        );
       });
 
       testWidgets('cliquer Relancer sur la ligne déclenche StockResendRequested',
@@ -535,7 +545,7 @@ void main() {
         await tester.pumpWidget(buildPage());
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byKey(const Key('stock_resend_req-1')));
+        await tester.tap(find.byKey(const Key('stock_action_req-1')));
         await tester.pumpAndSettle();
 
         verify(() => bloc.add(const StockResendRequested('req-1'))).called(1);
