@@ -68,7 +68,10 @@ const RATE_WINDOW: Duration = Duration::from_secs(600);
 static REGISTER_RATE: LazyLock<Mutex<HashMap<String, (u32, Instant)>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-fn is_rate_limited(email: &str) -> bool {
+/// Partagé avec `web_tunnel::confirm_page` (#7080) : la création de compte à
+/// la volée déclenchée par la soumission du tunnel de réservation mérite la
+/// même protection anti-abus que `POST /v1/auth/register`.
+pub(crate) fn is_rate_limited(email: &str) -> bool {
     let mut map = REGISTER_RATE.lock().unwrap_or_else(|e| e.into_inner());
     let now = Instant::now();
     let entry = map.entry(email.to_lowercase()).or_insert((0, now));
@@ -101,6 +104,119 @@ pub(crate) struct RegisterResponse {
     refresh_token: String,
 }
 
+/// Entrée de `create_patient_account` — regroupe les champs collectés par les
+/// deux appelants (`POST /v1/auth/register` et la soumission du tunnel de
+/// réservation SSR, `web_tunnel::confirm_page`, #7080) qui n'en renseignent
+/// pas tous les mêmes (le tunnel connaît prénom/nom/naissance/téléphone,
+/// jamais un mot de passe choisi par le visiteur).
+pub(crate) struct NewPatientAccount<'a> {
+    pub(crate) email: &'a str,
+    pub(crate) password: &'a str,
+    pub(crate) first_name: &'a str,
+    pub(crate) last_name: &'a str,
+    pub(crate) birth_date: Option<chrono::NaiveDate>,
+    pub(crate) contact: serde_json::Value,
+    pub(crate) cgu_version: &'a str,
+}
+
+/// Issue de `create_patient_account` : soit la création a réussi (ids réels),
+/// soit l'email était déjà pris. Pas de décision anti-énumération prise ici
+/// — chaque appelant choisit sa réponse (leurre `decoy_register_response`
+/// pour l'API publique, page « compte existant » pour le tunnel).
+pub(crate) enum PatientAccountCreation {
+    Created {
+        user_id: Uuid,
+        account_id: Uuid,
+        raw_refresh_token: String,
+    },
+    EmailTaken,
+}
+
+/// Crée un compte patient (`app_user`, `patient_account`, `consent_record`,
+/// `refresh_token`) en transaction atomique. Cœur de `POST
+/// /v1/auth/register`, extrait pour être réutilisé tel quel par la
+/// soumission du tunnel de réservation SSR (#7080, #5355 : « aucune logique
+/// métier dupliquée »).
+pub(crate) async fn create_patient_account(
+    state: &AppState,
+    input: NewPatientAccount<'_>,
+) -> Result<PatientAccountCreation, AppError> {
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = Argon2::default()
+        .hash_password(input.password.as_bytes(), &salt)
+        .map_err(|_| AppError::Internal)?
+        .to_string();
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Pré-génère les UUIDs pour éviter RETURNING sur tables avec FORCE RLS.
+    // app_user et patient_account ont FORCE RLS : RETURNING id serait bloqué
+    // par user_self_select / account_self_select (GUC non encore positionné).
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    let insert_result = sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'patient')",
+    )
+    .bind(user_id)
+    .bind(input.email)
+    .bind(&password_hash)
+    .execute(&mut *tx)
+    .await;
+
+    if let Err(e) = insert_result {
+        if !is_unique_violation(&e) {
+            return Err(AppError::Internal);
+        }
+        // Email déjà pris — abandonne l'INSERT (rollback implicite au drop
+        // de `tx`).
+        return Ok(PatientAccountCreation::EmailTaken);
+    }
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name, birth_date, contact) \
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .bind(input.first_name)
+    .bind(input.last_name)
+    .bind(input.birth_date)
+    .bind(&input.contact)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO consent_record (app_user_id, purpose, granted, granted_at, cgu_version) \
+         VALUES ($1, 'soins', true, now(), $2)",
+    )
+    .bind(user_id)
+    .bind(input.cgu_version)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let raw_refresh_token = Uuid::new_v4().to_string();
+    sqlx::query(
+        r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
+           VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
+    )
+    .bind(user_id)
+    .bind(&raw_refresh_token)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok(PatientAccountCreation::Created {
+        user_id,
+        account_id,
+        raw_refresh_token,
+    })
+}
+
 /// `POST /v1/auth/register` — crée un compte patient (app_user + patient_account +
 /// consent_record) en transaction atomique, puis émet les tokens.
 /// Si `invitation_token` est présent, finalise le compte secrétariat invité au lieu.
@@ -122,70 +238,30 @@ pub async fn register(
         return register_invited(state, invite_token, &body.password).await;
     }
 
-    let salt = SaltString::generate(&mut OsRng);
-    let password_hash = Argon2::default()
-        .hash_password(body.password.as_bytes(), &salt)
-        .map_err(|_| AppError::Internal)?
-        .to_string();
-
-    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
-
-    // Pré-génère les UUIDs pour éviter RETURNING sur tables avec FORCE RLS.
-    // app_user et patient_account ont FORCE RLS : RETURNING id serait bloqué
-    // par user_self_select / account_self_select (GUC non encore positionné).
-    let user_id = Uuid::new_v4();
-    let account_id = Uuid::new_v4();
-
-    let insert_result = sqlx::query(
-        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'patient')",
+    let creation = create_patient_account(
+        &state,
+        NewPatientAccount {
+            email: &body.email,
+            password: &body.password,
+            first_name: "",
+            last_name: "",
+            birth_date: None,
+            contact: serde_json::json!({}),
+            cgu_version: &body.cgu_version,
+        },
     )
-    .bind(user_id)
-    .bind(&body.email)
-    .bind(&password_hash)
-    .execute(&mut *tx)
-    .await;
+    .await?;
 
-    if let Err(e) = insert_result {
-        if !is_unique_violation(&e) {
-            return Err(AppError::Internal);
-        }
-        // #4436 : email déjà pris — abandonne l'INSERT (rollback implicite
-        // au drop de `tx`) et renvoie une réponse leurre indiscernable d'un
-        // 201 réel plutôt qu'un 409 email_taken (oracle d'énumération).
-        return decoy_register_response(&state);
-    }
-
-    sqlx::query(
-        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, '', '')",
-    )
-    .bind(account_id)
-    .bind(user_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    sqlx::query(
-        "INSERT INTO consent_record (app_user_id, purpose, granted, granted_at, cgu_version) \
-         VALUES ($1, 'soins', true, now(), $2)",
-    )
-    .bind(user_id)
-    .bind(&body.cgu_version)
-    .execute(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    let raw_token = Uuid::new_v4().to_string();
-    sqlx::query(
-        r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
-           VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
-    )
-    .bind(user_id)
-    .bind(&raw_token)
-    .execute(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    tx.commit().await.map_err(|_| AppError::Internal)?;
+    let (user_id, account_id, raw_token) = match creation {
+        PatientAccountCreation::Created {
+            user_id,
+            account_id,
+            raw_refresh_token,
+        } => (user_id, account_id, raw_refresh_token),
+        // #4436 : email déjà pris — réponse leurre indiscernable d'un 201
+        // réel plutôt qu'un 409 email_taken (oracle d'énumération).
+        PatientAccountCreation::EmailTaken => return decoy_register_response(&state),
+    };
 
     let exp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
