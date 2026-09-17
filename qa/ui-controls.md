@@ -1789,9 +1789,10 @@ une pastille de 5 px, toutes deux hors arbre. → **#7043** (P2).
 | patient | `/prescriptions` (**1280×800**, 1er audit à ce viewport) | 16 | 2 | 2 | 0 | 0 | 2026-09-17T02:25:00Z |
 | secretariat | `/appointment-motifs` (1280×800) | 27 | 9 | 9 | 0 | 0 | 2026-09-17T02:50:00Z |
 | secretariat | `/admin-secretariats` (1280×800) | 24 | 20 | 20 | 0 | 0 | 2026-09-17T02:55:00Z |
-| **TOTAL** | **22 écrans** | **459** | **307** | **284** | **22 bruts → 0 confirmés** | **1** | — |
+| secretariat | `/bookable-slots` (1280×800) | 30 | 26 | 21 | 4* | 1* | 2026-09-17T02:58:00Z |
+| **TOTAL** | **23 écrans** | **489** | **333** | **305** | **26 bruts → 0 confirmés** | **2 bruts → 1 confirmé** | — |
 
-\* **Les 22 verdicts « MORT » ont TOUS été rejoués et sont TOUS des faux positifs** — le taux de
+\* **Les 26 verdicts « MORT » ont TOUS été rejoués et sont TOUS des faux positifs** — le taux de
 faux positifs du détecteur reste de 100 %, comme aux rondes précédentes. Familles identifiées
 cette fois, à connaître pour ne plus les re-filer :
 1. **Entrée de navigation déjà active** (`Commandes` sur `/`, `Devis` sur `/devis`, `Stock` sur
@@ -1889,3 +1890,12 @@ Mesure refaite sur les trois états : `/consultation` (liste) n'a **ni** bouton 
 alors que son propre libellé affiche « ⌘K » ; `/patients` sert de contrôle positif (palette ouverte,
 `[role=dialog]` vrai). « Préférences de notifications » est absent des **deux** états de consultation.
 Commentaire de précision posté sur l'issue.
+
+##### Dernier écran audité — `/bookable-slots` (secrétariat), 2 verdicts levés
+Le « cassé » est **`Statistiques`** : l'entrée navigue bien vers `/cabinet-stats`, qui déclenche
+`403 GET /v1/cabinet/stats/activity` — **garde clinique volontaire** (`cabinet_stats.rs`,
+`ProPractitionerClaims`). Le défaut réel (l'app secrétariat expose quand même l'entrée) est
+**#6369, déjà ouverte** : non re-filée. Les 4 « morts » sont l'en-tête repliable
+`Réglages du cabinet` (**#7029**), la destination courante `Créneaux ouverts`, et deux entrées dont
+les coordonnées avaient bougé après le repli de la section. Les 3 contrôles propres à l'écran
+(`Tous les praticiens`, `Toutes les dates`, `Créer un créneau`) répondent tous.
