@@ -6,12 +6,21 @@ Usage :
     FORGEJO_TOKEN=... python3 scripts/create-dp-benchmark-issues.py --dry-run   # valide et affiche
     FORGEJO_TOKEN=... python3 scripts/create-dp-benchmark-issues.py             # crée
 
-Contrat orchestrateur (agentInfra/orchestrator/src/preflight.ts) :
-  - assignee = login Forgejo == nom du Service k8s de l'agent
-  - body avec les 7 sections obligatoires + au moins un chemin backtické
-  - dépendances natives Forgejo ; label `agent:go` uniquement sur les racines,
-    les dépendantes sont promues automatiquement à la fermeture.
+Runtime cible : le **fixer LXC** (`agentInfra/vps/fixer-nubiadoc/fixer-loop.sh`),
+seule flotte active depuis 2026-09 (la flotte k3s est décommissionnée) :
+  - prend toute issue ouverte non exclue (`superseded`, `qa:registry`,
+    `meta:qa-report`, `fix:failed`, `needs-split`, `epic`), **la plus récente
+    d'abord**, une à la fois, sans label déclencheur ni assignee ;
+  - donc : création en ordre INVERSE de priorité (F1 créée en dernier = traitée
+    en premier) et, par fonctionnalité, front → API → DB (la DB, créée en
+    dernier, part en premier) ;
+  - dépendances natives Forgejo posées quand même : Forgejo refuse de fermer
+    une issue dont une dépendance est ouverte, ce qui empêche un merge hors
+    ordre si une étape a échoué (`fix:failed`) — à surveiller (PR verte non
+    mergeable = dépendance à traiter).
+Le body respecte les 7 sections du format d'issue du dépôt + un chemin backtické.
 Idempotent : une issue dont le titre existe déjà (ouverte) n'est pas recréée.
+`DP-F14.b` (parseur DSIO) n'est créée qu'avec `--with-dsio` (fichier d'exemple requis).
 """
 import json
 import os
@@ -23,6 +32,7 @@ import urllib.error
 import urllib.request
 
 DRY = "--dry-run" in sys.argv
+WITH_DSIO = "--with-dsio" in sys.argv
 PACE = 0.35  # s entre deux appels — le cluster sature vers 20 événements/s
 
 # ---------------------------------------------------------------------------
@@ -685,7 +695,7 @@ issue("DP-F27.c", "[DP-F27.c] Front — planning équipe, demande de congé, poi
 # ---------------------------------------------------------------------------
 
 def slug(id_):
-    return "agent/" + id_.lower().replace(".", "-")
+    return "fixer/issue-<N>"  # le fixer nomme lui-même sa branche
 
 
 def render_body(it, numbers):
@@ -702,7 +712,7 @@ def render_body(it, numbers):
              "## Done when"] + [f"- [ ] {d}" for d in it["done"]] + ["",
              "## Fichiers de référence (context-pack)"] + [f"- {f}" for f in it["files"]] + ["",
              "## Ref",
-             f"Plan : {PLAN} §4 · Benchmark Dental Pilot · Branche : `{slug(it['id'])}`{it['extra_ref']}",
+             f"Plan : {PLAN} §4 · Benchmark Dental Pilot · Couche : `{it['assignee']}` · Branche : `{slug(it['id'])}`{it['extra_ref']}",
              "",
              "> Convention repo : commits en français à l'impératif, CI verte (build + tests + `test-integrity`), "
              "PR vers `main` avec `Closes #<issue>`. Lire `AGENTS.md` racine puis celui du dossier touché."]
@@ -748,6 +758,13 @@ def api(base, token, path, method="GET", data=None):
         raise SystemExit(f"{method} {path} → {e.code}: {body[:400]}")
 
 
+def creation_order():
+    """Inverse de la priorité : la dernière créée est la plus récente, donc la
+    première prise par le fixer. Par fonctionnalité : c → b → a (DB en dernier)."""
+    sel = [it for it in ISSUES if WITH_DSIO or it["id"] != "DP-F14.b"]
+    return list(reversed(sel))
+
+
 def main():
     ids = [it["id"] for it in ISSUES]
     assert len(ids) == len(set(ids)), "ids dupliqués"
@@ -763,12 +780,13 @@ def main():
             print(f"{flag} {it['id']:9s} {it['assignee']:16s} deps={it['deps'] or '-'}  {it['title'][:70]}")
             if m:
                 print("     manque :", m)
-        roots = [it["id"] for it in ISSUES if not it["deps"] and it["id"] != "DP-F14.b"]
-        print(f"\n{len(ISSUES)} issues, {len(roots)} racines (agent:go), {bad} body invalides")
+        order = creation_order()
+        print(f"\n{len(order)} issues à créer (ordre de création = inverse de priorité), {bad} body invalides")
+        print("premières traitées par le fixer :", ", ".join(it["id"] for it in order[-6:][::-1]))
         by = {}
-        for it in ISSUES:
+        for it in order:
             by[it["assignee"]] = by.get(it["assignee"], 0) + 1
-        print("par agent :", by)
+        print("par couche :", by)
         return
 
     token = os.environ.get("FORGEJO_TOKEN")
@@ -779,12 +797,11 @@ def main():
 
     # labels
     labels = {l["name"]: l["id"] for l in api(base, token, f"/repos/{repo}/labels?limit=200")}
-    if "agent:go" not in labels:
-        sys.exit("label agent:go introuvable — le créer d'abord")
-    if "benchmark:dental-pilot" not in labels:
-        l = api(base, token, f"/repos/{repo}/labels", "POST",
-                {"name": "benchmark:dental-pilot", "color": "#1f6f5c", "description": "Parité Dental Pilot (docs/17)"})
-        labels["benchmark:dental-pilot"] = l["id"]
+    for name, color, desc in (("benchmark:dental-pilot", "#1f6f5c", "Parité Dental Pilot (docs/17)"),
+                              ("epic", "#5319e7", "Issue chapeau — jamais prise par le fixer")):
+        if name not in labels:
+            l = api(base, token, f"/repos/{repo}/labels", "POST", {"name": name, "color": color, "description": desc})
+            labels[name] = l["id"]
 
     # idempotence : issues ouvertes existantes par préfixe de titre
     existing = {}
@@ -802,20 +819,20 @@ def main():
         print(f"{len(existing)} issues déjà présentes, non recréées : {sorted(existing)}")
 
     numbers = dict(existing)
-    # 1. création (bodies avec placeholders)
-    for it in ISSUES:
+    order = creation_order()
+    # 1. création (bodies avec placeholders), ordre inverse de priorité
+    for it in order:
         if it["id"] in numbers:
             continue
         body = render_body(it, {})
         assert not check(body), (it["id"], check(body))
         created = api(base, token, f"/repos/{repo}/issues", "POST",
-                      {"title": it["title"], "body": body, "assignees": [it["assignee"]],
-                       "labels": [labels["benchmark:dental-pilot"]]})
+                      {"title": it["title"], "body": body, "labels": [labels["benchmark:dental-pilot"]]})
         numbers[it["id"]] = created["number"]
-        print(f"créée #{created['number']}  {it['id']}  → {it['assignee']}")
+        print(f"créée #{created['number']}  {it['id']}  ({it['assignee']})")
 
     # 2. bodies définitifs (numéros réels) + dépendances natives
-    for it in ISSUES:
+    for it in order:
         n = numbers[it["id"]]
         if it["deps"]:
             api(base, token, f"/repos/{repo}/issues/{n}", "PATCH", {"body": render_body(it, numbers)})
@@ -825,10 +842,10 @@ def main():
 
     # 3. épic
     if "DP-EPIC" not in existing:
-        rows = "\n".join(f"- #{numbers[it['id']]} `{it['id']}` {it['title'].split('] ', 1)[1]} — `{it['assignee']}`" for it in ISSUES)
+        rows = "\n".join(f"- #{numbers[it['id']]} `{it['id']}` {it['title'].split('] ', 1)[1]} — `{it['assignee']}`" for it in order[::-1])
         api(base, token, f"/repos/{repo}/issues", "POST", {
             "title": "[DP-EPIC] Parité fonctionnelle Dental Pilot — benchmark docs/17",
-            "labels": [labels["benchmark:dental-pilot"]],
+            "labels": [labels["benchmark:dental-pilot"], labels["epic"]],
             "body": "## Objectif\nAtteindre la parité sur les manques identifiés dans `docs/17-benchmark-dental-pilot.md` "
                     "§4.1 et §4.2 (le §4.3 lourd / externe est exclu).\n\n## Dépend de\n— (épic)\n\n## État actuel\n"
                     "Voir le benchmark.\n\n## Procédure\nSuivre les issues ci-dessous, chaînées par dépendances.\n\n"
@@ -836,12 +853,7 @@ def main():
                     "## Fichiers de référence (context-pack)\n- `docs/17-benchmark-dental-pilot.md`\n\n## Ref\n"
                     "Plan : `docs/17-benchmark-dental-pilot.md`\n\n## Issues\n" + rows})
 
-    # 4. agent:go sur les racines (en dernier : déclenche le dispatch)
-    for it in ISSUES:
-        if it["deps"] or it["id"] == "DP-F14.b" or it["id"] in existing:
-            continue
-        api(base, token, f"/repos/{repo}/issues/{numbers[it['id']]}/labels", "POST", {"labels": [labels["agent:go"]]})
-        print(f"agent:go → #{numbers[it['id']]} {it['id']}")
+    # 4. rien à déclencher : le fixer prend les issues ouvertes de lui-même (newest-first).
 
     out = os.path.join(os.path.dirname(__file__), "..", "docs", "ateliers", "dp-benchmark-issues.json")
     with open(out, "w") as f:
