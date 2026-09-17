@@ -7,6 +7,7 @@ class ProviderResultDto {
   final String id;
   final String displayName;
   final String specialty;
+  final String? address;
   final double? distanceKm;
   final double? lat;
   final double? lng;
@@ -21,6 +22,7 @@ class ProviderResultDto {
     required this.id,
     required this.displayName,
     required this.specialty,
+    this.address,
     this.distanceKm,
     this.lat,
     this.lng,
@@ -77,6 +79,7 @@ class ProviderResultDto {
       id: json['provider_id'] as String,
       displayName: json['display_name'] as String,
       specialty: (json['specialty'] as String?) ?? 'Praticien',
+      address: _formatAddress(json['address']),
       lat: lat,
       lng: lng,
       ratingAvg: (json['rating_avg'] as num?)?.toDouble(),
@@ -86,10 +89,28 @@ class ProviderResultDto {
     );
   }
 
+  /// Formate l'adresse jsonb `{"rue":…,"cp":…,"ville":…}` (`establishment.address`,
+  /// cf. `db/migrations/0040_marketplace_provider_seed.sql`) en une ligne
+  /// affichable — miroir de `format_establishment_address`
+  /// (`api/src/appointments_response.rs`).
+  static String? _formatAddress(dynamic address) {
+    if (address is! Map) return null;
+    final rue = address['rue'] as String?;
+    final cp = address['cp'] as String?;
+    final ville = address['ville'] as String?;
+    final cpVille = [cp, ville].whereType<String>().where((s) => s.isNotEmpty);
+    final parts = [
+      if (rue != null && rue.isNotEmpty) rue,
+      if (cpVille.isNotEmpty) cpVille.join(' '),
+    ];
+    return parts.isEmpty ? null : parts.join(', ');
+  }
+
   ProviderResult toDomain() => ProviderResult(
         id: id,
         displayName: displayName,
         specialty: specialty,
+        address: address,
         distanceKm: distanceKm,
         lat: lat,
         lng: lng,

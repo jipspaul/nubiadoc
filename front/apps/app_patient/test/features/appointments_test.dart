@@ -5,6 +5,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -366,6 +367,108 @@ void main() {
 
       expect(find.byKey(const Key('sheet_see_slots')), findsOneWidget);
       expect(find.text('Voir les créneaux'), findsOneWidget);
+    });
+  });
+
+  // #7022 : « Voir sa fiche et ses coordonnées » (bloc « aucun créneau en
+  // ligne ») menait au sélecteur de créneaux — vide par construction, faute
+  // de créneau en ligne — au lieu de la fiche/coordonnées du praticien.
+  group('« Voir sa fiche et ses coordonnées » sans créneau en ligne (#7022)',
+      () {
+    late _MockAppointmentsBloc bloc;
+
+    const providers = [
+      ProviderResult(id: 'p1', displayName: 'Dr Annuaire Test', specialty: 'Praticien'),
+    ];
+
+    setUp(() {
+      bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        const AppointmentsProvidersLoaded(providers: providers, query: ''),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+    });
+
+    tearDown(() {
+      if (GetIt.instance.isRegistered<GetProviderUseCase>()) {
+        GetIt.instance.unregister<GetProviderUseCase>();
+      }
+    });
+
+    testWidgets(
+        'affiche la fiche/adresse du praticien, jamais le sélecteur de '
+        'créneaux ni « Aucun créneau disponible »', (tester) async {
+      final getProvider = MockGetProviderUseCase();
+      when(() => getProvider('p1')).thenAnswer(
+        (_) async => const Right(
+          ProviderResult(
+            id: 'p1',
+            displayName: 'Dr Annuaire Test',
+            specialty: 'Praticien',
+            address: '1 allée des Tests, 75001 Paris',
+          ),
+        ),
+      );
+      GetIt.instance.registerFactory<GetProviderUseCase>(() => getProvider);
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Précondition : le bloc `.nosl` est bien rendu (pas de créneau en ligne).
+      expect(
+        find.text('Aucun créneau en ligne pour ce praticien'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('no_online_slots_view_profile')));
+      await tester.pumpAndSettle();
+
+      verify(() => getProvider('p1')).called(1);
+      expect(find.byKey(const Key('provider_contact_sheet')), findsOneWidget);
+      expect(find.text('1 allée des Tests, 75001 Paris'), findsOneWidget);
+      expect(find.text('Aucun créneau disponible.'), findsNothing);
+      verifyNever(() => bloc.add(any(that: isA<AppointmentsProviderSelected>())));
+    });
+
+    testWidgets(
+        'praticien sans adresse connue : repli neutre, pas de crash',
+        (tester) async {
+      final getProvider = MockGetProviderUseCase();
+      when(() => getProvider('p1')).thenAnswer(
+        (_) async => const Right(
+          ProviderResult(id: 'p1', displayName: 'Dr Annuaire Test', specialty: 'Praticien'),
+        ),
+      );
+      GetIt.instance.registerFactory<GetProviderUseCase>(() => getProvider);
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('no_online_slots_view_profile')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Coordonnées non disponibles pour ce praticien.'),
+        findsOneWidget,
+      );
     });
   });
 
