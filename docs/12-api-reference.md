@@ -191,6 +191,8 @@
 
 **Contrats clés**
 
+`PATCH /v1/account` — body : `{ first_name?, last_name?, phone?, birth_date?, address?{…} }`. `email` toujours rejeté (`422`). `birth_date` : réglable une seule fois — `POST /v1/auth/register` crée le compte sans date de naissance, donc le premier PATCH qui en fournit une l'enregistre ; en fournir une alors qu'elle est déjà connue → `422` (#7036).
+
 `PATCH /v1/account/coverage` — body : `{ regime_obligatoire:"regime_general"|"ame"|"css", nss?, mutuelle:{ amc, numero_adherent, plateforme? }, tiers_payant:bool }`. → `200`. ⚠️ `nss` **chiffré** côté serveur (`05` §10.1), jamais renvoyé en clair (masqué : `"2 91 03 …78"`). Audité.
 
 `POST /v1/account/coverage/card` — `multipart/form-data` : `side:"recto"|"verso"`, `file`. → `201 { document_id }`. Antivirus + chiffrement ; `document.category='carte_mutuelle'`.
