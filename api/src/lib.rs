@@ -135,6 +135,7 @@ mod routes;
 mod scaleway_storage_signer;
 mod scheduling;
 mod sterilization;
+mod sterilization_labels;
 mod stock_items;
 mod support;
 mod text_validation;

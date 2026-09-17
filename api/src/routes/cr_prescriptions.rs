@@ -5,7 +5,8 @@ use axum::{routing::get, Router};
 
 use crate::{
     ccam_stock_mappings, cr_templates, lab_work_orders, prescription_renew, prescription_send,
-    prescription_templates, prescriptions, sterilization, stock_items, AppState,
+    prescription_templates, prescriptions, sterilization, sterilization_labels, stock_items,
+    AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -18,6 +19,14 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/sterilization-cycles/:id/pouches",
             get(sterilization::list_sterilized_pouches).post(sterilization::add_sterilized_pouch),
+        )
+        .route(
+            "/v1/sterilization/cycles/:id/labels.pdf",
+            get(sterilization_labels::sterilization_cycle_labels_pdf),
+        )
+        .route(
+            "/v1/sterilization/pouches/:code/use",
+            axum::routing::post(sterilization_labels::use_sterilized_pouch),
         )
         .route(
             "/v1/cabinet/stock-items",

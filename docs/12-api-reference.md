@@ -438,6 +438,17 @@
 `POST /v1/cabinet/stock-items` — body : `{ reference, label, unit, alert_threshold? }`. → `201 { item_id }`. `reference` déjà utilisée dans ce cabinet → `409 stock_reference_already_used`.
 `POST /v1/cabinet/stock-items/{id}/movements` — body : `{ delta, reason, expiry_date?, consultation_act_id? }`. → `201 { movement_id, quantity_on_hand }`. Article/acte hors tenant → `404`.
 
+### 16ter. Stérilisation — étiquettes & usage par scan (`sterilization_cycle`/`sterilized_pouch`, #4138, DP-F13.a #7181)
+> Même garde `secretary+` que l'inventaire. Cycles et sachets : `GET/POST /v1/cabinet/sterilization-cycles`, `GET/POST /v1/cabinet/sterilization-cycles/{id}/pouches` (#4138).
+
+| Méthode | Chemin | Rôle | Description |
+|---|---|---|---|
+| GET | `/v1/sterilization/cycles/{id}/labels.pdf` | secretary+ | Planche d'étiquettes du cycle (une par sachet, 2 colonnes × 7 lignes / A4, gabarit Avery L7163) : code, cycle, date de stérilisation, péremption, QR encodant le code. |
+| POST | `/v1/sterilization/pouches/{code}/use` | secretary+ | Rattacher un sachet scanné à un patient (et une séance), idempotent. |
+
+`GET /v1/sterilization/cycles/{id}/labels.pdf` — `?shelf_life_days=` (défaut **180**, max 730) fixe la péremption (`started_at + N jours`) → `422` hors bornes. → `200 application/pdf` (`Content-Disposition: inline`), 14 étiquettes par page ; cycle sans sachet → 1 page « Aucun sachet » ; cycle `non_conforme` → mention « CYCLE NON CONFORME » sur chaque étiquette. Cycle hors tenant → `404`.
+`POST /v1/sterilization/pouches/{code}/use` — body : `{ patient_id, consultation_id? }`. → `200 { pouch_id, code, cycle_id, patient_id, consultation_id?, used_at, already_used }`. Code/patient/séance hors tenant → `404` ; séance d'un autre patient → `422`. Rejeu même patient + même séance → `200 already_used:true` sans écriture (séance absente au premier scan puis fournie → complétée). Sachet déjà utilisé sur un autre patient → `409 pouch_already_used`. Chaque première utilisation est tracée dans `audit_log` (`use_sterilized_pouch`).
+
 ---
 
 ## 17. Back-office — ordonnance (`prescription`)
