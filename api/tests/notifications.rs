@@ -795,7 +795,14 @@ async fn notifications_excludes_all_rdv_kinds_when_opted_out() {
     ] {
         insert_notification(&app_db, user_id, kind, "Rendez-vous", false).await;
     }
-    insert_notification(&app_db, user_id, "message_received", "Nouveau message", false).await;
+    insert_notification(
+        &app_db,
+        user_id,
+        "message_received",
+        "Nouveau message",
+        false,
+    )
+    .await;
 
     let state = AppState {
         db: app_db,
