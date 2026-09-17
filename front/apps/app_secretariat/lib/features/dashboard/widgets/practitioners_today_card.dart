@@ -83,7 +83,10 @@ class _PractitionerRow extends StatelessWidget {
       pillLabel = 'Présente';
       pillVariant = StatusPillVariant.success;
     } else {
-      final hour = practitioner.lastAppointmentEndsAt.hour;
+      // Convertit toujours via `.toLocal()` avant de lire heure/minute —
+      // évite le piège UTC #3856 (les `DateTime` remontés par l'API sont
+      // en UTC).
+      final hour = practitioner.lastAppointmentEndsAt.toLocal().hour;
       stateLabel = 'termine à ${hour}h';
       pillLabel = 'Départ ${hour}h';
       pillVariant = StatusPillVariant.warning;
