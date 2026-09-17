@@ -335,6 +335,19 @@ async fn validation_and_isolation() {
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 
+    // Trop d'items (#7019) → 422.
+    let too_many: Vec<_> = (0..201)
+        .map(|i| json!({"label": format!("Item {i}"), "qty": 1}))
+        .collect();
+    let (status, _) = call(
+        "POST",
+        "/v1/cabinet/stock-requests",
+        &pro,
+        Some(json!({"pharmacy_id": pharmacy_id, "items": too_many})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
     // Pharmacie non listée → 404.
     sqlx::query("UPDATE pharmacy SET is_listed = false WHERE id = $1")
         .bind(pharmacy_id)

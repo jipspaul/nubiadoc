@@ -111,8 +111,16 @@ pub struct CreateStockRequestBody {
     pub items: Vec<StockItemInput>,
 }
 
+/// Plafond métier réaliste (#7019) : la garde bornait déjà chaque item
+/// (`qty <= 9999`, libellé non vide, NUL rejeté) mais jamais le NOMBRE
+/// d'items — une demande de 1 000 lignes passait en 201 et le volet de
+/// détail secrétariat les rendait toutes sans troncature, repoussant son
+/// action principale à ~15 000 px sous le viewport. Un réassort cabinet →
+/// officine dépasse rarement quelques dizaines de références.
+pub(crate) const MAX_STOCK_REQUEST_ITEMS: usize = 200;
+
 /// `POST /v1/cabinet/stock-requests` — émet une demande vers une pharmacie
-/// listée (404 sinon). Items vides ou libellé vide → 422.
+/// listée (404 sinon). Items vides, en nombre excessif, ou libellé vide → 422.
 pub async fn create_stock_request(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<WsHub>>,
@@ -121,6 +129,7 @@ pub async fn create_stock_request(
     Json(body): Json<CreateStockRequestBody>,
 ) -> Result<(StatusCode, Json<StockRequestDto>), AppError> {
     if body.items.is_empty()
+        || body.items.len() > MAX_STOCK_REQUEST_ITEMS
         || body
             .items
             .iter()
