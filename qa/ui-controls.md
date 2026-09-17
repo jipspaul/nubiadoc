@@ -2135,3 +2135,31 @@ s'efface sur 409 (#7140) et deux divergences design-v2 (#7141, #7219).
 | **Écran chargé API coupée** (`praticien /devis`) | **OK** | 19 contrôles dont « Réessayer », nearWhite 0,79 — arbre Semantics non vide. |
 | **Saisie invalide** : submit à vide sur `/patients/new` | **OK** | « Créer le dossier » est **grisé** tant que le formulaire est vide → **0 requête** émise. Pas de 500, pas de submit silencieux. |
 | **Texte très long** (240 caractères accentués) dans le 1er champ de `/patients/new` | **OK** | **0** nœud Semantics débordant du viewport après saisie. |
+
+##### R77 — second viewport (exigence « aux DEUX viewports »)
+
+Les 4 apps « PC/tablette » ont été re-parcourues à **390×844** et l'app mobile infirmière à **1280×800**.
+Aucune des 5 apps ne casse au viewport qui n'est pas le sien : les rails desktop se replient en tiroir,
+l'app infirmière s'étire sans débordement. **0 contrôle mort avéré** au second viewport.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | grisés | last_check | note |
+|---|---|---|---|---|---|---|---|---|---|
+| praticien | `/` (390 px) | 2 | 2 | 2 | 0 | 0 | 0 | 2026-09-17T20:00:00Z | Le rail se replie en tiroir (hamburger) : seuls le menu et la cloche sont dans le viewport, le reste (Journée · 10 RDV, « À traiter ») est sous le pli. Rendu correct |
+| praticien | `/agenda` (390 px) | 8 | 8 | 8 | 0 | 0 | 0 | 2026-09-17T20:00:00Z |  |
+| praticien | `/waiting-room` (390 px) | 7 | 6 | 6 | 0 | 0 | 1 | 2026-09-17T20:00:00Z | Le grisé est « Appeler » (générique) quand la file du praticien est vide — légitime |
+| praticien | `/patients` (390 px) | 15 | 15 | 7 | 0 | 8 | 0 | 2026-09-17T20:00:00Z | Les 8 CASSÉ sont les `403` de la garde « relation de soin » (mêmes patients qu'à 1280) — conforme |
+| praticien | `/consultation` (390 px) | 17 | 17 | 14 | 3 | 0 | 0 | 2026-09-17T20:00:00Z | Les 3 MORT sont les facettes En cours/Terminée/Annulée déjà actives ou hors viewport à 390 |
+| secretariat | `/` (390 px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-17T20:00:00Z | Rail en tiroir, idem praticien |
+| secretariat | `/agenda` (390 px) | 10 | 10 | 10 | 0 | 0 | 0 | 2026-09-17T20:00:00Z |  |
+| secretariat | `/salle-attente` (390 px) | 4 | 4 | 4 | 0 | 0 | 0 | 2026-09-17T20:00:00Z |  |
+| secretariat | `/patients` (390 px) | 15 | 15 | 15 | 0 | 0 | 0 | 2026-09-17T20:00:00Z |  |
+| secretariat | `/devis` (390 px) | 9 | 9 | 9 | 0 | 0 | 0 | 2026-09-17T20:00:00Z |  |
+| pharmacie | `/` (390 px) | 10 | 10 | 10 | 0 | 0 | 0 | 2026-09-17T20:00:00Z |  |
+| pharmacie | `/stock` (390 px) | 8 | 8 | 8 | 0 | 0 | 0 | 2026-09-17T20:00:00Z | **Le défaut #7137 est PIRE à 390** : la même demande à 100 000 caractères rend ~5 000 lignes et occupe tout le premier écran (capture `R77f__stock_390.png`, commentée sur l'issue) |
+| pharmacie | `/devis` (390 px) | 15 | 15 | 13 | 2 | 0 | 0 | 2026-09-17T20:00:00Z |  |
+| pharmacie | `/messages` (390 px) | 10 | 10 | 10 | 0 | 0 | 0 | 2026-09-17T20:00:00Z |  |
+| infirmiere | `/` (1280 px) | 7 | 6 | 6 | 0 | 0 | 0 | 2026-09-17T20:00:00Z | App mobile-first étirée au desktop : layout pleine largeur correct, barre d'onglets en bas, aucun débordement (capture `R77f___1280.png`) |
+| infirmiere | `/notification-preferences` (1280 px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-17T20:00:00Z |  |
+
+**Sous-total second viewport : 16 écrans · 143 contrôles · 141 activés · 128 OK · 5 morts · 8 cassés · 1 grisés.**
+**TOTAL RONDE R77 (les deux viewports) : 77 écrans · 1038 contrôles inventoriés · 988 activés · 948 OK.**
