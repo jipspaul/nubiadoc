@@ -767,12 +767,6 @@ fn render_quote_pdf(
     currency: &str,
     items: &[(String, i64)],
 ) -> Vec<u8> {
-    let escape = |s: &str| {
-        s.replace('\\', "\\\\")
-            .replace('(', "\\(")
-            .replace(')', "\\)")
-    };
-
     let mut lines: Vec<String> = vec![
         "Devis".to_string(),
         format!("Patient : {}", patient_name),
@@ -796,45 +790,110 @@ fn render_quote_pdf(
         currency
     ));
 
-    let mut content = String::from("BT /F1 12 Tf 50 780 Td 14 TL\n");
+    let mut content: Vec<u8> = b"BT /F1 12 Tf 50 780 Td 14 TL\n".to_vec();
     for line in &lines {
-        content.push_str(&format!("({}) Tj T*\n", escape(line)));
+        content.push(b'(');
+        content.extend(escape_winansi(line));
+        content.extend_from_slice(b") Tj T*\n");
     }
-    content.push_str("ET");
+    content.extend_from_slice(b"ET");
 
-    let objects = [
-        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
-        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
-        "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> \
+    let objects: Vec<Vec<u8>> = vec![
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> \
          /MediaBox [0 0 595 842] /Contents 4 0 R >>"
-            .to_string(),
-        format!(
-            "<< /Length {} >>\nstream\n{}\nendstream",
-            content.len(),
-            content
-        ),
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+            .to_vec(),
+        {
+            let mut obj = format!("<< /Length {} >>\nstream\n", content.len()).into_bytes();
+            obj.extend_from_slice(&content);
+            obj.extend_from_slice(b"\nendstream");
+            obj
+        },
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+            .to_vec(),
     ];
 
-    let mut pdf = String::from("%PDF-1.4\n");
+    let mut pdf: Vec<u8> = b"%PDF-1.4\n".to_vec();
     let mut offsets = Vec::with_capacity(objects.len());
     for (i, obj) in objects.iter().enumerate() {
         offsets.push(pdf.len());
-        pdf.push_str(&format!("{} 0 obj\n{}\nendobj\n", i + 1, obj));
+        pdf.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+        pdf.extend_from_slice(obj);
+        pdf.extend_from_slice(b"\nendobj\n");
     }
     let xref_offset = pdf.len();
-    pdf.push_str(&format!("xref\n0 {}\n", objects.len() + 1));
-    pdf.push_str("0000000000 65535 f \n");
+    pdf.extend_from_slice(format!("xref\n0 {}\n", objects.len() + 1).as_bytes());
+    pdf.extend_from_slice(b"0000000000 65535 f \n");
     for off in &offsets {
-        pdf.push_str(&format!("{:010} 00000 n \n", off));
+        pdf.extend_from_slice(format!("{:010} 00000 n \n", off).as_bytes());
     }
-    pdf.push_str(&format!(
-        "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{}\n%%EOF",
-        objects.len() + 1,
-        xref_offset
-    ));
+    pdf.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{}\n%%EOF",
+            objects.len() + 1,
+            xref_offset
+        )
+        .as_bytes(),
+    );
 
-    pdf.into_bytes()
+    pdf
+}
+
+/// Convertit un caractère Unicode en octet WinAnsiEncoding (PDF, ~ Windows-1252).
+/// `None` pour tout caractère hors de cet encodage mono-octet (translittéré en `?`
+/// par l'appelant) : impossible de représenter fidèlement, mais on ne doit jamais
+/// écrire de l'UTF-8 multi-octets brut dans le flux de contenu d'une police simple.
+fn winansi_byte(c: char) -> Option<u8> {
+    let cp = c as u32;
+    match cp {
+        0x00..=0x7f | 0xa0..=0xff => Some(cp as u8),
+        0x20ac => Some(0x80),
+        0x201a => Some(0x82),
+        0x0192 => Some(0x83),
+        0x201e => Some(0x84),
+        0x2026 => Some(0x85),
+        0x2020 => Some(0x86),
+        0x2021 => Some(0x87),
+        0x02c6 => Some(0x88),
+        0x2030 => Some(0x89),
+        0x0160 => Some(0x8a),
+        0x2039 => Some(0x8b),
+        0x0152 => Some(0x8c),
+        0x017d => Some(0x8e),
+        0x2018 => Some(0x91),
+        0x2019 => Some(0x92),
+        0x201c => Some(0x93),
+        0x201d => Some(0x94),
+        0x2022 => Some(0x95),
+        0x2013 => Some(0x96),
+        0x2014 => Some(0x97),
+        0x02dc => Some(0x98),
+        0x2122 => Some(0x99),
+        0x0161 => Some(0x9a),
+        0x203a => Some(0x9b),
+        0x0153 => Some(0x9c),
+        0x017e => Some(0x9e),
+        0x0178 => Some(0x9f),
+        _ => None,
+    }
+}
+
+/// Échappe une chaîne pour une chaîne littérale PDF `(...)` et l'encode en
+/// WinAnsiEncoding (mono-octet), cohérent avec `/Encoding /WinAnsiEncoding`
+/// déclaré sur la police — sans quoi tout caractère accentué UTF-8 est rendu
+/// en mojibake par un lecteur PDF (police simple = encodage mono-octet).
+fn escape_winansi(s: &str) -> Vec<u8> {
+    let mut out = Vec::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\\' => out.extend_from_slice(b"\\\\"),
+            '(' => out.extend_from_slice(b"\\("),
+            ')' => out.extend_from_slice(b"\\)"),
+            _ => out.push(winansi_byte(c).unwrap_or(b'?')),
+        }
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
