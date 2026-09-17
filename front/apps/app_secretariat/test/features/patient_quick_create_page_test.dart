@@ -215,11 +215,14 @@ void main() {
     testWidgets('état CreateError affiche le message d\'erreur',
         (tester) async {
       when(() => bloc.state).thenReturn(
-          const PatientsCreateError('Nom et prénom sont obligatoires.'));
+          const PatientsCreateError(
+              'Certaines informations sont manquantes ou invalides. '
+              'Merci de vérifier le formulaire.'));
       await tester.pumpWidget(buildPage());
 
       expect(
-        find.text('Nom et prénom sont obligatoires.'),
+        find.text('Certaines informations sont manquantes ou invalides. '
+            'Merci de vérifier le formulaire.'),
         findsOneWidget,
       );
     });

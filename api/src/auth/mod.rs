@@ -215,6 +215,10 @@ pub(crate) enum AppError {
     /// déjà scanné dans ce cabinet (index unique `(cabinet_id, code)`,
     /// migration 0191) — même choix que `StepNumberTaken`.
     PouchCodeAlreadyUsed,
+    /// `POST /v1/sterilization/pouches/:code/use` (#7181) : sachet déjà
+    /// rattaché à un autre patient (ou une autre séance) — usage unique,
+    /// pas de « ré-affectation » silencieuse d'un sachet ouvert.
+    PouchAlreadyUsed,
     /// `POST /v1/cabinet/sterilization-cycles` (#4489) : `(autoclave_ref,
     /// cycle_number)` déjà utilisé dans ce cabinet (index unique
     /// `(cabinet_id, autoclave_ref, cycle_number)`, migration 0202) — même
@@ -532,6 +536,11 @@ impl IntoResponse for AppError {
             AppError::PouchCodeAlreadyUsed => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "pouch_code_already_used"})),
+            )
+                .into_response(),
+            AppError::PouchAlreadyUsed => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "pouch_already_used"})),
             )
                 .into_response(),
             AppError::SterilizationCycleNumberAlreadyUsed => (

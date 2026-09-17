@@ -63,6 +63,12 @@ rustls-pki-types = "1.15"
 rustls-pemfile   = "2"
 # DP-F14.a (#7179) : parseur CSV de la reprise de données (`data_import::csv`).
 csv              = "1"
+# DP-F13.a (#7181) : QR par sachet sur les étiquettes de stérilisation.
+# Aucun encodeur QR n'existait dans le workspace (le check-in QR de
+# `appointments_checkin.rs` ne fait que RECEVOIR un `qr_code` texte). Sans
+# les features `image`/`svg` : on ne consomme que la matrice de modules
+# (`to_colors()`), dessinée en rectangles vectoriels dans le PDF.
+qrcode = { version = "0.14", default-features = false }
 
 [dev-dependencies]
 tokio-tungstenite = "0.24"
