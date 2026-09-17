@@ -174,14 +174,21 @@ class SideColumn extends StatelessWidget {
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // #7118 — l'ancien partage 1:2 (favori à la note) plafonnait le
+          // panneau « Ajouter un acte » à ~1/3 de la hauteur dès le layout 2
+          // colonnes (1280×800) : son `SingleChildScrollView` rognait alors
+          // une pastille de favori en plein milieu plutôt que de la montrer
+          // entière. Le panneau d'ajout (recherche + favoris) prime sur la
+          // note, dont le champ texte s'accommode sans dégât d'un espace
+          // réduit.
           Flexible(
+            flex: 3,
             child: SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 8),
               child: addActPanel,
             ),
           ),
           Expanded(
-            flex: 2,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: noteCard(expandField: true),
