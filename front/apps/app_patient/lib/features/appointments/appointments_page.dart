@@ -408,12 +408,16 @@ String _slotRecapDateLabel(DateTime utc) {
 }
 
 /// Libellé `.l1` de la barre collante « Continuer » (maquette design-v2
-/// patient-re-servation, #5336) : « Jeudi 13 août à 14:30 » — jour + mois
-/// complets, heure locale (#3856).
+/// patient-re-servation, #5336) : « Ven. 18 sep à 09:00 » — jour + mois
+/// abrégés (comme `_dayHeader`/`_relativeDay`), heure locale (#3856).
+/// Forme abrégée volontaire : à côté du bouton `Continuer` (taille `lg`) sur
+/// un viewport 390 px, la forme complète (jour + mois en toutes lettres)
+/// dépasse la largeur disponible et tronque l'heure — la seule information
+/// que le patient doit relire avant de valider (#7031).
 String _continueBarDateLabel(DateTime utc) {
   final dt = utc.toLocal();
-  return '${_weekdaysFull[dt.weekday - 1]} ${dt.day} '
-      '${_monthsFull[dt.month - 1]} à ${_hhmm(utc)}';
+  return '${_weekdays[dt.weekday - 1]} ${dt.day} '
+      '${_months[dt.month - 1]} à ${_hhmm(utc)}';
 }
 
 /// Nombre de jours / de puces par jour affichés dans le bloc `.slots` de la
