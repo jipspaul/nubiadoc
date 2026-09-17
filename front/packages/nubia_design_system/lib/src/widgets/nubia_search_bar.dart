@@ -80,66 +80,62 @@ class _NubiaSearchBarState extends State<NubiaSearchBar> {
     final Color borderColor = _focused ? cs.primary : tokens.borderDefault;
     final bool hasText = _controller.text.isNotEmpty;
 
-    return Semantics(
-      textField: true,
-      label: widget.hint,
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: widget.enabled ? cs.surface : tokens.borderSubtle,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: _focused ? 1.5 : 1),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.search, size: 20, color: tokens.textTertiary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _controller,
-                focusNode: widget.focusNode,
-                enabled: widget.enabled,
-                onChanged: widget.onChanged,
-                onSubmitted: widget.onSubmitted,
-                textInputAction: TextInputAction.search,
-                style: textTheme.bodyMedium,
-                onTap: () => setState(() => _focused = true),
-                decoration: InputDecoration(
-                  isDense: true,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                  hintText: widget.hint,
-                  hintStyle: textTheme.bodyMedium?.copyWith(
-                    color: tokens.textTertiary,
-                  ),
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: widget.enabled ? cs.surface : tokens.borderSubtle,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor, width: _focused ? 1.5 : 1),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search, size: 20, color: tokens.textTertiary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              focusNode: widget.focusNode,
+              enabled: widget.enabled,
+              onChanged: widget.onChanged,
+              onSubmitted: widget.onSubmitted,
+              textInputAction: TextInputAction.search,
+              style: textTheme.bodyMedium,
+              onTap: () => setState(() => _focused = true),
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+                hintText: widget.hint,
+                hintStyle: textTheme.bodyMedium?.copyWith(
+                  color: tokens.textTertiary,
                 ),
-                onEditingComplete: () => setState(() => _focused = false),
+              ),
+              onEditingComplete: () => setState(() => _focused = false),
+            ),
+          ),
+          if (hasText) ...[
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: widget.enabled ? _clear : null,
+              customBorder: const CircleBorder(),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.close,
+                  size: 18,
+                  color: tokens.textTertiary,
+                ),
               ),
             ),
-            if (hasText) ...[
-              const SizedBox(width: 4),
-              InkWell(
-                onTap: widget.enabled ? _clear : null,
-                customBorder: const CircleBorder(),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.close,
-                    size: 18,
-                    color: tokens.textTertiary,
-                  ),
-                ),
-              ),
-            ],
-            if (widget.locationChip != null) ...[
-              const SizedBox(width: 8),
-              widget.locationChip!,
-            ],
           ],
-        ),
+          if (widget.locationChip != null) ...[
+            const SizedBox(width: 8),
+            widget.locationChip!,
+          ],
+        ],
       ),
     );
   }
