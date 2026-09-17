@@ -2037,3 +2037,101 @@ compte/cabinet/pharmacie n'a été activé.
 | **Texte très long + accents** dans un champ libre (`/home-care/new`, 260 caractères) | **OK** | 13 contrôles avant comme après, **0 débordement horizontal** mesuré sur les rects Semantics |
 | **Coupure réseau** pendant une action (`route.abort` sur `**/v1/**`, ouverture d'ordonnance) | **défaut** | 17 contrôles → 1 et « Aucune ordonnance » au lieu d'un message d'erreur — **même cause que #7119**, ajouté en commentaire à l'issue |
 | **Écran chargé API coupée** (`/financial`) | **OK** | « Retour » + « **Réessayer** » : erreur digne, pas de spinner infini, pas d'écran blanc (nearWhite 0.98 = fond de l'état d'erreur, arbre Semantics non vide) |
+
+
+#### Ronde 2026-09-17 R77 (18:00–19:4x UTC) — 5/5 apps, 61 écrans audités au contrôle près
+
+> **Harnais R77** — deux corrections de l'auditeur lui-même, toutes deux validées par contre-épreuve :
+> 1. **Empreinte PIXEL en repli du verdict** (`R77_audit.js`, verdict `OK-pixel`). Sans elle, un effet purement
+>    visuel (coche de sélection, icône sans `semanticLabel`) passait pour MORT : **12 faux MORT mesurés sur
+>    `/pharmacy/send`** au premier passage, **0** après correction, sur le même écran et le même compte.
+> 2. **Ré-injection du token avant CHAQUE activation** (et plus seulement à la navigation) : l'access token vit
+>    900 s, un écran à 35 contrôles le dépasse. Sans ça, `secretariat /stock` rendait **14 « CASSÉ »** qui
+>    étaient 14 × `401`. Après correction : **0 CASSÉ**.
+> 
+> **Concurrence** : au-delà de ~4 Chromium simultanés, les relevés se dégradent (volets modaux captant les
+> clics, `Target crashed`, `page.screenshot` en timeout). Les écrans ambigus ont été **re-audités en série**,
+> et c'est le relevé série qui fait foi dans le tableau ci-dessous.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | grisés | last_check | note |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/ (Disponibilité / Offres / Ma visite)` (390 px) | 7 | 6 | 6 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | 3 onglets activés (px change à chaque bascule), bascule « En ligne », cycle métier complet joué ci-dessous |
+| infirmiere | `/notification-preferences` (390 px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | « Retour » + les 2 bascules Visites (in-app / push) |
+| patient | `/` (390 px) | 15 | 15 | 14 | 1 | 0 | 0 | 2026-09-17T19:40:00Z | Le seul MORT est l'onglet de l'écran courant (no-op légitime) |
+| patient | `/appointments` (390 px) | 14 | 14 | 13 | 1 | 0 | 0 | 2026-09-17T19:40:00Z | MORT = le champ de recherche déjà focalisé ; les 5 puces de filtre et les 4 clusters de carte répondent |
+| patient | `/pharmacy/send` (390 px) | 12 | 12 | 12 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | **JAMAIS AUDITÉ avant cette ronde.** 12 cartes d'ordonnance, toutes sélectionnables → #7140 |
+| patient | `/pharmacy/search` (390 px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | **Jamais audité.** Champ « Nom de la pharmacie ou ville », état vide propre |
+| patient | `/pharmacy/quotes` (390 px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | **Jamais audité.** Écran vide (0 devis officine en attente) + « Retour » |
+| patient | `/profile/referring-doctor` (390 px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | **Jamais audité.** « Changer de médecin traitant » navigue |
+| patient | `/prescriptions` (390 px) | 12 | 12 | 12 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | **Jamais audité.** Zone du merge #7122 : ouvrir une ordonnance ne vide plus la liste (12/12 OK) |
+| patient | `/mes-rdv` (390 px) | 7 | 7 | 7 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | Facettes À venir (20) / Historique, tri, « Plus d'actions » par ligne |
+| patient | `/financial` (390 px) | 8 | 8 | 8 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | 8 cartes de devis, chacune ouvre son détail |
+| patient | `/home-care` (390 px) | 14 | 14 | 14 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | Zone du merge #7123 : plus de virgule nue sur les cartes à adresse vide |
+| patient | `/implant-passport` (390 px) | 4 | 4 | 4 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/notifications` (390 px) | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/profile` (390 px) | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/profile/dependents` (390 px) | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/profile/notifications` (390 px) | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/messaging` (390 px) | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/documents` (390 px) | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/oubliettes` (390 px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/reviews` (390 px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | État vide propre « Aucun avis pour ce prestataire » (route sans providerId) |
+| patient | `/book` (1280 px) | 23 | 23 | 23 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/pharmacy` (1280 px) | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/treatment-plans` (1280 px) | 7 | 7 | 7 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/profile/consents` (1280 px) | 8 | 7 | 5 | 2 | 0 | 1 | 2026-09-17T19:40:00Z | Les 2 « MORT » sont hors viewport (y=875 > 844) — non retenus ; le switch « Soins » est grisé à raison (« Nécessaire au service · Non modifiable ») |
+| patient | `/documents` (1280 px) | 6 | 4 | 4 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| patient | `/home-care` (1280 px) | 13 | 13 | 12 | 0 | 1 | 0 | 2026-09-17T19:40:00Z | Le CASSÉ est un `502 GET /favicon.png` (hébergement, pas l'app) |
+| patient | `/prescriptions` (1280 px) | 12 | 12 | 12 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| praticien | `/` (1280 px) | 16 | 15 | 14 | 1 | 0 | 0 | 2026-09-17T19:40:00Z | MORT = entrée de rail de l'écran courant. Hero « Patient suivant » vérifié présent + CTA fonctionnels après check-in (#7126 OK) |
+| praticien | `/consultation` (1280 px) | 30 | 29 | 28 | 1 | 0 | 0 | 2026-09-17T19:40:00Z | Zone du merge #7124 : les 3 pastilles Favoris CCAM font h=62 à 1280 comme à 1440 (avant : 44, tronquée) |
+| praticien | `/waiting-room` (1280 px) | 21 | 19 | 16 | 3 | 0 | 1 | 2026-09-17T19:40:00Z | Les 3 « MORT » re-testés un par un en série : « Appeler … » et « Ouvrir le dossier » changent bien l'écran → non retenus comme morts, MAIS « Appeler » est un no-op silencieux côté métier → #7217 |
+| praticien | `/patients` (1280 px) | 27 | 26 | 21 | 0 | 5 | 0 | 2026-09-17T19:40:00Z | Les 5 CASSÉ sont des `403` de la garde « relation de soin » sur des patients jamais suivis — conforme, non retenu |
+| praticien | `/agenda` (1280 px) | 22 | 21 | 21 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| praticien | `/ordonnances` (1280 px) | 17 | 16 | 16 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| praticien | `/devis` (1280 px) | 22 | 21 | 20 | 1 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| praticien | `/stock` (1280 px) | 18 | 17 | 17 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| praticien | `/stock-inventory` (1280 px) | 25 | 24 | 23 | 1 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| praticien | `/lab-work-orders` (1280 px) | 18 | 17 | 17 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| praticien | `/messages` (1280 px) | 17 | 16 | 16 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| praticien | `/team-messages` (1280 px) | 17 | 16 | 16 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| praticien | `/notification-preferences` (1280 px) | 2 | 2 | 2 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| secretariat | `/messages` (1280 px) | 28 | 27 | 25 | 2 | 0 | 0 | 2026-09-17T19:40:00Z | **Jamais audité.** Les 2 MORT sont la facette active et l'onglet courant |
+| secretariat | `/admin-secretariats` (1280 px) | 20 | 19 | 19 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | **Jamais audité.** |
+| secretariat | `/notification-preferences` (1280 px) | 9 | 9 | 9 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | **Jamais audité.** ⚠ l'audit BASCULE réellement les préférences — restaurées à la main en fin de ronde (cf. note harnais) |
+| secretariat | `/patients` (1280 px) | 34 | 33 | 32 | 0 | 1 | 0 | 2026-09-17T19:40:00Z | Relevé retenu = passage SÉRIE ; le passage concurrent donnait 4 MORT + 2 CASSÉ, tous dus à une session expirée |
+| secretariat | `/stock` (1280 px) | 35 | 24 | 24 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| secretariat | `/` (1280 px) | 26 | 25 | 24 | 1 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| secretariat | `/salle-attente` (1280 px) | 22 | 20 | 20 | 0 | 0 | 1 | 2026-09-17T19:40:00Z | Bandeau KPI tronqué → #7219 |
+| secretariat | `/appointments` (1280 px) | 21 | 20 | 20 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| secretariat | `/devis` (1280 px) | 21 | 20 | 20 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| secretariat | `/cabinet-stats` (1280 px) | 22 | 21 | 19 | 0 | 2 | 0 | 2026-09-17T19:40:00Z |  |
+| secretariat | `/admin-membres` (1280 px) | 25 | 24 | 24 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| secretariat | `/liste-attente` (1280 px) | 20 | 19 | 19 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| secretariat | `/bookable-slots` (1280 px) | 24 | 23 | 23 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| secretariat | `/cabinet-payouts` (1280 px) | 24 | 21 | 21 | 0 | 0 | 2 | 2026-09-17T19:40:00Z | Les 2 grisés sont LÉGITIMES et prouvés par le code : « Exporter (CSV) » l'est quand `payouts.isEmpty` (cabinet_payouts_page.dart:64) ; « Connecter Stripe » l'est en permanence avec sa raison en infobulle (#6702, :379-391) |
+| secretariat | `/appointment-motifs` (1280 px) | 21 | 20 | 19 | 1 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| pharmacie | `/` (1280 px) | 19 | 18 | 18 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| pharmacie | `/stock` (1280 px) | 13 | 12 | 10 | 2 | 0 | 0 | 2026-09-17T19:40:00Z | Les 2 MORT sont la facette ACTIVE (« À répondre (6) ») et l'entrée de rail courante. Défaut réel de l'écran : libellé d'article non borné → #7137 |
+| pharmacie | `/devis` (1280 px) | 23 | 22 | 21 | 1 | 0 | 0 | 2026-09-17T19:40:00Z | Relevé retenu = passage isolé ; le passage concurrent donnait 12 MORT (volet de détail ouvert captant les clics). Colonne « Devis » en UUID brut → #7141 |
+| pharmacie | `/messages` (1280 px) | 15 | 14 | 14 | 0 | 0 | 0 | 2026-09-17T19:40:00Z |  |
+| pharmacie | `/notification-preferences` (1280 px) | 9 | 9 | 9 | 0 | 0 | 0 | 2026-09-17T19:40:00Z | **Jamais audité.** |
+
+**Total R77 : 61 écrans · 895 contrôles inventoriés · 847 activés · 820 OK · 18 morts · 9 cassés · 5 grisés.**
+Après re-test individuel en série, **aucun des 18 « morts » n'est un bouton réellement inerte** : ce sont des
+entrées de rail de l'écran courant, des facettes déjà actives, ou des contrôles hors viewport. Les 9 « cassés »
+se répartissent en 5 × `403` de garde « relation de soin » (conforme), 2 × `401` de session expirée (harnais),
+1 × `502 /favicon.png` (hébergement) et 1 × sonde de capacité. **Les vrais défauts de cette ronde ne sont donc
+pas des boutons morts** : ce sont un no-op silencieux (#7217), un libellé non borné (#7137), un écran qui
+s'efface sur 409 (#7140) et deux divergences design-v2 (#7141, #7219).
+
+##### Cas adversariaux R77
+
+| cas | verdict | preuve |
+|---|---|---|
+| **Double-clic** (90 ms) sur « Transmettre à la pharmacie », `/pharmacy/send` | **OK** | Exactement **1** `POST /v1/account/prescriptions/:id/order`, 0 HTTP ≥ 400, écran final = vue succès « Fermer ». Aucun doublon. |
+| **BACK navigateur** au milieu du tunnel (`/` → `/mes-rdv` → `/appointments` → clic créneau → BACK) | **OK** | Retour sur `/mes-rdv`, 13 contrôles, état cohérent (facettes « À venir (20) » / « Historique », 4 lignes de RDV). FORWARD restaure `/appointments` à 22 contrôles. |
+| **Coupure réseau** (`route.abort` sur `**/v1/**`) pendant « Appeler », `/salle-attente` | **OK** | Écran digne : « **Impossible de charger la salle d'attente** » + « Actualiser » + « Réessayer ». Pas de spinner infini, pas d'écran blanc. |
+| **Écran chargé API coupée** (`praticien /devis`) | **OK** | 19 contrôles dont « Réessayer », nearWhite 0,79 — arbre Semantics non vide. |
+| **Saisie invalide** : submit à vide sur `/patients/new` | **OK** | « Créer le dossier » est **grisé** tant que le formulaire est vide → **0 requête** émise. Pas de 500, pas de submit silencieux. |
+| **Texte très long** (240 caractères accentués) dans le 1er champ de `/patients/new` | **OK** | **0** nœud Semantics débordant du viewport après saisie. |
