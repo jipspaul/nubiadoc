@@ -331,6 +331,18 @@ void main() {
       expect(visit.nurseDisplayName, isNull);
     });
 
+    test('adresse non-objet (donnée historique #7027) → map vide, pas de crash', () {
+      final visit = VisitRequest.fromJson(const {
+        'id': 'visit-1',
+        'status': 'cancelled',
+        'estimated_price_cents': 2500,
+        'address': 42,
+      });
+
+      expect(visit.address, isEmpty);
+      expect(visit.addressLine, ',  ');
+    });
+
     test('nurse_display_name présent → exposé (#6506)', () {
       final visit = VisitRequest.fromJson(const {
         'id': 'visit-1',

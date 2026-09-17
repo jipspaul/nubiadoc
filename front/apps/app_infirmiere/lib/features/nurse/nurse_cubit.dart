@@ -29,7 +29,12 @@ class NurseOffer extends Equatable {
         requestedActs:
             (j['requested_acts'] as List<dynamic>? ?? []).cast<String>(),
         patientDisplayName: j['patient_display_name'] as String? ?? '',
-        address: (j['address'] as Map<String, dynamic>?) ?? const {},
+        // #7027 : `address` peut contenir une valeur historique non-objet
+        // (scalaire/liste) en base — cast défensif plutôt que `as Map?`, qui
+        // lève une TypeError non rattrapée par les cubits (`on DioException`).
+        address: j['address'] is Map<String, dynamic>
+            ? j['address'] as Map<String, dynamic>
+            : const {},
         status: j['status'] as String? ?? 'offered',
         estimatedPriceCents: (j['estimated_price_cents'] as num? ?? 0).toInt(),
         notes: j['notes'] as String?,

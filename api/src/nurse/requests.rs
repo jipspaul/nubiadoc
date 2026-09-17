@@ -157,6 +157,12 @@ pub async fn create_visit_request(
     {
         return Err(AppError::ValidationError);
     }
+    // #7027 : `address` doit être un objet JSON (les apps le parsent en
+    // `Map<String, dynamic>`) — un scalaire/tableau accepté ici serait
+    // re-servi tel quel par les GET et ferait planter le cast côté client.
+    if !body.address.is_object() {
+        return Err(AppError::ValidationError);
+    }
     crate::text_validation::reject_nul_byte(&body.patient_display_name)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;

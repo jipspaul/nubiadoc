@@ -62,7 +62,12 @@ class VisitRequest extends Equatable {
         status: j['status'] as String? ?? 'requested',
         requestedActs:
             (j['requested_acts'] as List<dynamic>? ?? []).cast<String>(),
-        address: (j['address'] as Map<String, dynamic>?) ?? const {},
+        // #7027 : `address` peut contenir une valeur historique non-objet
+        // (scalaire/liste) en base — cast défensif plutôt que `as Map?`, qui
+        // lève une TypeError non rattrapée par les cubits (`on DioException`).
+        address: j['address'] is Map<String, dynamic>
+            ? j['address'] as Map<String, dynamic>
+            : const {},
         estimatedPriceCents: j['estimated_price_cents'] as int? ?? 0,
         nurseDisplayName: j['nurse_display_name'] as String?,
       );
