@@ -118,6 +118,12 @@ const PREFERENCE_FILTER_SQL: &str = "(CASE n.kind \
      WHEN 'stock_request_received' THEN COALESCE(unp.inapp_stock, true) \
      WHEN 'appointment_requested' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'callback_requested' THEN COALESCE(unp.inapp_rdv, true) \
+     WHEN 'appointment_confirmed' THEN COALESCE(unp.inapp_rdv, true) \
+     WHEN 'appointment_rescheduled' THEN COALESCE(unp.inapp_rdv, true) \
+     WHEN 'appointment_motif_changed' THEN COALESCE(unp.inapp_rdv, true) \
+     WHEN 'waiting_room_called' THEN COALESCE(unp.inapp_rdv, true) \
+     WHEN 'waiting_list_slot_offered' THEN COALESCE(unp.inapp_rdv, true) \
+     WHEN 'patient_checked_in' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'visit_offer' THEN COALESCE(unp.inapp_visites, true) \
      ELSE true \
      END)";

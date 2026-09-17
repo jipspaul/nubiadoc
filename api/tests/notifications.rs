@@ -750,3 +750,94 @@ async fn notifications_excludes_opted_out_pro_category() {
         .await
         .ok();
 }
+
+// ── Test : opt-out RDV (#7021) — inapp_rdv=false doit couvrir TOUTE la
+// catégorie, pas seulement `appointment_requested`/`callback_requested`.
+// Repro exacte de #7021 : `inapp_rdv=false` laissait passer
+// `appointment_confirmed`, `appointment_rescheduled`, `waiting_room_called`,
+// `waiting_list_slot_offered` et `patient_checked_in` — seuls 2 des 7 `kind`
+// de la catégorie étaient couverts par `PREFERENCE_FILTER_SQL`.
+#[tokio::test]
+async fn notifications_excludes_all_rdv_kinds_when_opted_out() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let app_db = app_pool().await;
+    let user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("notif-optout-rdv+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO user_notification_preference (app_user_id, inapp_rdv) VALUES ($1, false)",
+    )
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    for kind in [
+        "appointment_requested",
+        "callback_requested",
+        "appointment_confirmed",
+        "appointment_rescheduled",
+        "appointment_motif_changed",
+        "waiting_room_called",
+        "waiting_list_slot_offered",
+        "patient_checked_in",
+    ] {
+        insert_notification(&app_db, user_id, kind, "Rendez-vous", false).await;
+    }
+    insert_notification(
+        &app_db,
+        user_id,
+        "message_received",
+        "Nouveau message",
+        false,
+    )
+    .await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/notifications")
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let items = v["data"].as_array().unwrap();
+    // Seule la notification "message_received" (catégorie non opt-out) reste.
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["kind"], "message_received");
+    // Le badge non-lus ne compte plus aucun des 8 kinds RDV opt-out.
+    assert_eq!(v["page"]["unread_count"], 1);
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}

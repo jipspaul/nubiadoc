@@ -12,13 +12,20 @@ use uuid::Uuid;
 use crate::auth::AppError;
 
 /// Mapping `kind` → catégorie `user_notification_preference` (migration 0246,
-/// #6257), pour le gating à l'émission (#6258). Uniquement les kinds dont la
-/// catégorie destinataire pro est sans ambiguïté (ex. pas `pharmacy_order_ready`
-/// : notification patient, hors périmètre des catégories pro) ; tout kind
-/// absent de ce mapping n'est jamais bloqué (fail-open documenté).
+/// #6257), pour le gating à l'émission (#6258). Doit couvrir TOUS les kinds
+/// d'une catégorie (#7021 : un mapping partiel laisse passer les kinds
+/// oubliés sans que la bascule ne s'en aperçoive) ; tout kind absent de ce
+/// mapping n'est jamais bloqué (fail-open documenté).
 fn preference_category(kind: &str) -> Option<&'static str> {
     match kind {
-        "appointment_requested" | "callback_requested" => Some("rdv"),
+        "appointment_requested"
+        | "callback_requested"
+        | "appointment_confirmed"
+        | "appointment_rescheduled"
+        | "appointment_motif_changed"
+        | "waiting_room_called"
+        | "waiting_list_slot_offered"
+        | "patient_checked_in" => Some("rdv"),
         "quote_signed" | "pharmacy_quote_decided" => Some("devis"),
         "stock_request_received" => Some("stock"),
         "message_received" => Some("messagerie"),
