@@ -30,6 +30,7 @@ const VALID_CATEGORIES: &[&str] = &[
     "carte_mutuelle",
     "passeport_implantaire",
     "consentement",
+    "courrier",
 ];
 
 #[derive(Deserialize)]

@@ -282,6 +282,20 @@ pub(crate) enum AppError {
     /// moyen de savoir que le praticien est indisponible. Le `Value` porte
     /// `starts_at`/`ends_at`/`reason` de la période déclarée.
     ProviderUnavailable(serde_json::Value),
+    /// Moteur de courriers types (#7197) : placeholders `{{…}}` hors de
+    /// `letters::KNOWN_PLACEHOLDERS` dans un modèle ou dans les `overrides`
+    /// — `422` avec la liste (dédoublonnée) pour que le client corrige le
+    /// modèle plutôt que de deviner.
+    UnknownPlaceholders(Vec<String>),
+    /// Moteur de courriers types (#7197) : placeholders connus mais sans
+    /// valeur résolue (pas de RDV, pas de RPPS, correspondant…) ni override
+    /// — `422` avec la liste ; un courrier n'est jamais rendu avec un trou.
+    MissingPlaceholderValues(Vec<String>),
+    /// `POST /v1/patients/:id/letters` (#7197) : `correspondent_id` fourni
+    /// alors qu'aucune entité « correspondant cabinet » n'existe encore
+    /// (`patient_correspondent` est scopée compte patient) — `501`, le
+    /// client passe `{{correspondant.nom}}` via `overrides` en attendant.
+    CorrespondentNotSupported,
 }
 
 impl IntoResponse for AppError {
@@ -573,6 +587,21 @@ impl IntoResponse for AppError {
             AppError::ProviderUnavailable(unavailability) => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "provider_unavailable", "unavailability": unavailability})),
+            )
+                .into_response(),
+            AppError::UnknownPlaceholders(placeholders) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "unknown_placeholders", "placeholders": placeholders})),
+            )
+                .into_response(),
+            AppError::MissingPlaceholderValues(placeholders) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "missing_placeholder_values", "placeholders": placeholders})),
+            )
+                .into_response(),
+            AppError::CorrespondentNotSupported => (
+                StatusCode::NOT_IMPLEMENTED,
+                Json(json!({"code": "correspondent_not_supported"})),
             )
                 .into_response(),
         }
