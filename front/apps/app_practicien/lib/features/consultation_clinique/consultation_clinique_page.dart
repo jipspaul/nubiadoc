@@ -20,6 +20,7 @@ import '../../pro_config.dart';
 import '../../router/app_router.dart';
 import '../../session/pro_auth_cubit.dart';
 import '../notifications/notification_route_resolver.dart';
+import '../shell/widgets/global_search_dialog.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
@@ -205,6 +206,23 @@ class ConsultationCliniquePage extends StatelessWidget {
           ),
         );
       },
+      // #7067 — `/consultation` monte son propre `ProShell` (voir doc de
+      // classe) : sans ce wiring, ni la palette ⌘K ni le bouton
+      // « Préférences de notifications » n'existaient sur cet écran, alors
+      // que `PracticienShell` (les 11 autres routes) les câble déjà.
+      searchHint: 'Patient, acte, ordonnance…',
+      onSearchTap: () => openGlobalSearchDialog(
+        context,
+        destinations: ProConfig.shellConfig.destinations,
+      ),
+      trailingActions: [
+        IconButton(
+          key: const Key('notification_prefs_button'),
+          tooltip: 'Préférences de notifications',
+          icon: const Icon(Icons.settings_outlined),
+          onPressed: () => context.go(AppRouter.notificationPreferences),
+        ),
+      ],
       onSignOut: () => context.read<ProAuthCubit>().signOut(),
     );
   }
