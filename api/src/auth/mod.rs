@@ -2163,7 +2163,7 @@ pub struct PostCabinetMemberBody {
 /// point, aucun espace. Suffisant pour rejeter les fautes de frappe grossières
 /// (#3879 : "not-an-email" créait un compte pro orphelin + gaspillait le slot
 /// UNIQUE(email)) sans dépendance externe — pas une validation RFC 5322 complète.
-fn is_valid_email_format(email: &str) -> bool {
+pub(crate) fn is_valid_email_format(email: &str) -> bool {
     let email = email.trim();
     if email.is_empty() || email.chars().any(char::is_whitespace) {
         return false;
