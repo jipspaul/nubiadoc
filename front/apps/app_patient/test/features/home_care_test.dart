@@ -327,7 +327,7 @@ void main() {
 
       expect(visit.requestedActs, isEmpty);
       expect(visit.address, isEmpty);
-      expect(visit.addressLine, ',  ');
+      expect(visit.addressLine, '');
       expect(visit.nurseDisplayName, isNull);
     });
 
@@ -340,7 +340,22 @@ void main() {
       });
 
       expect(visit.address, isEmpty);
-      expect(visit.addressLine, ',  ');
+      expect(visit.addressLine, '');
+    });
+
+    test('adresse complète → line1, code postal + ville (#7121)', () {
+      final visit = VisitRequest.fromJson(const {
+        'id': 'visit-1',
+        'status': 'requested',
+        'estimated_price_cents': 2500,
+        'address': {
+          'line1': '1 rue de Rivoli',
+          'postal_code': '75001',
+          'city': 'Paris',
+        },
+      });
+
+      expect(visit.addressLine, '1 rue de Rivoli, 75001 Paris');
     });
 
     test('nurse_display_name présent → exposé (#6506)', () {
