@@ -1754,3 +1754,119 @@ doit être rejoué sur un écran fraîchement rechargé. Le taux de faux positif
 `/patients/:id/dental-chart` : les 32 dents sont bien dans l'arbre, mais leur `aria-label` se réduit au
 numéro FDI — le **statut clinique** (carie / couronne / sain) n'existe que dans la couleur de fond et
 une pastille de 5 px, toutes deux hors arbre. → **#7043** (P2).
+#### Ronde 2026-09-17 (00:00–03:00 UTC) — 5/5 apps parcourues + balayage des liens directs
+
+> **Ciblage diff-driven** (Étape 1bis) : 13 lots mergés depuis le dernier registre (`7465e14`,
+> 2026-09-16 19:32Z), dont 5 touchant le front — `dependents_page.dart` + `login_page.dart` +
+> `auth_cubit.dart` (patient), `dental_chart_page.dart` + `tooth_grid.dart` (praticien),
+> `agenda_page.dart` (secrétariat). Ces écrans ont été audités **en premier**.
+>
+> **Neuf de cette ronde : le balayage des routes paramétrées en LIEN DIRECT** (rechargement de
+> page, favori, deep link de notification), jamais fait jusqu'ici. 18 routes à paramètre des
+> 5 apps ouvertes à l'URL : 2 défauts trouvés (#7074, #7075), 16 saines.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/patients/:id/dental-chart` (1280×800, **re-audit #7043**) | 56 | 50 | 49 | 1* | 0 | 2026-09-17T00:35:00Z |
+| patient | `/profile/dependents` (390×844, **re-audit #7041**) | 24 | 17 | 17 | 0 | 0 | 2026-09-17T00:41:00Z |
+| patient | `/profile` (390×844) | 17 | 13 | 11 | 2* | 0 | 2026-09-17T00:45:00Z |
+| patient | `/financial?id=<uuid>` (390×844, **1er audit du deep link**) | 2 | 1 | 1 | 0 | 0 | 2026-09-17T00:33:00Z |
+| patient | `/implant-passport/:id` (390×844, **1er audit**) | **0** | 0 | 0 | 0 | — | 2026-09-17T01:30:00Z |
+| patient | `/treatment-plans/:id` (390×844, **1er audit**) | 1 | 0 | 0 | 0 | 0 | 2026-09-17T01:31:00Z |
+| patient | `/messaging/:id` (390×844, **1er audit**) | 9 | 5 | 4 | 0 | **1** | 2026-09-17T01:32:00Z |
+| infirmiere | `/` (390×844, 3 onglets parcourus) | 8 | 6 | 6 | 0 | 0 | 2026-09-17T00:52:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 5 | 3 | 3 | 0 | 0 | 2026-09-17T00:54:00Z |
+| pharmacie | `/` (1280×800) | 35 | 17 | 14 | 3* | 0 | 2026-09-17T01:15:00Z |
+| pharmacie | `/devis` (1280×800) | 42 | 24 | 20 | 4* | 0 | 2026-09-17T01:18:00Z |
+| pharmacie | `/stock` (1280×800) | 16 | 11 | 9 | 2* | 0 | 2026-09-17T01:20:00Z |
+| secretariat | `/salle-attente` (1280×800) | 24 | 19 | 17 | 2* | 0 | 2026-09-17T02:00:00Z |
+| secretariat | `/liste-attente` (1280×800) | 22 | 19 | 17 | 2* | 0 | 2026-09-17T02:04:00Z |
+| secretariat | `/cabinet-payouts` (1280×800) | 27 | 21 | 19 | 2* | 0 | 2026-09-17T02:08:00Z |
+| praticien | `/devis` (1280×800) | 27 | 23 | 22 | 1* | 0 | 2026-09-17T02:00:00Z |
+| praticien | `/lab-work-orders` (1280×800) | 24 | 17 | 16 | 1* | 0 | 2026-09-17T02:02:00Z |
+| praticien | `/stock-inventory` (1280×800) | 42 | 24 | 23 | 1* | 0 | 2026-09-17T02:12:00Z |
+| **TOTAL** | **18 écrans** | **381** | **270** | **248** | **21 bruts → 0 confirmés** | **1** | — |
+
+\* **Les 21 verdicts « MORT » ont TOUS été rejoués et sont TOUS des faux positifs** — le taux de
+faux positifs du détecteur reste de 100 %, comme aux rondes précédentes. Familles identifiées
+cette fois, à connaître pour ne plus les re-filer :
+1. **Entrée de navigation déjà active** (`Commandes` sur `/`, `Devis` sur `/devis`, `Stock` sur
+   `/stock`, `Salle d'attente` sur `/salle-attente`…) : cliquer la destination courante ne change
+   évidemment rien.
+2. **Facette déjà sélectionnée** (`Toutes 71`, `Prêtes 55`, `Tous (117)`, `À répondre (6)`) : même
+   raison.
+3. **En-tête de section repliable du rail secrétariat** (`Ma journée`, `Facturation`, `Patients`) :
+   c'est **#7029**, déjà ouverte.
+4. **Sélecteur de fichier natif** — `Modifier la photo de profil` (patient) : l'événement
+   Playwright `filechooser` remonte bien `true`, aucune repeinture n'est attendue.
+5. **Dent déjà à l'état cliqué** (`Adulte` sur le schéma dentaire).
+
+> **Nouvelle famille de faux positifs à documenter (leçon de méthode de cette ronde) :
+> le CTA hors viewport.** Sur la modale de confirmation de réservation patient (390×844),
+> `Confirmer le rendez-vous` est inventorié à **y = 1248** pour un viewport de 844 px : tout clic
+> à ces coordonnées manque sa cible et produit **0 requête**, ce qui ressemble trait pour trait à
+> un bouton mort. Il faut **faire défiler jusqu'à ramener le rect dans le viewport** avant de
+> juger. Une fois le bouton visible (y = 825), le double-clic rapide produit **exactement un**
+> `POST /v1/bookings` → `201 {"appointment_id":"cbf82314-…","status":"requested"}` : l'anti
+> double-submit du parcours de réservation est **sain**.
+>
+> Corollaire : un second piège de sélection a coûté deux faux positifs cette ronde — le nœud
+> Semantics parent porte la **concaténation des libellés de ses enfants** (`"AccepterPasser"`,
+> `"Modifier la photo de profilMarc Dubois…"`). Un `find()` par `label.includes(...)` attrape le
+> **groupe** (390×708) et non le bouton (240×44). Toujours filtrer sur `role === 'button'` **et**
+> comparer le libellé **exact**.
+
+##### Le seul contrôle CASSÉ confirmé
+`/messaging/:id` ouvert **en lien direct** : le bouton `Retour` lève
+`GoError: There is nothing to pop` (pageerror), l'URL ne bouge pas, et la route ne monte pas la
+barre d'onglets → l'écran n'a plus **aucune** sortie. Par le parcours normal (liste → fil) le même
+bouton fonctionne et la console reste vide. → **#7075** (P1).
+
+##### Écran rendu inutilisable hors audit de contrôles
+`/implant-passport/:id` en lien direct : **0 contrôle**, canvas gris uni, `TypeError` Dart au build
+(`state.extra as ImplantItem` sur `null`, `app_router.dart:455-459`). Le même écran atteint par la
+liste rend 4 contrôles. → **#7074** (P0).
+
+##### Balayage des liens directs (18 routes à paramètre, 5 apps) — le reste est sain
+`patient` : `/treatment-plans/:id` (1), `/home-care/:id` (2), `/rdv/:id/prepare` (3),
+`/rdv/:id/modifier` (50), `/questionnaire-medical/:cabinetId` (5), `/pharmacy/orders/:id` (4),
+`/oubliettes` (2), `/notifications` (21), `/appointments/slots?providerId=` (37) — tous peints et
+peuplés. `praticien` : `/patients/:id` (50), `/consultation?id=` (59), `/ordonnances/new?patientId=`
+(49). `secretariat` : `/devis/:id` (23). `pharmacie` : `/orders/:id` (38), `/orders/:id/pickup` (4).
+Seule exception fonctionnelle : `/reviews?providerId=` (2 contrôles) — mais c'est un défaut de
+**parsing**, pas de deep link → **#7076**.
+
+##### Cas adversariaux joués cette ronde
+- **Coupure réseau** (`route.abort()` sur `**/v1/**`) pendant le chargement de `/prescriptions`
+  (patient) : dégradation **digne** — `Retour` + `Réessayer`, aucun spinner infini, aucun écran
+  blanc ; réseau rétabli + « Réessayer » → 17 contrôles, écran reconstitué.
+- **Double-clic** sur `Confirmer le rendez-vous` (patient) → **1 seul** `POST /v1/bookings` (201).
+- **Double-clic** sur `Accepter` une offre (infirmière) → une seule acceptation côté serveur.
+- **Back navigateur** au milieu du parcours de réservation puis `forward` : état cohérent
+  (23 contrôles → 27), aucune erreur.
+- **Saisie invalide** : `Envoyer` d'une demande de stock sans pharmacie → refus propre
+  (`_onConfirm` sort sur `SnackBar('Choisissez une pharmacie.')`, **0** POST), quantité `-5`
+  bornée par `qty <= 0 → 'Quantité invalide.'`.
+- **Texte très long** : 250 caractères dans la recherche de documents patient → la liste se vide
+  proprement, aucune erreur, aucun débordement (la rangée de facettes est un défilement
+  horizontal par conception, ses rects hors viewport ne sont pas un débordement).
+
+##### Scan de santé — les 5 apps, toutes leurs routes, aux deux viewports
+Balayage complet (59 couples route×viewport) à la recherche d'écrans vides, de canvas non peints,
+de textes d'erreur et de requêtes ≥ 400. **Tout est sain** sauf, dans l'ordre :
+`patient /home-care` (1 contrôle, `PAGEERROR: TypeError: 42: type 'int' is not a subtype of type
+'Map<String, dynamic>?'`) = **#7027 déjà ouverte** ; `secretariat /cabinet-payouts`
+(« Connexion Stripe indisponible pour l'instant. ») et `secretariat /team-messages`
+(2 CTA grisés avec leur raison) = **raisons légitimes du correctif #6702**, sauf la rédaction de
+l'une d'elles → **#7082** ; les `403` sur `/cabinet/members` et `/cabinet/audit-log` présents sur
+**17/17** écrans secrétariat = **sonde de gating volontaire**, déjà documentée (bruit attendu).
+
+##### Correctifs de cette ronde vérifiés EN LIVE pendant la ronde
+Les agents correcteurs ont livré pendant la session ; re-testés après déploiement :
+**#7064** (FHIR : `Appointment` déclare désormais `patch`, plus `update`), **#7068** (le devis
+signé du 16/09 porte maintenant `document_id: 8da153c2-…` — la reprise a tourné), **#7070**
+(le switch biométrie est `aria-disabled=true` et porte « Indisponible sur ce navigateur. »),
+**#7076** (`/reviews?providerId=` liste enfin les avis). **#7073** est corrigé aux deux tiers —
+le formulaire et le récapitulatif du créneau sont là — mais son `POST` n'est pas routé → **#7080**.
+**#7079** est mergé sans être encore déployé à l'heure du test (les payloads invalides passaient
+toujours en 201).
