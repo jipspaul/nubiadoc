@@ -248,6 +248,42 @@ final _planWithCoverageStates = PatientTreatmentPlan(
   ],
 );
 
+// Plan avec une phase `in_progress` démarrée hors séquence (#7229) : la
+// 1re phase par position est encore `requested`, mais une phase en 4e
+// position est `in_progress`. L'étape courante doit rester la 1re, comme
+// côté serveur (`current_step`, #6209) — pas la phase `in_progress`.
+final _planWithOutOfSequencePhase = PatientTreatmentPlan(
+  id: 'plan-2',
+  title: 'QA-R74 Plan',
+  status: 'in_progress',
+  phases: [
+    PatientTreatmentPlanPhase(
+      id: 'phase-1',
+      position: 1,
+      title: 'QA-R16 phase',
+      status: 'requested',
+    ),
+    PatientTreatmentPlanPhase(
+      id: 'phase-2',
+      position: 2,
+      title: 'QA-R16 fuite',
+      status: 'requested',
+    ),
+    PatientTreatmentPlanPhase(
+      id: 'phase-3',
+      position: 3,
+      title: 'QA-R16 phase etats',
+      status: 'done',
+    ),
+    PatientTreatmentPlanPhase(
+      id: 'phase-4',
+      position: 4,
+      title: 'QA-R77 phase',
+      status: 'in_progress',
+    ),
+  ],
+);
+
 void main() {
   group('PatientTreatmentPlansBody (liste)', () {
     testWidgets('liste avec plans — affiche une ligne par plan',
@@ -903,6 +939,36 @@ void main() {
           matching: find.text('Réhabilitation implantaire'),
         ),
         findsNothing,
+      );
+    });
+
+    testWidgets(
+        'bandeau héros — phase in_progress démarrée hors séquence : étape '
+        'courante = 1re phase non done par position, pas la phase '
+        'in_progress (#7229)', (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientTreatmentPlanDetailLoaded(_planWithOutOfSequencePhase));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      final hero = find.byKey(const Key('treatment_plan_hero'));
+      expect(hero, findsOneWidget);
+      expect(
+        find.descendant(of: hero, matching: find.text('Étape 1 sur 4')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: hero,
+          matching: find.text('QA-R16 phase · demandée'),
+        ),
+        findsOneWidget,
       );
     });
 

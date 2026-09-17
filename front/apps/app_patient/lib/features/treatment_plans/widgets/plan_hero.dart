@@ -24,11 +24,11 @@ class PlanHero extends StatelessWidget {
   Widget build(BuildContext context) {
     if (phases.isEmpty) return const SizedBox.shrink();
 
-    var currentIndex =
-        phases.indexWhere((phase) => phase.status == 'in_progress');
-    if (currentIndex == -1) {
-      currentIndex = phases.indexWhere((phase) => phase.status != 'done');
-    }
+    // Étape courante = la première phase non `done` par position — même
+    // règle que le serveur (`current_step`, #6209, api/src/treatment_plans.rs).
+    // Ne pas donner la priorité à `in_progress` : une phase peut être démarrée
+    // hors séquence (#7229), ce qui désynchronisait ce bandeau de la liste.
+    var currentIndex = phases.indexWhere((phase) => phase.status != 'done');
     if (currentIndex == -1) currentIndex = phases.length - 1;
     final current = phases[currentIndex];
     final stateLabel = _phaseStateLabels[current.status] ?? current.status;
