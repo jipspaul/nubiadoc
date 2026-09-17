@@ -76,8 +76,10 @@ class HomeCareRequestsBody extends StatelessWidget {
                     title: visit.requestedActs
                         .map((a) => homeCareActs[a] ?? a)
                         .join(' · '),
-                    subtitle: '${visit.addressLine} · '
-                        '${NubiaMoney.formatCents(visit.estimatedPriceCents)}',
+                    subtitle: [
+                      if (visit.addressLine.isNotEmpty) visit.addressLine,
+                      NubiaMoney.formatCents(visit.estimatedPriceCents),
+                    ].join(' · '),
                     trailing: StatusPill(
                       label: visitStatusLabels[visit.status] ?? visit.status,
                       variant:

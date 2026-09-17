@@ -72,9 +72,12 @@ class VisitRequest extends Equatable {
         nurseDisplayName: j['nurse_display_name'] as String?,
       );
 
-  String get addressLine =>
-      '${address['line1'] ?? ''}, ${address['postal_code'] ?? ''} '
-      '${address['city'] ?? ''}';
+  String get addressLine {
+    final line1 = (address['line1'] as String? ?? '').trim();
+    final postalCity =
+        '${address['postal_code'] ?? ''} ${address['city'] ?? ''}'.trim();
+    return [line1, postalCity].where((s) => s.isNotEmpty).join(', ');
+  }
 
   @override
   List<Object?> get props => [id, status];
