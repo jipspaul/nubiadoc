@@ -77,7 +77,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _messagingBloc = GetIt.instance<MessagingBloc>()
       ..add(const MessagingConversationsLoadRequested());
     _notificationsBloc = GetIt.instance<NotificationsBloc>()
-      ..add(const NotificationsLoadRequested());
+      ..add(const NotificationsUnreadCountRequested());
     _homeBloc = GetIt.instance<HomeBloc>()..add(const HomeLoadRequested());
   }
 
@@ -111,7 +111,8 @@ class _DashboardPageState extends State<DashboardPage> {
               onPressed: () => context.push(AppRouter.appointments),
             ),
             BlocSelector<NotificationsBloc, NotificationsState, bool>(
-              selector: (s) => s is NotificationsLoaded && s.unreadCount > 0,
+              selector: (s) =>
+                  s is NotificationsUnreadCountLoaded && s.unreadCount > 0,
               builder: (context, hasUnread) => _HeaderIconButton(
                 key: const Key('header_action_notifications'),
                 icon: Icons.notifications_outlined,

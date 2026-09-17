@@ -92,7 +92,12 @@ class NotificationsPage extends StatelessWidget {
       },
       child: BlocBuilder<NotificationsBloc, NotificationsState>(
         builder: (context, state) => switch (state) {
-          NotificationsInitial() || NotificationsLoading() => const Center(
+          NotificationsInitial() ||
+          NotificationsLoading() ||
+          // Ce bloc-ci ne pagine jamais que la liste complète (#7102) : cet
+          // état n'appartient qu'à l'instance dédiée à la pastille de
+          // l'accueil, jamais à celle de cette page.
+          NotificationsUnreadCountLoaded() => const Center(
             key: Key('notifications_loading'),
             child: CircularProgressIndicator(),
           ),
