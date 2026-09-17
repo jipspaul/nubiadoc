@@ -331,13 +331,16 @@ const MONTHS: [&str; 12] = [
 /// Même format que `_dayHeader` (`modify_rdv_page.dart`), vocabulaire des
 /// créneaux explicitement partagé avec l'app (maquette, encadré « Le
 /// vocabulaire des créneaux est déjà celui de l'app »).
-fn day_label(dt: &DateTime<Utc>) -> String {
+/// `pub(super)` : réutilisé par `confirm_page` pour rappeler le jour du
+/// créneau choisi dans le récapitulatif (#7073).
+pub(super) fn day_label(dt: &DateTime<Utc>) -> String {
     let weekday = WEEKDAYS[dt.weekday().num_days_from_monday() as usize];
     format!("{weekday}. {} {}", dt.day(), MONTHS[dt.month0() as usize])
 }
 
-/// Même format que `_hhmm` (`modify_rdv_page.dart`).
-fn hhmm(dt: &DateTime<Utc>) -> String {
+/// Même format que `_hhmm` (`modify_rdv_page.dart`). `pub(super)` : réutilisé
+/// par `confirm_page` (#7073), même raison que [`day_label`].
+pub(super) fn hhmm(dt: &DateTime<Utc>) -> String {
     format!("{:02}:{:02}", dt.hour(), dt.minute())
 }
 

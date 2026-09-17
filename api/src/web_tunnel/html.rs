@@ -130,6 +130,12 @@ a { color: var(--brand-700); }
 .chip { display: inline-block; font-size: .8rem; font-weight: 600; background: var(--brand-50); color: var(--brand-700); border: 1px solid var(--n-200); border-radius: 6px; padding: .25rem .5rem; margin: 0 .25rem .25rem 0; text-decoration: none; }
 .more { display: block; font-size: .8rem; font-weight: 600; margin-top: .25rem; }
 .nosl { background: var(--n-50); border: 1px dashed var(--n-200); border-radius: 8px; padding: .6rem .75rem; margin-top: .75rem; }
+.steps { display: flex; gap: .75rem; margin: 1rem 0; flex-wrap: wrap; font-size: .8rem; color: var(--n-400); }
+.stp.dn, .stp.now { color: var(--n-900); font-weight: 600; }
+.grp { background: #fff; border: 1px solid var(--n-200); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; display: flex; flex-direction: column; gap: .75rem; }
+.grp .fi { display: flex; flex-direction: column; gap: .25rem; }
+.grp .fi input { height: 2.5rem; border: 1px solid var(--n-200); border-radius: 8px; padding: 0 .75rem; font: inherit; }
+.grp button { height: 2.75rem; border: none; border-radius: 10px; background: var(--brand-700); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
 "#;
 
 pub fn page(title: &str, meta: &PageMeta, body: &str) -> Html<String> {
