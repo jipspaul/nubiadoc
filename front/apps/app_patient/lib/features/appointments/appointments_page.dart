@@ -713,11 +713,60 @@ class _SearchViewState extends State<_SearchView> {
     _openProviderSheet(provider);
   }
 
-  /// #5358 : action « Voir sa fiche et ses coordonnées » du bloc « aucun
-  /// créneau en ligne » — mène directement à la fiche praticien, sans passer
-  /// par le sheet de détail (qui n'a rien à proposer en plus ici).
-  void _openProviderProfile(ProviderResult provider) {
-    _selectProvider(provider);
+  /// #5358/#7022 : action « Voir sa fiche et ses coordonnées » du bloc
+  /// « aucun créneau en ligne » — doit donner l'adresse du praticien pour le
+  /// joindre autrement, PAS le sélecteur de créneaux (qui, faute de créneau
+  /// en ligne, n'a par construction rien à proposer : voir #7022). [provider]
+  /// vient de la recherche (`GET /v1/search/providers`), qui ne porte pas
+  /// l'adresse — seul le profil complet (`GET /v1/providers/:id`) l'expose,
+  /// on le résout donc ici avant d'afficher la fiche.
+  Future<void> _openProviderProfile(ProviderResult provider) async {
+    final gi = GetIt.instance;
+    var full = provider;
+    if (gi.isRegistered<GetProviderUseCase>()) {
+      final result = await gi<GetProviderUseCase>().call(provider.id);
+      if (!mounted) return;
+      full = result.fold((_) => provider, (p) => p);
+    }
+    if (!mounted) return;
+    _showProviderContactSheet(full);
+  }
+
+  /// Fiche praticien minimale (#7022) : identité + adresse, seule donnée de
+  /// contact exposée par `GET /v1/providers/:id` à ce jour — pas de
+  /// « Voir les créneaux » ici, il n'y en a pas en ligne pour ce praticien.
+  void _showProviderContactSheet(ProviderResult provider) {
+    NubiaBottomSheet.show(
+      context: context,
+      child: Column(
+        key: const Key('provider_contact_sheet'),
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ProviderCard(
+            key: Key('profile_provider_${provider.id}'),
+            name: provider.displayName,
+            specialty: provider.specialty,
+            initials: _initialsOf(provider.displayName),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.place_outlined),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  provider.address ??
+                      'Coordonnées non disponibles pour ce praticien.',
+                  key: const Key('provider_contact_address'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   /// #5357 : un clic sur une puce créneau du bloc `.slots` de la carte
