@@ -403,6 +403,11 @@ class AccountRepositoryImpl implements AccountRepository {
   Failure _mapError(DioException e) {
     final statusCode = e.response?.statusCode;
     if (statusCode == 401) return const UnauthorizedFailure();
+    if (statusCode == 422) {
+      return const ValidationFailure(
+        message: 'Numéro de téléphone invalide.',
+      );
+    }
     if (e.type == DioExceptionType.connectionError ||
         e.type == DioExceptionType.connectionTimeout) {
       return const NetworkFailure();

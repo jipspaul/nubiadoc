@@ -1,12 +1,22 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
+import 'package:nubia_domain/src/error/failure.dart';
 
 import 'package:nubia_data/src/remote/account/account_api.dart';
 import 'package:nubia_data/src/remote/account/account_dto.dart';
 import 'package:nubia_data/src/repositories/account_repository_impl.dart';
 
 class MockAccountApi extends Mock implements AccountApi {}
+
+DioException _dioError(int status) => DioException(
+      requestOptions: RequestOptions(path: '/v1/account'),
+      response: Response(
+        requestOptions: RequestOptions(path: '/v1/account'),
+        statusCode: status,
+      ),
+    );
 
 const _dto = HealthCoverageDto(
   regime: 'regime_general',
@@ -79,6 +89,25 @@ void main() {
           verify(() => api.updateAccount(captureAny())).captured.single
               as Map<String, dynamic>;
       expect(body.containsKey('birth_date'), isFalse);
+    });
+  });
+
+  group('updateAccount — 422 téléphone (#7035)', () {
+    test(
+        '422 renvoyé par l\'API → ValidationFailure explicite, pas '
+        '"Erreur serveur"', () async {
+      when(() => api.updateAccount(any())).thenThrow(_dioError(422));
+
+      final result = await repo.updateAccount(phone: '0612345678');
+
+      expect(
+        result.fold((f) => f, (_) => null),
+        isA<ValidationFailure>().having(
+          (f) => f.message,
+          'message',
+          'Numéro de téléphone invalide.',
+        ),
+      );
     });
   });
 
