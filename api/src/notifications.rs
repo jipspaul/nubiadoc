@@ -43,8 +43,7 @@ pub struct NotificationItem {
 /// de son `data`, pour les kinds dont le front a déjà une route établie
 /// (cf. `NotificationDeepLinkHandler._resolveRoute`,
 /// front/apps/app_patient/lib/features/notifications). `None` pour les
-/// autres kinds plutôt que d'inventer une route qui n'existe pas encore
-/// (ex. `waiting_list_slot_offered` : pas de page de détail patient, #3863).
+/// autres kinds plutôt que d'inventer une route qui n'existe pas encore.
 ///
 /// `pub(crate)` : réutilisée telle quelle par `fcm::FcmJobDispatcher` (#6321)
 /// pour le `data.deeplink` du payload push — un seul endroit qui sait dériver
@@ -62,7 +61,13 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
         "waiting_room_called"
         | "appointment_confirmed"
         | "appointment_rescheduled"
-        | "appointment_motif_changed" => {
+        | "appointment_motif_changed"
+        // #7231 : jumeau des 3 kinds ci-dessus, oublié lors du même lot —
+        // `appointments::cancel_appointment` émet déjà `appointment_id` en
+        // data, et `/appointments/{id}` (retraduit en `mesRdv?id=` côté
+        // front, cf. `notification_route_resolver.dart`) convient tout autant
+        // pour consulter un rendez-vous annulé que confirmé.
+        | "appointment_cancelled" => {
             let id = data.get("appointment_id")?.as_str()?;
             Some(format!("/appointments/{id}"))
         }
@@ -96,9 +101,24 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
         // data pour les 4 statuts du cycle de vie (accepted/en_route/arrived/
         // done), et `/home-care/{id}` (HomeCareTrackingPage) existe déjà côté
         // front — même schéma que `order_*` ci-dessus.
-        "visit_status_changed" => {
+        // #7231 : `visit_request_expired` (`visit_offer_expiry::expire_stale_visit_requests`)
+        // émet le même `visit_request_id` que `visit_status_changed` sur la
+        // même entité (`GET /v1/account/visit-requests/:id` sert les demandes
+        // expirées comme les actives) — même deep-link.
+        "visit_status_changed" | "visit_request_expired" => {
             let id = data.get("visit_request_id")?.as_str()?;
             Some(format!("/home-care/{id}"))
+        }
+        // #7231 : offre de créneau libéré (`scheduling::offer_waiting_list_slot`) —
+        // pas de page de détail patient pour une entrée de liste d'attente
+        // (#3863, aucune route dédiée côté front), mais `provider_id` (ajouté
+        // au `data` par ce même correctif) permet de renvoyer directement le
+        // patient sur le tunnel de réservation du praticien concerné, comme
+        // les liens de créneau du tunnel SSR (`/appointments?providerId=`,
+        // cf. `AppointmentsPage.deepLinkProviderId`).
+        "waiting_list_slot_offered" => {
+            let id = data.get("provider_id")?.as_str()?;
+            Some(format!("/appointments?providerId={id}"))
         }
         _ => None,
     }
@@ -731,5 +751,45 @@ mod tests {
     fn review_request_without_appointment_id_yields_no_deep_link() {
         let data = serde_json::json!({});
         assert!(derive_deep_link("review_request", &data).is_none());
+    }
+
+    #[test]
+    fn appointment_cancelled_derives_appointment_deep_link() {
+        let appointment_id = uuid::Uuid::new_v4();
+        let data = serde_json::json!({ "appointment_id": appointment_id });
+        assert_eq!(
+            derive_deep_link("appointment_cancelled", &data),
+            Some(format!("/appointments/{appointment_id}"))
+        );
+    }
+
+    #[test]
+    fn visit_request_expired_derives_home_care_deep_link() {
+        let visit_request_id = uuid::Uuid::new_v4();
+        let data = serde_json::json!({ "visit_request_id": visit_request_id });
+        assert_eq!(
+            derive_deep_link("visit_request_expired", &data),
+            Some(format!("/home-care/{visit_request_id}"))
+        );
+    }
+
+    #[test]
+    fn waiting_list_slot_offered_derives_booking_deep_link() {
+        let provider_id = uuid::Uuid::new_v4();
+        let data = serde_json::json!({
+            "waiting_list_entry_id": uuid::Uuid::new_v4(),
+            "proposed_at": "2026-09-18T11:00:00+00:00",
+            "provider_id": provider_id,
+        });
+        assert_eq!(
+            derive_deep_link("waiting_list_slot_offered", &data),
+            Some(format!("/appointments?providerId={provider_id}"))
+        );
+    }
+
+    #[test]
+    fn waiting_list_slot_offered_without_provider_id_yields_no_deep_link() {
+        let data = serde_json::json!({ "waiting_list_entry_id": uuid::Uuid::new_v4() });
+        assert!(derive_deep_link("waiting_list_slot_offered", &data).is_none());
     }
 }

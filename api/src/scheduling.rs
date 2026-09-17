@@ -1065,6 +1065,11 @@ pub async fn offer_waiting_list_slot(
         // Le créneau RÉEL retenu (explicite ou auto-sélectionné, #4536) —
         // pas `body.proposed_at` qui peut être absent.
         "proposed_at": proposed_at.to_rfc3339(),
+        // #7231 : nécessaire à `derive_deep_link` pour construire
+        // `/appointments?providerId=…` — sans page de détail patient pour une
+        // entrée de liste d'attente (#3863), c'est le tunnel de réservation
+        // du praticien concerné qui permet au patient d'agir sur l'offre.
+        "provider_id": provider_id,
     });
     let notified = if let Some(uid) = patient_app_user_id {
         notify::notify_user(
