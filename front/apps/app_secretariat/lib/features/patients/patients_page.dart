@@ -41,6 +41,11 @@ class _PatientsPageState extends State<PatientsPage> {
   /// cet id, sans fermer/rouvrir le panneau.
   String? _selectedPatientId;
 
+  /// Fiche récupérée par id quand la palette ⌘K vise un patient absent de la
+  /// page de liste courante (#7024) — `state.patients` seul ne suffit alors
+  /// plus à alimenter le volet latéral.
+  CabinetPatient? _openPatientFetched;
+
   /// Focus de la liste (raccourcis ↑/↓/⏎/⌘N) et de la recherche (raccourci
   /// `/`) — maquette design-v2, pied de tableau. Même pattern que
   /// stock_page.dart (#5188) et agenda_page.dart (#5082) : sans focus dans
@@ -217,6 +222,24 @@ class _PatientsPageState extends State<PatientsPage> {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) _selectPatient(patientId);
                   });
+                } else {
+                  // Patient absent de la page courante — la liste par défaut
+                  // n'est ni filtrée ni garantie de le contenir (#7024, la
+                  // palette ⌘K vise sa fiche, pas juste la liste). On le
+                  // récupère directement par id, même pattern que
+                  // `_PatientSheetState._load()` plus bas dans ce fichier.
+                  final id = widget.openPatientId!;
+                  GetIt.instance<GetCabinetPatientUseCase>()(id).then((
+                    result,
+                  ) {
+                    if (!mounted) return;
+                    result.fold((_) {}, (patient) {
+                      setState(() {
+                        _openPatientFetched = patient;
+                        _selectedPatientId = patient.id;
+                      });
+                    });
+                  });
                 }
               }
               if (state.patients.isEmpty && _query.isEmpty) {
@@ -231,7 +254,10 @@ class _PatientsPageState extends State<PatientsPage> {
               }
               final filteredPatients = _applyFilters(state.patients);
               final selectedPatient =
-                  _findPatient(state.patients, _selectedPatientId);
+                  _findPatient(state.patients, _selectedPatientId) ??
+                  (_openPatientFetched?.id == _selectedPatientId
+                      ? _openPatientFetched
+                      : null);
               // Le contenu maître (recherche + filtres + tableau) reste un
               // widget à part entière : le volet latéral se contente de
               // l'accompagner dans un `Row` — pas de fusion des deux (design-
