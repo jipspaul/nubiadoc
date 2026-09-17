@@ -26,6 +26,15 @@ class AuthUnauthenticated extends AuthState {
   final String? message;
 }
 
+/// #7034 (port de #6750) : `restore()` n'a pas pu confirmer la session
+/// (réseau/serveur), mais le token stocké n'a pas été invalidé — distinct de
+/// [AuthUnauthenticated] pour que l'écran de démarrage propose « Réessayer »
+/// au lieu de renvoyer vers le login une pharmacie encore authentifiée.
+class AuthRestoreFailed extends AuthState {
+  const AuthRestoreFailed(this.message);
+  final String message;
+}
+
 /// Pharmacy auth cubit. Login commun ([LoginUseCase]) puis sélection du
 /// contexte tenant : `GET /v1/me` → `pharmacy_memberships`, puis
 /// `POST /v1/auth/select-pharmacy-context` qui échange le token de login
@@ -81,7 +90,12 @@ class PharmaAuthCubit extends Cubit<AuthState> {
       if (_tokenKind(token) == 'pharma') {
         final membershipsResult = await _memberships();
         membershipsResult.fold(
-          (failure) => emit(const AuthUnauthenticated()),
+          // Seul un vrai rejet du token (401) prouve que la session n'est
+          // plus valide. Toute autre Failure (réseau, serveur, parsing…) est
+          // une panne transitoire : la session doit survivre (#6750/#7034).
+          (failure) => failure is UnauthorizedFailure
+              ? emit(const AuthUnauthenticated())
+              : emit(AuthRestoreFailed(failure.message)),
           (result) {
             final memberships = result.memberships;
             if (memberships.isEmpty) {
@@ -107,7 +121,7 @@ class PharmaAuthCubit extends Cubit<AuthState> {
       // normale du contexte pharmacie.
       await _enterPharmacyContext(silent: true);
     } catch (_) {
-      emit(const AuthUnauthenticated());
+      emit(AuthRestoreFailed(const NetworkFailure().message));
     }
   }
 
