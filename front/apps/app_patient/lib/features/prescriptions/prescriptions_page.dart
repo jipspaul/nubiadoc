@@ -64,6 +64,10 @@ class PrescriptionsBody extends StatelessWidget {
         }
       },
       child: BlocBuilder<PrescriptionsCubit, PrescriptionsState>(
+        buildWhen: (previous, current) =>
+            current is PrescriptionsLoading ||
+            current is PrescriptionsLoaded ||
+            current is PrescriptionsError,
         builder: (context, state) {
           if (state is PrescriptionsLoading) {
             return const Center(child: CircularProgressIndicator());
