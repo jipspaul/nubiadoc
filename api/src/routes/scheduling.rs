@@ -42,6 +42,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             post(scheduling::no_show_appointment),
         )
         .route(
+            "/v1/cabinet/appointments/:id/cancel",
+            post(scheduling::cancel_cabinet_appointment),
+        )
+        .route(
             "/v1/cabinet/appointments/:id",
             patch(scheduling::patch_cabinet_appointment),
         )

@@ -367,6 +367,10 @@ class _LoadedViewState extends State<_LoadedView> {
                         AgendaAppointmentCheckinRequested(
                             appointmentId: _selectedEntry!.id),
                       ),
+                  onCancel: () => context.read<AgendaBloc>().add(
+                        AgendaAppointmentCancelRequested(
+                            appointmentId: _selectedEntry!.id),
+                      ),
                   onReschedule: (newStartsAt) => context.read<AgendaBloc>().add(
                         AgendaAppointmentRescheduleRequested(
                           appointmentId: _selectedEntry!.id,
@@ -1130,12 +1134,19 @@ StatusPillVariant _statusVariant(AgendaEntry entry) {
 /// Volet latéral détail du RDV sélectionné (maquette design-v2,
 /// `secretariat-agenda.png`, #5079) — remplace la carte qui grossissait :
 /// porte l'identité, le statut et les actions (Confirmer / Marquer arrivé /
-/// Déplacer / Appeler) du RDV pointé dans la grille.
+/// Annuler / Déplacer / Appeler) du RDV pointé dans la grille.
 ///
 /// « Marquer arrivé » est l'action primaire du volet (#6411) : branchée sur
 /// `POST /v1/cabinet/appointments/:id/checkin`, activée uniquement pour un
 /// RDV `confirmed` (même garde que le back, cf. `cabinet_checkin_appointment`
 /// dans `appointments_checkin.rs`).
+///
+/// « Annuler » (#7099) : branchée sur `POST /v1/cabinet/appointments/:id/cancel`,
+/// activée pour un RDV `requested`/`confirmed`/`checked_in` (même périmètre
+/// que `cancel_cabinet_appointment` côté back) — jusqu'ici aucune voie
+/// cabinet n'existait, le seul repli étant de poser un `no_show` à la place
+/// d'une annulation. Confirmation via dialogue (action destructrice,
+/// notifie le patient).
 ///
 /// « Appeler » résout le téléphone du patient via `GetCabinetPatientUseCase`
 /// (#7048, même pattern que `devis_page.dart` — #6590) : `AgendaEntry` ne
@@ -1151,6 +1162,7 @@ class _AgendaDetailPanel extends StatefulWidget {
     required this.onClose,
     required this.onConfirm,
     required this.onCheckin,
+    required this.onCancel,
     required this.onReschedule,
   });
 
@@ -1160,6 +1172,7 @@ class _AgendaDetailPanel extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback onConfirm;
   final VoidCallback onCheckin;
+  final VoidCallback onCancel;
   final void Function(DateTime newStartsAt) onReschedule;
 
   @override
@@ -1246,6 +1259,33 @@ class _AgendaDetailPanelState extends State<_AgendaDetailPanel> {
       builder: (_) => _RescheduleDialog(initialStart: widget.entry.startsAt),
     );
     if (newStartsAt != null) widget.onReschedule(newStartsAt);
+  }
+
+  /// Confirmation avant annulation (#7099) — action destructrice qui notifie
+  /// le patient, même précaution qu'un dialogue de suppression classique.
+  Future<void> _confirmCancel(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Annuler le rendez-vous ?'),
+        content: Text(
+          'Le patient ${widget.entry.patientName ?? ''} sera notifié de '
+          "l'annulation.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Garder le rendez-vous'),
+          ),
+          FilledButton(
+            key: const Key('confirm_cancel_appointment_button'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Annuler le rendez-vous'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) widget.onCancel();
   }
 
   Widget _kv(BuildContext context, String label, String value) {
@@ -1415,6 +1455,27 @@ class _AgendaDetailPanelState extends State<_AgendaDetailPanel> {
                   onPressed: widget.actionInProgress
                       ? null
                       : () => _pickReschedule(context),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: NubiaButton(
+                  key: Key('cancel_${entry.id}'),
+                  label: 'Annuler',
+                  icon: Icons.event_busy,
+                  variant: NubiaButtonVariant.destructive,
+                  // #7099 : même périmètre de statuts sources que
+                  // `cancel_cabinet_appointment` côté back — un RDV déjà
+                  // terminé/annulé/absent n'a plus rien à annuler.
+                  onPressed: (widget.actionInProgress ||
+                          !(entry.isPending ||
+                              entry.isConfirmed ||
+                              entry.isCheckedIn))
+                      ? null
+                      : () => _confirmCancel(context),
                 ),
               ),
             ),

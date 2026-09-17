@@ -1926,6 +1926,213 @@ pub async fn no_show_appointment(
     }))
 }
 
+// ── Cabinet cancel ─────────────────────────────────────────────────────────
+
+/// Corps optionnel de `POST /v1/cabinet/appointments/:id/cancel`.
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct CancelCabinetAppointmentBody {
+    pub reason: Option<String>,
+}
+
+/// Réponse de `POST /v1/cabinet/appointments/:id/cancel`.
+#[derive(Serialize)]
+pub struct CancelCabinetAppointmentResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+}
+
+/// `POST /v1/cabinet/appointments/:id/cancel` — le secrétariat (ou le
+/// praticien) annule un RDV, geste le plus courant du comptoir (#7099).
+/// Jusqu'ici aucune voie cabinet n'existait pour ça : la seule route
+/// d'annulation (`POST /v1/appointments/:id/cancel`) exige un token patient
+/// et rejette tout token pro en 403 avant même le contrôle métier ; le
+/// PATCH générique cabinet (`patch_cabinet_appointment`) n'accepte comme
+/// `status` que `no_show`. Le seul repli disponible pour le cabinet posait
+/// donc un `no_show` (incrémente `no_show_count`, fiche patient) à la place
+/// d'une annulation — deux faits différents.
+///
+/// Token pro requis (secretary+). `cabinet_id` extrait du JWT — jamais du body.
+/// RLS scopée via `app.current_cabinet_id` + secrétariat actif (R10, même
+/// garde que `no_show_appointment`/`patch_cabinet_appointment`) : 404 si le
+/// RDV n'appartient pas au cabinet / secrétariat.
+/// Statut source hors `requested|confirmed|checked_in` → `409 invalid_status`.
+/// Un `checked_in` (patient déjà arrivé) devient `no_show`, pas `cancelled` —
+/// même règle que côté patient (`cancel_appointment`, appointments_actions.rs) :
+/// il a été vu, l'annulation ne décrit pas ce fait.
+/// Libère le créneau associé (best-effort, savepoint — cf. commentaire de
+/// `no_show_appointment`). Notifie le patient (`appointment_cancelled`) pour
+/// une vraie annulation, même résolution app_user_id/tuteur que
+/// `patch_cabinet_appointment`. Auditée (`cancel_appointment`) dans `audit_log`.
+pub async fn cancel_cabinet_appointment(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(appt_id): Path<Uuid>,
+    body: Option<Json<CancelCabinetAppointmentBody>>,
+) -> Result<Json<CancelCabinetAppointmentResponse>, AppError> {
+    let reason = body.and_then(|Json(b)| b.reason);
+    if let Some(reason) = reason.as_deref() {
+        crate::text_validation::reject_nul_byte(reason)?;
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let secretariat_scope = if claims.role == "secretary" {
+        Some(claims.secretariat_id.ok_or(AppError::NotFound)?)
+    } else {
+        None
+    };
+
+    let row = sqlx::query(
+        "SELECT id, status, slot_id, patient_id FROM appointment a \
+         WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
+           AND ($3::uuid IS NULL OR EXISTS ( \
+               SELECT 1 FROM provider pr \
+               JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+               WHERE pr.practitioner_id = a.practitioner_id \
+                 AND ps.secretariat_id = $3 \
+                 AND ps.active = true \
+           ))",
+    )
+    .bind(appt_id)
+    .bind(claims.cabinet_id)
+    .bind(secretariat_scope)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+
+    if status != "requested" && status != "confirmed" && status != "checked_in" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    let new_status = if status == "checked_in" {
+        "no_show"
+    } else {
+        "cancelled"
+    };
+
+    sqlx::query(
+        "UPDATE appointment \
+         SET status = $2, cancelled_at = now(), cancel_reason = $3, updated_at = now() \
+         WHERE id = $1",
+    )
+    .bind(id)
+    .bind(new_status)
+    .bind(reason.as_deref())
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Best-effort : cf. commentaire de `no_show_appointment` (#5698,
+    // symétrique de cancel_appointment #5392/#5393).
+    if let Some(sid) = slot_id {
+        let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+        let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+            .bind(sid)
+            .execute(&mut *savepoint)
+            .await;
+        match release {
+            Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+            Err(e) if is_exclusion_violation(&e) => {
+                savepoint.rollback().await.map_err(|_| AppError::Internal)?
+            }
+            Err(_) => return Err(AppError::Internal),
+        }
+    }
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, $3, 'cancel_appointment', 'appointment', $4)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind(&claims.role)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Notification in-app au patient (#7099, même pattern que
+    // patch_cabinet_appointment ::appointment_rescheduled) — seulement pour
+    // une vraie annulation : un checked_in devenu no_show suit le circuit de
+    // `no_show_appointment`, pas d'« annulation » pour un patient qui vient
+    // de se présenter.
+    if new_status == "cancelled" {
+        let pat_row = sqlx::query(
+            "SELECT app_user_id, patient_account_id FROM patient \
+             WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(patient_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        if let Some(row) = pat_row {
+            let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+            let account_id: Option<Uuid> = row
+                .try_get("patient_account_id")
+                .map_err(|_| AppError::Internal)?;
+            let notify_data = serde_json::json!({ "appointment_id": id });
+            if let Some(uid) = uid {
+                notify::notify_user(
+                    &mut tx,
+                    uid,
+                    "appointment_cancelled",
+                    "Rendez-vous annulé",
+                    notify_data,
+                )
+                .await?;
+            } else if let Some(account_id) = account_id {
+                // Responsable légal (#6423, même résolution que
+                // patch_cabinet_appointment ci-dessous) : si le bénéficiaire
+                // du RDV est un dépendant géré par un tuteur, la notification
+                // doit atteindre le tuteur.
+                let (guardians, _dependents) =
+                    patient_guardianship::aggregate_guardianship(&mut tx, account_id).await?;
+                let notify_target = guardians
+                    .into_iter()
+                    .next()
+                    .map(|g| g.account_id)
+                    .unwrap_or(account_id);
+                notify::notify_patient_account(
+                    &mut tx,
+                    notify_target,
+                    "appointment_cancelled",
+                    "Rendez-vous annulé",
+                    notify_data,
+                )
+                .await?;
+            }
+        }
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        appointment_id = %id,
+        "cabinet appointment cancelled"
+    );
+
+    Ok(Json(CancelCabinetAppointmentResponse {
+        appointment_id: id,
+        status: new_status.to_string(),
+    }))
+}
+
 // ── Cabinet PATCH appointment ─────────────────────────────────────────────────
 
 /// Corps de la requête `PATCH /v1/cabinet/appointments/:id`.

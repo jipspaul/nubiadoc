@@ -40,6 +40,14 @@ class AgendaAppointmentCheckinRequested extends AgendaEvent {
   List<Object?> get props => [appointmentId];
 }
 
+class AgendaAppointmentCancelRequested extends AgendaEvent {
+  final String appointmentId;
+  const AgendaAppointmentCancelRequested({required this.appointmentId});
+
+  @override
+  List<Object?> get props => [appointmentId];
+}
+
 class AgendaAppointmentRescheduleRequested extends AgendaEvent {
   final String appointmentId;
   final DateTime newStartsAt;

@@ -12,6 +12,7 @@ abstract class CabinetAppointmentsRepository {
       CabinetAppointment appointment);
   Future<Either<Failure, CabinetAppointment>> confirm(String id);
   Future<Either<Failure, CabinetAppointment>> checkin(String id);
+  Future<Either<Failure, CabinetAppointment>> cancel(String id);
   Future<Either<Failure, CabinetAppointment>> reschedule(
       String id, DateTime newStartsAt);
 
