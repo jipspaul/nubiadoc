@@ -662,7 +662,10 @@ pub async fn get_waiting_room(
             vec![]
         }
     } else if claims.role == "practitioner" {
-        // Un praticien ne voit que sa propre file d'attente, pas celle du cabinet entier.
+        // Un praticien voit toute la file d'attente de son cabinet (RDV de ses
+        // confrères inclus), pas seulement ses propres RDV — comme le secrétariat,
+        // aucune donnée clinique n'est exposée ici (motif admin uniquement,
+        // cf. WaitingRoomEntry::motif). #7097.
         sqlx::query(
             "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, a.patient_id, \
                     a.practitioner_id, prov.display_name AS practitioner_name, \
@@ -678,11 +681,9 @@ pub async fn get_waiting_room(
                AND a.starts_at >= now() - interval '1 day' \
                AND a.starts_at < now() + interval '1 day' \
                AND pr.cabinet_id = $1 \
-               AND pr.user_id = $2 \
              ORDER BY a.checkin_at ASC NULLS LAST, a.starts_at ASC",
         )
         .bind(claims.cabinet_id)
-        .bind(claims.sub)
         .fetch_all(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?
