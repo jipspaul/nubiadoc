@@ -260,7 +260,10 @@ void main() {
       await tester.pumpApp(Scaffold(body: OrderTimeline(order: readyOrder)));
 
       expect(find.textContaining('09:12'), findsOneWidget);
-      expect(find.text('09:31 · 3 médicaments'), findsOneWidget);
+      // `updatedAt` (09:31) reflète ici la dernière transition (→ ready), pas
+      // le passage à `preparing` : on tait l'heure plutôt que d'afficher un
+      // horodatage postérieur à l'étape suivante (#7084).
+      expect(find.text('3 médicaments'), findsOneWidget);
       expect(find.text('10:04 · vous avez été notifiée'), findsOneWidget);
       expect(find.text('En attente de votre passage'), findsOneWidget);
     });
