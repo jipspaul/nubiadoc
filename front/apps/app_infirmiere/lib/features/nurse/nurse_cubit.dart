@@ -182,7 +182,11 @@ class NurseCubit extends Cubit<NurseState> {
     }
   }
 
-  Future<void> accept(NurseOffer offer) async {
+  /// Accepte l'offre. Renvoie `true` en cas de succès — l'appelant s'en sert
+  /// pour donner un retour explicite (snackbar, bascule d'onglet) : sans ça,
+  /// l'offre acceptée disparaît juste de la liste et l'écran « Offres »
+  /// retombe sur son état vide, indiscernable d'un échec silencieux (#7026).
+  Future<bool> accept(NurseOffer offer) async {
     emit(state.copyWith(loading: true, clearError: true));
     try {
       final res = await _dio
@@ -192,8 +196,10 @@ class NurseCubit extends Cubit<NurseState> {
           state.offers.where((o) => o.id != offer.id).toList();
       emit(state.copyWith(
           loading: false, activeVisit: visit, offers: remaining));
+      return true;
     } on DioException catch (e) {
       emit(state.copyWith(loading: false, error: _msg(e)));
+      return false;
     }
   }
 
