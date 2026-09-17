@@ -230,14 +230,19 @@ class _ProfileContent extends StatelessWidget {
         const _SectionLabel(label: 'Sécurité'),
         const SizedBox(height: 12),
         NubiaCard(
+          // #7070 : aucun stockage persistant (ni SharedPreferences côté
+          // app, ni endpoint compte côté API) ne sauvegarde ce réglage —
+          // InMemoryUserSettingsRepository le réinitialise à chaque
+          // rechargement. Grisé avec la raison plutôt que laissé actif
+          // pour un état qui ne survit pas, comme les CTA « à venir » de
+          // #6702.
           child: _ToggleRow(
             toggleKey: const Key('biometric_toggle'),
             icon: Icons.fingerprint,
             title: 'Authentification biométrique',
             value: biometricEnabled,
-            onChanged: (v) => context
-                .read<ProfileBloc>()
-                .add(BiometricToggleRequested(enabled: v)),
+            onChanged: null,
+            disabledReason: 'Indisponible sur ce navigateur.',
           ),
         ),
         const SizedBox(height: 24),
@@ -584,18 +589,28 @@ class _ToggleRow extends StatelessWidget {
     required this.title,
     required this.value,
     required this.onChanged,
+    this.disabledReason,
   });
 
   final Key toggleKey;
   final IconData icon;
   final String title;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
+
+  /// Non-null quand le réglage n'est pas encore fonctionnel (#7070) : rend
+  /// le switch aria-disabled plutôt que de le laisser basculer sans effet.
+  final String? disabledReason;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final toggle = Semantics(
+      container: true,
+      label: title,
+      child: NubiaToggle(key: toggleKey, value: value, onChanged: onChanged),
+    );
     return Row(
       children: [
         Icon(icon, size: 20, color: cs.onSurfaceVariant),
@@ -603,12 +618,9 @@ class _ToggleRow extends StatelessWidget {
         Expanded(
           child: Text(title, style: textTheme.bodyLarge),
         ),
-        Semantics(
-          container: true,
-          label: title,
-          child:
-              NubiaToggle(key: toggleKey, value: value, onChanged: onChanged),
-        ),
+        disabledReason != null
+            ? Tooltip(message: disabledReason!, child: toggle)
+            : toggle,
       ],
     );
   }
