@@ -200,24 +200,18 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     return _index.clamp(0, destinations.length - 1);
   }
 
-  /// [_collapsedGroups], sauf le groupe de [current] (#5139) — la nav ne
-  /// doit jamais masquer la destination actuellement affichée, même si son
-  /// groupe est replié par défaut ou a été replié manuellement.
-  Set<String> _effectiveCollapsedGroups(ProNavDestination current) {
-    final group = current.group;
-    if (group == null || !_collapsedGroups.contains(group)) {
-      return _collapsedGroups;
-    }
-    return {..._collapsedGroups}..remove(group);
-  }
-
   /// Aplatit [destinations] en lignes de rail/drawer (#5139) : une ligne
   /// d'en-tête cliquable par groupe — toujours visible, même repliée —
   /// suivie de ses destinations, omises tant que le groupe appartient à
-  /// [collapsedGroups].
+  /// [collapsedGroups]. Exception (#5139) : la destination [current] reste
+  /// visible même si son groupe est replié, pour ne jamais masquer l'écran
+  /// affiché — mais l'en-tête reflète l'état réel de [collapsedGroups]
+  /// (#7029), sinon un clic sur l'en-tête du groupe courant ne produit
+  /// aucun effet visible tant qu'on reste dans ce groupe.
   List<_NavRow> _buildRows(
     List<ProNavDestination> destinations,
     Set<String> collapsedGroups,
+    ProNavDestination current,
   ) {
     final rows = <_NavRow>[];
     String? lastGroup;
@@ -228,7 +222,8 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
           rows.add(_NavRow.header(d.group!, collapsedGroups.contains(d.group)));
         }
       }
-      if (d.group == null || !collapsedGroups.contains(d.group)) {
+      final collapsed = d.group != null && collapsedGroups.contains(d.group);
+      if (!collapsed || d == current) {
         rows.add(_NavRow.destination(d));
       }
     }
@@ -262,7 +257,7 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     final destinations = _destinations;
     final index = _resolveIndex(destinations);
     final current = destinations[index];
-    final rows = _buildRows(destinations, _effectiveCollapsedGroups(current));
+    final rows = _buildRows(destinations, _collapsedGroups, current);
     final rowIndex = rows.indexWhere((r) => r.destination == current);
 
     final shell = LayoutBuilder(
