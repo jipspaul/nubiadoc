@@ -100,7 +100,7 @@ pub async fn create_manual_payment(
         .get("idempotency-key")
         .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
-        .ok_or(AppError::ValidationError)?
+        .ok_or(AppError::MissingIdempotencyKey)?
         .to_owned();
 
     if !MANUAL_PAYMENT_METHODS.contains(&body.method.as_str()) {
