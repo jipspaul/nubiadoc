@@ -1088,7 +1088,7 @@ fn winansi_byte(c: char) -> Option<u8> {
 /// WinAnsiEncoding (mono-octet), cohérent avec `/Encoding /WinAnsiEncoding`
 /// déclaré sur la police — sans quoi tout caractère accentué UTF-8 est rendu
 /// en mojibake par un lecteur PDF (police simple = encodage mono-octet).
-fn escape_winansi(s: &str) -> Vec<u8> {
+pub(crate) fn escape_winansi(s: &str) -> Vec<u8> {
     let mut out = Vec::with_capacity(s.len());
     for c in s.chars() {
         match c {
