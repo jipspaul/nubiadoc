@@ -453,5 +453,54 @@ SELECT throws_ok(
   'P0001', NULL,
   '⭐ quote signée immuable : soft-delete bloqué (P0001)');
 
+-- ===========================================================================
+-- 9. Backfill document_id sur devis déjà signé (#7068, migration 0265)
+-- ===========================================================================
+-- Exception unique à l'immutabilité : poser `document_id` (NULL -> valeur)
+-- sans toucher aucune autre colonne — cf. billing::get_quote côté API
+-- (backfill paresseux des devis signés avant #7046).
+INSERT INTO document (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256)
+VALUES ('f0000000-0000-0000-0000-0000000000f1',
+        'f0000000-0000-0000-0000-000000000001',
+        'f0000000-0000-0000-0000-0000000000d1',
+        'devis', 'devis/backfill-test-1.pdf', 'devis-backfill-test-1.pdf', 'application/pdf',
+        repeat('a', 64));
+
+SELECT lives_ok(
+  $$ UPDATE quote SET document_id = 'f0000000-0000-0000-0000-0000000000f1'
+     WHERE id = 'f0000000-0000-0000-0000-000000000011' $$,
+  '⭐ quote signée : backfill document_id (NULL -> valeur) autorisé (0265)');
+
+-- Un second backfill (document_id déjà posé) reste bloqué : l'exception ne
+-- joue qu'une fois, tant que OLD.document_id est NULL.
+INSERT INTO document (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256)
+VALUES ('f0000000-0000-0000-0000-0000000000f2',
+        'f0000000-0000-0000-0000-000000000001',
+        'f0000000-0000-0000-0000-0000000000d1',
+        'devis', 'devis/backfill-test-2.pdf', 'devis-backfill-test-2.pdf', 'application/pdf',
+        repeat('b', 64));
+
+SELECT throws_ok(
+  $$ UPDATE quote SET document_id = 'f0000000-0000-0000-0000-0000000000f2'
+     WHERE id = 'f0000000-0000-0000-0000-000000000011' $$,
+  'P0001', NULL,
+  '⭐ quote signée immuable : re-backfill document_id déjà posé bloqué (P0001)');
+
+-- Poser document_id EN MÊME TEMPS qu'une autre colonne reste bloqué : pas une
+-- porte dérobée pour modifier un devis signé (nouveau devis, document_id
+-- encore NULL, pour isoler ce cas du précédent).
+INSERT INTO quote (id, cabinet_id, patient_id, status, signed_at) VALUES
+  ('f0000000-0000-0000-0000-000000000013',
+   'f0000000-0000-0000-0000-000000000001',
+   'f0000000-0000-0000-0000-0000000000d1',
+   'signed', now());
+
+SELECT throws_ok(
+  $$ UPDATE quote SET document_id = 'f0000000-0000-0000-0000-0000000000f2',
+                       total_amount = 1.00
+     WHERE id = 'f0000000-0000-0000-0000-000000000013' $$,
+  'P0001', NULL,
+  '⭐ quote signée immuable : backfill document_id + autre colonne modifiée bloqué (P0001)');
+
 SELECT * FROM finish();
 ROLLBACK;
