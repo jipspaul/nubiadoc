@@ -47,7 +47,15 @@ class ConsultationCliniqueNoteSaveRequested extends ConsultationCliniqueEvent {
 }
 
 class ConsultationHistoriqueRequested extends ConsultationCliniqueEvent {
-  const ConsultationHistoriqueRequested();
+  /// Statut serveur à filtrer (`in_progress`/`completed`/`cancelled`), ou
+  /// `null` pour la page par défaut (non filtrée) — #7033 : le filtre de
+  /// l'historique doit interroger le serveur plutôt que trier la seule page
+  /// déjà chargée en mémoire.
+  final String? status;
+  const ConsultationHistoriqueRequested({this.status});
+
+  @override
+  List<Object?> get props => [status];
 }
 
 /// Consomme l'erreur d'action transitoire après affichage (snackbar) — #3403.

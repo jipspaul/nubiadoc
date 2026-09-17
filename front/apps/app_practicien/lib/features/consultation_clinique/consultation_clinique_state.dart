@@ -90,8 +90,18 @@ class ConsultationCliniqueCompleted extends ConsultationCliniqueState {
 
 class ConsultationHistoriqueLoaded extends ConsultationCliniqueState {
   final List<ClinicalSession> sessions;
-  const ConsultationHistoriqueLoaded({required this.sessions});
+
+  /// Statut demandé au serveur pour produire [sessions] (#7033) — permet à
+  /// `HistoriqueView` de resynchroniser le segment sélectionné après un
+  /// rechargement (l'instance de la vue est recréée à chaque changement
+  /// d'état du bloc).
+  final String? statusFilter;
+
+  const ConsultationHistoriqueLoaded({
+    required this.sessions,
+    this.statusFilter,
+  });
 
   @override
-  List<Object?> get props => [sessions];
+  List<Object?> get props => [sessions, statusFilter];
 }

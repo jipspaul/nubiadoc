@@ -134,7 +134,10 @@ class _ConsultationCliniqueBodyState extends State<ConsultationCliniqueBody> {
           );
         }
         if (state is ConsultationHistoriqueLoaded) {
-          return HistoriqueView(sessions: state.sessions);
+          return HistoriqueView(
+            sessions: state.sessions,
+            selectedStatus: state.statusFilter,
+          );
         }
         return const SizedBox.shrink();
       },

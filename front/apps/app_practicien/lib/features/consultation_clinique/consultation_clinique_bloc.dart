@@ -170,11 +170,13 @@ class ConsultationCliniqueBloc
   ) async {
     emit(const ConsultationCliniqueLoading());
     try {
-      final result = await _listSessions();
+      final result = await _listSessions(status: event.status);
       result.fold(
         (failure) => safeEmit(ConsultationCliniqueError(failure.message)),
-        (sessions) =>
-            safeEmit(ConsultationHistoriqueLoaded(sessions: sessions)),
+        (sessions) => safeEmit(ConsultationHistoriqueLoaded(
+          sessions: sessions,
+          statusFilter: event.status,
+        )),
       );
     } catch (_) {
       safeEmit(const ConsultationCliniqueError(
