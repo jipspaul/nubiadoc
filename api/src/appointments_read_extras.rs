@@ -191,6 +191,10 @@ pub struct QueueResponse {
 /// Même si `status` est `checked_in`/`in_progress`, un RDV dont `starts_at` sort de la fenêtre
 /// glissante renvoie aussi `"not_checked_in"` (#3869) : cette fenêtre est la seule référence
 /// pertinente, cohérente avec la waiting-room cabinet vue par le personnel (#5505).
+/// Un RDV déjà appelé (`status="in_progress"`) n'a plus de `position` (#7020) : le patient est
+/// en train d'être vu, il n'y a plus de rang à afficher. Un RDV `done` renvoie `status="done"`,
+/// distinct de `"not_checked_in"` (#7020) : une consultation terminée n'est pas un RDV jamais
+/// enregistré en salle d'attente.
 pub async fn get_appointment_queue(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -300,8 +304,11 @@ pub async fn get_appointment_queue(
     // Mapping statut DB → statut file spec §7 :
     //   in_progress → "in_progress"   (patient appelé, en consultation)
     //   checked_in  → "waiting"       (en salle d'attente)
+    //   done        → "done"          (consultation terminée — #7020, distinct de
+    //                                   "not_checked_in" : un RDV honoré n'est pas
+    //                                   un RDV jamais enregistré)
     //   sinon       → "not_checked_in" (pas encore en salle d'attente : confirmed/requested/
-    //                                   cancelled/no_show/completed, etc.)
+    //                                   cancelled/no_show, etc.)
     // Garde fenêtre glissante (#3869, alignée #4869/#5505) : un RDV checked_in/
     // in_progress dont `starts_at` sort de `now() ± 1 jour` n'est plus dans la
     // file — même borne que le COUNT de position ci-dessus et que la waiting-room
@@ -311,14 +318,16 @@ pub async fn get_appointment_queue(
     let queue_status = match status.as_str() {
         "in_progress" if in_queue_window => "in_progress",
         "checked_in" if in_queue_window => "waiting",
+        "done" => "done",
         _ => "not_checked_in",
     };
 
-    // Un RDV non checké n'a pas sa place dans la file : pas de position.
-    let position_out = if queue_status == "not_checked_in" {
-        None
-    } else {
+    // Seul "waiting" porte une position : un patient déjà appelé (#7020, "in_progress")
+    // n'a plus sa place à défendre dans la file, il est en train d'être vu.
+    let position_out = if queue_status == "waiting" {
         Some(position_1)
+    } else {
+        None
     };
 
     Ok(Json(QueueResponse {
