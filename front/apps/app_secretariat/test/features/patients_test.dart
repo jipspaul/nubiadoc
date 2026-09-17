@@ -508,6 +508,66 @@ void main() {
     });
 
     testWidgets(
+        'openPatientId absent de la page courante ouvre quand même sa '
+        'fiche via GetCabinetPatientUseCase (#7024)', (tester) async {
+      // Répro #7024 : la palette ⌘K vise un patient absent de la première
+      // page (non filtrée) de la liste — l'ancien code ne cherchait que
+      // dans `state.patients` et abandonnait silencieusement.
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final otherPatient = CabinetPatient(
+        id: 'p-liste',
+        cabinetId: 'c1',
+        firstName: 'Autre',
+        lastName: 'Patient',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      final targetPatient = CabinetPatient(
+        id: 'p-cible',
+        cabinetId: 'c1',
+        firstName: 'Marc',
+        lastName: 'Dubois',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      when(() => bloc.state).thenReturn(PatientsLoaded([otherPatient]));
+
+      final getPatient = _MockGetCabinetPatient();
+      when(() => getPatient(targetPatient.id))
+          .thenAnswer((_) async => Right(targetPatient));
+      GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
+        () => getPatient,
+      );
+
+      final listTags = _MockListPatientTags();
+      when(() => listTags(any())).thenAnswer((_) async => const Right([]));
+      GetIt.instance.registerFactory<ListPatientTagsUseCase>(() => listTags);
+
+      final listDocuments = _MockListPatientDocuments();
+      when(() => listDocuments(any())).thenAnswer((_) async => const Right([]));
+      GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
+        () => listDocuments,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<PatientsBloc>.value(
+            value: bloc,
+            child: PatientsPage(openPatientId: targetPatient.id),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(Key('patient_sheet_${targetPatient.id}')),
+          findsOneWidget);
+      expect(find.text('Marc Dubois'), findsOneWidget);
+    });
+
+    testWidgets(
         'fiche patient — bandeau de cloisonnement précisant le cas « AVK »',
         (tester) async {
       // Volet latéral (#5116) : la table 5 colonnes + le volet 396px ne
