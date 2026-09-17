@@ -270,9 +270,10 @@ pub struct QuoteDetail {
     /// Voir `QuoteItem.practitioner_name` (#6563).
     pub practitioner_name: Option<String>,
     /// PDF du devis signé dans le coffre-fort (`document.category='devis'`),
-    /// posé par `sign_quote` à la transition `sent -> signed`. `null` avant
-    /// signature — condition du CTA « Télécharger le devis signé » côté
-    /// front (#7046).
+    /// posé par `sign_quote` à la transition `sent -> signed`, ou backfillé
+    /// paresseusement par `get_quote` pour les devis signés avant #7046
+    /// (#7068). `null` avant signature — condition du CTA « Télécharger le
+    /// devis signé » côté front.
     pub document_id: Option<Uuid>,
 }
 
@@ -281,8 +282,13 @@ pub struct QuoteDetail {
 /// Token `kind:"patient"` requis ; token pro → `403`.
 /// RLS via `app.patient_account_id` (policy `quote_patient_read`, migration 0029).
 /// Retourne `404` si le devis n'existe pas ou n'appartient pas au patient.
+/// Backfill paresseux (#7068) : si le devis est `signed` sans `document_id`
+/// (signé avant #7046), le PDF est généré ici et posé sur le devis avant
+/// réponse — `enforce_quote_immutable` (migration 0265) autorise cette seule
+/// mutation d'un devis déjà signé.
 pub async fn get_quote(
     State(state): State<AppState>,
+    Extension(object_storage): Extension<std::sync::Arc<dyn crate::ObjectStorage>>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<QuoteDetail>, AppError> {
@@ -296,7 +302,7 @@ pub async fn get_quote(
         .map_err(|_| AppError::Internal)?;
 
     let quote_row = sqlx::query(
-        "SELECT q.id, q.cabinet_id, q.status, q.version, \
+        "SELECT q.id, q.cabinet_id, q.patient_id, q.status, q.version, \
                 (q.total_amount * 100)::bigint AS amount_cents, \
                 q.currency, q.signed_at, q.created_at, q.updated_at, q.deposit_pct::double precision AS deposit_pct, \
                 q.document_id, \
@@ -312,6 +318,9 @@ pub async fn get_quote(
 
     let cabinet_id: Uuid = quote_row
         .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = quote_row
+        .try_get("patient_id")
         .map_err(|_| AppError::Internal)?;
 
     // Scope cabinet pour lire les lignes du devis (tenant_isolation sur quote_item).
@@ -341,8 +350,6 @@ pub async fn get_quote(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    tx.commit().await.map_err(|_| AppError::Internal)?;
-
     let status: String = quote_row
         .try_get("status")
         .map_err(|_| AppError::Internal)?;
@@ -370,9 +377,46 @@ pub async fn get_quote(
     let practitioner_name: Option<String> = quote_row
         .try_get("practitioner_name")
         .map_err(|_| AppError::Internal)?;
-    let document_id: Option<Uuid> = quote_row
+    let mut document_id: Option<Uuid> = quote_row
         .try_get("document_id")
         .map_err(|_| AppError::Internal)?;
+
+    // Backfill paresseux (#7068) : les devis signés avant #7046 n'ont jamais
+    // eu de PDF généré (`sign_quote` seul posait `document_id`, uniquement à
+    // la transition `sent -> signed`). On le génère ici, à la première
+    // lecture, plutôt que par migration — `enforce_quote_immutable`
+    // (migration 0265) autorise explicitement cette unique mutation d'un
+    // devis déjà signé.
+    if status == "signed" && document_id.is_none() {
+        let generated_id = generate_quote_document(
+            &mut tx,
+            &object_storage,
+            id,
+            cabinet_id,
+            patient_id,
+            practitioner_name.as_deref().unwrap_or("Praticien"),
+            created_at,
+            amount_cents,
+            &currency,
+            claims.sub,
+        )
+        .await?;
+
+        sqlx::query(
+            "UPDATE quote SET document_id = $2, updated_at = now() \
+             WHERE id = $1 AND cabinet_id = $3",
+        )
+        .bind(id)
+        .bind(generated_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        document_id = Some(generated_id);
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let mut items = Vec::with_capacity(item_rows.len());
     let mut patient_share_total: i64 = 0;
@@ -541,39 +585,6 @@ pub async fn sign_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let item_rows = sqlx::query(
-        "SELECT label, (qty * unit_amount * 100)::bigint AS total_cents \
-         FROM quote_item WHERE quote_id = $1 ORDER BY id",
-    )
-    .bind(id)
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-    let items: Vec<(String, i64)> = item_rows
-        .iter()
-        .map(|r| {
-            Ok::<_, AppError>((
-                r.try_get("label").map_err(|_| AppError::Internal)?,
-                r.try_get("total_cents").map_err(|_| AppError::Internal)?,
-            ))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let patient_row = sqlx::query("SELECT first_name, last_name FROM patient WHERE id = $1")
-        .bind(patient_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-    let patient_name = format!(
-        "{} {}",
-        patient_row
-            .try_get::<String, _>("first_name")
-            .map_err(|_| AppError::Internal)?,
-        patient_row
-            .try_get::<String, _>("last_name")
-            .map_err(|_| AppError::Internal)?
-    );
-
     let practitioner_row =
         sqlx::query("SELECT COALESCE(practitioner_display_name($1), 'Praticien') AS display_name")
             .bind(practitioner_id)
@@ -584,46 +595,19 @@ pub async fn sign_quote(
         .try_get("display_name")
         .map_err(|_| AppError::Internal)?;
 
-    // Génère le PDF du devis signé puis l'uploade dans l'Object Storage —
-    // même pattern que `prescriptions::sign_prescription` (#4626) :
-    // `storage_key` doit référencer un objet effectivement écrit.
-    let pdf_bytes = render_quote_pdf(
+    let document_id = generate_quote_document(
+        &mut tx,
+        &object_storage,
         id,
-        &patient_name,
+        cabinet_id,
+        patient_id,
         &practitioner_name,
         created_at,
         amount_cents,
         &currency,
-        &items,
-    );
-    let size_bytes = pdf_bytes.len() as i64;
-    let storage_key = format!("devis/{}.pdf", id);
-    let filename = format!("devis-{}.pdf", id);
-    object_storage
-        .upload(&storage_key, "application/pdf", pdf_bytes.clone())
-        .await
-        .map_err(|_| AppError::Internal)?;
-
-    let doc_row = sqlx::query(
-        "INSERT INTO document \
-         (cabinet_id, patient_id, category, storage_key, filename, mime_type, \
-          sha256, scan_status, uploaded_by, size_bytes) \
-         VALUES ($1, $2, 'devis', $3, $4, 'application/pdf', \
-                 encode(digest($5, 'sha256'), 'hex'), 'clean', $6, $7) \
-         RETURNING id",
+        claims.sub,
     )
-    .bind(cabinet_id)
-    .bind(patient_id)
-    .bind(&storage_key)
-    .bind(&filename)
-    .bind(&pdf_bytes)
-    .bind(claims.sub)
-    .bind(size_bytes)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    let document_id: Uuid = doc_row.try_get("id").map_err(|_| AppError::Internal)?;
+    .await?;
 
     // Transition stub Yousign : sent → signed.
     let update_row = sqlx::query(
@@ -673,6 +657,100 @@ pub async fn sign_quote(
         signed: true,
         signed_at: signed_at.to_rfc3339(),
     }))
+}
+
+/// Génère le PDF d'un devis signé, l'uploade dans l'Object Storage et insère
+/// la ligne `document` correspondante — factorisé entre `sign_quote`
+/// (transition `sent -> signed`) et le backfill paresseux de `get_quote`
+/// (#7068 : reprise des devis signés avant #7046, jamais passés par ce
+/// chemin). Ne touche pas `quote.document_id`, laissé à la charge de
+/// l'appelant (contrainte différente selon le cas : `UPDATE` combiné à la
+/// transition de statut pour l'un, `UPDATE` isolé pour l'autre).
+#[allow(clippy::too_many_arguments)]
+async fn generate_quote_document(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    object_storage: &std::sync::Arc<dyn crate::ObjectStorage>,
+    quote_id: Uuid,
+    cabinet_id: Uuid,
+    patient_id: Uuid,
+    practitioner_name: &str,
+    created_at: chrono::DateTime<chrono::Utc>,
+    amount_cents: i64,
+    currency: &str,
+    uploaded_by: Uuid,
+) -> Result<Uuid, AppError> {
+    let patient_row = sqlx::query("SELECT first_name, last_name FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let patient_name = format!(
+        "{} {}",
+        patient_row
+            .try_get::<String, _>("first_name")
+            .map_err(|_| AppError::Internal)?,
+        patient_row
+            .try_get::<String, _>("last_name")
+            .map_err(|_| AppError::Internal)?
+    );
+
+    let item_rows = sqlx::query(
+        "SELECT label, (qty * unit_amount * 100)::bigint AS total_cents \
+         FROM quote_item WHERE quote_id = $1 ORDER BY id",
+    )
+    .bind(quote_id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let items: Vec<(String, i64)> = item_rows
+        .iter()
+        .map(|r| {
+            Ok::<_, AppError>((
+                r.try_get("label").map_err(|_| AppError::Internal)?,
+                r.try_get("total_cents").map_err(|_| AppError::Internal)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Même pattern que `prescriptions::sign_prescription` (#4626) : `storage_key`
+    // doit référencer un objet effectivement écrit.
+    let pdf_bytes = render_quote_pdf(
+        quote_id,
+        &patient_name,
+        practitioner_name,
+        created_at,
+        amount_cents,
+        currency,
+        &items,
+    );
+    let size_bytes = pdf_bytes.len() as i64;
+    let storage_key = format!("devis/{}.pdf", quote_id);
+    let filename = format!("devis-{}.pdf", quote_id);
+    object_storage
+        .upload(&storage_key, "application/pdf", pdf_bytes.clone())
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let doc_row = sqlx::query(
+        "INSERT INTO document \
+         (cabinet_id, patient_id, category, storage_key, filename, mime_type, \
+          sha256, scan_status, uploaded_by, size_bytes) \
+         VALUES ($1, $2, 'devis', $3, $4, 'application/pdf', \
+                 encode(digest($5, 'sha256'), 'hex'), 'clean', $6, $7) \
+         RETURNING id",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(&storage_key)
+    .bind(&filename)
+    .bind(&pdf_bytes)
+    .bind(uploaded_by)
+    .bind(size_bytes)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    doc_row.try_get("id").map_err(|_| AppError::Internal)
 }
 
 /// PDF minimal du devis signé (structure `%PDF-1.4` + objets + stream de
