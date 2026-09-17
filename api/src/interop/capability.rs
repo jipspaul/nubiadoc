@@ -54,7 +54,7 @@ pub async fn capability_statement() -> Json<Value> {
                             {"code": "read"},
                             {"code": "search-type"},
                             {"code": "create"},
-                            {"code": "update"}
+                            {"code": "patch"}
                         ]
                     },
                     { "type": "Slot", "interaction": [{ "code": "read" }, { "code": "search-type" }] },
