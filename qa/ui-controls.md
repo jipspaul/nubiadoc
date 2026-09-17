@@ -1785,9 +1785,11 @@ une pastille de 5 px, toutes deux hors arbre. → **#7043** (P2).
 | praticien | `/devis` (1280×800) | 27 | 23 | 22 | 1* | 0 | 2026-09-17T02:00:00Z |
 | praticien | `/lab-work-orders` (1280×800) | 24 | 17 | 16 | 1* | 0 | 2026-09-17T02:02:00Z |
 | praticien | `/stock-inventory` (1280×800) | 42 | 24 | 23 | 1* | 0 | 2026-09-17T02:12:00Z |
-| **TOTAL** | **18 écrans** | **381** | **270** | **248** | **21 bruts → 0 confirmés** | **1** | — |
+| patient | `/mes-rdv` (**1280×800**, 1er audit à ce viewport) | 11 | 6 | 5 | 1* | 0 | 2026-09-17T02:22:00Z |
+| patient | `/prescriptions` (**1280×800**, 1er audit à ce viewport) | 16 | 2 | 2 | 0 | 0 | 2026-09-17T02:25:00Z |
+| **TOTAL** | **20 écrans** | **408** | **278** | **255** | **22 bruts → 0 confirmés** | **1** | — |
 
-\* **Les 21 verdicts « MORT » ont TOUS été rejoués et sont TOUS des faux positifs** — le taux de
+\* **Les 22 verdicts « MORT » ont TOUS été rejoués et sont TOUS des faux positifs** — le taux de
 faux positifs du détecteur reste de 100 %, comme aux rondes précédentes. Familles identifiées
 cette fois, à connaître pour ne plus les re-filer :
 1. **Entrée de navigation déjà active** (`Commandes` sur `/`, `Devis` sur `/devis`, `Stock` sur
@@ -1870,3 +1872,18 @@ signé du 16/09 porte maintenant `document_id: 8da153c2-…` — la reprise a to
 le formulaire et le récapitulatif du créneau sont là — mais son `POST` n'est pas routé → **#7080**.
 **#7079** est mergé sans être encore déployé à l'heure du test (les payloads invalides passaient
 toujours en 201).
+
+##### Limite d'outillage constatée (à corriger au harnais, pas au produit)
+Sur `patient /prescriptions` (1280×800), 13 des 15 contrôles activables sont restés `MISSING after
+reset` : ouvrir une ordonnance change l'écran, et la remise à zéro par `page.goto` ne reconstruit
+pas l'arbre Semantics avant l'inventaire suivant. **Ce n'est pas un défaut produit** — les deux
+contrôles réellement activés répondent (`Retour` navigue, la 1re carte ouvre le détail). Le harnais
+doit attendre que le nombre de contrôles soit revenu à sa valeur de départ après un `reset()`.
+
+##### Précision apportée à #7067 pendant la ronde
+Mesure refaite sur les trois états : `/consultation` (liste) n'a **ni** bouton ⌘K **ni** raccourci ;
+`/consultation?id=…` (fauteuil) **a** un bouton, mais c'est la palette d'**actes** (infobulle :
+« Recherche d'actes pour l'instant — patient et ordonnance à venir ») et **`Meta+K` ne l'ouvre pas**
+alors que son propre libellé affiche « ⌘K » ; `/patients` sert de contrôle positif (palette ouverte,
+`[role=dialog]` vrai). « Préférences de notifications » est absent des **deux** états de consultation.
+Commentaire de précision posté sur l'issue.
