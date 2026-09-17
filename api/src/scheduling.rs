@@ -318,9 +318,8 @@ pub async fn get_cabinet_agenda(
             let patient_name: Option<String> = row
                 .try_get("patient_name")
                 .map_err(|_| AppError::Internal)?;
-            let patient_id: Option<Uuid> = row
-                .try_get("patient_id")
-                .map_err(|_| AppError::Internal)?;
+            let patient_id: Option<Uuid> =
+                row.try_get("patient_id").map_err(|_| AppError::Internal)?;
             Ok(AgendaSlot {
                 id,
                 practitioner_id,
