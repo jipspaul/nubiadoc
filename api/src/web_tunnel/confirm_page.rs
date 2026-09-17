@@ -31,7 +31,7 @@ use uuid::Uuid;
 use crate::auth::register::{
     create_patient_account, is_rate_limited, NewPatientAccount, PatientAccountCreation,
 };
-use crate::auth::PatientAccountClaims;
+use crate::auth::{is_valid_email_format, PatientAccountClaims};
 use crate::bookings::{create_booking, CreateBookingBody};
 use crate::marketplace::{get_provider, hold_slot, search_slots, SearchProvidersQuery};
 use crate::AppState;
@@ -224,8 +224,10 @@ pub async fn confirm_submit(
     let nom = form.nom.trim();
     let telephone = form.telephone.trim();
     let email = form.email.trim();
-    let has_required_fields =
-        !prenom.is_empty() && !nom.is_empty() && !telephone.is_empty() && !email.is_empty();
+    let has_required_fields = !prenom.is_empty()
+        && !nom.is_empty()
+        && !telephone.is_empty()
+        && is_valid_email_format(email);
     let birth_date = NaiveDate::parse_from_str(form.naissance.trim(), "%Y-%m-%d")
         .ok()
         .filter(|_| has_required_fields);
