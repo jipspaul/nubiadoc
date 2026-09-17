@@ -104,9 +104,13 @@ void main() {
     when(() => mockGetMyPharmacy()).thenAnswer((_) async => const Right(null));
   });
 
-  group('ProfilePage — biometric toggle', () {
+  group('ProfilePage — biometric toggle (#7070)', () {
+    // #7070 : aucun stockage persistant n'existe encore derrière ce réglage
+    // (InMemoryUserSettingsRepository le perd à chaque rechargement) — le
+    // switch est donc grisé avec sa raison plutôt que laissé actif pour un
+    // état qui ne survit pas, comme les CTA « à venir » de #6702.
     testWidgets(
-      'tap toggle ON → setBiometricEnabled(true) appelé',
+      'switch grisé, tap sans effet et setBiometricEnabled jamais appelé',
       (tester) async {
         when(() => mockUserSettings.getBiometricEnabled())
             .thenAnswer((_) async => false);
@@ -135,47 +139,25 @@ void main() {
           const Offset(0, -300),
         );
         await tester.pumpAndSettle();
+
+        final toggle = tester
+            .widget<NubiaToggle>(find.byKey(const Key('biometric_toggle')));
+        expect(toggle.onChanged, isNull);
+        expect(toggle.value, isFalse);
+
+        expect(
+          find.ancestor(
+            of: find.byKey(const Key('biometric_toggle')),
+            matching: find.byWidgetPredicate(
+                (w) => w is Tooltip && w.message == 'Indisponible sur ce navigateur.'),
+          ),
+          findsOneWidget,
+        );
+
         await tester.tap(find.byKey(const Key('biometric_toggle')));
         await tester.pumpAndSettle();
 
-        verify(() => mockUserSettings.setBiometricEnabled(true)).called(1);
-      },
-    );
-
-    testWidgets(
-      'tap toggle OFF → setBiometricEnabled(false) appelé',
-      (tester) async {
-        when(() => mockUserSettings.getBiometricEnabled())
-            .thenAnswer((_) async => true);
-
-        final bloc = ProfileBloc(
-          getAccount: mockGetAccount,
-          updateAccount: mockUpdateAccount,
-          userSettings: mockUserSettings,
-          notificationRepo: mockNotifRepo,
-          getPendingQuotes: mockGetPendingQuotes,
-          getCoverage: mockGetCoverage,
-          getReferringDoctor: mockGetReferringDoctor,
-          listDependents: mockListDependents,
-          listConsents: mockListConsents,
-          listImplants: mockListImplants,
-          getMyPharmacy: mockGetMyPharmacy,
-        );
-        bloc.add(const ProfileLoadRequested());
-
-        await tester.pumpWidget(_wrap(bloc));
-        await tester.pumpAndSettle();
-
-        await tester.dragUntilVisible(
-          find.byKey(const Key('biometric_toggle')),
-          find.byKey(const Key('profile_content')),
-          const Offset(0, -300),
-        );
-        await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('biometric_toggle')));
-        await tester.pumpAndSettle();
-
-        verify(() => mockUserSettings.setBiometricEnabled(false)).called(1);
+        verifyNever(() => mockUserSettings.setBiometricEnabled(any()));
       },
     );
   });
