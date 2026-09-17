@@ -343,6 +343,7 @@ pub async fn get_account_visit_request(
 pub async fn cancel_account_visit_request(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<VisitDto>, AppError> {
@@ -378,9 +379,28 @@ pub async fn cancel_account_visit_request(
         });
     };
     let visit = visit_from_row(&row)?;
+
+    // Prévient l'infirmière assignée (le cas échéant) : elle est peut-être déjà
+    // en route, l'annulation est l'événement le plus critique du cycle côté
+    // infirmière (#7025 — symétrique de `notify_nurse_staff` dans
+    // `create_visit_request` / `visit_offer_expiry::apply_settlement`).
+    let mut nurse_notifs: Vec<(Uuid, Uuid)> = Vec::new();
+    if let Some(nurse_id) = visit.nurse_id {
+        nurse_notifs = notify::notify_nurse_staff(
+            &mut tx,
+            nurse_id,
+            "visit_cancelled",
+            "Visite annulée par le patient",
+            serde_json::json!({ "visit_request_id": visit.id }),
+        )
+        .await?;
+    }
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    // Prévient l'infirmière assignée (le cas échéant) via son canal tenant.
+    // Push + WS après commit (fire-and-forget).
+    for (app_user_id, notification_id) in nurse_notifs {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
     if let Some(nurse_id) = visit.nurse_id {
         hub.publish_named(
             &format!("nurse_visits:{nurse_id}"),

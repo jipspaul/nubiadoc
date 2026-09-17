@@ -23,7 +23,7 @@ fn preference_category(kind: &str) -> Option<&'static str> {
         "stock_request_received" => Some("stock"),
         "message_received" => Some("messagerie"),
         "lab_work_returned" => Some("labo"),
-        "visit_offer" => Some("visites"),
+        "visit_offer" | "visit_cancelled" => Some("visites"),
         _ => None,
     }
 }
