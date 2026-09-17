@@ -42,6 +42,22 @@ pub fn reject_nul_byte_in_json(value: &serde_json::Value) -> Result<(), AppError
     }
 }
 
+/// `422 validation_error` si `phone` n'est pas un numéro E.164 valide (`+` suivi de
+/// 7 à 14 chiffres), sinon `Ok(())`. Même borne que `PATCH /v1/account` — extraite
+/// ici pour être partagée avec `POST /v1/cabinet/patients/quick` (#7079 : ce dernier
+/// acceptait n'importe quelle chaîne, y compris du HTML, dans `phone`).
+pub fn validate_phone_format(phone: &str) -> Result<(), AppError> {
+    let digits = phone.strip_prefix('+').unwrap_or("");
+    if digits.is_empty()
+        || digits.len() < 7
+        || digits.len() > 14
+        || !digits.chars().all(|c| c.is_ascii_digit())
+    {
+        return Err(AppError::ValidationError);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -58,5 +74,17 @@ mod tests {
         assert!(reject_nul_byte("").is_ok());
         assert!(reject_nul_byte("détartrage").is_ok());
         assert!(reject_nul_byte("normal text 123").is_ok());
+    }
+
+    #[test]
+    fn validates_e164_phone_format() {
+        assert!(validate_phone_format("+33612345678").is_ok());
+        assert!(validate_phone_format("+1234567").is_ok());
+        assert!(validate_phone_format("pas-un-telephone").is_err());
+        assert!(validate_phone_format("<script>alert(1)</script>").is_err());
+        assert!(validate_phone_format("+++++").is_err());
+        assert!(validate_phone_format(&"0".repeat(300)).is_err());
+        assert!(validate_phone_format("2099-13-45").is_err());
+        assert!(validate_phone_format("+123").is_err());
     }
 }

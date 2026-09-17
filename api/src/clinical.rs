@@ -611,7 +611,13 @@ pub async fn quick_create_patient(
 ) -> Result<(StatusCode, Json<QuickCreatePatientResponse>), AppError> {
     let first_name = body.first_name.trim().to_string();
     let last_name = body.last_name.trim().to_string();
-    if first_name.is_empty() || last_name.is_empty() {
+    // Même borne que POST /v1/account/dependents et /v1/account/access-requests (#7041) :
+    // sans elle, un nom déraisonnablement long passait en 201 (#7079).
+    if first_name.is_empty()
+        || last_name.is_empty()
+        || first_name.chars().count() > 100
+        || last_name.chars().count() > 100
+    {
         return Err(AppError::ValidationError);
     }
 
@@ -627,6 +633,12 @@ pub async fn quick_create_patient(
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty());
+
+    // Même format E.164 que PATCH /v1/account (#7079 : `phone` n'était borné nulle part
+    // ici, laissant passer du HTML ou une chaîne quelconque telle quelle en base).
+    if let Some(tel) = phone {
+        crate::text_validation::validate_phone_format(tel)?;
+    }
 
     // contact JSONB : { tel? } — même clé que le reste du modèle (cf.
     // CabinetPatientDto.fromJson côté front, `contact->>'tel'`).
