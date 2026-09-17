@@ -57,7 +57,32 @@ void main() {
         const ConsultationCliniqueLoading(),
         const ConsultationHistoriqueLoaded(sessions: [_session]),
       ],
-      verify: (_) => verify(() => listSessions.call()).called(1),
+      verify: (_) => verify(() => listSessions.call(status: null)).called(1),
+    );
+
+    blocTest<ConsultationCliniqueBloc, ConsultationCliniqueState>(
+      'filtre par statut (#7033) → interroge le serveur, pas la page déjà '
+      'chargée',
+      build: () {
+        when(() => listSessions.call(
+                patientId: any(named: 'patientId'),
+                status: any(named: 'status')))
+            .thenAnswer((_) async => const Right([_session]));
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(
+        const ConsultationHistoriqueRequested(status: 'in_progress'),
+      ),
+      expect: () => [
+        const ConsultationCliniqueLoading(),
+        const ConsultationHistoriqueLoaded(
+          sessions: [_session],
+          statusFilter: 'in_progress',
+        ),
+      ],
+      verify: (_) => verify(
+        () => listSessions.call(status: 'in_progress'),
+      ).called(1),
     );
 
     blocTest<ConsultationCliniqueBloc, ConsultationCliniqueState>(

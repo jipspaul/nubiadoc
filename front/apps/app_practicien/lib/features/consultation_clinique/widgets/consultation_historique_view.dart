@@ -7,27 +7,39 @@
 // redescendre ce fichier sous le plafond de taille CLAUDE.md — aucun
 // changement de rendu, mêmes Keys (`historique_filter`, `historique_empty`,
 // `historique_list`, `historique_<id>`).
-// Modes d'échec : aucun — le filtre est un état UI local (`Set<String>`),
-// sans dépendance réseau ; le tap sur une carte navigue via `go_router`
+// Modes d'échec : #7033 — le segment sélectionné redemande la liste au
+// serveur (`ConsultationHistoriqueRequested(status: …)`) au lieu de trier la
+// seule page déjà chargée en mémoire ; `widget.sessions` reflète donc
+// toujours le statut courant. Le tap sur une carte navigue via `go_router`
 // (`AppRouter.consultation`).
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../../router/app_router.dart';
 import 'consultation_format_utils.dart';
+import '../consultation_clinique_bloc.dart';
+import '../consultation_clinique_event.dart';
 
 class HistoriqueView extends StatefulWidget {
-  const HistoriqueView({super.key, required this.sessions});
+  const HistoriqueView(
+      {super.key, required this.sessions, this.selectedStatus});
   final List<ClinicalSession> sessions;
+
+  /// Statut courant de la requête serveur ayant produit [sessions] — permet
+  /// de resynchroniser le segment sélectionné, la vue étant recréée à chaque
+  /// changement d'état du bloc (#7033).
+  final String? selectedStatus;
 
   @override
   State<HistoriqueView> createState() => _HistoriqueViewState();
 }
 
 class _HistoriqueViewState extends State<HistoriqueView> {
-  Set<String> _selection = {};
+  late Set<String> _selection =
+      widget.selectedStatus == null ? {} : {widget.selectedStatus!};
 
   static const _segments = [
     ButtonSegment<String>(
@@ -44,14 +56,15 @@ class _HistoriqueViewState extends State<HistoriqueView> {
     ),
   ];
 
-  List<ClinicalSession> get _filtered {
-    if (_selection.isEmpty) return widget.sessions;
-    return widget.sessions.where((s) => _selection.contains(s.status)).toList();
+  void _onSelectionChanged(Set<String> s) {
+    setState(() => _selection = s);
+    context.read<ConsultationCliniqueBloc>().add(
+          ConsultationHistoriqueRequested(status: s.isEmpty ? null : s.first),
+        );
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filtered;
     return Column(
       children: [
         Padding(
@@ -60,13 +73,13 @@ class _HistoriqueViewState extends State<HistoriqueView> {
             key: const Key('historique_filter'),
             segments: _segments,
             selected: _selection,
-            onSelectionChanged: (s) => setState(() => _selection = s),
+            onSelectionChanged: _onSelectionChanged,
             multiSelectionEnabled: false,
             emptySelectionAllowed: true,
           ),
         ),
         Expanded(
-          child: filtered.isEmpty
+          child: widget.sessions.isEmpty
               ? const NubiaEmptyState(
                   key: Key('historique_empty'),
                   icon: Icons.medical_services_outlined,
@@ -75,8 +88,9 @@ class _HistoriqueViewState extends State<HistoriqueView> {
               : ListView.builder(
                   key: const Key('historique_list'),
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: filtered.length,
-                  itemBuilder: (_, i) => _HistoriqueTile(session: filtered[i]),
+                  itemCount: widget.sessions.length,
+                  itemBuilder: (_, i) =>
+                      _HistoriqueTile(session: widget.sessions[i]),
                 ),
         ),
       ],
