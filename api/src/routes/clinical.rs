@@ -3,16 +3,17 @@
 //! Extrait de `lib.rs::build_router` (refactor taille).
 
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{delete, get, patch, post, put},
     Router,
 };
 
 use crate::{
     cabinet_document_download, clinical, consultation_act_create, consultation_acts,
-    consultation_context, consultations, dental_chart, implant_passport, medical_questionnaire,
-    medical_record, orthodontics, patient_alerts, patient_detail, patient_merge,
-    patient_merge_candidates, patient_tags, periodontal_chart, prescription_list, treatment_phases,
-    treatment_plans, AppState,
+    consultation_context, consultations, data_import, dental_chart, implant_passport,
+    medical_questionnaire, medical_record, orthodontics, patient_alerts, patient_detail,
+    patient_merge, patient_merge_candidates, patient_tags, periodontal_chart, prescription_list,
+    treatment_phases, treatment_plans, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -45,6 +46,19 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/cabinet/patients/merge-candidates/:id/dismiss",
             post(patient_merge_candidates::dismiss_merge_candidate),
         )
+        // Reprise de données (DP-F14.a #7179) : upload → dry-run → run.
+        .route(
+            "/v1/cabinet/imports",
+            post(data_import::upload_import).route_layer(DefaultBodyLimit::max(
+                data_import::MAX_IMPORT_SIZE + 64 * 1024,
+            )),
+        )
+        .route("/v1/cabinet/imports/:id", get(data_import::get_import))
+        .route(
+            "/v1/cabinet/imports/:id/dry-run",
+            post(data_import::dry_run_import),
+        )
+        .route("/v1/cabinet/imports/:id/run", post(data_import::run_import))
         .route(
             "/v1/cabinet/patients/:id/notes",
             get(clinical::list_patient_notes).post(clinical::add_patient_note),

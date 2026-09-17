@@ -61,6 +61,8 @@ integrations-interop = { path = "crates/integrations/interop" }
 tokio-rustls     = { version = "0.26", default-features = false, features = ["ring"] }
 rustls-pki-types = "1.15"
 rustls-pemfile   = "2"
+# DP-F14.a (#7179) : parseur CSV de la reprise de données (`data_import::csv`).
+csv              = "1"
 
 [dev-dependencies]
 tokio-tungstenite = "0.24"

@@ -165,6 +165,30 @@
 
 `POST /v1/cabinet/members` — body : `{ email, role:"practitioner"|"secretary"|"admin", first_name, last_name, rpps? }`. → `201`. Crée `app_user` (si nouveau) + `cabinet_membership`. Le dashboard pro peut donc créer des comptes (US-D07).
 
+### 5.1 Reprise de données (`imports`, DP-F14.a #7179)
+
+Pipeline générique **upload → dry-run → run**, suivi dans `data_import_job` (migrations 0168 + 0268). Rôle `admin`. Le fichier source est stocké **chiffré** (enveloppe KMS sous le cabinet : il peut contenir des INS) ; le rapport ne contient jamais de PII au-delà de la clé externe.
+
+| Méthode | Chemin | Rôle | Description |
+|---|---|---|---|
+| POST | `/v1/cabinet/imports` | admin | Upload multipart (`kind`, `file`, `source_system?`) → `201` job `pending` (ou `failed` si le fichier est inexploitable, motif dans `report`). Aucune écriture patient/RDV. |
+| POST | `/v1/cabinet/imports/{id}/dry-run` | admin | Analyse à blanc : même pipeline que le run, transaction annulée → rapport ligne à ligne (`report.mode="dry_run"`), statut inchangé. |
+| POST | `/v1/cabinet/imports/{id}/run` | admin | Import effectif, **idempotent** (re-jouable). `running` pendant l'exécution → `completed` (erreurs de lignes dans le rapport) ou `failed` (erreur technique, rien d'écrit). Run concurrent → `409 invalid_status`. |
+| GET | `/v1/cabinet/imports/{id}` | admin | Statut, compteurs (`total_count`, `imported_count` = créés + mis à jour, `skipped_count` = inchangés, `error_count`), horodatages, `report`. Autre cabinet → `404`. |
+
+`kind` : `csv_patients` | `csv_appointments` (parseur `ImportSource` ; DSIO à venir, DP-F14.b). `file` ≤ 10 Mo.
+
+**Rapport** (`report`) : `{ mode:"upload"|"dry_run"|"run", total, created, updated, unchanged, errors, lines:[{ line, external_ref?, action:"created"|"updated"|"unchanged"|"error", entity_id?, message? }] }` — `line` = numéro dans le fichier (1 = en-têtes). Une ligne en erreur (valeur invalide, chevauchement de RDV `23P01`, patient/praticien introuvable…) n'annule que cette ligne (SAVEPOINT).
+
+**Idempotence / doublons** : (1) clé externe `ref_externe` → `patient.external_ref` / `appointment.external_ref` (unique par cabinet) : re-jouer le même fichier met à jour au lieu de créer ; (2) sans clé externe, **correspondance exacte nom + prénom + date de naissance** (insensible à la casse ; naissance absente = absente des deux côtés) — plusieurs homonymes → ligne en erreur (résolution manuelle), jamais de rattachement arbitraire ; un RDV sans clé externe est reconnu par patient + praticien + début. Un INS déjà connu n'est jamais écrasé ; un INS partagé par deux patients ouvre une paire `patient_merge_candidate` (revue via `GET /v1/cabinet/patients/merge-candidates`).
+
+**Format CSV** (exemples : `api/tests/fixtures/import/patients.csv`, `appointments.csv`) : séparateur `;`, encodage **UTF-8** (BOM toléré), 1re ligne = en-têtes en français (casse/accents/espaces indifférents : `Prénom`, `Date de naissance` acceptés), colonnes inconnues ignorées, cellules vides = absentes. Dates `JJ/MM/AAAA` (ou `AAAA-MM-JJ`) ; horodatages `JJ/MM/AAAA HH:MM` en heure locale **Europe/Paris** (ou RFC 3339 avec décalage explicite).
+
+- `csv_patients` — colonnes : `ref_externe` · **`nom`** · **`prenom`** · `date_naissance` · `telephone` · `email` · `adresse` · `code_postal` · `ville` · `ins` (15 chiffres, chiffré en base). Coordonnées → `patient.contact` (`tel`, `email`, `adresse`, `code_postal`, `ville`).
+- `csv_appointments` — colonnes : `ref_externe` · `patient_ref_externe` (ou `nom` + `prenom` + `date_naissance`) · `praticien_rpps` (obligatoire si le cabinet a plusieurs praticiens) · **`debut`** · `fin` ou `duree_min` (défaut 30) · `statut` · `motif`. `statut` : `confirmé`/`planifié` → `confirmed`, `honoré`/`terminé` → `done`, `annulé` → `cancelled`, `absent`/`lapin` → `no_show`, `demandé` → `requested` (valeurs de l'énum acceptées telles quelles) ; vide → `done` si passé, `confirmed` sinon. Importer les patients **avant** les RDV.
+
+Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros), `403 forbidden` (rôle ≠ admin), `404` (job inconnu ou autre cabinet), `409 invalid_status` (run en cours, ou fichier inexploitable), `500` si `KMS_MASTER_KEY` absente. Audit : `data_import_upload`, `data_import_run` (`entity = data_import_job`).
+
 ---
 
 ## 6. Compte patient, couverture & proches (`account`)

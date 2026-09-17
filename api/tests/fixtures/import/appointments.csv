@@ -1,0 +1,11 @@
+ref_externe;patient_ref_externe;nom;prenom;date_naissance;praticien_rpps;debut;fin;duree_min;statut;motif
+R001;P001;;;;10001234567;15/01/2024 09:00;15/01/2024 09:30;;honoré;Détartrage
+R002;P002;;;;10001234567;15/01/2024 10:00;;45;honoré;Consultation
+R003;P003;;;;10001234567;16/01/2024 14:00;;30;annulé;Urgence
+R004;;Garcia;Nora;22/08/1979;10001234567;17/01/2024 11:00;;30;absent;Contrôle
+R005;P004;;;;10001234567;20/07/2030 09:00;;60;confirmé;Pose implant
+R006;P005;;;;10001234567;20/07/2030 09:30;;30;confirmé;Chevauche R005
+R007;P999;;;;10001234567;21/07/2030 09:00;;30;confirmé;Patient inconnu
+R008;P006;;;;99999999999;21/07/2030 10:00;;30;confirmé;Praticien inconnu
+R009;P007;;;;10001234567;22/07/2030 10:00;;30;;Statut vide futur
+R010;P008;;;;10001234567;22/07/2030 11:00;22/07/2030 10:30;;confirmé;Fin avant début
