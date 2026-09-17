@@ -31,7 +31,7 @@ fn paris_midnight_utc(date: chrono::NaiveDate) -> Result<chrono::DateTime<chrono
 /// Décalage `Europe/Paris` (heures) applicable à minuit local de `date` :
 /// +2 (CEST) entre le dernier dimanche de mars et le dernier dimanche
 /// d'octobre, +1 (CET) sinon.
-fn paris_utc_offset_hours(date: chrono::NaiveDate) -> i64 {
+pub(crate) fn paris_utc_offset_hours(date: chrono::NaiveDate) -> i64 {
     let year = date.year();
     let dst_start = last_sunday_of_month(year, 3);
     let dst_end = last_sunday_of_month(year, 10);

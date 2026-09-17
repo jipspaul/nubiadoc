@@ -50,7 +50,7 @@ pub fn ins_hash(ins: &str) -> Option<String> {
 /// `reason` distingue une démographie identique (nom + naissance) d'une
 /// démographie divergente (signal fort de collision/erreur de saisie).
 pub(crate) async fn flag_ins_duplicates(
-    tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     cabinet_id: Uuid,
     patient_id: Uuid,
     hash: &str,

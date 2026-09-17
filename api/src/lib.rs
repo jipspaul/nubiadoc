@@ -83,6 +83,7 @@ mod consultation_context;
 mod consultations;
 mod cr_templates;
 mod dashboard;
+pub mod data_import;
 mod dental_chart;
 mod devices;
 mod documents;

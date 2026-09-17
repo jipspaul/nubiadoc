@@ -1,0 +1,21 @@
+ref_externe;nom;prenom;date_naissance;telephone;email;adresse;code_postal;ville;ins
+P001;Durand;Alice;03/04/1985;0601020304;alice.durand@example.test;12 rue des Lilas;69001;Lyon;
+P002;Martin;Bob;1978-11-21;0611223344;;5 avenue Foch;69006;Lyon;
+P003;Nguyen;Chloé;15/02/1992;;chloe.nguyen@example.test;;;;
+P004;Da Silva;Diego;30/06/2001;0622334455;;8 chemin Vert;38000;Grenoble;
+P005;El Amrani;Fatima;09/09/1969;0633445566;fatima@example.test;;;;
+P006;Rossi;Giulia;01/01/2015;;;3 place Bellecour;69002;Lyon;
+P007;Kowalski;Hugo;12/12/1990;0644556677;;;;;
+P008;Schmidt;Inès;05/05/1988;;ines.schmidt@example.test;;;;
+P009;O'Brien;Jules;07/07/1975;0655667788;;;;;
+P010;Lefèvre;Karim;28/02/1996;;;10 rue Neuve;69003;Lyon;
+P011;Moreau;Léa;14/03/1983;0666778899;lea.moreau@example.test;;;;
+P012;Petit;Léa;14/03/1983;;;;;;
+P013;Bernard;Mathis;;0677889900;;;;;
+;Garcia;Nora;22/08/1979;0688990011;;;;;
+;Fernandez;Omar;19/10/1958;;omar.fernandez@example.test;;;;
+P016;Silva;Paula;04/04/2004;;;;;;
+P017;Dubois;Quentin;31/12/1999;0699001122;;;;;185129912345678
+P018;Roux;Rania;17/06/1972;;;;;;
+P019;;Sami;02/02/1982;0600000000;;;;;
+P020;Tanaka;Yuki;31/02/1990;;;;;;
