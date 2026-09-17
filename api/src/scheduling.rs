@@ -42,6 +42,17 @@ fn paris_utc_offset_hours(date: chrono::NaiveDate) -> i64 {
     }
 }
 
+/// Date lisible `jj/mm/aaaa` en heure locale `Europe/Paris` d'un instant UTC
+/// (#7134) : les documents remis au patient/pharmacien (ordonnance, devis)
+/// doivent afficher une date humaine en heure locale, pas un horodatage
+/// machine RFC 3339 en UTC à la microseconde — sinon la date affichée peut
+/// être fausse d'un jour pour une signature en soirée en heure d'été.
+pub(crate) fn format_paris_date(dt: chrono::DateTime<chrono::Utc>) -> String {
+    let offset_hours = paris_utc_offset_hours(dt.date_naive());
+    let paris_dt = dt + chrono::Duration::hours(offset_hours);
+    paris_dt.format("%d/%m/%Y").to_string()
+}
+
 fn last_sunday_of_month(year: i32, month: u32) -> chrono::NaiveDate {
     let first_of_next = if month == 12 {
         chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
