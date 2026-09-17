@@ -59,5 +59,36 @@ void main() {
 
       expect(find.text('En attente de votre passage'), findsOneWidget);
     });
+
+    testWidgets(
+        "commande pickedUp → l'étape « préparation » ne réutilise pas "
+        "updatedAt (postérieur à ready/pickedUp) comme horodatage (#7084)",
+        (tester) async {
+      final order = PharmacyOrder(
+        id: 'o1',
+        pharmacyId: 'p1',
+        prescriptionId: 'rx1',
+        status: PharmacyOrderStatus.pickedUp,
+        createdAt: DateTime.utc(2026, 9, 17, 0, 13, 15),
+        updatedAt: DateTime.utc(2026, 9, 17, 1, 36, 51),
+        readyAt: DateTime.utc(2026, 9, 17, 0, 13, 15),
+        pickedUpAt: DateTime.utc(2026, 9, 17, 1, 36, 51),
+        lineCount: 1,
+      );
+
+      await tester.pumpApp(OrderTimeline(order: order));
+
+      // L'heure de retrait (03:36 à Paris) ne doit pas apparaître sous
+      // « En cours de préparation », uniquement sous « Retirée ».
+      final preparingSubtitle = tester
+          .widgetList<Text>(find.descendant(
+            of: find.byKey(const Key('timeline_step_preparing')),
+            matching: find.byType(Text),
+          ))
+          .map((t) => t.data)
+          .toList();
+      expect(preparingSubtitle, isNot(contains(contains('03:36'))));
+      expect(preparingSubtitle, contains('1 médicament'));
+    });
   });
 }
