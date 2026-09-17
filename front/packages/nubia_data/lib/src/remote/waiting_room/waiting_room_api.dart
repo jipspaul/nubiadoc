@@ -47,11 +47,19 @@ class WaitingRoomApi {
     return WaitingRoomEntryDto.fromJson(response.data!);
   }
 
-  Future<WaitingRoomEntryDto> callNext() async {
+  /// `null` quand le back refuse l'appel (`{"called": false}` — aucun
+  /// patient en file, ou secrétaire sans `secretariat_id` actif,
+  /// `api/src/scheduling.rs:367`) : ce discriminant doit rester visible
+  /// jusqu'au repository, sinon `WaitingRoomEntryDto.fromJson` (défensif,
+  /// #3782/#3861) parse silencieusement le refus comme une entrée vide et
+  /// le CTA « Appeler » devient un no-op muet (#7217).
+  Future<WaitingRoomEntryDto?> callNext() async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/cabinet/waiting-room/call-next',
     );
-    return WaitingRoomEntryDto.fromJson(response.data!);
+    final data = response.data!;
+    if (data['called'] == false) return null;
+    return WaitingRoomEntryDto.fromJson(data);
   }
 
   Future<WaitingRoomEntryDto> updateWaitingRoomEntry(

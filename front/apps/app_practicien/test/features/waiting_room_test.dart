@@ -577,6 +577,103 @@ void main() {
 
       expect(find.byKey(const Key('next_patient_hero')), findsNothing);
     });
+
+    // #7217 : le hero ne doit jamais désigner le patient d'un confrère —
+    // même règle que #7116 côté dashboard, appliquée ici au hero propre à
+    // /waiting-room.
+    testWidgets(
+        'ignore le patient d\'un confrère en tête de file et prend le '
+        'suivant qui est le vôtre', (tester) async {
+      final colleagueEntry = WaitingRoomEntry(
+        id: 'wr-confrere',
+        cabinetId: 'cab-1',
+        patientId: 'pat-confrere',
+        patientName: 'Patient Du Confrere',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+        practitionerId: 'prac-other',
+        practitionerName: 'Dr Claire Lefèvre',
+      );
+      final myEntry = WaitingRoomEntry(
+        id: 'wr-moi',
+        cabinetId: 'cab-1',
+        patientId: 'pat-moi',
+        patientName: 'Mon Patient',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 2)),
+        practitionerId: 'prac-me',
+        practitionerName: 'Vous',
+      );
+      when(() => mockList())
+          .thenAnswer((_) async => Right([colleagueEntry, myEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'prac-me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('next_patient_hero')),
+          matching: find.text('Mon Patient'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('next_patient_hero')),
+          matching: find.text('Patient Du Confrere'),
+        ),
+        findsNothing,
+      );
+    });
+
+    // #7217 : un patient déjà en consultation ne doit plus jamais être
+    // présenté comme « prochain patient à appeler ».
+    testWidgets('ignore un patient déjà en_consultation en tête de file',
+        (tester) async {
+      final inConsultationEntry = WaitingRoomEntry(
+        id: 'wr-en-cours',
+        cabinetId: 'cab-1',
+        patientId: 'pat-en-cours',
+        patientName: 'Patient En Cours',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 15)),
+        practitionerId: 'prac-me',
+        practitionerName: 'Vous',
+        status: 'in_consultation',
+      );
+      when(() => mockList())
+          .thenAnswer((_) async => Right([inConsultationEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'prac-me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('next_patient_hero')), findsNothing);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -643,6 +740,47 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('call_next_button')), findsOneWidget);
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('call_next_button')),
+      );
+      expect(button.onPressed, isNull);
+      expect(button.label, NubiaL10n.callNext);
+    });
+
+    // #7217 : un patient d'un confrère en tête de file ne doit jamais
+    // apparaître sur le CTA d'en-tête — ni comme nom affiché, ni comme
+    // cible d'un clic qui déclencherait un appel muet côté back.
+    testWidgets(
+        'patient d\'un confrère en tête de file : reste désactivé, aucun '
+        'nom de confrère affiché', (tester) async {
+      final colleagueEntry = WaitingRoomEntry(
+        id: 'wr-confrere',
+        cabinetId: 'cab-1',
+        patientId: 'pat-confrere',
+        patientName: 'Patient Du Confrere',
+        arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+        practitionerId: 'prac-other',
+        practitionerName: 'Dr Claire Lefèvre',
+      );
+      when(() => mockList()).thenAnswer((_) async => Right([colleagueEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'prac-me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
       final button = tester.widget<NubiaButton>(
         find.byKey(const Key('call_next_button')),
       );

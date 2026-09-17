@@ -97,6 +97,12 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
   Future<Either<Failure, WaitingRoomEntry>> callNext() async {
     try {
       final dto = await _api.callNext();
+      if (dto == null) {
+        // #7217 : `{"called": false}` — le back a refusé l'appel (file
+        // vide côté praticien, ou secrétaire sans secretariat_id actif).
+        // Doit remonter comme un échec, jamais comme un succès muet.
+        return const Left(NotFoundFailure('Aucun patient à appeler.'));
+      }
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {

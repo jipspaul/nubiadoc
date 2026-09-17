@@ -225,12 +225,40 @@ class _LoadedView extends StatefulWidget {
 const kPresencePanelBreakpoint = 900.0;
 const kPresencePanelWidth = 378.0;
 
+/// Premier patient de la file que le praticien connecté peut effectivement
+/// appeler : ni patient d'un confrère (même règle que la ligne, cf.
+/// [_EntryCard]'s `isOtherPractitioner`), ni déjà en consultation (#6636).
+/// Remplace `entries.first`, qui pouvait désigner un patient hors de portée
+/// du praticien connecté — le hero comme le CTA d'en-tête (#7217).
+WaitingRoomEntry? _nextCallableEntry(
+  List<WaitingRoomEntry> entries,
+  String? practitionerId,
+) {
+  for (final entry in entries) {
+    final isOtherPractitioner =
+        entry.practitionerId != null && entry.practitionerId != practitionerId;
+    if (!isOtherPractitioner && entry.status != 'in_consultation') {
+      return entry;
+    }
+  }
+  return null;
+}
+
 class _LoadedViewState extends State<_LoadedView> {
   Completer<void>? _refreshCompleter;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final session = switch (context.watch<ProAuthCubit>().state) {
+      AuthAuthenticated(:final session) => session,
+      _ => const AuthSession(kind: UserKind.pro, userId: 'me'),
+    };
+    // #7217 : ni `entries.first` ni le hero ne doivent désigner un patient
+    // hors de portée du praticien connecté — même règle que la ligne
+    // (`_EntryCard.isOtherPractitioner`), plus l'exclusion des patients déjà
+    // en consultation (#6636).
+    final nextEntry = _nextCallableEntry(widget.state.entries, session.practitionerId);
     final body = BlocListener<WaitingRoomBloc, WaitingRoomState>(
       listenWhen: (_, s) => s is WaitingRoomLoaded || s is WaitingRoomError,
       listener: (_, __) {
@@ -253,11 +281,11 @@ class _LoadedViewState extends State<_LoadedView> {
                     .add(const WaitingRoomLoadRequested()),
               ),
             ),
-          if (widget.state.entries.isNotEmpty)
+          if (nextEntry != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: _NextPatientHeroCard(
-                entry: widget.state.entries.first,
+                entry: nextEntry,
                 disabled: widget.state.actionInProgress,
                 onCallNext: () => context
                     .read<WaitingRoomBloc>()
@@ -277,15 +305,13 @@ class _LoadedViewState extends State<_LoadedView> {
                 ),
                 NubiaButton(
                   key: const Key('call_next_button'),
-                  label: widget.state.entries.isEmpty
+                  label: nextEntry == null
                       ? NubiaL10n.callNext
-                      : NubiaL10n.callNextNamed(
-                          widget.state.entries.first.patientName),
+                      : NubiaL10n.callNextNamed(nextEntry.patientName),
                   icon: Icons.campaign,
                   size: NubiaButtonSize.sm,
                   isLoading: widget.state.actionInProgress,
-                  onPressed: widget.state.actionInProgress ||
-                          widget.state.entries.isEmpty
+                  onPressed: widget.state.actionInProgress || nextEntry == null
                       ? null
                       : () => context
                           .read<WaitingRoomBloc>()
