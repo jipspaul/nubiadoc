@@ -376,6 +376,19 @@ class _NotificationTile extends StatelessWidget {
         variant: NubiaButtonVariant.primary,
       );
     }
+    // Visites à domicile (#7038) : partagent le bucket
+    // NotificationType.appointment avec les rendez-vous (cf.
+    // NotificationDto._parseType), distinguées ici par `kind` pour ne pas
+    // annoncer « Voir le rendez-vous » alors que le deep_link
+    // (`/home-care/:id`, cf. `derive_deep_link`) ouvre une visite de soins à
+    // domicile.
+    if (kind == 'visit_status_changed') {
+      return (
+        label: 'Voir la visite',
+        icon: Icons.medical_services_outlined,
+        variant: NubiaButtonVariant.secondary,
+      );
+    }
     if (kind != null &&
         (kind.startsWith('pharmacy_quote') ||
             kind == 'quote_received' ||
