@@ -2163,3 +2163,22 @@ l'app infirmière s'étire sans débordement. **0 contrôle mort avéré** au se
 
 **Sous-total second viewport : 16 écrans · 143 contrôles · 141 activés · 128 OK · 5 morts · 8 cassés · 1 grisés.**
 **TOTAL RONDE R77 (les deux viewports) : 77 écrans · 1038 contrôles inventoriés · 988 activés · 948 OK.**
+
+##### R77 — écrans de détail et deep-links (dernier passage)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | grisés | last_check | note |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | `/appointments/slots?providerId=…&slotId=…` (390 px) | 34 | 34 | 34 | 0 | 0 | 0 | 2026-09-17T20:25:00Z | **Jamais audité.** 33 puces horaires + 5 puces de jour. Les 19 « MORT » du passage automatique sont **12 puces hors viewport (y>844)** + des artefacts de re-navigation : re-testé au doigt, **8 puces visibles sur 8 changent le rendu** et la barre de confirmation suit (« Ven. 18 sep à 17:00 ») |
+| patient | `/home-care/new` (390 px) | 14 | 14 | 14 | 0 | 0 | 0 | 2026-09-17T20:25:00Z |  |
+| patient | `/messaging/:id (fil ouvert)` (390 px) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-17T20:25:00Z | **Jamais audité.** |
+| patient | `/pharmacy/orders/:id (suivi)` (390 px) | 2 | 2 | 2 | 0 | 0 | 0 | 2026-09-17T20:25:00Z | **Jamais audité.** Timeline design-v2 complète (cf. ledger design-v2) |
+| patient | `/rdv/:id/prepare` (390 px) | 2 | 2 | 2 | 0 | 0 | 0 | 2026-09-17T20:25:00Z | **Jamais audité.** Rend fidèlement ce que sert `GET /v1/appointments/:id/preparation` (praticien, accès parking/PMR, « Carte Vitale » à apporter, rappel en heure locale) |
+| patient | `/treatment-plans/:id` (390 px) | 0 | 0 | 0 | 0 | 0 | 0 | 2026-09-17T20:25:00Z | **Jamais audité.** Écran en lecture seule (aucun contrôle dans le viewport) — divergence de donnée relevée → #7229 |
+| secretariat | `/audit-log` (1280 px) | 24 | 21 | 21 | 0 | 0 | 2 | 2026-09-17T20:25:00Z | **Jamais audité cette ronde.** État « **Accès réservé aux administrateurs** — Le journal d'accès n'est visible que par les rôles admin/manager du cabinet » ; « Filtrer » et « Réinitialiser » **grisés à raison** (aucun critère saisi) |
+| secretariat | `/patients/new` (1280 px) | 2 | 1 | 1 | 0 | 0 | 1 | 2026-09-17T20:25:00Z | **Jamais audité.** « Créer le dossier » **grisé tant que le formulaire est vide** → 0 requête au clic (cf. cas adversarial D) |
+| secretariat | `/cabinet-stats` (1280 px) | 22 | 21 | 21 | 0 | 0 | 0 | 2026-09-17T20:25:00Z | Relevé retenu = passage à session fraîche. **Dégradation par rôle exemplaire** : les 4 KPI de facturation s'affichent (valeurs identiques à `GET /v1/cabinet/stats/billing` : 6 383,46 € / 59 408,94 € / 67 % / 252 sur 377) et l'encart « Activité par praticien » rend « **Réservé aux praticiens — Votre rôle ne permet pas d'afficher l'activité par praticien.** » au lieu du `403` brut de `/cabinet/stats/activity` |
+| pharmacie | `/orders/:id (Délivrance)` (1280 px) | 22 | 21 | 21 | 0 | 0 | 0 | 2026-09-17T20:25:00Z | Lignes d'ordonnance, bloc prescripteur et ventilation AMO/AMC présents (cf. ledger design-v2) |
+
+**Sous-total détails/deep-links : 10 écrans · 127 contrôles · 121 activés · 121 OK · 0 morts · 0 cassés · 3 grisés.**
+
+**TOTAL RONDE R77 : 87 écrans · 1165 contrôles inventoriés · 1109 activés · 1069 OK · 23 morts (aucun avéré après re-test individuel) · 17 cassés (403 de garde, 401 de session, 502 favicon) · 9 grisés (tous légitimes, prouvés par le code).**
