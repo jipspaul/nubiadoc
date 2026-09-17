@@ -11,6 +11,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
   final CreateCabinetAppointmentUseCase _createAppointment;
   final ConfirmAppointmentUseCase _confirmAppointment;
   final CabinetCheckinAppointmentUseCase _checkinAppointment;
+  final CancelCabinetAppointmentUseCase _cancelAppointment;
   final RescheduleAppointmentUseCase _rescheduleAppointment;
   final ListBookableSlotsUseCase _listSlots;
   final ListCabinetPractitionersUseCase _listPractitioners;
@@ -22,6 +23,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     required CreateCabinetAppointmentUseCase createAppointment,
     required ConfirmAppointmentUseCase confirmAppointment,
     required CabinetCheckinAppointmentUseCase checkinAppointment,
+    required CancelCabinetAppointmentUseCase cancelAppointment,
     required RescheduleAppointmentUseCase rescheduleAppointment,
     required ListBookableSlotsUseCase listSlots,
     required ListCabinetPractitionersUseCase listPractitioners,
@@ -29,6 +31,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
         _createAppointment = createAppointment,
         _confirmAppointment = confirmAppointment,
         _checkinAppointment = checkinAppointment,
+        _cancelAppointment = cancelAppointment,
         _rescheduleAppointment = rescheduleAppointment,
         _listSlots = listSlots,
         _listPractitioners = listPractitioners,
@@ -37,6 +40,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     on<AgendaAppointmentCreateRequested>(_onCreate);
     on<AgendaAppointmentConfirmRequested>(_onConfirm);
     on<AgendaAppointmentCheckinRequested>(_onCheckin);
+    on<AgendaAppointmentCancelRequested>(_onCancel);
     on<AgendaAppointmentRescheduleRequested>(_onReschedule);
   }
 
@@ -160,6 +164,40 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
           // Même logique que _onConfirm (#4535) : un 409 peut signifier que
           // le RDV a changé de statut entre-temps — l'agenda doit refléter
           // l'état réel, pas rester figée sur "Confirmé".
+          if (_currentWeekStart != null) {
+            add(AgendaLoadRequested(weekStart: _currentWeekStart!));
+          }
+        },
+        (_) {
+          if (_currentWeekStart != null) {
+            add(AgendaLoadRequested(weekStart: _currentWeekStart!));
+          }
+        },
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(
+          actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
+  }
+
+  Future<void> _onCancel(
+    AgendaAppointmentCancelRequested event,
+    Emitter<AgendaState> emit,
+  ) async {
+    final current = state;
+    if (current is! AgendaLoaded) return;
+    emit(current.copyWith(actionInProgress: true, clearActionError: true));
+    try {
+      final result = await _cancelAppointment(event.appointmentId);
+      result.fold(
+        (failure) {
+          safeEmit(current.copyWith(
+            actionInProgress: false,
+            actionError: failure.message,
+          ));
+          // Même logique que _onConfirm/_onCheckin (#4535) : un 409 peut
+          // signifier que le RDV a changé de statut entre-temps — l'agenda
+          // doit refléter l'état réel, pas rester figée sur l'ancien statut.
           if (_currentWeekStart != null) {
             add(AgendaLoadRequested(weekStart: _currentWeekStart!));
           }

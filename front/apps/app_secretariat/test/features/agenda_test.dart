@@ -30,6 +30,9 @@ class MockConfirmAppointmentUseCase extends Mock
 class MockCabinetCheckinAppointmentUseCase extends Mock
     implements CabinetCheckinAppointmentUseCase {}
 
+class MockCancelCabinetAppointmentUseCase extends Mock
+    implements CancelCabinetAppointmentUseCase {}
+
 class MockRescheduleAppointmentUseCase extends Mock
     implements RescheduleAppointmentUseCase {}
 
@@ -79,6 +82,7 @@ AgendaBloc _makeBloc({
   required MockCreateCabinetAppointmentUseCase createAppointment,
   required MockConfirmAppointmentUseCase confirmAppointment,
   required MockCabinetCheckinAppointmentUseCase checkinAppointment,
+  required MockCancelCabinetAppointmentUseCase cancelAppointment,
   required MockRescheduleAppointmentUseCase rescheduleAppointment,
   required MockListBookableSlotsUseCase listSlots,
   required MockListCabinetPractitionersUseCase listPractitioners,
@@ -88,6 +92,7 @@ AgendaBloc _makeBloc({
       createAppointment: createAppointment,
       confirmAppointment: confirmAppointment,
       checkinAppointment: checkinAppointment,
+      cancelAppointment: cancelAppointment,
       rescheduleAppointment: rescheduleAppointment,
       listSlots: listSlots,
       listPractitioners: listPractitioners,
@@ -169,6 +174,7 @@ void main() {
   late MockCreateCabinetAppointmentUseCase mockCreate;
   late MockConfirmAppointmentUseCase mockConfirm;
   late MockCabinetCheckinAppointmentUseCase mockCheckin;
+  late MockCancelCabinetAppointmentUseCase mockCancel;
   late MockRescheduleAppointmentUseCase mockReschedule;
   late MockListBookableSlotsUseCase mockListSlots;
   late MockListCabinetPractitionersUseCase mockListPractitioners;
@@ -179,6 +185,7 @@ void main() {
     mockCreate = MockCreateCabinetAppointmentUseCase();
     mockConfirm = MockConfirmAppointmentUseCase();
     mockCheckin = MockCabinetCheckinAppointmentUseCase();
+    mockCancel = MockCancelCabinetAppointmentUseCase();
     mockReschedule = MockRescheduleAppointmentUseCase();
     mockListSlots = MockListBookableSlotsUseCase();
     mockListPractitioners = MockListCabinetPractitionersUseCase();
@@ -208,6 +215,7 @@ void main() {
         createAppointment: mockCreate,
         confirmAppointment: mockConfirm,
         checkinAppointment: mockCheckin,
+        cancelAppointment: mockCancel,
         rescheduleAppointment: mockReschedule,
         listSlots: mockListSlots,
         listPractitioners: mockListPractitioners,
@@ -406,6 +414,7 @@ void main() {
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
             checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -500,6 +509,7 @@ void main() {
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
             checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -724,6 +734,65 @@ void main() {
     });
 
     testWidgets(
+        '#7099 : un RDV confirmé propose l\'action Annuler dans le volet — '
+        'confirmée via dialogue, dispatch AgendaAppointmentCancelRequested',
+        (tester) async {
+      final entry = AgendaEntry(
+        id: 'p-cancel',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Amélie Rousseau',
+        startsAt: DateTime(2026, 8, 11, 14, 30),
+        endsAt: DateTime(2026, 8, 11, 15, 0),
+        patientId: 'pat-1',
+        patientName: 'Camille Moreau',
+        motif: 'Détartrage',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      when(() => mockCancel('p-cancel')).thenAnswer(
+        (_) async => Right(
+          CabinetAppointment(
+            id: 'p-cancel',
+            cabinetId: 'cab-1',
+            patientId: 'pat-1',
+            patientName: 'Camille Moreau',
+            practitionerId: 'prac-1',
+            practitionerName: 'Dr Amélie Rousseau',
+            startsAt: entry.startsAt,
+            duration: entry.duration,
+            motif: 'Détartrage',
+            status: CabinetAppointmentStatus.cancelled,
+            slotId: 'slot-1',
+          ),
+        ),
+      );
+
+      await pumpWithEntry(tester, entry);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.byKey(const Key('cancel_p-cancel')));
+      await tester.tap(find.byKey(const Key('cancel_p-cancel')));
+      await tester.pumpAndSettle();
+
+      // Dialogue de confirmation (action destructrice) : le use case n'est
+      // dispatché qu'après validation explicite.
+      verifyNever(() => mockCancel('p-cancel'));
+
+      await tester.tap(
+        find.byKey(const Key('confirm_cancel_appointment_button')),
+      );
+      await tester.pump();
+
+      verify(() => mockCancel('p-cancel')).called(1);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
         '#6246 : openAppointmentId ouvre le volet du RDV visé dès l\'affichage, '
         'sans sélection manuelle', (tester) async {
       final entry = AgendaEntry(
@@ -750,6 +819,7 @@ void main() {
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
             checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -829,6 +899,7 @@ void main() {
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
             checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -914,6 +985,7 @@ void main() {
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
             checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -986,6 +1058,7 @@ void main() {
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
             checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -1057,6 +1130,7 @@ void main() {
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
             checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -1137,6 +1211,7 @@ void main() {
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
             checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -1276,6 +1351,7 @@ void main() {
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
             checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
@@ -1477,6 +1553,7 @@ void main() {
             createAppointment: mockCreate,
             confirmAppointment: mockConfirm,
             checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
