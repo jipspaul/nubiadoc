@@ -163,6 +163,11 @@ pub async fn create_visit_request(
     if !body.address.is_object() {
         return Err(AppError::ValidationError);
     }
+    // #7228 : coordonnées géographiquement impossibles (hors [-90,90] / [-180,180])
+    // acceptées telle quelles → aucun fan-out ne trouve jamais de candidat.
+    if !(-90.0..=90.0).contains(&body.lat) || !(-180.0..=180.0).contains(&body.lng) {
+        return Err(AppError::ValidationError);
+    }
     crate::text_validation::reject_nul_byte(&body.patient_display_name)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
