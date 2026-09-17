@@ -454,8 +454,19 @@ class AppRouter {
         ),
         GoRoute(
           path: implantDetail,
-          builder: (_, state) =>
-              ImplantDetailPage(implant: state.extra as ImplantItem),
+          builder: (_, state) {
+            // `extra` n'est présent que sur le chemin liste -> clic
+            // (`implant_passport_page.dart`) : sur une URL directe (deep
+            // link, rechargement de page), il est `null` et il faut
+            // recharger l'implant via son identifiant (#7074, même pattern
+            // que la messagerie, #6399).
+            final implant = state.extra as ImplantItem?;
+            return implant != null
+                ? ImplantDetailPage(implant: implant)
+                : ImplantDetailByIdPage(
+                    implantId: state.pathParameters['id']!,
+                  );
+          },
         ),
         GoRoute(
           path: profileNotifications,

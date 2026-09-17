@@ -7,6 +7,58 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'implant_detail_cubit.dart';
+import 'implant_passport_cubit.dart';
+
+/// Résout un implant depuis son seul `id` (#7074) : sur URL directe ou F5,
+/// `state.extra` (rempli uniquement par le clic depuis la liste, cf.
+/// `implant_passport_page.dart`) est `null`. Il n'existe pas d'endpoint
+/// `GET /implant-passport/{id}` côté API — on recharge donc toute la liste
+/// (`ImplantPassportCubit`, déjà utilisée par l'écran liste) et on retrouve
+/// l'implant par id, comme `MessagingThreadRequested` le fait pour le fil de
+/// messagerie (#6399).
+class ImplantDetailByIdPage extends StatelessWidget {
+  final String implantId;
+  const ImplantDetailByIdPage({super.key, required this.implantId});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => GetIt.instance<ImplantPassportCubit>()..load(),
+      child: BlocBuilder<ImplantPassportCubit, ImplantPassportState>(
+        builder: (context, state) {
+          if (state is ImplantPassportError) {
+            return Scaffold(
+              appBar: AppBar(title: const Text('Implant')),
+              body: NubiaErrorWidget(
+                message: state.message,
+                onRetry: () => context.read<ImplantPassportCubit>().load(),
+              ),
+            );
+          }
+          if (state is ImplantPassportLoaded) {
+            ImplantItem? implant;
+            for (final i in state.implants) {
+              if (i.id == implantId) {
+                implant = i;
+                break;
+              }
+            }
+            if (implant == null) {
+              return Scaffold(
+                appBar: AppBar(title: const Text('Implant')),
+                body: const NubiaErrorWidget(
+                  message: 'Cet implant est introuvable.',
+                ),
+              );
+            }
+            return ImplantDetailPage(implant: implant);
+          }
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        },
+      ),
+    );
+  }
+}
 
 /// Détail d'un implant du passeport implantaire (#5334) — export et partage
 /// scopés à CET implant, lecture seule (aucune action de modification).

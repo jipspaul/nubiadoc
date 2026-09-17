@@ -17,9 +17,13 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/implant_passport/implant_detail_cubit.dart';
 import 'package:app_patient/features/implant_passport/implant_detail_page.dart';
+import 'package:app_patient/features/implant_passport/implant_passport_cubit.dart';
 
 class _MockExportImplantPassport extends Mock
     implements ExportImplantPassportUseCase {}
+
+class _MockListImplantPassport extends Mock
+    implements ListImplantPassportUseCase {}
 
 const _implant = ImplantItem(
   id: 'implant-1',
@@ -447,6 +451,64 @@ void main() {
 
       expect(cubit.state, const ImplantDetailIdle());
       await cubit.close();
+    });
+  });
+
+  group('ImplantDetailByIdPage (#7074 — URL directe / F5)', () {
+    late _MockListImplantPassport listUseCase;
+
+    setUp(() {
+      listUseCase = _MockListImplantPassport();
+      GetIt.instance.registerFactory<ImplantPassportCubit>(
+        () => ImplantPassportCubit(list: listUseCase, export: exportUseCase),
+      );
+    });
+
+    Widget buildByIdPage(String implantId) => MaterialApp(
+          theme: NubiaTheme.light,
+          home: ImplantDetailByIdPage(implantId: implantId),
+        );
+
+    testWidgets(
+        'recharge la liste et affiche la fiche de l\'implant dont l\'id '
+        'correspond au path parameter', (tester) async {
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant, _implantNoPose]));
+
+      await tester.pumpWidget(buildByIdPage('implant-4'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Exporter cette fiche'), findsOneWidget);
+      expect(
+        find.byKey(Key('implant_detail_${_implantNoPose.id}')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('affiche un message dédié si aucun implant ne correspond',
+        (tester) async {
+      when(() => listUseCase())
+          .thenAnswer((_) async => const Right([_implant]));
+
+      await tester.pumpWidget(buildByIdPage('implant-inconnu'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cet implant est introuvable.'), findsOneWidget);
+      expect(find.text('Exporter cette fiche'), findsNothing);
+    });
+
+    testWidgets('échec du chargement de la liste → erreur avec réessai',
+        (tester) async {
+      when(() => listUseCase()).thenAnswer(
+        (_) async => const Left(
+          ServerFailure(message: 'Passeport indisponible.', statusCode: 500),
+        ),
+      );
+
+      await tester.pumpWidget(buildByIdPage('implant-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Passeport indisponible.'), findsOneWidget);
     });
   });
 }
