@@ -1967,3 +1967,50 @@ Comme aux rondes précédentes, **aucun** des morts résiduels re-testés n'éta
 `patient /pharmacy`, `patient /home-care`, `secretariat /liste-attente`, `secretariat /appointment-motifs`,
 `secretariat /audit-log`, `praticien /ordonnances`, `pharmacie /notification-preferences`,
 `infirmiere /notification-preferences`.
+
+
+## Ronde 2026-09-17 (12:00–14:0x UTC) — ciblage diff-driven des 11 merges de la matinée
+
+> **Correctif de HARNAIS appliqué en cours de ronde (à retenir pour les suivantes).** Deux défauts de
+> l'auditeur ont été trouvés et corrigés *pendant* la ronde, et ils invalident une partie des verdicts
+> « MORT » des rondes précédentes :
+> 1. **Fichier temporaire partagé** — les 5 runners écrivaient tous dans `/tmp/pw/_t.png` pour le hash
+>    de pixels. Un runner lisait donc l'image d'un autre → « pixels changés » toujours vrai → faux **OK**.
+>    Corrigé par un temporaire par processus.
+> 2. **Contrôles hors viewport** (piège n° 2 déjà consigné, mais jamais outillé) — l'inventaire Semantics
+>    remonte les nœuds sous la ligne de flottaison ; les cliquer aux coordonnées ne fait rien → faux **MORT**.
+>    Corrigé par un filtre `inView` + un **auditeur à défilement** (`t_scroll_audit.js`) qui redescend
+>    l'écran par paliers de 0,75 × hauteur et n'active que ce qui est réellement visible.
+>
+> Conséquence : la colonne « morts » ci-dessous ne retient QUE les contrôles re-vérifiés avec l'auditeur
+> à défilement. Les 28 « morts » bruts du premier passage se décomposent en **10 réels** (tous sur
+> `patient /prescriptions`, un seul et même bug → **#7119**) et **18 faux positifs hors-écran**, chacun
+> re-testé et sorti OK après défilement.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | commentaire | last_check |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/` (Tableau de bord, 1280) — **auditeur à défilement** | 23 | 19 | 17 | **0** | **2** | Les 2 « morts » du premier passage (`Confirmations en attente`, `Messages non lus`) sont **de faux positifs hors-écran** : après défilement ils naviguent bien vers `/agenda` et `/messages`. Les 2 CASSÉS sont réels et filés → **#7116** : le hero « Patient suivant » sert un patient d'un CONFRÈRE, « Démarrer la consultation » → `403 forbidden` sur `POST /cabinet/appointments/:id/start`, « Ouvrir le dossier » → 3 × 403. | 2026-09-17T13:50:00Z |
+| patient | `/prescriptions` (Mes ordonnances, 390) — **auditeur à défilement** | 17 | 12 | 2 | **10** | 0 | **Les 10 morts sont réels et n'ont qu'UNE cause** : ouvrir la 1re ordonnance émet bien `GET /v1/documents/:id/download` (200), puis la liste entière est remplacée par l'état vide « Aucune ordonnance » — 17 nœuds → 1. Les 10 clics suivants tombent dans le vide. → **#7119 (P1)**. Sortir et revenir restaure les 17 nœuds. | 2026-09-17T13:50:00Z |
+| patient | `/mes-rdv` (390) — **auditeur à défilement** | 11 | 6 | **6** | 0 | 0 | Le « mort » du premier passage (`Plus d'actions`) est un faux positif hors-écran : re-testé après défilement, les deux occurrences réagissent. Onglets `À venir (20)` / `Historique`, tri `Plus proche d'abord`, `Prendre un rendez-vous` → `/book` : tous OK. Comportement connu non re-filé : ouvrir « Historique » déclenche une pagination par curseur en cascade (#6448). | 2026-09-17T13:50:00Z |
+| patient | `/` (Accueil, 390) | 23 | 18 | 15 | 3 → **0 retenus** | 0 | Les 3 « morts » (`Ma pharmacie` @y=945, `Mes proches` @y=945, `Soins à domicile` @y=1010) sont **hors du viewport 390×844** — faux positifs par construction, non retenus. | 2026-09-17T13:50:00Z |
+| patient | `/notifications` (390) | 21 | 20 | 17 | 3 → **0 retenus** | 0 | Re-vérifié un par un : les 5 premiers « Voir la visite » naviguent vers `/home-care/<id>` **et** émettent `POST /v1/notifications/:id/read` ; les 2 derniers sont à y=877 et y=1004, **hors viewport**. Contenu des notifications correct et spécifique (« Votre infirmière est en route vers votre domicile. »). | 2026-09-17T13:50:00Z |
+| patient | `/appointments` (Prendre un RDV, 390) | 22 | 17 | 14 | 3 → **0 retenus** | 0 | Carte, 5 facettes, cartes praticien « 3 jours de créneaux » avec état vide par jour (« — ») et « Aucun créneau en ligne pour ce praticien ». Le mort `Voir sa fiche et ses coordonnées` renvoie à **#7022 (open)**, non re-filé. | 2026-09-17T13:50:00Z |
+| patient | `/appointments/slots?providerId=…` (grille de créneaux, 390) | 50 | 2 | 2 | 0 | 0 | **Écran jamais audité.** Rail de 4 jours daté et compté (`LUN 21 / 14 dispo` … `JEU 24 / 6 dispo`), grille **4 colonnes** de cellules 84×44, sections `Matin` / `Après-midi`, sélection d'un créneau → surlignage + barre « **Lun. 21 sep à 07:30 · Durée estimée 30 min** » + « Continuer ». | 2026-09-17T13:50:00Z |
+| patient | `/financial` (390) | 11 | 10 | 8 | 2 → **0 retenus** | 0 | Morts hors-écran, non retenus. | 2026-09-17T13:50:00Z |
+| praticien | `/consultation` (liste, 1280) | 37 | 33 | 29 | 4 → **0 retenus** | 0 | Les 3 facettes émettent chacune leur requête serveur distincte (`?status=in_progress` / `completed` / `cancelled`) — **#7033 confirmé corrigé**. Les 4 morts sont des lignes de consultation sous la ligne de flottaison. | 2026-09-17T13:50:00Z |
+| praticien | `/consultation?id=<séance>` (au fauteuil, 1280) | 66 | — | — | — | — | **Écran jamais audité sous cet angle.** Inventaire complet : 32 dents cliquables, 3 actes de séance, recherche CCAM, 3 favoris, `Terminer la séance`, `Note de séance`, `Modèle`. Défaut de rendu trouvé → **#7118**. | 2026-09-17T13:50:00Z |
+| praticien | `/waiting-room` (1280) | 27 | 19 | **19** | 0 | 0 | 2 DÉSACTIVÉS légitimes (`Appeler` des lignes déjà appelées). La file est bien **cabinet-wide** depuis #7097 : « Appeler QA-R76 Z… » (patient de Dr Lefèvre) émet `POST /cabinet/waiting-room/call-next` → 200. | 2026-09-17T13:50:00Z |
+| secretariat | `/` (Tableau de bord, 1280) | 30 | 26 | **26** | 0 | 0 | Écran le plus propre de la ronde : 26/26. Rail groupé, 4 × `Appeler`, `Relancer`, 2 × `Ouvrir`, `Ouvrir l'agenda`. | 2026-09-17T13:50:00Z |
+| secretariat | `/agenda` (1280) | 38 | 32 | 29 | 3 → **0 retenus** | 0 | `Semaine précédente` / `Semaine suivante` / `Aujourd'hui` réémettent bien `GET /cabinet/agenda` + `/cabinet/slots` avec les bonnes bornes ; filtres praticien (`Dr Claire Lefèvre 6` / `Dr Hugo Marin 45`) OK ; pastilles de créneau libre `08:00`/`10:00`/`11:00`/`14:00` ouvrent la création. Les 3 morts (`15:00`, `16:00`, `17:00`) sont en bas de grille, hors viewport. | 2026-09-17T13:50:00Z |
+| pharmacie | `/` (File des commandes, 1280) | 35 | 21 | 18 | 3 → **0 retenus** | 0 | 4 compteurs, recherche, 4 facettes, 7 × `Délivrer` naviguant chacun vers `/orders/<id>/pickup` distinct. Les 3 morts sont les `Délivrer` de bas de liste, hors viewport. | 2026-09-17T13:50:00Z |
+| infirmiere | `/` (3 onglets) + `/notification-preferences` (390) | 13 | 9 | **9** | 0 | 0 | **5ᵉ app parcourue.** Cycle métier complet rejoué en UI (ci-dessous). | 2026-09-17T13:50:00Z |
+| infirmiere | `/` → Offres → « Accepter » → « Je pars » → « Je suis arrivé·e » → « Visite terminée » | 5 | 5 | **5** | 0 | 0 | **#7026 (mergé à 11:34 ce jour) confirmé corrigé en live** : après `POST /nurse/visits/:id/accept`, l'app bascule seule sur l'onglet **« Ma visite »** (`aria-selected=true`) et affiche « Statut : Acceptée » + « Je pars ». Les 3 transitions suivantes émettent chacune leur POST. Prix affiché « 43,00 € » = l'estimation API (2500 + 1800). | 2026-09-17T13:50:00Z |
+
+### Écrans audités pour la première fois cette ronde
+
+`patient /appointments/slots` (grille de créneaux), `praticien /consultation?id=<séance>` (consultation au fauteuil).
+
+### Contrôle non activé volontairement
+
+`Se déconnecter` (les 5 apps) — destructif pour la session de test. Aucun contrôle de suppression de
+compte/cabinet/pharmacie n'a été activé.
