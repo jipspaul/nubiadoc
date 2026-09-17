@@ -2,13 +2,27 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../session/pro_auth_cubit.dart';
 import 'admin_secretariats_bloc.dart';
 import 'admin_secretariats_event.dart';
 import 'admin_secretariats_state.dart';
 import 'invite_secretariat_dialog.dart';
+
+/// Invitation (POST /v1/cabinet/secretariats) réservée aux admins côté
+/// backend (`ProAdminClaims`, cf. #7037) — on masque le CTA pour un rôle
+/// non-admin par hint client (session.role), comme pour les motifs de RDV
+/// (#4085, `appointment_motifs_page.dart`).
+bool _canManageSecretariats(BuildContext context) {
+  final session = switch (context.watch<ProAuthCubit>().state) {
+    AuthAuthenticated(:final session) => session,
+    _ => null,
+  };
+  return session?.role == ProRole.admin;
+}
 
 /// Body-only content for the secrétariats admin list. Can be embedded in any
 /// layout that provides [AdminSecretariatsBloc] via [BlocProvider] (e.g.
@@ -33,6 +47,7 @@ class _AdminSecretariatsBodyState extends State<AdminSecretariatsBody> {
 
   @override
   Widget build(BuildContext context) {
+    final canManage = _canManageSecretariats(context);
     return BlocConsumer<AdminSecretariatsBloc, AdminSecretariatsState>(
       listener: (context, state) {
         if (state is AdminSecretariatsLoaded ||
@@ -67,12 +82,14 @@ class _AdminSecretariatsBodyState extends State<AdminSecretariatsBody> {
             title: 'Aucun secrétariat enregistré.',
             subtitle: 'Invitez un secrétariat pour déléguer la gestion '
                 'administrative du cabinet.',
-            action: NubiaButton(
-              key: const Key('admin_secretariats_empty_cta'),
-              label: 'Inviter un secrétariat',
-              icon: Icons.add,
-              onPressed: () => _openInviteDialog(context),
-            ),
+            action: canManage
+                ? NubiaButton(
+                    key: const Key('admin_secretariats_empty_cta'),
+                    label: 'Inviter un secrétariat',
+                    icon: Icons.add,
+                    onPressed: () => _openInviteDialog(context),
+                  )
+                : null,
           ),
         AdminSecretariatsLoaded(:final secretariats) => _SecretariatsList(
             secretariats: secretariats,
@@ -115,6 +132,7 @@ class AdminSecretariatsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canManage = _canManageSecretariats(context);
     return Scaffold(
       key: const Key('admin_secretariats_scaffold'),
       appBar: AppBar(
@@ -129,12 +147,14 @@ class AdminSecretariatsPage extends StatelessWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('invite_secretariat_fab'),
-        onPressed: () => _openInviteDialog(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Inviter un secrétariat'),
-      ),
+      floatingActionButton: canManage
+          ? FloatingActionButton.extended(
+              key: const Key('invite_secretariat_fab'),
+              onPressed: () => _openInviteDialog(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Inviter un secrétariat'),
+            )
+          : null,
       body: const AdminSecretariatsBody(),
     );
   }

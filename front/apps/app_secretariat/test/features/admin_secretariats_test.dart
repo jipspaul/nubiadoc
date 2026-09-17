@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -12,6 +13,7 @@ import 'package:app_secretariat/features/admin_secretariats/admin_secretariats_e
 import 'package:app_secretariat/features/admin_secretariats/admin_secretariats_page.dart';
 import 'package:app_secretariat/features/admin_secretariats/admin_secretariats_state.dart';
 import 'package:app_secretariat/pro_config.dart';
+import 'package:app_secretariat/session/pro_auth_cubit.dart';
 
 class _MockSecretariatRepository extends Mock
     implements SecretariatRepository {}
@@ -19,6 +21,20 @@ class _MockSecretariatRepository extends Mock
 class _MockAdminSecretariatsBloc
     extends MockBloc<AdminSecretariatsEvent, AdminSecretariatsState>
     implements AdminSecretariatsBloc {}
+
+class _MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
+
+const _adminSession = AuthSession(
+  kind: UserKind.pro,
+  userId: 'me',
+  role: ProRole.admin,
+);
+
+const _secretarySession = AuthSession(
+  kind: UserKind.pro,
+  userId: 'me',
+  role: ProRole.secretary,
+);
 
 void main() {
   // --- Cloisonnement invariant --------------------------------------------------
@@ -222,18 +238,26 @@ void main() {
   // --- AdminSecretariatsPage widget tests -------------------------------------
   group('AdminSecretariatsPage', () {
     late _MockAdminSecretariatsBloc bloc;
+    late _MockProAuthCubit authCubit;
 
     setUp(() {
       bloc = _MockAdminSecretariatsBloc();
+      authCubit = _MockProAuthCubit();
     });
 
-    Widget buildPage() => MaterialApp(
-          theme: NubiaTheme.light,
-          home: BlocProvider<AdminSecretariatsBloc>.value(
-            value: bloc,
-            child: const AdminSecretariatsPage(),
-          ),
-        );
+    Widget buildPage({AuthSession session = _adminSession}) {
+      when(() => authCubit.state).thenReturn(AuthAuthenticated(session));
+      return MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AdminSecretariatsBloc>.value(value: bloc),
+            BlocProvider<ProAuthCubit>.value(value: authCubit),
+          ],
+          child: const AdminSecretariatsPage(),
+        ),
+      );
+    }
 
     testWidgets('affiche le skeleton en état Initial', (tester) async {
       when(() => bloc.state).thenReturn(const AdminSecretariatsInitial());
@@ -306,6 +330,20 @@ void main() {
       expect(
         find.byKey(const Key('invite_secretariat_email_field')),
         findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'rôle secretary : FAB et CTA vide masqués (écriture admin-only, #7037)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const AdminSecretariatsEmpty());
+      await tester.pumpWidget(buildPage(session: _secretarySession));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('invite_secretariat_fab')), findsNothing);
+      expect(
+        find.byKey(const Key('admin_secretariats_empty_cta')),
+        findsNothing,
       );
     });
 
