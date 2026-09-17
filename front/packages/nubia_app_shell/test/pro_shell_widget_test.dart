@@ -383,6 +383,49 @@ void main() {
       },
     );
 
+    // #7029 — cliquer l'en-tête du groupe *courant* (celui de la
+    // destination active) devait rester inerte : l'ancienne
+    // `_effectiveCollapsedGroups` masquait systématiquement ce groupe du
+    // repli, si bien que le clic ne se répercutait qu'au prochain rendu où
+    // `current` sortait du groupe (ex : après une navigation sans rapport).
+    testWidgets(
+      "cliquer l'en-tête du groupe de la destination active replie "
+      'immédiatement ses autres entrées (rail desktop)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(
+              config: groupedConfig,
+              session: session,
+              currentRoute: '/cabinet-stats',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Groupe replié par défaut (config) mais 'Statistiques' est la
+        // destination active : elle reste visible, 'Membres' non.
+        expect(find.text('Statistiques'), findsWidgets);
+        expect(find.text('Membres'), findsNothing);
+
+        await tester.tap(find.text(groupName));
+        await tester.pumpAndSettle();
+
+        // Le groupe est maintenant déplié : 'Membres' apparaît.
+        expect(find.text('Statistiques'), findsWidgets);
+        expect(find.text('Membres'), findsOneWidget);
+
+        await tester.tap(find.text(groupName));
+        await tester.pumpAndSettle();
+
+        // Reclic : le groupe se replie immédiatement (pas besoin de
+        // naviguer ailleurs) — seule l'entrée active reste visible.
+        expect(find.text('Statistiques'), findsWidgets);
+        expect(find.text('Membres'), findsNothing);
+      },
+    );
+
     // #6192 — entrées et en-têtes de groupe absents de l'arbre Semantics
     // (uniquement quand des groupes sont déclarés, cf. app_secretariat).
     testWidgets(
