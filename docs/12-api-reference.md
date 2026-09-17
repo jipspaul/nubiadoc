@@ -241,7 +241,7 @@
 | GET | `/v1/documents/{id}/download` | patient | Redirige vers l'URL signée expirante. |
 | POST | `/v1/documents` | patient | Upload (pièce jointe / justificatif). |
 
-`GET /v1/documents` → liste `{ id, category, filename, mime_type, created_at }`. Catégories : `devis, facture, ordonnance, radio, cbct, photo, cr, consigne, attestation, carte_mutuelle, passeport_implantaire, consentement`. Accès **audité** (`read_document`), URL **expirante**, intégrité `sha256` (`06` E3.5). Téléchargement → `302` vers Object Storage signé (`410` si lien expiré).
+`GET /v1/documents` → liste `{ id, category, filename, mime_type, created_at }`. Catégories : `devis, facture, ordonnance, radio, cbct, photo, cr, consigne, attestation, carte_mutuelle, passeport_implantaire, consentement, courrier`. Accès **audité** (`read_document`), URL **expirante**, intégrité `sha256` (`06` E3.5). Téléchargement → `302` vers Object Storage signé (`410` si lien expiré).
 
 ---
 
@@ -383,6 +383,18 @@
 `GET /v1/cabinet/patients/{id}` → fiche dont les **sections cliniques sont omises pour `secretary`** (et l'UI affiche « dossier clinique masqué »). L'accès clinique d'un praticien est **audité** (`read_record`).
 
 `POST /v1/cabinet/patients/{id}/notes` — body : `{ note_kind:"observation"|"act", text, tooth?, act_ref?:{ label, ccam?, quote_item_id? } }`. → `201`. Contenu **chiffré**, **horodaté**, **signé** (`author_id`), `practitioner` only (US-D12, `05` §10.3). Pas de suppression dure (soft-delete médical).
+
+**Courriers types (#7197, parité Dental Pilot F7.a)** — `secretary`/`practitioner`/`admin`.
+
+| Méthode | Chemin | Rôle | Description |
+|---|---|---|---|
+| GET | `/v1/letter-templates` | pro | Modèles visibles : globaux seedés (`is_global:true`, lecture seule — convocation, relance, courrier confrère, attestation de présence) + ceux du cabinet. `{ id, name, kind, body_template, is_global, placeholders[], created_at }`. |
+| POST | `/v1/letter-templates` | pro | `{ name, kind, body_template }` → `201 { template_id, placeholders[] }`. `kind` ∈ `convocation, relance, courrier_confrere, attestation, autre`. |
+| POST | `/v1/patients/{id}/letters` | pro | `{ template_id, correspondent_id?, overrides? }` → `201 { document_id, filename, size_bytes, body }` : rend le modèle, produit le PDF (en-tête/pied cabinet + RPPS, pagination) et le stocke en **document patient** `category='courrier'` (audit `generate_letter`). |
+
+Placeholders reconnus (`{{nom}}`, espaces internes tolérés) : `patient.prenom`, `patient.nom`, `patient.date_naissance` (JJ/MM/AAAA), `cabinet.nom`, `cabinet.adresse` (`settings.address`), `cabinet.telephone` (`settings.contact.phone`), `praticien.nom`, `praticien.rpps` (praticien appelant si `practitioner`, sinon celui du RDV), `rdv.date`, `rdv.heure` (heure Paris ; prochain RDV non annulé, sinon le dernier passé), `date.aujourdhui`, `correspondant.nom` (uniquement via `overrides` pour l'instant). `overrides` : `{ "rdv.date": "12/10/2026", … }`, prime sur les valeurs résolues.
+
+Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue → `422 { code:"unknown_placeholders", placeholders:[…] }` ; placeholder connu sans valeur ni override → `422 { code:"missing_placeholder_values", placeholders:[…] }` (jamais de courrier rendu avec un trou) ; `{{` non fermé → `422 validation_error` ; `correspondent_id` fourni → `501 { code:"correspondent_not_supported" }` (aucune entité correspondant cabinet encore, cf. issue dédiée) ; patient ou modèle hors cabinet → `404`.
 
 ---
 

@@ -1133,6 +1133,7 @@ const VALID_CATEGORIES: &[&str] = &[
     "carte_mutuelle",
     "passeport_implantaire",
     "consentement",
+    "courrier",
 ];
 
 // §14 — catégories administratives, accessibles sans relation de soin (secrétaire/admin).
@@ -1142,8 +1143,13 @@ const VALID_CATEGORIES: &[&str] = &[
 // `pub(crate)` : réutilisée par `cabinet_document_download` (#4286) pour appliquer
 // la même garde §14 à la route de téléchargement, symétrique à
 // `cabinet_quotes::VALID_QUOTE_STATUSES`.
-pub(crate) const NON_CLINICAL_CATEGORIES: &[&str] =
-    &["devis", "facture", "attestation", "carte_mutuelle"];
+pub(crate) const NON_CLINICAL_CATEGORIES: &[&str] = &[
+    "devis",
+    "facture",
+    "attestation",
+    "carte_mutuelle",
+    "courrier",
+];
 
 #[derive(Deserialize)]
 pub struct ListPatientDocumentsQuery {
