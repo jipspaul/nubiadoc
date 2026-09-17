@@ -18,6 +18,10 @@ import '../nurse/nurse_cubit.dart';
 /// deep-link local depuis une notification (#6266).
 const _offersTabIndex = 1;
 
+/// Index de l'onglet Ma visite — cible de la bascule auto après acceptation
+/// d'une offre (#7026) : sans ça, l'infirmière n'a aucun retour visible.
+const _visitTabIndex = 2;
+
 /// Accueil infirmière : 3 onglets (Disponibilité, Offres, Ma visite).
 class InfirmiereHomePage extends StatelessWidget {
   const InfirmiereHomePage({super.key});
@@ -114,7 +118,19 @@ class _HomeScaffoldState extends State<_HomeScaffold> {
           index: _tab,
           children: [
             _AvailabilityTab(state: state),
-            _OffersTab(state: state),
+            _OffersTab(
+              state: state,
+              onAccepted: () {
+                if (!mounted) return;
+                setState(() => _tab = _visitTabIndex);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        'Offre acceptée — direction « Ma visite ».'),
+                  ),
+                );
+              },
+            ),
             _VisitTab(state: state),
           ],
         ),
@@ -170,8 +186,12 @@ class _AvailabilityTab extends StatelessWidget {
 }
 
 class _OffersTab extends StatelessWidget {
-  const _OffersTab({required this.state});
+  const _OffersTab({required this.state, required this.onAccepted});
   final NurseState state;
+
+  /// Appelé après un succès serveur de [NurseCubit.accept] — bascule
+  /// l'onglet et affiche une confirmation (#7026).
+  final VoidCallback onAccepted;
 
   @override
   Widget build(BuildContext context) {
@@ -241,8 +261,11 @@ class _OffersTab extends StatelessWidget {
                         child: NubiaButton(
                           label: 'Accepter',
                           isLoading: state.loading,
-                          onPressed: () =>
-                              context.read<NurseCubit>().accept(o),
+                          onPressed: () async {
+                            final ok =
+                                await context.read<NurseCubit>().accept(o);
+                            if (ok) onAccepted();
+                          },
                         ),
                       ),
                       const SizedBox(width: 8),
