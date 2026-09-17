@@ -53,6 +53,14 @@ pub(crate) fn format_paris_date(dt: chrono::DateTime<chrono::Utc>) -> String {
     paris_dt.format("%d/%m/%Y").to_string()
 }
 
+/// Heure locale Paris `HH:MM` d'un instant UTC — pendant de
+/// [`format_paris_date`] pour les courriers types (`{{rdv.heure}}`, #7197).
+pub(crate) fn format_paris_time(dt: chrono::DateTime<chrono::Utc>) -> String {
+    let offset_hours = paris_utc_offset_hours(dt.date_naive());
+    let paris_dt = dt + chrono::Duration::hours(offset_hours);
+    paris_dt.format("%H:%M").to_string()
+}
+
 fn last_sunday_of_month(year: i32, month: u32) -> chrono::NaiveDate {
     let first_of_next = if month == 12 {
         chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)

@@ -1,4 +1,4 @@
--- 93_data_import_external_ref.sql
+-- 94_data_import_external_ref.sql
 -- pgTAP : reprise de données (#7179, migration 0268).
 --   DIP1. patient.external_ref unique par cabinet (doublon refusé, 23505)
 --   DIP2. Le même external_ref est accepté dans un AUTRE cabinet (index partiel scoped cabinet)

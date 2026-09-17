@@ -10,7 +10,7 @@ use axum::{
 
 use crate::{
     cabinet_document_download, clinical, consultation_act_create, consultation_acts,
-    consultation_context, consultations, data_import, dental_chart, implant_passport,
+    consultation_context, consultations, data_import, dental_chart, implant_passport, letters,
     medical_questionnaire, medical_record, orthodontics, patient_alerts, patient_detail,
     patient_merge, patient_merge_candidates, patient_tags, periodontal_chart, prescription_list,
     treatment_phases, treatment_plans, AppState,
@@ -141,6 +141,14 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/patients/:id/tags/:tag_id",
             delete(patient_tags::delete_patient_tag),
+        )
+        .route(
+            "/v1/letter-templates",
+            get(letters::list_letter_templates).post(letters::create_letter_template),
+        )
+        .route(
+            "/v1/patients/:id/letters",
+            post(letters::generate_patient_letter),
         )
         .route(
             "/v1/cabinet/consultations",
