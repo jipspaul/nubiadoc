@@ -8,10 +8,11 @@ class ReviewApi {
   ReviewApi(ApiClient client) : _dio = client.dio;
 
   Future<List<ReviewDto>> getProviderReviews(String providerId) async {
-    final response = await _dio.get<List<dynamic>>(
+    final response = await _dio.get<Map<String, dynamic>>(
       '/providers/$providerId/reviews',
     );
-    return (response.data!)
+    final data = response.data?['data'] as List<dynamic>? ?? [];
+    return data
         .map((e) => ReviewDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
