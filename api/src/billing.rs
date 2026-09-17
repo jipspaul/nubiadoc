@@ -771,7 +771,7 @@ fn render_quote_pdf(
         "Devis".to_string(),
         format!("Patient : {}", patient_name),
         format!("Praticien : {}", practitioner_name),
-        format!("Date : {}", created_at.to_rfc3339()),
+        format!("Date : {}", crate::scheduling::format_paris_date(created_at)),
         format!("Reference : {}", quote_id),
         String::new(),
     ];
