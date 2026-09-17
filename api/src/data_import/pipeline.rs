@@ -20,8 +20,17 @@
 //! Isolation des erreurs : une ligne = un SAVEPOINT ; une violation
 //! (chevauchement RDV `23P01`, clé externe dupliquée `23505`…) n'annule que
 //! sa ligne et devient une entrée `error` du rapport.
+//!
+//! Performance (done-when : 1 000 patients < 30 s) : les référentiels du
+//! cabinet (patients, RDV, praticiens) sont chargés UNE fois en mémoire
+//! (`Index`) au début du run et tenus à jour au fil des créations — une
+//! ligne coûte alors SAVEPOINT + 1 écriture + RELEASE, pas 2 recherches de
+//! plus. Le run est sérialisé par job (`status = 'running'`), l'index n'a
+//! donc pas de concurrent dans sa propre transaction.
 
-use chrono::Utc;
+use std::collections::HashMap;
+
+use chrono::{DateTime, NaiveDate, Utc};
 use core_crypto::{encrypt_column, LocalKeyManager};
 use serde::{Deserialize, Serialize};
 use sqlx::{Acquire, PgPool, Postgres, Row, Transaction};
@@ -93,6 +102,8 @@ pub(crate) async fn apply(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    let mut index = Index::load(&mut tx, cabinet_id).await?;
+
     let mut summary = Summary {
         total: lines.len(),
         ..Summary::default()
@@ -110,9 +121,11 @@ pub(crate) async fn apply(
                 let mut sp = (&mut tx).begin().await.map_err(|_| AppError::Internal)?;
                 let result = match record {
                     ImportRecord::Patient(p) => {
-                        apply_patient(&mut sp, cabinet_id, p, key_manager).await
+                        apply_patient(&mut sp, &mut index, cabinet_id, p, key_manager).await
                     }
-                    ImportRecord::Appointment(a) => apply_appointment(&mut sp, cabinet_id, a).await,
+                    ImportRecord::Appointment(a) => {
+                        apply_appointment(&mut sp, &mut index, cabinet_id, a).await
+                    }
                 };
                 match result {
                     Ok((action, entity_id, message)) => {
@@ -179,56 +192,161 @@ fn classify(e: sqlx::Error) -> LineError {
 
 type Applied = (LineAction, Uuid, Option<String>);
 
-/// Résolution d'un patient existant : clé externe d'abord, puis démographie.
-/// `Ok(None)` = à créer. `Err(Line)` = homonymes multiples.
-async fn find_patient(
-    tx: &mut Transaction<'_, Postgres>,
-    cabinet_id: Uuid,
-    lookup: &PatientLookup,
-) -> Result<Option<(Uuid, &'static str)>, LineError> {
-    if let Some(ext) = &lookup.external_ref {
-        let row = sqlx::query(
-            "SELECT id FROM patient \
-             WHERE cabinet_id = $1 AND external_ref = $2 AND deleted_at IS NULL",
+/// Clé démographique : nom + prénom (casse pliée, espaces bornés) + naissance.
+type DemoKey = (String, String, Option<NaiveDate>);
+
+fn demo_key(last: &str, first: &str, birth: Option<NaiveDate>) -> DemoKey {
+    (
+        last.trim().to_lowercase(),
+        first.trim().to_lowercase(),
+        birth,
+    )
+}
+
+/// Référentiels du cabinet en mémoire, chargés une fois par run.
+struct Index {
+    patients_by_ref: HashMap<String, Uuid>,
+    patients_by_demo: HashMap<DemoKey, Vec<Uuid>>,
+    appointments_by_ref: HashMap<String, Uuid>,
+    /// (patient, praticien, début) → RDV, pour les lignes sans clé externe.
+    appointments_by_slot: HashMap<(Uuid, Uuid, DateTime<Utc>), Uuid>,
+    practitioners_by_rpps: HashMap<String, Uuid>,
+    practitioner_count: usize,
+    sole_practitioner: Option<Uuid>,
+}
+
+impl Index {
+    async fn load(tx: &mut Transaction<'_, Postgres>, cabinet_id: Uuid) -> Result<Self, AppError> {
+        let mut index = Index {
+            patients_by_ref: HashMap::new(),
+            patients_by_demo: HashMap::new(),
+            appointments_by_ref: HashMap::new(),
+            appointments_by_slot: HashMap::new(),
+            practitioners_by_rpps: HashMap::new(),
+            practitioner_count: 0,
+            sole_practitioner: None,
+        };
+        let rows = sqlx::query(
+            "SELECT id, external_ref, last_name, first_name, birth_date FROM patient \
+             WHERE cabinet_id = $1 AND deleted_at IS NULL ORDER BY created_at",
         )
         .bind(cabinet_id)
-        .bind(ext)
-        .fetch_optional(&mut **tx)
+        .fetch_all(&mut **tx)
         .await
-        .map_err(classify)?;
-        if let Some(row) = row {
-            let id: Uuid = row.try_get("id").map_err(|_| LineError::Fatal)?;
-            return Ok(Some((id, "external_ref")));
+        .map_err(|_| AppError::Internal)?;
+        for row in rows {
+            let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let ext: Option<String> = row
+                .try_get("external_ref")
+                .map_err(|_| AppError::Internal)?;
+            let last: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+            let first: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+            let birth: Option<NaiveDate> =
+                row.try_get("birth_date").map_err(|_| AppError::Internal)?;
+            index.insert_patient(id, ext, &last, &first, birth);
         }
+
+        let rows = sqlx::query(
+            "SELECT id, external_ref, patient_id, practitioner_id, starts_at FROM appointment \
+             WHERE cabinet_id = $1 AND deleted_at IS NULL",
+        )
+        .bind(cabinet_id)
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        for row in rows {
+            let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let ext: Option<String> = row
+                .try_get("external_ref")
+                .map_err(|_| AppError::Internal)?;
+            let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+            let practitioner_id: Uuid = row
+                .try_get("practitioner_id")
+                .map_err(|_| AppError::Internal)?;
+            let starts_at: DateTime<Utc> =
+                row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+            index.insert_appointment(id, ext, patient_id, practitioner_id, starts_at);
+        }
+
+        let rows = sqlx::query("SELECT id, rpps FROM practitioner WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .fetch_all(&mut **tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        index.practitioner_count = rows.len();
+        for row in rows {
+            let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let rpps: Option<String> = row.try_get("rpps").map_err(|_| AppError::Internal)?;
+            if let Some(rpps) = rpps {
+                index.practitioners_by_rpps.insert(rpps, id);
+            }
+            index.sole_practitioner = Some(id);
+        }
+        if index.practitioner_count != 1 {
+            index.sole_practitioner = None;
+        }
+        Ok(index)
     }
-    let (Some(last), Some(first)) = (&lookup.last_name, &lookup.first_name) else {
-        return Ok(None);
-    };
-    let rows = sqlx::query(
-        "SELECT id FROM patient \
-         WHERE cabinet_id = $1 AND deleted_at IS NULL \
-           AND lower(last_name) = lower($2) AND lower(first_name) = lower($3) \
-           AND birth_date IS NOT DISTINCT FROM $4 \
-         ORDER BY created_at LIMIT 2",
-    )
-    .bind(cabinet_id)
-    .bind(last.trim())
-    .bind(first.trim())
-    .bind(lookup.birth_date)
-    .fetch_all(&mut **tx)
-    .await
-    .map_err(classify)?;
-    match rows.len() {
-        0 => Ok(None),
-        1 => {
-            let id: Uuid = rows[0].try_get("id").map_err(|_| LineError::Fatal)?;
-            Ok(Some((id, "demographics")))
+
+    fn insert_patient(
+        &mut self,
+        id: Uuid,
+        external_ref: Option<String>,
+        last: &str,
+        first: &str,
+        birth: Option<NaiveDate>,
+    ) {
+        if let Some(ext) = external_ref {
+            self.patients_by_ref.insert(ext, id);
         }
-        _ => Err(LineError::Line(
-            "plusieurs patients homonymes (nom + prénom + naissance) : rattachement ambigu, \
-             résolution manuelle requise"
-                .to_string(),
-        )),
+        self.patients_by_demo
+            .entry(demo_key(last, first, birth))
+            .or_default()
+            .push(id);
+    }
+
+    fn insert_appointment(
+        &mut self,
+        id: Uuid,
+        external_ref: Option<String>,
+        patient_id: Uuid,
+        practitioner_id: Uuid,
+        starts_at: DateTime<Utc>,
+    ) {
+        if let Some(ext) = external_ref {
+            self.appointments_by_ref.insert(ext, id);
+        }
+        self.appointments_by_slot
+            .insert((patient_id, practitioner_id, starts_at), id);
+    }
+
+    /// Résolution d'un patient existant : clé externe d'abord, puis
+    /// démographie. `Ok(None)` = à créer. `Err(Line)` = homonymes multiples.
+    fn find_patient(
+        &self,
+        lookup: &PatientLookup,
+    ) -> Result<Option<(Uuid, &'static str)>, LineError> {
+        if let Some(ext) = &lookup.external_ref {
+            if let Some(id) = self.patients_by_ref.get(ext) {
+                return Ok(Some((*id, "external_ref")));
+            }
+        }
+        let (Some(last), Some(first)) = (&lookup.last_name, &lookup.first_name) else {
+            return Ok(None);
+        };
+        match self
+            .patients_by_demo
+            .get(&demo_key(last, first, lookup.birth_date))
+            .map(Vec::as_slice)
+        {
+            None | Some([]) => Ok(None),
+            Some([id]) => Ok(Some((*id, "demographics"))),
+            Some(_) => Err(LineError::Line(
+                "plusieurs patients homonymes (nom + prénom + naissance) : rattachement ambigu, \
+                 résolution manuelle requise"
+                    .to_string(),
+            )),
+        }
     }
 }
 
@@ -254,6 +372,7 @@ fn contact_json(p: &PatientRecord) -> serde_json::Value {
 
 async fn apply_patient(
     tx: &mut Transaction<'_, Postgres>,
+    index: &mut Index,
     cabinet_id: Uuid,
     p: &PatientRecord,
     key_manager: &LocalKeyManager,
@@ -278,7 +397,7 @@ async fn apply_patient(
         None => None,
     };
 
-    let existing = find_patient(tx, cabinet_id, &lookup).await?;
+    let existing = index.find_patient(&lookup)?;
     let (action, id, message) = match existing {
         Some((id, matched_by)) => {
             // Rattachement par démographie à un patient déjà porteur d'une
@@ -313,6 +432,11 @@ async fn apply_patient(
             let action = if updated.rows_affected() == 0 {
                 LineAction::Unchanged
             } else {
+                // La clé externe vient peut-être d'être posée : les lignes
+                // suivantes du fichier doivent la retrouver.
+                if let Some(ext) = &p.external_ref {
+                    index.patients_by_ref.entry(ext.clone()).or_insert(id);
+                }
                 LineAction::Updated
             };
             (action, id, message)
@@ -333,6 +457,13 @@ async fn apply_patient(
             .await
             .map_err(classify)?;
             let id: Uuid = row.try_get("id").map_err(|_| LineError::Fatal)?;
+            index.insert_patient(
+                id,
+                p.external_ref.clone(),
+                &p.last_name,
+                &p.first_name,
+                p.birth_date,
+            );
             (LineAction::Created, id, None)
         }
     };
@@ -364,10 +495,11 @@ async fn apply_patient(
 
 async fn apply_appointment(
     tx: &mut Transaction<'_, Postgres>,
+    index: &mut Index,
     cabinet_id: Uuid,
     a: &AppointmentRecord,
 ) -> Result<Applied, LineError> {
-    let Some((patient_id, _)) = find_patient(tx, cabinet_id, &a.patient).await? else {
+    let Some((patient_id, _)) = index.find_patient(&a.patient)? else {
         return Err(LineError::Line(
             "patient introuvable (importer d'abord les patients, ou vérifier \
              `patient_ref_externe` / nom + prénom + naissance)"
@@ -376,68 +508,31 @@ async fn apply_appointment(
     };
 
     let practitioner_id: Uuid = match &a.practitioner_rpps {
-        Some(rpps) => {
-            let row = sqlx::query(
-                "SELECT id FROM practitioner WHERE cabinet_id = $1 AND rpps = $2 LIMIT 1",
+        Some(rpps) => *index.practitioners_by_rpps.get(rpps).ok_or_else(|| {
+            LineError::Line("praticien introuvable pour ce `praticien_rpps`".to_string())
+        })?,
+        // Sans RPPS : cabinet mono-praticien uniquement, sinon ambigu.
+        None => index.sole_practitioner.ok_or_else(|| {
+            LineError::Line(
+                "`praticien_rpps` obligatoire : le cabinet compte plusieurs praticiens \
+                 (ou aucun)"
+                    .to_string(),
             )
-            .bind(cabinet_id)
-            .bind(rpps)
-            .fetch_optional(&mut **tx)
-            .await
-            .map_err(classify)?;
-            row.ok_or_else(|| {
-                LineError::Line("praticien introuvable pour ce `praticien_rpps`".to_string())
-            })?
-            .try_get("id")
-            .map_err(|_| LineError::Fatal)?
-        }
-        None => {
-            // Sans RPPS : cabinet mono-praticien uniquement, sinon ambigu.
-            let rows = sqlx::query("SELECT id FROM practitioner WHERE cabinet_id = $1 LIMIT 2")
-                .bind(cabinet_id)
-                .fetch_all(&mut **tx)
-                .await
-                .map_err(classify)?;
-            if rows.len() != 1 {
-                return Err(LineError::Line(
-                    "`praticien_rpps` obligatoire : le cabinet compte plusieurs praticiens \
-                     (ou aucun)"
-                        .to_string(),
-                ));
-            }
-            rows[0].try_get("id").map_err(|_| LineError::Fatal)?
-        }
+        })?,
     };
 
     let existing = match &a.external_ref {
-        Some(ext) => sqlx::query(
-            "SELECT id FROM appointment \
-             WHERE cabinet_id = $1 AND external_ref = $2 AND deleted_at IS NULL",
-        )
-        .bind(cabinet_id)
-        .bind(ext)
-        .fetch_optional(&mut **tx)
-        .await
-        .map_err(classify)?,
+        Some(ext) => index.appointments_by_ref.get(ext).copied(),
         // Sans clé externe : même patient + même praticien + même début.
-        None => sqlx::query(
-            "SELECT id FROM appointment \
-             WHERE cabinet_id = $1 AND patient_id = $2 AND practitioner_id = $3 \
-               AND starts_at = $4 AND deleted_at IS NULL",
-        )
-        .bind(cabinet_id)
-        .bind(patient_id)
-        .bind(practitioner_id)
-        .bind(a.starts_at)
-        .fetch_optional(&mut **tx)
-        .await
-        .map_err(classify)?,
+        None => index
+            .appointments_by_slot
+            .get(&(patient_id, practitioner_id, a.starts_at))
+            .copied(),
     };
 
     let cancelled_at = (a.status == "cancelled").then(Utc::now);
     match existing {
-        Some(row) => {
-            let id: Uuid = row.try_get("id").map_err(|_| LineError::Fatal)?;
+        Some(id) => {
             let updated = sqlx::query(
                 "UPDATE appointment \
                  SET patient_id = $1, practitioner_id = $2, starts_at = $3, ends_at = $4, \
@@ -464,6 +559,13 @@ async fn apply_appointment(
             let action = if updated.rows_affected() == 0 {
                 LineAction::Unchanged
             } else {
+                index.insert_appointment(
+                    id,
+                    a.external_ref.clone(),
+                    patient_id,
+                    practitioner_id,
+                    a.starts_at,
+                );
                 LineAction::Updated
             };
             Ok((action, id, None))
@@ -488,6 +590,13 @@ async fn apply_appointment(
             .await
             .map_err(classify)?;
             let id: Uuid = row.try_get("id").map_err(|_| LineError::Fatal)?;
+            index.insert_appointment(
+                id,
+                a.external_ref.clone(),
+                patient_id,
+                practitioner_id,
+                a.starts_at,
+            );
             Ok((LineAction::Created, id, None))
         }
     }
