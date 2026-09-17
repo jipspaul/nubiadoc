@@ -2876,11 +2876,11 @@ pub async fn patch_account(
     if body
         .first_name
         .as_deref()
-        .is_some_and(|s| s.trim().is_empty())
+        .is_some_and(|s| s.trim().is_empty() || s.chars().count() > 100)
         || body
             .last_name
             .as_deref()
-            .is_some_and(|s| s.trim().is_empty())
+            .is_some_and(|s| s.trim().is_empty() || s.chars().count() > 100)
     {
         return Err(AppError::ValidationError);
     }
