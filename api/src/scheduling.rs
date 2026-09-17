@@ -97,6 +97,9 @@ pub struct AgendaSlot {
     /// Nom du patient (donnée administrative, visible secrétariat+) —
     /// sans lui l'agenda titrait par le motif technique (#3371).
     pub patient_name: Option<String>,
+    /// Id du patient — permet au volet de détail de charger sa fiche
+    /// (téléphone, couverture, cf. #7048/#7063).
+    pub patient_id: Option<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -201,7 +204,8 @@ pub async fn get_cabinet_agenda(
             if let Some(sid) = claims.secretariat_id {
                 sqlx::query(
                     "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
-                            NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                            NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
+                            p.id AS patient_id \
                      FROM appointment a \
                      LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
                      WHERE a.deleted_at IS NULL \
@@ -229,7 +233,8 @@ pub async fn get_cabinet_agenda(
         } else {
             sqlx::query(
                 "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
-                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
+                        p.id AS patient_id \
                  FROM appointment a \
                  LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
                  WHERE a.deleted_at IS NULL \
@@ -248,7 +253,8 @@ pub async fn get_cabinet_agenda(
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
                 "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
-                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
+                        p.id AS patient_id \
                  FROM appointment a \
                  LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
                  WHERE a.deleted_at IS NULL \
@@ -274,7 +280,8 @@ pub async fn get_cabinet_agenda(
     } else {
         sqlx::query(
             "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
-                    NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                    NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
+                    p.id AS patient_id \
              FROM appointment a \
              LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
              WHERE a.deleted_at IS NULL \
@@ -311,6 +318,9 @@ pub async fn get_cabinet_agenda(
             let patient_name: Option<String> = row
                 .try_get("patient_name")
                 .map_err(|_| AppError::Internal)?;
+            let patient_id: Option<Uuid> = row
+                .try_get("patient_id")
+                .map_err(|_| AppError::Internal)?;
             Ok(AgendaSlot {
                 id,
                 practitioner_id,
@@ -319,6 +329,7 @@ pub async fn get_cabinet_agenda(
                 status,
                 motif_admin,
                 patient_name,
+                patient_id,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
