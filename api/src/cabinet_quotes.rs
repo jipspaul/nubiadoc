@@ -295,6 +295,11 @@ pub struct CabinetQuoteItem {
     pub total_amount: i64,
     pub patient_share_cents: i64,
     pub created_at: String,
+    /// `quote.signed_at` (#7100) : absent de la projection LISTE avant ce
+    /// correctif alors que le détail (`CabinetQuoteDetail.signed_at`) l'a
+    /// toujours exposé — le front affichait « Signé » nu au lieu de
+    /// « Signé le JJ/MM » sur 100% des devis signés.
+    pub signed_at: Option<String>,
     /// `sent_at + QUOTE_VALIDITY_DAYS`, `null` si le devis n'est pas `sent`
     /// ou n'a jamais été envoyé (#5597).
     pub expires_at: Option<String>,
@@ -370,7 +375,7 @@ pub async fn list_cabinet_quotes(
                     (SELECT coalesce(sum((qi.qty * qi.unit_amount \
                         - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
                      FROM quote_item qi WHERE qi.quote_id = q.id) AS patient_share_cents, \
-                    q.created_at, \
+                    q.created_at, q.signed_at, \
                     CASE WHEN q.status = 'sent' AND q.sent_at IS NOT NULL \
                          THEN q.sent_at + interval '{QUOTE_VALIDITY_DAYS} days' \
                          ELSE NULL END AS expires_at, \
@@ -473,6 +478,8 @@ pub async fn list_cabinet_quotes(
                 .map_err(|_| AppError::Internal)?;
             let created_at: chrono::DateTime<chrono::Utc> =
                 row.try_get("created_at").map_err(|_| AppError::Internal)?;
+            let signed_at: Option<chrono::DateTime<chrono::Utc>> =
+                row.try_get("signed_at").map_err(|_| AppError::Internal)?;
             let expires_at: Option<chrono::DateTime<chrono::Utc>> =
                 row.try_get("expires_at").map_err(|_| AppError::Internal)?;
             let deposit_paid: bool = row
@@ -487,6 +494,7 @@ pub async fn list_cabinet_quotes(
                 total_amount: amount_cents,
                 patient_share_cents,
                 created_at: created_at.to_rfc3339(),
+                signed_at: signed_at.map(|d| d.to_rfc3339()),
                 expires_at: expires_at.map(|d| d.to_rfc3339()),
                 deposit_paid,
             })
