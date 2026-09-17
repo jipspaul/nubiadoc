@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -7,6 +8,7 @@ import '../features/home/pharma_home_page.dart';
 import '../features/login/login_page.dart';
 import '../features/notification_prefs/pharma_notification_prefs_page.dart';
 import '../features/pickup_scan/pickup_scan_page.dart';
+import '../session/pharma_auth_cubit.dart';
 
 class AppRouter {
   AppRouter._();
@@ -50,8 +52,21 @@ class AppRouter {
       routes: [
         GoRoute(
           path: splash,
-          builder: (_, __) =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
+          // #7034 (port de #6750) : une panne transitoire pendant
+          // PharmaAuthCubit.restore() ne doit pas se voir comme un spinner
+          // infini (token jamais confirmé ni invalidé) — on propose
+          // Réessayer plutôt que de rediriger vers le login une pharmacie
+          // encore authentifiée.
+          builder: (_, __) => Scaffold(
+            body: BlocBuilder<PharmaAuthCubit, AuthState>(
+              builder: (context, state) => state is AuthRestoreFailed
+                  ? NubiaErrorWidget(
+                      message: state.message,
+                      onRetry: () => context.read<PharmaAuthCubit>().restore(),
+                    )
+                  : const Center(child: CircularProgressIndicator()),
+            ),
+          ),
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
         GoRoute(path: orders, builder: (_, __) => const PharmaHomePage()),

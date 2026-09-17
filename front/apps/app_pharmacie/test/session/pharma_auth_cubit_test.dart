@@ -238,6 +238,30 @@ void main() {
       },
     );
 
+    // #7034 (port de #6750) : un 500/coupure réseau sur GET /v1/me pendant le
+    // boot ne doit pas déconnecter une pharmacie dont le token est valide —
+    // seul un vrai 401 (UnauthorizedFailure) doit le faire.
+    blocTest<PharmaAuthCubit, AuthState>(
+      'token kind:"pharma" mais /v1/me en panne transitoire (ServerFailure) → '
+      'AuthRestoreFailed, pas de déconnexion',
+      build: buildCubit,
+      setUp: () {
+        when(() => tokenStorage.getAccessToken()).thenAnswer(
+          (_) async => _fakeJwt({'sub': 'u1', 'kind': 'pharma', 'exp': 0}),
+        );
+        when(() => memberships()).thenAnswer(
+          (_) async => const Left(
+            ServerFailure(message: 'Erreur serveur.', statusCode: 500),
+          ),
+        );
+      },
+      act: (cubit) => cubit.restore(),
+      expect: () => [
+        isA<AuthRestoreFailed>()
+            .having((s) => s.message, 'message', 'Erreur serveur.'),
+      ],
+    );
+
     blocTest<PharmaAuthCubit, AuthState>(
       'token kind:"pharma" mais memberships vide → Unauthenticated',
       build: buildCubit,
