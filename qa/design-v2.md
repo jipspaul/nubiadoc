@@ -533,3 +533,13 @@ puis rotation sur les plus anciens.
 | **nouvelles issues design-v2 filées** | **1** (#7118, label `design:v2`) |
 | régressions design-v2 **confirmées corrigées** | **3** — #7031 (heure du créneau à 390 px), #7028 (heure de départ des praticiens), #7033 (facettes de consultation interrogeant le serveur) |
 | maquettes encore jamais confrontées | `Patient Invitation proche adulte.html`, `Praticien Consultation PC.html`, `Mesure de protection - depot et verification.html` — **à prendre en premier à la prochaine ronde** (screenshots des maquettes déjà pris cette ronde : `qa/screenshots/mockups/R76_mock_*`) |
+
+
+### Addendum de fin de ronde (2 écrans de plus, quota porté à 8)
+
+| app | écran/route | maquette | verdict | divergences | last_check |
+|---|---|---|---|---|---|
+| praticien | `/consultation?id=<séance>` **à 1440×900** | `Praticien Consultation PC.html` | **conforme** — **PREMIÈRE comparaison de cette maquette** | La maquette prescrit, en PC 1440×900, une **3ᵉ colonne de contexte** absente de la version tablette. Elle est **bien là en live** : la colonne gauche porte « **Alertes du dossier** » (avec la pastille **ALD** du patient), « **Dernières séances** » et un bouton « **Ouvrir le plan** ». Contre-épreuve au même instant à **1280×800** : cette colonne **disparaît** et l'écran retombe sur les 2 colonnes de `Praticien Consultation v2.html` (TABLETTE 1258 × 834) — la bascule responsive fait donc exactement ce que les deux maquettes décrivent. 67 nœuds Semantics à 1440, 65 à 1280. Captures : `R76_dv2_consultPC_1440.png` / `R76_dv2_consultPC_1280.png`. |  2026-09-17T14:25:00Z |
+| patient | `/appointments/slots` → « Continuer » (ÉTAPE 3) | `Patient Réservation v2.html` (ÉTAPE 3) | **conforme (rendu + mécanique)** | Les 3 points structurants de l'étape 3 sont **exécutés et vérifiés** : ③ le panneau est bien un **`NubiaBottomSheet` modal** (nœud « Boîte de dialogue » couvrant 0→844, la grille reste montée derrière) et non un enfant de `Column` qui comprimerait la liste ; ② le **récapitulatif** est en tête avec son « **Modifier** » (y 691→711) ; ① les **puces de motif tapables** sont là — `Contrôle`, `Douleur`, `Détartrage`, `Urgence`, `Suivi de traitement` — suivies de « Précisions pour le praticien (facultatif) » et de « **Confirmer le rendez-vous** ». Bonus hors maquette : sélecteur de bénéficiaire (Moi + 15 proches, alimenté par `GET /v1/account/dependents`) et « Rappels de rendez-vous ». Le CTA grisé sans explication que dénonçait la maquette n'existe plus. | 2026-09-17T14:25:00Z |
+
+**Total de la ronde : 8 écrans confrontés à leur maquette** (7 conformes, 1 divergent → #7118).

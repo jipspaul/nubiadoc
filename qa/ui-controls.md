@@ -2014,3 +2014,26 @@ Comme aux rondes précédentes, **aucun** des morts résiduels re-testés n'éta
 
 `Se déconnecter` (les 5 apps) — destructif pour la session de test. Aucun contrôle de suppression de
 compte/cabinet/pharmacie n'a été activé.
+
+
+### Addendum de fin de ronde
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | commentaire | last_check |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/profile` (390) — **auditeur à défilement** | 17 | 13 | **12** | 0 retenu | 0 | Les 6 « morts » du premier passage se réduisent à **zéro** : 5 sont hors viewport et naviguent correctement après défilement (`Médecin traitant` → `/profile/referring-doctor`, `Mes proches` → `/profile/dependents` + `GET /account/access-requests`, `Consentements` → `/profile/consents`, `Passeport implantaire` → `/implant-passport`, `Ma pharmacie` → `/pharmacy`). Le 6ᵉ, « Modifier la photo de profil », est une **limite de harnais** : le nœud Semantics englobe tout l'en-tête (avatar + nom + e-mail) alors que la cible réelle est le cercle de 64 px (`profile_page.dart:741-745`, `InkWell` + `CircleBorder`), et son `onTap` ouvre un **sélecteur de fichier natif** — invisible au DOM, aux pixels et au réseau. Non retenu. 1 DÉSACTIVÉ légitime (`Authentification biométrique`, cf. #7070). | 2026-09-17T14:25:00Z |
+| praticien | `/agenda` (1280) | 25 | 21 | **21** | 0 | 0 | 21/21. | 2026-09-17T14:25:00Z |
+| praticien | `/ordonnances` (1280) | 19 | 16 | **16** | 0 | 0 | 16/16, « Choisir un patient » émet sa requête. | 2026-09-17T14:25:00Z |
+| secretariat | `/salle-attente` (1280) | 28 | 22 | **22** | 0 | 0 | 22/22. | 2026-09-17T14:25:00Z |
+| patient | `/pharmacy/orders` (390) | 17 | 16 | 13 | 3 → **0 retenus** | 0 | Morts en bas de liste, hors viewport. | 2026-09-17T14:25:00Z |
+| patient | `/home-care` (390) | 18 | 17 | 14 | 3 → **0 retenus** | 0 | Morts hors viewport — mais **défaut de libellé trouvé sur ces mêmes cartes** : l'adresse se réduit à « ,   » → **#7121 (P2)**. | 2026-09-17T14:25:00Z |
+| patient | `/appointments/slots` → « Continuer » → feuille de confirmation | 27 | 1 | **1** | 0 | 0 | Étape 3 du tunnel : le clic simple ouvre la feuille modale complète (motifs, bénéficiaire, « Modifier », « Confirmer le rendez-vous »). | 2026-09-17T14:25:00Z |
+
+### Cas adversariaux joués (Étape 2f) — app patient
+
+| cas | verdict | observation |
+|---|---|---|
+| **Double-clic rapide** sur « Continuer » (tunnel de réservation) | **OK — ni doublon, ni crash** | **0 écriture émise**, aucune exception, aucun double-booking. Instrumenté à part : le 2ᵉ clic tombe **dans** la feuille (sur la puce « Urgence ») et **ne la referme pas** (`feuille encore ouverte ? true`, 27 contrôles). Sur deux clics synthétiques à 0 ms d'intervalle — que Chromium coalesce en `dblclick` — la feuille ne s'ouvre pas du tout ; **non rapporté**, faute de pouvoir distinguer l'app de l'artefact de synthèse (un doigt réel ne produit pas 0 ms) |
+| **Back / Forward navigateur** au milieu du tunnel | **OK** | `/appointments/slots` → back → `/appointments` (16 contrôles, pas d'écran blanc) → forward → `/appointments/slots` (48 contrôles). État cohérent dans les deux sens |
+| **Texte très long + accents** dans un champ libre (`/home-care/new`, 260 caractères) | **OK** | 13 contrôles avant comme après, **0 débordement horizontal** mesuré sur les rects Semantics |
+| **Coupure réseau** pendant une action (`route.abort` sur `**/v1/**`, ouverture d'ordonnance) | **défaut** | 17 contrôles → 1 et « Aucune ordonnance » au lieu d'un message d'erreur — **même cause que #7119**, ajouté en commentaire à l'issue |
+| **Écran chargé API coupée** (`/financial`) | **OK** | « Retour » + « **Réessayer** » : erreur digne, pas de spinner infini, pas d'écran blanc (nearWhite 0.98 = fond de l'état d'erreur, arbre Semantics non vide) |
