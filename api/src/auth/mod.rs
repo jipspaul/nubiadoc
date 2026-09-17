@@ -2824,16 +2824,8 @@ pub async fn patch_account(
         return Err(AppError::ValidationError);
     }
 
-    // Validation format E.164 : commence par '+', suivi de 7 à 14 chiffres.
     if let Some(ref phone) = body.phone {
-        let digits: &str = phone.strip_prefix('+').unwrap_or("");
-        if digits.is_empty()
-            || digits.len() < 7
-            || digits.len() > 14
-            || !digits.chars().all(|c| c.is_ascii_digit())
-        {
-            return Err(AppError::ValidationError);
-        }
+        crate::text_validation::validate_phone_format(phone)?;
     }
 
     let delta = contact_delta(body.address.as_ref());
