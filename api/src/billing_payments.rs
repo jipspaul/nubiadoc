@@ -72,7 +72,7 @@ pub async fn create_payment_intent(
         .get("idempotency-key")
         .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
-        .ok_or(AppError::MissingIdempotencyKey)?
+        .ok_or(AppError::ValidationError)?
         .to_owned();
 
     if !["deposit", "installment", "full"].contains(&body.kind.as_str()) {
@@ -403,7 +403,7 @@ pub async fn create_pharmacy_quote_payment_intent(
         .get("idempotency-key")
         .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
-        .ok_or(AppError::MissingIdempotencyKey)?
+        .ok_or(AppError::ValidationError)?
         .to_owned();
 
     if !["card", "apple_pay", "google_pay", "sepa"].contains(&body.method.as_str()) {
