@@ -1009,8 +1009,8 @@ class _Composer extends StatelessWidget {
                     // « à venir » induisaient en erreur. Grisés avec la
                     // raison plutôt que retirés du composeur.
                     Tooltip(
-                      message: "Jointure d'un objet du produit indisponible "
-                          "pour l'instant.",
+                      message: 'Joindre un patient ou un devis est '
+                          "indisponible pour l'instant.",
                       child: NubiaButton(
                         key: const Key('team_message_attach_reference_button'),
                         label: 'Joindre un patient, un devis…',
