@@ -59,7 +59,10 @@ pub fn router(state: AppState) -> Router {
         .route("/", get(home_page::home_page))
         .route("/robots.txt", get(robots::robots_txt))
         .route("/sitemap.xml", get(sitemap::sitemap_xml))
-        .route("/reservation/confirmer", get(confirm_page::confirm_page))
+        .route(
+            "/reservation/confirmer",
+            get(confirm_page::confirm_page).post(confirm_page::confirm_submit),
+        )
         .route("/:query_slug/:locality_slug", get(search_page::search_page))
         .route("/:slug", get(provider_page::provider_page))
         .route_layer(middleware::from_fn(reject_v1_prefix))
