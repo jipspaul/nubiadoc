@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../../router/app_router.dart';
 import '../financial_bloc.dart';
 import '../financial_event.dart';
 import '../financial_state.dart';
@@ -135,8 +137,10 @@ class _QuoteTile extends StatelessWidget {
     return NubiaCard(
       key: Key('quote_item_${quote.id}'),
       state: NubiaCardState.interactive,
-      onTap: () =>
-          context.read<FinancialBloc>().add(FinancialQuoteSelected(quote.id)),
+      // #7251 : `go()` (et non le seul événement bloc) pour que l'URL porte
+      // `?id=` — sinon le retour système consomme la route `/financial`
+      // elle-même et éjecte vers l'accueil au lieu de revenir à la liste.
+      onTap: () => context.go('${AppRouter.financial}?id=${quote.id}'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -398,9 +398,11 @@ class AppRouter {
                           key: const Key('btn_appbar_back'),
                           icon: const Icon(Icons.arrow_back),
                           tooltip: 'Retour',
-                          onPressed: () => context
-                              .read<FinancialBloc>()
-                              .add(const FinancialBackToList()),
+                          // #7251 : `go()` sans `?id=` (et non le seul
+                          // événement bloc) pour que l'URL retrouve
+                          // `/financial` — sinon elle reste sur
+                          // `?id=<quoteId>` alors que la liste est affichée.
+                          onPressed: () => context.go(financial),
                         );
                       }
                       return backOrHomeLeading(context);
