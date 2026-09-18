@@ -2537,3 +2537,19 @@ Les 14 verdicts MORT bruts sont tous attribués et levés :
 
 > **Piège de mesure n° 31 (R81)** — une bascule de **consentement** n'écrit rien au premier clic : elle ouvre une **feuille de confirmation** (« Retirer … ? / Ce qui change / Ce qui ne change pas »). Un auditeur qui envoie `Escape` après chaque clic **annule** la confirmation et ne voit jamais le `PUT /v1/account/consents/:purpose` — d'où un faux « bascule sans effet serveur ». Toujours chercher un bouton de confirmation dans l'inventaire AVANT de conclure.
 
+### Ronde R81 — dernier lot (7 routes jamais auditées cette ronde)
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts réels | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | /liste-attente | 1280×800 | 20 | 5 | 2 | 0 | 0 (3 « CASSÉ » = 401 de session expirée, piège n° 22) | 2026-09-18T19:35:00+00:00 |
+| secretariat | /bookable-slots | 1280×800 | 24 | 9 | 9 | 0 | 0 | 2026-09-18T19:37:00+00:00 |
+| secretariat | /appointment-motifs | 1280×800 | 21 | 6 | 6 | 0 | 0 | 2026-09-18T19:38:00+00:00 |
+| praticien | /stock-inventory | 1280×800 | 28 | 14 | 12 | 0 (2 rects hors viewport, y=953/1043) | 0 | 2026-09-18T19:40:00+00:00 |
+| patient | /oubliettes | 390×844 | 1 | 1 | 1 | 0 | 0 | 2026-09-18T19:41:00+00:00 |
+| patient | /implant-passport | 390×844 | 6 | 6 | 4 | 0 (2 rects hors viewport, y=910/1088) | 0 | 2026-09-18T19:42:00+00:00 |
+| patient | /reviews | 390×844 | 1 | 1 | 1 | 0 | 0 | 2026-09-18T19:43:00+00:00 |
+
+> `/reviews` sans `providerId` rend un **état vide digne** (« Aucun avis pour ce prestataire. », icône, pas de spinner) — `white 0.991` est la couleur de l'état vide, **pas** un canevas blanc : le seuil de 0,92 ne suffit pas seul à conclure, il faut lire la capture. Réserve de copie, non rapportée : « ce prestataire » alors qu'aucun prestataire n'est sélectionné.
+
+**TOTAUX CONSOLIDÉS R81 — 41 écrans (app × viewport × route) · 648 contrôles inventoriés · 223 activés · 190 OK · 0 CASSÉ réel · 0 MORT réel · 3 désactivés légitimes · 5/5 apps aux deux viewports.**
+
