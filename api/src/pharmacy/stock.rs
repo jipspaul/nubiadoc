@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -90,6 +90,17 @@ fn stock_from_row(row: &PgRow) -> Result<StockRequestDto, AppError> {
 #[derive(Serialize)]
 pub struct StockRequestsResponse {
     pub data: Vec<StockRequestDto>,
+}
+
+/// Paramètres de `GET /v1/cabinet/stock-requests` et `GET /v1/pharmacy/stock-requests`.
+///
+/// `limit` (défaut 200, max 500) et `offset` bornent le résultat (#7322 :
+/// avant, `LIMIT 200` était codé en dur sans aucun paramètre accepté — les
+/// lignes au-delà du plafond devenaient irrécupérables).
+#[derive(Deserialize)]
+pub struct ListStockRequestsQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 // ── Espace cabinet ────────────────────────────────────────────────────────────
@@ -224,11 +235,16 @@ pub async fn create_stock_request(
     Ok((StatusCode::CREATED, Json(request)))
 }
 
-/// `GET /v1/cabinet/stock-requests` — demandes émises par le cabinet.
+/// `GET /v1/cabinet/stock-requests?limit=&offset=` — demandes émises par le
+/// cabinet, triées `created_at DESC` (#7322).
 pub async fn list_cabinet_stock_requests(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
+    Query(params): Query<ListStockRequestsQuery>,
 ) -> Result<Json<StockRequestsResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
+    let offset: i64 = params.offset.unwrap_or(0).max(0);
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(claims.cabinet_id.to_string())
@@ -237,8 +253,10 @@ pub async fn list_cabinet_stock_requests(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(&format!(
-        "SELECT {STOCK_COLUMNS} FROM stock_request ORDER BY created_at DESC LIMIT 200",
+        "SELECT {STOCK_COLUMNS} FROM stock_request ORDER BY created_at DESC LIMIT $1 OFFSET $2",
     ))
+    .bind(limit)
+    .bind(offset)
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -249,6 +267,35 @@ pub async fn list_cabinet_stock_requests(
         .map(stock_from_row)
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Json(StockRequestsResponse { data }))
+}
+
+/// `GET /v1/cabinet/stock-requests/{id}` — détail d'une demande de stock émise
+/// par le cabinet (404 hors tenant). Ajoutée avec la pagination (#7322) : sans
+/// cette route, une demande sortie de la page par écriture ultérieure était
+/// définitivement irrécupérable.
+pub async fn get_cabinet_stock_request(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<StockRequestDto>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(&format!(
+        "SELECT {STOCK_COLUMNS} FROM stock_request WHERE id = $1",
+    ))
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+    Ok(Json(stock_from_row(&row)?))
 }
 
 /// `POST /v1/cabinet/stock-requests/{id}/cancel` — annulation tant que `sent`.
@@ -364,11 +411,16 @@ pub async fn resend_stock_request(
 
 // ── Espace pharmacie ──────────────────────────────────────────────────────────
 
-/// `GET /v1/pharmacy/stock-requests` — demandes reçues par la pharmacie.
+/// `GET /v1/pharmacy/stock-requests?limit=&offset=` — demandes reçues par la
+/// pharmacie, triées `created_at DESC` (#7322).
 pub async fn list_pharmacy_stock_requests(
     State(state): State<AppState>,
     claims: PharmaMemberClaims,
+    Query(params): Query<ListStockRequestsQuery>,
 ) -> Result<Json<StockRequestsResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
+    let offset: i64 = params.offset.unwrap_or(0).max(0);
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
         .bind(claims.pharmacy_id.to_string())
@@ -377,8 +429,10 @@ pub async fn list_pharmacy_stock_requests(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(&format!(
-        "SELECT {STOCK_COLUMNS} FROM stock_request ORDER BY created_at DESC LIMIT 200",
+        "SELECT {STOCK_COLUMNS} FROM stock_request ORDER BY created_at DESC LIMIT $1 OFFSET $2",
     ))
+    .bind(limit)
+    .bind(offset)
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

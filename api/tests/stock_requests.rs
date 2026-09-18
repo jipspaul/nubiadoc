@@ -402,3 +402,79 @@ async fn validation_and_isolation() {
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn pagination_and_detail_route() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, pharmacy_id) = seed(&db).await;
+    let pro = pro_jwt(cabinet_id, "secretary");
+
+    // Trois demandes : `?limit=` doit borner la réponse, et l'ancienne doit
+    // rester lisible via la route de détail même hors de la page courante (#7322).
+    let mut ids = Vec::new();
+    for i in 0..3 {
+        let (_, request) = call(
+            "POST",
+            "/v1/cabinet/stock-requests",
+            &pro,
+            Some(json!({"pharmacy_id": pharmacy_id,
+                        "items": [{"label": format!("Item {i}"), "qty": 1}]})),
+        )
+        .await;
+        ids.push(request["id"].as_str().unwrap().to_string());
+    }
+
+    let (status, list) = call("GET", "/v1/cabinet/stock-requests?limit=2", &pro, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["data"].as_array().unwrap().len(), 2);
+
+    let (status, list) = call(
+        "GET",
+        "/v1/cabinet/stock-requests?limit=2&offset=2",
+        &pro,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["data"].as_array().unwrap().len(), 1);
+
+    // Route de détail : accessible par id même hors page courante.
+    let (status, detail) = call(
+        "GET",
+        &format!("/v1/cabinet/stock-requests/{}", ids[0]),
+        &pro,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["id"], ids[0]);
+
+    // Id inconnu → 404.
+    let (status, _) = call(
+        "GET",
+        &format!("/v1/cabinet/stock-requests/{}", Uuid::new_v4()),
+        &pro,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // Autre cabinet → 404 (RLS).
+    let other_cabinet = Uuid::new_v4();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale) VALUES ($1, 'Autre cabinet')")
+        .bind(other_cabinet)
+        .execute(&db)
+        .await
+        .unwrap();
+    let (status, _) = call(
+        "GET",
+        &format!("/v1/cabinet/stock-requests/{}", ids[0]),
+        &pro_jwt(other_cabinet, "secretary"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
