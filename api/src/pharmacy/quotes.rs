@@ -395,19 +395,23 @@ pub async fn remind_pharmacy_quote(
     Ok(Json(quote))
 }
 
-/// Expire les devis encore `sent` ancrés sur une commande qui vient de sortir
-/// du cycle actif (`picked_up`/`rejected`/`cancelled`) — sinon le devis reste
-/// `sent` indéfiniment alors qu'`accept`/`refuse` refusent tous deux 409
-/// `invalid_status` (garde de #4415/#5476 dans `decide_quote`), sans aucune
-/// route de sortie pour le patient ni la pharmacie (#6588). À appeler dans la
-/// même transaction que la transition de la commande.
+/// Expire les devis encore `sent` OU `draft` ancrés sur une commande qui vient
+/// de sortir du cycle actif (`picked_up`/`rejected`/`cancelled`) — sinon le
+/// devis `sent` reste indéfiniment ainsi alors qu'`accept`/`refuse` refusent
+/// tous deux 409 `invalid_status` (garde de #4415/#5476 dans `decide_quote`),
+/// sans aucune route de sortie pour le patient ni la pharmacie (#6588).
+/// Couvre aussi le devis encore `draft` au moment de la transition : sans ce
+/// second statut, `send_pharmacy_quote` (qui ne revérifie pas la commande)
+/// pouvait plus tard faire passer un tel devis `draft` → `sent` sur une
+/// commande déjà terminale, l'échouant dans le même cul-de-sac (#7277). À
+/// appeler dans la même transaction que la transition de la commande.
 pub(crate) async fn expire_sent_quotes_for_order(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     order_id: Uuid,
 ) -> Result<(), AppError> {
     sqlx::query(
         "UPDATE pharmacy_quote SET status = 'expired', decided_at = now(), updated_at = now() \
-         WHERE order_id = $1 AND status = 'sent'",
+         WHERE order_id = $1 AND status IN ('sent', 'draft')",
     )
     .bind(order_id)
     .execute(&mut **tx)
