@@ -184,6 +184,31 @@ void main() {
   });
 
   testWidgets(
+      '#7297 : un 403 (pas de relation de soin) affiche un état explicite '
+      'sans bouton Réessayer', (tester) async {
+    when(() => getChart('pat-1')).thenAnswer(
+      (_) async => const Left(ServerFailure(
+        message: 'Aucune relation de soin avec ce patient.',
+        statusCode: 403,
+      )),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('dental_chart_access_denied')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('dental_chart_error')), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Réessayer'), findsNothing);
+    expect(
+      find.text('Accès clinique non autorisé pour ce rôle.'),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
       'le statut clinique est porté par le libellé accessible, pas '
       'seulement la couleur (#7043)', (tester) async {
     when(() => getChart('pat-1')).thenAnswer(

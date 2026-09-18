@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../patients/patient_access_denied_notice.dart';
 import 'clinical_chart_blank_hint.dart';
 import 'dental_chart_cubit.dart';
 import 'tooth_grid.dart';
@@ -118,11 +119,21 @@ class _DentalChartBodyState extends State<_DentalChartBody> {
             DentalChartLoading() => const Center(
                 key: Key('dental_chart_loading'),
                 child: CircularProgressIndicator()),
-            DentalChartError(:final message) => NubiaErrorWidget(
-                key: const Key('dental_chart_error'),
-                message: message,
-                onRetry: () => context.read<DentalChartCubit>().load(),
-              ),
+            DentalChartError(:final message, :final accessDenied) =>
+              accessDenied
+                  ? Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: PatientAccessDeniedNotice(
+                        key: const Key('dental_chart_access_denied'),
+                        message: "Vous n'avez pas encore suivi ce patient — "
+                            "le schéma dentaire n'est pas accessible.",
+                      ),
+                    )
+                  : NubiaErrorWidget(
+                      key: const Key('dental_chart_error'),
+                      message: message,
+                      onRetry: () => context.read<DentalChartCubit>().load(),
+                    ),
             DentalChartLoaded(
               :final teeth,
               :final isBlank,

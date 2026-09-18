@@ -18,7 +18,10 @@ class PeriodontalChartRepositoryImpl implements PeriodontalChartRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 403) {
-        return const Left(ClinicalAccessDenied());
+        return const Left(ServerFailure(
+          message: 'Aucune relation de soin avec ce patient.',
+          statusCode: 403,
+        ));
       }
       if (e.response?.statusCode == 404) {
         return const Left(NotFoundFailure('Patient introuvable.'));
@@ -59,7 +62,10 @@ class PeriodontalChartRepositoryImpl implements PeriodontalChartRepository {
         );
       }
       if (e.response?.statusCode == 403) {
-        return const Left(ClinicalAccessDenied());
+        return const Left(ServerFailure(
+          message: 'Aucune relation de soin avec ce patient.',
+          statusCode: 403,
+        ));
       }
       if (e.response?.statusCode == 404) {
         return const Left(NotFoundFailure('Patient introuvable.'));

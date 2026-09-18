@@ -13,6 +13,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../dental_chart/clinical_chart_blank_hint.dart';
 import '../dental_chart/tooth_grid.dart';
+import '../patients/patient_access_denied_notice.dart';
 import 'periodontal_chart_cubit.dart';
 
 final List<String> kAdultFdiTeeth = [
@@ -65,11 +66,22 @@ class _PeriodontalChartBody extends StatelessWidget {
                 key: Key('periodontal_chart_loading'),
                 child: CircularProgressIndicator(),
               ),
-            PeriodontalChartError(:final message) => NubiaErrorWidget(
-                key: const Key('periodontal_chart_error'),
-                message: message,
-                onRetry: () => context.read<PeriodontalChartCubit>().load(),
-              ),
+            PeriodontalChartError(:final message, :final accessDenied) =>
+              accessDenied
+                  ? Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: PatientAccessDeniedNotice(
+                        key: const Key('periodontal_chart_access_denied'),
+                        message: "Vous n'avez pas encore suivi ce patient — "
+                            "le bilan parodontal n'est pas accessible.",
+                      ),
+                    )
+                  : NubiaErrorWidget(
+                      key: const Key('periodontal_chart_error'),
+                      message: message,
+                      onRetry: () =>
+                          context.read<PeriodontalChartCubit>().load(),
+                    ),
             PeriodontalChartLoaded(
               :final sites,
               :final indices,
