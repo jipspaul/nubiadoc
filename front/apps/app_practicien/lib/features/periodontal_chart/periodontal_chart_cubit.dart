@@ -31,11 +31,16 @@ class PeriodontalChartLoading extends PeriodontalChartState {
 }
 
 class PeriodontalChartError extends PeriodontalChartState {
-  const PeriodontalChartError(this.message);
+  const PeriodontalChartError(this.message, {this.accessDenied = false});
   final String message;
 
+  /// #7297 — 403 déterministe (garde « relation de soin » RLS §14) :
+  /// distinct d'une panne transitoire, un « Réessayer » ne peut
+  /// structurellement jamais aboutir dans ce cas.
+  final bool accessDenied;
+
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, accessDenied];
 }
 
 class PeriodontalChartLoaded extends PeriodontalChartState {
@@ -101,7 +106,10 @@ class PeriodontalChartCubit extends Cubit<PeriodontalChartState> {
     emit(const PeriodontalChartLoading());
     final result = await _get(patientId);
     result.fold(
-      (failure) => emit(PeriodontalChartError(failure.message)),
+      (failure) => emit(PeriodontalChartError(
+        failure.message,
+        accessDenied: failure is ServerFailure && failure.statusCode == 403,
+      )),
       (chart) => emit(
         PeriodontalChartLoaded(
           sites: chart.sites,

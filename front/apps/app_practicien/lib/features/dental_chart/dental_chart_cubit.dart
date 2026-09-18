@@ -32,11 +32,16 @@ class DentalChartLoading extends DentalChartState {
 }
 
 class DentalChartError extends DentalChartState {
-  const DentalChartError(this.message);
+  const DentalChartError(this.message, {this.accessDenied = false});
   final String message;
 
+  /// #7297 — 403 déterministe (garde « relation de soin » RLS §14) :
+  /// distinct d'une panne transitoire, un « Réessayer » ne peut
+  /// structurellement jamais aboutir dans ce cas.
+  final bool accessDenied;
+
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, accessDenied];
 }
 
 class DentalChartLoaded extends DentalChartState {
@@ -97,7 +102,10 @@ class DentalChartCubit extends Cubit<DentalChartState> {
     emit(const DentalChartLoading());
     final result = await _get(patientId);
     result.fold(
-      (failure) => emit(DentalChartError(failure.message)),
+      (failure) => emit(DentalChartError(
+        failure.message,
+        accessDenied: failure is ServerFailure && failure.statusCode == 403,
+      )),
       (chart) => emit(
         DentalChartLoaded(teeth: chart.teeth, isBlank: chart.isBlank),
       ),
