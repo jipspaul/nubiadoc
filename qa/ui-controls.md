@@ -2444,3 +2444,32 @@ l'app infirmière s'étire sans débordement. **0 contrôle mort avéré** au se
 - `patient /` — les 13 contrôles activés au **rect réel** : tous OK-nav. Seul « Itinéraire » est grisé → **#7304**.
 
 > ⚠️ **Plantage de rendu NON imputable au produit** — à consigner pour ne pas le re-signaler : la vague 3 a produit `Target crashed` / `Page crashed` sur `secretariat` 390 px (`/agenda` puis les 3 routes suivantes). **Rejoué SEUL, le parcours passe intégralement** (`/agenda` n=9 OK=9, `/salle-attente`, `/patients`, `/devis` tous rendus). C'était la contention de **8 instances Chromium simultanées** (`--use-gl=swiftshader`), pas un défaut de l'app — la mémoire machine n'a jamais manqué (101 Go libres au moment du plantage). **Piège n° 23 : ne pas dépasser ~4 navigateurs concurrents, et rejouer en isolation avant de conclure à un crash applicatif.**
+
+#### Ronde R80 — vague 4 et TOTAUX DÉFINITIFS
+
+Vague 4 : 11 écrans **jamais audités** — patient `/implant-passport`, `/book`, `/profile/referring-doctor`, `/oubliettes`, `/appointments` ; secrétariat `/admin-membres`, `/admin-secretariats`, `/bookable-slots`, `/onboard` ; officine `/notification-preferences`, `/`. Aucun écran blanc, aucun 5xx.
+
+**TOTAUX DÉFINITIFS R80 — 75 écrans distincts (app × viewport × route) · 1 072 contrôles inventoriés · 1 009 activés · 950 OK · 21 désactivés (tous légitimes) · 5/5 apps aux DEUX viewports.**
+
+| app | 390×844 | 1280×800 |
+|---|---|---|
+| patient | ✅ 20 écrans | ✅ 5 écrans |
+| praticien | ✅ 5 | ✅ 12 |
+| secretariat | ✅ 2 | ✅ 18 |
+| pharmacie | ✅ 4 | ✅ 7 |
+| infirmiere | ✅ 2 | ✅ 2 |
+
+**Les 59 verdicts MORT/CASSÉ sont tous attribués — 12 réels (cause unique, #7297), 47 levés :**
+
+| cause | nb |
+|---|---|
+| **403 « relation de soin » — RÉEL → #7297** (corroboré aux deux viewports) | **12** |
+| jeton expiré en cours de parcours (401 + `POST /auth/refresh` en 401) — piège n° 22 | 23 |
+| nœud Semantics de **groupe** cliqué en son centre — piège n° 19 | 9 |
+| **marqueurs de carte** et contrôle dans la **zone de glissement** de la feuille inférieure — piège n° 24 | 10 |
+| contrôle sous le pied collant / hors viewport | 4 |
+| 403 par conception (RBAC #4592, front le gère) | 1 |
+
+**Contrôles à action métier re-sondés individuellement avec jeton frais — tous SAINS :** « Appeler \<patient\> » (secrétariat 390, émet `call-next`), « Démarrer la consultation » (praticien, double-clic → action non doublée), « Préparer » (officine, navigue), « **Voir plus de créneaux** » (patient `/appointments` — arbre **et** pixels modifiés une fois la feuille remontée), les 13 contrôles de l'accueil patient au rect réel.
+
+> **Piège n° 24** — écran à **feuille inférieure glissante** (`/appointments`) : tout contrôle dans les ~130 px du bas est cliqué « à travers » la poignée, geste absorbé, **faux MORT**. Remonter la feuille puis ré-inventorier. Et les **marqueurs de carte** (46×46 praticien, 48×48 agrégat) ne sont pas des commandes d'écran.
