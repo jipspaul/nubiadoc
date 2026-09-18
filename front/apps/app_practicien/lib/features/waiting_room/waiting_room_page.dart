@@ -371,6 +371,8 @@ class _LoadedViewState extends State<_LoadedView> {
                     const SizedBox(height: 12),
                     _MyPatientsPanel(entries: widget.state.entries),
                     const SizedBox(height: 12),
+                    _PresentPractitionersPanel(entries: widget.state.entries),
+                    const SizedBox(height: 12),
                     const _ConfidentialityNote(),
                   ],
                 ),
@@ -864,6 +866,143 @@ class _QueueBreakdownRow extends StatelessWidget {
     );
   }
 }
+
+/// Panneau latéral « Praticiens présents » (maquette design-v2, #5040, `.bx`
+/// header `groups`) — dérivé de [WaitingRoomEntry.status]/`practitionerId`,
+/// seul signal de présence disponible aujourd'hui : un patient
+/// `in_consultation` implique que son praticien est au fauteuil, donc
+/// présent. #6427 avait retiré une première version à données codées en dur
+/// (« Dr Amélie Rousseau », « Fauteuil 2 · termine à 18h ») faute de source
+/// réelle ; celle-ci n'affiche que ce que prouve la file — vous (toujours
+/// présent puisque vous consultez cet écran) et tout confrère ayant
+/// actuellement un patient `in_consultation`. Pas d'heure de départ ni de
+/// numéro de fauteuil inventés tant qu'aucun flux de présence dédié
+/// n'existe côté domaine.
+class _PresentPractitionersPanel extends StatelessWidget {
+  const _PresentPractitionersPanel({required this.entries});
+
+  final List<WaitingRoomEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    final session = switch (context.watch<ProAuthCubit>().state) {
+      AuthAuthenticated(:final session) => session,
+      _ => const AuthSession(kind: UserKind.pro, userId: 'me'),
+    };
+    final currentPractitionerId = session.practitionerId;
+    final selfInConsultation = entries.any((e) =>
+        e.practitionerId == currentPractitionerId &&
+        e.status == 'in_consultation');
+
+    final colleagueNames = <String, String>{};
+    for (final entry in entries) {
+      final practitionerId = entry.practitionerId;
+      if (practitionerId != null &&
+          practitionerId != currentPractitionerId &&
+          entry.status == 'in_consultation') {
+        colleagueNames.putIfAbsent(
+            practitionerId, () => entry.practitionerName ?? 'confrère');
+      }
+    }
+
+    return NubiaCard(
+      key: const Key('presence_panel'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.groups, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Praticiens présents',
+                  style: textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _PractitionerPresenceRow(
+            key: const Key('presence_row_self'),
+            name: 'Vous',
+            subtitle: selfInConsultation ? 'En consultation' : 'Disponible',
+          ),
+          for (final colleagueId in colleagueNames.keys) ...[
+            const SizedBox(height: 12),
+            _PractitionerPresenceRow(
+              key: Key('presence_row_$colleagueId'),
+              name: colleagueNames[colleagueId]!,
+              subtitle: 'En consultation',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Une ligne du panneau « Praticiens présents » : avatar, nom, sous-texte,
+/// pastille de statut (jamais couleur seule — label + [StatusPill]). Seul
+/// état affiché : présent — pas d'état "départ" tant qu'aucune donnée de
+/// fin de séance n'existe (cf. [_PresentPractitionersPanel]).
+class _PractitionerPresenceRow extends StatelessWidget {
+  const _PractitionerPresenceRow({
+    super.key,
+    required this.name,
+    required this.subtitle,
+  });
+
+  final String name;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        NubiaAvatar(initials: NubiaInitials.of(name), radius: 16),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style:
+                    textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              const StatusPill(
+                label: 'Présent',
+                variant: StatusPillVariant.success,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 /// Note de confidentialité clinique (maquette design-v2, `.note`, icône
 /// `shield`) — verbatim : la file d'attente n'affiche que le motif
