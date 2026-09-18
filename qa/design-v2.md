@@ -5,6 +5,7 @@
 
 | app | écran/route | maquette | verdict | divergences | last_check |
 |---|---|---|---|---|---|
+| patient | /pharmacy/orders/:id (Suivi de commande) | Patient Suivi de commande v2.html | conforme (rendu + **mécanique exécutée de bout en bout**) | **La mécanique que la maquette prescrit est jouée et vérifiée en live** : la commande a été pilotée côté officine (`accept` puis `ready`) et la **frise a réellement avancé** — « Commande reçue · Aujourd'hui à 20:22 » → « En cours de préparation · 1 médicament » → « **Prête à être retirée · 20:50 · vous avez été notifiée** » → « Retirée · En attente de votre passage ». Présents aussi : bandeau d'état « VOTRE COMMANDE EST / Prête à retirer », **QR de retrait** + code dictable au comptoir (`FSYK-ARKD`), « Prête depuis 20:50 · à retirer sous 7 jours », coordonnées de l'officine avec « Itinéraire » et « Appeler », **les LIGNES de l'ordonnance** (« QA-R81 Amoxicilline 500mg · 1x3/j, 7 jours ») et la ventilation « Montant total 25 € · AMO 0 € · AMC 0 € · À régler au comptoir 25,00 € ». 3 contrôles, tous actifs. white 0.578. | 2026-09-18T19:10:00+00:00 |
 #### Ronde R81 — 2026-09-18 (soir) — rotation : maquette JAMAIS comparée d'abord, puis zones touchées par les merges du jour
 
 | app | écran/route | maquette | verdict | divergences | last_check |
