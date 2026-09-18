@@ -185,6 +185,119 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, U
     (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id)
 }
 
+/// Variante de `insert_fixture` avec un `starts_at` décalé de `hours_from_now`
+/// heures par rapport à `now()` (#7248 : reproduit un RDV hors de la fenêtre
+/// glissante ±1 jour, ex. la semaine prochaine).
+async fn insert_fixture_at(
+    db: &PgPool,
+    status: &str,
+    hours_from_now: i64,
+) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
+    let cabinet_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let secretariat_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let appt_id = Uuid::new_v4();
+    let starts_at = chrono::Utc::now() + chrono::Duration::hours(hours_from_now);
+    let ends_at = starts_at + chrono::Duration::hours(1);
+
+    let mut tx = db.begin().await.unwrap();
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("cabinet-checkin-prac+{}@nubia.test", prac_user_id))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, 'Cabinet Checkin Test', 'dentaire')",
+    )
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, rpps_verified, is_listed) \
+         VALUES ($1, $2, $3, $4, 'Dr Checkin', true, false)",
+    )
+    .bind(provider_id)
+    .bind(cabinet_id)
+    .bind(prac_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Checkin Test')",
+    )
+    .bind(secretariat_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
+         VALUES ($1, $2, true)",
+    )
+    .bind(provider_id)
+    .bind(secretariat_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+         VALUES ($1, $2, 'Patient', 'Checkin')",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'détartrage')",
+    )
+    .bind(appt_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .bind(starts_at)
+    .bind(ends_at)
+    .bind(status)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id)
+}
+
 async fn cleanup_fixture(
     seed_db: &PgPool,
     app_db: &PgPool,
@@ -416,6 +529,63 @@ async fn cabinet_checkin_patient_token_returns_403() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+    )
+    .await;
+}
+
+// ── Test 4 : RDV confirmed dans 4 jours (hors fenêtre ±1 jour) → 409 too_early (#7248) ─
+
+#[tokio::test]
+async fn cabinet_checkin_confirmed_next_week_returns_409_too_early() {
+    if !db_available() {
+        return;
+    }
+
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+
+    // J+4 : hors de la fenêtre glissante now() ± 1 jour partagée par
+    // get_waiting_room/call_next_patient/la queue patient — un check-in ici
+    // produirait un RDV `checked_in` invisible des trois vues de la file.
+    let (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id) =
+        insert_fixture_at(&seed_db, "confirmed", 96).await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let server = app(state);
+
+    let secretary_id = Uuid::new_v4();
+    let token = make_secretary_token(secretary_id, cabinet_id, secretariat_id);
+    let response = server
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/appointments/{}/checkin", appt_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["code"], "too_early");
 
     cleanup_fixture(
         &seed_db,
