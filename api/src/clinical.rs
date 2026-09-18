@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims, ProSecretaryPlusClaims},
-    AppState, StorageClient,
+    upload_storage, AppState, ObjectStorage,
 };
 
 #[derive(Deserialize)]
@@ -1479,12 +1479,17 @@ pub struct UploadPatientDocumentResponse {
 /// - `filename` : optionnel.
 ///
 /// Antivirus : stub, `scan_status = 'pending'`.
-/// Chiffrement colonne : stub `storage_key = UUID` — AES-256-GCM KMS à NUB-T3 (ADR-009).
+/// Stockage : les octets sont écrits dans l'`ObjectStorage` injecté
+/// (`upload_storage::store_upload`, clé `dossier/<uuid>`) après toutes les
+/// gardes et avant le `COMMIT` — #6894/#7135 : la clé était inventée sans
+/// jamais écrire l'objet (le `StorageClient` injecté restait inutilisé),
+/// d'où un `404` définitif au téléchargement. Chiffrement au repos :
+/// AES-256-GCM KMS à NUB-T3 (ADR-009).
 /// Retour : `201 { document_id }`.
 pub async fn upload_patient_document(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
-    Extension(storage): Extension<Arc<dyn StorageClient>>,
+    Extension(object_storage): Extension<Arc<dyn ObjectStorage>>,
     Path(patient_id): Path<Uuid>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<UploadPatientDocumentResponse>), AppError> {
@@ -1554,10 +1559,6 @@ pub async fn upload_patient_document(
     let fname = filename_field
         .or(file_filename)
         .unwrap_or_else(|| "document.bin".to_string());
-
-    // Stub : clé Object Storage (chiffrement AES-256-GCM KMS à NUB-T3 — ADR-009).
-    let storage_key = Uuid::new_v4().to_string();
-    let _ = storage; // storage client disponible pour la prod (upload objet)
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -1643,6 +1644,17 @@ pub async fn upload_patient_document(
             return Err(AppError::NotFound);
         }
     }
+
+    // Écriture effective des octets (#6894/#7135) — après les gardes 403/404
+    // (pas de blob orphelin pour une requête refusée) et avant l'INSERT : un
+    // échec abandonne la transaction, aucune ligne `document` orpheline.
+    let storage_key = upload_storage::store_upload(
+        object_storage.as_ref(),
+        upload_storage::PREFIX_CABINET_DOCUMENT,
+        &file_mime,
+        file_bytes.clone(),
+    )
+    .await?;
 
     let row = sqlx::query(
         "INSERT INTO document \

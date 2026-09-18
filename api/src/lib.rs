@@ -145,6 +145,7 @@ mod text_validation;
 mod treatment_phases;
 mod treatment_plans;
 mod twilio_sms;
+mod upload_storage;
 mod visit_offer_expiry;
 mod waiting_list;
 pub mod web_tunnel;
