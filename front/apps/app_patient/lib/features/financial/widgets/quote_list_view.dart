@@ -140,7 +140,13 @@ class _QuoteTile extends StatelessWidget {
       // #7251 : `go()` (et non le seul événement bloc) pour que l'URL porte
       // `?id=` — sinon le retour système consomme la route `/financial`
       // elle-même et éjecte vers l'accueil au lieu de revenir à la liste.
-      onTap: () => context.go('${AppRouter.financial}?id=${quote.id}'),
+      // #7257 : `go()` seul ne reconstruit pas le `BlocProvider` (même route),
+      // donc `FinancialQuoteSelected` n'était jamais émis — on émet
+      // explicitement l'événement en plus du changement d'URL.
+      onTap: () {
+        context.read<FinancialBloc>().add(FinancialQuoteSelected(quote.id));
+        context.go('${AppRouter.financial}?id=${quote.id}');
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
