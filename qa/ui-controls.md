@@ -21,11 +21,24 @@ puis re-vérifiés à la main se sont révélés fonctionnels**. Les cinq piège
 5. **Artefact de lot** : après une première navigation, les coordonnées du reste du lot sont périmées
    → tout l'écran ressort « MORT » (cf. pharmacie `/` ci-dessous).
 
+6. **Nœud Semantics clippé hors de son conteneur défilant** (ronde R79, agenda secrétariat) : un
+   `flt-semantics` reste exposé avec un rect à `y=725` alors que la grille défilante s'arrête à
+   `y≈660` — le clic à cette coordonnée tombe sur le bandeau de pied de page, pas sur le bloc.
+   Le même bloc remonté par molette à `y=448` répond normalement. **Toujours vérifier que la zone
+   cliquée appartient bien au conteneur de l'élément**, pas seulement qu'elle est dans le viewport.
+
 **Règle** : ne jamais ouvrir d'issue « bouton mort » sans re-clic ciblé isolé + preuve
 (navigation, requête réseau, ou capture avant/après).
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
 |---|---|---|---|---|---|---|---|
+| secretariat | / (Tableau de bord) | 25 | 24 | 23 | 0 (auto-nav) | 0 | 2026-09-18T08:00:00+00:00 |
+| secretariat | /agenda (grille semaine) | 67 | 61 | 59 | 0 — **les 3 blocs de RDV signalés MORT sont clippés hors grille** (`y≈693-725` alors que la grille s'arrête à `y≈660`) ; remonté par molette à `y=448`, le même bloc ouvre la feuille d'actions. 8 blocs sur 8 testés → OK (« Fermer / Marquer arrivé / Déplacer / Annuler / Appeler ») | 0 | 2026-09-18T08:00:00+00:00 |
+| secretariat | /salle-attente | 26 | 25 | 24 | 0 (auto-nav) | 0 | 2026-09-18T08:00:00+00:00 |
+| secretariat | /patients (Fiches patients) | 37 | 36 | 35 | 0 (auto-nav) | 0 | 2026-09-18T08:00:00+00:00 |
+| secretariat | /devis | 38 | 32 | 31 | 0 | 1 (401 de session en fin de parcours — artefact de harnais) ; 5 « Relancer »/« PDF » hors écran après scroll | 2026-09-18T08:00:00+00:00 |
+| secretariat | /audit-log, /admin-membres, /admin-secretariats, /cabinet-stats, /cabinet-payouts | 115 | — | — | — | — (parcours de lecture : les 5 écrans peignent ; `audit-log` et `members` sont **403 par conception** — `ProAdminOrManagerClaims`, `audit_log.rs:5` : secretary/practitioner → 403) | 2026-09-18T08:00:00+00:00 |
+| pharmacie | /orders/:id/pickup (scan de retrait) | 3 | 3 | 3 | 0 | 0 — « Caméra indisponible — utilisez la saisie manuelle ci-dessous. » + « Code de retrait » + « Valider le code » | 2026-09-18T08:00:00+00:00 |
 | patient | / (Accueil, 1280) | 18 | 17 | 16 | 0 | 1 (401 de session, artefact de harnais — écarté) | 2026-09-18T07:20:00+00:00 |
 | patient | /mes-rdv (1280) | 7 | 7 | 7 | 0 | 0 | 2026-09-18T07:20:00+00:00 |
 | patient | /documents (1280) | 27 | 26 | 23 | 0 (3 faux positifs re-vérifiés : la recherche filtre bien, les 12 facettes basculent ; « Autre » était hors écran — la rangée est scrollable horizontalement) | 0 | 2026-09-18T07:20:00+00:00 |
