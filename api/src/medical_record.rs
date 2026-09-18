@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
-    consultation_context::{allergy_label, medico_legal_alerts, MedicalAlertItem},
+    consultation_context::{record_medical_alerts, MedicalAlertItem},
     AppState,
 };
 
@@ -56,8 +56,10 @@ pub struct MedicalRecordResponse {
     pub medico_legal: MedicoLegalFlags,
     /// Alertes affichables dérivées de `allergies` + `medico_legal` (#4974) —
     /// même calcul que `consultation_context.rs::get_consultation_context`
-    /// (allergie + flags médico-légaux à `true`), pour que la fiche patient
-    /// affiche les mêmes pastilles d'alerte que la consultation au fauteuil.
+    /// (`record_medical_alerts`, #6917 : une entrée `allergie` par allergie
+    /// lisible, quelle que soit sa forme, + flags médico-légaux à `true`),
+    /// pour que la fiche patient affiche les mêmes pastilles d'alerte que la
+    /// consultation au fauteuil.
     pub medical_alerts: Vec<MedicalAlertItem>,
 }
 
@@ -192,15 +194,7 @@ pub async fn get_medical_record(
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_default();
 
-            let mut medical_alerts: Vec<MedicalAlertItem> = allergies
-                .iter()
-                .filter_map(allergy_label)
-                .map(|label| MedicalAlertItem {
-                    kind: "allergie".to_string(),
-                    label,
-                })
-                .collect();
-            medical_alerts.extend(medico_legal_alerts(&medico_legal));
+            let medical_alerts = record_medical_alerts(&data);
 
             MedicalRecordResponse {
                 allergies,
@@ -380,15 +374,7 @@ pub async fn patch_medical_record(
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default();
 
-    let mut medical_alerts: Vec<MedicalAlertItem> = allergies
-        .iter()
-        .filter_map(allergy_label)
-        .map(|label| MedicalAlertItem {
-            kind: "allergie".to_string(),
-            label,
-        })
-        .collect();
-    medical_alerts.extend(medico_legal_alerts(&medico_legal));
+    let medical_alerts = record_medical_alerts(&merged);
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
