@@ -2211,6 +2211,10 @@ pub struct StartConsultationResponse {
 /// Transition d'état : `confirmed|checked_in → in_progress`. Accepte aussi `in_progress`
 /// sans `consultation_session` existante (RDV appelé via call-next, #3477) ; si une
 /// session existe déjà pour ce RDV → `409 invalid_status` (double démarrage).
+/// Garde temporelle quel que soit le statut d'entrée (#6770, cf.
+/// `appointment_time_guards`) : depuis `confirmed`, `starts_at ± 60 min`
+/// (#3822) ; depuis `checked_in`/`in_progress`, `now ≥ starts_at − 2 h` →
+/// sinon `409 too_early` / `409 out_of_window`.
 /// Pose `started_at = now()` sur l'appointment. Audité (`start_consultation`, `appointment`).
 pub async fn start_consultation(
     State(state): State<AppState>,
@@ -2264,21 +2268,16 @@ pub async fn start_consultation(
         return Err(AppError::InvalidStatus);
     }
 
-    // Démarrage direct depuis 'confirmed' (sans check-in préalable) : même
-    // fenêtre ±60min que checkin_appointment (appointments.rs). checked_in/
-    // in_progress ont déjà passé cette garde via le check-in ou call-next —
-    // sans elle, un RDV confirmé à J+8 pouvait être démarré puis terminé
-    // (#3822), invisible de la salle d'attente (scopée au jour) mais actif
-    // pour le patient (position 1 en file).
-    if status == "confirmed" {
-        let now = chrono::Utc::now();
-        if now < starts_at - chrono::Duration::minutes(60) {
-            return Err(AppError::TooEarly);
-        }
-        if now > starts_at + chrono::Duration::minutes(60) {
-            return Err(AppError::OutOfWindow);
-        }
-    }
+    // Garde temporelle QUEL QUE SOIT le statut d'entrée (#6770) : depuis
+    // 'confirmed' (démarrage direct sans check-in), même fenêtre ±60 min que
+    // le check-in patient (#3822) ; depuis checked_in/in_progress, borne basse
+    // starts_at − 2 h (celle du check-in cabinet). Avant, la fenêtre n'était
+    // appliquée que depuis 'confirmed', sur la prémisse que checked_in avait
+    // « déjà passé cette garde via le check-in » — fausse par le chemin
+    // cabinet, qui n'avait pas de fenêtre : un RDV de 2027 passait
+    // checked_in → in_progress → done. Règle centralisée dans
+    // appointment_time_guards.
+    crate::appointment_time_guards::check_start_window(chrono::Utc::now(), starts_at, &status)?;
 
     // `in_progress` sans consultation_session = patient appelé via call-next mais pas
     // encore ouvert (#3477) : on laisse passer. Si une session existe déjà, le RDV a

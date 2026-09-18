@@ -169,7 +169,7 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, U
     sqlx::query(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
-         VALUES ($1, $2, $3, $4, now() + interval '2 hours', now() + interval '3 hours', $5, 'détartrage')",
+         VALUES ($1, $2, $3, $4, now() + interval '1 hour', now() + interval '90 minutes', $5, 'détartrage')",
     )
     .bind(appt_id)
     .bind(cabinet_id)
@@ -185,13 +185,15 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, U
     (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id)
 }
 
-/// Variante de `insert_fixture` avec un `starts_at` décalé de `hours_from_now`
-/// heures par rapport à `now()` (#7248 : reproduit un RDV hors de la fenêtre
-/// glissante ±1 jour, ex. la semaine prochaine).
+/// Variante de `insert_fixture` avec un `starts_at` décalé de
+/// `minutes_from_now` minutes par rapport à `now()` (créneau de 30 min) —
+/// #7248/#6770/#6912 : reproduit un RDV hors de la fenêtre de check-in
+/// cabinet `[starts_at − 2 h, ends_at + 1 h]` (demain, la semaine prochaine,
+/// dans 15 mois) ou aux bords de celle-ci.
 async fn insert_fixture_at(
     db: &PgPool,
     status: &str,
-    hours_from_now: i64,
+    minutes_from_now: i64,
 ) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
@@ -200,8 +202,8 @@ async fn insert_fixture_at(
     let secretariat_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
     let appt_id = Uuid::new_v4();
-    let starts_at = chrono::Utc::now() + chrono::Duration::hours(hours_from_now);
-    let ends_at = starts_at + chrono::Duration::hours(1);
+    let starts_at = chrono::Utc::now() + chrono::Duration::minutes(minutes_from_now);
+    let ends_at = starts_at + chrono::Duration::minutes(30);
 
     let mut tx = db.begin().await.unwrap();
 
@@ -556,7 +558,7 @@ async fn cabinet_checkin_confirmed_next_week_returns_409_too_early() {
     // get_waiting_room/call_next_patient/la queue patient — un check-in ici
     // produirait un RDV `checked_in` invisible des trois vues de la file.
     let (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id) =
-        insert_fixture_at(&seed_db, "confirmed", 96).await;
+        insert_fixture_at(&seed_db, "confirmed", 96 * 60).await;
 
     let state = AppState {
         db: app_db.clone(),
@@ -586,6 +588,199 @@ async fn cabinet_checkin_confirmed_next_week_returns_409_too_early() {
         .unwrap();
     let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["code"], "too_early");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+    )
+    .await;
+}
+
+/// Helper : POST /v1/cabinet/appointments/:id/checkin avec un token secrétaire,
+/// renvoie `(status HTTP, body JSON)`.
+async fn cabinet_checkin(
+    app_db: &PgPool,
+    cabinet_id: Uuid,
+    secretariat_id: Uuid,
+    appt_id: Uuid,
+) -> (StatusCode, serde_json::Value) {
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let server = app(state);
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
+    let response = server
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/appointments/{}/checkin", appt_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    (status, body)
+}
+
+// ── Test 5 : RDV confirmed dans 15 mois → 409 too_early (#6770) ─────────────
+//
+// Repro QA-20260908-26 : le RDV du 2027-12-09 passait `checked_in` au
+// comptoir, puis `start` lui faisait confiance → `done` en 2027, « dernière
+// visite » dans le futur et patient qui ne peut plus annuler.
+
+#[tokio::test]
+async fn cabinet_checkin_confirmed_in_15_months_returns_409_too_early() {
+    if !db_available() {
+        return;
+    }
+
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+
+    let (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id) =
+        insert_fixture_at(&seed_db, "confirmed", 15 * 30 * 24 * 60).await;
+
+    let (status, body) = cabinet_checkin(&app_db, cabinet_id, secretariat_id, appt_id).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["code"], "too_early");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+    )
+    .await;
+}
+
+// ── Test 6 : RDV confirmed demain (+20 h) → 409 too_early (#6912) ───────────
+//
+// Repro QA-20260913-1 : un RDV de demain matin, enregistré « arrivé » ce soir,
+// passait `checked_in` (la fenêtre glissante ±1 jour de #7248 l'acceptait)
+// alors que le check-in patient le refusait (`too_early`).
+
+#[tokio::test]
+async fn cabinet_checkin_confirmed_tomorrow_returns_409_too_early() {
+    if !db_available() {
+        return;
+    }
+
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+
+    let (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id) =
+        insert_fixture_at(&seed_db, "confirmed", 20 * 60).await;
+
+    let (status, body) = cabinet_checkin(&app_db, cabinet_id, secretariat_id, appt_id).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["code"], "too_early");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+    )
+    .await;
+}
+
+// ── Test 7 : arrivée en avance (créneau dans 90 min) → 200 ─────────────────
+//
+// Le comptoir a plus de latitude que le patient (±60 min) : jusqu'à 2 h
+// avant le créneau.
+
+#[tokio::test]
+async fn cabinet_checkin_early_arrival_within_2h_returns_200() {
+    if !db_available() {
+        return;
+    }
+
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+
+    let (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id) =
+        insert_fixture_at(&seed_db, "confirmed", 90).await;
+
+    let (status, body) = cabinet_checkin(&app_db, cabinet_id, secretariat_id, appt_id).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "checked_in");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+    )
+    .await;
+}
+
+// ── Test 8 : retardataire (créneau fini depuis 20 min) → 200 ────────────────
+//
+// starts_at − 80 min / ends_at − 50 min : hors fenêtre patient (±60 min), mais
+// dans la fenêtre cabinet (jusqu'à ends_at + 1 h).
+
+#[tokio::test]
+async fn cabinet_checkin_late_arrival_within_1h_after_slot_returns_200() {
+    if !db_available() {
+        return;
+    }
+
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+
+    let (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id) =
+        insert_fixture_at(&seed_db, "confirmed", -80).await;
+
+    let (status, body) = cabinet_checkin(&app_db, cabinet_id, secretariat_id, appt_id).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "checked_in");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+    )
+    .await;
+}
+
+// ── Test 9 : créneau fini depuis 3 h → 409 out_of_window ────────────────────
+
+#[tokio::test]
+async fn cabinet_checkin_long_past_returns_409_out_of_window() {
+    if !db_available() {
+        return;
+    }
+
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+
+    let (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id) =
+        insert_fixture_at(&seed_db, "confirmed", -(3 * 60 + 30)).await;
+
+    let (status, body) = cabinet_checkin(&app_db, cabinet_id, secretariat_id, appt_id).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["code"], "out_of_window");
 
     cleanup_fixture(
         &seed_db,

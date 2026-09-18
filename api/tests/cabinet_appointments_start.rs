@@ -547,3 +547,111 @@ async fn start_consultation_confirmed_far_future_returns_409_too_early() {
 
     cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
 }
+
+// ── Test 7 : RDV checked_in demain → 409 too_early (#6770) ──────────────────
+// Régression #6770 (QA-20260908-26) : la fenêtre n'était appliquée que depuis
+// `confirmed`, sur la prémisse que `checked_in` « avait déjà passé cette garde
+// via le check-in ». Fausse par le chemin cabinet (sans fenêtre à l'époque) :
+// un RDV de 2027 passait checked_in → in_progress → done. La garde s'applique
+// désormais quel que soit le statut d'entrée (borne basse starts_at − 2 h).
+
+#[tokio::test]
+async fn start_consultation_checked_in_tomorrow_returns_409_too_early() {
+    if !db_available() {
+        return;
+    }
+
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+
+    let (cabinet_id, prac_id, prac_user_id, appt_id) =
+        insert_fixture_with_starts_at(&owner_db, "checked_in", "now() + interval '20 hours'").await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let server = app(state);
+
+    let token = make_practitioner_token(prac_user_id, cabinet_id);
+    let response = server
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/appointments/{}/start", appt_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["code"], "too_early");
+
+    let status: String = sqlx::query_scalar("SELECT status FROM appointment WHERE id = $1")
+        .bind(appt_id)
+        .fetch_one(&owner_db)
+        .await
+        .unwrap();
+    assert_eq!(
+        status, "checked_in",
+        "le RDV ne doit pas démarrer la veille"
+    );
+
+    cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
+}
+
+// ── Test 8 : RDV checked_in en avance (créneau dans 90 min) → 200 ───────────
+// Un patient arrivé en avance et déjà enregistré (fenêtre cabinet −2 h) peut
+// passer au fauteuil avant l'heure de son créneau (#6875, #4396).
+
+#[tokio::test]
+async fn start_consultation_checked_in_early_arrival_returns_200() {
+    if !db_available() {
+        return;
+    }
+
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+
+    let (cabinet_id, prac_id, prac_user_id, appt_id) =
+        insert_fixture_with_starts_at(&owner_db, "checked_in", "now() + interval '90 minutes'")
+            .await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let server = app(state);
+
+    let token = make_practitioner_token(prac_user_id, cabinet_id);
+    let response = server
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/appointments/{}/start", appt_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["status"], "in_progress");
+
+    cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
+}

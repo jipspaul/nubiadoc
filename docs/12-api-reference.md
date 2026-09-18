@@ -239,7 +239,7 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | Méthode | Chemin | Rôle | Description |
 |---|---|---|---|
 | GET | `/v1/dashboard` | patient | Vue agrégée d'accueil (US-P13). |
-| GET | `/v1/appointments` | patient | Mes RDV (tous praticiens), `?status=upcoming\|past`. |
+| GET | `/v1/appointments` | patient | Mes RDV (tous praticiens), `?filter=upcoming\|history` (alias `?status=upcoming\|past`). Les deux vues **partitionnent** l'ensemble des RDV : `history` = statut terminal (`done`/`cancelled`/`no_show`, **quelle que soit** la position de `starts_at` par rapport à `now()` — un patient reçu et clôturé avant l'heure de son créneau y apparaît immédiatement, #6875) ou RDV `requested`/`confirmed` dont l'heure est passée ; `upcoming` = `requested`/`confirmed` à venir, ou `checked_in`/`in_progress` dans `now() ± 1 jour`. |
 | GET | `/v1/appointments/{id}` | patient | Détail d'un RDV. |
 | POST | `/v1/appointments` | patient | Prendre RDV (voir aussi `/bookings` marketplace §12). |
 | PATCH | `/v1/appointments/{id}` | patient | Modifier (dans les délais). |
@@ -383,6 +383,8 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | GET | `/v1/cabinet/agenda` | pro | Agenda `?view=day\|week&practitioner_id=&date=`. |
 | GET | `/v1/cabinet/appointments` | pro | RDV du cabinet (`?status=&date=`). |
 | POST | `/v1/cabinet/appointments/{id}/confirm` | pro | Valider une demande (`requested→confirmed`). |
+| POST | `/v1/cabinet/appointments/{id}/checkin` | secretary+ | Enregistrer l'arrivée au comptoir (`confirmed→checked_in`, mode `manual`). Fenêtre temporelle ci-dessous. |
+| POST | `/v1/cabinet/appointments/{id}/no-show` | secretary+ | Marquer un RDV manqué (`requested\|confirmed\|checked_in\|in_progress→no_show`) ; `409 too_early` avant `starts_at` pour un patient jamais présenté. |
 | PATCH | `/v1/cabinet/appointments/{id}` | pro | Déplacer/éditer (transition auditée). |
 | POST | `/v1/cabinet/slots` | pro | Ouvrir/bloquer un créneau. |
 | PATCH/DELETE | `/v1/cabinet/slots/{id}` | pro | Éditer/supprimer un créneau. |
@@ -393,6 +395,16 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | POST | `/v1/cabinet/waiting-list/{id}/offer` | secretary+ | Proposer un créneau libéré. |
 
 `GET /v1/cabinet/agenda` → `{ practitioners:[…], slots:[{ id, practitioner_id, starts_at, ends_at, status, patient?:{display}, motif }] }`. Le secrétariat voit le **motif administratif**, pas le contenu clinique. Anti-double-booking via contrainte d'exclusion (`05` §5.4).
+
+**Gardes temporelles du cycle de vie d'un RDV** (#6770, #6912, #6875 — code : `api/src/appointment_time_guards.rs`). Un RDV ne peut être « honoré » que le jour de son créneau ; les trois modes de check-in (QR, app, manuel comptoir) passent par la même famille de gardes. Trop tôt → `409 {"code":"too_early"}`, trop tard → `409 {"code":"out_of_window"}`.
+
+| Action | Fenêtre | Note |
+|---|---|---|
+| `POST /v1/appointments/{id}/checkin` (patient, QR ou app) | `starts_at − 60 min ≤ now ≤ starts_at + 60 min` | Inchangée (#3844). |
+| `POST /v1/cabinet/appointments/{id}/checkin` (comptoir) | `starts_at − 2 h ≤ now ≤ ends_at + 1 h` | Le secrétariat constate une présence physique : plus de latitude que le patient (avance, retardataire), mais jamais un RDV de demain ni de 2027. Fenêtre incluse dans celle de la file (`now() ± 1 jour`) : un `checked_in` est toujours visible de la salle d'attente, de `call-next` et de la queue patient. |
+| `POST /v1/cabinet/appointments/{id}/start` | depuis `confirmed` : `starts_at ± 60 min` ; depuis `checked_in`/`in_progress` : `now ≥ starts_at − 2 h` | S'applique **quel que soit** le statut d'entrée — avant, un `checked_in` obtenu hors fenêtre suffisait à ouvrir puis clôturer une séance sur un RDV futur (#6770). |
+| `POST /v1/cabinet/consultations/{id}/complete` | aucune borne sur `starts_at` | La séance n'existe que via `start` ; clôturer avant l'heure du créneau un patient arrivé en avance est un cas normal (#6875), le RDV `done` tombe alors dans `filter=history`. |
+| `POST /v1/cabinet/appointments/{id}/no-show` | `requested`/`confirmed` : `now ≥ starts_at` | `checked_in`/`in_progress` (patient venu puis parti) exemptés (#4396). |
 
 ---
 
