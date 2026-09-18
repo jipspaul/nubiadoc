@@ -2406,3 +2406,41 @@ l'app infirmière s'étire sans débordement. **0 contrôle mort avéré** au se
 > **Pièges n° 19 et n° 22 ajoutés cette ronde** (détail dans `explored-paths.md`) :
 > — un `aria-label` de **groupe** contient le libellé de ses enfants : cliquer le centre du groupe ne touche aucun bouton et produit un faux MORT en série ;
 > — un **jeton expiré** (900 s) rend le shell peuplé mais à zéro et produit de faux CASSÉS en `401`.
+
+#### Ronde R80 — vagues 2 et 3 (routes jamais auditées + SECOND viewport des 5 apps)
+
+> Vague 2 : les routes que la vague 1 n'avait pas prises (26 écrans). Vague 3 : **chaque app à l'autre taille** — patient et infirmière à 1280×800, praticien / secrétariat / officine à 390×844.
+> **Cumul R80 : 66 écrans distincts (app × viewport × route) · 948 contrôles inventoriés · 890 activés · 841 OK · 20 désactivés.**
+> **5/5 apps couvertes aux DEUX viewports.**
+
+| app | viewport | écrans | inventoriés | activés | OK | note |
+|---|---|---|---|---|---|---|
+| patient | 390×844 | 15 | — | — | — | `/`, `/mes-rdv`, `/documents`, `/prescriptions`, `/messaging`, `/notifications`, `/financial`, `/treatment-plans`, `/reviews`, `/pharmacy`, `/profile*`, `/home-care*` |
+| patient | 1280×800 | 5 | — | — | — | repli desktop propre, aucun écran cassé |
+| praticien | 1280×800 | 12 | — | — | — | |
+| praticien | 390×844 | 5 | — | — | — | repli mobile : rail de navigation replié en menu, 4 à 8 contrôles par écran |
+| secretariat | 1280×800 | 14 | — | — | — | |
+| secretariat | 390×844 | 2 | — | — | — | couverture réduite — voir la note « plantage de rendu » ci-dessous |
+| pharmacie | 1280×800 | 5 | — | — | — | |
+| pharmacie | 390×844 | 4 | — | — | — | |
+| infirmiere | 390×844 | 2 | — | — | — | l'app n'expose que 2 routes (`/`, `/notification-preferences`) |
+| infirmiere | 1280×800 | 2 | — | — | — | |
+
+**Les 49 verdicts MORT/CASSÉ du cumul ont tous été attribués ; aucun n'a produit de finding nouveau au-delà de #7297 :**
+
+| cause | nb | preuve |
+|---|---|---|
+| **403 « relation de soin » (RÉEL)** | **12** | `praticien /patients` : 4 à 1280 px **et 8 à 390 px**, chacun sur `403 GET /v1/cabinet/patients/<id>/medical-record` (+ `/prescriptions`). → **#7297**, corroboré aux deux viewports |
+| jeton expiré en cours de parcours | 23 | signature constante : `401` sur l'appel métier **suivi de `401 POST /v1/auth/refresh`** (le refresh token a été consommé par un contexte parallèle). Piège n° 22 |
+| nœud Semantics de **groupe** cliqué en son centre | 9 | ex. `patient /profile` « Modifier la photo de profil » exposé en `group` 390×788 ; au rect réel de l'avatar, le sélecteur de fichier s'ouvre. Piège n° 19 |
+| contrôle **sous le pied collant** ou hors viewport | 4 | `pharmacie /devis` « Préparer » à y=782 ; tuiles « Accès rapide » (`Ma pharmacie`, `Mes proches`) sous la ligne de flottaison |
+| **403 par conception (RBAC)** | 1 | `secretariat /cabinet-stats` « Actualiser » → `403 GET /v1/cabinet/stats/activity` : `get_cabinet_activity_stats` exige `ProPractitionerClaims` (RBAC #4592), et le front **le sait** — `cabinet_stats_bloc.dart:33-39` distingue explicitement ce 403 d'une activité vide (#6369) et n'échoue pas l'écran |
+| bruit d'infrastructure | 1 | `patient /pharmacy` : `502 GET /favicon.png` |
+
+**Contrôles re-sondés individuellement, avec jeton frais, et déclarés SAINS** (chacun aurait été un P1 s'il avait été confirmé) :
+- `secretariat /salle-attente` 390 px — **« Appeler QA76 TunnelOK »** : émet `POST /v1/cabinet/waiting-room/call-next`, puis `GET /v1/cabinet/waiting-room`, arbre **et** pixels modifiés, aucun 4xx. Le verdict MORT initial venait d'une session déjà en 401. *(C'est le sibling de #7217, d'où la vérification.)*
+- `praticien /` — **« Démarrer la consultation »** : double-clic → 2 `POST …/start`, **tous deux 409** (action non doublée), puis repli correct sur `GET /cabinet/consultations?status=in_progress` et navigation vers `/consultation?id=…`.
+- `pharmacie /devis` — **« Préparer »** : `context.go('/orders/<id>')`, navigation réelle vérifiée.
+- `patient /` — les 13 contrôles activés au **rect réel** : tous OK-nav. Seul « Itinéraire » est grisé → **#7304**.
+
+> ⚠️ **Plantage de rendu NON imputable au produit** — à consigner pour ne pas le re-signaler : la vague 3 a produit `Target crashed` / `Page crashed` sur `secretariat` 390 px (`/agenda` puis les 3 routes suivantes). **Rejoué SEUL, le parcours passe intégralement** (`/agenda` n=9 OK=9, `/salle-attente`, `/patients`, `/devis` tous rendus). C'était la contention de **8 instances Chromium simultanées** (`--use-gl=swiftshader`), pas un défaut de l'app — la mémoire machine n'a jamais manqué (101 Go libres au moment du plantage). **Piège n° 23 : ne pas dépasser ~4 navigateurs concurrents, et rejouer en isolation avant de conclure à un crash applicatif.**
