@@ -2688,3 +2688,7 @@ Merges couverts depuis le dernier commit de registre (`8b5e39c3`) : #7303/#7308 
 | B2-devis-pharmacie-cloisonnement | 2026-09-18T19:20:00+00:00 | OK | L'officine voit ses 124 devis ; un identifiant hors tenant rend **404** (pas de fuite par distinction 403/404). |
 | B9-avis-validation | 2026-09-18T19:21:00+00:00 | OK | `POST /reviews` : note **0** → 422, note **6** → 422, commentaire de **20 000 caractères** → 422. `GET /providers/:id/reviews` → 200 (20 avis). Note de contrat : `GET /v1/reviews` rend **405** — la lecture se fait par praticien, pas par compte. |
 
+| spotlight-⌘K-mecanique | 2026-09-18T19:35:00+00:00 | OK (1 écart déjà filé) | ⌘K ouvre / la saisie filtre / **↑↓ déplacent la sélection (prouvé aux PIXELS)** / **Entrée ouvre le résultat** (praticien → fiche patient complète ; secrétariat → `GET /cabinet/quotes/:id`) / Échap ferme. Seule l'entrée « Demander à Nubia » manque — **doublon de #6950 et #6818, ouvertes : NON re-filée**. **#6467 et #7024 confirmées corrigées** (un patient choisi ouvre sa fiche, plus la liste non filtrée). |
+
+> **Piège de mesure n° 30 (R81)** — la **sélection au clavier** dans une palette Flutter (liseré/fond du résultat courant) **ne change PAS l'arbre Semantics** : seul le rendu bouge. Conclure « ↑/↓ inertes » sur une comparaison d'arbre est un faux positif — comparer les **empreintes de pixels** entre deux appuis (c'est ce qui a rétabli le verdict ici).
+
