@@ -48,6 +48,14 @@ pub(crate) const MAX_PRESCRIPTION_LABEL_LEN: usize = 300;
 pub(crate) const MAX_PRESCRIPTION_POSOLOGY_LEN: usize = 500;
 pub(crate) const MAX_PRESCRIPTION_SHORT_FIELD_LEN: usize = 200;
 
+/// Plafond métier réaliste (#7330) : les bornes par champ (#7226) ne
+/// bornaient jamais le NOMBRE de lignes — une ordonnance de 20 000 items
+/// passait en 201, était SIGNÉE (document à valeur légale figé) et
+/// resservie telle quelle à l'app patient (2,16 Mo sur un écran de
+/// détail). Une ordonnance réelle tient dans quelques lignes ; cf.
+/// `pharmacy/stock.rs::MAX_STOCK_REQUEST_ITEMS`.
+pub(crate) const MAX_PRESCRIPTION_ITEMS: usize = 200;
+
 // ── POST /v1/cabinet/prescriptions ───────────────────────────────────────────
 
 /// Un item de médicament dans le body de création.
@@ -94,7 +102,8 @@ pub struct CreatePrescriptionResponse {
 ///
 /// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403.
 /// - `cabinet_id` extrait du JWT (jamais du body — invariant tenancy).
-/// - Body invalide (items vides, champs manquants) → 422 (Axum rejection).
+/// - Body invalide (items vides, en nombre excessif, champs manquants) → 422
+///   (Axum rejection) ; `items.len()` borné par `MAX_PRESCRIPTION_ITEMS` (#7330).
 /// - `label`/`posology`/`duration` (et `form`/`quantity`/
 ///   `non_substitution_reason` s'ils sont fournis) bornés en longueur → 422
 ///   sinon (#7226).
@@ -109,7 +118,7 @@ pub async fn create_prescription(
     claims: ProPractitionerClaims,
     Json(body): Json<CreatePrescriptionBody>,
 ) -> Result<(StatusCode, Json<CreatePrescriptionResponse>), AppError> {
-    if body.items.is_empty() {
+    if body.items.is_empty() || body.items.len() > MAX_PRESCRIPTION_ITEMS {
         return Err(AppError::ValidationError);
     }
     if body.items.iter().any(|i| {
