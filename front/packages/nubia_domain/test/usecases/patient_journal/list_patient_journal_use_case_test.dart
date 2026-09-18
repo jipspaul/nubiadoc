@@ -54,8 +54,11 @@ void main() {
         )).thenAnswer((_) async => const Right([]));
     when(() => listPatientDocuments(patientId))
         .thenAnswer((_) async => const Right([]));
-    when(() => listCabinetAppointments())
-        .thenAnswer((_) async => const Right([]));
+    when(() => listCabinetAppointments(
+          patientId: patientId,
+          limit: 500,
+          offset: 0,
+        )).thenAnswer((_) async => const Right([]));
   });
 
   test('fusionne au moins deux sources et trie par date décroissante',

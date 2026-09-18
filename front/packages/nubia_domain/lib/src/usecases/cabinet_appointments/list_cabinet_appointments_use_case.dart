@@ -8,6 +8,10 @@ class ListCabinetAppointmentsUseCase {
 
   const ListCabinetAppointmentsUseCase(this._repository);
 
-  Future<Either<Failure, List<CabinetAppointment>>> call() =>
-      _repository.list();
+  Future<Either<Failure, List<CabinetAppointment>>> call({
+    String? patientId,
+    int? limit,
+    int? offset,
+  }) =>
+      _repository.list(patientId: patientId, limit: limit, offset: offset);
 }

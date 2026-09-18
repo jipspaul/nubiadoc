@@ -1333,6 +1333,17 @@ pub struct CabinetAppointmentsQuery {
     /// pagination future côté cabinet tronquerait silencieusement les RDV
     /// les plus anciens du patient avant qu'il ait pu les filtrer.
     pub patient_id: Option<Uuid>,
+    /// `limit` (défaut 200, max 500) et `offset` bornent le résultat (#7223 :
+    /// avant, l'endpoint renvoyait tous les RDV du cabinet sans aucune borne —
+    /// 991 lignes/367 Ko par appel sur le cabinet de démo).
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    /// Capté uniquement pour rejeter explicitement `?page` (non supporté ici :
+    /// pagination via `limit`/`offset`, même pattern que
+    /// `cabinet_quotes::ListCabinetQuotesQuery::page` #3521). Avant #7223, le
+    /// front (`CabinetAppointmentsApi.list`) envoyait `?page=1` à chaque appel,
+    /// silencieusement ignoré.
+    pub page: Option<String>,
 }
 
 /// Valeurs valides de `appointment.status` (CHECK, migration 0005). Même
@@ -1382,11 +1393,18 @@ pub struct CabinetAppointmentsResponse {
 /// d'un seul patient sur un gros cabinet devait auparavant lire toute la liste du
 /// cabinet et filtrer côté client, risque de troncature si une limite serveur est
 /// ajoutée plus tard, cf. `cabinet_quotes::ListCabinetQuotesQuery::patient_id`).
+/// `limit` (défaut 200, max 500) et `offset` bornent le résultat, `?page` est
+/// refusé explicitement (`400 unsupported_pagination_param`, #7223 : sans borne,
+/// cet endpoint renvoyait tous les RDV du cabinet — 991 lignes/367 Ko par appel
+/// sur le cabinet de démo, et le `?page` envoyé par le front était jeté).
 pub async fn get_cabinet_appointments(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
     Query(params): Query<CabinetAppointmentsQuery>,
 ) -> Result<Json<CabinetAppointmentsResponse>, AppError> {
+    if params.page.is_some() {
+        return Err(AppError::UnsupportedPageParam);
+    }
     // #4420 : symétrique à list_cabinet_quotes — un status hors énum doit
     // être refusé (400), pas renvoyer silencieusement une liste vide.
     if let Some(ref status) = params.status {
@@ -1394,6 +1412,8 @@ pub async fn get_cabinet_appointments(
             return Err(AppError::InvalidAppointmentStatusFilter);
         }
     }
+    let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
+    let offset: i64 = params.offset.unwrap_or(0).max(0);
 
     let date_filter: Option<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)> =
         if let Some(date_str) = &params.date {
@@ -1463,6 +1483,7 @@ pub async fn get_cabinet_appointments(
         (Some(status), Some((ds, de))) => {
             let patient_idx = 5;
             let sec_idx = if params.patient_id.is_some() { 6 } else { 5 };
+            let total_binds = 4 + params.patient_id.is_some() as usize + sid.is_some() as usize;
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
@@ -1474,9 +1495,12 @@ pub async fn get_cabinet_appointments(
                    AND a.cabinet_id = $1 \
                    AND a.status = $2 \
                    AND a.starts_at >= $3 AND a.starts_at < $4{}{} \
-                 ORDER BY a.starts_at",
+                 ORDER BY a.starts_at \
+                 LIMIT ${} OFFSET ${}",
                 mk_patient_filter(patient_idx),
                 mk_sec_filter(sec_idx),
+                total_binds + 1,
+                total_binds + 2,
             );
             let q = sqlx::query(&sql)
                 .bind(claims.cabinet_id)
@@ -1488,7 +1512,9 @@ pub async fn get_cabinet_appointments(
             } else {
                 q
             };
-            if let Some(s) = sid { q.bind(s) } else { q }
+            let q = if let Some(s) = sid { q.bind(s) } else { q };
+            q.bind(limit)
+                .bind(offset)
                 .fetch_all(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?
@@ -1497,6 +1523,7 @@ pub async fn get_cabinet_appointments(
         (Some(status), None) => {
             let patient_idx = 3;
             let sec_idx = if params.patient_id.is_some() { 4 } else { 3 };
+            let total_binds = 2 + params.patient_id.is_some() as usize + sid.is_some() as usize;
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
@@ -1507,9 +1534,12 @@ pub async fn get_cabinet_appointments(
                  WHERE a.deleted_at IS NULL \
                    AND a.cabinet_id = $1 \
                    AND a.status = $2{}{} \
-                 ORDER BY a.starts_at",
+                 ORDER BY a.starts_at \
+                 LIMIT ${} OFFSET ${}",
                 mk_patient_filter(patient_idx),
                 mk_sec_filter(sec_idx),
+                total_binds + 1,
+                total_binds + 2,
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(status);
             let q = if let Some(pid) = params.patient_id {
@@ -1517,7 +1547,9 @@ pub async fn get_cabinet_appointments(
             } else {
                 q
             };
-            if let Some(s) = sid { q.bind(s) } else { q }
+            let q = if let Some(s) = sid { q.bind(s) } else { q };
+            q.bind(limit)
+                .bind(offset)
                 .fetch_all(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?
@@ -1526,6 +1558,7 @@ pub async fn get_cabinet_appointments(
         (None, Some((ds, de))) => {
             let patient_idx = 4;
             let sec_idx = if params.patient_id.is_some() { 5 } else { 4 };
+            let total_binds = 3 + params.patient_id.is_some() as usize + sid.is_some() as usize;
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
@@ -1536,9 +1569,12 @@ pub async fn get_cabinet_appointments(
                  WHERE a.deleted_at IS NULL \
                    AND a.cabinet_id = $1 \
                    AND a.starts_at >= $2 AND a.starts_at < $3{}{} \
-                 ORDER BY a.starts_at",
+                 ORDER BY a.starts_at \
+                 LIMIT ${} OFFSET ${}",
                 mk_patient_filter(patient_idx),
                 mk_sec_filter(sec_idx),
+                total_binds + 1,
+                total_binds + 2,
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(ds).bind(de);
             let q = if let Some(pid) = params.patient_id {
@@ -1546,7 +1582,9 @@ pub async fn get_cabinet_appointments(
             } else {
                 q
             };
-            if let Some(s) = sid { q.bind(s) } else { q }
+            let q = if let Some(s) = sid { q.bind(s) } else { q };
+            q.bind(limit)
+                .bind(offset)
                 .fetch_all(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?
@@ -1555,6 +1593,7 @@ pub async fn get_cabinet_appointments(
         (None, None) => {
             let patient_idx = 2;
             let sec_idx = if params.patient_id.is_some() { 3 } else { 2 };
+            let total_binds = 1 + params.patient_id.is_some() as usize + sid.is_some() as usize;
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
@@ -1564,9 +1603,12 @@ pub async fn get_cabinet_appointments(
                  LEFT JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
                  WHERE a.deleted_at IS NULL \
                    AND a.cabinet_id = $1{}{} \
-                 ORDER BY a.starts_at",
+                 ORDER BY a.starts_at \
+                 LIMIT ${} OFFSET ${}",
                 mk_patient_filter(patient_idx),
                 mk_sec_filter(sec_idx),
+                total_binds + 1,
+                total_binds + 2,
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id);
             let q = if let Some(pid) = params.patient_id {
@@ -1574,7 +1616,9 @@ pub async fn get_cabinet_appointments(
             } else {
                 q
             };
-            if let Some(s) = sid { q.bind(s) } else { q }
+            let q = if let Some(s) = sid { q.bind(s) } else { q };
+            q.bind(limit)
+                .bind(offset)
                 .fetch_all(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?

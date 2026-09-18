@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import 'package:nubia_domain/src/entities/cabinet_appointment.dart';
 import 'package:nubia_domain/src/entities/cabinet_quote.dart';
 import 'package:nubia_domain/src/entities/patient_journal_entry.dart';
 import 'package:nubia_domain/src/error/failure.dart';
@@ -11,6 +12,11 @@ import 'package:nubia_domain/src/usecases/prescription/list_prescriptions_use_ca
 /// Taille de page utilisée pour paginer les devis d'un patient (max serveur,
 /// `cabinet_quotes.rs` `.clamp(1, 500)`) — voir `_listAllCabinetQuotes`.
 const _quotesPageSize = 500;
+
+/// Taille de page utilisée pour paginer les RDV d'un patient (max serveur,
+/// `scheduling.rs::CabinetAppointmentsQuery` `.clamp(1, 500)`) — voir
+/// `_listAllCabinetAppointments`.
+const _appointmentsPageSize = 500;
 
 /// Agrège les cinq sources du dossier patient (actes, ordonnances, devis,
 /// documents, rendez-vous) en une seule chronologie triée par date
@@ -47,7 +53,10 @@ class ListPatientJournalUseCase {
     // même d'atteindre le filtre client (#5572).
     final quotesResult = await _listAllCabinetQuotes(patientId);
     final documentsResult = await _listPatientDocuments(patientId);
-    final appointmentsResult = await _listCabinetAppointments();
+    // Filtré et paginé côté serveur par patient (`?patient_id=`), même
+    // raison que `_listAllCabinetQuotes` : le cabinet entier dépasse la
+    // limite serveur par défaut sur un cabinet volumineux (#7223).
+    final appointmentsResult = await _listAllCabinetAppointments(patientId);
 
     final failure = _firstFailure(sessionsResult) ??
         _firstFailure(prescriptionsResult) ??
@@ -119,9 +128,7 @@ class ListPatientJournalUseCase {
       ),
       ...appointmentsResult.fold(
         (_) => const [],
-        (appointments) => appointments
-            .where((appointment) => appointment.patientId == patientId)
-            .map((appointment) {
+        (appointments) => appointments.map((appointment) {
           return PatientJournalEntry(
             date: appointment.startsAt,
             kind: PatientJournalKind.rendezVous,
@@ -159,6 +166,33 @@ class ListPatientJournalUseCase {
       offset += _quotesPageSize;
     }
     return Right(quotes);
+  }
+
+  /// Récupère TOUS les RDV d'un patient en paginant par `offset` tant qu'une
+  /// page pleine est renvoyée, même pattern que `_listAllCabinetQuotes`
+  /// (#7223 : `GET /cabinet/appointments` sans `patient_id` et sans pagination
+  /// tronquait silencieusement l'historique du patient à la limite serveur
+  /// par défaut sur un cabinet volumineux).
+  Future<Either<Failure, List<CabinetAppointment>>> _listAllCabinetAppointments(
+    String patientId,
+  ) async {
+    final appointments = <CabinetAppointment>[];
+    var offset = 0;
+    while (true) {
+      final pageResult = await _listCabinetAppointments(
+        patientId: patientId,
+        limit: _appointmentsPageSize,
+        offset: offset,
+      );
+      final failure = _firstFailure(pageResult);
+      if (failure != null) return Left(failure);
+      final page =
+          pageResult.fold((_) => const <CabinetAppointment>[], (a) => a);
+      appointments.addAll(page);
+      if (page.length < _appointmentsPageSize) break;
+      offset += _appointmentsPageSize;
+    }
+    return Right(appointments);
   }
 
   Failure? _firstFailure<T>(Either<Failure, T> result) =>

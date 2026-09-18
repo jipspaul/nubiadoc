@@ -10,10 +10,18 @@ class CabinetAppointmentsApi {
 
   CabinetAppointmentsApi(ApiClient client) : _dio = client.dio;
 
-  Future<List<CabinetAppointmentDto>> list({int page = 1}) async {
+  Future<List<CabinetAppointmentDto>> list({
+    String? patientId,
+    int? limit,
+    int? offset,
+  }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/cabinet/appointments',
-      queryParameters: {'page': page},
+      queryParameters: {
+        if (patientId != null) 'patient_id': patientId,
+        if (limit != null) 'limit': limit,
+        if (offset != null) 'offset': offset,
+      },
     );
     final data = response.data!['data'] as List<dynamic>;
     return data
