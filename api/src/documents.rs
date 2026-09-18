@@ -621,7 +621,9 @@ pub struct UploadDocumentResponse {
 /// `POST /v1/documents` — coffre-fort patient : upload d'une pièce jointe / justificatif.
 ///
 /// Champs multipart :
-/// - `file` : binaire requis (PDF / JPEG / PNG ≤ 20 Mo). MIME déclaré vérifié → `422` sinon.
+/// - `file` : binaire requis (PDF / JPEG / PNG ≤ 20 Mo). MIME déclaré vérifié
+///   contre l'allowlist ET contre le nombre magique du contenu (#7302) →
+///   `422` sinon.
 /// - `category` : enum strict requis → `422` si absent ou invalide.
 /// - `filename` : optionnel ; remplace le nom issu du champ `file` si fourni.
 ///
@@ -689,6 +691,10 @@ pub async fn upload_document(
     if !ALLOWED_UPLOAD_MIMES.contains(&file_mime.as_str()) {
         return Err(AppError::ValidationError);
     }
+    // #7302 : le MIME ci-dessus n'est que celui déclaré par le client —
+    // confronte le contenu réel (nombre magique) pour rejeter un exécutable
+    // renommé en `.png`.
+    crate::file_scan::verify_content_matches_declared_mime(&file_bytes, &file_mime)?;
 
     let size_bytes = file_bytes.len() as i64;
     let fname = filename_field

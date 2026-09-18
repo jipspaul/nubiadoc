@@ -1554,6 +1554,9 @@ pub async fn upload_patient_document(
     if !ALLOWED_CABINET_DOC_MIMES.contains(&file_mime.as_str()) {
         return Err(AppError::ValidationError);
     }
+    // #7302 : même garde que le coffre patient (documents.rs) — le MIME
+    // déclaré par le client n'est pas fiable, confronte le nombre magique.
+    crate::file_scan::verify_content_matches_declared_mime(&file_bytes, &file_mime)?;
 
     let size_bytes = file_bytes.len() as i64;
     let fname = filename_field
