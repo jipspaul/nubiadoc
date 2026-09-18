@@ -67,19 +67,13 @@ const PLATFORM_KEY_CONTEXT: &str = "platform";
 /// la lecture/recherche patient elle-même.
 ///
 /// Échoue en [`FhirError::Internal`] (jamais de fallback en clair) si
-/// `KMS_MASTER_KEY` est absente/mal formée.
+/// `KMS_MASTER_KEY` est absente/mal formée — cause loguée (#6980, résolution
+/// partagée `crate::kms_env`).
 fn key_manager_from_env() -> Result<LocalKeyManager, FhirError> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
-
-    let raw = std::env::var("KMS_MASTER_KEY").map_err(|_| FhirError::Internal)?;
-    let decoded = STANDARD
-        .decode(raw.trim())
-        .map_err(|_| FhirError::Internal)?;
-    let key: [u8; 32] = decoded.try_into().map_err(|_| FhirError::Internal)?;
-    Ok(LocalKeyManager::new(
-        key,
-        std::env::var("KMS_KEY_VERSION").unwrap_or_else(|_| "v1".to_string()),
-    ))
+    crate::kms_env::key_manager_from_env().map_err(|e| {
+        tracing::error!(error = %e, "interop::patient: clé KMS inexploitable");
+        FhirError::Internal
+    })
 }
 
 /// Normalise un nom (casse, accents, espaces superflus) pour une comparaison

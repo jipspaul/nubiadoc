@@ -47,6 +47,7 @@ pub use yousign_client::YousignClient;
 
 mod appointment_motifs;
 mod appointment_series;
+mod appointment_time_guards;
 mod appointments_actions;
 mod appointments_checkin;
 mod appointments_create;
@@ -97,6 +98,7 @@ mod health;
 pub mod hl7v2;
 mod implant_passport;
 mod interop;
+pub mod kms_env;
 mod lab_work_orders;
 mod letters;
 mod local_storage_signer;

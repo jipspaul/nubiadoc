@@ -99,6 +99,34 @@ sh seed.sh || echo "[deploy] seed non bloquant"
 
 echo "[deploy] api"
 podman rm -f nubia-api >/dev/null 2>&1 || true
+# #6980 / #7216 : KMS_MASTER_KEY (32 octets base64, LocalKeyManager) n'était
+# JAMAIS transmise au conteneur — même trou de plomberie que #5688/#6250.
+# Conséquence : `POST /v1/auth/mfa/verify` répondait 500 sur tout code TOTP
+# VALIDE (un code faux : 422), donc aucun compte pro ne pouvait activer la
+# MFA. Le binaire refuse désormais de démarrer sans clé valide (main.rs,
+# fail-fast explicite plutôt qu'un 500 à l'usage), il faut donc en fournir
+# une ici. Source, dans l'ordre :
+#   1. le secret Forgejo KMS_MASTER_KEY (transmis par build-and-deploy.sh) ;
+#   2. sinon une clé générée UNE FOIS sur ce LXC et persistée dans
+#      /opt/nubia/kms_master_key (0600) — réutilisée à chaque déploiement.
+# Ne JAMAIS régénérer/écraser cette clé : les secrets TOTP (mfa_enrollment),
+# fichiers de reprise et INS déjà chiffrés deviendraient illisibles (les
+# comptes MFA seraient alors bloqués au login, cf. login.rs).
+KMS_KEY_FILE=/opt/nubia/kms_master_key
+if [ -z "${KMS_MASTER_KEY:-}" ]; then
+  if [ ! -s "$KMS_KEY_FILE" ]; then
+    echo "[deploy] génération de la clé KMS locale ($KMS_KEY_FILE)"
+    prev_umask=$(umask)
+    umask 077
+    head -c 32 /dev/urandom | base64 | tr -d '\n' > "$KMS_KEY_FILE"
+    umask "$prev_umask"
+  fi
+  KMS_MASTER_KEY=$(cat "$KMS_KEY_FILE")
+fi
+if [ -z "$KMS_MASTER_KEY" ]; then
+  echo "::error::KMS_MASTER_KEY vide : impossible de démarrer nubia-api (chiffrement MFA/INS)."
+  exit 1
+fi
 # Rust musl statique + tokio + sqlx pool + argon2 (JWT) : 1.5Gi pour absorber
 # le burst au boot (init pool DB + warmup tokio workers). Postmortem 2026-06-24
 # soir : 768Mi a fait crash le boot.
@@ -118,6 +146,7 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
   -e SCW_SECRET_KEY="${SCW_SECRET_KEY:-}" \
   -e SCW_BUCKET="${SCW_BUCKET:-}" \
   -e PUBLIC_API_BASE="$PUBLIC_API_BASE" -e STORAGE_SIGNING_KEY=dev-only-not-for-prod \
+  -e KMS_MASTER_KEY="$KMS_MASTER_KEY" \
   localhost/nubia-api:latest >/dev/null
 # #5688 : avant ce -e, YOUSIGN_API_KEY n'était jamais transmise au conteneur
 # (aucune plomberie CI -> LXC), donc POST /v1/quotes/:id/signature répondait

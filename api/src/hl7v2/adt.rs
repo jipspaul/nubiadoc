@@ -78,14 +78,10 @@ pub async fn handle(
 /// (POC/dev) depuis `KMS_MASTER_KEY` (32 octets base64). Jamais de fallback
 /// en clair.
 fn key_manager_from_env() -> Result<LocalKeyManager, AdtError> {
-    use base64::engine::{general_purpose::STANDARD, Engine};
-    let raw = std::env::var("KMS_MASTER_KEY").map_err(|_| AdtError::Crypto)?;
-    let decoded = STANDARD.decode(raw.trim()).map_err(|_| AdtError::Crypto)?;
-    let key: [u8; 32] = decoded.try_into().map_err(|_| AdtError::Crypto)?;
-    Ok(LocalKeyManager::new(
-        key,
-        std::env::var("KMS_KEY_VERSION").unwrap_or_else(|_| "v1".to_string()),
-    ))
+    crate::kms_env::key_manager_from_env().map_err(|e| {
+        tracing::error!(error = %e, "hl7v2::adt: clé KMS inexploitable");
+        AdtError::Crypto
+    })
 }
 
 /// Extrait identité + INS du segment `PID`.
