@@ -567,3 +567,47 @@ async fn create_template_nul_byte_in_item_returns_422() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test 7 (#7226) : libellé du modèle ou d'un item trop long → 422 ─────────
+
+#[tokio::test]
+async fn create_template_label_over_ceiling_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+
+    let response = app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/prescription-templates")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(f.user_id, f.cabinet_id, "practitioner")
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "label": "A".repeat(20_000),
+                        "items": [{"label": "x", "posology": "y", "duration": "z"}]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "libellé de modèle de 20 000 caractères doit être 422, jamais 201"
+    );
+
+    cleanup(&db, &f).await;
+}

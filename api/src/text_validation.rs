@@ -42,6 +42,20 @@ pub fn reject_nul_byte_in_json(value: &serde_json::Value) -> Result<(), AppError
     }
 }
 
+/// `422 validation_error` si `s` compte plus de `max_chars` caractères
+/// Unicode (pas les octets — cf. `body.first_name.chars().count() > 100`,
+/// `auth/mod.rs:4497`), sinon `Ok(())`. Les endpoints d'écriture clinique et
+/// facturation bornaient déjà le vide (`trim().is_empty()`) mais jamais le
+/// haut : un libellé de 20 000 caractères traversait jusqu'au PDF signé
+/// (ordonnance, devis) sans césure ni retour à la ligne, illisible et hors
+/// page (#7226, suite de #7138/#7041).
+pub fn validate_max_len(s: &str, max_chars: usize) -> Result<(), AppError> {
+    if s.chars().count() > max_chars {
+        return Err(AppError::ValidationError);
+    }
+    Ok(())
+}
+
 /// `422 validation_error` si `phone` n'est pas un numéro E.164 valide (`+` suivi de
 /// 7 à 14 chiffres), sinon `Ok(())`. Même borne que `PATCH /v1/account` — extraite
 /// ici pour être partagée avec `POST /v1/cabinet/patients/quick` (#7079 : ce dernier
@@ -74,6 +88,14 @@ mod tests {
         assert!(reject_nul_byte("").is_ok());
         assert!(reject_nul_byte("détartrage").is_ok());
         assert!(reject_nul_byte("normal text 123").is_ok());
+    }
+
+    #[test]
+    fn validates_max_len() {
+        assert!(validate_max_len("détartrage", 20).is_ok());
+        assert!(validate_max_len(&"a".repeat(20), 20).is_ok());
+        assert!(validate_max_len(&"a".repeat(21), 20).is_err());
+        assert!(validate_max_len(&"é".repeat(21), 20).is_err());
     }
 
     #[test]

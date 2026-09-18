@@ -157,6 +157,11 @@ pub struct CreatePatientTagBody {
     pub color: Option<String>,
 }
 
+/// Plafond métier réaliste (#7226) : le composant est une pastille d'UI
+/// (`PatientTagItem`), pas un champ de texte libre — un libellé de 20 000
+/// caractères passait en 201 jusqu'ici, non borné.
+const MAX_TAG_LABEL_LEN: usize = 50;
+
 /// `color` doit être un hex `#RRGGBB` (6 chiffres) — une valeur arbitraire
 /// acceptée verbatim casse le rendu de la puce côté front (#4395).
 fn is_valid_hex_color(color: &str) -> bool {
@@ -165,10 +170,11 @@ fn is_valid_hex_color(color: &str) -> bool {
 
 /// `POST /v1/cabinet/patients/:id/tags` — pose une étiquette administrative.
 ///
-/// Token pro requis (secretary+). `label` vide (après trim) ou contenant un
+/// Token pro requis (secretary+). `label` vide (après trim), contenant un
 /// caractère de contrôle (ex. NUL, qui ferait échouer l'INSERT Postgres en
-/// 500), ou `color` qui n'est pas un hex `#RRGGBB` → `422
-/// {"code":"validation_error"}` (#4395). Patient hors cabinet → 404. Auditée
+/// 500), ou dépassant `MAX_TAG_LABEL_LEN` caractères (#7226), ou `color` qui
+/// n'est pas un hex `#RRGGBB` → `422 {"code":"validation_error"}` (#4395).
+/// Patient hors cabinet → 404. Auditée
 /// (`create_patient_tag`) dans `audit_log`.
 pub async fn create_patient_tag(
     State(state): State<AppState>,
@@ -177,7 +183,10 @@ pub async fn create_patient_tag(
     Json(body): Json<CreatePatientTagBody>,
 ) -> Result<(StatusCode, Json<PatientTagItem>), AppError> {
     let label = body.label.trim().to_string();
-    if label.is_empty() || label.chars().any(|c| c.is_control()) {
+    if label.is_empty()
+        || label.chars().any(|c| c.is_control())
+        || label.chars().count() > MAX_TAG_LABEL_LEN
+    {
         return Err(AppError::ValidationError);
     }
     let color = body

@@ -40,6 +40,14 @@ fn validate_structured_posology(value: &serde_json::Value) -> Result<(), AppErro
     Ok(())
 }
 
+/// Plafonds métier réalistes (#7226) : chaque champ d'une ligne
+/// d'ordonnance n'était borné que sur le vide — un libellé de 20 000
+/// caractères passait en 201 et ressortait tel quel, sans césure ni retour
+/// à la ligne, sur le PDF de l'ordonnance SIGNÉE remise au pharmacien.
+pub(crate) const MAX_PRESCRIPTION_LABEL_LEN: usize = 300;
+pub(crate) const MAX_PRESCRIPTION_POSOLOGY_LEN: usize = 500;
+pub(crate) const MAX_PRESCRIPTION_SHORT_FIELD_LEN: usize = 200;
+
 // ── POST /v1/cabinet/prescriptions ───────────────────────────────────────────
 
 /// Un item de médicament dans le body de création.
@@ -87,6 +95,9 @@ pub struct CreatePrescriptionResponse {
 /// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403.
 /// - `cabinet_id` extrait du JWT (jamais du body — invariant tenancy).
 /// - Body invalide (items vides, champs manquants) → 422 (Axum rejection).
+/// - `label`/`posology`/`duration` (et `form`/`quantity`/
+///   `non_substitution_reason` s'ils sont fournis) bornés en longueur → 422
+///   sinon (#7226).
 /// - `patient_id` inconnu/hors tenant → 404 ; sans relation de soin
 ///   (aucun `appointment` du praticien avec ce patient) → 403 (#3769).
 /// - `consultation_id` (si fourni) inexistant, hors tenant ou hors patient → 404 (#3790).
@@ -111,14 +122,22 @@ pub async fn create_prescription(
         crate::text_validation::reject_nul_byte(&item.label)?;
         crate::text_validation::reject_nul_byte(&item.posology)?;
         crate::text_validation::reject_nul_byte(&item.duration)?;
+        // #7226 : borne haute — sans elle, un libellé de 20 000 caractères
+        // traverse jusqu'au PDF signé, sans césure ni retour à la ligne.
+        crate::text_validation::validate_max_len(&item.label, MAX_PRESCRIPTION_LABEL_LEN)?;
+        crate::text_validation::validate_max_len(&item.posology, MAX_PRESCRIPTION_POSOLOGY_LEN)?;
+        crate::text_validation::validate_max_len(&item.duration, MAX_PRESCRIPTION_SHORT_FIELD_LEN)?;
         if let Some(form) = &item.form {
             crate::text_validation::reject_nul_byte(form)?;
+            crate::text_validation::validate_max_len(form, MAX_PRESCRIPTION_SHORT_FIELD_LEN)?;
         }
         if let Some(quantity) = &item.quantity {
             crate::text_validation::reject_nul_byte(quantity)?;
+            crate::text_validation::validate_max_len(quantity, MAX_PRESCRIPTION_SHORT_FIELD_LEN)?;
         }
         if let Some(reason) = &item.non_substitution_reason {
             crate::text_validation::reject_nul_byte(reason)?;
+            crate::text_validation::validate_max_len(reason, MAX_PRESCRIPTION_SHORT_FIELD_LEN)?;
         }
         if let Some(structured_posology) = &item.structured_posology {
             validate_structured_posology(structured_posology)?;

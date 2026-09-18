@@ -90,9 +90,14 @@ pub struct CreateCrTemplateResponse {
     pub id: Uuid,
 }
 
+/// Plafond métier réaliste (#7226) : `title` liste le modèle dans l'UI de
+/// sélection, pas un champ de texte libre — non borné jusqu'ici.
+const MAX_CR_TEMPLATE_TITLE_LEN: usize = 200;
+
 /// `POST /v1/cabinet/cr-templates` — crée un modèle propre au cabinet.
 ///
-/// `title`/`body_template` non vides/blancs → 422 sinon. `ccam_code` s'il est
+/// `title`/`body_template` non vides/blancs → 422 sinon, `title` borné à
+/// `MAX_CR_TEMPLATE_TITLE_LEN` caractères (#7226). `ccam_code` s'il est
 /// fourni doit référencer un code du catalogue `ccam_act` → 422 sinon (même
 /// vérification applicative préalable qu'ailleurs dans le code, plutôt que de
 /// laisser remonter la violation FK 23503 en 500, cf. `prescriptions.rs`).
@@ -107,6 +112,8 @@ pub async fn create_cr_template(
     // #4410 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
     crate::text_validation::reject_nul_byte(&body.title)?;
     crate::text_validation::reject_nul_byte(&body.body_template)?;
+    // #7226 : borne haute sur `title` — champ de liste, pas de texte libre.
+    crate::text_validation::validate_max_len(&body.title, MAX_CR_TEMPLATE_TITLE_LEN)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
