@@ -236,6 +236,18 @@ void main() {
           ),
         );
 
+    // #7321 : colonne Praticien élargie (84 -> 160px, cf. waiting_room_page)
+    // pour ne plus tronquer les noms — la surface de test par défaut (768px
+    // de ligne après padding) est plus étroite que le viewport réel
+    // (1280px+) et déborde sur les lignes avec un praticien/bouton Appeler.
+    // Même pattern que la ligne #6636 plus bas.
+    void useWideSurface(WidgetTester tester) {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+    }
+
     testWidgets('affiche le chargement en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const WaitingRoomInitial());
       await tester.pumpWidget(buildPage());
@@ -387,6 +399,7 @@ void main() {
     testWidgets(
         'RDV normal — pastille En attente, pas de Sans RDV/Attribuer — #5171',
         (tester) async {
+      useWideSurface(tester);
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
           WaitingRoomEntry(
@@ -445,6 +458,7 @@ void main() {
     testWidgets(
         'colonne Estimation — valeur non nulle affichée en "~N min" — #5169',
         (tester) async {
+      useWideSurface(tester);
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
           WaitingRoomEntry(
@@ -473,6 +487,7 @@ void main() {
     testWidgets(
         'colonne Estimation — nulle en tête de file → "—" + "à appeler", '
         'jamais de valeur inventée — #5169', (tester) async {
+      useWideSurface(tester);
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
           WaitingRoomEntry(
@@ -502,6 +517,7 @@ void main() {
     testWidgets(
         'colonne Estimation — nulle, sans RDV et pas en tête de file → '
         '"—" + "à évaluer" — #5169', (tester) async {
+      useWideSurface(tester);
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
           WaitingRoomEntry(
@@ -651,6 +667,7 @@ void main() {
     testWidgets(
         'colonne Praticien — nom + pastille couleur du practitionerId — #5168',
         (tester) async {
+      useWideSurface(tester);
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
           WaitingRoomEntry(
@@ -1260,6 +1277,7 @@ void main() {
     testWidgets(
         'chaque ligne (hors sans-RDV) a son propre bouton Appeler, tête de '
         'file en variant plein — #5166', (tester) async {
+      useWideSurface(tester);
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
           WaitingRoomEntry(
@@ -1319,6 +1337,7 @@ void main() {
     testWidgets(
         'tap sur le bouton Appeler d\'une ligne dispatche '
         'WaitingRoomCallRequested pour CETTE entrée — #5166', (tester) async {
+      useWideSurface(tester);
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
           WaitingRoomEntry(
@@ -1352,6 +1371,7 @@ void main() {
     testWidgets(
         'bouton Appeler de ligne désactivé pendant actionInProgress — anti '
         'double-clic #6637', (tester) async {
+      useWideSurface(tester);
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded(
           [
