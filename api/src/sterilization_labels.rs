@@ -448,6 +448,9 @@ pub struct UsePouchResponse {
 /// complétée (200). Sachet déjà utilisé sur un AUTRE patient (ou une autre
 /// séance du même patient) → `409 pouch_already_used` : un sachet est à
 /// usage unique.
+/// Sachet issu d'un cycle `non_conforme` → `409 pouch_cycle_non_conforme`
+/// (#7243) : même signal que celui imprimé sur l'étiquette, avant toute
+/// écriture.
 /// Chaque première utilisation est tracée dans `audit_log`
 /// (`use_sterilized_pouch` / `sterilized_pouch`), comme les voisins.
 pub async fn use_sterilized_pouch(
@@ -487,6 +490,22 @@ pub async fn use_sterilized_pouch(
     let pouch_id: Uuid = pouch.try_get("id").map_err(|_| AppError::Internal)?;
     let cycle_id: Uuid = pouch.try_get("cycle_id").map_err(|_| AppError::Internal)?;
     let stored_code: String = pouch.try_get("code").map_err(|_| AppError::Internal)?;
+
+    // #7243 : un sachet issu d'un cycle `non_conforme` (même signal que
+    // celui imprimé sur l'étiquette, cf. `sterilization_cycle_labels_pdf`)
+    // ne doit jamais être traçable comme ouvert sur un patient.
+    let cycle_status: String = sqlx::query_scalar(
+        "SELECT status FROM sterilization_cycle WHERE id = $1 AND cabinet_id = $2",
+    )
+    .bind(cycle_id)
+    .bind(claims.cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if cycle_status == "non_conforme" {
+        return Err(AppError::PouchCycleNonConforme);
+    }
+
     let current_patient: Option<Uuid> = pouch
         .try_get("patient_id")
         .map_err(|_| AppError::Internal)?;
