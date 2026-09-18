@@ -552,6 +552,52 @@ async fn cabinet_quotes_post_blank_label_returns_422() {
     }
 }
 
+// ── Test 9 (#7226) : libellé de ligne trop long → 422, jamais 201 ───────────
+
+#[tokio::test]
+async fn cabinet_quotes_post_label_over_ceiling_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": Uuid::new_v4(),
+        "items": [{ "label": "A".repeat(20_000), "amount_cents": 5000 }]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/quotes")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "practitioner")
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "libellé de 20 000 caractères doit être 422, jamais 201"
+    );
+}
+
 // ── Test : ccam_code/tooth/amo_part_cents/amc_part_cents persistés puis
 //    renvoyés tels quels par GET /v1/cabinet/quotes/:id (#4060) ─────────────
 

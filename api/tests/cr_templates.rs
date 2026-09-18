@@ -285,6 +285,34 @@ async fn create_with_nul_byte_in_title_returns_422() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 2ter (#7226) : title trop long → 422 (pas 201) ─────────────────────
+
+#[tokio::test]
+async fn create_with_title_over_ceiling_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "practitioner");
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/cr-templates",
+        &token,
+        Some(json!({"title": "A".repeat(20_000), "body_template": "x"})),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "title de 20 000 caractères doit être 422, jamais 201"
+    );
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 3 : PATCH modifie le titre, laisse le reste inchangé ───────────────
 
 #[tokio::test]

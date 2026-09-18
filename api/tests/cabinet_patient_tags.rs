@@ -434,3 +434,37 @@ async fn blank_label_is_rejected() {
 
     cleanup(&seed_db, cabinet_id, secretary_user_id, patient_id).await;
 }
+
+/// `label` trop long (#7226) : le composant est une pastille d'UI, pas un
+/// champ de texte libre → 422, jamais 201.
+#[tokio::test]
+async fn label_over_ceiling_is_rejected() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, secretary_user_id, patient_id) =
+        insert_fixture(&seed_db, &Uuid::new_v4().to_string()).await;
+    let token = make_token(Uuid::new_v4(), cabinet_id, "pro", "secretary", None);
+
+    let response = app(test_state(app_db))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/patients/{}/tags", patient_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({"label": "A".repeat(20_000)}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "libellé de 20 000 caractères doit être 422, jamais 201"
+    );
+
+    cleanup(&seed_db, cabinet_id, secretary_user_id, patient_id).await;
+}

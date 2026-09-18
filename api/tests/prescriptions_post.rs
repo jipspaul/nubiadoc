@@ -445,6 +445,55 @@ async fn create_prescription_nul_byte_in_item_returns_422() {
     cleanup_fixture(&db, cabinet_id, prac_user_id, prac_id, patient_id).await;
 }
 
+// ── Test 2quater (#7226) : libellé d'item trop long → 422 (pas 201) ─────────
+
+#[tokio::test]
+async fn create_prescription_label_over_ceiling_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_user_id, prac_id, patient_id) = insert_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": patient_id,
+        "items": [{"label": "A".repeat(20_000), "posology": "y", "duration": "z"}]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/prescriptions")
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "libellé de 20 000 caractères doit être 422, jamais 201"
+    );
+
+    cleanup_fixture(&db, cabinet_id, prac_user_id, prac_id, patient_id).await;
+}
+
 // ── Test 2ter (#6156) : structured_posology malformé → 422 (pas persisté) ───
 
 #[tokio::test]

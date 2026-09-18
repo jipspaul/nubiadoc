@@ -22,8 +22,15 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
+    prescriptions::{
+        MAX_PRESCRIPTION_LABEL_LEN, MAX_PRESCRIPTION_POSOLOGY_LEN,
+        MAX_PRESCRIPTION_SHORT_FIELD_LEN,
+    },
     AppState,
 };
+
+/// Plafond métier réaliste (#7226) : nom du modèle, non borné jusqu'ici.
+pub(crate) const MAX_TEMPLATE_LABEL_LEN: usize = 200;
 
 /// Ligne d'un modèle : même forme que `prescription_item`
 /// (`prescriptions::PrescriptionItemInput`), dupliquée ici en local pour
@@ -142,9 +149,10 @@ pub struct CreatePrescriptionTemplateResponse {
 /// - `cabinet_id` extrait du JWT — jamais `NULL` (seule une migration crée
 ///   un modèle global, cf. RLS `global_template_read`, pas de policy
 ///   INSERT pour `cabinet_id IS NULL`).
-/// - `label` non vide/blanc, `items` non vide et chaque ligne avec
-///   `label`/`posology`/`duration` non blancs → 422 sinon (mêmes règles que
-///   `create_prescription`, `prescriptions.rs`).
+/// - `label` non vide/blanc et borné à `MAX_TEMPLATE_LABEL_LEN`, `items` non
+///   vide et chaque ligne avec `label`/`posology`/`duration` non blancs et
+///   bornés → 422 sinon (mêmes règles que `create_prescription`,
+///   `prescriptions.rs`, #7226).
 /// - `personal:true` pose `practitioner_id` (résolu depuis le JWT).
 /// - Retourne `201 { template_id }`.
 pub async fn create_prescription_template(
@@ -166,15 +174,23 @@ pub async fn create_prescription_template(
     // #4410 : NUL byte non filtré → bind Postgres échoue (label direct,
     // items via jsonb), masqué en 500.
     crate::text_validation::reject_nul_byte(&body.label)?;
+    // #7226 : borne haute — mêmes plafonds que `create_prescription`
+    // (`prescriptions.rs`), le modèle rejouant ce défaut à chaque usage.
+    crate::text_validation::validate_max_len(&body.label, MAX_TEMPLATE_LABEL_LEN)?;
     for item in &body.items {
         crate::text_validation::reject_nul_byte(&item.label)?;
         crate::text_validation::reject_nul_byte(&item.posology)?;
         crate::text_validation::reject_nul_byte(&item.duration)?;
+        crate::text_validation::validate_max_len(&item.label, MAX_PRESCRIPTION_LABEL_LEN)?;
+        crate::text_validation::validate_max_len(&item.posology, MAX_PRESCRIPTION_POSOLOGY_LEN)?;
+        crate::text_validation::validate_max_len(&item.duration, MAX_PRESCRIPTION_SHORT_FIELD_LEN)?;
         if let Some(form) = &item.form {
             crate::text_validation::reject_nul_byte(form)?;
+            crate::text_validation::validate_max_len(form, MAX_PRESCRIPTION_SHORT_FIELD_LEN)?;
         }
         if let Some(quantity) = &item.quantity {
             crate::text_validation::reject_nul_byte(quantity)?;
+            crate::text_validation::validate_max_len(quantity, MAX_PRESCRIPTION_SHORT_FIELD_LEN)?;
         }
     }
 

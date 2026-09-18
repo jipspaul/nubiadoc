@@ -61,12 +61,19 @@ pub struct CreateCabinetQuoteResponse {
 /// largement suffisant pour un acte dentaire/médical le plus lourd.
 pub(crate) const MAX_ITEM_AMOUNT_CENTS: i64 = 100_000_000;
 
+/// Plafond métier réaliste (#7226) : le libellé d'une ligne de devis n'était
+/// borné que sur le vide — un acte de 20 000 caractères passait en 201 et
+/// ressortait tel quel, sans césure ni retour à la ligne, sur le PDF du
+/// devis signé. Une désignation d'acte tient largement dans 500 caractères.
+pub(crate) const MAX_QUOTE_ITEM_LABEL_LEN: usize = 500;
+
 /// Valide les lignes d'un devis (partagé entre `create_cabinet_quote` et
 /// `cabinet_quotes_patch::patch_cabinet_quote`, #4065) : non vide,
 /// `amount_cents` dans `]0, MAX_ITEM_AMOUNT_CENTS]`, libellé non vide/blanc
-/// (#3770), `amo_part_cents`/`amc_part_cents` non négatifs (#4060), et leur
-/// somme ne dépasse pas `amount_cents` (#4309) — sinon le reste à charge
-/// patient (`amount_cents - amo_part - amc_part`) devient négatif.
+/// (#3770) et borné à `MAX_QUOTE_ITEM_LABEL_LEN` (#7226),
+/// `amo_part_cents`/`amc_part_cents` non négatifs (#4060), et leur somme ne
+/// dépasse pas `amount_cents` (#4309) — sinon le reste à charge patient
+/// (`amount_cents - amo_part - amc_part`) devient négatif.
 pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppError> {
     if items.is_empty() {
         return Err(AppError::ValidationError);
@@ -79,6 +86,9 @@ pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppEr
     }
     if items.iter().any(|i| i.label.trim().is_empty()) {
         return Err(AppError::ValidationError);
+    }
+    for item in items {
+        crate::text_validation::validate_max_len(&item.label, MAX_QUOTE_ITEM_LABEL_LEN)?;
     }
     if items
         .iter()
@@ -101,7 +111,8 @@ pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppEr
 /// - `cabinet_id` extrait du JWT.
 /// - `items` vide → 422.
 /// - `amount_cents` de chaque ligne doit être dans `]0, 100_000_000]` (1M€) → 422 sinon (#3762).
-/// - `label` de chaque ligne ne doit pas être vide/blanc (trim) → 422 sinon (#3770).
+/// - `label` de chaque ligne ne doit pas être vide/blanc (trim), ni dépasser
+///   `MAX_QUOTE_ITEM_LABEL_LEN` caractères → 422 sinon (#3770, #7226).
 /// - `deposit_pct` doit être entre 0 et 100 si fourni → 422 sinon.
 /// - `ccam_code`/`tooth`/`amo_part_cents`/`amc_part_cents` optionnels par ligne,
 ///   persistés tels quels (#4060) ; `amo_part_cents`/`amc_part_cents` négatifs → 422.
