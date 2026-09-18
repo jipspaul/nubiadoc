@@ -9,6 +9,11 @@
 //! Modes d'échec : erreur de chargement → `PeriodontalChartError` (bouton
 //! réessayer). Erreur de sauvegarde → `saveError` sur l'état `Loaded` (les
 //! modifications locales restent visibles, pas de perte de saisie).
+//!
+//! Patient neuf (#6780) : l'API renvoie `{ sites: {}, indices: {},
+//! measured_at: null }` (`PeriodontalChart.isBlank`). Ce n'est PAS une
+//! erreur — c'est cet écran qui crée le premier bilan : on émet `Loaded`
+//! avec un formulaire vierge et `isBlank: true` pour l'appel à l'action.
 
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
@@ -37,6 +42,7 @@ class PeriodontalChartLoaded extends PeriodontalChartState {
   const PeriodontalChartLoaded({
     required this.sites,
     required this.indices,
+    this.isBlank = false,
     this.dirty = false,
     this.saving = false,
     this.saveError,
@@ -44,6 +50,11 @@ class PeriodontalChartLoaded extends PeriodontalChartState {
 
   final Map<String, ToothSiteDepths> sites;
   final Map<String, double> indices;
+
+  /// Aucun bilan n'a encore été enregistré pour ce patient
+  /// (`measured_at: null` côté API, #6780) — l'écran affiche un appel à
+  /// l'action « premier bilan ». Retombe à `false` après le premier PUT.
+  final bool isBlank;
   final bool dirty;
   final bool saving;
   final String? saveError;
@@ -51,6 +62,7 @@ class PeriodontalChartLoaded extends PeriodontalChartState {
   PeriodontalChartLoaded copyWith({
     Map<String, ToothSiteDepths>? sites,
     Map<String, double>? indices,
+    bool? isBlank,
     bool? dirty,
     bool? saving,
     String? saveError,
@@ -59,13 +71,15 @@ class PeriodontalChartLoaded extends PeriodontalChartState {
       PeriodontalChartLoaded(
         sites: sites ?? this.sites,
         indices: indices ?? this.indices,
+        isBlank: isBlank ?? this.isBlank,
         dirty: dirty ?? this.dirty,
         saving: saving ?? this.saving,
         saveError: clearSaveError ? null : (saveError ?? this.saveError),
       );
 
   @override
-  List<Object?> get props => [sites, indices, dirty, saving, saveError];
+  List<Object?> get props =>
+      [sites, indices, isBlank, dirty, saving, saveError];
 }
 
 class PeriodontalChartCubit extends Cubit<PeriodontalChartState> {
@@ -89,7 +103,11 @@ class PeriodontalChartCubit extends Cubit<PeriodontalChartState> {
     result.fold(
       (failure) => emit(PeriodontalChartError(failure.message)),
       (chart) => emit(
-        PeriodontalChartLoaded(sites: chart.sites, indices: chart.indices),
+        PeriodontalChartLoaded(
+          sites: chart.sites,
+          indices: chart.indices,
+          isBlank: chart.isBlank,
+        ),
       ),
     );
   }
@@ -132,7 +150,11 @@ class PeriodontalChartCubit extends Cubit<PeriodontalChartState> {
         current.copyWith(saving: false, saveError: failure.message),
       ),
       (chart) => emit(
-        PeriodontalChartLoaded(sites: chart.sites, indices: chart.indices),
+        PeriodontalChartLoaded(
+          sites: chart.sites,
+          indices: chart.indices,
+          isBlank: chart.isBlank,
+        ),
       ),
     );
   }

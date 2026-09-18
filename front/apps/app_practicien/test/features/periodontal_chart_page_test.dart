@@ -34,6 +34,33 @@ void main() {
         home: const PeriodontalChartPage(patientId: 'pat-1'),
       );
 
+  testWidgets(
+      'patient sans bilan (measured_at null) : formulaire vierge + appel à '
+      'l\'action, pas d\'écran d\'erreur (#6780)', (tester) async {
+    // Modèle décodé depuis `{"sites":{},"indices":{},"measured_at":null}`.
+    when(() => getChart('pat-1')).thenAnswer(
+      (_) async => const Right(PeriodontalChart(sites: {}, indices: {})),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('periodontal_chart_error')), findsNothing);
+    expect(find.text('Réessayer'), findsNothing);
+    expect(find.byKey(const Key('periodontal_chart_form')), findsOneWidget);
+    expect(
+      find.byKey(const Key('periodontal_chart_tooth_11')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('periodontal_chart_blank_hint')),
+      findsOneWidget,
+    );
+    final saveButton = find.byKey(const Key('periodontal_chart_save_button'));
+    await tester.ensureVisible(saveButton);
+    expect(saveButton, findsOneWidget);
+  });
+
   testWidgets('charge et affiche les 32 dents adultes', (tester) async {
     when(() => getChart('pat-1')).thenAnswer(
       (_) async => Right(
@@ -150,8 +177,7 @@ void main() {
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
-    final nameField =
-        find.byKey(const Key('periodontal_chart_new_index_name'));
+    final nameField = find.byKey(const Key('periodontal_chart_new_index_name'));
     await tester.ensureVisible(nameField);
     await tester.enterText(nameField, 'Indice de plaque');
 

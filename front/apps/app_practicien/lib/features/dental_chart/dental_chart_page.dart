@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'clinical_chart_blank_hint.dart';
 import 'dental_chart_cubit.dart';
 import 'tooth_grid.dart';
 
@@ -122,8 +123,13 @@ class _DentalChartBodyState extends State<_DentalChartBody> {
                 message: message,
                 onRetry: () => context.read<DentalChartCubit>().load(),
               ),
-            DentalChartLoaded(:final teeth, :final dirty, :final saving) =>
-              _buildChart(context, teeth, dirty, saving),
+            DentalChartLoaded(
+              :final teeth,
+              :final isBlank,
+              :final dirty,
+              :final saving,
+            ) =>
+              _buildChart(context, teeth, isBlank, dirty, saving),
           },
         );
       },
@@ -133,6 +139,7 @@ class _DentalChartBodyState extends State<_DentalChartBody> {
   Widget _buildChart(
     BuildContext context,
     Map<String, ToothState> teeth,
+    bool isBlank,
     bool dirty,
     bool saving,
   ) {
@@ -143,6 +150,16 @@ class _DentalChartBodyState extends State<_DentalChartBody> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (isBlank) ...[
+            const ClinicalChartBlankHint(
+              key: Key('dental_chart_blank_hint'),
+              title: 'Aucun schéma dentaire enregistré',
+              message: 'Ce patient n\'a pas encore d\'odontogramme. '
+                  'Touchez une dent pour saisir son état, puis appuyez sur '
+                  'Enregistrer pour créer le premier schéma.',
+            ),
+            const SizedBox(height: 16),
+          ],
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

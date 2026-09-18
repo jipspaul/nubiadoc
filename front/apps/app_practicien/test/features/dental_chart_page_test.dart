@@ -33,6 +33,60 @@ void main() {
         home: const DentalChartPage(patientId: 'pat-1'),
       );
 
+  testWidgets(
+      'patient sans odontogramme (updated_at null) : grille vierge + '
+      'appel à l\'action, pas d\'écran d\'erreur (#6780)', (tester) async {
+    // Modèle décodé depuis `{"teeth":{},"updated_at":null}` (API 200).
+    when(() => getChart('pat-1')).thenAnswer(
+      (_) async => const Right(DentalChart(teeth: {})),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('dental_chart_error')), findsNothing);
+    expect(find.text('Réessayer'), findsNothing);
+    // Grille vierge complète : 32 dents adultes + bascule + Enregistrer.
+    expect(find.byKey(const Key('dental_chart_tooth_11')), findsOneWidget);
+    expect(find.byKey(const Key('dental_chart_tooth_48')), findsOneWidget);
+    expect(find.byKey(const Key('dental_chart_adulte_toggle')), findsOneWidget);
+    expect(find.byKey(const Key('dental_chart_enfant_toggle')), findsOneWidget);
+    expect(find.byKey(const Key('dental_chart_save_button')), findsOneWidget);
+    // Appel à l'action « premier schéma ».
+    expect(find.byKey(const Key('dental_chart_blank_hint')), findsOneWidget);
+  });
+
+  testWidgets(
+      'le premier enregistrement d\'un patient neuf retire l\'appel à '
+      'l\'action (#6780)', (tester) async {
+    when(() => getChart('pat-1')).thenAnswer(
+      (_) async => const Right(DentalChart(teeth: {})),
+    );
+    when(() => putChart('pat-1', any())).thenAnswer(
+      (_) async => Right(
+        DentalChart(
+          teeth: const {'11': ToothState(status: 'sain')},
+          updatedAt: DateTime(2026, 9, 9),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('dental_chart_blank_hint')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('dental_chart_tooth_11')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('dental_chart_status_option_sain')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('dental_chart_save_button')));
+    await tester.pumpAndSettle();
+
+    verify(() => putChart('pat-1', any())).called(1);
+    expect(find.byKey(const Key('dental_chart_blank_hint')), findsNothing);
+    expect(find.byKey(const Key('dental_chart_error')), findsNothing);
+  });
+
   testWidgets('charge et affiche les dents avec leur état', (tester) async {
     when(() => getChart('pat-1')).thenAnswer(
       (_) async => Right(

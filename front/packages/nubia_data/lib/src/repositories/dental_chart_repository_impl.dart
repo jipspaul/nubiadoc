@@ -31,7 +31,9 @@ class DentalChartRepositoryImpl implements DentalChartRepository {
         statusCode: e.response?.statusCode,
       ));
     } catch (e) {
-      return const Left(ParseFailure());
+      return const Left(
+        ParseFailure('Réponse du serveur illisible (schéma dentaire).'),
+      );
     }
   }
 
@@ -45,7 +47,6 @@ class DentalChartRepositoryImpl implements DentalChartRepository {
         teeth: teeth.map(
           (k, v) => MapEntry(k, ToothStateDto.fromDomain(v)),
         ),
-        updatedAt: DateTime.now().toIso8601String(),
       );
       final response = await _api.put(patientId, dto);
       return Right(response.toDomain());
