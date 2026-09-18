@@ -613,14 +613,14 @@ class _RoomPacePanel extends StatelessWidget {
             key: const Key('room_pace_average'),
             label: 'Attente moyenne',
             subtitle: 'sur les ${entries.length} présents',
-            value: '$averageMinutes min',
+            value: formatWaitMinutes(averageMinutes),
           ),
           const SizedBox(height: 12),
           _PaceRow(
             key: const Key('room_pace_longest'),
             label: 'Attente la plus longue',
             subtitle: longestPatientName,
-            value: '$longestMinutes min',
+            value: formatWaitMinutes(longestMinutes),
             valueColor: tokens.warningFg,
           ),
           if (scheduledAt != null && delayMinutes != null) ...[
@@ -633,7 +633,7 @@ class _RoomPacePanel extends StatelessWidget {
               subtitle:
                   'RDV de ${_NextPatientHeroCard._formatTime(scheduledAt)}'
                   ' appelé à ${_NextPatientHeroCard._formatTime(calledAt)}',
-              value: '${delayMinutes.abs()} min',
+              value: formatWaitMinutes(delayMinutes.abs()),
               valueColor:
                   delayMinutes < 0 ? tokens.successFg : tokens.warningFg,
             ),
