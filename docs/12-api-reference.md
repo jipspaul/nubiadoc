@@ -116,6 +116,7 @@
 | POST | `/v1/auth/password/reset` | — | Reset via token. |
 | POST | `/v1/auth/mfa/enroll` | pro | Démarre l'enrôlement TOTP (renvoie secret/QR). |
 | POST | `/v1/auth/mfa/verify` | pro | Valide le code, active la MFA. |
+| POST | `/v1/auth/mfa/disable` | pro | Redemande le mot de passe, désactive la MFA. |
 | GET | `/v1/me` | oui | Profil du porteur du token (compte + rôles/cabinets + pharmacies). |
 | POST | `/v1/auth/select-pharmacy-context` | pro (login) | Émet un JWT `kind:"pharma"` scopé pharmacie (cf. §22). |
 | POST | `/v1/auth/franceconnect/start` · `/callback` | — | FranceConnect patient (**post-MVP**, `07` §9.3). |
@@ -130,6 +131,8 @@
 `POST /v1/auth/mfa/enroll` — porteur : token pro, body `{}`. → `200 { totp_secret, otpauth_url }` (Base32 ; `otpauth://` SHA1, 6 chiffres, période 30 s). Rien n'est persisté à cette étape ; chaque appel rend un secret neuf.
 
 `POST /v1/auth/mfa/verify` — porteur : token pro, body : `totp_secret` (rendu par `/enroll`), `totp_code`. Le code est validé **avant** toute écriture. → `200 { message:"MFA activée." }` : enrôlement chiffré écrit dans `mfa_enrollment` (secret jamais stocké en clair), `app_user.totp_enabled = true`, le login suivant exige `mfa_code`. Un nouvel appel (ré-enrôlement) remplace l'enrôlement existant. Erreurs : `422 validation_error` (secret non Base32, code faux/expiré, champ inconnu ou manquant), `403 forbidden` (token patient/pharma), `401 unauthorized` (sans token), `503 kms_not_configured` (`KMS_MASTER_KEY` absente/mal formée côté serveur — #6980/#7216 : cette lacune de déploiement répondait auparavant `500 internal_error` sur tout code **valide**, un code faux répondant 422, d'où une MFA inactivable ; le binaire refuse désormais de démarrer sans clé valide, ce `503` reste la garde en profondeur).
+
+`POST /v1/auth/mfa/disable` — porteur : token pro, body : `password` (mot de passe **courant**, redemandé pour confirmer — un JWT seul ne suffit pas à couper le second facteur). → `200 { message:"MFA désactivée." }` : supprime l'enrôlement `mfa_enrollment`, `app_user.totp_enabled = false`, le login suivant n'exige plus `mfa_code`. Seule voie de désactivation hors reset de mot de passe complet (#7328 : avant cette route, activer la MFA via `/mfa/verify` était irréversible sans passer par `POST /v1/auth/password/reset`, qui exige l'accès à la boîte mail et change le mot de passe au passage — inutilisable sur un compte partagé). Erreurs : `401 unauthenticated` (mot de passe faux, sans token), `409 invalid_status` (MFA déjà désactivée), `403 forbidden` (token patient/pharma).
 
 `GET /v1/me` → `{ user_id, email, kind:"patient"|"pro", account_id?, display_name?, memberships:[{ cabinet_id, role, cabinet_name }], pharmacy_memberships:[{ pharmacy_id, role, pharmacy_name }] }`. `display_name` (#6170) : `"{first_name} {last_name}"` (`app_user`), absent si les deux sont vides. Pour un pro multi-cabinets, le **choix du cabinet actif** se fait à la connexion (le token porte un seul `cabinet_id`). Les memberships pharmacie (tenant dédié, §22) partagent le même login ; le contexte pharmacie s'active via `POST /v1/auth/select-pharmacy-context`.
 

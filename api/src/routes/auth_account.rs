@@ -31,6 +31,7 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         .route("/v1/auth/mfa/enroll", post(auth::mfa_enroll::mfa_enroll))
         .route("/v1/auth/mfa/verify", post(auth::mfa_verify::mfa_verify))
+        .route("/v1/auth/mfa/disable", post(auth::mfa_disable::mfa_disable))
         .route(
             "/v1/auth/password/forgot",
             post(auth::forgot_password::forgot_password),
