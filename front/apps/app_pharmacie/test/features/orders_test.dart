@@ -16,6 +16,7 @@ import 'package:app_pharmacie/features/orders/orders_bloc.dart';
 import 'package:app_pharmacie/features/orders/orders_event.dart';
 import 'package:app_pharmacie/features/orders/orders_page.dart';
 import 'package:app_pharmacie/features/orders/orders_state.dart';
+import 'package:app_pharmacie/features/orders/widgets/order_row.dart';
 import 'package:app_pharmacie/features/orders/widgets/order_status_pill.dart';
 import 'package:app_pharmacie/features/orders/widgets/orders_kpis.dart';
 
@@ -729,6 +730,36 @@ void main() {
           (widget.decoration! as BoxDecoration).shape == BoxShape.circle &&
           (widget.decoration! as BoxDecoration).color == NubiaColors.brand600);
       expect(dotFinder, findsOneWidget);
+    });
+  });
+
+  group('OrderRow — repli sous 640 px (#7256)', () {
+    testWidgets(
+        'à 390 px, le nom du patient et la date de réception restent '
+        'lisibles au lieu de se replier caractère par caractère',
+        (tester) async {
+      final testOrder =
+          orderNamed('o1', 'Marc Dupont-Lavigne', PharmacyOrderStatus.ready);
+
+      await tester.pumpApp(
+        Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: OrderRow(order: testOrder),
+          ),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(find.text('Marc Dupont-Lavigne'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('order_row_o1')),
+          matching: find.textContaining('Reçue le'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('order_row_deliver_o1')), findsOneWidget);
     });
   });
 
