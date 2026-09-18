@@ -198,13 +198,12 @@ pub async fn export_implant_passport(
     // dans le cas dégénéré où le token ne référence aucune fiche `patient_account`
     // — ne doit jamais se produire en production (un token patient suppose un
     // compte déjà créé), mais évite un 500 plutôt qu'un simple manque d'affichage.
-    let account_row = sqlx::query(
-        "SELECT first_name, last_name FROM patient_account WHERE id = $1",
-    )
-    .bind(claims.account_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let account_row =
+        sqlx::query("SELECT first_name, last_name FROM patient_account WHERE id = $1")
+            .bind(claims.account_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
     let patient_name = match account_row {
         Some(row) => {
             let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
