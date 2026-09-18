@@ -38,6 +38,17 @@ pub struct ConversationItem {
     pub last_message_preview: Option<String>,
     pub scope: String,
     pub status: String,
+    /// Référence courte (`CMD-0363`) de la commande la plus récente du
+    /// patient dans cette officine (#7249) — même format que
+    /// `OrderDto.order_ref` (`orders.rs`). `null` si le patient n'a aucune
+    /// commande dans cette pharmacie.
+    pub order_ref: Option<String>,
+    /// Libellé court du statut de cette commande (« Prête », « En prépa »,
+    /// #7249) — distinct des libellés longs de la file commandes
+    /// (`orderStatusLabel` front, `order_status_pill.dart`) : la maquette
+    /// messagerie utilise un format compact pour le chip. `null` quand
+    /// [order_ref] est `null`.
+    pub order_status_label: Option<String>,
 }
 
 /// Réponse de `GET /v1/pharmacy/conversations`.
@@ -70,7 +81,23 @@ pub async fn list_pharmacy_conversations(
                  ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_body, \
                 (SELECT COUNT(*) FROM message m \
                  WHERE m.conversation_id = c.id \
-                   AND m.sender_kind = 'patient' AND m.read_at IS NULL) AS unread_count \
+                   AND m.sender_kind = 'patient' AND m.read_at IS NULL) AS unread_count, \
+                (SELECT ('CMD-' || lpad(po.order_seq::text, 4, '0')) FROM pharmacy_order po \
+                 WHERE po.patient_account_id = c.patient_account_id \
+                   AND po.pharmacy_id = c.pharmacy_id \
+                 ORDER BY po.received_at DESC, po.id DESC LIMIT 1) AS order_ref, \
+                (SELECT CASE po.status \
+                           WHEN 'received' THEN 'Reçue' \
+                           WHEN 'preparing' THEN 'En prépa' \
+                           WHEN 'ready' THEN 'Prête' \
+                           WHEN 'picked_up' THEN 'Retirée' \
+                           WHEN 'rejected' THEN 'Refusée' \
+                           WHEN 'cancelled' THEN 'Annulée' \
+                         END \
+                 FROM pharmacy_order po \
+                 WHERE po.patient_account_id = c.patient_account_id \
+                   AND po.pharmacy_id = c.pharmacy_id \
+                 ORDER BY po.received_at DESC, po.id DESC LIMIT 1) AS order_status_label \
          FROM conversation c \
          WHERE c.deleted_at IS NULL \
          ORDER BY last_message_at DESC NULLS LAST, c.id DESC \
@@ -108,6 +135,10 @@ pub async fn list_pharmacy_conversations(
                 last_message_preview,
                 scope: row.try_get("scope").map_err(|_| AppError::Internal)?,
                 status: row.try_get("status").map_err(|_| AppError::Internal)?,
+                order_ref: row.try_get("order_ref").map_err(|_| AppError::Internal)?,
+                order_status_label: row
+                    .try_get("order_status_label")
+                    .map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;

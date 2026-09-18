@@ -6,7 +6,7 @@ use axum::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
@@ -324,4 +324,136 @@ async fn isolation_and_validation() {
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+/// #7249 : la liste pharmacie n'émettait ni `order_ref` ni `order_status_label`
+/// — le front (déjà prêt côté `CabinetConversation`/DTO) n'affichait donc
+/// jamais le chip commande et la recherche « n° de commande » ne trouvait
+/// structurellement rien. La conversation doit porter la commande la plus
+/// RÉCENTE du patient dans cette officine (`received_at DESC`).
+#[tokio::test]
+async fn order_ref_and_status_on_conversation_list() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, account_id, pharmacy_id) = seed(&db).await;
+    let patient = patient_jwt(user_id, account_id);
+    let pharma = pharma_jwt(pharmacy_id);
+
+    let (_, conversation) = call(
+        "POST",
+        "/v1/conversations",
+        &patient,
+        Some(json!({"pharmacy_id": pharmacy_id})),
+    )
+    .await;
+
+    // Décor clinique minimal pour deux commandes distinctes du même patient
+    // dans cette officine (pattern `pharmacy_order_transitions.rs::seed`).
+    let pro_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let practitioner_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(pro_user_id)
+    .bind(format!("pm-pro-{}@nubia.test", pro_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale) VALUES ($1, 'Cabinet PM')")
+        .bind(cabinet_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Jean', 'Demo', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(practitioner_id)
+        .bind(cabinet_id)
+        .bind(pro_user_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let mut order_seqs = Vec::new();
+    for (received_offset_days, status) in [(-5_i32, "received"), (0_i32, "ready")] {
+        let document_id = Uuid::new_v4();
+        let prescription_id = Uuid::new_v4();
+        let order_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO document (id, cabinet_id, patient_id, category, storage_key, filename, \
+                                   mime_type, sha256, scan_status, uploaded_by, size_bytes) \
+             VALUES ($1, $2, $3, 'ordonnance', $4, 'ordo.pdf', 'application/pdf', \
+                     repeat('0', 64), 'clean', $5, 0)",
+        )
+        .bind(document_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(format!("sk-{}", document_id))
+        .bind(pro_user_id)
+        .execute(&db)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO prescription (id, cabinet_id, patient_id, practitioner_id, status, \
+                                       document_id, signed_at) \
+             VALUES ($1, $2, $3, $4, 'sent', $5, now())",
+        )
+        .bind(prescription_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(practitioner_id)
+        .bind(document_id)
+        .execute(&db)
+        .await
+        .unwrap();
+        let row = sqlx::query(
+            "INSERT INTO pharmacy_order (id, pharmacy_id, cabinet_id, patient_account_id, \
+                                         prescription_id, document_id, created_by_kind, \
+                                         pharmacy_name, patient_display_name, status, received_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, 'patient', 'Pharmacie PM', 'Jean D.', $7, \
+                     now() + make_interval(days => $8)) \
+             RETURNING order_seq",
+        )
+        .bind(order_id)
+        .bind(pharmacy_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .bind(prescription_id)
+        .bind(document_id)
+        .bind(status)
+        .bind(received_offset_days)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        let order_seq: i64 = row.try_get("order_seq").unwrap();
+        order_seqs.push(order_seq);
+    }
+
+    let (status, list) = call("GET", "/v1/pharmacy/conversations", &pharma, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let item = list["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == conversation["id"])
+        .expect("fil visible côté pharmacie")
+        .clone();
+
+    // La commande la plus récente (`ready`, second insert) doit être celle
+    // remontée, pas la plus ancienne (`received`).
+    let expected_ref = format!("CMD-{:04}", order_seqs[1]);
+    assert_eq!(item["order_ref"], expected_ref, "item: {item}");
+    assert_eq!(item["order_status_label"], "Prête", "item: {item}");
 }
