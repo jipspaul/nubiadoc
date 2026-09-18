@@ -26,8 +26,21 @@ class OrderRow extends StatelessWidget {
   /// commande — pilote le loading du bouton d'action.
   final bool actionInProgress;
 
+  // Sous ce seuil, le trailing desktop (prescripteur + lignes + statut +
+  // action, ~290 px incompressibles) ne laisse plus assez de place au nom du
+  // patient et à la date de réception (#7256) : on replie ce bloc sous
+  // l'identité plutôt que de le laisser comprimer le titre.
+  static const _compactBreakpoint = 640.0;
+
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          _build(context, constraints.maxWidth < _compactBreakpoint),
+    );
+  }
+
+  Widget _build(BuildContext context, bool isCompact) {
     final receivedAt = order.createdAt.toLocal();
     final time = MaterialLocalizations.of(context)
         .formatTimeOfDay(TimeOfDay.fromDateTime(receivedAt));
@@ -51,6 +64,21 @@ class OrderRow extends StatelessWidget {
       OrderWaitTone.warning => tokens.warningFg,
       OrderWaitTone.danger => tokens.dangerFg,
     };
+
+    final meta = Row(
+      mainAxisSize: isCompact ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        isCompact
+            ? Flexible(child: _PrescriberColumn(order: order))
+            : _PrescriberColumn(order: order),
+        const SizedBox(width: 16),
+        _LineCountColumn(order: order),
+        const SizedBox(width: 16),
+        OrderStatusPill(status: order.status),
+        const SizedBox(width: 8),
+        _RowAction(order: order, inProgress: actionInProgress),
+      ],
+    );
 
     return DecoratedBox(
       key: Key('order_row_${order.id}'),
@@ -97,20 +125,13 @@ class OrderRow extends StatelessWidget {
                           color: tokens.textTertiary,
                         ),
                   ),
+            if (isCompact) ...[
+              const SizedBox(height: 8),
+              meta,
+            ],
           ],
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _PrescriberColumn(order: order),
-            const SizedBox(width: 16),
-            _LineCountColumn(order: order),
-            const SizedBox(width: 16),
-            OrderStatusPill(status: order.status),
-            const SizedBox(width: 8),
-            _RowAction(order: order, inProgress: actionInProgress),
-          ],
-        ),
+        trailing: isCompact ? null : meta,
         onTap: onTap,
       ),
     );
