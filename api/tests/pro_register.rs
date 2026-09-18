@@ -199,3 +199,122 @@ async fn pro_register_oversized_siret_returns_422_not_500() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["code"], "validation_error");
 }
+
+// ── Test 4 (#7218) : email sans `@` → 422, jamais 201 ────────────────────────
+// Avant fix : un cabinet + un compte admin réel étaient créés sur un email
+// syntaxiquement invalide, joignable sur aucun canal (tenant irrécupérable).
+
+#[tokio::test]
+async fn pro_register_invalid_email_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("pro-noat-{}", Uuid::new_v4());
+    let body = pro_register_body(&email);
+
+    let response = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/pro/register")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un email sans '@' doit être rejeté en 422, jamais créer de compte réel"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "validation_error");
+
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM app_user WHERE email = $1")
+        .bind(&email)
+        .fetch_one(&owner_pool().await)
+        .await
+        .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucun compte ne doit être créé sur un email invalide"
+    );
+}
+
+// ── Test 5 (#7218) : rpps non numérique / mauvaise longueur → 422 ───────────
+
+#[tokio::test]
+async fn pro_register_invalid_rpps_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("pro_rpps_{}@test.local", Uuid::new_v4());
+    let mut body = pro_register_body(&email);
+    body["practitioner"]["rpps"] = json!("<script>alert(1)</script>");
+
+    let response = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/pro/register")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un rpps non conforme (pas 11 chiffres) doit être rejeté en 422"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "validation_error");
+}
+
+// ── Test 6 (#7218) : first_name surdimensionné → 422 (cf. #7041) ────────────
+
+#[tokio::test]
+async fn pro_register_oversized_first_name_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("pro_name_{}@test.local", Uuid::new_v4());
+    let mut body = pro_register_body(&email);
+    body["practitioner"]["first_name"] = json!("A".repeat(20_000));
+
+    let response = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/pro/register")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un first_name de 20 000 caractères doit être rejeté en 422"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "validation_error");
+}
