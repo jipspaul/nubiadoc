@@ -195,7 +195,7 @@ class WaitingRoomPage extends StatelessWidget {
     final bloc = context.read<WaitingRoomBloc>();
     final state = bloc.state;
     if (state is WaitingRoomLoaded &&
-        state.entries.isNotEmpty &&
+        state.entries.any((e) => e.isWaiting) &&
         !state.actionInProgress) {
       bloc.add(const WaitingRoomCallNextRequested());
     }
@@ -226,11 +226,13 @@ class WaitingRoomPage extends StatelessWidget {
             ),
             BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
               builder: (context, state) {
-                final hasPatients =
-                    state is WaitingRoomLoaded && state.entries.isNotEmpty;
+                final hasPatients = state is WaitingRoomLoaded &&
+                    state.entries.any((e) => e.isWaiting);
                 final canCall = hasPatients && !state.actionInProgress;
                 final label = hasPatients
-                    ? NubiaL10n.callNextNamed(state.entries.first.patientName)
+                    ? NubiaL10n.callNextNamed(
+                        state.entries.firstWhere((e) => e.isWaiting).patientName,
+                      )
                     : NubiaL10n.callNext;
                 return Padding(
                   padding: const EdgeInsets.only(left: 8),
