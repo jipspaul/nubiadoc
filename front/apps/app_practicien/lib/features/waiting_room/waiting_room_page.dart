@@ -473,7 +473,7 @@ class _NextPatientHeroCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '$waitMinutes min',
+                    formatWaitMinutes(waitMinutes),
                     style: textTheme.headlineSmall?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w600,
@@ -1061,10 +1061,11 @@ class _EntryCard extends StatelessWidget {
 
     final wait = entry.waitSoFar;
     final waitMinutes = wait.inMinutes;
-    final waitLabel =
-        waitMinutes < 1 ? 'À l\'instant' : '$waitMinutes min d\'attente';
+    final waitLabel = waitMinutes < 1
+        ? 'À l\'instant'
+        : '${formatWaitMinutes(waitMinutes)} d\'attente';
     final waitSubtitle = entry.estimatedWaitMinutes != null
-        ? '$waitLabel · ~${entry.estimatedWaitMinutes} min estimé'
+        ? '$waitLabel · ~${formatWaitMinutes(entry.estimatedWaitMinutes!)} estimé'
         : waitLabel;
 
     // À qui le patient est attribué (#5028) : « vous », le nom du confrère,

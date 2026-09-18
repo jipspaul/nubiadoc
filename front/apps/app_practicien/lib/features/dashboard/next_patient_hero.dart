@@ -49,7 +49,7 @@ class NextPatientHero extends StatelessWidget {
             waitingMinutes == null
                 ? 'Patient suivant'
                 : 'Patient suivant · en salle d\'attente depuis '
-                    '$waitingMinutes min',
+                    '${formatWaitMinutes(waitingMinutes)}',
             style: textTheme.labelSmall?.copyWith(
               color: Colors.white.withValues(alpha: 0.75),
               fontWeight: FontWeight.w600,

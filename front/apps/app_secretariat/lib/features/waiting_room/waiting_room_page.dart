@@ -141,7 +141,6 @@ class _OverThresholdBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
-    final minutes = entry.waitSoFar.inMinutes;
     return Container(
       key: const Key('waiting_room_alert_banner'),
       width: double.infinity,
@@ -157,7 +156,8 @@ class _OverThresholdBanner extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              '${entry.patientName} attend depuis $minutes min',
+              '${entry.patientName} attend depuis '
+              '${_WaitColumn._formatWait(entry.waitSoFar)}',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -598,7 +598,9 @@ class _EstimationColumn extends StatelessWidget {
         .labelSmall
         ?.copyWith(color: tokens.textTertiary);
     final minutes = entry.estimatedWaitMinutes;
-    final value = minutes != null ? '~$minutes min' : '—';
+    final value = minutes != null
+        ? '~${_WaitColumn._formatWait(Duration(minutes: minutes))}'
+        : '—';
     // Tête de file (#5169) : la première position n'a pas d'estimation car
     // elle est sur le point d'être appelée, pas en attente d'un calcul.
     final nullLabel =
