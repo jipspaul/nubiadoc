@@ -32,6 +32,13 @@ puis re-vérifiés à la main se sont révélés fonctionnels**. Les cinq piège
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
 |---|---|---|---|---|---|---|---|
+| patient | /home-care (390) | 17 | 17 | 17 | 0 | 0 | 2026-09-18T08:30:00+00:00 |
+| patient | /reviews (390) | 1 | 1 | 1 | 0 | 0 — `white=0.97` mais **état vide légitime** (« Aucun avis pour ce prestataire. »), pas un écran blanc | 2026-09-18T08:30:00+00:00 |
+| patient | /profile/referring-doctor (390) | 1 | 1 | 1 | 0 | 0 — idem : écran sobre, contenu bien rendu | 2026-09-18T08:30:00+00:00 |
+| patient | /profile/consents (390) | 8 | 7 | 7 | 0 | 0 — 1 bascule « Soins » DÉSACTIVÉE **prouvée légitime** (`consents_page.dart:182-190`, verrou base légale #5205) | 2026-09-18T08:30:00+00:00 |
+| patient | /book → /appointments/slots (390) | 45 | 12 | 12 | 0 | 0 — tunnel joué jusqu'à `POST /v1/slots/:id/hold` + « Continuer » | 2026-09-18T08:30:00+00:00 |
+| secretariat | /stock, /liste-attente, /messages, /appointment-motifs, /bookable-slots (390→1280) | 134 | 129 | 122 | 0 (auto-nav + champs de recherche) | 0 | 2026-09-18T08:30:00+00:00 |
+| praticien | /ordonnances + composeur (1280) | 21 | 6 | 6 | 0 | 0 — aperçu présent, **remplissage non exécuté** (champ DCI sous la ligne de flottaison de la surcouche) | 2026-09-18T08:30:00+00:00 |
 | secretariat | / (Tableau de bord) | 25 | 24 | 23 | 0 (auto-nav) | 0 | 2026-09-18T08:00:00+00:00 |
 | secretariat | /agenda (grille semaine) | 67 | 61 | 59 | 0 — **les 3 blocs de RDV signalés MORT sont clippés hors grille** (`y≈693-725` alors que la grille s'arrête à `y≈660`) ; remonté par molette à `y=448`, le même bloc ouvre la feuille d'actions. 8 blocs sur 8 testés → OK (« Fermer / Marquer arrivé / Déplacer / Annuler / Appeler ») | 0 | 2026-09-18T08:00:00+00:00 |
 | secretariat | /salle-attente | 26 | 25 | 24 | 0 (auto-nav) | 0 | 2026-09-18T08:00:00+00:00 |
