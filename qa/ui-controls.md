@@ -6,6 +6,26 @@
 > Complète `explored-paths.md` (scénarios API/flux) — ce fichier-ci se concentre
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
+
+### Bilan consolidé de la ronde R79 (2026-09-18)
+
+**36 écran×viewport audités bouton par bouton** sur les 5 apps : **743 contrôles inventoriés via l'arbre
+Semantics, 695 activés** → 631 OK, 49 « MORT », 15 « CASSÉ », 4 « DÉSACTIVÉ ». S'y ajoutent une
+quinzaine de parcours ciblés (détail devis, demandes de proches, facettes documents, facettes +
+délivrance officine, appel en salle d'attente, actes de séance, tunnel de réservation, checklist de
+préparation, formulaire nouveau patient, préférences de notification) non comptés ici.
+
+**Après re-vérification manuelle de CHAQUE verdict négatif :**
+- **49 « MORT » → 0 confirmé.** Causes réelles : auto-navigation de l'entrée de rail de l'écran courant,
+  contrôle sous la ligne de flottaison, conteneur `group` non tappable, sélecteur de fichier natif,
+  curseur d'interrupteur, nœud clippé hors conteneur défilant (piège 6), effet purement local sous le
+  seuil de `pixdiff` (piège 7).
+- **15 « CASSÉ » → 11 confirmés**, tous sur `praticien /patients` (→ **#7274**). Les 4 autres : un 409
+  rattrapé proprement par l'app, deux 401 d'expiration de session du harnais, un contrôle hors écran.
+- **4 « DÉSACTIVÉ » → 4 légitimes, prouvés** : `isOtherPractitioner` et absence de patient `checked_in`
+  attribué en salle d'attente (`waiting_room_page.dart:1010`, :314), biométrie indisponible sur
+  navigateur, consentement « Soins » verrouillé base légale (`consents_page.dart:182-190`, #5205).
+
 ## ⚠️ Leçon de méthode (ronde 2026-09-03 soir) — à lire avant d'exploiter la colonne « morts »
 
 Le détecteur automatique « MORT » (pas de navigation + pas de repeinture + pas de requête)
