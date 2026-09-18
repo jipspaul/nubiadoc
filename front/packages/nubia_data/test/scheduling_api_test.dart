@@ -80,6 +80,84 @@ void main() {
     });
   });
 
+  group('SchedulingApi.getUpcoming (#7327)', () {
+    test('suit page.next_cursor jusqu\'à épuisement et concatène toutes les '
+        'pages, comme getHistory()', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/appointments',
+          queryParameters: {'filter': 'upcoming'},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {...fullAppointment, 'id': 'appt-1', 'status': 'requested'},
+          ],
+          'page': {'next_cursor': 'CURSOR_1', 'limit': 20},
+        }),
+      );
+
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/appointments',
+          queryParameters: {'filter': 'upcoming', 'cursor': 'CURSOR_1'},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {...fullAppointment, 'id': 'appt-2', 'status': 'confirmed'},
+          ],
+          'page': {'next_cursor': null, 'limit': 20},
+        }),
+      );
+
+      final appointments = await api.getUpcoming();
+
+      expect(appointments.length, 2,
+          reason: 'les 2 pages doivent être concaténées');
+      expect(appointments.map((a) => a.id), containsAll(['appt-1', 'appt-2']));
+
+      verify(
+        () => dio.get<Map<String, dynamic>>(
+          '/appointments',
+          queryParameters: {'filter': 'upcoming'},
+        ),
+      ).called(1);
+      verify(
+        () => dio.get<Map<String, dynamic>>(
+          '/appointments',
+          queryParameters: {'filter': 'upcoming', 'cursor': 'CURSOR_1'},
+        ),
+      ).called(1);
+    });
+
+    test('un seul appel si next_cursor est absent dès la 1re page', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/appointments',
+          queryParameters: {'filter': 'upcoming'},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {...fullAppointment, 'id': 'appt-1', 'status': 'requested'},
+          ],
+          'page': {'next_cursor': null, 'limit': 20},
+        }),
+      );
+
+      final appointments = await api.getUpcoming();
+
+      expect(appointments.length, 1);
+      verify(
+        () => dio.get<Map<String, dynamic>>(
+          '/appointments',
+          queryParameters: {'filter': 'upcoming'},
+        ),
+      ).called(1);
+    });
+  });
+
   group('PreparationDto.fromJson (#6203)', () {
     test(
         'décode provider.name, establishment.access (door_code/parking/pmr) '

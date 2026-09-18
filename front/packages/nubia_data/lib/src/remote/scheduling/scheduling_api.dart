@@ -91,12 +91,24 @@ class SchedulingApi {
   SchedulingApi(ApiClient client) : _dio = client.dio;
 
   Future<List<AppointmentDto>> getUpcoming() async {
-    final response = await _dio.get<Map<String, dynamic>>('/appointments',
-        queryParameters: {'filter': 'upcoming'});
-    final data = response.data!['data'] as List<dynamic>;
-    return data
-        .map((e) => AppointmentDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final result = <AppointmentDto>[];
+    String? cursor;
+    do {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/appointments',
+        queryParameters: {
+          'filter': 'upcoming',
+          if (cursor != null) 'cursor': cursor,
+        },
+      );
+      final data = response.data!['data'] as List<dynamic>;
+      result.addAll(
+        data.map((e) => AppointmentDto.fromJson(e as Map<String, dynamic>)),
+      );
+      cursor = (response.data!['page'] as Map<String, dynamic>?)?['next_cursor']
+          as String?;
+    } while (cursor != null);
+    return result;
   }
 
   // `page` n'a pas d'existence côté API (pagination par cursor, cf.
