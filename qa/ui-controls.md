@@ -2506,3 +2506,10 @@ Vague 4 : 11 écrans **jamais audités** — patient `/implant-passport`, `/book
 >
 > **Piège de mesure n° 27 (R81)** — auditer une grille d'actions en série **sans fermer le dialogue** ouvert par le clic précédent fait juger MORTS tous les contrôles suivants (le modal absorbe les clics). Les 5 « MORT » de `pharmacie /stock` venaient de là : re-sondés un par un avec `Escape` entre chaque, les 3 « Refuser — motif obligatoire » ouvrent bien leur dialogue de motif. Insérer une fermeture entre deux activations.
 
+| patient | /mes-rdv (onglet « À venir ») | 390×844 | 7 | 7 | 5 | 0 | 0 | 0 | 2026-09-18T18:57:00+00:00 |
+| patient | /prescriptions | 390×844 | 16 | 16 | 13 | 0 (3 « MORT » = rects hors viewport) | 0 | 0 | 2026-09-18T21:05:00+00:00 |
+| praticien | /devis | 1280×800 | 24 | 13 | 8 | 0 (5 « MORT » levés : rects périmés après ouverture du panneau de détail — re-sondés depuis un état propre, les 3 cartes émettent bien `GET /v1/cabinet/quotes/:id`) | 0 | 0 | 2026-09-18T21:20:00+00:00 |
+| secretariat | /devis | 1280×800 | 38 | 0 (inventaire ; 1er relevé à 0 contrôle = `500` transitoire de l'hébergeur, non reproductible sur 3 navigations + 6 `curl`) | — | — | — | — | 2026-09-18T21:15:00+00:00 |
+
+**TOTAUX R81 — 24 écrans (app × viewport × route) · 444 contrôles inventoriés · 121 activés · 100 OK · 0 cassé · 0 mort réel · 5/5 apps aux deux viewports.**
+
