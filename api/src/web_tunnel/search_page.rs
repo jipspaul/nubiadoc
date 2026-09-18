@@ -87,6 +87,41 @@ fn geo_params_for(loc: &Locality) -> (Option<String>, Option<String>, Option<f64
     }
 }
 
+/// Spécialités de premier niveau connues du tunnel — même liste que
+/// `sitemap::TOP_LEVEL_SPECIALTIES` (module sœur), volontairement dupliquée
+/// plutôt qu'exportée (même style que `sitemap::KNOWN_LOCALITIES`) : ce sont
+/// TOUJOURS des slugs bruts, jamais un composé `urgence-`/`implant-` (#7295).
+const KNOWN_SPECIALTIES: &[&str] = &["dentiste", "orthodontiste"];
+
+/// Vrai si `specialty_slug` est une spécialité de premier niveau connue
+/// (#7295) — condition nécessaire pour dériver un lien `urgence-`/`implant-`
+/// ou pour qu'un `query_slug` de cette forme soit valide.
+fn is_known_specialty_slug(specialty_slug: &str) -> bool {
+    KNOWN_SPECIALTIES.contains(&specialty_slug)
+}
+
+/// #7295 — symétrique de `marketplace::is_known_place` (#7224) côté
+/// `query_slug` : la route `/:query_slug/:locality_slug` a DEUX paramètres et
+/// seul le second était validé. Un `query_slug` qui n'est ni une spécialité
+/// connue, ni `detartrage`, ni `urgence-`/`implant-<spécialité connue>` n'a
+/// aucun contenu propre à classer — un slug inventé (`pizza`) ou un slug déjà
+/// préfixé (`implant-dentiste`) rendait quand même `200`/`index, follow` sous
+/// un titre fabriqué par `page_subject_label`, et le maillage
+/// (`maillage_links`) re-préfixait indéfiniment ce slug à chaque hop,
+/// amorçant un espace d'URL infini depuis une page du sitemap.
+fn is_known_query_slug(query_slug: &str) -> bool {
+    if is_known_specialty_slug(query_slug) || query_slug == "detartrage" {
+        return true;
+    }
+    if let Some(base) = query_slug
+        .strip_prefix("urgence-")
+        .or_else(|| query_slug.strip_prefix("implant-"))
+    {
+        return is_known_specialty_slug(base);
+    }
+    false
+}
+
 fn related_specialty_slug(specialty_slug: &str) -> &'static str {
     match specialty_slug {
         "dentiste" => "orthodontiste",
@@ -119,6 +154,12 @@ pub async fn search_page(
     // servir l'état « Aucun résultat » ; seul un slug non reconnu 404.
     if !is_known_place(&loc.city_slug) {
         return locality_not_found(&query_slug, &locality_slug);
+    }
+
+    // #7295 : symétrique du garde-fou ville ci-dessus, côté second paramètre
+    // de la route — voir `is_known_query_slug`.
+    if !is_known_query_slug(&query_slug) {
+        return query_not_found(&query_slug, &locality_slug);
     }
 
     let loc_label = locality_label(&loc);
@@ -268,6 +309,28 @@ fn locality_not_found(query_slug: &str, locality_slug: &str) -> Response {
     (
         StatusCode::NOT_FOUND,
         page("Ville introuvable — Nubia", &meta, body),
+    )
+        .into_response()
+}
+
+/// `404` + `noindex` (#7295) — symétrique de `locality_not_found` (#7224)
+/// côté `query_slug` : un slug de spécialité/acte inventé ou déjà préfixé
+/// n'a aucun contenu propre à classer — même justification mot pour mot que
+/// #7224 : servir une page sous un titre fabriqué produisait des pages
+/// satellites indexables au contenu dupliqué.
+fn query_not_found(query_slug: &str, locality_slug: &str) -> Response {
+    let body = r#"<h1>Recherche introuvable</h1>
+<div class="context">
+  <p>Cette spécialité ou cet acte n'est pas référencé dans l'annuaire Nubia.</p>
+</div>"#;
+    let meta = PageMeta::new(
+        "Cette spécialité ou cet acte n'est pas référencé dans l'annuaire Nubia.",
+        format!("/{query_slug}/{locality_slug}"),
+    )
+    .robots("noindex");
+    (
+        StatusCode::NOT_FOUND,
+        page("Recherche introuvable — Nubia", &meta, body),
     )
         .into_response()
 }
@@ -488,18 +551,30 @@ fn maillage_links(query_slug: &str, loc: &Locality) -> Vec<(String, String)> {
         format!("/{related}/{}", locality::slug_of(loc)),
     ));
 
-    links.push((
-        format!("Urgence {} {}", urgency_noun(query_slug), loc.city_label),
-        format!("/urgence-{query_slug}/{}", loc.city_slug),
-    ));
+    // #7295 : un lien `urgence-`/`implant-` ne se fabrique QUE depuis une
+    // spécialité de premier niveau connue (`is_known_specialty_slug`) — le
+    // dériver d'un slug déjà préfixé (`implant-dentiste`) ou inventé
+    // (`pizza`) re-préfixait indéfiniment à chaque hop
+    // (`implant-implant-dentiste`, …), un espace d'URL infini amorcé en 2
+    // clics depuis une page du sitemap.
+    let can_derive_urgence_implant = is_known_specialty_slug(query_slug);
+
+    if can_derive_urgence_implant {
+        links.push((
+            format!("Urgence {} {}", urgency_noun(query_slug), loc.city_label),
+            format!("/urgence-{query_slug}/{}", loc.city_slug),
+        ));
+    }
     links.push((
         format!("Détartrage {}", locality_label(loc)),
         format!("/detartrage/{}", locality::slug_of(loc)),
     ));
-    links.push((
-        format!("Implant {} {}", urgency_noun(query_slug), loc.city_label),
-        format!("/implant-{query_slug}/{}", loc.city_slug),
-    ));
+    if can_derive_urgence_implant {
+        links.push((
+            format!("Implant {} {}", urgency_noun(query_slug), loc.city_label),
+            format!("/implant-{query_slug}/{}", loc.city_slug),
+        ));
+    }
 
     links
 }
@@ -661,5 +736,68 @@ mod tests {
         let html = String::from_utf8(body.to_vec()).unwrap();
         assert!(html.contains(r#"<meta name="robots" content="noindex">"#));
         assert!(html.contains("<h1>Ville introuvable</h1>"));
+    }
+
+    /// #7295 — root cause : `#7224` n'a validé que la ville. Un slug de
+    /// spécialité/acte inventé (`pizza`) ou déjà préfixé (`implant-dentiste`
+    /// re-préfixé en `implant-implant-dentiste`) doit être rejeté au même
+    /// titre que les vrais slugs connus doivent rester acceptés.
+    #[test]
+    fn is_known_query_slug_accepts_only_known_specialties_and_actes() {
+        assert!(is_known_query_slug("dentiste"));
+        assert!(is_known_query_slug("orthodontiste"));
+        assert!(is_known_query_slug("detartrage"));
+        assert!(is_known_query_slug("urgence-dentiste"));
+        assert!(is_known_query_slug("implant-orthodontiste"));
+
+        assert!(!is_known_query_slug("pizza"));
+        assert!(!is_known_query_slug("urgence-pizza"));
+        assert!(!is_known_query_slug("implant-pizza"));
+        assert!(!is_known_query_slug("implant-dentiste-invalide"));
+        // Slug déjà préfixé re-préfixé : le vecteur de récursion infinie.
+        assert!(!is_known_query_slug("implant-implant-dentiste"));
+        assert!(!is_known_query_slug("urgence-implant-dentiste"));
+        assert!(!is_known_query_slug("implant-urgence-dentiste"));
+    }
+
+    /// #7295 : même traitement 404+noindex que `locality_not_found` (#7224),
+    /// côté `query_slug` cette fois.
+    #[tokio::test]
+    async fn query_not_found_is_a_404_page_with_noindex() {
+        let response = query_not_found("pizza", "paris");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let html = String::from_utf8(body.to_vec()).unwrap();
+        assert!(html.contains(r#"<meta name="robots" content="noindex">"#));
+        assert!(html.contains("<h1>Recherche introuvable</h1>"));
+    }
+
+    /// #7295 — root cause de la récursion infinie : `maillage_links` re-
+    /// préfixait n'importe quel `query_slug` reçu, y compris un slug déjà
+    /// préfixé (`implant-dentiste`) ou inventé (`pizza`). Seule une
+    /// spécialité brute connue (`dentiste`, `orthodontiste`) doit produire un
+    /// lien `urgence-`/`implant-`.
+    #[test]
+    fn maillage_links_never_derives_urgence_or_implant_from_a_prefixed_or_unknown_slug() {
+        let loc = locality::parse("paris");
+        for query_slug in [
+            "implant-dentiste",
+            "urgence-dentiste",
+            "pizza",
+            "detartrage",
+        ] {
+            let hrefs: Vec<String> = maillage_links(query_slug, &loc)
+                .into_iter()
+                .map(|(_, href)| href)
+                .collect();
+            assert!(
+                hrefs
+                    .iter()
+                    .all(|h| !h.starts_with("/urgence-") && !h.starts_with("/implant-")),
+                "query_slug={query_slug:?} a produit un lien urgence-/implant- : {hrefs:?}"
+            );
+        }
     }
 }
