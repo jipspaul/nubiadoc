@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:nubia_app_shell/nubia_app_shell.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -103,6 +104,11 @@ void registerPro(GetIt gi) {
     ..registerFactory<ExpiringQuotesSummaryCubit>(
       () => ExpiringQuotesSummaryCubit(
         listQuotes: gi<ListCabinetQuotesUseCase>(),
+      ),
+    )
+    ..registerFactory<OpportunitiesCubit>(
+      () => OpportunitiesCubit(
+        getOpportunities: gi<GetCabinetOpportunitiesUseCase>(),
       ),
     )
     ..registerFactory<BookableSlotsBloc>(

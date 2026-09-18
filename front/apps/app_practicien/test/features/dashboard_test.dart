@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_app_shell/nubia_app_shell.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -41,6 +42,9 @@ class MockAgendaBloc extends MockBloc<AgendaEvent, AgendaState>
 
 class MockDashboardBloc extends MockBloc<DashboardEvent, DashboardState>
     implements DashboardBloc {}
+
+class MockOpportunitiesCubit extends MockCubit<OpportunitiesState>
+    implements OpportunitiesCubit {}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -955,6 +959,14 @@ void main() {
       final notesBloc = MockTodayNotesBloc();
       when(() => notesBloc.state).thenReturn(const TodayNotesLoaded([]));
       GetIt.instance.registerFactory<TodayNotesBloc>(() => notesBloc);
+      // DashboardBody rend aussi OpportunitiesCard (#7213) via son propre
+      // cubit résolu par GetIt.
+      final opportunitiesCubit = MockOpportunitiesCubit();
+      when(() => opportunitiesCubit.state)
+          .thenReturn(const OpportunitiesLoaded(categories: []));
+      when(() => opportunitiesCubit.load()).thenAnswer((_) async {});
+      GetIt.instance
+          .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
       addTearDown(GetIt.instance.reset);
     });
 
@@ -992,5 +1004,121 @@ void main() {
 
       expect(find.text('consultation démarrée id=sess-1'), findsOneWidget);
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // DashboardBody — navigation depuis OpportunitiesCard (#7213)
+  // ---------------------------------------------------------------------------
+
+  group('DashboardBody — navigation depuis OpportunitiesCard (#7213)', () {
+    setUp(() {
+      final mockUc = MockGetProDashboardSummaryUseCase();
+      when(() => mockUc()).thenAnswer((_) async => Right(_summary));
+      GetIt.instance.registerFactory<DashboardBloc>(
+        () => DashboardBloc(
+          getSummary: mockUc,
+          startConsultation: MockStartConsultationUseCase(),
+        ),
+      );
+      final agendaBloc = MockAgendaBloc();
+      when(() => agendaBloc.state).thenReturn(
+        AgendaLoaded(entries: const [], weekStart: DateTime.now()),
+      );
+      GetIt.instance.registerFactory<AgendaBloc>(() => agendaBloc);
+      final notesBloc = MockTodayNotesBloc();
+      when(() => notesBloc.state).thenReturn(const TodayNotesLoaded([]));
+      GetIt.instance.registerFactory<TodayNotesBloc>(() => notesBloc);
+      addTearDown(GetIt.instance.reset);
+    });
+
+    GoRouter makeRouter() => GoRouter(
+          initialLocation: '/',
+          routes: [
+            GoRoute(path: '/', builder: (_, __) => const DashboardBody()),
+            GoRoute(
+              path: '/devis',
+              builder: (_, state) => Scaffold(
+                body: Text(
+                  'devis patientId=${state.uri.queryParameters['patientId']}',
+                ),
+              ),
+            ),
+            GoRoute(
+              path: '/patients/:id',
+              builder: (_, state) => Scaffold(
+                body: Text('patient id=${state.pathParameters['id']}'),
+              ),
+            ),
+          ],
+        );
+
+    testWidgets(
+      'devis/facture impayée → volet devis filtré sur le patient',
+      (tester) async {
+        final opportunitiesCubit = MockOpportunitiesCubit();
+        when(() => opportunitiesCubit.state).thenReturn(
+          const OpportunitiesLoaded(categories: [
+            OpportunityCategory(
+              kind: 'unpaid_invoice',
+              count: 1,
+              totalAmountCents: 20000,
+              items: [
+                OpportunityItem(
+                  kind: 'unpaid_invoice',
+                  patientId: 'pat-42',
+                  quoteId: 'quote-1',
+                  amountCents: 20000,
+                ),
+              ],
+            ),
+          ]),
+        );
+        when(() => opportunitiesCubit.load()).thenAnswer((_) async {});
+        GetIt.instance
+            .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
+
+        await tester.pumpWidget(
+          MaterialApp.router(theme: NubiaTheme.light, routerConfig: makeRouter()),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('opportunity_row_unpaid_invoice')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('devis patientId=pat-42'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'anniversaire du jour → fiche patient',
+      (tester) async {
+        final opportunitiesCubit = MockOpportunitiesCubit();
+        when(() => opportunitiesCubit.state).thenReturn(
+          const OpportunitiesLoaded(categories: [
+            OpportunityCategory(
+              kind: 'birthday_today',
+              count: 1,
+              totalAmountCents: 0,
+              items: [
+                OpportunityItem(kind: 'birthday_today', patientId: 'pat-7'),
+              ],
+            ),
+          ]),
+        );
+        when(() => opportunitiesCubit.load()).thenAnswer((_) async {});
+        GetIt.instance
+            .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
+
+        await tester.pumpWidget(
+          MaterialApp.router(theme: NubiaTheme.light, routerConfig: makeRouter()),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('opportunity_row_birthday_today')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('patient id=pat-7'), findsOneWidget);
+      },
+    );
   });
 }

@@ -192,7 +192,10 @@ class DashboardBody extends StatelessWidget {
             child: BlocProvider<ExpiringQuotesSummaryCubit>(
               create: (_) =>
                   GetIt.instance<ExpiringQuotesSummaryCubit>()..load(),
-              child: DashboardContent(session: session),
+              child: BlocProvider<OpportunitiesCubit>(
+                create: (_) => GetIt.instance<OpportunitiesCubit>()..load(),
+                child: DashboardContent(session: session),
+              ),
             ),
           ),
         ),
