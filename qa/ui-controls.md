@@ -2513,3 +2513,27 @@ Vague 4 : 11 écrans **jamais audités** — patient `/implant-passport`, `/book
 
 **TOTAUX R81 — 24 écrans (app × viewport × route) · 444 contrôles inventoriés · 121 activés · 100 OK · 0 cassé · 0 mort réel · 5/5 apps aux deux viewports.**
 
+### Ronde R81 — totaux définitifs
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts réels | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | /profile/consents | 390×844 | 8 | 9 (4 bascules + 4 « Détails », en 4 passes de défilement) | 9 | 0 | 0 | 1 (« Soins » — désactivation LÉGITIME : nécessaire au service, prescrit par la maquette) | 2026-09-18T19:20:00+00:00 |
+| patient | /pharmacy/orders + /pharmacy/orders/:id | 390×844 | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-18T19:10:00+00:00 |
+| patient | /treatment-plans | 390×844 | 9 | 9 | 8 | 0 (1 rect hors viewport) | 0 | 0 | 2026-09-18T19:07:00+00:00 |
+| secretariat | /cabinet-payouts | 1280×800 | 25 | 8 | 8 | 0 | 0 | 2 (« Exporter (CSV) », « Connecter Stripe ») | 2026-09-18T19:07:00+00:00 |
+| praticien | /lab-work-orders | 1280×800 | 18 | 4 | 4 | 0 | 0 | 0 | 2026-09-18T19:07:00+00:00 |
+| praticien + secretariat | palette ⌘K (Spotlight) | 1280×800 | 6 | 6 (⌘K, saisie, ↑↓, Entrée, Échap) | 6 | 0 | 0 | 0 | 2026-09-18T19:35:00+00:00 |
+
+**TOTAUX DÉFINITIFS R81 — 34 écrans (app × viewport × route) · 547 contrôles inventoriés · 181 activés · 155 OK · 0 CASSÉ · 0 MORT réel · 3 désactivés (tous légitimes et justifiés) · 5/5 apps aux deux viewports.**
+
+Les 14 verdicts MORT bruts sont tous attribués et levés :
+
+| cause | nb |
+|---|---|
+| rect hors viewport (contrôle sous le pli) | 5 |
+| dialogue modal laissé ouvert entre deux activations (piège n° 27) | 5 |
+| rect périmé après ouverture d'un panneau latéral | 3 |
+| nœud de groupe cliqué en son centre (piège n° 19) | 1 |
+
+> **Piège de mesure n° 31 (R81)** — une bascule de **consentement** n'écrit rien au premier clic : elle ouvre une **feuille de confirmation** (« Retirer … ? / Ce qui change / Ce qui ne change pas »). Un auditeur qui envoie `Escape` après chaque clic **annule** la confirmation et ne voit jamais le `PUT /v1/account/consents/:purpose` — d'où un faux « bascule sans effet serveur ». Toujours chercher un bouton de confirmation dans l'inventaire AVANT de conclure.
+
