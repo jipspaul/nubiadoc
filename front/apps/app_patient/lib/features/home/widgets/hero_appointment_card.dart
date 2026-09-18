@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -122,13 +123,48 @@ class _HeroAppointmentCta extends StatelessWidget {
 /// Détail du prochain RDV — fond `brand/700`, radius 22, texte blanc
 /// (maquette `patient-accueil.png`, note #1) : pilule de délai relatif,
 /// date, praticien · motif, adresse, boutons Itinéraire / Préparer.
-class _HeroAppointmentDetailCard extends StatelessWidget {
+class _HeroAppointmentDetailCard extends StatefulWidget {
   const _HeroAppointmentDetailCard({required this.appointment});
 
   final Appointment appointment;
 
   @override
+  State<_HeroAppointmentDetailCard> createState() =>
+      _HeroAppointmentDetailCardState();
+}
+
+class _HeroAppointmentDetailCardState
+    extends State<_HeroAppointmentDetailCard> {
+  bool _directionsLoading = false;
+
+  // #7304 : le bouton doit s'activer dès que le SERVEUR sait router ce RDV
+  // (`/appointments/:id/directions`), pas dès qu'une adresse TEXTE existe —
+  // un cabinet sans adresse mais avec des coordonnées rend quand même un
+  // deeplink utilisable. Même endpoint et même comportement que
+  // `detail_rdv_page.dart`.
+  Future<void> _onDirectionsTap() async {
+    setState(() => _directionsLoading = true);
+    final result = await GetIt.instance<GetDirectionsUseCase>()(
+      id: widget.appointment.id,
+      mode: 'car',
+    );
+    if (!mounted) return;
+    setState(() => _directionsLoading = false);
+    result.fold(
+      (failure) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(failure.message)),
+        );
+      },
+      (directions) {
+        openDocumentUrl(directions.deeplink).ignore();
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final appointment = widget.appointment;
     final address = appointment.cabinetAddress;
 
     return Container(
@@ -198,14 +234,21 @@ class _HeroAppointmentDetailCard extends StatelessWidget {
                   height: 48,
                   child: FilledButton.icon(
                     key: const Key('hero_directions_button'),
-                    onPressed: address == null
-                        ? null
-                        : () => openMapsDirections(address),
+                    onPressed: _directionsLoading ? null : _onDirectionsTap,
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: NubiaColors.brand700,
                     ),
-                    icon: const Icon(Icons.directions, size: 18),
+                    icon: _directionsLoading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: NubiaColors.brand700,
+                            ),
+                          )
+                        : const Icon(Icons.directions, size: 18),
                     label: const Text('Itinéraire'),
                   ),
                 ),
