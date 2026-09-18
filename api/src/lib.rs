@@ -97,6 +97,7 @@ mod health;
 pub mod hl7v2;
 mod implant_passport;
 mod interop;
+pub mod kms_env;
 mod lab_work_orders;
 mod letters;
 mod local_storage_signer;

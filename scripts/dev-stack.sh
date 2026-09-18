@@ -12,6 +12,7 @@
 #   API_PORT (38030) · WEB_PORT (38040) · PG_PORT (5432)
 #   PG_CONTAINER (nubia-dev-pg) · PG_IMAGE (docker.io/postgis/postgis:16-3.4)
 #   JWT_SECRET (dev-only-not-for-prod) · CARGO_PROFILE (release)
+#   KMS_MASTER_KEY (sinon générée une fois dans .dev-stack-logs/kms_master_key)
 #
 # Ctrl+C : arrête API + web-console. Le conteneur Postgres reste up
 # (relancer ce script le réutilise instantanément).
@@ -189,6 +190,18 @@ BUILD_FLAG=""
   || fail "build API a échoué — voir la sortie ci-dessus"
 ok "build OK"
 
+# KMS_MASTER_KEY (#6980) : l'API refuse de démarrer sans clé maître KMS
+# valide (chiffrement du secret TOTP MFA, reprise, INS). Clé de dev générée
+# une fois et réutilisée (même logique que infra/deploy/deploy.sh) — la
+# changer rend illisibles les secrets déjà chiffrés dans la base locale.
+KMS_KEY_FILE="$LOG_DIR/kms_master_key"
+if [ -z "${KMS_MASTER_KEY:-}" ]; then
+  if [ ! -s "$KMS_KEY_FILE" ]; then
+    ( umask 077 && head -c 32 /dev/urandom | base64 | tr -d '\n' > "$KMS_KEY_FILE" )
+  fi
+  KMS_MASTER_KEY="$(cat "$KMS_KEY_FILE")"
+fi
+
 step "API Nubia — démarrage (log : .dev-stack-logs/api.log)"
 : > "$LOG_DIR/api.log"
 (
@@ -196,6 +209,7 @@ step "API Nubia — démarrage (log : .dev-stack-logs/api.log)"
   APP_DATABASE_URL="postgres://nubia_app@localhost:$PG_PORT/nubia" \
   APP_PORT="$API_PORT" \
   JWT_SECRET="$JWT_SECRET" \
+  KMS_MASTER_KEY="$KMS_MASTER_KEY" \
   LOGIN_RATE_MAX_ATTEMPTS="${LOGIN_RATE_MAX_ATTEMPTS:-10000}" \
   exec cargo run $BUILD_FLAG --bin nubia-api
 ) >>"$LOG_DIR/api.log" 2>&1 &

@@ -16,10 +16,17 @@ podman-compose -f ../infra/poc/compose.yml up -d postgres redis minio mailpit
 cargo install sqlx-cli --no-default-features --features postgres   # une fois
 sqlx migrate run --source ../db/migrations                         # avec l'URL owner (nubia_owner)
 
+export KMS_MASTER_KEY="$(head -c 32 /dev/urandom | base64)"   # une fois, à conserver (voir encadré ci-dessous)
 cargo run --bin nubia-api     # API sur http://localhost:3000  (GET /health)
 # Worker (même binaire/workspace, autre mode) :
 APP_MODE=worker cargo run --bin nubia-api
 ```
+
+> 🔑 `KMS_MASTER_KEY` (32 octets en base64, `head -c 32 /dev/urandom | base64`) est **obligatoire au démarrage** (#6980) :
+> elle chiffre le secret TOTP à l'activation de la MFA pro, les fichiers de reprise et l'INS. Sans clé valide, `nubia-api`
+> refuse de démarrer avec un message explicite (jamais de fallback en clair). `KMS_KEY_VERSION` (défaut `v1`) étiquette la
+> clé dans `key_ref` — à incrémenter lors d'une rotation. Ne jamais changer la clé sans ré-enrôler : les secrets déjà
+> chiffrés deviendraient illisibles. Résolution partagée : `src/kms_env.rs`.
 
 > ⚠️ Pour que la RLS s'applique vraiment, **le runtime** se connecte avec le rôle **NON-superuser** `nubia_app`
 > (`NOBYPASSRLS`), pas `postgres` ni l'owner. Les **migrations** s'appliquent avec `nubia_owner`. Voir `../db/README.md` §3
