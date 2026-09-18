@@ -703,3 +703,51 @@ async fn cancelled_order_expires_pending_quote() {
         .unwrap();
     assert_eq!(quote["status"], "expired", "body: {quote}");
 }
+
+// ── Test (#7277) : la commande d'ancrage devient terminale AVANT l'envoi du
+// devis (encore `draft`) → `send` doit refuser 409 au lieu de faire passer le
+// devis en `sent` sur une commande déjà retirée, ce qui l'échouait ensuite
+// dans un cul-de-sac sans issue (`accept`/`refuse` en 409 à vie, aucune route
+// d'annulation) ──────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn send_on_quote_orphaned_by_terminal_order_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharmacist = pharma_jwt(fx.pharmacy_id, "pharmacist");
+
+    let (status, quote) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        &pharmacist,
+        Some(json!({"order_id": fx.order_id,
+                    "items": [{"label": "X", "qty": 1, "unit_price_cents": 100}]})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {quote}");
+    let id = quote["id"].as_str().unwrap().to_string();
+
+    // La commande sort du cycle actif alors que le devis est encore `draft`.
+    let (status, order) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/reject", fx.order_id),
+        &pharmacist,
+        Some(json!({"reason": "Rupture de stock"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {order}");
+    assert_eq!(order["status"], "rejected");
+
+    let (status, body) = call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{id}/send"),
+        &pharmacist,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "invalid_status");
+}
