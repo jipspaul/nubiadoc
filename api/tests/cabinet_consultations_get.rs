@@ -550,10 +550,7 @@ async fn consultation_get_returns_sterilized_status_for_pouch_used_on_session() 
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     let acts = v["acts"].as_array().unwrap();
-    let act = acts
-        .iter()
-        .find(|a| a["id"] == act_id.to_string())
-        .unwrap();
+    let act = acts.iter().find(|a| a["id"] == act_id.to_string()).unwrap();
     assert_eq!(
         act["sterilized"], true,
         "un sachet ouvert sur la séance (consultation_id) doit vérifier l'acte, \
