@@ -275,6 +275,340 @@ async fn dependent_patch_invalid_nss_returns_422() {
     );
 }
 
+// ── Test 1c : relationship → adulte (#7009/#7305) : PATCH doit refuser tout
+//    comme POST — un enfant ne doit pas devenir conjoint/parent/autre sans
+//    passer par POST /v1/account/access-requests ───────────────────────────
+
+#[tokio::test]
+async fn dependent_patch_relationship_to_adult_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let guardian_user_id = Uuid::new_v4();
+    let guardian_account_id = Uuid::new_v4();
+    let dependent_user_id = Uuid::new_v4();
+    let dependent_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(guardian_user_id)
+    .bind(format!("guardian-patch-adult+{}@nubia.test", guardian_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Guardian')",
+    )
+    .bind(guardian_account_id)
+    .bind(guardian_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(dependent_user_id)
+    .bind(format!(
+        "dependent-patch-adult+{}@nubia.test",
+        dependent_user_id
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name, birth_date) \
+         VALUES ($1, $2, 'QA80', 'BypassTest', '2016-03-04')",
+    )
+    .bind(dependent_account_id)
+    .bind(dependent_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let rls_db = app_pool().await;
+        sqlx::query(
+            "INSERT INTO account_guardianship \
+             (guardian_account_id, dependent_account_id, relationship, active) \
+             VALUES ($1, $2, 'enfant', true)",
+        )
+        .bind(guardian_account_id)
+        .bind(dependent_account_id)
+        .execute(&rls_db)
+        .await
+        .unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_patient_jwt(guardian_user_id, guardian_account_id);
+
+    for rel in ["conjoint", "parent", "autre"] {
+        let body = json!({"relationship": rel});
+
+        let response = app(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri(format!("/v1/account/dependents/{}", dependent_account_id))
+                    .header("Authorization", format!("Bearer {}", token))
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "relationship={rel} doit être refusé par PATCH comme par POST"
+        );
+
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["code"], "adult_requires_consent");
+    }
+
+    let relationship: String = sqlx::query_scalar(
+        "SELECT relationship FROM account_guardianship \
+         WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+    )
+    .bind(guardian_account_id)
+    .bind(dependent_account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        relationship, "enfant",
+        "la relation ne doit pas avoir été modifiée en base"
+    );
+}
+
+// ── Test 1d : birth_date → majorité (#7009/#7305) : un mineur ne doit pas
+//    pouvoir devenir adulte via PATCH ────────────────────────────────────────
+
+#[tokio::test]
+async fn dependent_patch_birth_date_to_adult_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let guardian_user_id = Uuid::new_v4();
+    let guardian_account_id = Uuid::new_v4();
+    let dependent_user_id = Uuid::new_v4();
+    let dependent_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(guardian_user_id)
+    .bind(format!("guardian-patch-age+{}@nubia.test", guardian_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Guardian')",
+    )
+    .bind(guardian_account_id)
+    .bind(guardian_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(dependent_user_id)
+    .bind(format!(
+        "dependent-patch-age+{}@nubia.test",
+        dependent_user_id
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name, birth_date) \
+         VALUES ($1, $2, 'QA80', 'BypassTest', '2016-03-04')",
+    )
+    .bind(dependent_account_id)
+    .bind(dependent_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let rls_db = app_pool().await;
+        sqlx::query(
+            "INSERT INTO account_guardianship \
+             (guardian_account_id, dependent_account_id, relationship, active) \
+             VALUES ($1, $2, 'enfant', true)",
+        )
+        .bind(guardian_account_id)
+        .bind(dependent_account_id)
+        .execute(&rls_db)
+        .await
+        .unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_patient_jwt(guardian_user_id, guardian_account_id);
+
+    let body = json!({"birth_date": "1970-01-01"});
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/account/dependents/{}", dependent_account_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["code"], "adult_requires_consent");
+
+    let birth_date: chrono::NaiveDate =
+        sqlx::query_scalar("SELECT birth_date FROM patient_account WHERE id = $1")
+            .bind(dependent_account_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(
+        birth_date,
+        "2016-03-04".parse::<chrono::NaiveDate>().unwrap(),
+        "la date de naissance ne doit pas avoir été modifiée en base"
+    );
+}
+
+// ── Test 1e : proche adulte déjà rattaché (#7305 repro étape 7) — la garde
+//    s'applique aussi sur relationship déjà != enfant ──────────────────────
+
+#[tokio::test]
+async fn dependent_patch_already_adult_relationship_change_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let guardian_user_id = Uuid::new_v4();
+    let guardian_account_id = Uuid::new_v4();
+    let dependent_user_id = Uuid::new_v4();
+    let dependent_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(guardian_user_id)
+    .bind(format!(
+        "guardian-patch-existing-adult+{}@nubia.test",
+        guardian_user_id
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Guardian')",
+    )
+    .bind(guardian_account_id)
+    .bind(guardian_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(dependent_user_id)
+    .bind(format!(
+        "dependent-patch-existing-adult+{}@nubia.test",
+        dependent_user_id
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name, birth_date) \
+         VALUES ($1, $2, 'QA16', 'AdulteSansAccord', '1985-04-12')",
+    )
+    .bind(dependent_account_id)
+    .bind(dependent_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Lien préexistant déjà vers un adulte (simule un état legacy antérieur au fix).
+    {
+        let rls_db = app_pool().await;
+        sqlx::query(
+            "INSERT INTO account_guardianship \
+             (guardian_account_id, dependent_account_id, relationship, active) \
+             VALUES ($1, $2, 'conjoint', true)",
+        )
+        .bind(guardian_account_id)
+        .bind(dependent_account_id)
+        .execute(&rls_db)
+        .await
+        .unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_patient_jwt(guardian_user_id, guardian_account_id);
+
+    let body = json!({"relationship": "parent"});
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/account/dependents/{}", dependent_account_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 // ── Test 2 : proche hors tutelle → 404 ───────────────────────────────────────
 
 #[tokio::test]

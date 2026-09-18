@@ -4760,6 +4760,11 @@ pub struct PatchDependentBody {
 /// Si `coverage` présent : upsert `patient_coverage` lié au proche.
 /// Champ inconnu dans le body → `400` (`deny_unknown_fields`, cf. #6548/#6567 :
 /// évite un PATCH silencieusement sans effet sur un champ mal nommé).
+/// #7009 / #7305 : même garde que `POST` (`authority='full'` réservé aux
+/// mineurs), appliquée à l'état RÉSULTANT du PATCH (partiel) — `relationship`
+/// ou `birth_date` non fournis conservent la valeur actuelle. Toute
+/// combinaison faisant passer le lien à `relationship != "enfant"` ou à un
+/// âge ≥ 18 ans → `422 adult_requires_consent`.
 /// Modification auditée : `action:'update_dependent'` (§07 §4.6).
 pub async fn patch_account_dependent(
     State(state): State<AppState>,
@@ -4805,9 +4810,15 @@ pub async fn patch_account_dependent(
         .map_err(|_| AppError::Internal)?;
 
     // Vérifie la tutelle active → 404 si introuvable ou inactive (anti-énumération §07 §2.9).
-    sqlx::query(
-        "SELECT 1 FROM account_guardianship \
-         WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+    // Récupère aussi relationship/birth_date actuels : #7305, la garde #7009 doit
+    // porter sur l'état RÉSULTANT du PATCH (partiel), pas seulement sur les
+    // champs fournis — sinon PATCH {"relationship":"conjoint"} sur un proche
+    // `enfant` existant, ou PATCH {"birth_date":<18+ ans>}, contourne la garde.
+    let guardianship_row = sqlx::query(
+        "SELECT ag.relationship, pa.birth_date \
+         FROM account_guardianship ag \
+         JOIN patient_account pa ON pa.id = ag.dependent_account_id \
+         WHERE ag.guardian_account_id = $1 AND ag.dependent_account_id = $2 AND ag.active = true",
     )
     .bind(claims.account_id)
     .bind(dependent_id)
@@ -4815,6 +4826,29 @@ pub async fn patch_account_dependent(
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
+
+    let current_relationship: String = guardianship_row
+        .try_get("relationship")
+        .map_err(|_| AppError::Internal)?;
+    let current_birth_date: Option<chrono::NaiveDate> = guardianship_row
+        .try_get("birth_date")
+        .map_err(|_| AppError::Internal)?;
+
+    // #7009 / #7305 : même garde que POST, appliquée à l'état RÉSULTANT (les
+    // champs non fournis conservent leur valeur actuelle) — un lien à
+    // autorité pleine ne doit jamais pouvoir devenir un lien vers un adulte
+    // sans passer par POST /v1/account/access-requests.
+    let effective_relationship = body.relationship.as_deref().unwrap_or(&current_relationship);
+    if effective_relationship != "enfant" {
+        return Err(AppError::AdultRequiresConsent);
+    }
+    let effective_birth_date = birth_date.or(current_birth_date);
+    if let Some(d) = effective_birth_date {
+        let today = chrono::Utc::now().date_naive();
+        if today.years_since(d).unwrap_or(0) >= ADULT_AGE_YEARS {
+            return Err(AppError::AdultRequiresConsent);
+        }
+    }
 
     // Mise à jour des champs identité du proche (COALESCE = non modifié si absent).
     sqlx::query(
