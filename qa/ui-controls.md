@@ -2368,3 +2368,41 @@ l'app infirmière s'étire sans débordement. **0 contrôle mort avéré** au se
 | secretariat | `/salle-attente` | 390×844 | 5 | 5 | 5 | 0 | 0 | 2026-09-18T02:15:00Z |  |
 
 **Sous-total second viewport : 17 écrans · 183 contrôles · 161 activés · 151 OK · 1 MORT candidats (0 avéré) · 9 « cassés » (gardes 403 légitimes).** Deux défauts de mise en page trouvés par cette seule passe : **#7254** et **#7256**.
+
+#### Ronde R80 — 2026-09-18 (audit de commandes, 5/5 apps)
+
+> Méthode inchangée : accessibilité activée, inventaire depuis l'**arbre Semantics rendu** (`flt-semantics[role]`),
+> puis **activation de chaque contrôle** et verdict OK / MORT / CASSÉ / DÉSACTIVÉ.
+> Rotation : les écrans touchés par les 10 merges du matin d'abord (`/profile/dependents`, `/home-care*`, `/waiting-room`, `/patients`).
+> **Les 15 verdicts MORT/CASSÉ du lot automatique ont tous été re-sondés un par un** — 11 levés comme faux positifs, 4 confirmés (une seule cause, #7297).
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO | note |
+|---|---|---|---|---|---|---|---|---|---|---|
+| patient | `/profile/dependents` | 390×844 | 17 | 17 | 17 | 0 | 0 | 0 | 2026-09-18T12:03:00Z | écran refondu par #7009 — RAS |
+| patient | `/home-care` | 390×844 | 14 | 14 | 14 | 0 | 0 | 0 | 2026-09-18T12:05:00Z | écran touché par #6961 — RAS |
+| patient | `/home-care/new` | 390×844 | 11 | 9 | 9 | 0 | 0 | 2 | 2026-09-18T12:08:00Z | les 2 désactivés (« Obtenir un devis », « Confirmer la demande ») le sont **légitimement** : formulaire vide, aucun acte coché |
+| patient | `/profile` | 390×844 | 8 | 7 | 6 | 1 | 0 | 1 | 2026-09-18T12:10:00Z | **MORT levé** : « Modifier la photo de profil » est exposé comme un `group` de 390×788 px ; un clic à son centre ne touche rien, mais un clic sur le rect réel de l'avatar **ouvre bien le sélecteur de fichier** (`filechooser` capté) |
+| patient | `/profile/consents` | 390×844 | 6 | 5 | 5 | 0 | 0 | 1 | 2026-09-18T12:11:00Z | |
+| praticien | `/waiting-room` | 1280×800 | 22 | 18 | 18 | 0 | 0 | 3 | 2026-09-18T12:04:00Z | les 3 désactivés = boutons d'appel des patients d'un confrère (cloisonnement volontaire) |
+| praticien | `/patients` | 1280×800 | 27 | 26 | 22 | 0 | 4 | 0 | 2026-09-18T12:09:00Z | **4 CASSÉS CONFIRMÉS** : ouvrir une fiche déclenche `403 GET /v1/cabinet/patients/<id>/medical-record` (garde « relation de soin »). Même cause que #7297/#7274 |
+| praticien | `/agenda` | 1280×800 | 22 | 21 | 21 | 0 | 0 | 0 | 2026-09-18T12:14:00Z | |
+| praticien | `/consultation` | 1280×800 | 30 | 29 | 29 | 0 | 0 | 0 | 2026-09-18T12:20:00Z | le plus gros écran de la ronde, 29/29 utilisables |
+| praticien | `/ordonnances` | 1280×800 | 17 | 16 | 14 | 0 | 2 | 0 | 2026-09-18T12:24:00Z | **2 CASSÉS levés** : `401` sur `/notifications` puis sur `/auth/refresh` — jeton expiré en plein parcours (piège n° 22), pas un défaut d'écran |
+| secretariat | `/salle-attente` | 1280×800 | 25 | 24 | 24 | 0 | 0 | 0 | 2026-09-18T12:10:00Z | |
+| secretariat | `/agenda` | 1280×800 | 26 | 25 | 25 | 0 | 0 | 0 | 2026-09-18T12:15:00Z | |
+| secretariat | `/patients` | 1280×800 | 33 | 32 | 25 | 6 | 1 | 0 | 2026-09-18T12:29:00Z | **les 7 levés** : re-sonde ciblée des 6 contrôles pleinement dans le viewport → **0 mort, 0 cassé**. Les verdicts venaient de cartes-patient hautes et du pied collant. C'est cet écran qui a livré **#7300** (âges négatifs) — défaut de **donnée affichée**, pas de commande |
+| secretariat | `/devis` | 1280×800 | 21 | 20 | 20 | 0 | 0 | 0 | 2026-09-18T12:33:00Z | |
+| secretariat | `/stock` | 1280×800 | 23 | 22 | 22 | 0 | 0 | 0 | 2026-09-18T12:37:00Z | |
+| pharmacie | `/` (file des commandes) | 1280×800 | 19 | 18 | 18 | 0 | 0 | 0 | 2026-09-18T12:07:00Z | |
+| pharmacie | `/devis` | 1280×800 | 23 | 22 | 21 | 1 | 0 | 0 | 2026-09-18T12:12:00Z | **MORT levé** : le « Préparer » à `y=782` est sous le **pied collant** (« 122 devis affichés sur 122 »). Re-sondé sur un bouton pleinement visible → `context.go('/orders/<id>')`, **navigation OK** (`devis_table.dart:329-333`) |
+| pharmacie | `/stock` | 1280×800 | 13 | 12 | 12 | 0 | 0 | 0 | 2026-09-18T12:15:00Z | |
+| pharmacie | `/messages` | 1280×800 | 15 | 14 | 14 | 0 | 0 | 0 | 2026-09-18T12:18:00Z | |
+| pharmacie | `/notification-preferences` | 1280×800 | 9 | 9 | 9 | 0 | 0 | 0 | 2026-09-18T12:21:00Z | |
+| infirmiere | `/` (Disponibilité) | 390×844 | 7 | 6 | 6 | 0 | 0 | 0 | 2026-09-18T12:07:00Z | `white=0.973` **légitime** (écran volontairement épuré : un titre, une phrase d'état, une bascule, 3 onglets) — vérifié à la capture, pas un canvas vide |
+| infirmiere | `/notification-preferences` | 390×844 | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-18T12:08:00Z | `white=0.975` idem |
+
+**Total R80 : 22 écrans · 391 contrôles inventoriés · 369 activés · 354 OK · 8 MORT candidats (0 avéré) · 7 « cassés » (4 confirmés → #7297, 3 levés) · 7 désactivés (tous légitimes, justifiés par le code).**
+
+> **Pièges n° 19 et n° 22 ajoutés cette ronde** (détail dans `explored-paths.md`) :
+> — un `aria-label` de **groupe** contient le libellé de ses enfants : cliquer le centre du groupe ne touche aucun bouton et produit un faux MORT en série ;
+> — un **jeton expiré** (900 s) rend le shell peuplé mais à zéro et produit de faux CASSÉS en `401`.
