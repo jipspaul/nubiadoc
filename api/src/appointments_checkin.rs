@@ -16,6 +16,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
+    appointment_time_guards::{check_cabinet_checkin_window, check_patient_checkin_window},
     auth::{AppError, PatientAccountClaims},
     notify, AppState, JobDispatcher,
 };
@@ -105,13 +106,8 @@ pub async fn checkin_appointment(
         return Err(AppError::InvalidStatus);
     }
 
-    let now = chrono::Utc::now();
-    if now < starts_at - chrono::Duration::minutes(60) {
-        return Err(AppError::TooEarly);
-    }
-    if now > starts_at + chrono::Duration::minutes(60) {
-        return Err(AppError::OutOfWindow);
-    }
+    // Fenêtre starts_at ± 60 min — règle centralisée (appointment_time_guards).
+    check_patient_checkin_window(chrono::Utc::now(), starts_at)?;
 
     // Scope cabinet pour UPDATE (tenant_isolation) + audit.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -237,13 +233,17 @@ pub async fn checkin_appointment(
 /// cabinet. R10 : secrétaire scopée au secrétariat actif — même garde que
 /// `confirm_appointment`/`no_show_appointment`.
 /// Statut source attendu : `confirmed` → sinon `409 invalid_status`. Fenêtre
-/// glissante `starts_at` DANS `now() ± 1 jour` → sinon `409 too_early`/
-/// `409 out_of_window` (#7248) : c'est la même fenêtre que celle utilisée par
-/// les trois vues de la file (`get_waiting_room`, `call_next_patient`, la
-/// queue patient) — sans cette garde, le secrétariat pouvait check-in un RDV
-/// de la semaine prochaine, qui passait `checked_in` sans jamais apparaître
-/// dans aucune de ces vues (bornées à ±1 jour) : un état sans sortie, sinon
-/// l'annulation patient qui l'aurait alors compté en no-show à tort.
+/// temporelle `starts_at − 2 h ≤ now ≤ ends_at + 1 h` → sinon `409 too_early`
+/// / `409 out_of_window` (#6770, #6912 ; règle centralisée dans
+/// `appointment_time_guards`). Sans garde (avant #7248), puis avec la seule
+/// fenêtre glissante `now() ± 1 jour` (#7248), le secrétariat pouvait
+/// enregistrer l'arrivée d'un RDV de demain ou de 2027 : il passait
+/// `checked_in`, `start` lui faisait confiance et sautait sa propre fenêtre,
+/// et le RDV finissait `done` avant d'avoir eu lieu (« dernière visite » en
+/// 2027, patient qui ne peut plus annuler). Le check-in n'est possible que le
+/// jour du créneau, avec plus de latitude que le patient (arrivée en avance,
+/// retardataire) — la fenêtre reste incluse dans celle de la file (±1 jour),
+/// un RDV `checked_in` est donc toujours visible des trois vues.
 /// Auditée (`checkin_appointment`) dans `audit_log`, avec le rôle réel de
 /// l'acteur (secretary/practitioner/admin).
 pub async fn cabinet_checkin_appointment(
@@ -268,7 +268,7 @@ pub async fn cabinet_checkin_appointment(
     };
 
     let row = sqlx::query(
-        "SELECT id, status, starts_at, practitioner_id FROM appointment a \
+        "SELECT id, status, starts_at, ends_at, practitioner_id FROM appointment a \
          WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
            AND ($3::uuid IS NULL OR EXISTS ( \
                SELECT 1 FROM provider pr \
@@ -290,6 +290,8 @@ pub async fn cabinet_checkin_appointment(
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let starts_at: chrono::DateTime<chrono::Utc> =
         row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+    let ends_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("ends_at").map_err(|_| AppError::Internal)?;
     let practitioner_id: Uuid = row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
@@ -298,16 +300,10 @@ pub async fn cabinet_checkin_appointment(
         return Err(AppError::InvalidStatus);
     }
 
-    // Même fenêtre glissante que get_waiting_room/call_next_patient/la queue
-    // patient (now() ± 1 jour, cf. #4869) : un check-in hors fenêtre produirait
-    // un RDV `checked_in` invisible des trois vues de la file (#7248).
-    let now = chrono::Utc::now();
-    if now < starts_at - chrono::Duration::days(1) {
-        return Err(AppError::TooEarly);
-    }
-    if now > starts_at + chrono::Duration::days(1) {
-        return Err(AppError::OutOfWindow);
-    }
+    // Fenêtre [starts_at − 2 h, ends_at + 1 h] (#6770/#6912) — incluse dans
+    // la fenêtre glissante ±1 jour des trois vues de la file (#7248), un RDV
+    // `checked_in` y est donc toujours visible.
+    check_cabinet_checkin_window(chrono::Utc::now(), starts_at, ends_at)?;
 
     let updated = sqlx::query(
         "UPDATE appointment \

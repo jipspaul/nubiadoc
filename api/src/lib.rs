@@ -47,6 +47,7 @@ pub use yousign_client::YousignClient;
 
 mod appointment_motifs;
 mod appointment_series;
+mod appointment_time_guards;
 mod appointments_actions;
 mod appointments_checkin;
 mod appointments_create;

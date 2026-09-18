@@ -160,8 +160,15 @@ pub async fn list_appointments(
               AND a.starts_at < now() + interval '1 day') \
               OR (a.starts_at > now() AND a.status IN ('requested','confirmed')))"
             .to_string(),
-        Some("past") => " AND (a.starts_at <= now() \
-              AND a.status IN ('done','cancelled','no_show','requested','confirmed'))"
+        // #6875 : un statut terminal (done/cancelled/no_show) suffit à ranger
+        // le RDV dans l'historique, sans condition sur starts_at — un patient
+        // arrivé en avance, reçu et clôturé AVANT l'heure de son créneau
+        // (starts_at encore futur) n'apparaissait dans AUCUN des deux
+        // onglets. Les deux vues partitionnent l'ensemble des RDV : la borne
+        // temporelle ne s'applique qu'aux statuts non terminaux (RDV jamais
+        // clôturés dont l'heure est passée).
+        Some("past") => " AND (a.status IN ('done','cancelled','no_show') \
+              OR (a.starts_at <= now() AND a.status IN ('requested','confirmed')))"
             .to_string(),
         Some(s) if REAL_STATUSES.contains(&s) => format!(" AND a.status = '{s}'"),
         // `status` nommé mais non reconnu (ni vue upcoming/past, ni vrai statut) :
