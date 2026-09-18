@@ -108,4 +108,34 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    // #7261 : le retour système (geste/bouton OS) ne passe PAS par
+    // `btn_appbar_back` — go_router ramène directement l'URL à `/financial`.
+    // Comme le `create:` du BlocProvider ne se relance pas pour une même
+    // route, seul un mécanisme dans la page peut resynchroniser le bloc.
+    'un retour système (URL qui repasse à /financial sans passer par le '
+    'bouton) réémet FinancialBackToList',
+    (tester) async {
+      whenListen(
+        mockBloc,
+        const Stream<FinancialState>.empty(),
+        initialState: FinancialQuoteDetail(quote: _quote, quotes: [_quote]),
+      );
+
+      final notifier = RouterNotifier(MockTokenStorage())..markAuthenticated();
+      final router = AppRouter.create(notifier);
+      router.go('/financial?id=q-1');
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      router.go('/financial');
+      await tester.pumpAndSettle();
+
+      verify(() => mockBloc.add(const FinancialBackToList())).called(1);
+    },
+  );
 }

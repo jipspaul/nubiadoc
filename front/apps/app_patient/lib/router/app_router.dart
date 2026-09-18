@@ -389,51 +389,61 @@ class AppRouter {
                 ..add(quoteId != null
                     ? FinancialQuoteSelected(quoteId)
                     : const FinancialLoadRequested()),
-              child: Scaffold(
-                appBar: AppBar(
-                  leading: BlocBuilder<FinancialBloc, FinancialState>(
-                    builder: (context, state) {
-                      if (state is FinancialQuoteDetail) {
-                        return IconButton(
-                          key: const Key('btn_appbar_back'),
-                          icon: const Icon(Icons.arrow_back),
-                          tooltip: 'Retour',
-                          // #7251 : `go()` sans `?id=` (et non le seul
-                          // événement bloc) pour que l'URL retrouve
-                          // `/financial` — sinon elle reste sur
-                          // `?id=<quoteId>` alors que la liste est affichée.
-                          onPressed: () => context.go(financial),
-                        );
-                      }
-                      return backOrHomeLeading(context);
-                    },
-                  ),
-                  title: BlocBuilder<FinancialBloc, FinancialState>(
-                    builder: (context, state) => Text(
-                      state is FinancialQuoteDetail
-                          ? 'Plan de soins'
-                          : 'Mes devis',
-                    ),
-                  ),
-                  actions: [
-                    BlocBuilder<FinancialBloc, FinancialState>(
+              // #7261 : `create:` ci-dessus ne s'exécute qu'à la première
+              // construction de la route — un `go()` vers `/financial` qui ne
+              // fait que changer `?id=` (aller ou retour, y compris le retour
+              // système qui ne passe par aucun `onPressed`) ne le relance pas.
+              // `_FinancialQuoteSync` traduit donc chaque changement de
+              // `quoteId` en événement bloc, dans les deux sens.
+              child: _FinancialQuoteSync(
+                quoteId: quoteId,
+                child: Scaffold(
+                  appBar: AppBar(
+                    leading: BlocBuilder<FinancialBloc, FinancialState>(
                       builder: (context, state) {
-                        if (state is! FinancialQuoteDetail) {
-                          return const SizedBox.shrink();
+                        if (state is FinancialQuoteDetail) {
+                          return IconButton(
+                            key: const Key('btn_appbar_back'),
+                            icon: const Icon(Icons.arrow_back),
+                            tooltip: 'Retour',
+                            // #7251 : `go()` sans `?id=` (et non le seul
+                            // événement bloc) pour que l'URL retrouve
+                            // `/financial` — sinon elle reste sur
+                            // `?id=<quoteId>` alors que la liste est affichée.
+                            onPressed: () => context.go(financial),
+                          );
                         }
-                        final style = QuoteStatusStyle.of(state.quote.status);
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 16),
-                          child: StatusPill(
-                            label: style.label,
-                            variant: style.variant,
-                          ),
-                        );
+                        return backOrHomeLeading(context);
                       },
                     ),
-                  ],
+                    title: BlocBuilder<FinancialBloc, FinancialState>(
+                      builder: (context, state) => Text(
+                        state is FinancialQuoteDetail
+                            ? 'Plan de soins'
+                            : 'Mes devis',
+                      ),
+                    ),
+                    actions: [
+                      BlocBuilder<FinancialBloc, FinancialState>(
+                        builder: (context, state) {
+                          if (state is! FinancialQuoteDetail) {
+                            return const SizedBox.shrink();
+                          }
+                          final style =
+                              QuoteStatusStyle.of(state.quote.status);
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 16),
+                            child: StatusPill(
+                              label: style.label,
+                              variant: style.variant,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  body: const FinancialPage(),
                 ),
-                body: const FinancialPage(),
               ),
             );
           },
@@ -603,4 +613,35 @@ class AppRouter {
       ],
     );
   }
+}
+
+/// #7261 : le `create:` du [BlocProvider] de la route `financial` ne
+/// s'exécute qu'à la première construction de la page — un `go()` vers la
+/// même route qui ne fait que changer `?id=` (aller ou retour, y compris le
+/// retour système/geste qui ne passe par aucun `onPressed` du router) ne le
+/// relance pas et laisse le bloc désynchronisé de l'URL. On traduit donc ici
+/// chaque changement de [quoteId] en événement bloc, dans les deux sens.
+class _FinancialQuoteSync extends StatefulWidget {
+  const _FinancialQuoteSync({required this.quoteId, required this.child});
+
+  final String? quoteId;
+  final Widget child;
+
+  @override
+  State<_FinancialQuoteSync> createState() => _FinancialQuoteSyncState();
+}
+
+class _FinancialQuoteSyncState extends State<_FinancialQuoteSync> {
+  @override
+  void didUpdateWidget(_FinancialQuoteSync oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.quoteId == oldWidget.quoteId) return;
+    final quoteId = widget.quoteId;
+    context.read<FinancialBloc>().add(quoteId != null
+        ? FinancialQuoteSelected(quoteId)
+        : const FinancialBackToList());
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
