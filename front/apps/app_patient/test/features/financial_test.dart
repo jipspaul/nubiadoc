@@ -649,20 +649,32 @@ void main() {
     );
 
     blocTest<FinancialBloc, FinancialState>(
-      'émet [Loaded] quand BackToList est reçu depuis le détail',
-      build: () => _makeBloc(
-        getPendingQuotes: mockGetPendingQuotes,
-        getQuoteById: mockGetQuoteById,
-        initiateSignature: mockInitiateSignature,
-        initiateDeposit: mockInitiateDeposit,
-        getDocumentSignedUrl: mockGetDocumentSignedUrl,
-      ),
-      seed: () => FinancialQuoteDetail(quote: _quote, quotes: [_quote]),
+      // #7270 : le retour depuis un lien profond (détail seul, sans liste
+      // dans l'état courant) doit RECHARGER les devis en attente plutôt que
+      // de réémettre la liste (vide) transportée par l'état de détail.
+      'émet [Loading, Loaded] avec la liste rechargée quand BackToList est '
+      'reçu depuis le détail',
+      build: () {
+        when(() => mockGetPendingQuotes())
+            .thenAnswer((_) async => Right([_quote]));
+        return _makeBloc(
+          getPendingQuotes: mockGetPendingQuotes,
+          getQuoteById: mockGetQuoteById,
+          initiateSignature: mockInitiateSignature,
+          initiateDeposit: mockInitiateDeposit,
+          getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        );
+      },
+      seed: () => FinancialQuoteDetail(quote: _quote, quotes: const []),
       act: (bloc) => bloc.add(const FinancialBackToList()),
       expect: () => [
+        const FinancialLoading(),
         isA<FinancialLoaded>()
             .having((s) => s.quotes.length, 'quotes.length', 1),
       ],
+      verify: (_) {
+        verify(() => mockGetPendingQuotes()).called(1);
+      },
     );
 
     blocTest<FinancialBloc, FinancialState>(

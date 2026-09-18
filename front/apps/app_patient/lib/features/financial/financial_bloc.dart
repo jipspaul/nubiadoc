@@ -69,13 +69,14 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     }
   }
 
-  void _onBackToList(
+  // Le retour vers la liste doit recharger les devis en attente : l'état
+  // courant (détail d'un devis ouvert par lien profond, notamment) ne
+  // transporte pas forcément la liste complète (#7270).
+  Future<void> _onBackToList(
     FinancialBackToList event,
     Emitter<FinancialState> emit,
-  ) {
-    final quotes = _extractQuotes(state);
-    emit(FinancialLoaded(quotes));
-  }
+  ) =>
+      _onLoad(const FinancialLoadRequested(), emit);
 
   // Signature synchrone (stub Yousign, cf. api/src/billing.rs sign_quote) :
   // pas de redirection à attendre, le devis est signé et verrouillé dès la
