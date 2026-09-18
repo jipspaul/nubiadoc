@@ -8,20 +8,30 @@
 //! Le `POST` (#7080 : #7073 avait livré le formulaire sans jamais router sa
 //! soumission, 405 au corps vide) crée le compte patient et la réservation
 //! en appelant directement les fonctions déjà exposées par `POST
-//! /v1/auth/register` et `POST /v1/bookings` — mêmes fonctions que l'API
-//! versionnée, aucune logique métier dupliquée (#5355). Le formulaire ne
-//! collecte pas de mot de passe (mockup `design/mockups/v2/Patient Web
-//! Tunnel reservation.html` : « Un mot de passe vous sera demandé après
-//! confirmation ») : un mot de passe aléatoire est généré côté serveur et un
-//! email de définition de mot de passe est envoyé (même mécanisme que `POST
-//! /v1/auth/password/forgot`).
+//! /v1/auth/register`, `POST /v1/slots/:id/hold` et `POST /v1/bookings` —
+//! mêmes fonctions que l'API versionnée, aucune logique métier dupliquée
+//! (#5355). Le formulaire ne collecte pas de mot de passe (mockup
+//! `design/mockups/v2/Patient Web Tunnel reservation.html` : « Un mot de
+//! passe vous sera demandé après confirmation ») : un mot de passe aléatoire
+//! est généré côté serveur et un email de définition de mot de passe est
+//! envoyé (même mécanisme que `POST /v1/auth/password/forgot`).
+//!
+//! Hold (#6954 / #6826 / #6733) : un hold (`slot_holds.user_id NOT NULL →
+//! app_user`) ne peut exister qu'au nom d'un compte, et le visiteur n'en a
+//! pas encore au `GET`. Le créneau est donc retenu puis réservé d'un seul
+//! tenant au `POST` (compte → hold → booking, exactement le funnel de
+//! l'app patient), et la page ne dit JAMAIS « votre créneau est retenu »
+//! avant : elle annonce un créneau *disponible* qui sera réservé à la
+//! validation. Sans sélection → 404 ; créneau perdu (pris, expiré, d'un
+//! autre praticien) → 410 avec lien retour vers la fiche du praticien.
 //!
 //! Page transactionnelle : le HTML initial reste indexable (`h1` réel +
-//! rappel du praticien/créneau).
+//! rappel du praticien/créneau) et se passe de tout JS (CSP du tunnel) —
+//! formulaire HTML classique.
 
 use axum::extract::rejection::FormRejection;
 use axum::extract::{Form, Path, Query, State};
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::{DateTime, NaiveDate};
@@ -66,16 +76,40 @@ struct ConfirmContext {
     canonical_path: String,
 }
 
+/// Pourquoi `providerId`/`slotId` n'ont pas pu être résolus — deux replis
+/// distincts (#6954 : « créneau inexistant ou n'appartenant pas au
+/// praticien → 404/410 »), pas un état vide silencieux.
+enum ContextFailure {
+    /// Praticien inconnu ou retiré de l'annuaire → 404.
+    ProviderNotFound,
+    /// Praticien connu mais créneau introuvable parmi ses créneaux ouverts
+    /// (déjà pris, retenu par un autre visiteur, passé, ou créneau d'un
+    /// autre praticien) → 410, avec le lien retour vers SA fiche.
+    SlotUnavailable {
+        provider_name: String,
+        provider_path: String,
+    },
+}
+
 /// Résout `providerId`/`slotId` en un praticien + créneau réels, via les
-/// mêmes fonctions que l'API marketplace publique (#5355). `None` si le
-/// praticien, le créneau, ou son horaire sont introuvables/invalides.
+/// mêmes fonctions que l'API marketplace publique (#5355).
 async fn resolve_context(
     state: AppState,
     provider_id: Uuid,
     slot_id: Uuid,
-) -> Option<ConfirmContext> {
+) -> Result<ConfirmContext, ContextFailure> {
     let Ok(Json(profile)) = get_provider(State(state.clone()), Path(provider_id)).await else {
-        return None;
+        return Err(ContextFailure::ProviderNotFound);
+    };
+
+    let h1 = profile.display_name.clone();
+    let canonical_path = format!(
+        "/{}",
+        slug_for(&profile.display_name, profile.specialty.as_deref(), None)
+    );
+    let unavailable = || ContextFailure::SlotUnavailable {
+        provider_name: h1.clone(),
+        provider_path: canonical_path.clone(),
     };
 
     let slots_params = SearchProvidersQuery {
@@ -109,31 +143,40 @@ async fn resolve_context(
         Err(_) => Vec::new(),
     };
 
-    let slot = slots.into_iter().find(|s| s.slot_id == slot_id)?;
+    let slot = slots
+        .into_iter()
+        .find(|s| s.slot_id == slot_id)
+        .ok_or_else(unavailable)?;
 
     let starts_at = DateTime::parse_from_rfc3339(&slot.starts_at)
         .ok()
-        .map(|dt| dt.with_timezone(&chrono::Utc))?;
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+        .ok_or_else(unavailable)?;
 
-    let h1 = profile.display_name.clone();
     let subtitle = [profile.profession.clone(), profile.specialty.clone()]
         .into_iter()
         .flatten()
         .collect::<Vec<_>>()
         .join(" · ");
 
-    let canonical_path = format!(
-        "/{}",
-        slug_for(&profile.display_name, profile.specialty.as_deref(), None)
-    );
-
-    Some(ConfirmContext {
+    Ok(ConfirmContext {
         h1,
         subtitle,
         day_label: day_label(&starts_at),
         hhmm: hhmm(&starts_at),
         canonical_path,
     })
+}
+
+/// Repli HTML pour un contexte non résolu (404 praticien / 410 créneau).
+fn context_failure_page(failure: ContextFailure) -> Response {
+    match failure {
+        ContextFailure::ProviderNotFound => provider_not_found_page(),
+        ContextFailure::SlotUnavailable {
+            provider_name,
+            provider_path,
+        } => slot_unavailable_page(&provider_name, &provider_path, false),
+    }
 }
 
 /// Parse un paramètre `providerId`/`slotId` de la query : absent ou UUID
@@ -156,8 +199,9 @@ pub async fn confirm_page(
         return no_selection_page();
     };
 
-    let Some(ctx) = resolve_context(state, provider_id, slot_id).await else {
-        return slot_unavailable_page();
+    let ctx = match resolve_context(state, provider_id, slot_id).await {
+        Ok(ctx) => ctx,
+        Err(failure) => return context_failure_page(failure),
     };
 
     let body = confirmation_body(
@@ -178,6 +222,11 @@ pub async fn confirm_page(
     page("Confirmer votre rendez-vous — Nubia", &meta, &body).into_response()
 }
 
+/// Longueur maximale du motif libre (même ordre de grandeur que le champ
+/// « précisions » du mockup ; le motif est stocké tel quel sur
+/// l'`appointment`, cf. `bookings::create_booking`).
+const MOTIF_MAX_CHARS: usize = 500;
+
 #[derive(Deserialize)]
 pub struct ConfirmSubmitForm {
     #[serde(rename = "providerId")]
@@ -189,16 +238,26 @@ pub struct ConfirmSubmitForm {
     naissance: String,
     telephone: String,
     email: String,
+    /// Motif de consultation (facultatif) — transmis à `POST /v1/bookings`.
+    #[serde(default)]
+    motif: Option<String>,
+    /// Case « J'accepte les conditions d'utilisation » — une case HTML non
+    /// cochée n'est pas envoyée du tout, d'où l'`Option` (#6733 : le mockup
+    /// prescrit un consentement explicite, pas une mention passive).
+    #[serde(default)]
+    consentement: Option<String>,
 }
 
 /// `POST /reservation/confirmer` — soumission du formulaire de l'écran 3
 /// (#7080). Crée le compte patient (mot de passe aléatoire, cf. doc module),
 /// pose un hold sur le créneau puis la réservation, en réutilisant tels
-/// quels les handlers de `POST /v1/auth/register` et `POST /v1/bookings`
-/// (#5355). Un email est déjà pris → page « compte existant » (pas de
-/// prise de contrôle d'un compte qui ne nous appartient pas). Créneau perdu
-/// entre-temps (retenu par un autre visiteur, expiré) → même repli que le
-/// `GET` sur un créneau introuvable.
+/// quels les handlers de `POST /v1/auth/register`, `POST /v1/slots/:id/hold`
+/// et `POST /v1/bookings` (#5355). Un email est déjà pris → page « compte
+/// existant » (pas de prise de contrôle d'un compte qui ne nous appartient
+/// pas). Créneau perdu entre-temps (retenu par un autre visiteur, expiré) →
+/// 410 avec retour vers la fiche du praticien ; si le compte venait d'être
+/// créé, l'email de définition de mot de passe part quand même pour ne pas
+/// laisser un compte orphelin.
 pub async fn confirm_submit(
     State(state): State<AppState>,
     form: Result<Form<ConfirmSubmitForm>, FormRejection>,
@@ -216,18 +275,33 @@ pub async fn confirm_submit(
         return no_selection_page();
     };
 
-    let Some(ctx) = resolve_context(state.clone(), provider_id, slot_id).await else {
-        return slot_unavailable_page();
+    let ctx = match resolve_context(state.clone(), provider_id, slot_id).await {
+        Ok(ctx) => ctx,
+        Err(failure) => return context_failure_page(failure),
     };
 
     let prenom = form.prenom.trim();
     let nom = form.nom.trim();
     let telephone = form.telephone.trim();
     let email = form.email.trim();
+    let motif = form
+        .motif
+        .as_deref()
+        .map(str::trim)
+        .filter(|m| !m.is_empty())
+        .map(str::to_owned);
+    let consent_given = form
+        .consentement
+        .as_deref()
+        .is_some_and(|c| !c.trim().is_empty());
     let has_required_fields = !prenom.is_empty()
         && !nom.is_empty()
         && !telephone.is_empty()
-        && is_valid_email_format(email);
+        && is_valid_email_format(email)
+        && consent_given
+        && motif
+            .as_deref()
+            .is_none_or(|m| m.chars().count() <= MOTIF_MAX_CHARS);
     let birth_date = NaiveDate::parse_from_str(form.naissance.trim(), "%Y-%m-%d")
         .ok()
         .filter(|_| has_required_fields);
@@ -263,7 +337,7 @@ pub async fn confirm_submit(
         Ok(PatientAccountCreation::EmailTaken) => {
             return existing_account_page(&ctx.canonical_path)
         }
-        Err(_) => return slot_unavailable_page(),
+        Err(_) => return slot_unavailable_page(&ctx.h1, &ctx.canonical_path, false),
     };
 
     let hold = hold_slot(
@@ -277,7 +351,10 @@ pub async fn confirm_submit(
     .await;
     let hold_token = match hold {
         Ok((_, Json(hold))) => hold.hold_token,
-        Err(_) => return slot_unavailable_page(),
+        Err(_) => {
+            send_password_setup_email(&state, user_id, email).await;
+            return slot_unavailable_page(&ctx.h1, &ctx.canonical_path, true);
+        }
     };
 
     let booking = create_booking(
@@ -291,14 +368,15 @@ pub async fn confirm_submit(
             slot_id,
             hold_token,
             idempotency_key: None,
-            motif: None,
+            motif,
             on_behalf_of: None,
         }),
     )
     .await;
 
     if booking.is_err() {
-        return slot_unavailable_page();
+        send_password_setup_email(&state, user_id, email).await;
+        return slot_unavailable_page(&ctx.h1, &ctx.canonical_path, true);
     }
 
     send_password_setup_email(&state, user_id, email).await;
@@ -372,7 +450,8 @@ fn confirmation_body(
   <span class="stp">Confirmé</span>
 </div>
 <div class="context">
-  <p><strong>{h1}</strong>{subtitle_suffix} — rendez-vous du {day_label} à {hhmm}. Votre créneau est retenu pendant 10 minutes. Créez votre compte Nubia pour confirmer le rendez-vous — vous pourrez ensuite gérer vos rendez-vous, documents et devis depuis le même compte, sans inscription supplémentaire.</p>
+  <p><strong>{h1}</strong>{subtitle_suffix} — rendez-vous du {day_label} à {hhmm}.</p>
+  <p>Ce créneau est encore disponible : il sera réservé à votre nom dès que vous aurez validé ce formulaire. Créez votre compte Nubia pour confirmer le rendez-vous — vous pourrez ensuite gérer vos rendez-vous, documents et devis depuis le même compte, sans inscription supplémentaire.</p>
 </div>
 <form method="post" action="/reservation/confirmer" class="grp">
   <input type="hidden" name="providerId" value="{provider_id}">
@@ -382,8 +461,9 @@ fn confirmation_body(
   <div class="fi"><label for="naissance">Date de naissance</label><input id="naissance" name="naissance" type="date" required></div>
   <div class="fi"><label for="telephone">Téléphone mobile</label><input id="telephone" name="telephone" type="tel" required></div>
   <div class="fi full"><label for="email">Email</label><input id="email" name="email" type="email" required></div>
+  <div class="fi full"><label for="motif">Motif de la consultation (facultatif)</label><textarea id="motif" name="motif" rows="2" maxlength="500"></textarea></div>
+  <div class="ck"><input id="consentement" type="checkbox" name="consentement" value="on" required><label for="consentement">Je crée mon compte Nubia et j'accepte ses conditions d'utilisation.</label></div>
   <button type="submit">Confirmer le rendez-vous</button>
-  <p class="muted">En confirmant, vous créez un compte Nubia et acceptez ses conditions d'utilisation.</p>
 </form>
 <p><a href="{provider_path}">Choisir un autre créneau avec {h1}</a></p>"#,
         h1 = escape(h1),
@@ -400,50 +480,97 @@ fn confirmation_body(
     )
 }
 
-/// `providerId`/`slotId` absents de la query : le visiteur est arrivé
-/// directement sur cette URL sans passer par une fiche praticien. Un lien
-/// réel vers l'accueil, pas un cul-de-sac (#7073).
+/// `providerId`/`slotId` absents de la query (ou UUID malformés) : le
+/// visiteur est arrivé directement sur cette URL sans passer par une fiche
+/// praticien. 404 (#6954 : « sans paramètre → 404 ») avec un lien réel vers
+/// la recherche, pas un cul-de-sac (#7073).
 fn no_selection_page() -> Response {
-    let body = r#"<h1>Vos informations</h1>
+    let body = r#"<h1>Aucun créneau sélectionné</h1>
 <div class="context">
-  <p>Aucun créneau sélectionné. Choisissez d'abord un praticien et un horaire depuis la recherche.</p>
+  <p>Choisissez d'abord un praticien et un horaire depuis la recherche.</p>
 </div>
-<p><a href="/">Retour à l'accueil</a></p>"#;
+<p><a href="/">Rechercher un praticien</a></p>"#;
     let meta = PageMeta::new(
         "Dernière étape avant la confirmation de votre rendez-vous Nubia.",
         "/reservation/confirmer",
     )
     .robots("noindex, follow");
-    page("Confirmer votre rendez-vous — Nubia", &meta, body).into_response()
+    (
+        StatusCode::NOT_FOUND,
+        page("Confirmer votre rendez-vous — Nubia", &meta, body),
+    )
+        .into_response()
 }
 
-/// `providerId`/`slotId` fournis mais introuvables (créneau déjà pris,
-/// praticien retiré de l'annuaire, identifiants invalides) : même logique de
-/// repli que `provider_page::not_found`, pas un état vide silencieux.
-fn slot_unavailable_page() -> Response {
-    let body = r#"<h1>Ce créneau n'est plus disponible</h1>
+/// `providerId` inconnu ou retiré de l'annuaire : même repli que
+/// `provider_page::not_found` (404, existence masquée).
+fn provider_not_found_page() -> Response {
+    let body = r#"<h1>Praticien introuvable</h1>
 <div class="context">
-  <p>Il a peut-être déjà été réservé par un autre patient. Choisissez un autre horaire.</p>
+  <p>Ce profil n'existe pas ou n'est plus référencé dans l'annuaire Nubia.</p>
 </div>
-<p><a href="/">Retour à l'accueil</a></p>"#;
+<p><a href="/">Rechercher un praticien</a></p>"#;
     let meta = PageMeta::new(
-        "Dernière étape avant la confirmation de votre rendez-vous Nubia.",
+        "Ce profil n'existe pas ou n'est plus référencé dans l'annuaire Nubia.",
         "/reservation/confirmer",
     )
     .robots("noindex, follow");
-    page("Confirmer votre rendez-vous — Nubia", &meta, body).into_response()
+    (
+        StatusCode::NOT_FOUND,
+        page("Praticien introuvable — Nubia", &meta, body),
+    )
+        .into_response()
+}
+
+/// Créneau perdu : déjà réservé, retenu par un autre visiteur, hold expiré,
+/// passé, ou créneau d'un autre praticien que `providerId`. 410 Gone (le
+/// lien était valide, il ne l'est plus) et retour vers la fiche du
+/// praticien — jamais « votre créneau est retenu ». `account_created` :
+/// le compte venait d'être créé au `POST` quand le créneau a été perdu ;
+/// on le dit, et l'email de choix du mot de passe est déjà parti.
+fn slot_unavailable_page(
+    provider_name: &str,
+    provider_path: &str,
+    account_created: bool,
+) -> Response {
+    let account_note = if account_created {
+        "<p>Votre compte Nubia a bien été créé : vous allez recevoir un email pour choisir votre mot de passe, et vous pourrez réserver un autre créneau.</p>"
+    } else {
+        ""
+    };
+    let body = format!(
+        r#"<h1>Ce créneau n'est plus disponible</h1>
+<div class="context">
+  <p>Il a peut-être déjà été réservé par un autre patient. Choisissez un autre horaire avec {provider_name}.</p>
+  {account_note}
+</div>
+<p><a href="{provider_path}">Choisir un autre créneau avec {provider_name}</a></p>
+<p><a href="/">Rechercher un autre praticien</a></p>"#,
+        provider_name = escape(provider_name),
+        provider_path = escape(provider_path),
+    );
+    let meta = PageMeta::new(
+        "Ce créneau n'est plus disponible — choisissez un autre horaire.",
+        "/reservation/confirmer",
+    )
+    .robots("noindex, follow");
+    (
+        StatusCode::GONE,
+        page("Créneau plus disponible — Nubia", &meta, &body),
+    )
+        .into_response()
 }
 
 /// Champs personnels manquants ou invalides côté serveur (#7080 point C
 /// appliqué au `POST` : le navigateur bloque déjà cette soumission via
-/// `required`, ce repli couvre la requête directe/rejouée). Renvoie vers le
-/// même praticien/créneau plutôt qu'un cul-de-sac, pour que le visiteur
-/// puisse corriger sans tout recommencer.
+/// `required`, ce repli couvre la requête directe/rejouée). 422, et renvoie
+/// vers le même praticien/créneau plutôt qu'un cul-de-sac, pour que le
+/// visiteur puisse corriger sans tout recommencer. Rien n'a été écrit.
 fn invalid_submission_page(provider_id: Uuid, slot_id: Uuid) -> Response {
     let body = format!(
         r#"<h1>Vos informations</h1>
 <div class="context">
-  <p>Certaines informations sont manquantes ou invalides. Merci de vérifier le formulaire.</p>
+  <p>Certaines informations sont manquantes ou invalides (tous les champs sont requis, ainsi que l'acceptation des conditions d'utilisation). Merci de vérifier le formulaire.</p>
 </div>
 <p><a href="/reservation/confirmer?providerId={provider_id}&amp;slotId={slot_id}">Revenir au formulaire</a></p>"#
     );
@@ -452,7 +579,11 @@ fn invalid_submission_page(provider_id: Uuid, slot_id: Uuid) -> Response {
         "/reservation/confirmer",
     )
     .robots("noindex, follow");
-    page("Confirmer votre rendez-vous — Nubia", &meta, &body).into_response()
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        page("Confirmer votre rendez-vous — Nubia", &meta, &body),
+    )
+        .into_response()
 }
 
 /// L'email saisi correspond déjà à un compte Nubia — on ne peut pas y
@@ -472,7 +603,11 @@ fn existing_account_page(provider_path: &str) -> Response {
         "/reservation/confirmer",
     )
     .robots("noindex, follow");
-    page("Confirmer votre rendez-vous — Nubia", &meta, &body).into_response()
+    (
+        StatusCode::CONFLICT,
+        page("Confirmer votre rendez-vous — Nubia", &meta, &body),
+    )
+        .into_response()
 }
 
 /// Écran 4 (« Confirmé ») : compte créé, créneau réservé.
@@ -512,6 +647,14 @@ fn booking_confirmed_body(
 mod tests {
     use super::*;
 
+    async fn html_of(response: Response) -> (StatusCode, String) {
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (status, String::from_utf8(body.to_vec()).unwrap())
+    }
+
     #[test]
     fn confirmation_body_shows_the_chosen_provider_and_slot() {
         let body = confirmation_body(
@@ -529,6 +672,26 @@ mod tests {
         assert!(body.contains("<form"));
         assert!(body.contains("<button type=\"submit\">"));
         assert!(body.contains(r#"href="/dr-amelie-dubois""#));
+    }
+
+    #[test]
+    fn confirmation_body_never_claims_the_slot_is_held_and_requires_consent() {
+        // #6954 / #6826 / #6733 : aucun hold n'existe au GET (il faut un
+        // compte pour en poser un) — la page ne doit pas le prétendre.
+        let body = confirmation_body(
+            "Dr Amélie Dubois",
+            "",
+            "Mar. 11 août",
+            "08:00",
+            Uuid::nil(),
+            Uuid::nil(),
+            "/dr-amelie-dubois",
+        );
+        assert!(!body.to_lowercase().contains("retenu"));
+        assert!(body.contains("encore disponible"));
+        assert!(body.contains(r#"type="checkbox" name="consentement""#));
+        assert!(body.contains(r#"name="motif""#));
+        assert!(!body.contains("<script"));
     }
 
     #[test]
@@ -563,25 +726,49 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn no_selection_page_links_home() {
-        let response = no_selection_page();
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let html = String::from_utf8(body.to_vec()).unwrap();
-        assert!(html.contains(r#"<a href="/">Retour à l'accueil</a>"#));
-        assert!(html.contains("<h1>Vos informations</h1>"));
+    async fn no_selection_page_is_404_and_links_to_search() {
+        let (status, html) = html_of(no_selection_page()).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(html.contains(r#"<a href="/">Rechercher un praticien</a>"#));
+        assert!(html.contains("<h1>Aucun créneau sélectionné</h1>"));
+        assert!(!html.contains("<form"));
+        assert!(!html.to_lowercase().contains("retenu"));
     }
 
     #[tokio::test]
-    async fn slot_unavailable_page_explains_and_links_home() {
-        let response = slot_unavailable_page();
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let html = String::from_utf8(body.to_vec()).unwrap();
+    async fn provider_not_found_page_is_404() {
+        let (status, html) = html_of(provider_not_found_page()).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(html.contains("Praticien introuvable"));
+        assert!(html.contains(r#"href="/""#));
+    }
+
+    #[tokio::test]
+    async fn slot_unavailable_page_is_410_and_links_back_to_the_provider() {
+        let (status, html) = html_of(slot_unavailable_page(
+            "Dr Amélie Dubois",
+            "/dr-amelie-dubois",
+            false,
+        ))
+        .await;
+        assert_eq!(status, StatusCode::GONE);
         assert!(html.contains("n'est plus disponible"));
-        assert!(html.contains(r#"<a href="/">Retour à l'accueil</a>"#));
+        assert!(html.contains(r#"href="/dr-amelie-dubois""#));
+        assert!(html.contains(r#"href="/""#));
+        assert!(!html.contains("compte Nubia a bien été créé"));
+        assert!(!html.to_lowercase().contains("retenu"));
+    }
+
+    #[tokio::test]
+    async fn slot_unavailable_page_mentions_the_freshly_created_account() {
+        let (status, html) = html_of(slot_unavailable_page(
+            "Dr Amélie Dubois",
+            "/dr-amelie-dubois",
+            true,
+        ))
+        .await;
+        assert_eq!(status, StatusCode::GONE);
+        assert!(html.contains("compte Nubia a bien été créé"));
     }
 
     #[test]
@@ -595,25 +782,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn invalid_submission_page_links_back_to_the_same_provider_and_slot() {
+    async fn invalid_submission_page_is_422_and_links_back_to_the_same_provider_and_slot() {
         let provider_id = Uuid::new_v4();
         let slot_id = Uuid::new_v4();
-        let response = invalid_submission_page(provider_id, slot_id);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let html = String::from_utf8(body.to_vec()).unwrap();
+        let (status, html) = html_of(invalid_submission_page(provider_id, slot_id)).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert!(html.contains(&format!("providerId={provider_id}")));
         assert!(html.contains(&format!("slotId={slot_id}")));
     }
 
     #[tokio::test]
-    async fn existing_account_page_links_back_to_the_provider() {
-        let response = existing_account_page("/dr-amelie-dubois");
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let html = String::from_utf8(body.to_vec()).unwrap();
+    async fn existing_account_page_is_409_and_links_back_to_the_provider() {
+        let (status, html) = html_of(existing_account_page("/dr-amelie-dubois")).await;
+        assert_eq!(status, StatusCode::CONFLICT);
         assert!(html.contains("compte existe déjà"));
         assert!(html.contains(r#"href="/dr-amelie-dubois""#));
     }

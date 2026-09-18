@@ -35,8 +35,21 @@ Détail complet (contexte, alternatives, conséquences) : `docs/04-architecture.
 - **Aucune donnée de santé exposée** : ces pages ne montrent que l'annuaire public (déjà couvert par
   ADR-011) — nom, spécialité, secteur, créneaux disponibles. Rien de clinique.
 
-## Périmètre volontairement hors de ce module
+## Page de confirmation (`/reservation/confirmer`)
 
-Le formulaire d'identité et le compte à rebours du hold (page confirmation) nécessitent du JS une fois la
-page chargée — seul le HTML initial (titre, paragraphe de contexte, contrat de la page) doit rester
-indexable sans JS ; l'interactivité du formulaire est hors scope de cette page vitrine.
+- `GET ?providerId=…&slotId=…` : résout le praticien (`marketplace::get_provider`) et le créneau
+  (`marketplace::search_slots`, mêmes fonctions que les pages amont), affiche le récapitulatif réel
+  (praticien, date, heure) et un **formulaire HTML classique** (prénom, nom, naissance, téléphone, email,
+  motif facultatif, case de consentement) — sans aucun JS (CSP du tunnel).
+- `POST` (corps `application/x-www-form-urlencoded`) : crée le compte patient, pose le hold puis la
+  réservation en appelant directement `auth::register::create_patient_account`, `marketplace::hold_slot`
+  et `bookings::create_booking` — exactement le funnel de l'app patient, aucune logique dupliquée. Un email
+  de définition de mot de passe est envoyé (mécanisme de `POST /v1/auth/password/forgot`).
+- **Hold** : `slot_holds.user_id` est `NOT NULL → app_user`, un hold n'existe donc qu'au nom d'un compte.
+  Le `GET` ne pose rien et la page ne dit jamais « votre créneau est retenu » (#6954/#6826/#6733) : elle
+  annonce un créneau *disponible* qui sera réservé à la validation.
+- Replis : sans `providerId`/`slotId` (ou UUID malformés) → **404** + lien vers la recherche ; praticien
+  inconnu → **404** ; créneau perdu (pris, retenu par un autre visiteur, hold expiré, passé, créneau d'un
+  autre praticien) → **410** + lien retour vers la fiche du praticien ; formulaire incomplet ou sans
+  consentement → **422** (rien n'est écrit) ; email déjà associé à un compte → **409**.
+- Tests d'intégration : `api/tests/web_tunnel_confirm.rs`.

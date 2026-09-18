@@ -135,6 +135,9 @@ a { color: var(--brand-700); }
 .grp { background: #fff; border: 1px solid var(--n-200); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; display: flex; flex-direction: column; gap: .75rem; }
 .grp .fi { display: flex; flex-direction: column; gap: .25rem; }
 .grp .fi input { height: 2.5rem; border: 1px solid var(--n-200); border-radius: 8px; padding: 0 .75rem; font: inherit; }
+.grp .fi textarea { border: 1px solid var(--n-200); border-radius: 8px; padding: .5rem .75rem; font: inherit; resize: vertical; }
+.grp .ck { display: flex; gap: .5rem; align-items: flex-start; font-size: .9rem; }
+.grp .ck input { margin-top: .2rem; }
 .grp button { height: 2.75rem; border: none; border-radius: 10px; background: var(--brand-700); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
 "#;
 
