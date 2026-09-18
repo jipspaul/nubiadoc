@@ -219,6 +219,12 @@ pub(crate) enum AppError {
     /// rattaché à un autre patient (ou une autre séance) — usage unique,
     /// pas de « ré-affectation » silencieuse d'un sachet ouvert.
     PouchAlreadyUsed,
+    /// `POST /v1/sterilization/pouches/:code/use` (#7243) : le sachet
+    /// provient d'un `sterilization_cycle` enregistré `non_conforme` — même
+    /// signal que celui imprimé sur l'étiquette (« CYCLE NON CONFORME - ne
+    /// pas utiliser »), refusé pour usage sur un patient plutôt que tracé
+    /// avec un `200` muet.
+    PouchCycleNonConforme,
     /// `POST /v1/cabinet/sterilization-cycles` (#4489) : `(autoclave_ref,
     /// cycle_number)` déjà utilisé dans ce cabinet (index unique
     /// `(cabinet_id, autoclave_ref, cycle_number)`, migration 0202) — même
@@ -541,6 +547,11 @@ impl IntoResponse for AppError {
             AppError::PouchAlreadyUsed => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "pouch_already_used"})),
+            )
+                .into_response(),
+            AppError::PouchCycleNonConforme => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "pouch_cycle_non_conforme"})),
             )
                 .into_response(),
             AppError::SterilizationCycleNumberAlreadyUsed => (

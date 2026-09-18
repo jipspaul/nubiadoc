@@ -565,6 +565,42 @@ async fn use_pouch_is_tenant_isolated() {
     cleanup(&db, &f_a).await;
 }
 
+// ── #7243 : un sachet d'un cycle `non_conforme` ne doit jamais être posable ───
+// sur un patient — même signal que celui imprimé sur l'étiquette.
+
+#[tokio::test]
+async fn use_pouch_rejects_non_conforme_cycle() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db, 1).await;
+    sqlx::query("UPDATE sterilization_cycle SET status = 'non_conforme' WHERE id = $1")
+        .bind(f.cycle_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+    let code = f.pouch_codes[0].clone();
+
+    let (status, body) = use_pouch(&token, &code, json!({"patient_id": f.patient_id})).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(body["code"], "pouch_cycle_non_conforme");
+
+    // Rien n'est écrit : le sachet reste vierge.
+    let patient: Option<Uuid> = sqlx::query_scalar(
+        "SELECT patient_id FROM sterilized_pouch WHERE cabinet_id = $1 AND code = $2",
+    )
+    .bind(f.cabinet_id)
+    .bind(&code)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert!(patient.is_none());
+
+    cleanup(&db, &f).await;
+}
+
 // ── #7244 : la traçabilité patient/séance posée par `use` doit être relue ─────
 // par `GET /v1/cabinet/sterilization-cycles/{id}/pouches` (migration 0269),
 // sinon un sachet utilisé ressort comme neuf.
