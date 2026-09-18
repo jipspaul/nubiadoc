@@ -190,13 +190,37 @@ pub async fn export_implant_passport(
         (format!("implant-passport/{}.pdf", claims.account_id), items)
     };
 
+    // Nom du porteur affiché sur le PDF (#7227) — plutôt que l'UUID technique
+    // du compte, cf. `patient_name` de `render_prescription_pdf`
+    // (`prescriptions.rs:422`). `app.current_account_id` est déjà posé
+    // ci-dessus au compte authentifié (lecture de sa propre fiche).
+    // `fetch_optional` (pas `fetch_one`) : repli sur l'identifiant technique
+    // dans le cas dégénéré où le token ne référence aucune fiche `patient_account`
+    // — ne doit jamais se produire en production (un token patient suppose un
+    // compte déjà créé), mais évite un 500 plutôt qu'un simple manque d'affichage.
+    let account_row = sqlx::query(
+        "SELECT first_name, last_name FROM patient_account WHERE id = $1",
+    )
+    .bind(claims.account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let patient_name = match account_row {
+        Some(row) => {
+            let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+            let last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+            format!("{} {}", first_name, last_name)
+        }
+        None => claims.account_id.to_string(),
+    };
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     // Génère le PDF (contenu réel) puis l'uploade dans l'Object Storage via
     // le client injecté (Postgres en prod, in-memory en test) — `storage_key`
     // référence désormais un objet effectivement écrit, plus une clé fantôme
     // (#6461, même correctif que `sign_prescription`/#4626).
-    let pdf_bytes = render_implant_passport_pdf(claims.account_id, &items);
+    let pdf_bytes = render_implant_passport_pdf(&patient_name, &items);
     object_storage
         .upload(&storage_key, "application/pdf", pdf_bytes)
         .await
@@ -223,22 +247,29 @@ pub async fn export_implant_passport(
         .map_err(|_| AppError::Internal)
 }
 
+/// Convertit une date ISO (`YYYY-MM-DD`, format de `ImplantItem::placement_date`,
+/// cf. `NaiveDate::to_string()` en `:58`) en date lisible `JJ/MM/AAAA` pour
+/// l'affichage PDF (#7227, même contrat que `format_paris_date` de
+/// `scheduling.rs` pour les deux autres générateurs — sans conversion de fuseau
+/// horaire ici, `placement_date` étant une date calendaire pure, pas un instant UTC).
+fn format_placement_date_fr(iso_date: &str) -> String {
+    chrono::NaiveDate::parse_from_str(iso_date, "%Y-%m-%d")
+        .map(|d| d.format("%d/%m/%Y").to_string())
+        .unwrap_or_else(|_| iso_date.to_string())
+}
+
 /// Génère le contenu binaire (PDF minimal valide) du passeport implantaire.
 ///
 /// Même approche que `render_prescription_pdf` (`prescriptions.rs`) : pas de
 /// dépendance externe (crate PDF), structure `%PDF-1.4` minimale suffisante
 /// pour obtenir un document ouvrable par n'importe quel lecteur, avec un
-/// contenu réel et non nul.
-fn render_implant_passport_pdf(account_id: Uuid, items: &[ImplantItem]) -> Vec<u8> {
-    let escape = |s: &str| {
-        s.replace('\\', "\\\\")
-            .replace('(', "\\(")
-            .replace(')', "\\)")
-    };
-
+/// contenu réel et non nul. Encodage `/WinAnsiEncoding` mono-octet via
+/// `escape_winansi` (#7117/#7125) — sinon tout caractère accentué (marque,
+/// référence, lot du dispositif) est rendu en mojibake par un lecteur PDF.
+fn render_implant_passport_pdf(patient_name: &str, items: &[ImplantItem]) -> Vec<u8> {
     let mut lines: Vec<String> = vec![
         "Passeport implantaire".to_string(),
-        format!("Compte patient : {}", account_id),
+        format!("Patient : {}", patient_name),
         String::new(),
     ];
     if items.is_empty() {
@@ -250,7 +281,10 @@ fn render_implant_passport_pdf(account_id: Uuid, items: &[ImplantItem]) -> Vec<u
             line.push_str(&format!(" ({})", tooth_position));
         }
         if let Some(placement_date) = &item.placement_date {
-            line.push_str(&format!(" - Pose le {}", placement_date));
+            line.push_str(&format!(
+                " - Pose le {}",
+                format_placement_date_fr(placement_date)
+            ));
         }
         if let Some(lot_number) = &item.lot_number {
             line.push_str(&format!(" - Lot {}", lot_number));
@@ -258,45 +292,54 @@ fn render_implant_passport_pdf(account_id: Uuid, items: &[ImplantItem]) -> Vec<u
         lines.push(line);
     }
 
-    let mut content = String::from("BT /F1 12 Tf 50 780 Td 14 TL\n");
+    let mut content: Vec<u8> = b"BT /F1 12 Tf 50 780 Td 14 TL\n".to_vec();
     for line in &lines {
-        content.push_str(&format!("({}) Tj T*\n", escape(line)));
+        content.push(b'(');
+        content.extend(crate::prescriptions::escape_winansi(line));
+        content.extend_from_slice(b") Tj T*\n");
     }
-    content.push_str("ET");
+    content.extend_from_slice(b"ET");
 
-    let objects = [
-        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
-        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
-        "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> \
+    let objects: Vec<Vec<u8>> = vec![
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> \
          /MediaBox [0 0 595 842] /Contents 4 0 R >>"
-            .to_string(),
-        format!(
-            "<< /Length {} >>\nstream\n{}\nendstream",
-            content.len(),
-            content
-        ),
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+            .to_vec(),
+        {
+            let mut obj = format!("<< /Length {} >>\nstream\n", content.len()).into_bytes();
+            obj.extend_from_slice(&content);
+            obj.extend_from_slice(b"\nendstream");
+            obj
+        },
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+            .to_vec(),
     ];
 
-    let mut pdf = String::from("%PDF-1.4\n");
+    let mut pdf: Vec<u8> = b"%PDF-1.4\n".to_vec();
     let mut offsets = Vec::with_capacity(objects.len());
     for (i, obj) in objects.iter().enumerate() {
         offsets.push(pdf.len());
-        pdf.push_str(&format!("{} 0 obj\n{}\nendobj\n", i + 1, obj));
+        pdf.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+        pdf.extend_from_slice(obj);
+        pdf.extend_from_slice(b"\nendobj\n");
     }
     let xref_offset = pdf.len();
-    pdf.push_str(&format!("xref\n0 {}\n", objects.len() + 1));
-    pdf.push_str("0000000000 65535 f \n");
+    pdf.extend_from_slice(format!("xref\n0 {}\n", objects.len() + 1).as_bytes());
+    pdf.extend_from_slice(b"0000000000 65535 f \n");
     for off in &offsets {
-        pdf.push_str(&format!("{:010} 00000 n \n", off));
+        pdf.extend_from_slice(format!("{:010} 00000 n \n", off).as_bytes());
     }
-    pdf.push_str(&format!(
-        "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{}\n%%EOF",
-        objects.len() + 1,
-        xref_offset
-    ));
+    pdf.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{}\n%%EOF",
+            objects.len() + 1,
+            xref_offset
+        )
+        .as_bytes(),
+    );
 
-    pdf.into_bytes()
+    pdf
 }
 
 // ── GET /v1/cabinet/patients/:id/implants ──────────────────────────────────
