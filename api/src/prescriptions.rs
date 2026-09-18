@@ -315,6 +315,9 @@ pub struct SignPrescriptionResponse {
 /// Comportement :
 /// - Prescription inexistante ou hors tenant → 404.
 /// - Prescription en statut autre que `draft` → 409 (invalid_status).
+/// - Signatures concurrentes (double-submit, #7012/#6794) : sérialisées par
+///   `SELECT … FOR UPDATE` — exactement une aboutit (200), les autres
+///   reçoivent le même 409 `invalid_status` qu'en séquentiel, jamais un 5xx.
 /// - Transitions : `draft` → `signed`, `signed_at` positionné.
 /// - Crée une entrée `signature` (Yousign stub — NUB-T3 : appel réel) et
 ///   un `document(category='ordonnance')` dans le coffre-fort du patient.
@@ -336,10 +339,19 @@ pub async fn sign_prescription(
         .map_err(|_| AppError::Internal)?;
 
     // Lecture de la prescription — 404 si hors tenant (RLS fail-closed).
+    // Verrou `FOR UPDATE` (même pattern que `payment_schedules.rs` /
+    // `cabinet_payments_manual.rs::create_manual_payment`, #4311/#4573) :
+    // sérialise les signatures concurrentes d'une même ordonnance. Sans lui,
+    // la garde `status == 'draft'` ci-dessous était un read-then-write —
+    // N double-submits lisaient tous `draft`, émettaient N signatures eIDAS
+    // et N PDF dans le coffre du patient dont N-1 orphelins (#7012, #6794).
+    // Le perdant relit la ligne déjà `signed` après le COMMIT du gagnant et
+    // reçoit le même `409 invalid_status` qu'un second appel séquentiel.
     let row = sqlx::query(
         "SELECT id, patient_id, practitioner_id, status, created_at \
          FROM prescription \
-         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL \
+         FOR UPDATE",
     )
     .bind(prescription_id)
     .bind(claims.cabinet_id)
@@ -503,20 +515,25 @@ pub async fn sign_prescription(
 
     let document_id: Uuid = doc_row.try_get("id").map_err(|_| AppError::Internal)?;
 
-    // Transition de statut : draft → signed.
+    // Transition de statut : draft → signed. L'UPDATE re-teste `status =
+    // 'draft'` (défense en profondeur derrière le verrou) : 0 ligne = quelqu'un
+    // a signé entre-temps → 409 déterministe, jamais un 5xx ; la transaction
+    // est annulée, donc la `signature` et le `document` insérés ci-dessus
+    // ne survivent pas (pas d'orphelin).
     let update_row = sqlx::query(
         "UPDATE prescription \
          SET status = 'signed', signature_id = $1, document_id = $2, signed_at = now() \
-         WHERE id = $3 AND cabinet_id = $4 \
+         WHERE id = $3 AND cabinet_id = $4 AND status = 'draft' \
          RETURNING signed_at",
     )
     .bind(signature_id)
     .bind(document_id)
     .bind(prescription_id)
     .bind(claims.cabinet_id)
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await
-    .map_err(|_| AppError::Internal)?;
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::InvalidStatus)?;
 
     let signed_at: chrono::DateTime<chrono::Utc> = update_row
         .try_get("signed_at")
