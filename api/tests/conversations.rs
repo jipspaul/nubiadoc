@@ -3054,3 +3054,98 @@ async fn conversations_read_marks_messages_and_returns_204() {
         .await
         .ok();
 }
+
+// ── Test : borne haute du corps d'un message → 422 au-delà (#7275) ────────────
+
+#[tokio::test]
+async fn conversations_send_message_over_max_len_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let cabinet_id = setup_listed_cabinet(&db).await;
+    let (user_id, account_id) = setup_patient(&db).await;
+    let patient_id = setup_patient_link(&db, cabinet_id, account_id).await;
+
+    let conv_id = Uuid::new_v4();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO conversation (id, cabinet_id, patient_id) VALUES ($1, $2, $3)")
+            .bind(conv_id)
+            .bind(cabinet_id)
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let too_long = "Z".repeat(4_001);
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/conversations/{}/messages", conv_id))
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::from(json!({ "body": too_long }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Vérifie que rien n'a été inséré.
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM message WHERE conversation_id = $1")
+        .bind(conv_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucun message ne doit être inséré au-delà de la borne"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for q in &[
+            ("DELETE FROM conversation WHERE id = $1", conv_id),
+            ("DELETE FROM patient WHERE id = $1", patient_id),
+            ("DELETE FROM cabinet WHERE id = $1", cabinet_id),
+        ] {
+            sqlx::query(q.0).bind(q.1).execute(&mut *tx).await.ok();
+        }
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
