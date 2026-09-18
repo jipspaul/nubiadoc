@@ -491,8 +491,11 @@ Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue →
 | POST | `/v1/cabinet/quotes/{id}/send` | practitioner | Envoyer au patient pour signature. |
 | GET | `/v1/cabinet/quotes/{id}` | pro | Statut signature/paiement. |
 | POST | `/v1/cabinet/quotes/{id}/remind` | pro | Relancer (acompte/signature). |
+| GET | `/v1/cabinet/opportunities` | secretary+ (secretary/practitioner/manager/admin) | Vue « opportunités du moment » du cabinet (widget dashboard Dental Pilot, `DP-F1.a` #7214). |
 
 `POST /v1/cabinet/quotes` — body : `{ patient_id, plan_id?, items:[{ label, ccam_code?, tooth?, qty, unit_amount_cents, amo_part_cents?, amc_part_cents? }], deposit_pct? }`. → `201`. **Reste à charge** = calculé (`unit_amount − amo − amc`). Un devis **signé** : `PATCH`/`send` → `409 quote_locked` (`06` E5.1).
+
+`GET /v1/cabinet/opportunities` — agrège 5 catégories déjà couvertes individuellement ailleurs (`cabinet_quotes.rs`, `patient_alerts.rs`, `recall_campaigns.rs`) en une seule vue back-office : `quote_sent_no_response` (devis `sent` sans réponse depuis plus de 7 j), `quote_accepted_no_appointment` (devis `signed` sans RDV actif à venir), `unpaid_invoice` (devis `signed` avec solde patient net positif depuis plus de 30 j, même formule que `GET /v1/cabinet/patients/{id}/alerts`), `patient_no_next_appointment` (RDV `done` dans les 30 derniers jours sans RDV actif à venir), `birthday_today` (anniversaire du jour). Réponse : `{ categories: [{ kind, count, total_amount_cents, items: [{ kind, patient_id, patient_name, amount_cents?, since_days?, quote_id? }] }] }` — une entrée par catégorie même vide (`count: 0`).
 
 ---
 
