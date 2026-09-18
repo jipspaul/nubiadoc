@@ -990,6 +990,10 @@ impl FromRequestParts<AppState> for MeClaims {
 ///
 /// Anti-énumération (#3748) : email déjà pris → `201` générique quand même (aucun
 /// compte créé, JWT décoratif sur des IDs jetables), jamais `409 email_taken`.
+///
+/// Validation (#7218) : `email` syntaxiquement invalide, `siret`/`rpps` non
+/// conformes au format réglementaire (14/11 chiffres), ou `raison_sociale`/
+/// `first_name`/`last_name` hors bornes → `422 validation_error`.
 pub async fn pro_register(
     State(state): State<AppState>,
     Json(body): Json<ProRegisterBody>,
@@ -998,10 +1002,23 @@ pub async fn pro_register(
         return Err(AppError::PasswordPolicy);
     }
 
+    // #7218 : cet endpoint est anonyme et crée un tenant complet (admin + cabinet)
+    // sur simple déclaratif — sans validation, un email syntaxiquement invalide
+    // rend le compte irrécupérable (aucun canal de contact) dès le mot de passe
+    // perdu. Mêmes règles que `POST /v1/auth/register` et `POST /v1/cabinet/members`
+    // (#3879) pour l'email, que `POST /v1/account/access-requests` pour la longueur
+    // des noms, et que le format réglementaire RPPS (11 chiffres, cf. `pro_verification`).
+    if !is_valid_email_format(&body.email) {
+        return Err(AppError::ValidationError);
+    }
+
     if body.cabinet.raison_sociale.trim().is_empty()
+        || body.cabinet.raison_sociale.chars().count() > 200
         || body.cabinet.specialite.trim().is_empty()
         || body.practitioner.first_name.trim().is_empty()
+        || body.practitioner.first_name.chars().count() > 100
         || body.practitioner.last_name.trim().is_empty()
+        || body.practitioner.last_name.chars().count() > 100
     {
         return Err(AppError::ValidationError);
     }
@@ -1013,6 +1030,15 @@ pub async fn pro_register(
     // une panne serveur (referme aussi la moitié « SIRET » de #7218).
     if let Some(siret) = &body.cabinet.siret {
         if !siret.is_empty() && (siret.len() != 14 || !siret.chars().all(|c| c.is_ascii_digit())) {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    // RPPS : identifiant réglementaire du praticien, 11 chiffres (même règle que
+    // `POST /v1/pro/verification`). Optionnel ici (vérifié plus tard via ce même
+    // endpoint), mais s'il est fourni il doit être plausible — pas du texte libre.
+    if let Some(rpps) = &body.practitioner.rpps {
+        if !rpps.is_empty() && (rpps.len() != 11 || !rpps.chars().all(|c| c.is_ascii_digit())) {
             return Err(AppError::ValidationError);
         }
     }
