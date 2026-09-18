@@ -211,48 +211,10 @@ class WaitingRoomPage extends StatelessWidget {
       child: Scaffold(
         key: const Key('waiting_room_scaffold'),
         appBar: AppBar(
-          title: Row(
-            children: [
-              Flexible(
-                child: Text(
-                  NubiaL10n.waitingRoom,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
-                  builder: (context, state) => state is WaitingRoomLoaded
-                      ? Row(
-                          children: [
-                            // La pastille de fraîcheur n'a besoin que de sa
-                            // largeur intrinsèque (~120px) : lui donner un
-                            // `Flexible` de flex égal à celui de la barre de
-                            // KPI forçait un partage 50/50 qui rabotait les
-                            // trois libellés même quand la largeur abondait
-                            // (récidive de #6428, #6430 n'avait traité que
-                            // la Row interne). Le ratio 2:1 rend l'essentiel
-                            // de l'espace à la barre de KPI tout en gardant
-                            // la pastille `Flexible` (jamais de débordement,
-                            // même sur une largeur de test très étroite).
-                            Expanded(
-                              flex: 2,
-                              child:
-                                  WaitingRoomKpiBar(entries: state.entries),
-                            ),
-                            const SizedBox(width: 12),
-                            Flexible(
-                              child: _FreshnessIndicator(
-                                loadedAt: state.loadedAt,
-                              ),
-                            ),
-                          ],
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
-            ],
+          title: Text(
+            NubiaL10n.waitingRoom,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           actions: [
             IconButton(
@@ -287,10 +249,58 @@ class WaitingRoomPage extends StatelessWidget {
             ),
           ],
         ),
-        body: const Focus(
+        body: Focus(
           autofocus: true,
-          child: WaitingRoomBody(),
+          child: Column(
+            children: [
+              BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
+                builder: (context, state) => state is WaitingRoomLoaded
+                    ? _WaitingRoomKpiToolbar(
+                        entries: state.entries,
+                        loadedAt: state.loadedAt,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              const Expanded(child: WaitingRoomBody()),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// Bandeau KPI + pastille de fraîcheur, pleine largeur du corps, sous
+/// l'AppBar (#7219) : le loger dans `AppBar.title` l'exposait au partage de
+/// largeur du titre avec les `actions` (bouton Actualiser + CTA « Appeler
+/// … »), qui rabotait les trois libellés même quand la largeur abondait —
+/// troisième récidive du même symptôme (#6428, #6430). Poser le bandeau
+/// dans le corps lui donne toute la largeur de l'écran, sans partage forcé.
+class _WaitingRoomKpiToolbar extends StatelessWidget {
+  const _WaitingRoomKpiToolbar({
+    required this.entries,
+    required this.loadedAt,
+  });
+
+  final List<WaitingRoomEntry> entries;
+  final DateTime loadedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(bottom: BorderSide(color: tokens.borderSubtle)),
+      ),
+      child: Row(
+        children: [
+          Flexible(child: WaitingRoomKpiBar(entries: entries)),
+          const SizedBox(width: 20),
+          Flexible(child: _FreshnessIndicator(loadedAt: loadedAt)),
+        ],
       ),
     );
   }
