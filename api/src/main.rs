@@ -3,9 +3,10 @@ use std::sync::Arc;
 
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{
-    run_dispatch_loop, run_quote_relance_loop, run_slot_hold_expiry_loop,
-    run_visit_offer_expiry_loop, AppState, BrevoMailer, FcmJobDispatcher, LocalStorageSigner,
-    ScalewayStorageSigner, StorageSigner, StubJobDispatcher, TwilioSmsSender, YousignClient,
+    run_access_request_expiry_loop, run_dispatch_loop, run_quote_relance_loop,
+    run_slot_hold_expiry_loop, run_visit_offer_expiry_loop, AppState, BrevoMailer,
+    FcmJobDispatcher, LocalStorageSigner, ScalewayStorageSigner, StorageSigner,
+    StubJobDispatcher, TwilioSmsSender, YousignClient,
 };
 use sqlx::PgPool;
 
@@ -142,6 +143,18 @@ async fn main() -> std::process::ExitCode {
     tokio::spawn(run_slot_hold_expiry_loop(
         state.db.clone(),
         SLOT_HOLD_EXPIRY_INTERVAL,
+    ));
+
+    // Expiration des demandes d'accès « proche adulte » sans réponse
+    // (#7296) : même pattern tokio::spawn que les workers ci-dessus. Seuil de
+    // 30 jours (maquette de référence, note 6 « Une demande expire ») —
+    // intervalle large comme la relance devis, pas besoin d'un balayage
+    // minute par minute sur une fenêtre de plusieurs semaines.
+    const ACCESS_REQUEST_EXPIRY_INTERVAL: std::time::Duration =
+        std::time::Duration::from_secs(6 * 3600);
+    tokio::spawn(run_access_request_expiry_loop(
+        state.db.clone(),
+        ACCESS_REQUEST_EXPIRY_INTERVAL,
     ));
 
     // Pages SSR publiques du tunnel de réservation (#5356) : mêmes routes

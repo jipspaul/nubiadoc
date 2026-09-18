@@ -17,7 +17,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use nubia_api::{app, AppState, StubMailer};
+use nubia_api::{app, dispatch_access_request_expiry, AppState, StubMailer};
 
 const JWT_SECRET: &str = "test-jwt-secret-access-requests";
 
@@ -832,4 +832,75 @@ async fn access_request_is_visible_to_invitee_registered_after_sending() {
 
 fn unique_email(label: &str) -> String {
     format!("{label}+{}@nubia.test", Uuid::new_v4())
+}
+
+// ── Expiration à 30 jours : #7296 ────────────────────────────────────────────
+//
+// La maquette de référence (note 6 « Une demande expire ») promet « une
+// demande sans réponse expire au bout de 30 jours. Vous pourrez en envoyer
+// une nouvelle. » — vérifie les deux moitiés : le statut bascule `expiree`,
+// et l'anti-doublon se relâche pour une ré-invitation du même couple.
+
+#[tokio::test]
+async fn access_request_expires_after_30_days_and_unblocks_duplicate() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (requester_user, requester_account) = create_patient_account(&db, "ar-req-expiry").await;
+    let requester_token = make_patient_jwt(requester_user, requester_account);
+    let invitee_email = unique_email("expiry");
+
+    let body = json!({
+        "first_name": "Claire",
+        "last_name": "Dupont",
+        "relationship": "conjoint",
+        "channel": "email",
+        "scope": ["rendez_vous"],
+        "email": invitee_email,
+    });
+
+    let created = send_request(&requester_token, body.clone()).await;
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let request_id = body_json(created).await["id"].as_str().unwrap().to_string();
+    let request_uuid = Uuid::parse_str(&request_id).unwrap();
+
+    // Doublon bloqué tant que la demande est `envoyee` — comportement déjà
+    // couvert par `access_request_duplicate_active_invite_returns_409`,
+    // revérifié ici comme état de départ.
+    let still_open = send_request(&requester_token, body.clone()).await;
+    assert_eq!(still_open.status(), StatusCode::CONFLICT);
+
+    // Backdate `sent_at` de 31 jours : au-delà du seuil des 30 jours.
+    sqlx::query(
+        "UPDATE account_access_request SET sent_at = now() - interval '31 days' WHERE id = $1",
+    )
+    .bind(request_uuid)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Le reaper tourne sous nubia_app, hors de tout contexte de requête —
+    // comme la boucle `tokio::spawn` de main.rs.
+    let summary = dispatch_access_request_expiry(&app_pool().await)
+        .await
+        .unwrap();
+    assert!(
+        summary.expired >= 1,
+        "le reaper doit compter au moins la demande expirée de ce test"
+    );
+
+    let list = get_json(&requester_token, "/v1/account/access-requests").await;
+    let item = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|it| it["id"] == request_id)
+        .expect("la demande expirée doit rester visible côté demandeur");
+    assert_eq!(item["status"], "expiree");
+
+    // Seconde moitié de la promesse : « vous pourrez en envoyer une
+    // nouvelle » — l'anti-doublon ne doit plus bloquer ce couple.
+    let retried = send_request(&requester_token, body).await;
+    assert_eq!(retried.status(), StatusCode::CREATED);
 }

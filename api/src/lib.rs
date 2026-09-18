@@ -12,6 +12,10 @@ use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
+pub use access_request_expiry::{
+    dispatch_access_request_expiry, run_access_request_expiry_loop, AccessRequestExpiryError,
+    AccessRequestExpirySummary,
+};
 pub use brevo_mailer::BrevoMailer;
 pub use fcm::FcmJobDispatcher;
 pub use local_storage_signer::LocalStorageSigner;
@@ -45,6 +49,7 @@ pub use visit_offer_expiry::{
 };
 pub use yousign_client::YousignClient;
 
+mod access_request_expiry;
 mod appointment_motifs;
 mod appointment_series;
 mod appointment_time_guards;
