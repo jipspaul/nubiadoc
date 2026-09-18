@@ -755,6 +755,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListStockItemsUseCase(gi()))
     ..registerFactory(() => AddStockMovementUseCase(gi()))
     ..registerFactory(() => ListLabWorkOrdersUseCase(gi()))
+    ..registerFactory(() => ListTodayLabWorkOrdersUseCase(gi()))
     ..registerFactory(() => UpdateLabWorkOrderStatusUseCase(gi()))
     ..registerFactory(() => ListCabinetTasksUseCase(gi()))
     ..registerFactory(() => CreateCabinetTaskUseCase(gi()))

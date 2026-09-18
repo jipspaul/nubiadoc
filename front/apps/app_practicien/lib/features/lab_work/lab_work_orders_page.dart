@@ -5,28 +5,34 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'lab_work_order_due.dart';
 import 'lab_work_order_metrics.dart';
+import 'lab_work_order_status_style.dart';
 import 'lab_work_orders_bloc.dart';
 import 'lab_work_orders_event.dart';
 import 'lab_work_orders_state.dart';
 
-/// Ordre de progression (miroir de `STATUS_ORDER`, `api/src/lab_work_orders.rs`,
-/// #4148) — sert à la fois au groupement de l'affichage et au calcul du
-/// prochain statut proposé par le bouton "Avancer".
+/// Ordre de progression des 4 colonnes affichées (#4148) — sert à la fois au
+/// groupement de l'affichage et au calcul du prochain statut proposé par le
+/// bouton "Avancer". Distinct de `STATUS_ORDER` côté API
+/// (`api/src/lab_work_orders.rs`, #7208) qui intercale `in_progress`/
+/// `shipped`/`received` avant `try_in` : ces 3 statuts d'expédition
+/// (migration 0274, #7209) restent groupés dans la colonne "sent" (cf.
+/// [_columnOf]) — 4 colonnes visuelles, pas 7.
 const _kStatusOrder = ['sent', 'try_in', 'returned', 'fitted'];
 
-const _kStatusLabels = <String, String>{
-  'sent': 'Envoyé au labo',
-  'try_in': 'Essayage',
-  'returned': 'Retourné',
-  'fitted': 'Posé',
-};
+/// Statuts d'expédition/fabrication (#7209) précédant `try_in` — non
+/// atteignables via le bouton "Avancer" (rang absent de [_kStatusOrder]),
+/// réglables individuellement via [_ExpeditionStatusChips].
+const _kExpeditionStatuses = ['sent', 'in_progress', 'shipped', 'received'];
 
-const _kStatusVariants = <String, StatusPillVariant>{
-  'sent': StatusPillVariant.info,
-  'try_in': StatusPillVariant.warning,
-  'returned': StatusPillVariant.warning,
-  'fitted': StatusPillVariant.success,
-};
+const _kStatusLabels = kLabWorkOrderStatusLabels;
+
+const _kStatusVariants = kLabWorkOrderStatusVariants;
+
+/// Colonne d'affichage d'un statut : les statuts d'expédition rejoignent
+/// tous la colonne "sent" (RDV pas encore essayé), les autres sont leur
+/// propre colonne.
+String _columnOf(String status) =>
+    _kExpeditionStatuses.contains(status) ? 'sent' : status;
 
 /// Couleur de la pastille d'en-tête de colonne (maquette design-v2, point 3) :
 /// `--infoFg`, `--warnFg`, `--brand600`, `--n400` dans l'ordre de
@@ -97,6 +103,17 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
     context.read<LabWorkOrdersBloc>().add(LabWorkOrdersStatusChangeRequested(
           orderId: order.id,
           status: _kStatusOrder[index + 1],
+        ));
+  }
+
+  /// Sélection directe d'un statut d'expédition (#7207) — les chips
+  /// couvrent `sent`/`in_progress`/`shipped`/`received`, hors de portée du
+  /// bouton "Avancer" ([_advance], qui ne connaît que [_kStatusOrder]).
+  void _selectStatus(LabWorkOrder order, String status) {
+    if (status == order.status) return;
+    context.read<LabWorkOrdersBloc>().add(LabWorkOrdersStatusChangeRequested(
+          orderId: order.id,
+          status: status,
         ));
   }
 
@@ -222,12 +239,13 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                               child: _LabWorkStatusColumn(
                                 status: status,
                                 orders: orders
-                                    .where((o) => o.status == status)
+                                    .where((o) => _columnOf(o.status) == status)
                                     .toList(growable: false),
                                 updatingId: updatingId,
                                 now: now,
                                 isOverdue: _isOverdue,
                                 onAdvance: _advance,
+                                onSelectStatus: _selectStatus,
                                 onRelaunchLab: _relaunchLab,
                               ),
                             ),
@@ -314,6 +332,7 @@ class _LabWorkStatusColumn extends StatelessWidget {
     required this.now,
     required this.isOverdue,
     required this.onAdvance,
+    required this.onSelectStatus,
     required this.onRelaunchLab,
   });
 
@@ -323,6 +342,7 @@ class _LabWorkStatusColumn extends StatelessWidget {
   final DateTime now;
   final bool Function(LabWorkOrder order, DateTime now) isOverdue;
   final void Function(LabWorkOrder order) onAdvance;
+  final void Function(LabWorkOrder order, String status) onSelectStatus;
   final void Function(LabWorkOrder order) onRelaunchLab;
 
   @override
@@ -404,7 +424,17 @@ class _LabWorkStatusColumn extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _LabWorkOrderInfo(order: order, now: now),
-                              if (order.status != _kStatusOrder.last) ...[
+                              if (_kExpeditionStatuses
+                                  .contains(order.status)) ...[
+                                const SizedBox(height: 12),
+                                _ExpeditionStatusChips(
+                                  order: order,
+                                  updatingId: updatingId,
+                                  onSelect: onSelectStatus,
+                                ),
+                              ],
+                              if (_kStatusOrder.contains(order.status) &&
+                                  order.status != _kStatusOrder.last) ...[
                                 const SizedBox(height: 12),
                                 FilledButton.tonal(
                                   key: Key(
@@ -468,6 +498,48 @@ class _LabWorkArchiveNote extends StatelessWidget {
                 ?.copyWith(color: onSurfaceVariant),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Chips de sélection directe du statut d'expédition (#7207) — un bon
+/// `sent`/`in_progress`/`shipped`/`received` (migration 0274, #7209) n'a pas
+/// de bouton "Avancer" fonctionnel (ces statuts sont hors de
+/// `_kStatusOrder`) : ces chips permettent de choisir le statut exact. Le
+/// statut courant du bon (déjà affiché par le `StatusPill` de
+/// [_LabWorkOrderInfo]) n'est pas reproposé en chip — évite un doublon
+/// visuel du même libellé sur la même carte. `Wrap` plutôt que `Row` — évite
+/// tout débordement horizontal dans une colonne étroite (guide-fou CI
+/// Flutter).
+class _ExpeditionStatusChips extends StatelessWidget {
+  const _ExpeditionStatusChips({
+    required this.order,
+    required this.updatingId,
+    required this.onSelect,
+  });
+
+  final LabWorkOrder order;
+  final String? updatingId;
+  final void Function(LabWorkOrder order, String status) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final isUpdating = updatingId == order.id;
+    final options =
+        _kExpeditionStatuses.where((status) => status != order.status);
+    return Wrap(
+      key: Key('lab_work_order_expedition_chips_${order.id}'),
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final status in options)
+          NubiaChip(
+            key: Key('lab_work_order_status_chip_${order.id}_$status'),
+            label: _kStatusLabels[status] ?? status,
+            variant: NubiaChipVariant.choice,
+            onTap: isUpdating ? null : () => onSelect(order, status),
+          ),
       ],
     );
   }

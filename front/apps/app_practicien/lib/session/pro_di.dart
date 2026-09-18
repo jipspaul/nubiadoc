@@ -7,6 +7,7 @@ import 'package:nubia_data/nubia_data.dart';
 import '../features/agenda/agenda_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/dashboard/dashboard_bloc.dart';
+import '../features/dashboard/prostheses_today_bloc.dart';
 import '../features/dashboard/today_notes_bloc.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/devis/devis_bloc.dart';
@@ -75,6 +76,10 @@ void registerPro(GetIt gi) {
 
   gi.registerFactory<TodayNotesBloc>(
     () => TodayNotesBloc(getTodayNotes: gi<GetTodayNotesUseCase>()),
+  );
+
+  gi.registerFactory<ProsthesesTodayBloc>(
+    () => ProsthesesTodayBloc(listToday: gi<ListTodayLabWorkOrdersUseCase>()),
   );
 
   gi.registerFactory<OpportunitiesCubit>(
