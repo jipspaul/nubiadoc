@@ -26,6 +26,32 @@ puis re-vérifiés à la main se sont révélés fonctionnels**. Les cinq piège
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
 |---|---|---|---|---|---|---|---|
+| patient | / (Accueil, 1280) | 18 | 17 | 16 | 0 | 1 (401 de session, artefact de harnais — écarté) | 2026-09-18T07:20:00+00:00 |
+| patient | /mes-rdv (1280) | 7 | 7 | 7 | 0 | 0 | 2026-09-18T07:20:00+00:00 |
+| patient | /documents (1280) | 27 | 26 | 23 | 0 (3 faux positifs re-vérifiés : la recherche filtre bien, les 12 facettes basculent ; « Autre » était hors écran — la rangée est scrollable horizontalement) | 0 | 2026-09-18T07:20:00+00:00 |
+| patient | /prescriptions (1280) | 15 | 15 | 15 | 0 | 0 | 2026-09-18T07:20:00+00:00 |
+| patient | /treatment-plans (1280) | 9 | 9 | 9 | 0 | 0 | 2026-09-18T07:20:00+00:00 |
+| patient | /profile (1280) | 14 | 13 | 10 | 0 (3 faux positifs : « Modifier la photo de profil » ouvre un sélecteur de fichier — `profile_page.dart:743 onTap:_pickAndUpload` — invisible en headless ; 2 groupes non tappables) | 0 | 2026-09-18T07:20:00+00:00 |
+| patient | /profile/dependents (1280 + 390) | 21 | 14 | 14 | 0 | 0 (7 hors écran après scroll vertical, liste de 14 proches) | 2026-09-18T07:20:00+00:00 |
+| patient | /financial (liste + détail, 1280 + 390) | 12 | 12 | 10 | 0 | **2 — RÉEL : le retour (système ET bouton d'appbar) vide la liste → #7270** | 2026-09-18T07:20:00+00:00 |
+| praticien | / (Tableau de bord, 1280) | 20 | 19 | 18 | 0 | 1 (409 `invalid_status` sur « Démarrer la consultation » quand la séance est déjà ouverte — MAIS l'app retombe proprement sur `GET /cabinet/consultations?status=in_progress` et ouvre la bonne séance : **pas un défaut**) | 2026-09-18T07:20:00+00:00 |
+| praticien | / (Tableau de bord, 390) | 6 | 6 | 5 | 0 (2 faux positifs : les 2 lignes de « À traiter » étaient sous la ligne de flottaison ; scrollées, elles naviguent vers /agenda et /messages) | 1 (idem 409 ci-dessus) | 2026-09-18T07:20:00+00:00 |
+| praticien | /agenda (1280 + 390) | 32 | 31 | 29 | 0 (auto-nav) | 0 | 2026-09-18T07:20:00+00:00 |
+| praticien | /waiting-room (1280 + 390) | 32 | 26 | 25 | 0 (auto-nav) | 0 — **5 « Appeler » DÉSACTIVÉS prouvés légitimes** : `waiting_room_page.dart:1010` `isOtherPractitioner`, et « Appeler suivant » ne s'active que si un patient `checked_in` est attribué au praticien connecté ; check-in provoqué par API → le bouton devient « Appeler Marc Dubois », actif, et rend `200 {"called":true}` | 2026-09-18T07:20:00+00:00 |
+| praticien | /patients (1280) | 32 | 31 | 19 | 0 (auto-nav) | **11 — RÉEL : ouvrir 11 des cartes patient rend 403 sur `/documents` et `/medical-record` → #7274** | 2026-09-18T07:20:00+00:00 |
+| praticien | /ordonnances (1280) | 17 | 16 | 15 | 0 (auto-nav) | 0 | 2026-09-18T07:20:00+00:00 |
+| praticien | /devis (1280) | 24 | 22 | 21 | 0 (auto-nav) | 0 | 2026-09-18T07:20:00+00:00 |
+| praticien | /stock (1280) | 19 | 18 | 16 | 0 (auto-nav) | 0 | 2026-09-18T07:20:00+00:00 |
+| praticien | /lab-work-orders (1280) | 22 | 18 | 17 | 0 | 1 (hors écran) | 2026-09-18T07:20:00+00:00 |
+| praticien | /messages (1280) | 5 | 5 | 4 | 0 (auto-nav) | 0 | 2026-09-18T07:20:00+00:00 |
+| pharmacie | / (File des commandes, 1280) | 22 | 21 | 18 | 0 (3 faux positifs : auto-nav « Commandes » + 2 facettes — re-vérifiées, elles filtrent et changent l'action de ligne) | 0 | 2026-09-18T07:20:00+00:00 |
+| pharmacie | /orders/:id (Délivrance) + /orders/:id/pickup | 8 | 8 | 8 | 0 | 0 | 2026-09-18T07:20:00+00:00 |
+| pharmacie | /stock (1280) | 13 | 12 | 9 | 0 (auto-nav + facette + champ de recherche) | 0 | 2026-09-18T07:20:00+00:00 |
+| pharmacie | /messages (1280) | 15 | 14 | 11 | 0 (idem) | 0 | 2026-09-18T07:20:00+00:00 |
+| pharmacie | /devis (1280) | 26 | 25 | 22 | 0 (idem) | 0 | 2026-09-18T07:20:00+00:00 |
+| pharmacie | /notification-preferences (1280) | 13 | 12 | 9 | 0 (groupes non tappables) | 0 | 2026-09-18T07:20:00+00:00 |
+| infirmiere | / (Accueil, 390) | 8 | 6 | 6 | 0 | 0 (« Se déconnecter » non activé — destructif) | 2026-09-18T07:20:00+00:00 |
+| infirmiere | /notification-preferences (390) | 5 | 4 | 4 | 0 (2 faux positifs : les 2 interrupteurs « Visites » émettent bien `PATCH /v1/me/notification-preferences` → 200 et **persistent au rechargement** — `aria-checked` false→true, `inapp_visites` passé à true côté API) | 0 | 2026-09-18T07:20:00+00:00 |
 | praticien | / (Tableau de bord) | 16 | 15 | 15 | 0 | 0 | 2026-09-03T21:45:49+00:00 |
 | praticien | /agenda | 21 | 20 | 19 | 0 (1 auto-nav) | 0 | 2026-09-03T21:45:49+00:00 |
 | praticien | /waiting-room | 16 | 14 | 13 | 0 (1 auto-nav) | 0 (1 désactivé légitime : « Appeler suivant », file vide) | 2026-09-03T21:45:49+00:00 |
