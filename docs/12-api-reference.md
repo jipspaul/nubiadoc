@@ -383,7 +383,8 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | GET | `/v1/cabinet/agenda` | pro | Agenda `?view=day\|week&practitioner_id=&date=`. |
 | GET | `/v1/cabinet/appointments` | pro | RDV du cabinet (`?status=&date=`). |
 | POST | `/v1/cabinet/appointments/{id}/confirm` | pro | Valider une demande (`requested→confirmed`). |
-| PATCH | `/v1/cabinet/appointments/{id}` | pro | Déplacer/éditer (transition auditée). |
+| POST | `/v1/cabinet/appointments/{id}/cancel` | secretary+ | Annulation cabinet (X12, #6953/#7011) : `{reason?}` ; `requested\|confirmed→cancelled` (créneau libéré, patient notifié `appointment_cancelled`, audit) ; `checked_in→no_show` (patient déjà vu). Sans garde temporelle (un RDV passé jamais clôturé reste annulable). `409 invalid_status` sinon ; `404` hors cabinet/secrétariat. |
+| PATCH | `/v1/cabinet/appointments/{id}` | secretary+ | Déplacer/éditer (transition auditée). `status:"no_show"` (RDV commencé, sinon `409 too_early`) ou `status:"cancelled"` (même transition que `…/cancel`, `motif` = motif d'annulation) ; toute autre valeur → `422`. |
 | POST | `/v1/cabinet/slots` | pro | Ouvrir/bloquer un créneau. |
 | PATCH/DELETE | `/v1/cabinet/slots/{id}` | pro | Éditer/supprimer un créneau. |
 | PUT | `/v1/cabinet/slots/{id}/online` | pro | Exposer le créneau à la réservation en ligne (US-M19). |

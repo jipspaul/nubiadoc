@@ -22,6 +22,9 @@ fn preference_category(kind: &str) -> Option<&'static str> {
         | "callback_requested"
         | "appointment_confirmed"
         | "appointment_rescheduled"
+        // #6953 : annulation par le cabinet (`cancel_cabinet_appointment_tx`)
+        // — catégorie `rdv` comme ses jumelles confirmed/rescheduled.
+        | "appointment_cancelled"
         | "appointment_motif_changed"
         | "waiting_room_called"
         | "waiting_list_slot_offered"
