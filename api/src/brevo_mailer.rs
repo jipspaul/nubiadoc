@@ -151,6 +151,20 @@ impl Mailer for BrevoMailer {
             ),
         );
     }
+
+    fn send_invoice_reminder(&self, to: &str, balance_due_cents: i64) {
+        let link = format!("{}/billing", self.app_base_url);
+        let amount = format!("{:.2} €", balance_due_cents as f64 / 100.0);
+        self.send(
+            to,
+            "Une facture reste impayée",
+            format!(
+                "<p>Le solde restant dû sur votre facture est de {amount}.</p>\
+                 <p>Consultez le détail et réglez depuis votre espace patient : \
+                 <a href=\"{link}\">{link}</a></p>"
+            ),
+        );
+    }
 }
 
 /// Échappement minimal d'un texte injecté dans le corps HTML — le nom du

@@ -105,6 +105,7 @@ mod health;
 pub mod hl7v2;
 mod implant_passport;
 mod interop;
+mod invoice_reminder;
 pub mod kms_env;
 mod lab_work_orders;
 mod letters;
@@ -232,6 +233,10 @@ pub trait Mailer: Send + Sync {
     /// (`POST /v1/account/access-requests`, #7005). Sans jeton : la demande
     /// se décide dans l'app, depuis « Mes proches », une fois connecté.
     fn send_access_request(&self, to: &str, requester_name: &str);
+    /// Relance une facture (devis signé) impayée (`POST /v1/invoices/:id/reminder`,
+    /// #7206). `balance_due_cents` figure dans l'e-mail (canal direct au
+    /// patient, contrairement au push/in-app qui reste zéro PII/montant).
+    fn send_invoice_reminder(&self, to: &str, balance_due_cents: i64);
 }
 
 /// Implémentation no-op pour les tests et le dev local.
@@ -241,6 +246,7 @@ impl Mailer for StubMailer {
     fn send_password_reset(&self, _to: &str, _token: &str) {}
     fn send_invite(&self, _to: &str, _token: &str) {}
     fn send_access_request(&self, _to: &str, _requester_name: &str) {}
+    fn send_invoice_reminder(&self, _to: &str, _balance_due_cents: i64) {}
 }
 
 /// Trait d'envoi de SMS — swappable (stub en test, Twilio en prod). #4036.

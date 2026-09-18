@@ -321,6 +321,10 @@ pub(crate) enum AppError {
     /// (`patient_correspondent` est scopée compte patient) — `501`, le
     /// client passe `{{correspondant.nom}}` via `overrides` en attendant.
     CorrespondentNotSupported,
+    /// `POST /v1/invoices/:id/reminder` (#7206) : une relance existe déjà
+    /// pour cette facture (devis signé) dans les 7 derniers jours — garde-fou
+    /// anti-spam, pré-vérifié plutôt que de laisser une contrainte le faire.
+    InvoiceReminderCooldown,
 }
 
 impl IntoResponse for AppError {
@@ -647,6 +651,11 @@ impl IntoResponse for AppError {
             AppError::CorrespondentNotSupported => (
                 StatusCode::NOT_IMPLEMENTED,
                 Json(json!({"code": "correspondent_not_supported"})),
+            )
+                .into_response(),
+            AppError::InvoiceReminderCooldown => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "invoice_reminder_cooldown"})),
             )
                 .into_response(),
         }

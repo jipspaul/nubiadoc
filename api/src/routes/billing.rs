@@ -6,7 +6,8 @@ use crate::{
     bank_deposit_slip, billing, billing_payments, cabinet_cash_collection, cabinet_cash_register,
     cabinet_opportunities, cabinet_payments_manual, cabinet_payouts, cabinet_quote_item_parts,
     cabinet_quotes, cabinet_quotes_export, cabinet_quotes_patch, cabinet_stats, dashboard,
-    payment_schedules, quote_relances, quote_signature, treatment_plans, AppState,
+    invoice_reminder, payment_schedules, quote_relances, quote_signature, treatment_plans,
+    AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -55,6 +56,11 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             get(cabinet_quotes::get_cabinet_quote).patch(cabinet_quotes_patch::patch_cabinet_quote),
         )
         .route("/v1/quotes/:id", get(billing::get_quote))
+        // Relance patient sur facture impayée (#7206) : `:id` = devis signé.
+        .route(
+            "/v1/invoices/:id/reminder",
+            axum::routing::post(invoice_reminder::send_invoice_reminder),
+        )
         // `/sign` : stub historique synchrone (sent → signed immédiat),
         // toujours utilisé par app_patient Flutter (#3705) — INCHANGÉ.
         .route(
