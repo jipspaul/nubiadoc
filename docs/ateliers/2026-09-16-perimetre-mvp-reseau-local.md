@@ -111,6 +111,11 @@ Les `Q-01` à `Q-05` du 08/09 restent ouverts.
 
 ## 6. Roadmap proposée pour le 2026-09-18
 
+> **Remplacée le 2026-09-18.** Les associés ont retenu un premier jalon
+> « carte Vitale → dossier patient → facture » (D-11) ; la roadmap courante
+> est au [CR du 18/09 § 6](2026-09-18-perimetre-initial-logiciel-dentaire.md#6-ce-que-ça-change-dans-la-roadmap).
+> Ce qui suit est conservé comme base de travail.
+
 Contrainte de capacité : **une personne et cinq agents**. Horizon : 15
 semaines, du 21/09 au 31/12. Les socles se recouvrent ; l'ordre est celui des
 dépendances, pas du calendrier.
