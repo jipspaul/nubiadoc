@@ -2473,3 +2473,36 @@ Vague 4 : 11 écrans **jamais audités** — patient `/implant-passport`, `/book
 **Contrôles à action métier re-sondés individuellement avec jeton frais — tous SAINS :** « Appeler \<patient\> » (secrétariat 390, émet `call-next`), « Démarrer la consultation » (praticien, double-clic → action non doublée), « Préparer » (officine, navigue), « **Voir plus de créneaux** » (patient `/appointments` — arbre **et** pixels modifiés une fois la feuille remontée), les 13 contrôles de l'accueil patient au rect réel.
 
 > **Piège n° 24** — écran à **feuille inférieure glissante** (`/appointments`) : tout contrôle dans les ~130 px du bas est cliqué « à travers » la poignée, geste absorbé, **faux MORT**. Remonter la feuille puis ré-inventorier. Et les **marqueurs de carte** (46×46 praticien, 48×48 agrégat) ne sont pas des commandes d'écran.
+
+
+### Ronde R81 — 2026-09-18 (soir) — ciblage diff-driven (merges #7308→#7317) + rotation
+
+| app | écran/route | viewport | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| praticien | /waiting-room | 1280×800 | 27 | 4 (tous les « Appeler ») | 1 | 0 | 0 | 3 (légitimes : patients d'un confrère + « Appeler suivant » sans `checked_in`) | 2026-09-18T18:20:00+00:00 |
+| praticien | / (Ma journée) | 1280×800 | 23 | 0 (inventaire seul, déjà audité R80) | — | — | — | — | 2026-09-18T18:10:00+00:00 |
+| secretariat | /salle-attente | 1280×800 | 31 | 4 (hero + 3 lignes) | 4 | 0 | 0 | 0 | 2026-09-18T18:20:00+00:00 |
+| praticien | /patients/:id/dental-chart (403) | 1280×800 | 19 | 1 | 1 | 0 | 0 | 0 | 2026-09-18T18:15:00+00:00 |
+| praticien | /patients/:id/dental-chart (autorisé) | 1280×800 | 56 | 0 (inventaire ; 32 dents + Adulte/Enfant présents) | — | — | — | — | 2026-09-18T18:15:00+00:00 |
+| praticien | /patients/:id/periodontal-chart | 1280×800 | 19 | 0 | — | — | — | — | 2026-09-18T18:15:00+00:00 |
+| infirmiere | / (Disponibilité) | 390×844 | 7 | 5 | 5 | 0 | 0 | 0 | 2026-09-18T19:10:00+00:00 |
+| infirmiere | / (Disponibilité) | 1280×800 | 7 | 5 | 5 | 0 | 0 | 0 | 2026-09-18T19:10:00+00:00 |
+| infirmiere | / onglet Offres | 390×844 | 8 | 2 (« Accepter », « Passer ») | 2 | 0 | 0 | 0 | 2026-09-18T19:30:00+00:00 |
+| infirmiere | / onglet Ma visite | 390×844 | 6→7 | 3 (« Je pars », « Je suis arrivé·e », « Visite terminée ») | 3 | 0 | 0 | 0 | 2026-09-18T19:35:00+00:00 |
+| infirmiere | /notification-preferences | 390×844 | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-18T19:10:00+00:00 |
+| pharmacie | /devis | 1280×800 | 26 | 21 | 17 | 0 (4 « MORT » levés : rects hors viewport, y=782→971) | 0 | 0 | 2026-09-18T19:15:00+00:00 |
+| pharmacie | /stock | 1280×800 | 21 (18 en viewport) | 16 + 6 re-sondés | 17 | 0 (5 « MORT » levés : dialogue modal resté ouvert entre 2 clics) | 0 | 0 | 2026-09-18T19:50:00+00:00 |
+| patient | /documents | 390×844 | 41 | 0 (inventaire + comparaison maquette) | — | — | — | — | 2026-09-18T18:45:00+00:00 |
+| patient | /profile | 390×844 | 17 | 0 (inventaire) | — | — | — | 1 (biométrie — désactivation LÉGITIME, justificatif affiché) | 2026-09-18T18:45:00+00:00 |
+| patient | /home-care | 390×844 | 17 | 0 (lecture X10) | — | — | — | — | 2026-09-18T19:55:00+00:00 |
+| secretariat | /stock | 1280×800 | 54 | 0 (inventaire + conformité v2) | — | — | — | — | 2026-09-18T18:45:00+00:00 |
+| praticien | /ordonnances | 1280×800 | 19 | 2 (« Choisir un patient » → sélecteur, puis 1 patient) | 2 | 0 | 0 | 0 | 2026-09-18T20:40:00+00:00 |
+| secretariat | /patients | 1280×800 | — | 1 (champ de recherche, 300 caractères) | 1 | 0 | 0 | 0 | 2026-09-18T20:30:00+00:00 |
+| patient | /financial + détail | 390×844 | 10 | 2 (carte de devis + RETOUR navigateur) | 2 | 0 | 0 | 0 | 2026-09-18T20:25:00+00:00 |
+
+> **Piège de mesure n° 25 (R81)** — un `SnackBar` Flutter web **n'apparaît PAS dans l'arbre Semantics**. Trois contrôles ont été jugés muets à tort (« Appeler … », « Appeler » de ligne côté secrétariat et côté praticien) avant vérification en PIXELS : ils affichent bien « Aucun patient à appeler. » et « Seul le patient en tête de file peut être appelé pour l'instant. ». **Toujours conclure un retour utilisateur sur une capture d'écran, jamais sur l'arbre.**
+>
+> **Piège de mesure n° 26 (R81)** — dans l'app **infirmière**, les libellés vivent dans le `textContent` du nœud `flt-semantics`, **pas** dans `aria-label` (seuls les `tab` et le `Chip` portent un `aria-label`). Un relevé qui ne lit que `aria-label` voit `button ""` et conclut à tort à un bouton sans nom accessible. Lire `aria-label || textContent`, comme le fait `semantics()` de `qa-lib75.js`.
+>
+> **Piège de mesure n° 27 (R81)** — auditer une grille d'actions en série **sans fermer le dialogue** ouvert par le clic précédent fait juger MORTS tous les contrôles suivants (le modal absorbe les clics). Les 5 « MORT » de `pharmacie /stock` venaient de là : re-sondés un par un avec `Escape` entre chaque, les 3 « Refuser — motif obligatoire » ouvrent bien leur dialogue de motif. Insérer une fermeture entre deux activations.
+
