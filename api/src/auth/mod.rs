@@ -3507,6 +3507,9 @@ pub async fn post_coverage_card(
 
     // Antivirus : rejet EICAR (stub — intégration ClamAV à NUB-T3).
     crate::file_scan::reject_eicar(&file_bytes)?;
+    // #7302 : même garde que le coffre patient (documents.rs) — le MIME
+    // déclaré par le client n'est pas fiable, confronte le nombre magique.
+    crate::file_scan::verify_content_matches_declared_mime(&file_bytes, &file_mime)?;
 
     let fname = filename.unwrap_or_else(|| format!("carte_mutuelle_{}.bin", side));
     let size_bytes = file_bytes.len() as i64;

@@ -16,7 +16,7 @@
 
 use axum::{
     extract::{Extension, Path, Query},
-    http::{header, StatusCode},
+    http::{header, HeaderName, StatusCode},
     response::{IntoResponse, Response},
 };
 use hmac::{Hmac, Mac};
@@ -96,6 +96,11 @@ pub struct LocalStorageQuery {
 /// Pas d'auth par token porteur : la signature HMAC + expiration en tient
 /// lieu, comme une URL S3 présignée réelle. Signature invalide/expirée ->
 /// `403`. Objet jamais uploadé -> `404`.
+///
+/// #7302 : les octets servis sont ceux d'un upload utilisateur (coffre
+/// patient / dossier cabinet / carte mutuelle) — un agent (navigateur, lien
+/// partagé) ne doit ni les ré-interpréter selon leur contenu (`nosniff`) ni
+/// les ouvrir en contexte de page (`Content-Disposition: attachment`).
 pub async fn serve_local_object(
     Extension(signer): Extension<Arc<LocalStorageSigner>>,
     Extension(storage): Extension<Arc<dyn ObjectStorage>>,
@@ -107,12 +112,25 @@ pub async fn serve_local_object(
     }
 
     match storage.download(&key).await {
-        Some((content_type, bytes)) => (
-            StatusCode::OK,
-            [(header::CONTENT_TYPE, content_type)],
-            bytes,
-        )
-            .into_response(),
+        Some((content_type, bytes)) => {
+            let filename = key.rsplit('/').next().unwrap_or(&key);
+            (
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, content_type),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        format!("attachment; filename=\"{filename}\""),
+                    ),
+                    (
+                        HeaderName::from_static("x-content-type-options"),
+                        "nosniff".to_string(),
+                    ),
+                ],
+                bytes,
+            )
+                .into_response()
+        }
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -163,5 +181,47 @@ mod tests {
         let expires_at = (chrono::Utc::now() - chrono::Duration::seconds(1)).timestamp();
         let sig = signer.signature("some-key", expires_at);
         assert!(!signer.verify("some-key", expires_at, &sig));
+    }
+
+    #[tokio::test]
+    async fn serve_local_object_sets_nosniff_and_attachment_disposition() {
+        use crate::InMemoryObjectStorage;
+
+        let storage = InMemoryObjectStorage::default();
+        storage
+            .upload("coffre/abc", "image/png", vec![0x89, 0x50, 0x4E, 0x47])
+            .await
+            .unwrap();
+        let storage: Arc<dyn ObjectStorage> = Arc::new(storage);
+
+        let signer = LocalStorageSigner {
+            base_url: "http://127.0.0.1:3000".to_string(),
+            signing_key: "test-key".to_string(),
+        };
+        let expires_at = (chrono::Utc::now() + chrono::Duration::seconds(60)).timestamp();
+        let sig = signer.signature("coffre/abc", expires_at);
+
+        let response = serve_local_object(
+            Extension(Arc::new(signer)),
+            Extension(storage),
+            Path("coffre/abc".to_string()),
+            Query(LocalStorageQuery {
+                expires: expires_at,
+                sig,
+            }),
+        )
+        .await;
+
+        let headers = response.headers();
+        assert_eq!(
+            headers.get("x-content-type-options").unwrap(),
+            "nosniff",
+            "#7302 : bloque la ré-interprétation du contenu par le navigateur"
+        );
+        assert_eq!(
+            headers.get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=\"abc\"",
+            "#7302 : empêche l'ouverture en contexte de page"
+        );
     }
 }
