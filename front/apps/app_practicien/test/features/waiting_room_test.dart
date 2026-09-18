@@ -372,9 +372,9 @@ void main() {
     });
 
     testWidgets(
-        'n\'affiche pas de panneau Praticiens présents (aucune source de '
-        'données réelle) et affiche la note confidentialité sur large '
-        'écran (#6427)', (tester) async {
+        'affiche le panneau Praticiens présents dérivé de la file (vous '
+        'disponible, aucun confrère en consultation) et la note '
+        'confidentialité sur large écran (#7273)', (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -388,8 +388,25 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.byKey(const Key('presence_panel')), findsNothing);
-      expect(find.text('Praticiens présents'), findsNothing);
+      expect(find.byKey(const Key('presence_panel')), findsOneWidget);
+      expect(find.text('Praticiens présents'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('presence_row_self')),
+          matching: find.text('Vous'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('presence_row_self')),
+          matching: find.text('Disponible'),
+        ),
+        findsOneWidget,
+      );
+      // Aucune source de présence réelle pour un confrère absent de la file
+      // (#6427 avait retiré la version à données codées en dur) : pas de
+      // nom inventé.
       expect(find.text('Dr Amélie Rousseau'), findsNothing);
       expect(find.text('Dr Marc Lefèvre'), findsNothing);
 
@@ -437,6 +454,114 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('presence_panel')), findsNothing);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Panneau « Praticiens présents » (#7273 — jamais livré depuis le retrait
+  // de la version codée en dur par #6427)
+  // ---------------------------------------------------------------------------
+
+  group('Praticiens présents (widget, #7273)', () {
+    testWidgets(
+        'un confrère avec un patient in_consultation apparaît comme '
+        'présent, un confrère sans patient in_consultation n\'apparaît pas',
+        (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final entries = [
+        WaitingRoomEntry(
+          id: 'wr-1',
+          cabinetId: 'cab-1',
+          patientId: 'pat-1',
+          patientName: 'Camille Moreau',
+          arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+          practitionerId: 'prac-lefevre',
+          practitionerName: 'Dr Lefèvre',
+          status: 'in_consultation',
+        ),
+        WaitingRoomEntry(
+          id: 'wr-2',
+          cabinetId: 'cab-1',
+          patientId: 'pat-2',
+          patientName: 'Sophie Roux',
+          arrivedAt: DateTime.now().subtract(const Duration(minutes: 3)),
+          practitionerId: 'prac-other',
+          practitionerName: 'Dr Marc Lefèvre',
+        ),
+      ];
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('presence_panel')), findsOneWidget);
+      expect(
+        find.byKey(const Key('presence_row_prac-lefevre')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('presence_row_prac-lefevre')),
+          matching: find.text('Dr Lefèvre'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('presence_row_prac-lefevre')),
+          matching: find.text('En consultation'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('presence_row_prac-other')),
+        findsNothing,
+      );
+      expect(find.text('Dr Marc Lefèvre'), findsNothing);
+    });
+
+    testWidgets(
+        'vous apparaissez « en consultation » quand un de vos patients est '
+        'in_consultation', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final entries = [
+        WaitingRoomEntry(
+          id: 'wr-1',
+          cabinetId: 'cab-1',
+          patientId: 'pat-1',
+          patientName: 'Camille Moreau',
+          arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+          practitionerId: 'prac-me',
+          practitionerName: 'Vous',
+          status: 'in_consultation',
+        ),
+      ];
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('presence_row_self')),
+          matching: find.text('En consultation'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 
