@@ -23,8 +23,7 @@ use uuid::Uuid;
 use crate::{
     auth::{AppError, ProPractitionerClaims},
     prescriptions::{
-        MAX_PRESCRIPTION_LABEL_LEN, MAX_PRESCRIPTION_POSOLOGY_LEN,
-        MAX_PRESCRIPTION_SHORT_FIELD_LEN,
+        MAX_PRESCRIPTION_LABEL_LEN, MAX_PRESCRIPTION_POSOLOGY_LEN, MAX_PRESCRIPTION_SHORT_FIELD_LEN,
     },
     AppState,
 };
