@@ -7,8 +7,6 @@ use argon2::{
 use axum::extract::{ConnectInfo, Json, State};
 use axum::http::HeaderMap;
 use axum_client_ip::{SecureClientIp, SecureClientIpSource};
-use base64::{engine::general_purpose::STANDARD, Engine};
-use core_crypto::LocalKeyManager;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::Deserialize;
 use sqlx::Row;
@@ -19,7 +17,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
-use crate::AppState;
+use crate::{kms_env, AppState};
 
 use super::mfa_crypto::decrypt_totp_secret;
 use super::{AppError, LoginResponse, PatientClaims, ProClaims, ProRegisterClaims};
@@ -92,22 +90,6 @@ pub struct LoginBody {
     email: String,
     password: String,
     mfa_code: Option<String>,
-}
-
-/// Construit le [`LocalKeyManager`] (POC/dev) depuis `KMS_MASTER_KEY`
-/// (32 octets, base64) — même convention que `interop::patient` et
-/// `mfa_verify`. Échoue en `AppError::Internal` (jamais de fallback en
-/// clair) si `KMS_MASTER_KEY` est absente/mal formée.
-fn key_manager_from_env() -> Result<LocalKeyManager, AppError> {
-    let raw = std::env::var("KMS_MASTER_KEY").map_err(|_| AppError::Internal)?;
-    let decoded = STANDARD
-        .decode(raw.trim())
-        .map_err(|_| AppError::Internal)?;
-    let key: [u8; 32] = decoded.try_into().map_err(|_| AppError::Internal)?;
-    Ok(LocalKeyManager::new(
-        key,
-        std::env::var("KMS_KEY_VERSION").unwrap_or_else(|_| "v1".to_string()),
-    ))
 }
 
 /// `POST /v1/auth/login` — authentifie un patient ou un pro, émet access + refresh tokens.
@@ -226,7 +208,17 @@ pub async fn login(
                 .map_err(|_| AppError::Internal)?;
                 mfa_tx.rollback().await.map_err(|_| AppError::Internal)?;
 
-                let enrollment = enrollment.ok_or(AppError::Internal)?;
+                // `totp_enabled = true` sans ligne `mfa_enrollment` : état
+                // incohérent (compte migré depuis l'ancien stockage en clair
+                // #4650, ou ligne supprimée) — logué nommément, le compte ne
+                // peut pas se connecter tant qu'il n'est pas ré-enrôlé.
+                let enrollment = enrollment.ok_or_else(|| {
+                    tracing::error!(
+                        user_id = %user_id,
+                        "login: totp_enabled sans enrôlement mfa_enrollment (ré-enrôlement requis)"
+                    );
+                    AppError::Internal
+                })?;
                 let secret_ciphertext: Vec<u8> = enrollment
                     .try_get("secret_ciphertext")
                     .map_err(|_| AppError::Internal)?;
@@ -234,10 +226,23 @@ pub async fn login(
                     .try_get("secret_key_ref")
                     .map_err(|_| AppError::Internal)?;
 
-                let key_manager = key_manager_from_env()?;
+                // Clé KMS absente/mal formée → `503 kms_not_configured`
+                // logué, jamais un 500 muet (#6980 / #7216, cf. `kms_env`).
+                let key_manager = kms_env::key_manager_from_env().map_err(|e| {
+                    tracing::error!(error = %e, "login: clé KMS inexploitable, MFA invérifiable");
+                    AppError::KmsNotConfigured
+                })?;
                 let secret = decrypt_totp_secret(&secret_ciphertext, &secret_key_ref, &key_manager)
                     .await
-                    .map_err(|_| AppError::Internal)?;
+                    .map_err(|e| {
+                        tracing::error!(
+                            error = %e,
+                            user_id = %user_id,
+                            key_ref = %secret_key_ref,
+                            "login: déchiffrement du secret TOTP échoué (clé KMS différente de celle de l'enrôlement ?)"
+                        );
+                        AppError::Internal
+                    })?;
 
                 let secret_bytes = Secret::Encoded(secret)
                     .to_bytes()

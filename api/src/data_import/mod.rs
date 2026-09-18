@@ -14,8 +14,9 @@
 //!
 //! Modes d'échec : fichier inexploitable → job créé en `failed` avec le
 //! motif dans `report` (trace de la tentative), `201` ; `run` concurrent →
-//! `409 invalid_status` ; KMS absent → `500` (le fichier ne peut être ni
-//! stocké ni relu en clair : il peut contenir des INS).
+//! `409 invalid_status` ; KMS absent/mal formé → `503 kms_not_configured`
+//! logué (#6980, cf. `crate::kms_env` — le fichier ne peut être ni stocké
+//! ni relu en clair : il peut contenir des INS).
 
 pub mod csv;
 pub mod pipeline;
@@ -26,7 +27,6 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use base64::engine::{general_purpose::STANDARD, Engine};
 use core_crypto::{decrypt_column, encrypt_column, LocalKeyManager};
 use serde::Serialize;
 use sqlx::Row;
@@ -42,16 +42,13 @@ use source::{source_for, ImportKind, ParsedLine};
 /// Taille max du fichier de reprise (10 Mo ≈ 50 000 lignes CSV).
 pub const MAX_IMPORT_SIZE: usize = 10 * 1024 * 1024;
 
+/// Clé KMS partagée (`crate::kms_env`) : absente/mal formée → `503
+/// kms_not_configured` logué, jamais un 500 muet (#6980).
 fn key_manager_from_env() -> Result<LocalKeyManager, AppError> {
-    let raw = std::env::var("KMS_MASTER_KEY").map_err(|_| AppError::Internal)?;
-    let decoded = STANDARD
-        .decode(raw.trim())
-        .map_err(|_| AppError::Internal)?;
-    let key: [u8; 32] = decoded.try_into().map_err(|_| AppError::Internal)?;
-    Ok(LocalKeyManager::new(
-        key,
-        std::env::var("KMS_KEY_VERSION").unwrap_or_else(|_| "v1".to_string()),
-    ))
+    crate::kms_env::key_manager_from_env().map_err(|e| {
+        tracing::error!(error = %e, "data_import: clé KMS inexploitable");
+        AppError::KmsNotConfigured
+    })
 }
 
 /// Vue d'un job telle que rendue par les 4 endpoints.

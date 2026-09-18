@@ -182,6 +182,14 @@ pub(crate) enum AppError {
     /// pour ne pas faire passer une lacune de configuration connue pour un
     /// incident Yousign en production.
     SignatureProviderNotConfigured,
+    /// `POST /v1/auth/mfa/verify` / `POST /v1/auth/login` (MFA) / reprise
+    /// de données (#6980, #7216) : `KMS_MASTER_KEY` absente ou mal formée
+    /// dans l'environnement du processus (cf. `crate::kms_env`) — même
+    /// doctrine que `SignatureProviderNotConfigured` : `503` explicite et
+    /// logué plutôt qu'un `500 internal_error` muet sur la dernière marche
+    /// du parcours. Normalement inatteignable en prod : `main.rs` refuse de
+    /// démarrer sans clé valide.
+    KmsNotConfigured,
     /// `POST /v1/cabinet/cash-register/closing` (#4071) : une clôture existe
     /// déjà pour ce cabinet+jour (`UNIQUE (cabinet_id, closing_date)`,
     /// migration 0165) — pré-vérifiée explicitement plutôt que de laisser
@@ -513,6 +521,11 @@ impl IntoResponse for AppError {
             AppError::SignatureProviderNotConfigured => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(json!({"code": "signature_provider_not_configured"})),
+            )
+                .into_response(),
+            AppError::KmsNotConfigured => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"code": "kms_not_configured"})),
             )
                 .into_response(),
             AppError::CashRegisterAlreadyClosed => (

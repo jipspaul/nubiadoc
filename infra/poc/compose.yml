@@ -38,6 +38,8 @@ services:
       MODE: worker
       DATABASE_URL: postgresql://nubia_app:${PG_APP_PWD}@postgres:5432/nubia?schema=public
       REDIS_URL: redis://redis:6379
+      KMS_DRIVER: local
+      KMS_MASTER_KEY: ${KMS_MASTER_KEY}
     depends_on: [postgres, redis]
     restart: unless-stopped
 

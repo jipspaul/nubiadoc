@@ -77,6 +77,14 @@ async fn mfa_verify_valid_code_returns_200_and_activates() {
         return;
     };
 
+    // Le handler chiffre le secret TOTP avant de le persister : clé KMS de
+    // test si l'environnement n'en fournit pas (même convention que
+    // `mfa_verify.rs` / `data_import.rs`, #6980).
+    if std::env::var("KMS_MASTER_KEY").is_err() {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        std::env::set_var("KMS_MASTER_KEY", STANDARD.encode([7u8; 32]));
+    }
+
     let owner_db = PgPool::connect(&owner_url).await.unwrap();
     let app_db = PgPool::connect(&app_url).await.unwrap();
 

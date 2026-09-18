@@ -42,6 +42,12 @@ YOUSIGN_API_KEY="${YOUSIGN_API_KEY:-}"
 SCW_ACCESS_KEY="${SCW_ACCESS_KEY:-}"
 SCW_SECRET_KEY="${SCW_SECRET_KEY:-}"
 SCW_BUCKET="${SCW_BUCKET:-}"
+# #6980 / #7216 : même trou de plomberie que ci-dessus pour la clé maître KMS
+# (chiffrement du secret TOTP à l'activation de la MFA, fichiers de reprise,
+# INS). Secret Forgejo optionnel : vide, deploy.sh génère/réutilise une clé
+# persistée sur le LXC (voir son commentaire) — le conteneur ne démarre plus
+# sans clé valide.
+KMS_MASTER_KEY="${KMS_MASTER_KEY:-}"
 TARGET="x86_64-unknown-linux-musl"
 OUT="$ROOT/.deploy-artifacts"
 
@@ -185,6 +191,7 @@ done
 say "7/8 déploiement distant"
 SSH "PUBLIC_API_BASE='$API_BASE' YOUSIGN_API_KEY='$YOUSIGN_API_KEY' \
   SCW_ACCESS_KEY='$SCW_ACCESS_KEY' SCW_SECRET_KEY='$SCW_SECRET_KEY' SCW_BUCKET='$SCW_BUCKET' \
+  KMS_MASTER_KEY='$KMS_MASTER_KEY' \
   sh /opt/nubia/deploy.sh"
 
 say "8/8 health-check TLS des domaines publics (Caddy hôte)"

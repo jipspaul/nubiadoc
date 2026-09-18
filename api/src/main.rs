@@ -28,7 +28,21 @@ fn storage_signer() -> std::sync::Arc<dyn StorageSigner> {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> std::process::ExitCode {
+    // Fail-fast (#6980 / #7216) : sans `KMS_MASTER_KEY` valide, les secrets
+    // TOTP (MFA pro), fichiers de reprise et INS ne peuvent être ni chiffrés
+    // ni relus — le défaut se manifestait jusqu'ici par un `500` muet sur
+    // `POST /v1/auth/mfa/verify` (code valide), découvert seulement par la
+    // QA. On refuse de servir du trafic plutôt que de dégrader en silence
+    // (jamais de clé par défaut ni de fallback en clair).
+    if let Err(e) = nubia_api::kms_env::check_env() {
+        eprintln!(
+            "nubia-api: démarrage refusé — {e} ; {}",
+            nubia_api::kms_env::GENERATE_HINT
+        );
+        return std::process::ExitCode::FAILURE;
+    }
+
     let pool =
         PgPool::connect(&std::env::var("APP_DATABASE_URL").expect("APP_DATABASE_URL must be set"))
             .await
@@ -155,7 +169,9 @@ async fn main() {
 
     if let Err(e) = http_task.await {
         eprintln!("serveur HTTP arrêté avec une erreur : {e}");
+        return std::process::ExitCode::FAILURE;
     }
+    std::process::ExitCode::SUCCESS
 }
 
 /// Ajoute `GET /v1/interop/hl7v2/health` au routeur Axum standard : le

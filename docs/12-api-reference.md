@@ -125,7 +125,11 @@
 
 `POST /v1/auth/register` — body : `email`, `password`, `accept_cgu:true`, `cgu_version`. → `201 { account_id, access_token, refresh_token }`. Si l'email est déjà pris, renvoie aussi `201` avec un `account_id`/`access_token`/`refresh_token` leurres (aucun compte créé, aucun token exploitable) plutôt qu'un `409 email_taken` — anti-énumération, parité avec `login`/`forgot` (§1.8, #4436). Erreurs restantes : `422` (politique mot de passe), `422 cgu_required`. Effet (email libre) : crée `app_user` + `patient_account` + `consent_record(purpose='soins')` horodaté (`06` E3.1).
 
-`POST /v1/auth/login` — body : `email`, `password`, `mfa_code?`. → `200 { access_token, refresh_token, token_type:"Bearer", expires_in }`. Si pro avec MFA : `401 mfa_required` puis renvoyer avec `mfa_code`. Rate-limited.
+`POST /v1/auth/login` — body : `email`, `password`, `mfa_code?`. → `200 { access_token, refresh_token, token_type:"Bearer", expires_in }`. Si pro avec MFA : `401 mfa_required` puis renvoyer avec `mfa_code` (`401 unauthenticated` si le code est faux ; `503 kms_not_configured` si la clé KMS du serveur est inexploitable, cf. ci-dessous). Rate-limited.
+
+`POST /v1/auth/mfa/enroll` — porteur : token pro, body `{}`. → `200 { totp_secret, otpauth_url }` (Base32 ; `otpauth://` SHA1, 6 chiffres, période 30 s). Rien n'est persisté à cette étape ; chaque appel rend un secret neuf.
+
+`POST /v1/auth/mfa/verify` — porteur : token pro, body : `totp_secret` (rendu par `/enroll`), `totp_code`. Le code est validé **avant** toute écriture. → `200 { message:"MFA activée." }` : enrôlement chiffré écrit dans `mfa_enrollment` (secret jamais stocké en clair), `app_user.totp_enabled = true`, le login suivant exige `mfa_code`. Un nouvel appel (ré-enrôlement) remplace l'enrôlement existant. Erreurs : `422 validation_error` (secret non Base32, code faux/expiré, champ inconnu ou manquant), `403 forbidden` (token patient/pharma), `401 unauthorized` (sans token), `503 kms_not_configured` (`KMS_MASTER_KEY` absente/mal formée côté serveur — #6980/#7216 : cette lacune de déploiement répondait auparavant `500 internal_error` sur tout code **valide**, un code faux répondant 422, d'où une MFA inactivable ; le binaire refuse désormais de démarrer sans clé valide, ce `503` reste la garde en profondeur).
 
 `GET /v1/me` → `{ user_id, email, kind:"patient"|"pro", account_id?, display_name?, memberships:[{ cabinet_id, role, cabinet_name }], pharmacy_memberships:[{ pharmacy_id, role, pharmacy_name }] }`. `display_name` (#6170) : `"{first_name} {last_name}"` (`app_user`), absent si les deux sont vides. Pour un pro multi-cabinets, le **choix du cabinet actif** se fait à la connexion (le token porte un seul `cabinet_id`). Les memberships pharmacie (tenant dédié, §22) partagent le même login ; le contexte pharmacie s'active via `POST /v1/auth/select-pharmacy-context`.
 
@@ -187,7 +191,7 @@ Pipeline générique **upload → dry-run → run**, suivi dans `data_import_job
 - `csv_patients` — colonnes : `ref_externe` · **`nom`** · **`prenom`** · `date_naissance` · `telephone` · `email` · `adresse` · `code_postal` · `ville` · `ins` (15 chiffres, chiffré en base). Coordonnées → `patient.contact` (`tel`, `email`, `adresse`, `code_postal`, `ville`).
 - `csv_appointments` — colonnes : `ref_externe` · `patient_ref_externe` (ou `nom` + `prenom` + `date_naissance`) · `praticien_rpps` (obligatoire si le cabinet a plusieurs praticiens) · **`debut`** · `fin` ou `duree_min` (défaut 30) · `statut` · `motif`. `statut` : `confirmé`/`planifié` → `confirmed`, `honoré`/`terminé` → `done`, `annulé` → `cancelled`, `absent`/`lapin` → `no_show`, `demandé` → `requested` (valeurs de l'énum acceptées telles quelles) ; vide → `done` si passé, `confirmed` sinon. Importer les patients **avant** les RDV.
 
-Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros), `403 forbidden` (rôle ≠ admin), `404` (job inconnu ou autre cabinet), `409 invalid_status` (run en cours, ou fichier inexploitable), `500` si `KMS_MASTER_KEY` absente. Audit : `data_import_upload`, `data_import_run` (`entity = data_import_job`).
+Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros), `403 forbidden` (rôle ≠ admin), `404` (job inconnu ou autre cabinet), `409 invalid_status` (run en cours, ou fichier inexploitable), `503 kms_not_configured` si `KMS_MASTER_KEY` absente/mal formée (#6980). Audit : `data_import_upload`, `data_import_run` (`entity = data_import_job`).
 
 ---
 
@@ -678,6 +682,7 @@ Listener MLLP dédié (port `2575` par défaut), TLS mutuel obligatoire (emprein
 | `validation_error` | 422 | Corps/params invalides (voir `errors[]`). |
 | `unauthenticated` | 401 | Token absent/expiré. |
 | `mfa_required` | 401 | MFA pro requise. |
+| `kms_not_configured` | 503 | Clé maître KMS (`KMS_MASTER_KEY`) absente/mal formée côté serveur : chiffrement MFA/reprise/INS impossible (#6980). Lacune de config, pas une panne — normalement bloquée au démarrage. |
 | `forbidden` | 403 | Rôle/cloisonnement (ex. secrétariat → clinique). |
 | `not_found` | 404 | Ressource inexistante ou hors tenant. |
 | `email_taken` | 409 | E-mail déjà utilisé. |
