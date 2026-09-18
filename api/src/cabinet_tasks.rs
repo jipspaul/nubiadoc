@@ -109,16 +109,14 @@ async fn validate_task_refs(
 
     if let Some(appointment_id) = appointment_id {
         let exists = match patient_id {
-            Some(patient_id) => {
-                sqlx::query(
-                    "SELECT 1 FROM appointment WHERE id = $1 AND cabinet_id = $2 AND patient_id = $3",
-                )
-                .bind(appointment_id)
-                .bind(cabinet_id)
-                .bind(patient_id)
-                .fetch_optional(&mut **tx)
-                .await
-            }
+            Some(patient_id) => sqlx::query(
+                "SELECT 1 FROM appointment WHERE id = $1 AND cabinet_id = $2 AND patient_id = $3",
+            )
+            .bind(appointment_id)
+            .bind(cabinet_id)
+            .bind(patient_id)
+            .fetch_optional(&mut **tx)
+            .await,
             None => {
                 sqlx::query("SELECT 1 FROM appointment WHERE id = $1 AND cabinet_id = $2")
                     .bind(appointment_id)
@@ -495,8 +493,9 @@ pub async fn patch_cabinet_task(
     let existing_assignee: Option<Uuid> = existing
         .try_get("assignee_user_id")
         .map_err(|_| AppError::Internal)?;
-    let existing_patient: Option<Uuid> =
-        existing.try_get("patient_id").map_err(|_| AppError::Internal)?;
+    let existing_patient: Option<Uuid> = existing
+        .try_get("patient_id")
+        .map_err(|_| AppError::Internal)?;
     let existing_appointment: Option<Uuid> = existing
         .try_get("appointment_id")
         .map_err(|_| AppError::Internal)?;
