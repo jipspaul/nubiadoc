@@ -447,6 +447,17 @@ fn resolve_place_coords(place: &str) -> Option<(f64, f64)> {
         .map(|(_, lat, lng)| (*lat, *lng))
 }
 
+/// Vrai si `place` est une ville du lookup géo statique (#7224). L'API
+/// publique (`GET /search/providers?place=xxx`) peut se permettre d'ignorer
+/// silencieusement un `place` inconnu (le client sait ce qu'il a demandé),
+/// mais le tunnel SSR (`web_tunnel::search_page`) publie une page par slug de
+/// ville : sans cette distinction, un slug inventé désactivait le filtre géo
+/// et servait l'annuaire national sous un titre de ville fabriqué, indexable
+/// et canonique — voir `web_tunnel/search_page.rs`.
+pub(crate) fn is_known_place(place: &str) -> bool {
+    resolve_place_coords(place).is_some()
+}
+
 /// `(lat, lng, radius_km)` résolus par [`resolve_geo_filter`].
 type GeoFilter = (Option<f64>, Option<f64>, Option<f64>);
 

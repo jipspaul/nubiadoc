@@ -6,13 +6,14 @@
 use std::collections::HashMap;
 
 use axum::extract::{Path, Query, State};
-use axum::response::IntoResponse;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use uuid::Uuid;
 
 use crate::marketplace::{
-    search_providers, search_slots, ProviderItem, SearchProvidersQuery, SlotRef,
+    is_known_place, search_providers, search_slots, ProviderItem, SearchProvidersQuery, SlotRef,
 };
 use crate::AppState;
 
@@ -107,8 +108,19 @@ fn urgency_noun(specialty_slug: &str) -> &'static str {
 pub async fn search_page(
     State(state): State<AppState>,
     Path((query_slug, locality_slug)): Path<(String, String)>,
-) -> impl IntoResponse {
+) -> Response {
     let loc = locality::parse(&locality_slug);
+
+    // #7224 : un slug de ville hors du lookup géo statique
+    // (`marketplace::KNOWN_CITY_COORDS`) désactivait le filtre géo au lieu de
+    // faire échouer la page — la page rendait alors l'annuaire NATIONAL sous
+    // un titre de ville fabriqué par `titleize()`, indexable et canonique.
+    // Marseille/Bordeaux (villes connues sans praticien) doivent continuer à
+    // servir l'état « Aucun résultat » ; seul un slug non reconnu 404.
+    if !is_known_place(&loc.city_slug) {
+        return locality_not_found(&query_slug, &locality_slug);
+    }
+
     let loc_label = locality_label(&loc);
     let query_terms = query_slug.replace('-', " ");
 
@@ -235,7 +247,29 @@ pub async fn search_page(
         meta = meta.json_ld(item_list_json_ld(&providers));
     }
 
-    page(&title, &meta, &body)
+    page(&title, &meta, &body).into_response()
+}
+
+/// `404` + `noindex` (#7224) : un slug de ville hors du lookup géo statique
+/// n'a aucun contenu propre à classer — servir l'annuaire national sous un
+/// titre de ville fabriqué produisait des pages satellites indexables au
+/// contenu dupliqué (données fausses en prime). Même pattern que
+/// `provider_page::not_found`.
+fn locality_not_found(query_slug: &str, locality_slug: &str) -> Response {
+    let body = r#"<h1>Ville introuvable</h1>
+<div class="context">
+  <p>Cette ville n'est pas référencée dans l'annuaire Nubia.</p>
+</div>"#;
+    let meta = PageMeta::new(
+        "Cette ville n'est pas référencée dans l'annuaire Nubia.",
+        format!("/{query_slug}/{locality_slug}"),
+    )
+    .robots("noindex");
+    (
+        StatusCode::NOT_FOUND,
+        page("Ville introuvable — Nubia", &meta, body),
+    )
+        .into_response()
 }
 
 /// `ItemList` schema.org des praticiens de la page (#6720) — c'est le
@@ -610,5 +644,22 @@ mod tests {
                 "/implant-dentiste/paris",
             ]
         );
+    }
+
+    /// #7224 — root cause : un slug de ville inventé (`asdfgh-qwerty`,
+    /// `new-york`, …) désactivait le filtre géo au lieu de faire échouer la
+    /// page, servant l'annuaire national sous un titre de ville fabriqué,
+    /// indexable et canonique. `locality_not_found` doit poser `404` +
+    /// `noindex`, comme `provider_page::not_found` pour une fiche inconnue.
+    #[tokio::test]
+    async fn locality_not_found_is_a_404_page_with_noindex() {
+        let response = locality_not_found("dentiste", "asdfgh-qwerty");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let html = String::from_utf8(body.to_vec()).unwrap();
+        assert!(html.contains(r#"<meta name="robots" content="noindex">"#));
+        assert!(html.contains("<h1>Ville introuvable</h1>"));
     }
 }
