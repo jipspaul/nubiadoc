@@ -1006,6 +1006,17 @@ pub async fn pro_register(
         return Err(AppError::ValidationError);
     }
 
+    // #7303 : `cabinet.siret` est stocké en `char(14)` — une valeur plus longue
+    // fait lever à Postgres `22001 value too long for type character(14)`, remonté
+    // en 500 par le `map_err` générique de l'INSERT ci-dessous. Un SIRET est un
+    // identifiant à 14 chiffres : toute autre forme est une entrée invalide, pas
+    // une panne serveur (referme aussi la moitié « SIRET » de #7218).
+    if let Some(siret) = &body.cabinet.siret {
+        if !siret.is_empty() && (siret.len() != 14 || !siret.chars().all(|c| c.is_ascii_digit())) {
+            return Err(AppError::ValidationError);
+        }
+    }
+
     let salt = SaltString::generate(&mut OsRng);
     let password_hash = Argon2::default()
         .hash_password(body.password.as_bytes(), &salt)
@@ -1094,7 +1105,13 @@ pub async fn pro_register(
     .bind(&body.cabinet.specialite)
     .execute(&mut *tx)
     .await
-    .map_err(|_| AppError::Internal)?;
+    .map_err(|e| {
+        if is_string_data_right_truncation(&e) {
+            AppError::ValidationError
+        } else {
+            AppError::Internal
+        }
+    })?;
 
     sqlx::query(
         "INSERT INTO cabinet_membership (cabinet_id, user_id, role) VALUES ($1, $2, 'admin')",
@@ -1537,6 +1554,17 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
     matches!(
         e,
         sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505")
+    )
+}
+
+/// `22001 string_data_right_truncation` — valeur trop longue pour une colonne à
+/// longueur fixe/bornée (ex: `cabinet.siret char(14)`, #7303). Filet de sécurité :
+/// la validation d'entrée doit déjà avoir écarté ce cas, mais une violation de ce
+/// type reste une faute du client, pas une panne serveur.
+fn is_string_data_right_truncation(e: &sqlx::Error) -> bool {
+    matches!(
+        e,
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("22001")
     )
 }
 
