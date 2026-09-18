@@ -408,6 +408,8 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 
 `GET /v1/cabinet/patients/{id}` → fiche dont les **sections cliniques sont omises pour `secretary`** (et l'UI affiche « dossier clinique masqué »). L'accès clinique d'un praticien est **audité** (`read_record`).
 
+`GET`/`PATCH /v1/cabinet/patients/{id}/medical-record` et `GET /v1/cabinet/consultations/{id}` → `medical_alerts[]` : `{ kind:"allergie"|"medico_legal", label, severity? }` — pastilles d'alerte des en-têtes fiche patient et fauteuil, **même calcul** sur les deux routes (`record_medical_alerts`, #4974/#6917). Une entrée `allergie` par élément lisible de `allergies[]`, quelle que soit sa forme (`"…"`, `{substance,severity?}`, `{text,source:"questionnaire_patient"}` importé du questionnaire, `{name}`/`{label}`) ; `severity` (minuscules, ex. `high`) n'est présent que si l'entrée en porte une, les `high` sont listées en tête ; puis un `medico_legal` par flag à `true`. Affichage passif uniquement (pas de contrôle d'interaction — non-dispositif médical). Le questionnaire patient accepte `allergies`/`traitements_en_cours` en texte libre, liste ou objets.
+
 `POST /v1/cabinet/patients/{id}/notes` — body : `{ note_kind:"observation"|"act", text, tooth?, act_ref?:{ label, ccam?, quote_item_id? } }`. → `201`. Contenu **chiffré**, **horodaté**, **signé** (`author_id`), `practitioner` only (US-D12, `05` §10.3). Pas de suppression dure (soft-delete médical).
 
 **Courriers types (#7197, parité Dental Pilot F7.a)** — `secretary`/`practitioner`/`admin`.

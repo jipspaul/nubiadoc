@@ -396,11 +396,66 @@ pub async fn get_cabinet_medical_questionnaire(
 
 /// `antecedents` → ajouté à `history` (préfixé, jamais un remplacement — le
 /// texte saisi par le praticien ne doit jamais être écrasé silencieusement).
-/// `allergies`/`traitements_en_cours` → ajoutés comme nouvelle entrée aux
+/// `allergies`/`traitements_en_cours` → ajoutés comme nouvelles entrées aux
 /// tableaux `allergies[]`/`treatments[]` (mêmes tableaux libres que
-/// `medical_record.rs`, une entrée de plus n'efface rien d'existant).
+/// `medical_record.rs`, une entrée de plus n'efface rien d'existant). Toutes
+/// les formes de saisie sont acceptées (#6917, cf. [questionnaire_entries]) :
+/// texte libre, liste de chaînes, objets `{"substance"|"text"|"name"|"label",
+/// "severity"?}` — chaque entrée importée porte `text` + `source =
+/// "questionnaire_patient"` (+ `severity` si déclarée), forme lue par
+/// `consultation_context::allergy_alert` pour les pastilles `medical_alerts`.
 /// `ald` → OR logique avec le flag existant (ne redescend jamais un flag
 /// déjà à `true` à `false` sur la foi d'une case non cochée côté patient).
+/// Normalise un champ libre du questionnaire (`allergies`,
+/// `traitements_en_cours`) en entrées de dossier `{"text": …, "source":
+/// "questionnaire_patient"}` (+ `"severity"` quand l'objet en porte une).
+///
+/// Formes acceptées (#6917) — le `payload` du questionnaire est un objet
+/// libre, aucun vocabulaire fermé n'est imposé au patient :
+/// - chaîne : une entrée (texte libre, jamais découpé — un libellé peut
+///   contenir des virgules) ;
+/// - tableau : une entrée par élément (chaîne ou objet) ;
+/// - objet : une entrée, libellé = première clé non vide parmi `substance`,
+///   `text`, `name`, `label`.
+///
+/// Les éléments vides/illisibles sont ignorés — jamais d'entrée inventée.
+fn questionnaire_entries(value: &Value) -> Vec<Value> {
+    const LABEL_KEYS: [&str; 4] = ["substance", "text", "name", "label"];
+
+    fn one(item: &Value) -> Option<Value> {
+        let (text, severity) = if let Some(s) = item.as_str() {
+            (s.trim(), None)
+        } else if item.is_object() {
+            let text = LABEL_KEYS
+                .iter()
+                .filter_map(|k| item.get(k).and_then(|v| v.as_str()))
+                .map(str::trim)
+                .find(|s| !s.is_empty())?;
+            let severity = item
+                .get("severity")
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty());
+            (text, severity)
+        } else {
+            return None;
+        };
+        if text.is_empty() {
+            return None;
+        }
+        let mut entry = serde_json::json!({"text": text, "source": "questionnaire_patient"});
+        if let (Some(severity), Some(obj)) = (severity, entry.as_object_mut()) {
+            obj.insert("severity".to_string(), Value::String(severity));
+        }
+        Some(entry)
+    }
+
+    match value {
+        Value::Array(items) => items.iter().filter_map(one).collect(),
+        other => one(other).into_iter().collect(),
+    }
+}
+
 fn merge_questionnaire_into_record(existing: &Value, payload: &Value) -> Value {
     let existing_history = existing["history"].as_str().unwrap_or("").to_string();
     let antecedents = payload["antecedents"].as_str().unwrap_or("").trim();
@@ -423,24 +478,13 @@ fn merge_questionnaire_into_record(existing: &Value, payload: &Value) -> Value {
         .as_array()
         .cloned()
         .unwrap_or_default();
-    let allergies_text = payload["allergies"].as_str().unwrap_or("").trim();
-    if !allergies_text.is_empty() {
-        allergies
-            .push(serde_json::json!({"text": allergies_text, "source": "questionnaire_patient"}));
-    }
+    allergies.extend(questionnaire_entries(&payload["allergies"]));
 
     let mut treatments = existing["treatments"]
         .as_array()
         .cloned()
         .unwrap_or_default();
-    let traitements_text = payload["traitements_en_cours"]
-        .as_str()
-        .unwrap_or("")
-        .trim();
-    if !traitements_text.is_empty() {
-        treatments
-            .push(serde_json::json!({"text": traitements_text, "source": "questionnaire_patient"}));
-    }
+    treatments.extend(questionnaire_entries(&payload["traitements_en_cours"]));
 
     let mut medico_legal: MedicoLegalFlags = existing
         .get("medico_legal")
@@ -594,4 +638,73 @@ pub async fn review_medical_questionnaire(
     );
 
     Ok(Json(row_to_response(reviewed_row)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn questionnaire_entries_accepts_free_text_list_and_objects() {
+        assert_eq!(
+            questionnaire_entries(&json!(" Pénicilline, latex ")),
+            vec![json!({"text": "Pénicilline, latex", "source": "questionnaire_patient"})]
+        );
+        assert_eq!(
+            questionnaire_entries(&json!([
+                "latex",
+                { "substance": "pénicilline", "severity": "High" },
+                { "text": "iode" },
+                { "name": "" },
+                { "label": "aspirine" },
+                "",
+                42,
+                null
+            ])),
+            vec![
+                json!({"text": "latex", "source": "questionnaire_patient"}),
+                json!({"text": "pénicilline", "source": "questionnaire_patient", "severity": "high"}),
+                json!({"text": "iode", "source": "questionnaire_patient"}),
+                json!({"text": "aspirine", "source": "questionnaire_patient"}),
+            ]
+        );
+        assert_eq!(
+            questionnaire_entries(&json!({"substance": "nickel"})),
+            vec![json!({"text": "nickel", "source": "questionnaire_patient"})]
+        );
+    }
+
+    #[test]
+    fn questionnaire_entries_ignores_empty_or_unreadable_input() {
+        assert!(questionnaire_entries(&json!("")).is_empty());
+        assert!(questionnaire_entries(&json!("   ")).is_empty());
+        assert!(questionnaire_entries(&json!(null)).is_empty());
+        assert!(questionnaire_entries(&json!(true)).is_empty());
+        assert!(questionnaire_entries(&json!([])).is_empty());
+        assert!(questionnaire_entries(&json!({"severity": "high"})).is_empty());
+    }
+
+    #[test]
+    fn merge_questionnaire_keeps_existing_entries_and_appends_allergies() {
+        let existing = json!({
+            "allergies": [{"severity": "high", "substance": "pénicilline"}],
+            "treatments": [],
+            "history": "Diabète",
+            "medico_legal": {"ald": false}
+        });
+        let payload = json!({
+            "antecedents": "",
+            "allergies": ["latex"],
+            "traitements_en_cours": "Metformine",
+            "ald": true
+        });
+        let merged = merge_questionnaire_into_record(&existing, &payload);
+        assert_eq!(merged["allergies"].as_array().map(Vec::len), Some(2));
+        assert_eq!(merged["allergies"][0]["substance"], "pénicilline");
+        assert_eq!(merged["allergies"][1]["text"], "latex");
+        assert_eq!(merged["treatments"][0]["text"], "Metformine");
+        assert_eq!(merged["history"], "Diabète");
+        assert_eq!(merged["medico_legal"]["ald"], true);
+    }
 }

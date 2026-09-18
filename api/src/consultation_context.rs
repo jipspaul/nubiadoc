@@ -50,10 +50,18 @@ pub struct PractitionerSummary {
 /// non-dispositif-médical), aucun contrôle ici : le blocage
 /// anticoagulants/acte invasif reste dans `consultation_act_create.rs` (#4057).
 /// `kind` : `allergie` | `medico_legal`.
-#[derive(Serialize)]
+///
+/// `severity` (#6917) : sévérité déclarée sur l'entrée `allergies[]` du
+/// dossier (`{"substance": …, "severity": "high"}`), transmise telle quelle
+/// (normalisée en minuscules) — omise du JSON quand l'entrée n'en porte pas.
+/// Ajout additif au contrat : les clients qui ne lisent que `kind`/`label`
+/// ne sont pas impactés.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct MedicalAlertItem {
     pub kind: String,
     pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub severity: Option<String>,
 }
 
 /// Résumé du plan de traitement actif du patient, pour l'encart « Plan en
@@ -316,19 +324,7 @@ pub async fn get_consultation_context(
             .try_get("data_ciphertext")
             .map_err(|_| AppError::Internal)?;
         if let Some(data) = decrypt_stub(&ciphertext) {
-            for entry in data["allergies"].as_array().into_iter().flatten() {
-                if let Some(label) = allergy_label(entry) {
-                    medical_alerts.push(MedicalAlertItem {
-                        kind: "allergie".to_string(),
-                        label,
-                    });
-                }
-            }
-            let medico_legal: MedicoLegalFlags = data
-                .get("medico_legal")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default();
-            medical_alerts.extend(medico_legal_alerts(&medico_legal));
+            medical_alerts = record_medical_alerts(&data);
         }
     }
 
@@ -382,24 +378,84 @@ pub async fn get_consultation_context(
     }))
 }
 
-/// Extrait un libellé d'alerte affichable depuis une entrée `allergies[]`
-/// (`jsonb` libre, même tolérance que `medical_record.rs` / le front
-/// `medical_record_dto.dart::_entryToDisplayString` : chaîne brute ou objet
-/// `{"name"|"label": "..."}`). `None` si l'entrée est vide/illisible — jamais
-/// d'alerte inventée.
+/// Alertes affichables d'un dossier médical déchiffré (`{"allergies": [...],
+/// "medico_legal": {...}}`) : une entrée `kind = "allergie"` par allergie
+/// lisible (sévérité `high` en tête, ordre du dossier sinon), puis les flags
+/// médico-légaux à `true`. Tableau vide si rien — jamais d'alerte inventée.
+///
+/// Point unique de calcul (#6917) partagé par `GET /v1/cabinet/consultations/:id`
+/// et `GET`/`PATCH /v1/cabinet/patients/:id/medical-record` : les deux
+/// en-têtes cliniques (fauteuil et fiche patient) affichent strictement les
+/// mêmes pastilles.
+pub(crate) fn record_medical_alerts(data: &serde_json::Value) -> Vec<MedicalAlertItem> {
+    let mut alerts: Vec<MedicalAlertItem> = data["allergies"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(allergy_alert)
+        .collect();
+    // Tri stable : une allergie `high` avant toute autre, sans réordonner le
+    // reste (l'ordre de saisie reste lisible pour le praticien).
+    alerts.sort_by_key(|a| severity_rank(a.severity.as_deref()));
+    let medico_legal: MedicoLegalFlags = data
+        .get("medico_legal")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    alerts.extend(medico_legal_alerts(&medico_legal));
+    alerts
+}
+
+/// Rang d'affichage d'une sévérité : `high` (0) < `medium`/`moderate` (1)
+/// < `low` (2) < inconnue/absente (3).
+fn severity_rank(severity: Option<&str>) -> u8 {
+    match severity {
+        Some("high" | "severe" | "critical") => 0,
+        Some("medium" | "moderate") => 1,
+        Some("low" | "mild") => 2,
+        _ => 3,
+    }
+}
+
+/// Convertit une entrée `allergies[]` (`jsonb` libre) en alerte affichable.
+/// Toutes les formes réellement écrites en base sont acceptées (#6917) :
+/// - chaîne nue `"Pénicilline"` ;
+/// - objet structuré `{"substance": "…", "severity": "high"}` ;
+/// - objet importé du questionnaire patient `{"text": "…", "source":
+///   "questionnaire_patient"}` (`medical_questionnaire.rs`) ;
+/// - objets `{"name": "…"}` / `{"label": "…"}` (formes historiques, même
+///   tolérance que le front `medical_record_dto.dart::_entryToDisplayString`).
+///
+/// `None` si aucun libellé non vide n'est lisible — jamais d'alerte inventée.
 ///
 /// `pub(crate)` — réutilisé par `medical_record.rs` (#4974) pour exposer les
 /// mêmes pastilles d'alerte dans l'en-tête de la fiche patient qu'au fauteuil.
+pub(crate) fn allergy_alert(entry: &serde_json::Value) -> Option<MedicalAlertItem> {
+    let label = allergy_label(entry)?;
+    let severity = entry
+        .get("severity")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty());
+    Some(MedicalAlertItem {
+        kind: "allergie".to_string(),
+        label,
+        severity,
+    })
+}
+
+/// Libellé d'une entrée `allergies[]` — cf. [allergy_alert] pour les formes
+/// acceptées. Première clé non vide parmi `substance`, `text`, `name`, `label`.
 pub(crate) fn allergy_label(entry: &serde_json::Value) -> Option<String> {
+    const LABEL_KEYS: [&str; 4] = ["substance", "text", "name", "label"];
     let label = if let Some(s) = entry.as_str() {
-        s
+        s.trim()
     } else {
-        entry
-            .get("name")
-            .or_else(|| entry.get("label"))
-            .and_then(|v| v.as_str())?
+        LABEL_KEYS
+            .iter()
+            .filter_map(|k| entry.get(k).and_then(|v| v.as_str()))
+            .map(str::trim)
+            .find(|s| !s.is_empty())?
     };
-    let label = label.trim();
     if label.is_empty() {
         None
     } else {
@@ -417,24 +473,28 @@ pub(crate) fn medico_legal_alerts(flags: &MedicoLegalFlags) -> Vec<MedicalAlertI
         alerts.push(MedicalAlertItem {
             kind: "medico_legal".to_string(),
             label: "Anticoagulant (AVK)".to_string(),
+            severity: None,
         });
     }
     if flags.bisphosphonates {
         alerts.push(MedicalAlertItem {
             kind: "medico_legal".to_string(),
             label: "Bisphosphonates".to_string(),
+            severity: None,
         });
     }
     if flags.risque_endocardite {
         alerts.push(MedicalAlertItem {
             kind: "medico_legal".to_string(),
             label: "Risque d'endocardite".to_string(),
+            severity: None,
         });
     }
     if flags.ald {
         alerts.push(MedicalAlertItem {
             kind: "medico_legal".to_string(),
             label: "ALD".to_string(),
+            severity: None,
         });
     }
     alerts
@@ -448,4 +508,123 @@ fn stub_decrypt_note(ciphertext: &[u8]) -> Option<String> {
     let payload = ciphertext.strip_prefix(prefix.as_ref())?;
     let plain: Vec<u8> = payload.iter().map(|b| b ^ 0xFF).collect();
     String::from_utf8(plain).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn allergy_label_accepts_every_stored_shape() {
+        assert_eq!(
+            allergy_label(&json!("Pénicilline")).as_deref(),
+            Some("Pénicilline")
+        );
+        assert_eq!(
+            allergy_label(&json!({"severity": "high", "substance": "pénicilline"})).as_deref(),
+            Some("pénicilline")
+        );
+        assert_eq!(
+            allergy_label(&json!({"source": "questionnaire_patient", "text": " latex "}))
+                .as_deref(),
+            Some("latex")
+        );
+        assert_eq!(
+            allergy_label(&json!({"name": "Iode"})).as_deref(),
+            Some("Iode")
+        );
+        assert_eq!(
+            allergy_label(&json!({"label": "Aspirine"})).as_deref(),
+            Some("Aspirine")
+        );
+        // Première clé non vide : `substance` vide → retombe sur `text`.
+        assert_eq!(
+            allergy_label(&json!({"substance": "", "text": "nickel"})).as_deref(),
+            Some("nickel")
+        );
+    }
+
+    #[test]
+    fn allergy_label_never_invents_an_alert() {
+        assert_eq!(allergy_label(&json!("")), None);
+        assert_eq!(allergy_label(&json!("   ")), None);
+        assert_eq!(allergy_label(&json!({"text": ""})), None);
+        assert_eq!(allergy_label(&json!({"severity": "high"})), None);
+        assert_eq!(allergy_label(&json!({"text": 42})), None);
+        assert_eq!(allergy_label(&json!(null)), None);
+        assert_eq!(allergy_label(&json!(["Pénicilline"])), None);
+    }
+
+    #[test]
+    fn allergy_alert_carries_normalised_severity() {
+        let alert = allergy_alert(&json!({"substance": "pénicilline", "severity": " High "}))
+            .expect("alerte attendue");
+        assert_eq!(alert.kind, "allergie");
+        assert_eq!(alert.label, "pénicilline");
+        assert_eq!(alert.severity.as_deref(), Some("high"));
+
+        let alert = allergy_alert(&json!({"text": "latex", "severity": ""})).expect("alerte");
+        assert_eq!(alert.severity, None);
+        let alert = allergy_alert(&json!("Nickel")).expect("alerte");
+        assert_eq!(alert.severity, None);
+    }
+
+    #[test]
+    fn record_medical_alerts_lists_every_allergy_high_first_then_flags() {
+        let data = json!({
+            "allergies": [
+                { "source": "questionnaire_patient", "text": "latex" },
+                "Nickel",
+                { "severity": "high", "substance": "pénicilline" },
+                { "text": "" }
+            ],
+            "treatments": [],
+            "history": null,
+            "medico_legal": { "ald": true, "anticoagulants": true }
+        });
+        let alerts = record_medical_alerts(&data);
+        let view: Vec<(&str, &str, Option<&str>)> = alerts
+            .iter()
+            .map(|a| (a.kind.as_str(), a.label.as_str(), a.severity.as_deref()))
+            .collect();
+        assert_eq!(
+            view,
+            vec![
+                ("allergie", "pénicilline", Some("high")),
+                ("allergie", "latex", None),
+                ("allergie", "Nickel", None),
+                ("medico_legal", "Anticoagulant (AVK)", None),
+                ("medico_legal", "ALD", None),
+            ]
+        );
+    }
+
+    #[test]
+    fn record_medical_alerts_is_empty_without_allergy_nor_flag() {
+        assert!(record_medical_alerts(&json!({"allergies": [], "treatments": []})).is_empty());
+        assert!(record_medical_alerts(&json!({})).is_empty());
+        assert!(record_medical_alerts(&json!({"allergies": "pas un tableau"})).is_empty());
+    }
+
+    #[test]
+    fn medical_alert_item_omits_severity_when_absent() {
+        let without = serde_json::to_value(MedicalAlertItem {
+            kind: "allergie".into(),
+            label: "latex".into(),
+            severity: None,
+        })
+        .expect("json");
+        assert_eq!(without, json!({"kind": "allergie", "label": "latex"}));
+        let with = serde_json::to_value(MedicalAlertItem {
+            kind: "allergie".into(),
+            label: "pénicilline".into(),
+            severity: Some("high".into()),
+        })
+        .expect("json");
+        assert_eq!(
+            with,
+            json!({"kind": "allergie", "label": "pénicilline", "severity": "high"})
+        );
+    }
 }
