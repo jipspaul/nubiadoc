@@ -8,7 +8,7 @@ use axum::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
@@ -58,6 +58,7 @@ struct Fixture {
     cabinet_id: Uuid,
     user_id: Uuid,
     patient_id: Uuid,
+    prac_id: Uuid,
 }
 
 async fn seed(db: &PgPool) -> Fixture {
@@ -124,6 +125,7 @@ async fn seed(db: &PgPool) -> Fixture {
         cabinet_id,
         user_id,
         patient_id,
+        prac_id,
     }
 }
 
@@ -452,6 +454,185 @@ async fn create_with_appointment_of_another_patient_returns_404() {
         .execute(&db)
         .await
         .ok();
+
+    cleanup(&db, &f).await;
+}
+
+/// Insère un RDV de pose (`status = 'confirmed'`) décalé de `offset_interval`
+/// (ex. `"1 day"`) par rapport à maintenant, pour tester la fenêtre
+/// aujourd'hui/demain de `GET /v1/cabinet/lab-work-orders/today` (#7208).
+async fn insert_appointment_at_offset(db: &PgPool, f: &Fixture, offset_interval: &str) -> Uuid {
+    let appointment_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, now() + $5::interval, \
+                  now() + $5::interval + interval '30 minutes', 'confirmed', 'pose prothèse')",
+    )
+    .bind(appointment_id)
+    .bind(f.cabinet_id)
+    .bind(f.patient_id)
+    .bind(f.prac_id)
+    .bind(offset_interval)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    appointment_id
+}
+
+// ── Test (#7208) : `today` renvoie les bons dont le RDV de pose est demain,
+// exclut ceux d'aujourd'hui+2j et ceux sans appointment_id ─────────────────
+
+#[tokio::test]
+async fn today_lists_orders_with_appointment_tomorrow_only() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let tomorrow_appointment_id = insert_appointment_at_offset(&db, &f, "1 day").await;
+    let far_appointment_id = insert_appointment_at_offset(&db, &f, "3 days").await;
+
+    let (status, _tomorrow_created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "appointment_id": tomorrow_appointment_id,
+            "lab_name": "Labo Dentaire Demain",
+            "purchase_price_cents": 9000
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _far_created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "appointment_id": far_appointment_id,
+            "lab_name": "Labo Dentaire Trop Loin",
+            "purchase_price_cents": 9500
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _no_appointment_created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "Labo Dentaire Sans RDV",
+            "purchase_price_cents": 7000
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, today_list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/lab-work-orders/today",
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let orders = today_list.as_array().unwrap();
+    assert_eq!(orders.len(), 1, "orders={orders:?}");
+    assert_eq!(orders[0]["lab_name"], "Labo Dentaire Demain");
+    assert_eq!(
+        orders[0]["appointment_id"],
+        tomorrow_appointment_id.to_string()
+    );
+    assert!(orders[0]["appointment_starts_at"].as_str().is_some());
+    assert_eq!(orders[0]["status"], "sent");
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test (#7208) : PATCH shipped/received horodate shipped_at/received_at ──
+
+#[tokio::test]
+async fn patch_shipped_then_received_stamps_timestamps() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "Labo Dentaire Delta",
+            "purchase_price_cents": 11000
+        })),
+    )
+    .await;
+    let order_id = created["order_id"].as_str().unwrap().to_string();
+    let order_uuid = Uuid::parse_str(&order_id).unwrap();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/lab-work-orders/{order_id}"),
+        &token,
+        Some(json!({"status": "shipped"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(resp["status"], "shipped");
+
+    let row = sqlx::query("SELECT shipped_at, received_at FROM lab_work_order WHERE id = $1")
+        .bind(order_uuid)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let shipped_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("shipped_at").unwrap();
+    let received_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("received_at").unwrap();
+    assert!(shipped_at.is_some(), "shipped_at doit être horodaté");
+    assert!(received_at.is_none(), "received_at pas encore posé");
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/lab-work-orders/{order_id}"),
+        &token,
+        Some(json!({"status": "received"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(resp["status"], "received");
+
+    let row = sqlx::query("SELECT received_at FROM lab_work_order WHERE id = $1")
+        .bind(order_uuid)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let received_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("received_at").unwrap();
+    assert!(received_at.is_some(), "received_at doit être horodaté");
 
     cleanup(&db, &f).await;
 }

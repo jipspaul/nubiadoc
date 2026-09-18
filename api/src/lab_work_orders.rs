@@ -1,6 +1,7 @@
 //! Handlers bons de travaux prothétiques (#4148), sur `lab_work_order`
 //! (migration 0193, #4147) :
 //! - `GET/POST /v1/cabinet/lab-work-orders`
+//! - `GET /v1/cabinet/lab-work-orders/today` (#7208)
 //! - `PATCH /v1/cabinet/lab-work-orders/:id`
 //!
 //! `ProPractitionerClaims` (pas `ProSecretaryPlusClaims`) : le suivi
@@ -57,9 +58,27 @@ async fn ensure_care_relationship(
 /// Ordre de progression légal — une transition n'est autorisée que vers un
 /// statut de rang STRICTEMENT supérieur (retour arrière interdit, cf. #4148 :
 /// `sent → returned` autorisé (saute `try_in`), `fitted → sent` refusé).
-const STATUS_ORDER: [&str; 4] = ["sent", "try_in", "returned", "fitted"];
+///
+/// `in_progress`/`shipped`/`received` (migration 0274, #7209) s'intercalent
+/// AVANT `try_in` : ce sont les étapes de fabrication/transit chez le
+/// laboratoire, toutes antérieures à l'arrivée physique de la prothèse au
+/// cabinet. `returned`/`fitted` restent de rang supérieur à `received` — un
+/// bon suivant l'ancien cycle (`sent → returned` direct, sans passer par
+/// `shipped`/`received`) est donc traité comme « déjà arrivé », ce qui est
+/// cohérent avec la notification #4165 déclenchée sur `returned`. Utilisé par
+/// `patient_alerts::prosthesis_not_received_alert` (#7208) pour décider si
+/// une prothèse est « non reçue » à J-1 du RDV de pose.
+pub(crate) const STATUS_ORDER: [&str; 7] = [
+    "sent",
+    "in_progress",
+    "shipped",
+    "received",
+    "try_in",
+    "returned",
+    "fitted",
+];
 
-fn is_forward_transition(current: &str, target: &str) -> bool {
+pub(crate) fn is_forward_transition(current: &str, target: &str) -> bool {
     let (Some(from), Some(to)) = (
         STATUS_ORDER.iter().position(|s| *s == current),
         STATUS_ORDER.iter().position(|s| *s == target),
@@ -67,6 +86,13 @@ fn is_forward_transition(current: &str, target: &str) -> bool {
         return false;
     };
     to > from
+}
+
+/// Rang d'un statut dans [`STATUS_ORDER`] — `None` si inconnu. Utilisé par
+/// `patient_alerts::get_patient_alerts` (#7208) pour comparer un statut à
+/// `received` sans dupliquer l'énumération.
+pub(crate) fn status_rank(status: &str) -> Option<usize> {
+    STATUS_ORDER.iter().position(|s| *s == status)
 }
 
 // ── GET/POST /v1/cabinet/lab-work-orders ─────────────────────────────────────
@@ -309,6 +335,111 @@ pub async fn create_lab_work_order(
     ))
 }
 
+// ── GET /v1/cabinet/lab-work-orders/today ────────────────────────────────────
+
+/// Un bon de travail dont le RDV de pose (`lab_work_order.appointment_id`)
+/// tombe aujourd'hui ou demain.
+#[derive(Serialize)]
+pub struct TodayLabWorkOrderDto {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub patient_display_name: String,
+    pub appointment_id: Uuid,
+    pub appointment_starts_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tooth_fdi: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub work_nature: Option<String>,
+    pub lab_name: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shipped_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub received_at: Option<String>,
+}
+
+/// `GET /v1/cabinet/lab-work-orders/today` — bons de travail dont le RDV de
+/// pose est prévu aujourd'hui ou demain, triés par heure de RDV (#7208).
+///
+/// Sert la vue « prothèses du jour » du praticien et alimente le même besoin
+/// que l'alerte `prosthesis_not_received` (`patient_alerts.rs`) : repérer
+/// avant le RDV les bons dont la prothèse n'est pas encore arrivée. Même
+/// garde §14 (relation de soin, #4414/#6673) que `list_lab_work_orders`.
+/// Route statique enregistrée avant `/:id` (`routes/cr_prescriptions.rs`) —
+/// priorité segment statique de `matchit`/axum, pas d'ordre à respecter.
+pub async fn list_today_lab_work_orders(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+) -> Result<Json<Vec<TodayLabWorkOrderDto>>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT lwo.id, lwo.patient_id, \
+         p.first_name || ' ' || p.last_name AS patient_display_name, \
+         lwo.appointment_id, a.starts_at AS appointment_starts_at, \
+         qi.tooth AS tooth_fdi, qi.label AS work_nature, \
+         lwo.lab_name, lwo.status, lwo.shipped_at, lwo.received_at \
+         FROM lab_work_order lwo \
+         JOIN appointment a ON a.id = lwo.appointment_id \
+         JOIN patient p ON p.id = lwo.patient_id \
+         LEFT JOIN quote_item qi ON qi.id = lwo.quote_item_id \
+         WHERE lwo.cabinet_id = $1 \
+           AND a.deleted_at IS NULL \
+           AND a.starts_at >= date_trunc('day', now()) \
+           AND a.starts_at <  date_trunc('day', now()) + interval '2 days' \
+           AND EXISTS ( \
+             SELECT 1 FROM appointment a2 \
+             JOIN practitioner pr ON pr.id = a2.practitioner_id \
+             WHERE a2.patient_id = lwo.patient_id AND a2.cabinet_id = $1 \
+               AND pr.user_id = $2 AND a2.deleted_at IS NULL \
+           ) \
+         ORDER BY a.starts_at ASC",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut orders = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let appointment_starts_at: chrono::DateTime<chrono::Utc> = row
+            .try_get("appointment_starts_at")
+            .map_err(|_| AppError::Internal)?;
+        let shipped_at: Option<chrono::DateTime<chrono::Utc>> =
+            row.try_get("shipped_at").map_err(|_| AppError::Internal)?;
+        let received_at: Option<chrono::DateTime<chrono::Utc>> =
+            row.try_get("received_at").map_err(|_| AppError::Internal)?;
+        orders.push(TodayLabWorkOrderDto {
+            id: row.try_get("id").map_err(|_| AppError::Internal)?,
+            patient_id: row.try_get("patient_id").map_err(|_| AppError::Internal)?,
+            patient_display_name: row
+                .try_get("patient_display_name")
+                .map_err(|_| AppError::Internal)?,
+            appointment_id: row
+                .try_get("appointment_id")
+                .map_err(|_| AppError::Internal)?,
+            appointment_starts_at: appointment_starts_at.to_rfc3339(),
+            tooth_fdi: row.try_get("tooth_fdi").map_err(|_| AppError::Internal)?,
+            work_nature: row.try_get("work_nature").map_err(|_| AppError::Internal)?,
+            lab_name: row.try_get("lab_name").map_err(|_| AppError::Internal)?,
+            status: row.try_get("status").map_err(|_| AppError::Internal)?,
+            shipped_at: shipped_at.map(|d| d.to_rfc3339()),
+            received_at: received_at.map(|d| d.to_rfc3339()),
+        });
+    }
+
+    Ok(Json(orders))
+}
+
 // ── PATCH /v1/cabinet/lab-work-orders/:id ─────────────────────────────────────
 
 /// Body de `PATCH /v1/cabinet/lab-work-orders/:id`.
@@ -370,13 +501,44 @@ pub async fn patch_lab_work_order(
         return Err(AppError::InvalidStatus);
     }
 
-    sqlx::query("UPDATE lab_work_order SET status = $1 WHERE id = $2 AND cabinet_id = $3")
-        .bind(&body.status)
-        .bind(id)
-        .bind(claims.cabinet_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
+    // `shipped`/`received` (migration 0274, #7209) : horodatage de transit
+    // laboratoire → cabinet, posé une seule fois au moment de la transition
+    // (#7208).
+    match body.status.as_str() {
+        "shipped" => {
+            sqlx::query(
+                "UPDATE lab_work_order SET status = $1, shipped_at = now() \
+                 WHERE id = $2 AND cabinet_id = $3",
+            )
+            .bind(&body.status)
+            .bind(id)
+            .bind(claims.cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        }
+        "received" => {
+            sqlx::query(
+                "UPDATE lab_work_order SET status = $1, received_at = now() \
+                 WHERE id = $2 AND cabinet_id = $3",
+            )
+            .bind(&body.status)
+            .bind(id)
+            .bind(claims.cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        }
+        _ => {
+            sqlx::query("UPDATE lab_work_order SET status = $1 WHERE id = $2 AND cabinet_id = $3")
+                .bind(&body.status)
+                .bind(id)
+                .bind(claims.cabinet_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        }
+    }
 
     if body.status == "returned" {
         let patient_row =

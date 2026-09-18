@@ -1,9 +1,12 @@
 //! Handler `GET /v1/cabinet/patients/:id/alerts` (#4093) : alertes
 //! administratives agrégées pour l'accueil secrétariat — factures signées
-//! impayées échues + documents administratifs attendus manquants.
+//! impayées échues + documents administratifs attendus manquants + bon de
+//! travail prothétique non reçu la veille d'un RDV de pose (`#7208`).
 //!
 //! Volontairement exclu : toute précaution médicale/clinique (hors périmètre
-//! secrétariat, R.4127-72 — même exclusion que `patient_detail.rs`).
+//! secrétariat, R.4127-72 — même exclusion que `patient_detail.rs`). Le
+//! suivi logistique d'un bon de travail prothétique n'en fait pas partie :
+//! c'est un aléa de transit labo, pas un jugement clinique.
 
 use axum::{
     extract::{Path, State},
@@ -15,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProSecretaryPlusClaims},
+    lab_work_orders,
     patient_tags::ensure_secretary_scope,
     AppState,
 };
@@ -38,7 +42,7 @@ pub struct PatientAlertsResponse {
 }
 
 /// `GET /v1/cabinet/patients/:id/alerts` — alertes administratives (impayés,
-/// documents manquants), lecture seule.
+/// documents manquants, prothèse non reçue), lecture seule.
 ///
 /// Facture impayée échue : au moins un devis `signed` du patient dont
 /// `signed_at` a plus de [`OVERDUE_INVOICE_DELAY_DAYS`] jours ET dont le
@@ -47,6 +51,9 @@ pub struct PatientAlertsResponse {
 /// `GET /cabinet/quotes/:id`, #4794), pas le montant brut du devis — moins les
 /// paiements enregistrés, est encore positif. Document manquant : aucune
 /// `document.category = 'carte_mutuelle'` non supprimée pour ce patient.
+/// Prothèse non reçue (#7208) : un `lab_work_order` du patient rattaché à un
+/// `appointment` de demain (J+1) dont le statut n'a pas encore atteint
+/// `received` dans [`lab_work_orders::STATUS_ORDER`].
 pub async fn get_patient_alerts(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -135,6 +142,45 @@ pub async fn get_patient_alerts(
             kind: "missing_document".to_string(),
             message: "Carte mutuelle non scannée.".to_string(),
             data: serde_json::json!({ "category": "carte_mutuelle" }),
+        });
+    }
+
+    // #7208 (DP-F3.b) : RDV de pose demain (J+1) alors que le bon de travail
+    // prothétique lié n'est pas encore arrivé au cabinet — logistique de
+    // suivi labo, pas une précaution clinique (l'exclusion du module ne
+    // s'applique pas ici, cf. doc de tête).
+    let tomorrow_lab_work_order = sqlx::query(
+        "SELECT lwo.id, lwo.status, a.starts_at \
+         FROM lab_work_order lwo \
+         JOIN appointment a ON a.id = lwo.appointment_id \
+         WHERE lwo.patient_id = $1 AND lwo.cabinet_id = $2 \
+           AND a.deleted_at IS NULL \
+           AND a.starts_at >= date_trunc('day', now()) + interval '1 day' \
+           AND a.starts_at <  date_trunc('day', now()) + interval '2 days' \
+         ORDER BY a.starts_at ASC",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let received_rank = lab_work_orders::status_rank("received").unwrap_or(usize::MAX);
+    for row in &tomorrow_lab_work_order {
+        let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+        if lab_work_orders::status_rank(&status).unwrap_or(usize::MAX) >= received_rank {
+            continue;
+        }
+        let order_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let starts_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+        alerts.push(PatientAlert {
+            kind: "prosthesis_not_received".to_string(),
+            message: "Prothèse non reçue pour le RDV de pose de demain.".to_string(),
+            data: serde_json::json!({
+                "lab_work_order_id": order_id,
+                "appointment_starts_at": starts_at.to_rfc3339(),
+                "status": status,
+            }),
         });
     }
 

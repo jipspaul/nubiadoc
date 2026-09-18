@@ -287,6 +287,12 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .execute(&mut *tx)
         .await
         .ok();
+    // #7208 : avant appointment (FK composite lab_work_order.appointment_id).
+    sqlx::query("DELETE FROM lab_work_order WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     // Scope secrétariat, ordre FK avant patient/cabinet.
     sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
@@ -400,6 +406,135 @@ async fn up_to_date_patient_gets_no_alerts() {
     let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let alerts = body["alerts"].as_array().unwrap();
     assert!(alerts.is_empty(), "alerts={alerts:?}");
+
+    cleanup(&db, &f).await;
+}
+
+/// Insère un `lab_work_order` (`status` par défaut `sent`) rattaché au RDV du
+/// patient donné (`seed` : `patient_overdue_id` a un RDV à J+1). Utilisé par
+/// les tests `prosthesis_not_received` (#7208).
+async fn insert_lab_work_order_for_appointment(
+    db: &PgPool,
+    cabinet_id: Uuid,
+    patient_id: Uuid,
+    status: Option<&str>,
+) {
+    let appointment_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM appointment WHERE patient_id = $1 AND cabinet_id = $2")
+            .bind(patient_id)
+            .bind(cabinet_id)
+            .fetch_one(db)
+            .await
+            .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO lab_work_order \
+         (cabinet_id, patient_id, appointment_id, lab_name, purchase_price_cents, status) \
+         VALUES ($1, $2, $3, 'Labo Alertes Test', 10000, COALESCE($4, 'sent'))",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(appointment_id)
+    .bind(status)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+}
+
+// ── Test (#7208) : RDV de pose demain + prothèse non reçue → alerte ─────────
+
+#[tokio::test]
+async fn prosthesis_not_received_for_tomorrow_appointment_gets_alert() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    // `patient_overdue_id` a un RDV à J+1 (seed, offset "1 day").
+    insert_lab_work_order_for_appointment(&db, f.cabinet_id, f.patient_overdue_id, Some("sent"))
+        .await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id, Some(f.secretariat_id));
+
+    let response = app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/alerts",
+                    f.patient_overdue_id
+                ))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let alerts = body["alerts"].as_array().unwrap();
+    let kinds: Vec<&str> = alerts.iter().map(|a| a["kind"].as_str().unwrap()).collect();
+    assert!(
+        kinds.contains(&"prosthesis_not_received"),
+        "kinds={kinds:?}"
+    );
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test (#7208) : prothèse déjà `received` avant le RDV de demain → pas
+// d'alerte, même si le RDV tombe dans la fenêtre J+1 ──────────────────────
+
+#[tokio::test]
+async fn received_prosthesis_for_tomorrow_appointment_gets_no_alert() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    insert_lab_work_order_for_appointment(
+        &db,
+        f.cabinet_id,
+        f.patient_overdue_id,
+        Some("received"),
+    )
+    .await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id, Some(f.secretariat_id));
+
+    let response = app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/alerts",
+                    f.patient_overdue_id
+                ))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let alerts = body["alerts"].as_array().unwrap();
+    let kinds: Vec<&str> = alerts.iter().map(|a| a["kind"].as_str().unwrap()).collect();
+    assert!(
+        !kinds.contains(&"prosthesis_not_received"),
+        "kinds={kinds:?}"
+    );
 
     cleanup(&db, &f).await;
 }
