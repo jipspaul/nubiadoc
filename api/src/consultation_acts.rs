@@ -104,12 +104,16 @@ pub async fn list_consultation_acts(
     }
 
     // #4951 — statut de traçabilité stérilisation, même EXISTS que
-    // `consultation_context.rs::get_consultation_context`.
+    // `consultation_context.rs::get_consultation_context` (couvre aussi
+    // `sterilized_pouch.consultation_id`, migration 0269, #7181/#7244).
     let act_rows = sqlx::query(
         "SELECT ca.id, ca.ccam_code, ca.label, ca.tooth, ca.amount_cents, ca.created_at, \
                 EXISTS ( \
                     SELECT 1 FROM sterilized_pouch sp \
-                    WHERE sp.consultation_act_id = ca.id AND sp.cabinet_id = ca.cabinet_id \
+                    LEFT JOIN consultation_session cs \
+                        ON cs.id = sp.consultation_id AND cs.cabinet_id = sp.cabinet_id \
+                    WHERE sp.cabinet_id = ca.cabinet_id \
+                      AND (sp.consultation_act_id = ca.id OR cs.appointment_id = ca.appointment_id) \
                 ) AS sterilized \
          FROM consultation_act ca \
          WHERE ca.appointment_id = $1 AND ca.cabinet_id = $2 \

@@ -336,12 +336,21 @@ pub struct SterilizedPouchDto {
     pub id: Uuid,
     pub code: String,
     pub consultation_act_id: Option<Uuid>,
+    /// Patient sur lequel le sachet a été ouvert (scan `POST
+    /// /v1/sterilization/pouches/:code/use`, migration 0269, #7181).
+    pub patient_id: Option<Uuid>,
+    pub consultation_id: Option<Uuid>,
+    pub used_at: Option<String>,
+    pub used_by: Option<Uuid>,
 }
 
 /// `GET /v1/cabinet/sterilization-cycles/:id/pouches` — liste les pochettes
 /// scannées pour un cycle (#4354 : la donnée était write-only, aucun
 /// endpoint ne la relisait, contrairement au but même du registre —
-/// traçabilité lot ↔ patient ↔ acte, migration 0190).
+/// traçabilité lot ↔ patient ↔ acte, migration 0190). Expose aussi
+/// `patient_id`/`consultation_id`/`used_at`/`used_by` (migration 0269,
+/// #7181/#7244) : sans ça, un sachet ouvert sur un patient ressortait comme
+/// neuf ici, rendant le rappel de lot impossible.
 ///
 /// Cycle inexistant/hors tenant → 404.
 pub async fn list_sterilized_pouches(
@@ -369,7 +378,8 @@ pub async fn list_sterilized_pouches(
     }
 
     let rows = sqlx::query(
-        "SELECT id, code, consultation_act_id FROM sterilized_pouch \
+        "SELECT id, code, consultation_act_id, patient_id, consultation_id, used_at, used_by \
+         FROM sterilized_pouch \
          WHERE cycle_id = $1 AND cabinet_id = $2 ORDER BY code",
     )
     .bind(cycle_id)
@@ -383,12 +393,20 @@ pub async fn list_sterilized_pouches(
     let pouches = rows
         .into_iter()
         .map(|row| {
+            let used_at: Option<chrono::DateTime<chrono::Utc>> =
+                row.try_get("used_at").map_err(|_| AppError::Internal)?;
             Ok(SterilizedPouchDto {
                 id: row.try_get("id").map_err(|_| AppError::Internal)?,
                 code: row.try_get("code").map_err(|_| AppError::Internal)?,
                 consultation_act_id: row
                     .try_get("consultation_act_id")
                     .map_err(|_| AppError::Internal)?,
+                patient_id: row.try_get("patient_id").map_err(|_| AppError::Internal)?,
+                consultation_id: row
+                    .try_get("consultation_id")
+                    .map_err(|_| AppError::Internal)?,
+                used_at: used_at.map(|dt| dt.to_rfc3339()),
+                used_by: row.try_get("used_by").map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
