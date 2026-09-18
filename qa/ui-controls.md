@@ -2264,3 +2264,29 @@ l'app infirmière s'étire sans débordement. **0 contrôle mort avéré** au se
 | secretariat | `/team-messages` | 25 | 22 | 22 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
 
 **TOTAL RONDE R78 : 68 écrans · 1214 contrôles inventoriés · 1029 activés · 937 OK · 79 MORT candidats → **0 avéré** après re-test individuel · 13 « cassés » (tous des gardes `403`/`404` légitimes dégradées proprement, ou des artefacts d'expiration de session).**
+
+#### Ronde R78 — passe au SECOND viewport (chaque app à l'autre taille)
+
+> Les 5 apps ont été reparcourues au viewport opposé à leur cible : patient et infirmière à **1280×800**, praticien, officine et secrétariat à **390×844**. C'est cette passe qui a produit **#7254** (praticien) et **#7256** (officine).
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | last_check ISO | note |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 1280×800 | 7 | 6 | 6 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+| infirmiere | `/notification-preferences` | 1280×800 | 3 | 3 | 3 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+| patient | `/` | 1280×800 | 17 | 14 | 14 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+| patient | `/documents` | 1280×800 | 26 | 25 | 25 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+| patient | `/financial` | 1280×800 | 9 | 9 | 9 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+| patient | `/mes-rdv` | 1280×800 | 7 | 7 | 7 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+| patient | `/treatment-plans` | 1280×800 | 9 | 9 | 9 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+| pharmacie | `/` | 390×844 | 11 | 11 | 11 | 0 | 0 | 2026-09-18T02:15:00Z | **#7256** — nom du patient réduit à « M... », référence coupée « CMD- / 0031 », date éclatée sur 6 lignes ; KPI « en préparatio / n ». Lisible à partir de 768 px |
+| pharmacie | `/devis` | 390×844 | 19 | 14 | 13 | 1 | 0 | 2026-09-18T02:15:00Z | 1 MORT candidat non confirmé (détail ouvert en place) |
+| pharmacie | `/stock` | 390×844 | 8 | 8 | 8 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+| praticien | `/` | 390×844 | 6 | 6 | 6 | 0 | 0 | 2026-09-18T02:15:00Z | **#7254** — « Démarrer l... » / « Ouvrir le d... » : les 2 actions du hero coupées en plein mot (`Row` à 2 `Expanded` figés, `next_patient_hero.dart:148-197`). Complètes à partir de 768 px |
+| praticien | `/agenda` | 390×844 | 8 | 8 | 8 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+| praticien | `/ordonnances` | 390×844 | 3 | 3 | 3 | 0 | 0 | 2026-09-18T02:15:00Z | repli mobile : 3 contrôles seulement exposés à 390 px (la liste passe en pile) |
+| praticien | `/patients` | 390×844 | 18 | 16 | 7 | 0 | 9 | 2026-09-18T02:15:00Z | 9 « cassés » = `403` de la garde relation-de-soin, dégradés en notice (cf. R78 à 1280) |
+| secretariat | `/` | 390×844 | 8 | 8 | 8 | 0 | 0 | 2026-09-18T02:15:00Z | repli mobile propre (hamburger, cartes empilées), 8/8 contrôles OK |
+| secretariat | `/devis` | 390×844 | 19 | 9 | 9 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+| secretariat | `/salle-attente` | 390×844 | 5 | 5 | 5 | 0 | 0 | 2026-09-18T02:15:00Z |  |
+
+**Sous-total second viewport : 17 écrans · 183 contrôles · 161 activés · 151 OK · 1 MORT candidats (0 avéré) · 9 « cassés » (gardes 403 légitimes).** Deux défauts de mise en page trouvés par cette seule passe : **#7254** et **#7256**.
