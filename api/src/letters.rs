@@ -64,6 +64,16 @@ const VALID_KINDS: &[&str] = &[
 /// Taille maximale d'un corps de modèle (garde-fou mémoire/PDF).
 const MAX_BODY_CHARS: usize = 20_000;
 
+/// Taille maximale du nom d'un modèle (#7253 : aucune borne auparavant, un
+/// `name` de plusieurs milliers de caractères était accepté alors que
+/// `body_template` l'est déjà via `MAX_BODY_CHARS`).
+const MAX_NAME_CHARS: usize = 200;
+
+/// Taille maximale d'une valeur d'`overrides` (#7253 : aucune borne
+/// auparavant — la valeur part telle quelle dans le corps rendu puis le
+/// PDF, seule la clé était contrôlée via `KNOWN_PLACEHOLDERS`).
+const MAX_OVERRIDE_VALUE_CHARS: usize = 500;
+
 // ── Moteur de substitution (pur) ─────────────────────────────────────────────
 
 /// Erreur du moteur, convertie en `AppError` par les handlers.
@@ -272,7 +282,8 @@ pub struct CreateLetterTemplateResponse {
 /// - Token pro `secretary`/`practitioner`/`admin` requis.
 /// - `cabinet_id` extrait du JWT — jamais `NULL` (seule une migration crée
 ///   un modèle global, cf. RLS `global_template_read`).
-/// - `name`/`body_template` non blancs, `kind` dans l'énum → `422
+/// - `name`/`body_template` non blancs, `kind` dans l'énum, `name` ≤
+///   `MAX_NAME_CHARS`, `body_template` ≤ `MAX_BODY_CHARS` → `422
 ///   validation_error` sinon.
 /// - `body_template` mal formé (`{{` non fermé) → `422 validation_error` ;
 ///   placeholder inconnu → `422 unknown_placeholders { placeholders: [...] }`.
@@ -287,6 +298,9 @@ pub async fn create_letter_template(
         return Err(AppError::ValidationError);
     }
     if body.body_template.chars().count() > MAX_BODY_CHARS {
+        return Err(AppError::ValidationError);
+    }
+    if name.chars().count() > MAX_NAME_CHARS {
         return Err(AppError::ValidationError);
     }
     if !VALID_KINDS.contains(&body.kind.as_str()) {
@@ -392,7 +406,8 @@ fn insert_opt(values: &mut BTreeMap<String, String>, key: &str, value: Option<St
 /// - `template_id` inexistant ou privé d'un autre cabinet → `404` (RLS).
 /// - `correspondent_id` fourni → `501 correspondent_not_supported`.
 /// - Clé d'`overrides` inconnue, ou placeholder inconnu dans le modèle →
-///   `422 unknown_placeholders { placeholders }`.
+///   `422 unknown_placeholders { placeholders }`. Valeur d'`overrides` >
+///   `MAX_OVERRIDE_VALUE_CHARS` → `422 validation_error`.
 /// - Placeholder sans valeur (pas de RDV, pas de RPPS, correspondant…) et
 ///   sans override → `422 missing_placeholder_values { placeholders }`.
 /// - Contexte : `rdv.*` = prochain RDV non annulé du patient dans le cabinet,
@@ -424,6 +439,9 @@ pub async fn generate_patient_letter(
     }
     for value in body.overrides.values() {
         crate::text_validation::reject_nul_byte(value)?;
+        if value.chars().count() > MAX_OVERRIDE_VALUE_CHARS {
+            return Err(AppError::ValidationError);
+        }
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;

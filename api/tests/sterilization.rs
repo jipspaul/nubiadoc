@@ -507,6 +507,51 @@ async fn duplicate_pouch_code_returns_409() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 2b (#7253) : plafond de longueur sur `code` ─────────────────────────
+
+#[tokio::test]
+async fn oversized_pouch_code_is_rejected() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/sterilization-cycles",
+        &token,
+        Some(json!({
+            "autoclave_ref": "Autoclave-1",
+            "cycle_number": 1,
+            "test_kind": "helix",
+            "test_result": "virage complet",
+            "status": "conforme"
+        })),
+    )
+    .await;
+    let cycle_id = created["cycle_id"].as_str().unwrap().to_string();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/sterilization-cycles/{cycle_id}/pouches"),
+        &token,
+        Some(json!({"code": "Z".repeat(20_000)})),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un code de sachet de 20000 caractères doit être refusé (étiquette \
+         sans QR sinon) : {resp}"
+    );
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 3 : scan hors tenant → 404 ──────────────────────────────────────────
 
 #[tokio::test]
