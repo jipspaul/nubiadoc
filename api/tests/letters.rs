@@ -592,3 +592,181 @@ async fn oversized_name_and_override_value_are_rejected() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test 5 : `{{cabinet.adresse}}` retombe sur l'annuaire (#7242) ────────────
+//
+// Reproduit le cas QA-20260918-R78-2 : un cabinet dont `settings` ne porte pas
+// d'adresse, mais dont le praticien a un profil `provider` lié à un
+// `establishment` (annuaire) — même mécanisme de repli que
+// `appointments_response::fetch_cabinet_for_response` (#3557).
+#[tokio::test]
+async fn cabinet_adresse_falls_back_to_establishment_directory() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let establishment_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let template_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("letters-annuaire+{user_id}@nubia.test"))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // `establishment` est une table plateforme (pas de RLS cabinet) : insérable
+    // sans GUC tenant posé.
+    sqlx::query(
+        "INSERT INTO establishment (id, name, address) \
+         VALUES ($1, 'Cabinet annuaire', \
+                 '{\"rue\": \"5 avenue Foch\", \"cp\": \"75116\", \"ville\": \"Paris\"}'::jsonb)",
+    )
+    .bind(establishment_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    // Cabinet SANS adresse dans `settings`, comme le cabinet Lyon de la QA.
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite, settings) \
+         VALUES ($1, $2, 'dentaire', '{}'::jsonb)",
+    )
+    .bind(cabinet_id)
+    .bind(format!("Cabinet Annuaire {cabinet_id}"))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id, rpps) VALUES ($1, $2, $3, '10009999999')")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider \
+         (id, practitioner_id, cabinet_id, establishment_id, display_name, user_id, is_listed) \
+         VALUES ($1, $2, $3, $4, 'Dr Annuaire', $5, false)",
+    )
+    .bind(provider_id)
+    .bind(prac_id)
+    .bind(cabinet_id)
+    .bind(establishment_id)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+         VALUES ($1, $2, 'Léa', 'Dupont (test)')",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO letter_template (id, cabinet_id, name, kind, body_template) \
+         VALUES ($1, $2, 'Modèle annuaire test', 'autre', \
+                 'Cabinet {{cabinet.nom}}, adresse : {{cabinet.adresse}}.')",
+    )
+    .bind(template_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    let token = make_pro_jwt(user_id, cabinet_id, "practitioner");
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/patients/{patient_id}/letters"),
+        &token,
+        Some(json!({ "template_id": template_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{resp}");
+    assert!(
+        resp["body"]
+            .as_str()
+            .unwrap()
+            .contains("5 avenue Foch, 75116 Paris"),
+        "{resp}"
+    );
+
+    // Nettoyage.
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM document WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM audit_log WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM letter_template WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(provider_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE id = $1")
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+    sqlx::query("DELETE FROM establishment WHERE id = $1")
+        .bind(establishment_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
