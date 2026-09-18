@@ -263,6 +263,12 @@ pub(crate) enum AppError {
     /// couple (requester, email/téléphone) — contrôle applicatif, comme
     /// `DuplicateDependent`.
     DuplicateAccessRequest,
+    /// `POST /v1/account/dependents` (#7009) : le rattachement direct (compte
+    /// géré, `authority='full'`, sans accord) est réservé à un ENFANT MINEUR.
+    /// Un adulte (`conjoint`/`parent`/`autre`, ou `enfant` de 18 ans et plus)
+    /// ne peut être rattaché qu'après son consentement explicite, via
+    /// `POST /v1/account/access-requests` — garde-fou serveur, pas seulement UI.
+    AdultRequiresConsent,
     /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` (#4481, restreint
     /// à `sterilized_pouch` par #6618 — un `stock_movement` est désormais
     /// défait plutôt que de bloquer, cf. `consultation_act_stock::reverse_stock_consumption`) :
@@ -587,6 +593,11 @@ impl IntoResponse for AppError {
             AppError::DuplicateAccessRequest => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "duplicate_access_request"})),
+            )
+                .into_response(),
+            AppError::AdultRequiresConsent => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "adult_requires_consent"})),
             )
                 .into_response(),
             AppError::ActLinkedToStock => (
@@ -4475,11 +4486,19 @@ pub struct PostDependentResponse {
     dependent_account_id: Uuid,
 }
 
-/// `POST /v1/account/dependents` — ajoute un proche/ayant droit.
+/// Âge de majorité : en-deçà, le représentant légal gère le compte de plein
+/// droit (§07 §4.6) ; à partir de 18 ans, seul un consentement explicite
+/// (`account_access_request`) peut ouvrir un accès (#7009).
+const ADULT_AGE_YEARS: u32 = 18;
+
+/// `POST /v1/account/dependents` — ajoute un ENFANT MINEUR comme compte géré.
 ///
 /// Transaction atomique : crée un `app_user` géré (sans mot de passe), un `patient_account`
 /// pour le proche, et une ligne `account_guardianship` liant le tuteur.
-/// §07 §4.6 : `authority='full'` si `birth_date` < 18 ans (conforme mineurs).
+/// §07 §4.6 : `authority='full'` — réservé aux mineurs (#7009) : `relationship`
+/// doit valoir `enfant` et `birth_date` (obligatoire) doit donner moins de 18
+/// ans, sinon `422 adult_requires_consent`. Un proche adulte passe par
+/// `POST /v1/account/access-requests` (demande à accepter par l'intéressé).
 /// Si `coverage` fourni → crée/upsert `patient_coverage` pour le proche.
 /// Un lien actif existe déjà pour ce couple (guardian, nom+prénom+date de
 /// naissance) → `409 duplicate_dependent` (#4475, dédup applicative).
@@ -4500,10 +4519,17 @@ pub async fn post_account_dependents(
         return Err(AppError::ValidationError);
     }
 
+    // #7009 : un conjoint / parent / autre est un adulte par définition — le
+    // rattachement direct (autorité pleine, sans accord) lui est fermé. C'est
+    // le serveur qui tranche : le front n'est pas la barrière.
+    if body.relationship != "enfant" {
+        return Err(AppError::AdultRequiresConsent);
+    }
+
+    let today = chrono::Utc::now().date_naive();
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
         Some(s) => {
             let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
-            let today = chrono::Utc::now().date_naive();
             // Borne basse symétrique à la borne haute (#6653) : une naissance il y a
             // plus de 120 ans est aussi impossible qu'une naissance dans le futur.
             let min_birth_date = today
@@ -4514,11 +4540,19 @@ pub async fn post_account_dependents(
             }
             Some(d)
         }
-        None => None,
+        // #7009 : sans date de naissance, rien ne prouve la minorité — le
+        // champ devient obligatoire (le front le rend déjà requis pour un
+        // enfant, cf. `_AddDependentSheetState._valid`).
+        None => return Err(AppError::ValidationError),
     };
+    if let Some(d) = birth_date {
+        if today.years_since(d).unwrap_or(0) >= ADULT_AGE_YEARS {
+            return Err(AppError::AdultRequiresConsent);
+        }
+    }
 
-    // §07 §4.6 : 'full' est imposé pour les mineurs ; c'est aussi la valeur par défaut
-    // à la création pour tous les proches (le tuteur a pleine autorité sur le compte géré).
+    // §07 §4.6 : 'full' est imposé pour les mineurs — seul cas qui atteint ce
+    // point depuis #7009 (le tuteur a pleine autorité sur le compte géré).
     let authority = "full";
 
     // Pré-génère les UUIDs pour éviter RETURNING sur tables avec FORCE RLS.
@@ -5097,6 +5131,21 @@ pub async fn delete_account_dependent(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // #7004 : si ce lien venait d'une demande d'accès acceptée (proche
+    // adulte), la demande passe elle aussi en révoquée — sinon « Mes proches »
+    // afficherait encore un accès `acceptee` qui n'existe plus.
+    sqlx::query(
+        "UPDATE account_access_request \
+         SET revoked_at = now(), updated_at = now() \
+         WHERE requester_account_id = $1 AND invitee_account_id = $2 \
+           AND status = 'acceptee' AND revoked_at IS NULL",
+    )
+    .bind(claims.account_id)
+    .bind(dependent_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     // Audit log — nil UUID comme sentinel cabinet_id (entité plateforme).
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(Uuid::nil().to_string())
@@ -5346,89 +5395,304 @@ pub async fn get_account_avatar(
 // Invitation d'un proche adulte (#6119) — `/v1/account/access-requests*`.
 //
 // Distinct de `account/dependents` (compte géré sans mot de passe, pour un
-// mineur) : ici le proche invité a déjà (ou aura) son propre compte, et
-// n'obtient qu'un accès en lecture au périmètre choisi par l'invitant sur SES
-// propres données, après acceptation.
+// mineur) : ici le proche invité a déjà (ou aura) son propre compte, et c'est
+// LUI qui décide. Sens du lien (maquette « Patient Invitation proche
+// adulte », écran ③ « Julie Martin souhaite gérer votre dossier ») : le
+// demandeur (`requester_account_id`) veut gérer le dossier de l'invité
+// (`invitee_account_id`) — « Ses rendez-vous », « Ses documents ». À
+// l'acceptation, l'accès matérialisé est une ligne `account_guardianship`
+// (guardian = demandeur, dependent = invité, `authority='delegated'`), seule
+// table lue par les policies RLS croisées (RDV, documents, ordonnances…) ;
+// rien n'est écrit avant (#7009, #6935).
 //
-// `invitee_account_id` reste NULL tant que l'invité n'a pas agi : il n'est
-// résolu qu'au moment d'`accept`/`refuse`, à partir du compte authentifié qui
-// appelle la route en connaissant l'`id` de la demande (reçu hors-bande,
-// notification/deep-link — cf. `IncomingRequestCubit.load`, pas de route de
-// liste côté invité dans ce lot de 7 endpoints). C'est pourquoi la RLS de
-// `account_access_request` (migration 0239) est ouverte pour `nubia_app` et
-// le filtrage se fait ici, dans chaque `WHERE`.
+// Côté invité, la demande est visible dans `GET /v1/account/access-requests`
+// (`direction:"received"`) dès l'envoi : rapprochée par `invitee_account_id`
+// si le compte existait à l'envoi, sinon par l'e-mail / le téléphone du
+// compte courant (#7005, #6809). L'`id` reste aussi un jeton de capability
+// (lien reçu hors-bande). C'est pourquoi la RLS de `account_access_request`
+// (migration 0241) est ouverte pour `nubia_app` et le filtrage se fait ici,
+// dans chaque `WHERE`.
 // ---------------------------------------------------------------------------
 
 const ACCESS_REQUEST_RELATIONSHIPS: [&str; 3] = ["enfant", "conjoint", "autre"];
-const ACCESS_REQUEST_SCOPE_VALUES: [&str; 4] =
-    ["rendez_vous", "documents", "ordonnances", "dossier_medical"];
+/// Périmètre proposable : `messages` ajouté (#7009) — la bascule « Ses
+/// messages avec le cabinet » du formulaire n'avait aucune valeur côté API.
+const ACCESS_REQUEST_SCOPE_VALUES: [&str; 5] = [
+    "rendez_vous",
+    "documents",
+    "ordonnances",
+    "dossier_medical",
+    "messages",
+];
 
-/// Une demande d'accès, telle que renvoyée par les 7 endpoints
+/// `account_guardianship.authority` d'un lien issu d'une demande acceptée —
+/// distinct de `full` (mineur, autorité parentale de plein droit).
+const DELEGATED_AUTHORITY: &str = "delegated";
+
+const ACCESS_REQUEST_COLUMNS: &str = "id, requester_account_id, invitee_account_id, first_name, \
+     last_name, relationship, status, channel, scope, sent_at, decided_at, revoked_at";
+
+/// Une demande d'accès, telle que renvoyée par les endpoints
 /// `/v1/account/access-requests*`.
 #[derive(Serialize)]
 pub struct AccessRequestResponse {
     id: Uuid,
+    /// `sent` : envoyée par le compte courant (il veut gérer le dossier de
+    /// `first_name last_name`) ; `received` : reçue par le compte courant
+    /// (`requester_first_name requester_last_name` veut gérer SON dossier).
+    direction: String,
     first_name: String,
     last_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    requester_first_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    requester_last_name: Option<String>,
     relationship: String,
     status: String,
     channel: String,
     scope: Vec<String>,
     sent_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    decided_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     revoked_at: Option<String>,
 }
 
-fn access_request_from_row(row: &sqlx::postgres::PgRow) -> Result<AccessRequestResponse, AppError> {
-    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-    let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
-    let last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
-    let relationship: String = row
-        .try_get("relationship")
+/// Ligne `account_access_request` lue, avant projection en réponse.
+struct AccessRequestRow {
+    id: Uuid,
+    requester_account_id: Uuid,
+    invitee_account_id: Option<Uuid>,
+    first_name: String,
+    last_name: String,
+    relationship: String,
+    status: String,
+    channel: String,
+    scope: Vec<String>,
+    sent_at: chrono::DateTime<chrono::Utc>,
+    decided_at: Option<chrono::DateTime<chrono::Utc>>,
+    revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl AccessRequestRow {
+    fn from_row(row: &sqlx::postgres::PgRow) -> Result<Self, AppError> {
+        Ok(Self {
+            id: row.try_get("id").map_err(|_| AppError::Internal)?,
+            requester_account_id: row
+                .try_get("requester_account_id")
+                .map_err(|_| AppError::Internal)?,
+            invitee_account_id: row
+                .try_get("invitee_account_id")
+                .map_err(|_| AppError::Internal)?,
+            first_name: row.try_get("first_name").map_err(|_| AppError::Internal)?,
+            last_name: row.try_get("last_name").map_err(|_| AppError::Internal)?,
+            relationship: row
+                .try_get("relationship")
+                .map_err(|_| AppError::Internal)?,
+            status: row.try_get("status").map_err(|_| AppError::Internal)?,
+            channel: row.try_get("channel").map_err(|_| AppError::Internal)?,
+            scope: row.try_get("scope").map_err(|_| AppError::Internal)?,
+            sent_at: row.try_get("sent_at").map_err(|_| AppError::Internal)?,
+            decided_at: row.try_get("decided_at").map_err(|_| AppError::Internal)?,
+            revoked_at: row.try_get("revoked_at").map_err(|_| AppError::Internal)?,
+        })
+    }
+
+    fn into_response(
+        self,
+        direction: &str,
+        requester_name: Option<(String, String)>,
+    ) -> AccessRequestResponse {
+        let (requester_first_name, requester_last_name) = match requester_name {
+            Some((first, last)) => (Some(first), Some(last)),
+            None => (None, None),
+        };
+        AccessRequestResponse {
+            id: self.id,
+            direction: direction.to_string(),
+            first_name: self.first_name,
+            last_name: self.last_name,
+            requester_first_name,
+            requester_last_name,
+            relationship: self.relationship,
+            status: self.status,
+            channel: self.channel,
+            scope: self.scope,
+            sent_at: self.sent_at.to_rfc3339(),
+            decided_at: self.decided_at.map(|t| t.to_rfc3339()),
+            revoked_at: self.revoked_at.map(|t| t.to_rfc3339()),
+        }
+    }
+}
+
+/// Lit `first_name`/`last_name` d'un compte patient arbitraire en
+/// impersonifiant son `app.current_account_id` le temps d'un SELECT (policy
+/// `account_self_select`) — même pattern que `patient_guardianship.rs`. Le
+/// GUC est remis à vide ensuite : l'appelant repose le sien s'il en a besoin.
+async fn read_account_name(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    account_id: Uuid,
+) -> Result<Option<(String, String)>, AppError> {
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(account_id.to_string())
+        .execute(&mut **tx)
+        .await
         .map_err(|_| AppError::Internal)?;
-    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
-    let channel: String = row.try_get("channel").map_err(|_| AppError::Internal)?;
-    let scope: Vec<String> = row.try_get("scope").map_err(|_| AppError::Internal)?;
-    let sent_at: chrono::DateTime<chrono::Utc> =
-        row.try_get("sent_at").map_err(|_| AppError::Internal)?;
-    let revoked_at: Option<chrono::DateTime<chrono::Utc>> =
-        row.try_get("revoked_at").map_err(|_| AppError::Internal)?;
-    Ok(AccessRequestResponse {
-        id,
-        first_name,
-        last_name,
-        relationship,
-        status,
-        channel,
-        scope,
-        sent_at: sent_at.to_rfc3339(),
-        revoked_at: revoked_at.map(|t| t.to_rfc3339()),
+    let row = sqlx::query("SELECT first_name, last_name FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_account_id', '', true)")
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    row.map(|r| -> Result<(String, String), AppError> {
+        Ok((
+            r.try_get("first_name").map_err(|_| AppError::Internal)?,
+            r.try_get("last_name").map_err(|_| AppError::Internal)?,
+        ))
     })
+    .transpose()
+}
+
+/// Résout le compte patient dont l'`app_user.email` est `email` (déjà en
+/// minuscules), sans connaître son id : bootstrap `app.current_login_email`
+/// (policy `user_login_select`, migration 0065) puis
+/// `app.current_login_user_id` (policy `account_auth_select`, 0069) — le même
+/// chemin que le login. `None` si aucun compte n'existe encore (l'invité
+/// s'inscrira plus tard ; la liste côté invité rapproche alors par e-mail).
+async fn find_patient_account_by_email(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    email: &str,
+) -> Result<Option<Uuid>, AppError> {
+    sqlx::query("SELECT set_config('app.current_login_email', $1, true)")
+        .bind(email)
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let user = sqlx::query("SELECT id FROM app_user WHERE email = $1 AND kind = 'patient'")
+        .bind(email)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_login_email', '', true)")
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let Some(user) = user else {
+        return Ok(None);
+    };
+    let user_id: Uuid = user.try_get("id").map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_login_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let account = sqlx::query("SELECT id FROM patient_account WHERE app_user_id = $1")
+        .bind(user_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_login_user_id', '', true)")
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    account
+        .map(|r| r.try_get::<Uuid, _>("id").map_err(|_| AppError::Internal))
+        .transpose()
+}
+
+/// Coordonnées du compte courant (e-mail `app_user`, téléphone
+/// `patient_account`) — servent à rapprocher les demandes reçues qui n'ont
+/// pas encore d'`invitee_account_id` (compte créé après l'envoi).
+async fn current_account_contact(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &PatientAccountClaims,
+) -> Result<(Option<String>, Option<String>), AppError> {
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let email: Option<String> = sqlx::query_scalar("SELECT email FROM app_user WHERE id = $1")
+        .bind(claims.sub)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let phone: Option<String> =
+        sqlx::query_scalar("SELECT phone FROM patient_account WHERE id = $1")
+            .bind(claims.account_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .flatten();
+
+    Ok((email.map(|e| e.trim().to_lowercase()), phone))
 }
 
 /// `GET /v1/account/access-requests` — demandes envoyées par le compte
-/// courant, tous statuts confondus (hors demandes annulées, `cancelled_at`
-/// agit comme un soft-delete — même logique que `active=false` sur
-/// `account_guardianship`).
+/// courant (`direction:"sent"`, tous statuts hors annulées — `cancelled_at`
+/// agit comme un soft-delete) ET demandes reçues par lui
+/// (`direction:"received"` : liées via `invitee_account_id`, ou encore
+/// orphelines mais adressées à son e-mail / téléphone). Une demande reçue
+/// porte le nom du demandeur (`requester_first_name`/`requester_last_name`)
+/// pour l'écran « Décider » (#6809, #7005).
 pub async fn get_account_access_requests(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
 ) -> Result<Json<Vec<AccessRequestResponse>>, AppError> {
-    let rows = sqlx::query(
-        "SELECT id, first_name, last_name, relationship, status, channel, scope, sent_at, revoked_at \
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    let (email, phone) = current_account_contact(&mut tx, &claims).await?;
+
+    let rows = sqlx::query(&format!(
+        "SELECT {ACCESS_REQUEST_COLUMNS} \
          FROM account_access_request \
-         WHERE requester_account_id = $1 AND cancelled_at IS NULL \
-         ORDER BY sent_at DESC",
-    )
+         WHERE cancelled_at IS NULL \
+           AND (requester_account_id = $1 \
+                OR invitee_account_id = $1 \
+                OR (invitee_account_id IS NULL AND status = 'envoyee' \
+                    AND ((email IS NOT NULL AND email = $2) \
+                         OR (phone IS NOT NULL AND phone = $3)))) \
+         ORDER BY sent_at DESC"
+    ))
     .bind(claims.account_id)
-    .fetch_all(&state.db)
+    .bind(&email)
+    .bind(&phone)
+    .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    let requests = rows
-        .iter()
-        .map(access_request_from_row)
-        .collect::<Result<Vec<_>, AppError>>()?;
+    let mut requests = Vec::with_capacity(rows.len());
+    let mut names: std::collections::HashMap<Uuid, Option<(String, String)>> =
+        std::collections::HashMap::new();
+    for row in &rows {
+        let parsed = AccessRequestRow::from_row(row)?;
+        if parsed.requester_account_id == claims.account_id {
+            requests.push(parsed.into_response("sent", None));
+        } else {
+            let requester_id = parsed.requester_account_id;
+            let name = match names.get(&requester_id) {
+                Some(cached) => cached.clone(),
+                None => {
+                    let fetched = read_account_name(&mut tx, requester_id).await?;
+                    names.insert(requester_id, fetched.clone());
+                    fetched
+                }
+            };
+            requests.push(parsed.into_response("received", name));
+        }
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
         account_id = %claims.account_id,
@@ -5454,11 +5718,19 @@ pub struct PostAccessRequestBody {
 }
 
 /// `POST /v1/account/access-requests` — invite un proche adulte
-/// (conjoint/autre) avec le périmètre de droits accordé.
+/// (conjoint/autre) avec le périmètre de droits demandé. AUCUN accès n'est
+/// accordé ici : la demande reste `envoyee` jusqu'à la décision de l'invité.
+///
+/// Délivrance (#7005) : si un compte patient porte déjà l'e-mail visé, la
+/// demande lui est liée (`invitee_account_id`) et une notification in-app
+/// `access_request_received` lui est déposée ; en canal `email`, un e-mail
+/// est envoyé via `state.mailer` (le SMS n'est pas câblé dans `AppState`,
+/// la demande reste visible in-app une fois le compte créé).
 ///
 /// Un lien actif (`envoyee`/`acceptee`, ni annulé ni révoqué) existe déjà pour
 /// ce couple (requester, email/téléphone) → `409 duplicate_access_request`
 /// (même anti-doublon applicatif que `POST /v1/account/dependents`, #4475).
+/// S'inviter soi-même (e-mail du compte courant) → `422`.
 pub async fn post_account_access_requests(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -5520,13 +5792,25 @@ pub async fn post_account_access_requests(
         return Err(AppError::DuplicateAccessRequest);
     }
 
-    let row = sqlx::query(
+    // Invité déjà inscrit ? Lien immédiat + notification in-app. Sinon la
+    // demande reste orpheline et sera rapprochée par e-mail à la lecture.
+    let invitee_account_id = match email.as_deref() {
+        Some(e) => find_patient_account_by_email(&mut tx, e).await?,
+        None => None,
+    };
+    if invitee_account_id == Some(claims.account_id) {
+        return Err(AppError::ValidationError);
+    }
+
+    let row = sqlx::query(&format!(
         "INSERT INTO account_access_request \
-           (requester_account_id, first_name, last_name, relationship, channel, email, phone, scope) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
-         RETURNING id, first_name, last_name, relationship, status, channel, scope, sent_at, revoked_at",
-    )
+           (requester_account_id, invitee_account_id, first_name, last_name, relationship, \
+            channel, email, phone, scope) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
+         RETURNING {ACCESS_REQUEST_COLUMNS}"
+    ))
     .bind(claims.account_id)
+    .bind(invitee_account_id)
     .bind(&body.first_name)
     .bind(&body.last_name)
     .bind(&body.relationship)
@@ -5537,19 +5821,47 @@ pub async fn post_account_access_requests(
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+    let created = AccessRequestRow::from_row(&row)?;
+
+    let requester_name = read_account_name(&mut tx, claims.account_id)
+        .await?
+        .map(|(first, last)| format!("{first} {last}"))
+        .unwrap_or_else(|| "Un proche".to_string());
+
+    if let Some(invitee) = invitee_account_id {
+        crate::notify::notify_patient_account(
+            &mut tx,
+            invitee,
+            "access_request_received",
+            &format!("{requester_name} souhaite gérer votre dossier"),
+            json!({
+                "access_request_id": created.id,
+                "requester_account_id": claims.account_id,
+            }),
+        )
+        .await?;
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let response = access_request_from_row(&row)?;
+    if let Some(to) = email.as_deref() {
+        if body.channel == "email" {
+            state.mailer.send_access_request(to, &requester_name);
+        }
+    }
 
     tracing::info!(
         account_id = %claims.account_id,
-        access_request_id = %response.id,
+        access_request_id = %created.id,
         channel = %body.channel,
+        invitee_linked = invitee_account_id.is_some(),
         "access request sent"
     );
 
-    Ok((StatusCode::CREATED, Json(response)))
+    Ok((
+        StatusCode::CREATED,
+        Json(created.into_response("sent", None)),
+    ))
 }
 
 /// `POST /v1/account/access-requests/{id}/resend` — relance une demande
@@ -5560,21 +5872,48 @@ pub async fn post_account_access_request_resend(
     claims: PatientAccountClaims,
     Path(request_id): Path<Uuid>,
 ) -> Result<Json<AccessRequestResponse>, AppError> {
-    let row = sqlx::query(
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(&format!(
         "UPDATE account_access_request \
          SET sent_at = now(), updated_at = now() \
          WHERE id = $1 AND requester_account_id = $2 \
            AND status = 'envoyee' AND cancelled_at IS NULL \
-         RETURNING id, first_name, last_name, relationship, status, channel, scope, sent_at, revoked_at",
-    )
+         RETURNING {ACCESS_REQUEST_COLUMNS}, email"
+    ))
     .bind(request_id)
     .bind(claims.account_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
+    let resent = AccessRequestRow::from_row(&row)?;
+    let email: Option<String> = row.try_get("email").map_err(|_| AppError::Internal)?;
 
-    let response = access_request_from_row(&row)?;
+    let requester_name = read_account_name(&mut tx, claims.account_id)
+        .await?
+        .map(|(first, last)| format!("{first} {last}"))
+        .unwrap_or_else(|| "Un proche".to_string());
+
+    if let Some(invitee) = resent.invitee_account_id {
+        crate::notify::notify_patient_account(
+            &mut tx,
+            invitee,
+            "access_request_received",
+            &format!("{requester_name} souhaite gérer votre dossier"),
+            json!({
+                "access_request_id": resent.id,
+                "requester_account_id": claims.account_id,
+            }),
+        )
+        .await?;
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    if let (Some(to), "email") = (email.as_deref(), resent.channel.as_str()) {
+        state.mailer.send_access_request(to, &requester_name);
+    }
 
     tracing::info!(
         account_id = %claims.account_id,
@@ -5582,7 +5921,7 @@ pub async fn post_account_access_request_resend(
         "access request resent"
     );
 
-    Ok(Json(response))
+    Ok(Json(resent.into_response("sent", None)))
 }
 
 /// `DELETE /v1/account/access-requests/{id}` — annule une demande `envoyee`,
@@ -5619,6 +5958,15 @@ pub async fn delete_account_access_request(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Corps optionnel de `POST /v1/account/access-requests/{id}/accept` :
+/// périmètre AJUSTÉ par l'invité (maquette, note 2 « L'invité décide de
+/// l'étendue, pas le demandeur ») — sous-ensemble du périmètre proposé.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AcceptAccessRequestBody {
+    scope: Vec<String>,
+}
+
 /// Résout une demande `envoyee` en `acceptee`/`refusee` côté invité : lie
 /// `invitee_account_id` au compte courant s'il n'est pas encore établi, sinon
 /// vérifie qu'il correspond déjà (une demande ne peut être réclamée que par
@@ -5626,40 +5974,120 @@ pub async fn delete_account_access_request(
 /// envoyée (`requester_account_id <> $2`). Aucune ligne → `404`
 /// (anti-énumération, §07 §2.9 — vaut aussi bien pour un `id` inconnu qu'une
 /// demande déjà décidée/annulée ou déjà réclamée par un autre invité).
+///
+/// `acceptee` → écrit le lien `account_guardianship` (guardian = demandeur,
+/// dependent = invité, `authority='delegated'`) : c'est ce qui ouvre
+/// réellement l'accès (#6935). `refusee` → rien d'autre que le statut. Dans
+/// les deux cas le demandeur est notifié (`access_request_decided`).
 async fn decide_access_request(
     state: &AppState,
     claims: &PatientAccountClaims,
     request_id: Uuid,
     new_status: &str,
+    adjusted_scope: Option<Vec<String>>,
 ) -> Result<AccessRequestResponse, AppError> {
-    let row = sqlx::query(
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(&format!(
         "UPDATE account_access_request \
          SET status = $3, invitee_account_id = COALESCE(invitee_account_id, $2), \
+             scope = CASE WHEN $4::text[] IS NULL THEN scope \
+                          ELSE ARRAY(SELECT unnest(scope) INTERSECT SELECT unnest($4::text[])) END, \
              decided_at = now(), updated_at = now() \
          WHERE id = $1 AND status = 'envoyee' AND cancelled_at IS NULL \
            AND requester_account_id <> $2 \
            AND (invitee_account_id IS NULL OR invitee_account_id = $2) \
-         RETURNING id, first_name, last_name, relationship, status, channel, scope, sent_at, revoked_at",
-    )
+         RETURNING {ACCESS_REQUEST_COLUMNS}"
+    ))
     .bind(request_id)
     .bind(claims.account_id)
     .bind(new_status)
-    .fetch_optional(&state.db)
+    .bind(&adjusted_scope)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
+    let decided = AccessRequestRow::from_row(&row)?;
 
-    access_request_from_row(&row)
+    if new_status == "acceptee" {
+        // `ON CONFLICT` soumet la ligne à la policy SELECT
+        // (`guardianship_owner_select`) : le GUC doit désigner l'invité
+        // (dependent) pour que l'INSERT passe la RLS.
+        sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+            .bind(claims.account_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        // Index unique partiel `account_guardianship_active_pair_uidx`
+        // (migration 0025) : un lien actif déjà présent pour ce couple (ex.
+        // enfant devenu majeur encore rattaché) est conservé tel quel.
+        sqlx::query(
+            "INSERT INTO account_guardianship \
+             (guardian_account_id, dependent_account_id, relationship, authority, active) \
+             VALUES ($1, $2, $3, $4, true) \
+             ON CONFLICT (guardian_account_id, dependent_account_id) WHERE active = true \
+             DO NOTHING",
+        )
+        .bind(decided.requester_account_id)
+        .bind(claims.account_id)
+        .bind(&decided.relationship)
+        .bind(DELEGATED_AUTHORITY)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    let invitee_name = read_account_name(&mut tx, claims.account_id)
+        .await?
+        .map(|(first, last)| format!("{first} {last}"))
+        .unwrap_or_else(|| format!("{} {}", decided.first_name, decided.last_name));
+    let title = if new_status == "acceptee" {
+        format!("{invitee_name} a accepté votre demande d'accès")
+    } else {
+        format!("{invitee_name} a refusé votre demande d'accès")
+    };
+    crate::notify::notify_patient_account(
+        &mut tx,
+        decided.requester_account_id,
+        "access_request_decided",
+        &title,
+        json!({
+            "access_request_id": decided.id,
+            "status": new_status,
+        }),
+    )
+    .await?;
+
+    let requester_name = read_account_name(&mut tx, decided.requester_account_id).await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok(decided.into_response("received", requester_name))
 }
 
 /// `POST /v1/account/access-requests/{id}/accept` — accepte une invitation
-/// reçue, côté invité.
+/// reçue, côté invité. Body optionnel `{ scope: [...] }` pour restreindre le
+/// périmètre proposé (toute valeur hors liste → `422`).
 pub async fn post_account_access_request_accept(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(request_id): Path<Uuid>,
+    body: Option<Json<AcceptAccessRequestBody>>,
 ) -> Result<Json<AccessRequestResponse>, AppError> {
-    let response = decide_access_request(&state, &claims, request_id, "acceptee").await?;
+    let adjusted_scope = match body {
+        Some(Json(b)) => {
+            for right in &b.scope {
+                if !ACCESS_REQUEST_SCOPE_VALUES.contains(&right.as_str()) {
+                    return Err(AppError::ValidationError);
+                }
+            }
+            Some(b.scope)
+        }
+        None => None,
+    };
+
+    let response =
+        decide_access_request(&state, &claims, request_id, "acceptee", adjusted_scope).await?;
 
     tracing::info!(
         invitee_account_id = %claims.account_id,
@@ -5677,7 +6105,7 @@ pub async fn post_account_access_request_refuse(
     claims: PatientAccountClaims,
     Path(request_id): Path<Uuid>,
 ) -> Result<Json<AccessRequestResponse>, AppError> {
-    let response = decide_access_request(&state, &claims, request_id, "refusee").await?;
+    let response = decide_access_request(&state, &claims, request_id, "refusee", None).await?;
 
     tracing::info!(
         invitee_account_id = %claims.account_id,
@@ -5689,34 +6117,95 @@ pub async fn post_account_access_request_refuse(
 }
 
 /// `POST /v1/account/access-requests/{id}/revoke` — révoque un accès déjà
-/// accordé, côté invité. Distinct de `DELETE /v1/account/dependents/{id}`,
-/// qui reste la révocation côté gestionnaire d'un dépendant enfant. Demande
-/// inconnue, jamais acceptée par ce compte, ou déjà révoquée → `404`.
+/// accordé, par l'UNE OU L'AUTRE partie (maquette §5 « révocation symétrique
+/// et notifiée », #7004) : l'invité reprend la main sur son dossier, ou le
+/// demandeur renonce à l'accès. Désactive le lien `account_guardianship`
+/// correspondant et notifie l'autre partie. Demande inconnue, jamais
+/// acceptée, étrangère au compte, ou déjà révoquée → `404`.
 pub async fn post_account_access_request_revoke(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(request_id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
-    let updated = sqlx::query(
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(&format!(
         "UPDATE account_access_request \
          SET revoked_at = now(), updated_at = now() \
-         WHERE id = $1 AND invitee_account_id = $2 \
-           AND status = 'acceptee' AND revoked_at IS NULL",
-    )
+         WHERE id = $1 AND (invitee_account_id = $2 OR requester_account_id = $2) \
+           AND status = 'acceptee' AND revoked_at IS NULL \
+         RETURNING {ACCESS_REQUEST_COLUMNS}"
+    ))
     .bind(request_id)
     .bind(claims.account_id)
-    .execute(&state.db)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+    let revoked = AccessRequestRow::from_row(&row)?;
+
+    let Some(invitee_account_id) = revoked.invitee_account_id else {
+        // Une demande `acceptee` a toujours un invité lié (COALESCE à la
+        // décision) — sinon l'état est incohérent.
+        return Err(AppError::Internal);
+    };
+
+    // Soft-delete uniquement — jamais de DELETE SQL (§07 §10) ; même geste
+    // que `delete_account_dependent`. La policy SELECT
+    // (`guardianship_owner_select`) s'applique aussi au WHERE de l'UPDATE :
+    // le compte courant est l'une des deux parties du lien.
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query(
+        "UPDATE account_guardianship \
+         SET active = false, updated_at = now() \
+         WHERE guardian_account_id = $1 AND dependent_account_id = $2 \
+           AND authority = $3 AND active = true",
+    )
+    .bind(revoked.requester_account_id)
+    .bind(invitee_account_id)
+    .bind(DELEGATED_AUTHORITY)
+    .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    if updated.rows_affected() == 0 {
-        return Err(AppError::NotFound);
-    }
+    let revoked_by_invitee = invitee_account_id == claims.account_id;
+    let other_party = if revoked_by_invitee {
+        revoked.requester_account_id
+    } else {
+        invitee_account_id
+    };
+    let actor_name = read_account_name(&mut tx, claims.account_id)
+        .await?
+        .map(|(first, last)| format!("{first} {last}"))
+        .unwrap_or_else(|| "Un proche".to_string());
+    let title = if revoked_by_invitee {
+        format!("{actor_name} a retiré votre accès à son dossier")
+    } else {
+        format!("{actor_name} a renoncé à l'accès à votre dossier")
+    };
+    crate::notify::notify_patient_account(
+        &mut tx,
+        other_party,
+        "access_request_revoked",
+        &title,
+        json!({
+            "access_request_id": revoked.id,
+            "revoked_by": if revoked_by_invitee { "invitee" } else { "requester" },
+        }),
+    )
+    .await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
-        invitee_account_id = %claims.account_id,
+        account_id = %claims.account_id,
         access_request_id = %request_id,
-        "access revoked by invitee"
+        revoked_by_invitee,
+        "access revoked"
     );
 
     Ok(StatusCode::NO_CONTENT)

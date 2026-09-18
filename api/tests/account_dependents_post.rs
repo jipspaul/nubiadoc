@@ -531,6 +531,9 @@ async fn dependent_post_invalid_nss_returns_422() {
     let body = json!({
         "first_name": "QA",
         "last_name": "DepNSS",
+        // #7009 : birth_date désormais obligatoire — sans elle le 422 viendrait
+        // de là et non du NSS, ce que ce test doit continuer à isoler.
+        "birth_date": "2016-01-01",
         "relationship": "enfant",
         "coverage": {
             "regime_obligatoire": "regime_general",

@@ -213,6 +213,10 @@ pub trait Mailer: Send + Sync {
     fn send_password_reset(&self, to: &str, token: &str);
     /// Envoie le lien d'invitation (set-password) à un nouveau collaborateur.
     fn send_invite(&self, to: &str, token: &str);
+    /// Prévient un proche adulte qu'un patient demande à gérer son dossier
+    /// (`POST /v1/account/access-requests`, #7005). Sans jeton : la demande
+    /// se décide dans l'app, depuis « Mes proches », une fois connecté.
+    fn send_access_request(&self, to: &str, requester_name: &str);
 }
 
 /// Implémentation no-op pour les tests et le dev local.
@@ -221,6 +225,7 @@ pub struct StubMailer;
 impl Mailer for StubMailer {
     fn send_password_reset(&self, _to: &str, _token: &str) {}
     fn send_invite(&self, _to: &str, _token: &str) {}
+    fn send_access_request(&self, _to: &str, _requester_name: &str) {}
 }
 
 /// Trait d'envoi de SMS — swappable (stub en test, Twilio en prod). #4036.

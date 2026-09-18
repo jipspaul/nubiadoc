@@ -135,4 +135,30 @@ impl Mailer for BrevoMailer {
             ),
         );
     }
+
+    fn send_access_request(&self, to: &str, requester_name: &str) {
+        let link = format!("{}/profile/dependents", self.app_base_url);
+        let name = html_escape(requester_name);
+        self.send(
+            to,
+            &format!("{name} souhaite gérer votre dossier Nubia"),
+            format!(
+                "<p>{name} vous demande l'accès à votre dossier (rendez-vous, documents…). \
+                 Rien n'est partagé tant que vous n'avez pas accepté.</p>\
+                 <p>Connectez-vous à votre espace patient pour accepter ou refuser cette \
+                 demande : <a href=\"{link}\">{link}</a></p>\
+                 <p>Si vous ne reconnaissez pas cette personne, refusez la demande.</p>"
+            ),
+        );
+    }
+}
+
+/// Échappement minimal d'un texte injecté dans le corps HTML — le nom du
+/// demandeur est une saisie utilisateur.
+fn html_escape(input: &str) -> String {
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
