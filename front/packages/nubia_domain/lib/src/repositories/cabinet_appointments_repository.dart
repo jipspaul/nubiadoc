@@ -4,7 +4,11 @@ import 'package:nubia_domain/src/entities/cabinet_appointment.dart';
 import 'package:nubia_domain/src/entities/appointment_series.dart';
 
 abstract class CabinetAppointmentsRepository {
-  Future<Either<Failure, List<CabinetAppointment>>> list({int page = 1});
+  Future<Either<Failure, List<CabinetAppointment>>> list({
+    String? patientId,
+    int? limit,
+    int? offset,
+  });
   Future<Either<Failure, CabinetAppointment>> getById(String id);
   Future<Either<Failure, CabinetAppointment>> create(
       CabinetAppointment appointment);
