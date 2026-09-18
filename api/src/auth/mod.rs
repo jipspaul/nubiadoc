@@ -34,7 +34,7 @@ use uuid::Uuid;
 
 use crate::{
     appointments_response::{format_establishment_address, is_exclusion_violation},
-    AppState, JobDispatcher, StorageSigner,
+    upload_storage, AppState, JobDispatcher, ObjectStorage, StorageSigner,
 };
 
 /// Réponse de `POST /v1/auth/login`.
@@ -3388,12 +3388,17 @@ pub struct CoverageCardResponse {
 /// Antivirus : fichier contenant la signature EICAR → `422`.
 /// Le fichier est scanné (stub → `scan_status = 'pending'`) et inséré dans
 /// `document` (`category = 'carte_mutuelle'`).
-/// Chiffrement au repos : stub UTF-8 en dev — AES-256-GCM KMS à NUB-T3 (ADR-009).
+/// Stockage : les octets sont écrits dans l'`ObjectStorage` injecté
+/// (`upload_storage::store_upload`, clé `carte-mutuelle/<uuid>`) avant le
+/// `COMMIT` — #7135 : la clé était inventée sans jamais écrire l'objet, et
+/// la `signed_url` du 201 (#7128) pointait sur un objet inexistant (`404`).
+/// Chiffrement au repos : AES-256-GCM KMS à NUB-T3 (ADR-009).
 /// Réponse : `201 { document_id, signed_url }`.
 pub async fn post_coverage_card(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Extension(signer): Extension<Arc<dyn StorageSigner>>,
+    Extension(object_storage): Extension<Arc<dyn ObjectStorage>>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<CoverageCardResponse>), AppError> {
     const MAX_SIZE: usize = 10 * 1024 * 1024;
@@ -3453,10 +3458,18 @@ pub async fn post_coverage_card(
 
     let fname = filename.unwrap_or_else(|| format!("carte_mutuelle_{}.bin", side));
     let size_bytes = file_bytes.len() as i64;
-    // Stub : clé Object Storage (chiffrement AES-256-GCM KMS à NUB-T3 — ADR-009).
-    let storage_key = Uuid::new_v4().to_string();
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Écriture effective des octets (#7135) — avant l'INSERT : un échec
+    // abandonne la transaction, aucune ligne `document` orpheline.
+    let storage_key = upload_storage::store_upload(
+        object_storage.as_ref(),
+        upload_storage::PREFIX_COVERAGE_CARD,
+        &file_mime,
+        file_bytes.clone(),
+    )
+    .await?;
 
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(claims.account_id.to_string())

@@ -267,6 +267,8 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 
 `GET /v1/documents` → liste `{ id, category, filename, mime_type, created_at }`. Catégories : `devis, facture, ordonnance, radio, cbct, photo, cr, consigne, attestation, carte_mutuelle, passeport_implantaire, consentement, courrier`. Accès **audité** (`read_document`), URL **expirante**, intégrité `sha256` (`06` E3.5). Téléchargement → `302` vers Object Storage signé (`410` si lien expiré).
 
+**Stockage des uploads utilisateur** (#7135 / #6894 / #6802) — `POST /v1/documents`, `POST /v1/account/coverage/card` et `POST /v1/cabinet/patients/{id}/documents` passent tous par le même chemin d'écriture (`api/src/upload_storage.rs::store_upload`) : les octets sont écrits dans l'`ObjectStorage` (Postgres `object_storage_blob` — servi par `GET /v1/storage/local/*key` sans `SCW_*`, Scaleway sinon) **avant** le `COMMIT` de la ligne `document`, sous une clé `coffre/<uuid>`, `carte-mutuelle/<uuid>` ou `dossier/<uuid>`. Un `201` garantit donc que `GET <download_url>` sert les octets d'origine (taille et `sha256` du `201`) ; échec d'écriture → `500`, aucune ligne `document` créée.
+
 ---
 
 ## 9. Patient — messagerie (`messaging`)

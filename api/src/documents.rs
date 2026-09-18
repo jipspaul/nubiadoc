@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
-    AppState, StorageSigner,
+    upload_storage, AppState, ObjectStorage, StorageSigner,
 };
 
 const VALID_CATEGORIES: &[&str] = &[
@@ -625,13 +625,18 @@ pub struct UploadDocumentResponse {
 /// - `category` : enum strict requis → `422` si absent ou invalide.
 /// - `filename` : optionnel ; remplace le nom issu du champ `file` si fourni.
 ///
-/// Chiffrement au repos : stub UTF-8 en dev — AES-256-GCM KMS à NUB-T3 (ADR-009).
+/// Stockage : les octets sont écrits dans l'`ObjectStorage` injecté
+/// (`upload_storage::store_upload`, clé `coffre/<uuid>`) avant le `COMMIT` —
+/// #7135/#6802 : la clé était inventée sans jamais écrire l'objet, d'où un
+/// `404` définitif au téléchargement. Chiffrement au repos : AES-256-GCM KMS
+/// à NUB-T3 (ADR-009).
 /// Antivirus : stub, `scan_status = 'pending'`.
 /// Audit : action `upload_document` journalisée (`cabinet_id` = nil UUID, zéro PII).
 /// Retour : `201 { document_id, category, filename, size_bytes, sha256 }`.
 pub async fn upload_document(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
+    Extension(object_storage): Extension<Arc<dyn ObjectStorage>>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<UploadDocumentResponse>), AppError> {
     let mut category_raw: Option<String> = None;
@@ -690,10 +695,17 @@ pub async fn upload_document(
         .or(file_filename)
         .unwrap_or_else(|| "document.bin".to_string());
 
-    // Stub : clé Object Storage (chiffrement AES-256-GCM KMS à NUB-T3 — ADR-009).
-    let storage_key = Uuid::new_v4().to_string();
-
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Écriture effective des octets (#7135) — avant l'INSERT : un échec
+    // abandonne la transaction, aucune ligne `document` orpheline.
+    let storage_key = upload_storage::store_upload(
+        object_storage.as_ref(),
+        upload_storage::PREFIX_PATIENT_VAULT,
+        &file_mime,
+        file_bytes.clone(),
+    )
+    .await?;
 
     // RLS document_patient_owner (migration 0026) : scoped par patient_account_id.
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
