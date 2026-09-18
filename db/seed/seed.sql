@@ -21,7 +21,8 @@ SET LOCAL app.current_cabinet_id = '11111111-1111-1111-1111-111111111111';
 -- =====================================================================
 INSERT INTO cabinet (id, raison_sociale, siret, specialite, settings) VALUES
   ('11111111-1111-1111-1111-111111111111', 'Cabinet Lyon', '12345678900012', 'dentaire',
-   '{"horaires":{"lun":"09:00-19:00"},"parking":true,"pmr":true,"code_entree":"A12"}')
+   '{"horaires":{"lun":"09:00-19:00"},"parking":true,"pmr":true,"code_entree":"A12",
+     "contact":{"phone":"+33478000000"}}')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO establishment (id, name, address, geo) VALUES

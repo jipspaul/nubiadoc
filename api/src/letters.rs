@@ -413,7 +413,9 @@ fn insert_opt(values: &mut BTreeMap<String, String>, key: &str, value: Option<St
 /// - Contexte : `rdv.*` = prochain RDV non annulé du patient dans le cabinet,
 ///   sinon le dernier passé ; `praticien.*` = le praticien appelant si
 ///   `role = practitioner`, sinon celui du RDV retenu ; `cabinet.*` depuis
-///   `cabinet.raison_sociale` / `settings.address` / `settings.contact.phone`.
+///   `cabinet.raison_sociale` / `settings.address` / `settings.contact.phone`,
+///   `cabinet.adresse` retombant sur l'annuaire (`establishment`, #3557/#7242)
+///   quand `settings` n'a pas d'adresse.
 /// - PDF : en-tête (cabinet, adresse, téléphone, praticien + RPPS, date),
 ///   corps replié, pied (cabinet + RPPS, numéro de page). Uploadé dans
 ///   l'Object Storage, `document.category = 'courrier'`, audit
@@ -602,6 +604,33 @@ async fn resolve_context(
     let cabinet_address: Option<String> =
         cab_row.try_get("address").map_err(|_| AppError::Internal)?;
     let cabinet_phone: Option<String> = cab_row.try_get("phone").map_err(|_| AppError::Internal)?;
+
+    // Fallback annuaire quand `cabinet.settings` n'a pas d'adresse (#3557) :
+    // même mécanisme que `appointments_response::fetch_cabinet_for_response`.
+    let cabinet_address = if cabinet_address.is_some() {
+        cabinet_address
+    } else {
+        let est_row = sqlx::query(
+            "SELECT e.address AS establishment_address \
+             FROM provider p \
+             JOIN establishment e ON e.id = p.establishment_id \
+             WHERE p.cabinet_id = $1 \
+             ORDER BY p.is_listed DESC, p.created_at ASC \
+             LIMIT 1",
+        )
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        est_row
+            .and_then(|r| {
+                r.try_get::<serde_json::Value, _>("establishment_address")
+                    .ok()
+            })
+            .as_ref()
+            .and_then(crate::appointments_response::format_establishment_address)
+    };
     insert_opt(&mut values, "cabinet.nom", Some(cabinet_name.clone()));
     insert_opt(&mut values, "cabinet.adresse", cabinet_address.clone());
     insert_opt(&mut values, "cabinet.telephone", cabinet_phone.clone());

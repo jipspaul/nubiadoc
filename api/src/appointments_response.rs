@@ -11,8 +11,9 @@
 //! `fetch_cabinet_for_response`, la détection de violation de contrainte
 //! d'exclusion `is_exclusion_violation` (créneau déjà pris, SQLSTATE
 //! `23P01`) et le formatage d'adresse `format_establishment_address`
-//! (fallback annuaire, utilisé par `fetch_cabinet_for_response` ci-dessous
-//! ET par les lectures enrichies de `appointments_read.rs`).
+//! (fallback annuaire, utilisé par `fetch_cabinet_for_response` ci-dessous,
+//! par les lectures enrichies de `appointments_read.rs` ET par
+//! `letters.rs::resolve_context` (#7242) pour `{{cabinet.adresse}}`).
 
 use serde::Serialize;
 use sqlx::Row;
