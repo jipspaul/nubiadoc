@@ -146,6 +146,7 @@ const PREFERENCE_FILTER_SQL: &str = "(CASE n.kind \
      WHEN 'callback_requested' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'appointment_confirmed' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'appointment_rescheduled' THEN COALESCE(unp.inapp_rdv, true) \
+     WHEN 'appointment_cancelled' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'appointment_motif_changed' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'waiting_room_called' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'waiting_list_slot_offered' THEN COALESCE(unp.inapp_rdv, true) \
