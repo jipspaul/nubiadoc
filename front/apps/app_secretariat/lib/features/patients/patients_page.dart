@@ -611,9 +611,11 @@ Widget _contactColumn(BuildContext context, CabinetPatient patient) {
   );
 }
 
-/// Âge en années révolues à la date du jour.
-int _ageInYears(DateTime birthDate) {
+/// Âge en années révolues à la date du jour, ou `null` si `birthDate` est
+/// dans le futur (donnée incohérente) : jamais d'âge négatif affiché.
+int? _ageInYears(DateTime birthDate) {
   final now = DateTime.now();
+  if (birthDate.isAfter(now)) return null;
   var age = now.year - birthDate.year;
   if (now.month < birthDate.month ||
       (now.month == birthDate.month && now.day < birthDate.day)) {
@@ -648,6 +650,8 @@ class PatientTableRow extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     final birthDate = patient.birthDate;
+    final age = birthDate != null ? _ageInYears(birthDate) : null;
+    final ageLabel = age != null ? '$age ans' : '—';
     final lastVisitAt = patient.lastVisitAt;
     final balanceCents = patient.balanceDueCents ?? 0;
     final balanceDue = balanceCents > 0;
@@ -681,7 +685,7 @@ class PatientTableRow extends StatelessWidget {
                   if (birthDate != null) ...[
                     const SizedBox(height: 2),
                     Text(
-                      '${_formatDate(birthDate)} · ${_ageInYears(birthDate)} ans',
+                      '${_formatDate(birthDate)} · $ageLabel',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: textTheme.bodySmall?.copyWith(

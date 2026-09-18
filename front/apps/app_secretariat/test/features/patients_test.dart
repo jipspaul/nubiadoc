@@ -425,6 +425,27 @@ void main() {
       expect(find.textContaining('07/06/1985'), findsOneWidget);
     });
 
+    testWidgets(
+        'colonne Patient : birth_date future affiche — au lieu d\'un âge '
+        'négatif (#7300)', (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Futur',
+            lastName: 'Patient',
+            birthDate: DateTime(2099, 12, 31),
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('31/12/2099 · —'), findsOneWidget);
+    });
+
     testWidgets('« Dernière visite » affiche — quand lastVisitAt est absent',
         (tester) async {
       when(() => bloc.state).thenReturn(
