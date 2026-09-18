@@ -73,13 +73,17 @@ class PlanHero extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              for (final (index, phase) in phases.indexed) ...[
+              for (final (index, _) in phases.indexed) ...[
                 if (index > 0) const SizedBox(width: 4),
                 Expanded(
                   child: Container(
                     height: 4,
                     decoration: BoxDecoration(
-                      color: phase.status == 'done'
+                      // Progression cumulative jusqu'à l'étape courante — même
+                      // règle que le compteur juste au-dessus, pas un statut
+                      // par phase (#7246 : une phase `done` hors séquence
+                      // allumait un segment isolé qui contredisait le titre).
+                      color: index <= currentIndex
                           ? Colors.white
                           : Colors.white.withValues(alpha: .3),
                       borderRadius: BorderRadius.circular(2),
