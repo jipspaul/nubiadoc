@@ -210,8 +210,10 @@ void registerPatient(GetIt gi) {
       getAccount: gi<GetAccountUseCase>(),
       add: gi<AddDependentUseCase>(),
       remove: gi<DeleteDependentUseCase>(),
+      sendAccessRequest: gi<SendAccessRequestUseCase>(),
       resendAccessRequest: gi<ResendAccessRequestUseCase>(),
       cancelAccessRequest: gi<CancelAccessRequestUseCase>(),
+      revokeAccess: gi<RevokeAccessUseCase>(),
     ),
   );
 

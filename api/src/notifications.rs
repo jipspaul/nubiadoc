@@ -75,6 +75,12 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
             let id = data.get("conversation_id")?.as_str()?;
             Some(format!("/messages/{id}"))
         }
+        // Invitation d'un proche adulte (#7005) : la demande reçue se décide
+        // depuis « Mes proches » (section « Demandes reçues »), les
+        // décisions/révocations s'y relisent aussi.
+        "access_request_received" | "access_request_decided" | "access_request_revoked" => {
+            Some("/profile/dependents".to_string())
+        }
         // Devis d'officine (pharmacie → patient) — #6580 : jusqu'ici `None`,
         // donc aucune action sous la notification et aucun moyen d'atteindre
         // l'écran (inexistant) pour accepter/refuser. `app_patient` liste tous

@@ -104,7 +104,7 @@ void main() {
 
     testWidgets('Accepter déclenche accept() avec le périmètre courant',
         (tester) async {
-      when(() => acceptUseCase(any())).thenAnswer(
+      when(() => acceptUseCase(any(), scope: any(named: 'scope'))).thenAnswer(
         (_) async =>
             Right(_request.copyWithStatus(AccessRequestStatus.acceptee)),
       );
@@ -112,13 +112,13 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(
-          find.byKey(const Key('accept_access_request_button')));
+      await tester
+          .ensureVisible(find.byKey(const Key('accept_access_request_button')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('accept_access_request_button')));
       await tester.pumpAndSettle();
 
-      verify(() => acceptUseCase('ar-1')).called(1);
+      verify(() => acceptUseCase('ar-1', scope: any(named: 'scope'))).called(1);
       expect(find.byKey(const Key('incoming_request_outcome')), findsOneWidget);
       expect(find.text('Acceptée'), findsOneWidget);
     });
@@ -132,8 +132,8 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(
-          find.byKey(const Key('refuse_access_request_button')));
+      await tester
+          .ensureVisible(find.byKey(const Key('refuse_access_request_button')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('refuse_access_request_button')));
       await tester.pumpAndSettle();
@@ -211,7 +211,7 @@ void main() {
     testWidgets(
         'basculer un toggle restreint le périmètre envoyé à l\'acceptation',
         (tester) async {
-      when(() => acceptUseCase(any())).thenAnswer(
+      when(() => acceptUseCase(any(), scope: any(named: 'scope'))).thenAnswer(
         (_) async =>
             Right(_request.copyWithStatus(AccessRequestStatus.acceptee)),
       );
@@ -222,21 +222,22 @@ void main() {
       await tester.ensureVisible(
           find.byKey(const Key('adjust_scope_toggle_documents')));
       await tester.pumpAndSettle();
-      await tester
-          .tap(find.byKey(const Key('adjust_scope_toggle_documents')));
+      await tester.tap(find.byKey(const Key('adjust_scope_toggle_documents')));
       await tester.pumpAndSettle();
 
       final docsToggle = tester.widget<NubiaToggle>(
           find.byKey(const Key('adjust_scope_toggle_documents')));
       expect(docsToggle.value, isFalse);
 
-      await tester.ensureVisible(
-          find.byKey(const Key('accept_access_request_button')));
+      await tester
+          .ensureVisible(find.byKey(const Key('accept_access_request_button')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('accept_access_request_button')));
       await tester.pumpAndSettle();
 
-      verify(() => acceptUseCase('ar-1')).called(1);
+      // #7009 : le périmètre AJUSTÉ part réellement à l'API (documents retiré).
+      verify(() => acceptUseCase('ar-1', scope: {AccessRight.rendezVous}))
+          .called(1);
     });
 
     testWidgets('affiche le message d\'erreur si le refus échoue',
@@ -247,8 +248,8 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(
-          find.byKey(const Key('refuse_access_request_button')));
+      await tester
+          .ensureVisible(find.byKey(const Key('refuse_access_request_button')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('refuse_access_request_button')));
       await tester.pumpAndSettle();
@@ -268,7 +269,8 @@ void main() {
         refuse: refuseUseCase,
       )..load(_request),
       setUp: () {
-        when(() => acceptUseCase('ar-1')).thenAnswer(
+        when(() => acceptUseCase('ar-1', scope: any(named: 'scope')))
+            .thenAnswer(
           (_) async =>
               Right(_request.copyWithStatus(AccessRequestStatus.acceptee)),
         );
@@ -283,7 +285,9 @@ void main() {
             .having((s) => s.request.status, 'status',
                 AccessRequestStatus.acceptee),
       ],
-      verify: (_) => verify(() => acceptUseCase('ar-1')).called(1),
+      verify: (_) =>
+          verify(() => acceptUseCase('ar-1', scope: any(named: 'scope')))
+              .called(1),
     );
 
     blocTest<IncomingRequestCubit, IncomingRequestState>(
@@ -299,7 +303,8 @@ void main() {
       expect: () => [
         isA<IncomingRequestLoaded>()
             .having((s) => s.scope, 'scope', {AccessRight.rendezVous}),
-        isA<IncomingRequestLoaded>().having((s) => s.scope, 'scope', <AccessRight>{}),
+        isA<IncomingRequestLoaded>()
+            .having((s) => s.scope, 'scope', <AccessRight>{}),
         isA<IncomingRequestLoaded>()
             .having((s) => s.scope, 'scope', {AccessRight.rendezVous}),
       ],

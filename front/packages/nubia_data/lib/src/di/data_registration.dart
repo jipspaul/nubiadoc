@@ -428,6 +428,8 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => ListConsentsUseCase(gi()))
     ..registerFactory(() => ListDependentsUseCase(gi()))
     ..registerFactory(() => ListAccessRequestsUseCase(gi()))
+    ..registerFactory(() => SendAccessRequestUseCase(gi()))
+    ..registerFactory(() => RevokeAccessUseCase(gi()))
     ..registerFactory(() => AcceptAccessRequestUseCase(gi()))
     ..registerFactory(() => RefuseAccessRequestUseCase(gi()))
     ..registerFactory(() => ResendAccessRequestUseCase(gi()))

@@ -365,3 +365,471 @@ async fn access_request_sms_without_phone_returns_422() {
     .await;
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+// ── #7009 : le rattachement direct est réservé à un enfant mineur ───────────
+
+async fn post_dependent(token: &str, body: Value) -> axum::response::Response {
+    app(test_state().await)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/dependents")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+async fn get_json(token: &str, uri: &str) -> Value {
+    let response = app(test_state().await)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(uri)
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK, "GET {uri}");
+    body_json(response).await
+}
+
+/// Compte patient dont l'e-mail `app_user` est imposé (pour qu'une demande
+/// d'accès adressée à cet e-mail puisse lui être rapprochée).
+async fn create_patient_account_with_email(
+    db: &PgPool,
+    email: &str,
+    first_name: &str,
+    last_name: &str,
+) -> (Uuid, Uuid) {
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(email)
+    .execute(db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .bind(first_name)
+    .bind(last_name)
+    .execute(db)
+    .await
+    .unwrap();
+    (user_id, account_id)
+}
+
+async fn active_guardianship_count(db: &PgPool, guardian: Uuid, dependent: Uuid) -> i64 {
+    sqlx::query_scalar(
+        "SELECT count(*) FROM account_guardianship \
+         WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+    )
+    .bind(guardian)
+    .bind(dependent)
+    .fetch_one(db)
+    .await
+    .unwrap()
+}
+
+async fn notification_count(db: &PgPool, app_user_id: Uuid, kind: &str) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM notification WHERE app_user_id = $1 AND kind = $2")
+        .bind(app_user_id)
+        .bind(kind)
+        .fetch_one(db)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn direct_dependent_of_an_adult_is_refused_server_side() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user, account) = create_patient_account(&db, "ar-adult-direct").await;
+    let token = make_patient_jwt(user, account);
+
+    // Conjoint sans date de naissance : exactement la requête émise par le
+    // bouton « Envoyer la demande » avant ce fix (QA-20260915-19).
+    let spouse = post_dependent(
+        &token,
+        json!({
+            "first_name": "QA16Proof",
+            "last_name": "ConsentementFacade",
+            "relationship": "conjoint",
+        }),
+    )
+    .await;
+    assert_eq!(spouse.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(body_json(spouse).await["code"], "adult_requires_consent");
+
+    // Adulte de 41 ans déclaré « conjoint » avec date de naissance : refusé.
+    let adult = post_dependent(
+        &token,
+        json!({
+            "first_name": "QA16",
+            "last_name": "AdulteSansAccord",
+            "birth_date": "1985-04-12",
+            "relationship": "conjoint",
+        }),
+    )
+    .await;
+    assert_eq!(adult.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(body_json(adult).await["code"], "adult_requires_consent");
+
+    // « Enfant » majeur : l'étiquette ne suffit pas, l'âge tranche.
+    let adult_child = post_dependent(
+        &token,
+        json!({
+            "first_name": "QA16",
+            "last_name": "EnfantMajeur",
+            "birth_date": "1985-04-12",
+            "relationship": "enfant",
+        }),
+    )
+    .await;
+    assert_eq!(adult_child.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(
+        body_json(adult_child).await["code"],
+        "adult_requires_consent"
+    );
+
+    // « Enfant » sans date de naissance : rien ne prouve la minorité.
+    let no_dob = post_dependent(
+        &token,
+        json!({
+            "first_name": "QA16",
+            "last_name": "SansDate",
+            "relationship": "enfant",
+        }),
+    )
+    .await;
+    assert_eq!(no_dob.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(body_json(no_dob).await["code"], "validation_error");
+
+    // Aucun compte géré n'a été créé par ces quatre tentatives.
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM account_guardianship WHERE guardian_account_id = $1",
+    )
+    .bind(account)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(count, 0);
+
+    // Le parcours enfant mineur reste inchangé (saisie directe).
+    let minor = post_dependent(
+        &token,
+        json!({
+            "first_name": "Lucas",
+            "last_name": "Marchand",
+            "birth_date": "2015-03-10",
+            "relationship": "enfant",
+        }),
+    )
+    .await;
+    assert_eq!(minor.status(), StatusCode::CREATED);
+}
+
+// ── Demande → acceptation → accès ; refus → rien ; isolation ────────────────
+
+#[tokio::test]
+async fn access_request_grants_guardianship_only_after_acceptance() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (requester_user, requester_account) =
+        create_patient_account_with_email(&db, &unique_email("julie"), "Julie", "Martin").await;
+    let invitee_email = unique_email("emile");
+    let (invitee_user, invitee_account) =
+        create_patient_account_with_email(&db, &invitee_email, "Émile", "Martin").await;
+    let (third_user, third_account) = create_patient_account(&db, "ar-third").await;
+
+    let requester_token = make_patient_jwt(requester_user, requester_account);
+    let invitee_token = make_patient_jwt(invitee_user, invitee_account);
+    let third_token = make_patient_jwt(third_user, third_account);
+
+    // 1. Envoi : demande en attente, e-mail + périmètre conservés, aucun accès.
+    let created = send_request(
+        &requester_token,
+        json!({
+            "first_name": "Émile",
+            "last_name": "Martin",
+            "relationship": "conjoint",
+            "channel": "email",
+            "scope": ["rendez_vous", "documents", "messages"],
+            "email": invitee_email.to_uppercase(),
+        }),
+    )
+    .await;
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let created_json = body_json(created).await;
+    assert_eq!(created_json["status"], "envoyee");
+    assert_eq!(created_json["direction"], "sent");
+    assert_eq!(
+        created_json["scope"],
+        json!(["rendez_vous", "documents", "messages"])
+    );
+    let request_id = created_json["id"].as_str().unwrap().to_string();
+
+    assert_eq!(
+        active_guardianship_count(&db, requester_account, invitee_account).await,
+        0,
+        "aucun accès ne doit exister tant que l'invité n'a pas accepté"
+    );
+    let dependents = get_json(&requester_token, "/v1/account/dependents").await;
+    assert!(!dependents
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["dependent_account_id"] == invitee_account.to_string()));
+
+    // 2. Délivrance : l'invité voit la demande reçue (avec le nom du
+    //    demandeur) et une notification in-app a été déposée.
+    let received = get_json(&invitee_token, "/v1/account/access-requests").await;
+    let item = received
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|it| it["id"] == request_id)
+        .expect("la demande doit apparaître côté invité");
+    assert_eq!(item["direction"], "received");
+    assert_eq!(item["status"], "envoyee");
+    assert_eq!(item["requester_first_name"], "Julie");
+    assert_eq!(item["requester_last_name"], "Martin");
+    assert_eq!(
+        notification_count(&db, invitee_user, "access_request_received").await,
+        1
+    );
+
+    // 3. Isolation : un tiers ne voit pas la demande et ne peut pas la décider.
+    let third_list = get_json(&third_token, "/v1/account/access-requests").await;
+    assert!(!third_list
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|it| it["id"] == request_id));
+    let third_accept = post_action(&third_token, &request_id, "accept").await;
+    assert_eq!(third_accept.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        active_guardianship_count(&db, requester_account, third_account).await,
+        0
+    );
+
+    // 4. Acceptation avec périmètre ajusté (l'invité décide de l'étendue).
+    let accepted = app(test_state().await)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/account/access-requests/{}/accept", request_id))
+                .header("Authorization", format!("Bearer {}", invitee_token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({"scope": ["rendez_vous"]})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(accepted.status(), StatusCode::OK);
+    let accepted_json = body_json(accepted).await;
+    assert_eq!(accepted_json["status"], "acceptee");
+    assert_eq!(accepted_json["direction"], "received");
+    assert_eq!(accepted_json["scope"], json!(["rendez_vous"]));
+
+    // L'accès est désormais matérialisé : lien de tutelle délégué actif,
+    // l'invité figure dans « Comptes que vous gérez » du demandeur.
+    assert_eq!(
+        active_guardianship_count(&db, requester_account, invitee_account).await,
+        1
+    );
+    let authority: String = sqlx::query_scalar(
+        "SELECT authority FROM account_guardianship \
+         WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+    )
+    .bind(requester_account)
+    .bind(invitee_account)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(authority, "delegated");
+    let dependents = get_json(&requester_token, "/v1/account/dependents").await;
+    assert!(dependents
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["dependent_account_id"] == invitee_account.to_string()
+            && d["relationship"] == "conjoint"));
+    assert_eq!(
+        notification_count(&db, requester_user, "access_request_decided").await,
+        1
+    );
+
+    // 5. Le demandeur voit la demande acceptée (plus seulement les « envoyee »).
+    let sent = get_json(&requester_token, "/v1/account/access-requests").await;
+    let item = sent
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|it| it["id"] == request_id)
+        .unwrap();
+    assert_eq!(item["status"], "acceptee");
+    assert_eq!(item["direction"], "sent");
+    assert!(item["decided_at"].is_string());
+
+    // 6. Révocation symétrique (#7004) : le demandeur peut aussi retirer l'accès.
+    let revoked = post_action(&requester_token, &request_id, "revoke").await;
+    assert_eq!(revoked.status(), StatusCode::NO_CONTENT);
+    assert_eq!(
+        active_guardianship_count(&db, requester_account, invitee_account).await,
+        0
+    );
+    assert_eq!(
+        notification_count(&db, invitee_user, "access_request_revoked").await,
+        1
+    );
+    let sent = get_json(&requester_token, "/v1/account/access-requests").await;
+    let item = sent
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|it| it["id"] == request_id)
+        .unwrap();
+    assert!(item["revoked_at"].is_string());
+}
+
+#[tokio::test]
+async fn access_request_refused_grants_nothing() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (requester_user, requester_account) = create_patient_account(&db, "ar-req-nothing").await;
+    let invitee_email = unique_email("refusant");
+    let (invitee_user, invitee_account) =
+        create_patient_account_with_email(&db, &invitee_email, "Nadia", "Refus").await;
+    let requester_token = make_patient_jwt(requester_user, requester_account);
+    let invitee_token = make_patient_jwt(invitee_user, invitee_account);
+
+    let created = send_request(
+        &requester_token,
+        json!({
+            "first_name": "Nadia",
+            "last_name": "Refus",
+            "relationship": "autre",
+            "channel": "email",
+            "scope": ["dossier_medical"],
+            "email": invitee_email,
+        }),
+    )
+    .await;
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let request_id = body_json(created).await["id"].as_str().unwrap().to_string();
+
+    let refused = post_action(&invitee_token, &request_id, "refuse").await;
+    assert_eq!(refused.status(), StatusCode::OK);
+    assert_eq!(body_json(refused).await["status"], "refusee");
+
+    assert_eq!(
+        active_guardianship_count(&db, requester_account, invitee_account).await,
+        0,
+        "un refus n'ouvre aucun accès"
+    );
+    let dependents = get_json(&requester_token, "/v1/account/dependents").await;
+    assert!(!dependents
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["dependent_account_id"] == invitee_account.to_string()));
+
+    // Le demandeur voit le refus dans sa liste ; rien à révoquer.
+    let sent = get_json(&requester_token, "/v1/account/access-requests").await;
+    let item = sent
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|it| it["id"] == request_id)
+        .unwrap();
+    assert_eq!(item["status"], "refusee");
+    let revoke = post_action(&requester_token, &request_id, "revoke").await;
+    assert_eq!(revoke.status(), StatusCode::NOT_FOUND);
+}
+
+/// Cas le plus courant (maquette, « trois points non tranchés » n°1) :
+/// l'invité n'a pas encore de compte à l'envoi ; une fois inscrit avec le
+/// même e-mail, il retrouve la demande reçue et peut la décider.
+#[tokio::test]
+async fn access_request_is_visible_to_invitee_registered_after_sending() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (requester_user, requester_account) = create_patient_account(&db, "ar-req-late").await;
+    let requester_token = make_patient_jwt(requester_user, requester_account);
+    let invitee_email = unique_email("tardif");
+
+    let created = send_request(
+        &requester_token,
+        json!({
+            "first_name": "Sam",
+            "last_name": "Tardif",
+            "relationship": "conjoint",
+            "channel": "email",
+            "scope": ["rendez_vous"],
+            "email": invitee_email,
+        }),
+    )
+    .await;
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let request_id = body_json(created).await["id"].as_str().unwrap().to_string();
+
+    // Inscription APRÈS l'envoi.
+    let (invitee_user, invitee_account) =
+        create_patient_account_with_email(&db, &invitee_email, "Sam", "Tardif").await;
+    let invitee_token = make_patient_jwt(invitee_user, invitee_account);
+
+    let received = get_json(&invitee_token, "/v1/account/access-requests").await;
+    let item = received
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|it| it["id"] == request_id)
+        .expect("rapprochée par e-mail, la demande doit apparaître côté invité");
+    assert_eq!(item["direction"], "received");
+
+    let accepted = post_action(&invitee_token, &request_id, "accept").await;
+    assert_eq!(accepted.status(), StatusCode::OK);
+    assert_eq!(
+        active_guardianship_count(&db, requester_account, invitee_account).await,
+        1
+    );
+
+    // Révocation côté invité : le lien tombe, le demandeur est prévenu.
+    let revoked = post_action(&invitee_token, &request_id, "revoke").await;
+    assert_eq!(revoked.status(), StatusCode::NO_CONTENT);
+    assert_eq!(
+        active_guardianship_count(&db, requester_account, invitee_account).await,
+        0
+    );
+    assert_eq!(
+        notification_count(&db, requester_user, "access_request_revoked").await,
+        1
+    );
+}
+
+fn unique_email(label: &str) -> String {
+    format!("{label}+{}@nubia.test", Uuid::new_v4())
+}

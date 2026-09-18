@@ -6,7 +6,9 @@ import 'package:nubia_domain/src/error/failure.dart';
 abstract class PharmacySessionRepository {
   /// Nom affichable de l'utilisateur connecté (#6170) + appartenances
   /// pharmacie (`GET /v1/me`).
-  Future<Either<Failure, ({String? displayName, List<PharmacyMembership> memberships})>>
+  Future<
+          Either<Failure,
+              ({String? displayName, List<PharmacyMembership> memberships})>>
       myMemberships();
 
   /// Échange le token de login contre un JWT scopé pharmacie

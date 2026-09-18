@@ -45,17 +45,16 @@ void main() {
         'amc renseigné + numeroAdherent null → envoie quand même la clé '
         'numero_adherent (chaîne vide) pour éviter le 422 "missing field"',
         () async {
-      when(() => api.updateCoverage(any()))
-          .thenAnswer((_) async => _dto);
+      when(() => api.updateCoverage(any())).thenAnswer((_) async => _dto);
 
       await repo.updateCoverage(
         regime: HealthInsuranceRegime.regimeGeneral,
         amc: 'QA Mutuelle',
       );
 
-      final body =
-          verify(() => api.updateCoverage(captureAny())).captured.single
-              as Map<String, dynamic>;
+      final body = verify(() => api.updateCoverage(captureAny()))
+          .captured
+          .single as Map<String, dynamic>;
       expect(body['mutuelle'], {'amc': 'QA Mutuelle', 'numero_adherent': ''});
     });
   });
@@ -73,9 +72,8 @@ void main() {
         dateOfBirth: DateTime(2006, 1, 15),
       );
 
-      final body =
-          verify(() => api.updateAccount(captureAny())).captured.single
-              as Map<String, dynamic>;
+      final body = verify(() => api.updateAccount(captureAny())).captured.single
+          as Map<String, dynamic>;
       expect(body['birth_date'], '2006-01-15');
     });
 
@@ -85,9 +83,8 @@ void main() {
 
       await repo.updateAccount(phone: '0612345678');
 
-      final body =
-          verify(() => api.updateAccount(captureAny())).captured.single
-              as Map<String, dynamic>;
+      final body = verify(() => api.updateAccount(captureAny())).captured.single
+          as Map<String, dynamic>;
       expect(body.containsKey('birth_date'), isFalse);
     });
   });
@@ -112,8 +109,7 @@ void main() {
   });
 
   group('AccessRequest — #5259', () {
-    test('AccessRequestDto.toDomain mappe état/canal/périmètre/révocation',
-        () {
+    test('AccessRequestDto.toDomain mappe état/canal/périmètre/révocation', () {
       final dto = AccessRequestDto.fromJson({
         'id': 'ar-1',
         'first_name': 'Jean',
@@ -154,7 +150,8 @@ void main() {
       expect(domain.grantedScope, isEmpty);
     });
 
-    test('sendAccessRequest envoie relationship/channel/scope mappés en '
+    test(
+        'sendAccessRequest envoie relationship/channel/scope mappés en '
         'chaînes API', () async {
       final dto = AccessRequestDto.fromJson({
         'id': 'ar-3',
@@ -175,9 +172,9 @@ void main() {
         email: 'jean@example.com',
       );
 
-      final body =
-          verify(() => api.sendAccessRequest(captureAny())).captured.single
-              as Map<String, dynamic>;
+      final body = verify(() => api.sendAccessRequest(captureAny()))
+          .captured
+          .single as Map<String, dynamic>;
       expect(body['relationship'], 'conjoint');
       expect(body['channel'], 'email');
       expect(
@@ -194,6 +191,84 @@ void main() {
       await repo.revokeAccess('ar-1');
 
       verify(() => api.revokeAccess('ar-1')).called(1);
+    });
+
+    test(
+        'demande reçue (#6809) : direction, nom du demandeur, decided_at et '
+        'droit « messages » décodés', () {
+      final dto = AccessRequestDto.fromJson({
+        'id': 'ar-4',
+        'direction': 'received',
+        'first_name': 'Émile',
+        'last_name': 'Martin',
+        'requester_first_name': 'Julie',
+        'requester_last_name': 'Martin',
+        'relationship': 'conjoint',
+        'status': 'acceptee',
+        'channel': 'email',
+        'scope': ['rendez_vous', 'messages', 'un_droit_inconnu'],
+        'sent_at': '2026-09-15T06:10:01.000Z',
+        'decided_at': '2026-09-16T08:00:00.000Z',
+      });
+
+      final domain = dto.toDomain();
+
+      expect(domain.direction, AccessRequestDirection.received);
+      expect(domain.isReceived, isTrue);
+      expect(domain.requesterDisplayName, 'Julie Martin');
+      expect(domain.displayName, 'Émile Martin');
+      // Un droit inconnu est ignoré, jamais confondu avec rendez_vous.
+      expect(
+        domain.grantedScope,
+        {AccessRight.rendezVous, AccessRight.messages},
+      );
+      expect(domain.decidedAt, DateTime.parse('2026-09-16T08:00:00.000Z'));
+      expect(domain.isActiveAccess, isTrue);
+    });
+
+    test('direction absente = demande envoyée (rétro-compatible)', () {
+      final dto = AccessRequestDto.fromJson({
+        'id': 'ar-5',
+        'first_name': 'Jean',
+        'last_name': 'Dupont',
+        'status': 'envoyee',
+        'channel': 'email',
+      });
+
+      final domain = dto.toDomain();
+
+      expect(domain.direction, AccessRequestDirection.sent);
+      expect(domain.requesterDisplayName, 'Jean Dupont');
+      expect(domain.isPending, isTrue);
+    });
+
+    test('acceptAccessRequest transmet le périmètre ajusté en body (#7009)',
+        () async {
+      final dto = AccessRequestDto.fromJson({
+        'id': 'ar-6',
+        'first_name': 'Jean',
+        'last_name': 'Dupont',
+        'status': 'acceptee',
+        'channel': 'email',
+        'scope': ['rendez_vous'],
+      });
+      when(() => api.acceptAccessRequest(any(), body: any(named: 'body')))
+          .thenAnswer((_) async => dto);
+
+      await repo.acceptAccessRequest(
+        'ar-6',
+        scope: const {AccessRight.rendezVous, AccessRight.messages},
+      );
+
+      final body = verify(() =>
+              api.acceptAccessRequest('ar-6', body: captureAny(named: 'body')))
+          .captured
+          .single as Map<String, dynamic>;
+      expect((body['scope'] as List).toSet(), {'rendez_vous', 'messages'});
+
+      // Sans ajustement : pas de body.
+      await repo.acceptAccessRequest('ar-6');
+      verify(() => api.acceptAccessRequest('ar-6', body: null)).called(1);
     });
   });
 
@@ -218,9 +293,9 @@ void main() {
         address: '1 rue de la Paix, Lyon',
       );
 
-      final body =
-          verify(() => api.setReferringDoctor(captureAny())).captured.single
-              as Map<String, dynamic>;
+      final body = verify(() => api.setReferringDoctor(captureAny()))
+          .captured
+          .single as Map<String, dynamic>;
       expect(body, {'provider_id': '90de0000-0000-4000-8000-000000000011'});
     });
 
@@ -237,9 +312,9 @@ void main() {
         address: '1 rue de la Paix, Lyon',
       );
 
-      final body =
-          verify(() => api.setReferringDoctor(captureAny())).captured.single
-              as Map<String, dynamic>;
+      final body = verify(() => api.setReferringDoctor(captureAny()))
+          .captured
+          .single as Map<String, dynamic>;
       expect(body, {
         'free_name': 'Dr Hors Annuaire',
         'free_phone': '0612345678',

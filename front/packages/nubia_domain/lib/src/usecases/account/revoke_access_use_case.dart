@@ -6,6 +6,5 @@ class RevokeAccessUseCase {
   final AccountRepository _repository;
   const RevokeAccessUseCase(this._repository);
 
-  Future<Either<Failure, void>> call(String id) =>
-      _repository.revokeAccess(id);
+  Future<Either<Failure, void>> call(String id) => _repository.revokeAccess(id);
 }

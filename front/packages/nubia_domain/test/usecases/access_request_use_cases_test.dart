@@ -28,7 +28,8 @@ void main() {
 
   setUp(() => repo = MockAccountRepository());
 
-  test('SendAccessRequestUseCase délègue firstName/lastName/relationship/'
+  test(
+      'SendAccessRequestUseCase délègue firstName/lastName/relationship/'
       'channel/scope au repo', () async {
     when(() => repo.sendAccessRequest(
           firstName: 'Jean',
@@ -82,12 +83,15 @@ void main() {
   });
 
   test('AcceptAccessRequestUseCase délègue l\'id au repo', () async {
-    when(() => repo.acceptAccessRequest('ar-1'))
+    when(() => repo.acceptAccessRequest('ar-1', scope: any(named: 'scope')))
         .thenAnswer((_) async => const Right(request));
 
-    await AcceptAccessRequestUseCase(repo)('ar-1');
+    await AcceptAccessRequestUseCase(repo)('ar-1',
+        scope: {AccessRight.rendezVous});
 
-    verify(() => repo.acceptAccessRequest('ar-1')).called(1);
+    verify(() =>
+            repo.acceptAccessRequest('ar-1', scope: {AccessRight.rendezVous}))
+        .called(1);
   });
 
   test('RefuseAccessRequestUseCase délègue l\'id au repo', () async {
@@ -99,7 +103,8 @@ void main() {
     verify(() => repo.refuseAccessRequest('ar-1')).called(1);
   });
 
-  test('RevokeAccessUseCase délègue l\'id au repo, distinct de '
+  test(
+      'RevokeAccessUseCase délègue l\'id au repo, distinct de '
       'DeleteDependentUseCase (révocation côté invité, pas gestionnaire)',
       () async {
     when(() => repo.revokeAccess('ar-1'))

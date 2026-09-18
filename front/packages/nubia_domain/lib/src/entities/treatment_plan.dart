@@ -76,8 +76,7 @@ class TreatmentPhase extends Equatable {
   bool get isCovered => quoteRef != null;
 
   /// Montant total de la phase — somme des [acts] (#5013).
-  int get totalCents =>
-      acts.fold(0, (total, act) => total + act.amountCents);
+  int get totalCents => acts.fold(0, (total, act) => total + act.amountCents);
 
   @override
   List<Object?> get props => [id, position, title, status, quoteRef, acts];

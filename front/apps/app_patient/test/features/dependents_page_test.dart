@@ -51,6 +51,66 @@ final _pendingRequest = AccessRequest(
   sentAt: DateTime.now().subtract(const Duration(days: 1)),
 );
 
+final _acceptedRequest = AccessRequest(
+  id: 'ar-2',
+  firstName: 'Paul',
+  lastName: 'Durand',
+  relationship: DependentRelationship.autre,
+  status: AccessRequestStatus.acceptee,
+  channel: AccessRequestChannel.email,
+  grantedScope: const {AccessRight.rendezVous, AccessRight.documents},
+  sentAt: DateTime.now().subtract(const Duration(days: 3)),
+  decidedAt: DateTime.now().subtract(const Duration(days: 2)),
+);
+
+final _refusedRequest = AccessRequest(
+  id: 'ar-3',
+  firstName: 'Nadia',
+  lastName: 'Refus',
+  relationship: DependentRelationship.conjoint,
+  status: AccessRequestStatus.refusee,
+  channel: AccessRequestChannel.sms,
+  sentAt: DateTime.now().subtract(const Duration(days: 3)),
+);
+
+final _revokedRequest = AccessRequest(
+  id: 'ar-4',
+  firstName: 'Sam',
+  lastName: 'Parti',
+  relationship: DependentRelationship.autre,
+  status: AccessRequestStatus.acceptee,
+  channel: AccessRequestChannel.email,
+  grantedScope: const {AccessRight.dossierMedical},
+  sentAt: DateTime.now().subtract(const Duration(days: 9)),
+  revokedAt: DateTime.now().subtract(const Duration(days: 1)),
+);
+
+const _receivedPending = AccessRequest(
+  id: 'ar-10',
+  direction: AccessRequestDirection.received,
+  firstName: 'Julie',
+  lastName: 'Martin',
+  requesterFirstName: 'Marc',
+  requesterLastName: 'Dubois',
+  relationship: DependentRelationship.conjoint,
+  status: AccessRequestStatus.envoyee,
+  channel: AccessRequestChannel.email,
+  grantedScope: {AccessRight.rendezVous},
+);
+
+const _receivedAccepted = AccessRequest(
+  id: 'ar-11',
+  direction: AccessRequestDirection.received,
+  firstName: 'Julie',
+  lastName: 'Martin',
+  requesterFirstName: 'Anne',
+  requesterLastName: 'Lefèvre',
+  relationship: DependentRelationship.autre,
+  status: AccessRequestStatus.acceptee,
+  channel: AccessRequestChannel.email,
+  grantedScope: {AccessRight.documents, AccessRight.messages},
+);
+
 Future<void> _pump(WidgetTester tester, DependentsCubit cubit) async {
   GetIt.instance.registerFactory<DependentsCubit>(() => cubit);
   addTearDown(() => GetIt.instance.reset());
@@ -76,6 +136,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(DependentRelationship.enfant);
+    registerFallbackValue(const <AccessRight>{});
   });
 
   setUp(() {
@@ -252,7 +313,8 @@ void main() {
     expect(find.byKey(const Key('mes_rdv_stub')), findsOneWidget);
   });
 
-  testWidgets('carte compte géré : le lien Planifier ouvre bien la prise de RDV',
+  testWidgets(
+      'carte compte géré : le lien Planifier ouvre bien la prise de RDV',
       (tester) async {
     whenListen(
       cubit,
@@ -346,8 +408,7 @@ void main() {
 
     final cardTop =
         tester.getTopLeft(find.byKey(const Key('self_account_card'))).dy;
-    final headerTop =
-        tester.getTopLeft(find.text('COMPTES QUE VOUS GÉREZ')).dy;
+    final headerTop = tester.getTopLeft(find.text('COMPTES QUE VOUS GÉREZ')).dy;
     expect(cardTop, lessThan(headerTop));
   });
 
@@ -365,27 +426,26 @@ void main() {
     expect(find.byKey(const Key('self_account_card')), findsNothing);
   });
 
-  testWidgets(
-      'carte demande en attente : badge, canal/horodatage et actions',
+  testWidgets('carte demande en attente : badge, canal/horodatage et actions',
       (tester) async {
     whenListen(
       cubit,
       const Stream<DependentsState>.empty(),
       initialState: DependentsLoaded(
         const [],
-        pendingAccessRequests: [_pendingRequest],
+        sentAccessRequests: [_pendingRequest],
       ),
     );
 
     await _pump(tester, cubit);
 
-    expect(find.byKey(const Key('pending_request_ar-1')), findsOneWidget);
+    expect(find.byKey(const Key('sent_request_ar-1')), findsOneWidget);
     expect(find.text('Émile Martin'), findsOneWidget);
     expect(find.text('Conjoint'), findsOneWidget);
     expect(find.text('En attente'), findsOneWidget);
     expect(
       find.descendant(
-        of: find.byKey(const Key('pending_request_ar-1')),
+        of: find.byKey(const Key('sent_request_ar-1')),
         matching: find.byIcon(Icons.schedule),
       ),
       findsOneWidget,
@@ -403,7 +463,7 @@ void main() {
       const Stream<DependentsState>.empty(),
       initialState: DependentsLoaded(
         const [],
-        pendingAccessRequests: [_pendingRequest],
+        sentAccessRequests: [_pendingRequest],
       ),
     );
     when(() => cubit.resend(any())).thenAnswer((_) async {});
@@ -423,7 +483,7 @@ void main() {
       const Stream<DependentsState>.empty(),
       initialState: DependentsLoaded(
         const [],
-        pendingAccessRequests: [_pendingRequest],
+        sentAccessRequests: [_pendingRequest],
       ),
     );
     when(() => cubit.cancel(any())).thenAnswer((_) async {});
@@ -855,8 +915,8 @@ void main() {
 
     await _pump(tester, cubit);
 
-    expect(find.byKey(const Key('parental_access_expired_pill')),
-        findsOneWidget);
+    expect(
+        find.byKey(const Key('parental_access_expired_pill')), findsOneWidget);
     expect(find.text('Majorité atteinte'), findsOneWidget);
     expect(find.byKey(const Key('parental_access_expired_notice')),
         findsOneWidget);
@@ -952,5 +1012,179 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('dependent_date_of_birth')), findsNothing);
+  });
+
+  // ── #7009 : « Envoyer la demande » envoie une DEMANDE, pas un dépendant ──
+
+  testWidgets(
+      'ajout proche : « Envoyer la demande » (conjoint) appelle '
+      'cubit.sendAccessRequest avec e-mail + périmètre coché, jamais cubit.add',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded([]),
+    );
+    when(() => cubit.sendAccessRequest(
+          firstName: any(named: 'firstName'),
+          lastName: any(named: 'lastName'),
+          relationship: any(named: 'relationship'),
+          email: any(named: 'email'),
+          scope: any(named: 'scope'),
+        )).thenAnswer((_) async {});
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('add_dependent_fab')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('dependent_relationship')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Conjoint').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+        find.byKey(const Key('dependent_first_name')), 'QA16Proof');
+    await tester.enterText(
+        find.byKey(const Key('dependent_last_name')), 'ConsentementFacade');
+    await tester.enterText(find.byKey(const Key('dependent_email')),
+        'qa16.proof.consent@patient.test');
+    await tester.pumpAndSettle();
+
+    // Le demandeur retire « Ses documents » : le périmètre envoyé doit
+    // refléter les bascules, pas un défaut.
+    await tester.ensureVisible(
+        find.byKey(const Key('proposed_scope_toggle_documents')));
+    await tester.tap(find.byKey(const Key('proposed_scope_toggle_documents')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('save_dependent_button')));
+    await tester.tap(find.byKey(const Key('save_dependent_button')));
+    await tester.pumpAndSettle();
+
+    verify(() => cubit.sendAccessRequest(
+          firstName: 'QA16Proof',
+          lastName: 'ConsentementFacade',
+          relationship: DependentRelationship.conjoint,
+          email: 'qa16.proof.consent@patient.test',
+          scope: const {AccessRight.rendezVous},
+        )).called(1);
+    verifyNever(() => cubit.add(
+          firstName: any(named: 'firstName'),
+          lastName: any(named: 'lastName'),
+          birthDate: any(named: 'birthDate'),
+          relationship: any(named: 'relationship'),
+        ));
+  });
+
+  // ── #7008 / #7004 : « Demandes envoyées » — les trois états ──────────────
+
+  testWidgets(
+      'demandes envoyées : acceptée (pastille, périmètre, Retirer l\'accès), '
+      'refusée et accès retiré restent visibles', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded(
+        const [],
+        sentAccessRequests: [
+          _pendingRequest,
+          _acceptedRequest,
+          _refusedRequest,
+          _revokedRequest,
+        ],
+      ),
+    );
+
+    await _pump(tester, cubit);
+
+    // En attente : Relancer / Annuler uniquement sur celle-ci.
+    expect(find.byKey(const Key('sent_request_ar-1')), findsOneWidget);
+    expect(find.byKey(const Key('resend_access_request_ar-1')), findsOneWidget);
+
+    // Acceptée : pastille succès + périmètre accordé + retrait possible.
+    await tester.scrollUntilVisible(
+        find.byKey(const Key('sent_request_ar-2')), 200);
+    expect(find.text('Paul Durand'), findsOneWidget);
+    expect(find.text('Acceptée'), findsOneWidget);
+    expect(
+        find.text('Accès accordé : Rendez-vous · Documents'), findsOneWidget);
+    expect(find.byKey(const Key('revoke_access_request_ar-2')), findsOneWidget);
+    expect(find.byKey(const Key('resend_access_request_ar-2')), findsNothing);
+
+    // Refusée : visible, sans action.
+    await tester.scrollUntilVisible(
+        find.byKey(const Key('sent_request_ar-3')), 200);
+    expect(find.text('Nadia Refus'), findsOneWidget);
+    expect(find.text('Refusée'), findsOneWidget);
+    expect(find.byKey(const Key('revoke_access_request_ar-3')), findsNothing);
+    expect(find.byKey(const Key('resend_access_request_ar-3')), findsNothing);
+
+    // Accès retiré après acceptation : visible, sans action.
+    await tester.scrollUntilVisible(
+        find.byKey(const Key('sent_request_ar-4')), 200);
+    expect(find.text('Sam Parti'), findsOneWidget);
+    expect(find.text('Accès retiré'), findsOneWidget);
+    expect(find.byKey(const Key('revoke_access_request_ar-4')), findsNothing);
+  });
+
+  testWidgets(
+      'demande acceptée : « Retirer l\'accès » demande confirmation puis '
+      'appelle cubit.revokeAccess', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded(
+        const [],
+        sentAccessRequests: [_acceptedRequest],
+      ),
+    );
+    when(() => cubit.revokeAccess(any())).thenAnswer((_) async {});
+
+    await _pump(tester, cubit);
+
+    await tester.tap(find.byKey(const Key('revoke_access_request_ar-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Retirer l'accès ?"), findsOneWidget);
+    expect(find.textContaining('Paul Durand'), findsWidgets);
+    verifyNever(() => cubit.revokeAccess(any()));
+
+    await tester.tap(find.byKey(const Key('confirm_revoke_access_button')));
+    await tester.pumpAndSettle();
+
+    verify(() => cubit.revokeAccess('ar-2')).called(1);
+  });
+
+  // ── #6809 : « Demandes reçues » — l'invité voit et peut répondre ─────────
+
+  testWidgets(
+      'demandes reçues : en attente → « Répondre » ; accès accordé → '
+      '« Retirer l\'accès »', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: const DependentsLoaded(
+        [],
+        receivedAccessRequests: [_receivedPending, _receivedAccepted],
+      ),
+    );
+
+    await _pump(tester, cubit);
+
+    expect(find.text('DEMANDES REÇUES'), findsOneWidget);
+    expect(find.byKey(const Key('received_request_ar-10')), findsOneWidget);
+    expect(
+        find.text('Marc Dubois souhaite gérer votre dossier'), findsOneWidget);
+    expect(find.text('En attente'), findsOneWidget);
+    expect(
+        find.byKey(const Key('respond_access_request_ar-10')), findsOneWidget);
+
+    expect(find.byKey(const Key('received_request_ar-11')), findsOneWidget);
+    expect(find.text('Anne Lefèvre gère votre dossier'), findsOneWidget);
+    expect(find.text('Accès accordé : Documents · Messages'), findsOneWidget);
+    expect(
+        find.byKey(const Key('revoke_access_request_ar-11')), findsOneWidget);
+    expect(find.byKey(const Key('respond_access_request_ar-11')), findsNothing);
   });
 }

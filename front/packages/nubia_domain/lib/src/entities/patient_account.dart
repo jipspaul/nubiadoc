@@ -15,7 +15,20 @@ enum AccessRequestStatus { envoyee, acceptee, refusee, expiree }
 enum AccessRequestChannel { email, sms }
 
 /// Un droit du périmètre accordé par le proche invité à l'invitant.
-enum AccessRight { rendezVous, documents, ordonnances, dossierMedical }
+/// `messages` (#7009) : la bascule « Ses messages avec le cabinet » du
+/// formulaire d'invitation n'avait aucune valeur transmise à l'API.
+enum AccessRight {
+  rendezVous,
+  documents,
+  ordonnances,
+  dossierMedical,
+  messages
+}
+
+/// Sens d'une [AccessRequest] vue depuis le compte connecté : `sent` — je
+/// demande à gérer le dossier de [AccessRequest.firstName] ; `received` —
+/// [AccessRequest.requesterFirstName] demande à gérer MON dossier (#6809).
+enum AccessRequestDirection { sent, received }
 
 class HealthCoverage extends Equatable {
   final HealthInsuranceRegime regime;
@@ -82,7 +95,8 @@ class Dependent extends Equatable {
       relationship == DependentRelationship.enfant &&
       (ageInYearsAt(asOf) ?? 0) >= 18;
 
-  bool get hasParentalAccessExpired => hasParentalAccessExpiredAt(DateTime.now());
+  bool get hasParentalAccessExpired =>
+      hasParentalAccessExpiredAt(DateTime.now());
 
   @override
   List<Object?> get props => [id];
@@ -93,28 +107,62 @@ class Dependent extends Equatable {
 /// ajouté directement, un proche adulte passe par ce workflow d'invitation.
 class AccessRequest extends Equatable {
   final String id;
+  final AccessRequestDirection direction;
+
+  /// Nom de l'invité (tel que saisi par le demandeur).
   final String firstName;
   final String lastName;
+
+  /// Nom du demandeur — renseigné par l'API sur une demande `received`
+  /// (écran « Décider » : « Julie Martin souhaite gérer votre dossier »).
+  final String? requesterFirstName;
+  final String? requesterLastName;
   final DependentRelationship relationship;
   final AccessRequestStatus status;
   final AccessRequestChannel channel;
   final Set<AccessRight> grantedScope;
   final DateTime? sentAt;
+  final DateTime? decidedAt;
   final DateTime? revokedAt;
 
   const AccessRequest({
     required this.id,
+    this.direction = AccessRequestDirection.sent,
     required this.firstName,
     required this.lastName,
+    this.requesterFirstName,
+    this.requesterLastName,
     required this.relationship,
     required this.status,
     required this.channel,
     this.grantedScope = const {},
     this.sentAt,
+    this.decidedAt,
     this.revokedAt,
   });
 
   String get displayName => '$firstName $lastName';
+
+  /// Nom du demandeur à afficher côté invité ; retombe sur [displayName]
+  /// si l'API ne l'a pas fourni.
+  String get requesterDisplayName {
+    final first = requesterFirstName;
+    final last = requesterLastName;
+    if (first == null || last == null) return displayName;
+    return '$first $last';
+  }
+
+  bool get isReceived => direction == AccessRequestDirection.received;
+
+  /// En attente de décision de l'invité.
+  bool get isPending => status == AccessRequestStatus.envoyee;
+
+  /// Accès révoqué (par l'une ou l'autre partie) après acceptation.
+  bool get isRevoked => revokedAt != null;
+
+  /// Accès effectif : accepté et non révoqué.
+  bool get isActiveAccess =>
+      status == AccessRequestStatus.acceptee && !isRevoked;
 
   @override
   List<Object?> get props => [id];
