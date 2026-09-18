@@ -1192,12 +1192,13 @@ fn doc_decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 /// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
 /// Patient hors cabinet → 404. `?category=` filtre par catégorie (catégorie inconnue → liste vide).
 ///
-/// §14 — relation de soin : un praticien sans `appointment` avec ce patient → 403
-/// (même garde que `notes`/`medical-record`/`dental-chart`). Les rôles non-praticiens
-/// (secretary, admin…) n'ont pas de relation de soin possible et restent cantonnés
-/// aux catégories administratives (`NON_CLINICAL_CATEGORIES`) ; toute catégorie
-/// clinique demandée explicitement, ou l'absence de filtre, ne renvoie que ces
-/// catégories pour eux.
+/// §14 — relation de soin : un praticien sans `appointment` avec ce patient reste
+/// cantonné aux catégories administratives (`NON_CLINICAL_CATEGORIES`), exactement
+/// comme un rôle non-praticien (secretary, admin…) — il ne doit pas être *plus*
+/// restreint qu'eux sur le non-clinique (#7274). Toute catégorie clinique demandée
+/// explicitement, ou l'absence de filtre, ne renvoie que ces catégories pour lui.
+/// (`notes`/`medical-record`/`dental-chart` n'exposent eux que du clinique et
+/// gardent un 403 sec sans relation de soin.)
 pub async fn list_patient_documents(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -1262,8 +1263,12 @@ pub async fn list_patient_documents(
     }
 
     // RLS strict E.2.16.c : le praticien doit avoir eu au moins un appointment
-    // avec ce patient dans ce cabinet (§14 — accès documents cliniques).
-    if is_practitioner {
+    // avec ce patient dans ce cabinet pour accéder au *clinique* (§14). Sans
+    // relation de soin, il n'est pas rejeté en bloc : il retombe sur les
+    // catégories administratives (`NON_CLINICAL_CATEGORIES`), comme un
+    // non-praticien — un praticien du cabinet ne doit pas être plus restreint
+    // qu'une secrétaire du même cabinet sur du non-clinique (#7274).
+    let practitioner_has_relation = if is_practitioner {
         let has_appointment = sqlx::query(
             "SELECT 1 FROM appointment a \
              JOIN practitioner p ON p.id = a.practitioner_id \
@@ -1277,8 +1282,16 @@ pub async fn list_patient_documents(
         .await
         .map_err(|_| AppError::Internal)?;
 
-        if has_appointment.is_none() {
-            return Err(AppError::Forbidden);
+        has_appointment.is_some()
+    } else {
+        false
+    };
+
+    if is_practitioner && !practitioner_has_relation {
+        if let Some(ref cat) = params.category {
+            if !NON_CLINICAL_CATEGORIES.contains(&cat.as_str()) {
+                return empty_response();
+            }
         }
     }
 
@@ -1329,9 +1342,10 @@ pub async fn list_patient_documents(
         .unwrap_or((None, None));
 
     // §14 : un praticien avec relation de soin voit tout (filtre catégorie
-    // optionnel, déjà validé ci-dessus). Un rôle non-praticien reste cantonné
-    // aux catégories administratives, même sans filtre explicite.
-    let category_filter: Option<Vec<&str>> = if is_practitioner {
+    // optionnel, déjà validé ci-dessus). Un rôle non-praticien, ou un
+    // praticien sans relation de soin (#7274), reste cantonné aux catégories
+    // administratives, même sans filtre explicite.
+    let category_filter: Option<Vec<&str>> = if is_practitioner && practitioner_has_relation {
         params.category.as_deref().map(|c| vec![c])
     } else {
         Some(match params.category.as_deref() {

@@ -840,3 +840,135 @@ async fn upload_patient_document_without_care_relation_returns_403() {
     cleanup_other_practitioner(&db, other_user_id).await;
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
+
+// ── Test 8 : GET documents par un praticien SANS relation de soin → 200,
+// cantonné au non-clinique, comme une secrétaire (#7274) ────────────────────
+// Avant le fix, ce praticien recevait un 403 sec sur TOUT le patient, y
+// compris les catégories non cliniques qu'une secrétaire du même cabinet
+// peut lister sans relation de soin.
+
+#[tokio::test]
+async fn list_patient_documents_without_care_relation_returns_non_clinical_only() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let other_user_id = insert_practitioner_without_relation(&db, cabinet_id).await;
+
+    let non_clinical_doc_id = Uuid::new_v4();
+    let clinical_doc_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO document \
+         (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256) \
+         VALUES ($1, $2, $3, 'carte_mutuelle', 'key/7274-non-clinical', 'mutuelle.pdf', 'application/pdf', $4)",
+    )
+    .bind(non_clinical_doc_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind("a".repeat(64))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO document \
+         (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256) \
+         VALUES ($1, $2, $3, 'ordonnance', 'key/7274-clinical', 'ordo.pdf', 'application/pdf', $4)",
+    )
+    .bind(clinical_doc_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind("b".repeat(64))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let token = make_practitioner_token(other_user_id, cabinet_id);
+
+    // Sans filtre : 200, seul le document non clinique apparaît.
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/documents", patient_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "un praticien sans relation de soin doit rester cantonné au non-clinique, pas rejeté en bloc (#7274)"
+    );
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let ids: Vec<&str> = v["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, vec![non_clinical_doc_id.to_string()]);
+
+    // Catégorie non clinique explicite : 200, document listé.
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/documents?category=carte_mutuelle",
+                    patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["data"].as_array().unwrap().len(), 1);
+
+    // Catégorie clinique explicite : 200 mais liste vide (pas de 403).
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/documents?category=ordonnance",
+                    patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "une catégorie clinique demandée sans relation de soin renvoie une liste vide, pas un 403"
+    );
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(v["data"].as_array().unwrap().is_empty());
+
+    cleanup_other_practitioner(&db, other_user_id).await;
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
