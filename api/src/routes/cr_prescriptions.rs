@@ -88,6 +88,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             get(lab_work_orders::list_lab_work_orders).post(lab_work_orders::create_lab_work_order),
         )
         .route(
+            "/v1/cabinet/lab-work-orders/today",
+            get(lab_work_orders::list_today_lab_work_orders),
+        )
+        .route(
             "/v1/cabinet/lab-work-orders/:id",
             axum::routing::patch(lab_work_orders::patch_lab_work_order),
         )
