@@ -241,7 +241,10 @@ async fn pro_register_invalid_email_returns_422() {
         .fetch_one(&owner_pool().await)
         .await
         .unwrap();
-    assert_eq!(count, 0, "aucun compte ne doit être créé sur un email invalide");
+    assert_eq!(
+        count, 0,
+        "aucun compte ne doit être créé sur un email invalide"
+    );
 }
 
 // ── Test 5 (#7218) : rpps non numérique / mauvaise longueur → 422 ───────────
