@@ -543,3 +543,52 @@ async fn create_and_generate_report_placeholder_errors() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test 4 (#7253) : plafond de longueur sur `name` et les valeurs d'`overrides` ──
+
+#[tokio::test]
+async fn oversized_name_and_override_value_are_rejected() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "admin");
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/letter-templates",
+        &token,
+        Some(json!({
+            "name": "Z".repeat(20_000),
+            "kind": "autre",
+            "body_template": "x"
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un nom de modèle de 20000 caractères doit être refusé : {resp}"
+    );
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/patients/{}/letters", f.patient_id),
+        &token,
+        Some(json!({
+            "template_id": SEED_CONVOCATION_ID,
+            "overrides": { "praticien.nom": "Z".repeat(20_000) }
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "une valeur d'override de 20000 caractères doit être refusée : {resp}"
+    );
+
+    cleanup(&db, &f).await;
+}

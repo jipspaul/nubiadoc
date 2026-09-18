@@ -32,6 +32,11 @@ const VALID_STATUSES: [&str; 2] = ["conforme", "non_conforme"];
 const MAX_AUTOCLAVE_REF_LEN: usize = 100;
 const MAX_TEST_RESULT_LEN: usize = 500;
 
+/// Longueur max (en caractères) du code d'un sachet (#7253 : aucune borne
+/// auparavant — un code de plusieurs milliers de caractères était accepté
+/// et produisait une étiquette sans QR, cf. `sterilization_labels.rs`).
+const MAX_POUCH_CODE_LEN: usize = 100;
+
 /// Quand `test_result` est l'un de ces verdicts explicites, `status` doit
 /// s'accorder avec lui — sinon rien n'empêchait un `test_result:"echec"`
 /// d'être enregistré comme cycle `status:"conforme"` (#7047). Les autres
@@ -241,7 +246,8 @@ pub struct AddPouchResponse {
 /// pochette (datamatrix/barcode), avec association optionnelle à l'acte
 /// où elle a été utilisée.
 ///
-/// Cycle inexistant/hors tenant → 404. `code` non vide → 422 sinon.
+/// Cycle inexistant/hors tenant → 404. `code` non vide et ≤
+/// `MAX_POUCH_CODE_LEN` → 422 sinon.
 /// Reste possible quel que soit `sterilization_cycle.status` (traçabilité
 /// non bloquante, cf. #4138 — un cycle non conforme doit pouvoir être
 /// documenté, pas seulement les cycles réussis).
@@ -257,7 +263,7 @@ pub async fn add_sterilized_pouch(
     Path(cycle_id): Path<Uuid>,
     Json(body): Json<AddPouchBody>,
 ) -> Result<(StatusCode, Json<AddPouchResponse>), AppError> {
-    if body.code.trim().is_empty() {
+    if body.code.trim().is_empty() || body.code.chars().count() > MAX_POUCH_CODE_LEN {
         return Err(AppError::ValidationError);
     }
     // #4600/#4727 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
