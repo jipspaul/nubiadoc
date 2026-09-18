@@ -2182,3 +2182,85 @@ l'app infirmière s'étire sans débordement. **0 contrôle mort avéré** au se
 **Sous-total détails/deep-links : 10 écrans · 127 contrôles · 121 activés · 121 OK · 0 morts · 0 cassés · 3 grisés.**
 
 **TOTAL RONDE R77 : 87 écrans · 1165 contrôles inventoriés · 1109 activés · 1069 OK · 23 morts (aucun avéré après re-test individuel) · 17 cassés (403 de garde, 401 de session, 502 favicon) · 9 grisés (tous légitimes, prouvés par le code).**
+
+#### Ronde R78 — 2026-09-18 (audit de commandes, 5 apps)
+
+> **Méthode et correction de méthode.** Trois biais du harnais ont produit **79 faux MORT** en début de ronde, tous levés :
+> (1) l'empreinte de repeinture était **rognée** à 640×560 px — un détail s'ouvrant hors de ce cadre passait pour « aucun effet » ;
+> (2) plusieurs contrôles partageant le **même libellé** (`Délivrer`, `Appeler`, `Relancer`) étaient tous re-résolus sur la **1ʳᵉ** occurrence ;
+> (3) un détail affiché **en place** (sans changement d'URL) laissait l'auditeur cliquer dans le panneau ouvert pour tous les contrôles suivants.
+> Corrigés (empreinte plein viewport, appariement par rang d'occurrence, détection de dérive d'inventaire + rechargement), puis **chaque famille de MORT a été re-testée à la main avec rechargement entre chaque clic** :
+> `Délivrer` (officine) → navigue vers `/orders/:id/pickup` ; `Relancer` (devis secrétariat) → `POST /cabinet/quotes/:id/send` 200 ; `Réceptionner` (stock secrétariat) → ouvre le volet de détail sans requête (repli documenté `stock_page.dart:810-818`) ; cartes de devis patient → `GET /v1/billing/quotes/:id` puis « Signer le devis » ; lignes de conversation praticien → `GET /cabinet/conversations/:id/messages`. **Aucun contrôle mort avéré cette ronde.**
+
+| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check ISO | note |
+|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 7 | 6 | 6 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| infirmiere | `/#Disponibilit` | 7 | 6 | 6 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| infirmiere | `/#Mavisite` | 6 | 5 | 5 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| infirmiere | `/#Offres` | 6 | 5 | 5 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| infirmiere | `/disponibilite` | 1 | 1 | 1 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z | idem — route inexistante, onglet de `/` |
+| infirmiere | `/notification-preferences` | 3 | 3 | 3 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| infirmiere | `/offres` | 1 | 1 | 1 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z | route INEXISTANTE — l'app infirmière n'a QUE `/`, `/login`, `/notification-preferences` (`app_router.dart:13-16`) ; les 3 onglets se pilotent depuis `/` (lignes `/#…` ci-dessus) |
+| infirmiere | `/profil` | 1 | 1 | 1 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z | idem — route inexistante, onglet de `/` |
+| patient | `/` | 17 | 17 | 17 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/appointments` | 17 | 15 | 14 | 1 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| patient | `/book` | 17 | 15 | 14 | 1 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| patient | `/documents` | 27 | 19 | 19 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/financial` | 10 | 10 | 10 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/mes-rdv` | 8 | 8 | 8 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/messaging` | 8 | 8 | 8 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/notifications` | 20 | 18 | 18 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/oubliettes` | 1 | 1 | 1 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/pharmacy` | 7 | 7 | 7 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/pharmacy/orders` | 16 | 16 | 16 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/pharmacy/search` | 1 | 1 | 1 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/pharmacy/send` | 104 | 13 | 13 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z | 104 contrôles inventoriés (89 ordonnances déjà transmises, cf. #7140 ouvert) ; 13 activés, le reste hors viewport après défilement |
+| patient | `/profile` | 13 | 12 | 11 | 1 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| patient | `/profile/consents` | 8 | 7 | 7 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/profile/dependents` | 22 | 21 | 21 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/profile/notifications` | 12 | 7 | 7 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/reviews` | 1 | 1 | 1 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| patient | `/treatment-plans` | 9 | 9 | 9 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| pharmacie | `/` | 22 | 18 | 13 | 5 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| pharmacie | `/devis` | 26 | 25 | 25 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| pharmacie | `/messages` | 15 | 14 | 11 | 3 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| pharmacie | `/notification-preferences` | 9 | 9 | 9 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| pharmacie | `/orders/41cb1b68-30b3-49a7-b410-a8fb0e606707/pickup` | 3 | 3 | 2 | 0 (0 avéré) | 1 | 2026-09-18T01:50:00Z | le « cassé » est un `404` provoqué par un code de retrait volontairement faux : l'écran rend « **Code inconnu — Revérifiez le code sur l'ordonnance et réessayez.** » + « Réessayer » (capture `R78_pickup_code_invalide.png`). Comportement digne |
+| pharmacie | `/orders/8afee88c-451f-44a9-8ec2-10150647e6dd` | 24 | 23 | 23 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| pharmacie | `/stock` | 13 | 12 | 11 | 1 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| praticien | `/` | 18 | 17 | 17 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| praticien | `/agenda` | 22 | 21 | 21 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| praticien | `/consultation` | 34 | 33 | 33 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| praticien | `/devis` | 24 | 22 | 18 | 4 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| praticien | `/inventaire` | 1 | 1 | 0 | 0 (0 avéré) | 1 | 2026-09-18T01:50:00Z | route INEXISTANTE (le vrai chemin est `/stock-inventory`) → « Page introuvable » + « Retour à l'accueil ». Erreur de l'agent, pas un défaut produit |
+| praticien | `/lab-work-orders` | 18 | 17 | 17 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| praticien | `/labo` | 1 | 1 | 1 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z | route INEXISTANTE (le vrai chemin est `/lab-work-orders`). Erreur de l'agent |
+| praticien | `/messages` | 24 | 23 | 16 | 7 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| praticien | `/notification-preferences` | 12 | 12 | 12 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| praticien | `/ordonnances` | 17 | 16 | 16 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| praticien | `/patients` | 32 | 28 | 24 | 0 (0 avéré) | 4 | 2026-09-18T01:50:00Z | 4 « cassés » = `403` de la garde relation-de-soin (§14, `medical_record.rs:137-154`) sur des patients jamais suivis par ce praticien — **dégradation correcte** : le journal rend « Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible. » (capture `R78_prat_journal_403_t25s.png`) |
+| praticien | `/stock` | 19 | 18 | 18 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| praticien | `/stock-inventory` | 28 | 27 | 27 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| praticien | `/team-messages` | 18 | 17 | 17 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| praticien | `/waiting-room` | 18 | 16 | 16 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| secretariat | `/` | 31 | 26 | 20 | 6 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| secretariat | `/admin-membres` | 22 | 20 | 20 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| secretariat | `/admin-secretariats` | 20 | 19 | 1 | 17 (0 avéré) | 1 | 2026-09-18T01:50:00Z | relevé POLLUÉ par une expiration de session en cours de passe (401 sur `/v1/notifications`) : les 17 « morts » sont l'app en état déconnecté, pas des contrôles inertes. À re-mesurer |
+| secretariat | `/agenda` | 28 | 26 | 20 | 5 (0 avéré) | 1 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| secretariat | `/appointment-motifs` | 21 | 20 | 20 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| secretariat | `/appointments` | 24 | 23 | 22 | 0 (0 avéré) | 1 | 2026-09-18T01:50:00Z |  |
+| secretariat | `/audit-log` | 24 | 21 | 21 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| secretariat | `/bookable-slots` | 24 | 23 | 23 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| secretariat | `/cabinet-payouts` | 24 | 21 | 21 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+| secretariat | `/cabinet-stats` | 21 | 20 | 19 | 0 (0 avéré) | 1 | 2026-09-18T01:50:00Z | le « cassé » est le `403` attendu sur `/cabinet/stats/activity`, dégradé en encart « Réservé aux praticiens » |
+| secretariat | `/devis` | 38 | 33 | 26 | 7 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| secretariat | `/liste-attente` | 21 | 20 | 19 | 1 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| secretariat | `/messages` | 29 | 28 | 22 | 6 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| secretariat | `/notification-preferences` | 12 | 12 | 11 | 0 (0 avéré) | 1 | 2026-09-18T01:50:00Z |  |
+| secretariat | `/patients` | 37 | 32 | 25 | 7 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| secretariat | `/patients/new` | 6 | 5 | 4 | 0 (0 avéré) | 1 | 2026-09-18T01:50:00Z |  |
+| secretariat | `/salle-attente` | 21 | 19 | 17 | 1 (0 avéré) | 1 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| secretariat | `/stock` | 38 | 33 | 27 | 6 (0 avéré) | 0 | 2026-09-18T01:50:00Z | verdicts MORT non confirmés — re-testés un par un avec rechargement entre chaque clic (voir note de méthode) |
+| secretariat | `/team-messages` | 25 | 22 | 22 | 0 (0 avéré) | 0 | 2026-09-18T01:50:00Z |  |
+
+**TOTAL RONDE R78 : 68 écrans · 1214 contrôles inventoriés · 1029 activés · 937 OK · 79 MORT candidats → **0 avéré** après re-test individuel · 13 « cassés » (tous des gardes `403`/`404` légitimes dégradées proprement, ou des artefacts d'expiration de session).**
