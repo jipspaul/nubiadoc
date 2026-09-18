@@ -49,16 +49,24 @@ class ToothSiteDepths extends Equatable {
 /// n'existe pour les indices parodontaux (cf. migration 0179,
 /// `api/src/periodontal_chart.rs`), saisie dynamique côté écran plutôt
 /// qu'un vocabulaire fermé comme `dental_chart`.
+///
+/// `measuredAt` est `null` tant qu'aucun bilan n'a été enregistré pour ce
+/// patient : l'API renvoie alors `{ sites: {}, indices: {}, measured_at:
+/// null }` (`api/src/periodontal_chart.rs`, #4413). C'est l'état initial
+/// légitime d'un patient neuf, pas une erreur (#6780).
 class PeriodontalChart extends Equatable {
   final Map<String, ToothSiteDepths> sites;
   final Map<String, double> indices;
-  final DateTime measuredAt;
+  final DateTime? measuredAt;
 
   const PeriodontalChart({
     required this.sites,
     required this.indices,
-    required this.measuredAt,
+    this.measuredAt,
   });
+
+  /// Vrai quand aucun bilan parodontal n'a encore été enregistré.
+  bool get isBlank => measuredAt == null;
 
   @override
   List<Object?> get props => [sites, indices, measuredAt];

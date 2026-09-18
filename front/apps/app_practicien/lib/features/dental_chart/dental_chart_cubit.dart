@@ -10,6 +10,11 @@
 //! Modes d'échec : erreur de chargement → `DentalChartError` (bouton
 //! réessayer). Erreur de sauvegarde → `saveError` sur l'état `Loaded`
 //! (les modifications locales restent visibles, pas de perte de saisie).
+//!
+//! Patient neuf (#6780) : l'API renvoie `{ teeth: {}, updated_at: null }`
+//! (`DentalChart.isBlank`). Ce n'est PAS une erreur — c'est précisément cet
+//! écran qui crée le premier odontogramme : on émet `Loaded` avec une grille
+//! vierge et `isBlank: true` pour afficher l'appel à l'action.
 
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
@@ -37,18 +42,25 @@ class DentalChartError extends DentalChartState {
 class DentalChartLoaded extends DentalChartState {
   const DentalChartLoaded({
     required this.teeth,
+    this.isBlank = false,
     this.dirty = false,
     this.saving = false,
     this.saveError,
   });
 
   final Map<String, ToothState> teeth;
+
+  /// Aucun odontogramme n'a encore été enregistré pour ce patient
+  /// (`updated_at: null` côté API, #6780) — l'écran affiche un appel à
+  /// l'action « premier schéma ». Retombe à `false` après le premier PUT.
+  final bool isBlank;
   final bool dirty;
   final bool saving;
   final String? saveError;
 
   DentalChartLoaded copyWith({
     Map<String, ToothState>? teeth,
+    bool? isBlank,
     bool? dirty,
     bool? saving,
     String? saveError,
@@ -56,13 +68,14 @@ class DentalChartLoaded extends DentalChartState {
   }) =>
       DentalChartLoaded(
         teeth: teeth ?? this.teeth,
+        isBlank: isBlank ?? this.isBlank,
         dirty: dirty ?? this.dirty,
         saving: saving ?? this.saving,
         saveError: clearSaveError ? null : (saveError ?? this.saveError),
       );
 
   @override
-  List<Object?> get props => [teeth, dirty, saving, saveError];
+  List<Object?> get props => [teeth, isBlank, dirty, saving, saveError];
 }
 
 class DentalChartCubit extends Cubit<DentalChartState> {
@@ -85,7 +98,9 @@ class DentalChartCubit extends Cubit<DentalChartState> {
     final result = await _get(patientId);
     result.fold(
       (failure) => emit(DentalChartError(failure.message)),
-      (chart) => emit(DentalChartLoaded(teeth: chart.teeth)),
+      (chart) => emit(
+        DentalChartLoaded(teeth: chart.teeth, isBlank: chart.isBlank),
+      ),
     );
   }
 
@@ -107,7 +122,9 @@ class DentalChartCubit extends Cubit<DentalChartState> {
       (failure) => emit(
         current.copyWith(saving: false, saveError: failure.message),
       ),
-      (chart) => emit(DentalChartLoaded(teeth: chart.teeth)),
+      (chart) => emit(
+        DentalChartLoaded(teeth: chart.teeth, isBlank: chart.isBlank),
+      ),
     );
   }
 }

@@ -31,7 +31,9 @@ class PeriodontalChartRepositoryImpl implements PeriodontalChartRepository {
         statusCode: e.response?.statusCode,
       ));
     } catch (e) {
-      return const Left(ParseFailure());
+      return const Left(
+        ParseFailure('Réponse du serveur illisible (bilan parodontal).'),
+      );
     }
   }
 
@@ -47,7 +49,6 @@ class PeriodontalChartRepositoryImpl implements PeriodontalChartRepository {
           (k, v) => MapEntry(k, ToothSiteDepthsDto.fromDomain(v)),
         ),
         indices: indices,
-        measuredAt: DateTime.now().toIso8601String(),
       );
       final response = await _api.put(patientId, dto);
       return Right(response.toDomain());

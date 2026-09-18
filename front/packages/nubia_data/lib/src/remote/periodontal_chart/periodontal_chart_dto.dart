@@ -44,15 +44,20 @@ class ToothSiteDepthsDto {
       );
 }
 
+/// Réponse de `GET/PUT /v1/cabinet/patients/:id/periodontal-chart`.
+///
+/// `measured_at` est **nullable par contrat** (`Option<String>` dans
+/// `api/src/periodontal_chart.rs`) : `null` = aucun bilan enregistré pour ce
+/// patient. Même défaut et même correctif que `DentalChartDto` (#6780).
 class PeriodontalChartDto {
   final Map<String, ToothSiteDepthsDto> sites;
   final Map<String, double> indices;
-  final String measuredAt;
+  final String? measuredAt;
 
   const PeriodontalChartDto({
     required this.sites,
     required this.indices,
-    required this.measuredAt,
+    this.measuredAt,
   });
 
   factory PeriodontalChartDto.fromJson(Map<String, dynamic> json) {
@@ -68,7 +73,7 @@ class PeriodontalChartDto {
       indices: indicesJson.map(
         (k, v) => MapEntry(k, (v as num).toDouble()),
       ),
-      measuredAt: json['measured_at'] as String,
+      measuredAt: json['measured_at'] as String?,
     );
   }
 
@@ -77,9 +82,12 @@ class PeriodontalChartDto {
         'indices': indices,
       };
 
-  PeriodontalChart toDomain() => PeriodontalChart(
-        sites: sites.map((k, v) => MapEntry(k, v.toDomain())),
-        indices: indices,
-        measuredAt: DateTime.parse(measuredAt),
-      );
+  PeriodontalChart toDomain() {
+    final raw = measuredAt;
+    return PeriodontalChart(
+      sites: sites.map((k, v) => MapEntry(k, v.toDomain())),
+      indices: indices,
+      measuredAt: raw == null ? null : DateTime.parse(raw),
+    );
+  }
 }

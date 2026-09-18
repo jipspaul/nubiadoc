@@ -18,11 +18,19 @@ class ToothState extends Equatable {
 /// Odontogramme complet d'un patient. `teeth` : clé = code FDI ("11".."48"
 /// dentition permanente, "51".."85" dentition lait), valeur = état de la dent.
 /// Source : `GET/PUT /v1/cabinet/patients/:id/dental-chart`.
+///
+/// `updatedAt` est `null` tant qu'aucun odontogramme n'a été enregistré
+/// pour ce patient : l'API renvoie alors `{ teeth: {}, updated_at: null }`
+/// (`api/src/dental_chart.rs`, #4518). C'est l'état initial légitime d'un
+/// patient neuf, pas une erreur (#6780).
 class DentalChart extends Equatable {
   final Map<String, ToothState> teeth;
-  final DateTime updatedAt;
+  final DateTime? updatedAt;
 
-  const DentalChart({required this.teeth, required this.updatedAt});
+  const DentalChart({required this.teeth, this.updatedAt});
+
+  /// Vrai quand aucun odontogramme n'a encore été enregistré.
+  bool get isBlank => updatedAt == null;
 
   @override
   List<Object?> get props => [teeth, updatedAt];

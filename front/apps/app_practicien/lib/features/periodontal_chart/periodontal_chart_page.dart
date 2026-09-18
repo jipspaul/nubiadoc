@@ -11,6 +11,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../dental_chart/clinical_chart_blank_hint.dart';
 import '../dental_chart/tooth_grid.dart';
 import 'periodontal_chart_cubit.dart';
 
@@ -72,12 +73,14 @@ class _PeriodontalChartBody extends StatelessWidget {
             PeriodontalChartLoaded(
               :final sites,
               :final indices,
+              :final isBlank,
               :final dirty,
               :final saving,
             ) =>
               _PeriodontalChartForm(
                 sites: sites,
                 indices: indices,
+                isBlank: isBlank,
                 dirty: dirty,
                 saving: saving,
               ),
@@ -92,12 +95,14 @@ class _PeriodontalChartForm extends StatelessWidget {
   const _PeriodontalChartForm({
     required this.sites,
     required this.indices,
+    required this.isBlank,
     required this.dirty,
     required this.saving,
   });
 
   final Map<String, ToothSiteDepths> sites;
   final Map<String, double> indices;
+  final bool isBlank;
   final bool dirty;
   final bool saving;
 
@@ -109,6 +114,16 @@ class _PeriodontalChartForm extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (isBlank) ...[
+            const ClinicalChartBlankHint(
+              key: Key('periodontal_chart_blank_hint'),
+              title: 'Aucun bilan parodontal enregistré',
+              message: 'Ce patient n\'a pas encore de bilan. Saisissez les '
+                  'profondeurs de sondage et les indices, puis appuyez sur '
+                  'Enregistrer pour créer le premier bilan.',
+            ),
+            const SizedBox(height: 16),
+          ],
           Text('Profondeurs de sondage (mm)',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
