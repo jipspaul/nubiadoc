@@ -519,7 +519,11 @@ class _PractitionerColumn extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 84),
+          // #7321 : 84px tronquait tout praticien au nom un peu long
+          // (« Dr Claire Lef… ») même quand la ligne avait ~300px de libre.
+          // 160px laisse passer les noms réalistes ; l'ellipse reste le
+          // filet de sécurité pour les cas extrêmes.
+          constraints: const BoxConstraints(maxWidth: 160),
           child: Text(
             label,
             maxLines: 1,
