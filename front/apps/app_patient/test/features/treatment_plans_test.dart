@@ -970,6 +970,25 @@ void main() {
         ),
         findsOneWidget,
       );
+      // Barre du héros : cumulative jusqu'à l'étape courante (index 0), pas
+      // une carte des statuts `done` par phase — sinon seul le 3e segment
+      // (phase-3, `done` hors séquence) s'allumerait, contredisant « Étape 1
+      // sur 4 » (#7246).
+      final segments = tester.widgetList<Container>(find.descendant(
+        of: hero,
+        matching: find.byWidgetPredicate((widget) =>
+            widget is Container &&
+            widget.constraints?.maxHeight == 4 &&
+            widget.constraints?.minHeight == 4),
+      ));
+      final segmentColors = segments
+          .map((container) => (container.decoration! as BoxDecoration).color)
+          .toList();
+      expect(segmentColors, hasLength(4));
+      expect(segmentColors[0], Colors.white);
+      expect(segmentColors[1], Colors.white.withValues(alpha: .3));
+      expect(segmentColors[2], Colors.white.withValues(alpha: .3));
+      expect(segmentColors[3], Colors.white.withValues(alpha: .3));
     });
 
     testWidgets(
