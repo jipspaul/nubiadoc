@@ -564,3 +564,61 @@ async fn use_pouch_is_tenant_isolated() {
     cleanup(&db, &f_b).await;
     cleanup(&db, &f_a).await;
 }
+
+// ── #7244 : la traçabilité patient/séance posée par `use` doit être relue ─────
+// par `GET /v1/cabinet/sterilization-cycles/{id}/pouches` (migration 0269),
+// sinon un sachet utilisé ressort comme neuf.
+
+#[tokio::test]
+async fn used_pouch_is_visible_in_cycle_pouches_list() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db, 2).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+    let used_code = f.pouch_codes[0].clone();
+    let unused_code = f.pouch_codes[1].clone();
+
+    let (status, use_body) = use_pouch(
+        &token,
+        &used_code,
+        json!({"patient_id": f.patient_id, "consultation_id": f.session_id}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{use_body}");
+
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        &format!("/v1/cabinet/sterilization-cycles/{}/pouches", f.cycle_id),
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    let pouches = list.as_array().unwrap();
+
+    let used = pouches
+        .iter()
+        .find(|p| p["code"] == used_code)
+        .expect("sachet utilisé absent de la liste");
+    assert_eq!(
+        used["patient_id"],
+        f.patient_id.to_string(),
+        "patient_id doit être relu (#7244), pas seulement écrit"
+    );
+    assert_eq!(used["consultation_id"], f.session_id.to_string());
+    assert_eq!(used["used_at"], use_body["used_at"]);
+    assert_eq!(used["used_by"], f.user_id.to_string());
+
+    let unused = pouches
+        .iter()
+        .find(|p| p["code"] == unused_code)
+        .expect("sachet non utilisé absent de la liste");
+    assert!(unused["patient_id"].is_null());
+    assert!(unused["used_at"].is_null());
+    assert!(unused["used_by"].is_null());
+
+    cleanup(&db, &f).await;
+}

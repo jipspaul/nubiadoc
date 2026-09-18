@@ -209,13 +209,21 @@ pub async fn get_consultation_context(
     let note: Option<String> = note_ciphertext.as_deref().and_then(stub_decrypt_note);
 
     // Actes CCAM de la séance + statut de traçabilité stérilisation (#4951) :
-    // un acte est « vérifié » dès qu'une pochette stérilisée lui a été
-    // rattachée par un scan (`sterilized_pouch.consultation_act_id`, #4137).
+    // un acte est « vérifié » soit qu'une pochette stérilisée lui a été
+    // rattachée directement par un scan (`sterilized_pouch.consultation_act_id`,
+    // #4137), soit qu'une pochette a été ouverte sur la séance elle-même
+    // avant la saisie des actes (`sterilized_pouch.consultation_id`,
+    // migration 0269, #7181/#7244 — sinon un sachet scanné par cette
+    // nouvelle voie laissait `sterilized: false` sur tous les actes de la
+    // séance, exactement le cas d'usage que 0269 dit vouloir couvrir).
     let act_rows = sqlx::query(
         "SELECT ca.id, ca.ccam_code, ca.label, ca.tooth, ca.amount_cents, ca.created_at, \
                 EXISTS ( \
                     SELECT 1 FROM sterilized_pouch sp \
-                    WHERE sp.consultation_act_id = ca.id AND sp.cabinet_id = ca.cabinet_id \
+                    LEFT JOIN consultation_session cs \
+                        ON cs.id = sp.consultation_id AND cs.cabinet_id = sp.cabinet_id \
+                    WHERE sp.cabinet_id = ca.cabinet_id \
+                      AND (sp.consultation_act_id = ca.id OR cs.appointment_id = ca.appointment_id) \
                 ) AS sterilized \
          FROM consultation_act ca \
          WHERE ca.appointment_id = $1 AND ca.cabinet_id = $2 \
