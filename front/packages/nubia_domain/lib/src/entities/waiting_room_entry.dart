@@ -10,19 +10,24 @@ class WaitingRoomEntry extends Equatable {
   final String? appointmentId;
   final DateTime arrivedAt;
   final int? estimatedWaitMinutes;
+
   /// `checked_in` (en salle d'attente) ou `in_consultation` (au fauteuil) —
   /// cf. `api/src/scheduling.rs` (#6636 : jamais parsé, pastille figée).
   final String? status;
+
   /// Motif admin du RDV (ex. "Détartrage") — pas de motif clinique (#5172).
   final String? reason;
+
   /// Motif du RDV pour anticiper l'acte en un coup d'œil (ex. "Pose de
   /// couronne", "Contrôle annuel") — distinct de [reason] (#5029).
   final String? appointmentReason;
   final DateTime? appointmentTime;
+
   /// Praticien attendu (#5168) — `null` quand l'urgence n'est pas encore
   /// attribuée (cf. [appointmentId]).
   final String? practitionerId;
   final String? practitionerName;
+
   /// Heure prévue du RDV (pour calculer le retard sur le planning, #5031).
   final DateTime? scheduledAt;
 

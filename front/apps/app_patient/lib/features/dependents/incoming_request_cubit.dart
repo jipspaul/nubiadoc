@@ -63,11 +63,13 @@ class IncomingRequestCubit extends Cubit<IncomingRequestState>
         scope: scope, errorMessage: current.errorMessage));
   }
 
+  /// Accepte avec le périmètre AJUSTÉ : c'est ce périmètre qui part à l'API
+  /// (`POST …/accept {scope}`), pas celui proposé par le demandeur (#7009).
   Future<void> accept(Set<AccessRight> scope) async {
     final current = state;
     if (current is! IncomingRequestLoaded) return;
     emit(IncomingRequestLoaded(current.request, scope: scope, mutating: true));
-    final result = await _accept(current.request.id);
+    final result = await _accept(current.request.id, scope: scope);
     result.fold(
       (f) => safeEmit(IncomingRequestLoaded(current.request,
           scope: scope, errorMessage: f.message)),

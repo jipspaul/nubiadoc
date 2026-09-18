@@ -9,13 +9,26 @@ import 'incoming_request_cubit.dart';
 /// Écran « Décider » (design-v2, #5258) : l'invité accepte ou refuse une
 /// invitation « proche » reçue d'un autre compte patient.
 ///
-/// [request] est fourni par l'appelant (déjà chargée en amont — notification
-/// ou lien reçu) : il n'existe pas de endpoint de lecture par id, seulement
-/// `GET /v1/account/access-requests` (liste, côté demandeur).
+/// [request] est fourni par l'appelant : « Mes proches » la lit dans
+/// `GET /v1/account/access-requests` (section « Demandes reçues »,
+/// `direction: received`, #6809) et ouvre cet écran via
+/// [IncomingRequestPage.open]. Le résultat de la navigation (`true` si une
+/// décision a été prise) permet à l'appelant de recharger sa liste.
 class IncomingRequestPage extends StatelessWidget {
   const IncomingRequestPage({super.key, required this.request});
 
   final AccessRequest request;
+
+  /// Pousse l'écran « Décider » ; résout `true` dès qu'une décision a été
+  /// prise (acceptée ou refusée), `false` si l'invité est revenu sans agir.
+  static Future<bool> open(BuildContext context, AccessRequest request) async {
+    final decided = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => IncomingRequestPage(request: request),
+      ),
+    );
+    return decided ?? false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +37,18 @@ class IncomingRequestPage extends StatelessWidget {
       create: (_) => GetIt.instance<IncomingRequestCubit>()..load(request),
       child: Scaffold(
         appBar: AppBar(
-          automaticallyImplyLeading: false,
+          leading: BlocBuilder<IncomingRequestCubit, IncomingRequestState>(
+            builder: (context, state) {
+              final decided = state is IncomingRequestLoaded &&
+                  state.request.status != AccessRequestStatus.envoyee;
+              return IconButton(
+                key: const Key('incoming_request_back'),
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Retour',
+                onPressed: () => Navigator.of(context).maybePop(decided),
+              );
+            },
+          ),
           title: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,7 +84,7 @@ class _IncomingRequestBody extends StatelessWidget {
             children: [
               _RequesterCard(request: state.request),
               const SizedBox(height: 16),
-              const _RightsSummaryCard(),
+              _RightsSummaryCard(proposedScope: state.request.grantedScope),
               const SizedBox(height: 24),
               if (state.errorMessage != null) ...[
                 Text(
@@ -74,7 +98,10 @@ class _IncomingRequestBody extends StatelessWidget {
                 const SizedBox(height: 12),
               ],
               if (state.request.status == AccessRequestStatus.envoyee) ...[
-                _AdjustScopeCard(scope: state.scope),
+                _AdjustScopeCard(
+                  scope: state.scope,
+                  proposed: state.request.grantedScope,
+                ),
                 const SizedBox(height: 16),
                 _DecisionActions(state: state),
               ] else
@@ -107,10 +134,14 @@ class _RequesterCard extends StatelessWidget {
     }
   }
 
+  /// Initiales du DEMANDEUR — c'est lui qui « souhaite gérer votre dossier »
+  /// (`requester_*` de l'API ; `first_name`/`last_name` désignent l'invité).
   String get _initials {
-    final first = request.firstName.isNotEmpty ? request.firstName[0] : '';
-    final last = request.lastName.isNotEmpty ? request.lastName[0] : '';
-    return '$first$last'.toUpperCase();
+    final first = request.requesterFirstName ?? request.firstName;
+    final last = request.requesterLastName ?? request.lastName;
+    final firstLetter = first.isNotEmpty ? first[0] : '';
+    final lastLetter = last.isNotEmpty ? last[0] : '';
+    return '$firstLetter$lastLetter'.toUpperCase();
   }
 
   @override
@@ -133,7 +164,7 @@ class _RequesterCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '${request.displayName} souhaite gérer votre dossier',
+            '${request.requesterDisplayName} souhaite gérer votre dossier',
             style: theme.textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
@@ -152,59 +183,93 @@ class _RequesterCard extends StatelessWidget {
 }
 
 /// Carte « Ce qu'elle pourrait faire » (#5256) : récapitulatif des droits
-/// proposés par la demande, avec en négatif ce qui reste explicitement hors
+/// RÉELLEMENT proposés par la demande (#7009 — le périmètre coché par le
+/// demandeur est désormais transmis), avec en négatif ce qui reste hors
 /// d'atteinte (note 3 : un accès partagé se refuse par prudence tant que ses
 /// bornes ne sont pas énoncées ; les bornes affichées, il s'accepte).
 class _RightsSummaryCard extends StatelessWidget {
-  const _RightsSummaryCard();
+  const _RightsSummaryCard({required this.proposedScope});
+
+  final Set<AccessRight> proposedScope;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = theme.extension<NubiaTokens>()!;
+    final rdv = proposedScope.contains(AccessRight.rendezVous);
+    final docs = proposedScope.contains(AccessRight.documents) ||
+        proposedScope.contains(AccessRight.ordonnances);
+    final messages = proposedScope.contains(AccessRight.messages);
     return NubiaCard(
       key: const Key('rights_summary_card'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Ce qu\'elle pourrait faire', style: theme.textTheme.titleMedium),
+          Text('Ce qu\'elle pourrait faire',
+              style: theme.textTheme.titleMedium),
           const SizedBox(height: 12),
           _RightsSummaryRow(
-            icon: Icons.check_circle,
-            iconColor: tokens.successFg,
+            icon: rdv ? Icons.check_circle : Icons.cancel,
+            iconColor: rdv ? tokens.successFg : tokens.dangerFg,
             textTheme: theme.textTheme,
-            spans: const [
-              TextSpan(text: 'Voir, prendre et annuler '),
-              TextSpan(
-                text: 'vos rendez-vous',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
+            spans: rdv
+                ? const [
+                    TextSpan(text: 'Voir, prendre et annuler '),
+                    TextSpan(
+                      text: 'vos rendez-vous',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ]
+                : const [
+                    TextSpan(text: 'Elle n\'aura '),
+                    TextSpan(
+                        text: 'pas',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    TextSpan(text: ' accès à vos rendez-vous'),
+                  ],
           ),
           const SizedBox(height: 8),
           _RightsSummaryRow(
-            icon: Icons.check_circle,
-            iconColor: tokens.successFg,
+            icon: docs ? Icons.check_circle : Icons.cancel,
+            iconColor: docs ? tokens.successFg : tokens.dangerFg,
             textTheme: theme.textTheme,
-            spans: const [
-              TextSpan(text: 'Consulter '),
-              TextSpan(
-                text: 'vos documents',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              TextSpan(text: ' — ordonnances, devis, factures'),
-            ],
+            spans: docs
+                ? const [
+                    TextSpan(text: 'Consulter '),
+                    TextSpan(
+                      text: 'vos documents',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    TextSpan(text: ' — ordonnances, devis, factures'),
+                  ]
+                : const [
+                    TextSpan(text: 'Elle n\'aura '),
+                    TextSpan(
+                        text: 'pas',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    TextSpan(text: ' accès à vos documents'),
+                  ],
           ),
           const SizedBox(height: 8),
           _RightsSummaryRow(
-            icon: Icons.cancel,
-            iconColor: tokens.dangerFg,
+            icon: messages ? Icons.check_circle : Icons.cancel,
+            iconColor: messages ? tokens.successFg : tokens.dangerFg,
             textTheme: theme.textTheme,
-            spans: const [
-              TextSpan(text: 'Elle n\'aura '),
-              TextSpan(text: 'pas', style: TextStyle(fontWeight: FontWeight.bold)),
-              TextSpan(text: ' accès à vos messages avec le cabinet'),
-            ],
+            spans: messages
+                ? const [
+                    TextSpan(text: 'Lire '),
+                    TextSpan(
+                      text: 'vos messages avec le cabinet',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ]
+                : const [
+                    TextSpan(text: 'Elle n\'aura '),
+                    TextSpan(
+                        text: 'pas',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    TextSpan(text: ' accès à vos messages avec le cabinet'),
+                  ],
           ),
           const SizedBox(height: 8),
           _RightsSummaryRow(
@@ -213,7 +278,8 @@ class _RightsSummaryCard extends StatelessWidget {
             textTheme: theme.textTheme,
             spans: const [
               TextSpan(text: 'Elle ne pourra '),
-              TextSpan(text: 'pas', style: TextStyle(fontWeight: FontWeight.bold)),
+              TextSpan(
+                  text: 'pas', style: TextStyle(fontWeight: FontWeight.bold)),
               TextSpan(text: ' modifier vos consentements'),
             ],
           ),
@@ -258,9 +324,14 @@ class _RightsSummaryRow extends StatelessWidget {
 /// l'invité qui décide de l'étendue finale, pas le demandeur — le périmètre
 /// envoyé lors de l'acceptation est celui affiché ici.
 class _AdjustScopeCard extends StatelessWidget {
-  const _AdjustScopeCard({required this.scope});
+  const _AdjustScopeCard({required this.scope, required this.proposed});
 
+  /// Périmètre ajusté (état courant des toggles).
   final Set<AccessRight> scope;
+
+  /// Périmètre proposé par le demandeur — on ne propose d'ajuster que ce
+  /// qu'il a demandé (« messages » n'apparaît que s'il l'a coché).
+  final Set<AccessRight> proposed;
 
   @override
   Widget build(BuildContext context) {
@@ -304,6 +375,22 @@ class _AdjustScopeCard extends StatelessWidget {
               ),
             ],
           ),
+          if (proposed.contains(AccessRight.messages))
+            Row(
+              children: [
+                Icon(Icons.chat_bubble, size: 20, color: tokens.textTertiary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: NubiaToggle(
+                    key: const Key('adjust_scope_toggle_messages'),
+                    value: scope.contains(AccessRight.messages),
+                    label: 'Mes messages avec le cabinet',
+                    onChanged: (granted) =>
+                        cubit.setScopeRight(AccessRight.messages, granted),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -339,7 +426,10 @@ class _DecisionActions extends StatelessWidget {
           onPressed: state.mutating ? null : () => cubit.refuse(),
         ),
         const SizedBox(height: 16),
-        _RevocationNotice(requesterFirstName: state.request.firstName),
+        _RevocationNotice(
+          requesterFirstName:
+              state.request.requesterFirstName ?? state.request.firstName,
+        ),
       ],
     );
   }

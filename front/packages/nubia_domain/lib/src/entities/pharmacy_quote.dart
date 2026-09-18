@@ -28,6 +28,7 @@ class PharmacyQuote extends Equatable {
   final String? pharmacyName;
   final String? patientDisplayName;
   final String? orderId;
+
   /// Référence courte affichable (`DEV-P-0042`), dérivée de `quote_seq`
   /// (#7141) — même pattern que `PharmacyOrder.orderRef` (#6253).
   final String? quoteRef;

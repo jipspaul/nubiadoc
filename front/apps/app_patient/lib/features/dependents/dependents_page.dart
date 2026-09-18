@@ -8,6 +8,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import '../../router/app_router.dart';
 import '../../router/back_or_home_leading.dart';
 import 'dependents_cubit.dart';
+import 'incoming_request_page.dart';
 
 class DependentsPage extends StatelessWidget {
   const DependentsPage({super.key});
@@ -90,7 +91,9 @@ class _DependentsBody extends StatelessWidget {
           );
         }
         if (state is DependentsLoaded) {
-          if (state.dependents.isEmpty && state.pendingAccessRequests.isEmpty) {
+          if (state.dependents.isEmpty &&
+              state.sentAccessRequests.isEmpty &&
+              state.receivedAccessRequests.isEmpty) {
             return NubiaEmptyState(
               key: const Key('dependents_empty'),
               icon: Icons.people_outline,
@@ -135,20 +138,32 @@ class _DependentsBody extends StatelessWidget {
                   ),
               ] else
                 const _AddDependentRow(key: Key('add_dependent_fab')),
-              if (state.pendingAccessRequests.isNotEmpty) ...[
-                const _SectionHeader('DEMANDES ENVOYÉES'),
-                for (final request in state.pendingAccessRequests)
+              if (state.receivedAccessRequests.isNotEmpty) ...[
+                const _SectionHeader('DEMANDES REÇUES'),
+                for (final request in state.receivedAccessRequests)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: _PendingRequestTile(
+                    child: _ReceivedRequestTile(
                       request: request,
                       disabled: state.mutating,
                     ),
                   ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: _ExpiryNotice(),
-                ),
+              ],
+              if (state.sentAccessRequests.isNotEmpty) ...[
+                const _SectionHeader('DEMANDES ENVOYÉES'),
+                for (final request in state.sentAccessRequests)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: _SentRequestTile(
+                      request: request,
+                      disabled: state.mutating,
+                    ),
+                  ),
+                if (state.hasPendingAccessRequest)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: _ExpiryNotice(),
+                  ),
               ],
             ],
           );
@@ -610,7 +625,8 @@ class _DependentTile extends StatelessWidget {
           else
             Row(
               children: [
-                Icon(Icons.calendar_today, size: 18, color: tokens.textTertiary),
+                Icon(Icons.calendar_today,
+                    size: 18, color: tokens.textTertiary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -732,11 +748,79 @@ String _relativeSentAt(DateTime sentAt) {
       '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
 }
 
-/// Carte « demande en attente » (maquette design-v2, #5252) : invitation
-/// proche adulte envoyée non encore répondue, avec actions rapides
-/// Relancer / Annuler.
-class _PendingRequestTile extends StatelessWidget {
-  const _PendingRequestTile({
+/// Libellé du lien déclaré sur une demande d'accès.
+String _accessRequestRelationLabel(DependentRelationship relationship) {
+  switch (relationship) {
+    case DependentRelationship.enfant:
+      return 'Enfant';
+    case DependentRelationship.conjoint:
+      return 'Conjoint';
+    case DependentRelationship.autre:
+      return 'Proche';
+  }
+}
+
+String _initialsOf(String firstName, String lastName) {
+  final first = firstName.trim();
+  final last = lastName.trim();
+  final firstLetter = first.isEmpty ? '' : first[0];
+  final lastLetter = last.isEmpty ? '' : last[0];
+  return '$firstLetter$lastLetter'.toUpperCase();
+}
+
+/// Pastille d'état d'une demande d'accès (maquette : envoyée / acceptée /
+/// refusée / expirée, plus « Accès retiré » après révocation).
+StatusPill _accessRequestStatusPill(AccessRequest request) {
+  if (request.isRevoked) {
+    return const StatusPill(
+      label: 'Accès retiré',
+      variant: StatusPillVariant.neutral,
+      icon: Icons.block,
+    );
+  }
+  return switch (request.status) {
+    AccessRequestStatus.envoyee => const StatusPill(
+        label: 'En attente',
+        variant: StatusPillVariant.warning,
+        icon: Icons.schedule,
+      ),
+    AccessRequestStatus.acceptee => const StatusPill(
+        label: 'Acceptée',
+        variant: StatusPillVariant.success,
+        icon: Icons.check_circle,
+      ),
+    AccessRequestStatus.refusee => const StatusPill(
+        label: 'Refusée',
+        variant: StatusPillVariant.error,
+        icon: Icons.cancel,
+      ),
+    AccessRequestStatus.expiree => const StatusPill(
+        label: 'Expirée',
+        variant: StatusPillVariant.neutral,
+        icon: Icons.hourglass_bottom,
+      ),
+  };
+}
+
+/// Périmètre accordé, lisible (« RDV · Documents · Messages »).
+String _scopeSummary(Set<AccessRight> scope) {
+  final labels = <String>[
+    if (scope.contains(AccessRight.rendezVous)) 'Rendez-vous',
+    if (scope.contains(AccessRight.documents) ||
+        scope.contains(AccessRight.ordonnances))
+      'Documents',
+    if (scope.contains(AccessRight.dossierMedical)) 'Dossier médical',
+    if (scope.contains(AccessRight.messages)) 'Messages',
+  ];
+  return labels.isEmpty ? 'Aucun droit' : labels.join(' · ');
+}
+
+/// Carte « demande envoyée » (maquette design-v2, #5252) : invitation d'un
+/// proche adulte, à TOUT statut (#7008) — en attente (Relancer / Annuler),
+/// acceptée (périmètre + « Retirer l'accès », #7004), refusée, expirée ou
+/// accès retiré.
+class _SentRequestTile extends StatelessWidget {
+  const _SentRequestTile({
     required this.request,
     required this.disabled,
   });
@@ -744,29 +828,13 @@ class _PendingRequestTile extends StatelessWidget {
   final AccessRequest request;
   final bool disabled;
 
-  String get _relationLabel {
-    switch (request.relationship) {
-      case DependentRelationship.enfant:
-        return 'Enfant';
-      case DependentRelationship.conjoint:
-        return 'Conjoint';
-      case DependentRelationship.autre:
-        return 'Proche';
-    }
-  }
-
-  String get _initials {
-    final first = request.firstName.trim();
-    final last = request.lastName.trim();
-    final firstLetter = first.isEmpty ? '' : first[0];
-    final lastLetter = last.isEmpty ? '' : last[0];
-    return '$firstLetter$lastLetter'.toUpperCase();
-  }
-
   String get _channelLabel =>
       request.channel == AccessRequestChannel.sms ? 'par SMS' : 'par email';
 
   String get _statusLine {
+    if (request.isActiveAccess) {
+      return 'Accès accordé : ${_scopeSummary(request.grantedScope)}';
+    }
     final sentAt = request.sentAt;
     final sentLabel = sentAt == null ? 'Envoyée' : _relativeSentAt(sentAt);
     return '$sentLabel $_channelLabel';
@@ -776,8 +844,9 @@ class _PendingRequestTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = theme.extension<NubiaTokens>()!;
+    final cubit = context.read<DependentsCubit>();
     return SizedBox(
-      key: Key('pending_request_${request.id}'),
+      key: Key('sent_request_${request.id}'),
       width: double.infinity,
       child: CustomPaint(
         foregroundPainter: const _DashedRRectPainter(
@@ -801,7 +870,7 @@ class _PendingRequestTile extends StatelessWidget {
                       radius: 20,
                       backgroundColor: NubiaColors.n200,
                       child: Text(
-                        _initials,
+                        _initialsOf(request.firstName, request.lastName),
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: NubiaColors.n600,
                           fontWeight: FontWeight.w600,
@@ -819,7 +888,7 @@ class _PendingRequestTile extends StatelessWidget {
                               style: theme.textTheme.titleMedium),
                           const SizedBox(height: 2),
                           Text(
-                            _relationLabel,
+                            _accessRequestRelationLabel(request.relationship),
                             style: theme.textTheme.bodySmall
                                 ?.copyWith(color: tokens.textTertiary),
                           ),
@@ -827,17 +896,17 @@ class _PendingRequestTile extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const StatusPill(
-                      label: 'En attente',
-                      variant: StatusPillVariant.warning,
-                      icon: Icons.schedule,
-                    ),
+                    _accessRequestStatusPill(request),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(Icons.mail, size: 18, color: tokens.textTertiary),
+                    Icon(
+                      request.isActiveAccess ? Icons.verified_user : Icons.mail,
+                      size: 18,
+                      color: tokens.textTertiary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -848,42 +917,187 @@ class _PendingRequestTile extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: NubiaButton(
-                        key: Key('resend_access_request_${request.id}'),
-                        label: 'Relancer',
-                        icon: Icons.send,
-                        variant: NubiaButtonVariant.secondary,
-                        onPressed: disabled
-                            ? null
-                            : () => context
-                                .read<DependentsCubit>()
-                                .resend(request.id),
+                if (request.isPending) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: NubiaButton(
+                          key: Key('resend_access_request_${request.id}'),
+                          label: 'Relancer',
+                          icon: Icons.send,
+                          variant: NubiaButtonVariant.secondary,
+                          onPressed:
+                              disabled ? null : () => cubit.resend(request.id),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: NubiaButton(
-                        key: Key('cancel_access_request_${request.id}'),
-                        label: 'Annuler',
-                        icon: Icons.close,
-                        variant: NubiaButtonVariant.secondary,
-                        onPressed: disabled
-                            ? null
-                            : () => context
-                                .read<DependentsCubit>()
-                                .cancel(request.id),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: NubiaButton(
+                          key: Key('cancel_access_request_${request.id}'),
+                          label: 'Annuler',
+                          icon: Icons.close,
+                          variant: NubiaButtonVariant.secondary,
+                          onPressed:
+                              disabled ? null : () => cubit.cancel(request.id),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ] else if (request.isActiveAccess) ...[
+                  const SizedBox(height: 12),
+                  NubiaButton(
+                    key: Key('revoke_access_request_${request.id}'),
+                    label: "Retirer l'accès",
+                    icon: Icons.person_remove,
+                    variant: NubiaButtonVariant.secondary,
+                    onPressed: disabled
+                        ? null
+                        : () => _confirmRevoke(context, cubit, request),
+                  ),
+                ],
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Dialogue de confirmation avant de retirer un accès (même geste que la
+/// suppression d'un dépendant : confirmation avec le nom dans le message).
+Future<void> _confirmRevoke(
+  BuildContext context,
+  DependentsCubit cubit,
+  AccessRequest request,
+) async {
+  final name =
+      request.isReceived ? request.requesterDisplayName : request.displayName;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text("Retirer l'accès ?"),
+      content: Text(
+        request.isReceived
+            ? '$name ne pourra plus consulter votre dossier. '
+                'Cette personne en sera informée.'
+            : "Vous n'aurez plus accès au dossier de $name. "
+                'Cette personne en sera informée.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Annuler'),
+        ),
+        TextButton(
+          key: const Key('confirm_revoke_access_button'),
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('Retirer'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true) {
+    await cubit.revokeAccess(request.id);
+  }
+}
+
+/// Carte « demande reçue » (maquette, écran ③ « Décider », #6809) : un
+/// autre patient demande à gérer MON dossier. En attente → « Répondre »
+/// ouvre l'écran de décision ; acceptée → l'accès que j'ai accordé, avec
+/// « Retirer l'accès » (révocation depuis Profil → Mes proches).
+class _ReceivedRequestTile extends StatelessWidget {
+  const _ReceivedRequestTile({
+    required this.request,
+    required this.disabled,
+  });
+
+  final AccessRequest request;
+  final bool disabled;
+
+  String get _headline => request.isPending
+      ? '${request.requesterDisplayName} souhaite gérer votre dossier'
+      : '${request.requesterDisplayName} gère votre dossier';
+
+  String get _detail => request.isPending
+      ? 'Se déclare comme votre '
+          '${_accessRequestRelationLabel(request.relationship).toLowerCase()}. '
+          'Vous décidez de ce que vous autorisez.'
+      : 'Accès accordé : ${_scopeSummary(request.grantedScope)}';
+
+  Future<void> _respond(BuildContext context) async {
+    final cubit = context.read<DependentsCubit>();
+    final decided = await IncomingRequestPage.open(context, request);
+    if (decided) {
+      await cubit.load();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    final cubit = context.read<DependentsCubit>();
+    return NubiaCard(
+      key: Key('received_request_${request.id}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: tokens.primarySubtleBg,
+                foregroundColor: tokens.primarySubtleFg,
+                child: Text(
+                  _initialsOf(
+                    request.requesterFirstName ?? request.firstName,
+                    request.requesterLastName ?? request.lastName,
+                  ),
+                  style: theme.textTheme.labelMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_headline, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(
+                      _detail,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: tokens.textTertiary),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _accessRequestStatusPill(request),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (request.isPending)
+            NubiaButton(
+              key: Key('respond_access_request_${request.id}'),
+              label: 'Répondre',
+              icon: Icons.how_to_reg,
+              onPressed: disabled ? null : () => _respond(context),
+            )
+          else
+            NubiaButton(
+              key: Key('revoke_access_request_${request.id}'),
+              label: "Retirer l'accès",
+              icon: Icons.person_remove,
+              variant: NubiaButtonVariant.secondary,
+              onPressed: disabled
+                  ? null
+                  : () => _confirmRevoke(context, cubit, request),
+            ),
+        ],
       ),
     );
   }
@@ -970,6 +1184,17 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
   /// directement comme compte géré (maquette design-v2, #5250).
   bool get _isInvitation => _relationship != DependentRelationship.enfant;
 
+  /// Périmètre proposé, tel que coché — c'est lui qui part dans la demande
+  /// (#7009 : les bascules n'étaient que du décor).
+  Set<AccessRight> get _proposedScope => {
+        if (_scopeAppointments) AccessRight.rendezVous,
+        if (_scopeDocuments) ...[
+          AccessRight.documents,
+          AccessRight.ordonnances,
+        ],
+        if (_scopeMessages) AccessRight.messages,
+      };
+
   String _formatDate(DateTime date) => '${date.day.toString().padLeft(2, '0')}/'
       '${date.month.toString().padLeft(2, '0')}/'
       '${date.year}';
@@ -1046,9 +1271,7 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
               const SizedBox(height: 12),
               _DependentDobField(
                 key: const Key('dependent_date_of_birth'),
-                value: _dateOfBirth != null
-                    ? _formatDate(_dateOfBirth!)
-                    : null,
+                value: _dateOfBirth != null ? _formatDate(_dateOfBirth!) : null,
                 onTap: () => _pickDateOfBirth(context),
               ),
             ],
@@ -1084,12 +1307,26 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
               onPressed: !_valid
                   ? null
                   : () {
-                      context.read<DependentsCubit>().add(
-                            firstName: _firstName.text.trim(),
-                            lastName: _lastName.text.trim(),
-                            birthDate: _dateOfBirth,
-                            relationship: _relationship,
-                          );
+                      final cubit = context.read<DependentsCubit>();
+                      if (_isInvitation) {
+                        // #7009 : un adulte n'est jamais rattaché directement —
+                        // on ENVOIE une demande (e-mail + périmètre coché),
+                        // qu'il devra accepter avant tout accès.
+                        cubit.sendAccessRequest(
+                          firstName: _firstName.text.trim(),
+                          lastName: _lastName.text.trim(),
+                          relationship: _relationship,
+                          email: _email.text.trim(),
+                          scope: _proposedScope,
+                        );
+                      } else {
+                        cubit.add(
+                          firstName: _firstName.text.trim(),
+                          lastName: _lastName.text.trim(),
+                          birthDate: _dateOfBirth,
+                          relationship: _relationship,
+                        );
+                      }
                       Navigator.pop(context);
                     },
             ),
@@ -1279,7 +1516,8 @@ class _WhyRequestNotice extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.handshake, size: 20, color: NubiaColors.brand700),
+              const Icon(Icons.handshake,
+                  size: 20, color: NubiaColors.brand700),
               const SizedBox(width: 8),
               Text('Pourquoi une demande ?', style: theme.textTheme.titleSmall),
             ],

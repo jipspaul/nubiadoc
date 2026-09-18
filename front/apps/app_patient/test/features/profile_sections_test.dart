@@ -26,6 +26,10 @@ class _MockResendAccessRequest extends Mock
 class _MockCancelAccessRequest extends Mock
     implements CancelAccessRequestUseCase {}
 
+class _MockSendAccessRequest extends Mock implements SendAccessRequestUseCase {}
+
+class _MockRevokeAccess extends Mock implements RevokeAccessUseCase {}
+
 class _MockGetAccount extends Mock implements GetAccountUseCase {}
 
 class _MockListConsents extends Mock implements ListConsentsUseCase {}
@@ -58,6 +62,39 @@ const _pendingRequest = AccessRequest(
   channel: AccessRequestChannel.email,
 );
 
+const _acceptedRequest = AccessRequest(
+  id: 'ar2',
+  firstName: 'Paul',
+  lastName: 'Curie',
+  relationship: DependentRelationship.autre,
+  status: AccessRequestStatus.acceptee,
+  channel: AccessRequestChannel.email,
+  grantedScope: {AccessRight.dossierMedical},
+);
+
+const _receivedRequest = AccessRequest(
+  id: 'ar3',
+  direction: AccessRequestDirection.received,
+  firstName: 'Moi',
+  lastName: 'Même',
+  requesterFirstName: 'Julie',
+  requesterLastName: 'Martin',
+  relationship: DependentRelationship.conjoint,
+  status: AccessRequestStatus.envoyee,
+  channel: AccessRequestChannel.email,
+  grantedScope: {AccessRight.rendezVous},
+);
+
+const _receivedRefused = AccessRequest(
+  id: 'ar4',
+  direction: AccessRequestDirection.received,
+  firstName: 'Moi',
+  lastName: 'Même',
+  relationship: DependentRelationship.autre,
+  status: AccessRequestStatus.refusee,
+  channel: AccessRequestChannel.email,
+);
+
 const _consent = Consent(purpose: 'marketing', granted: false);
 
 const _prefs = NotificationPreferences.allEnabled();
@@ -65,6 +102,8 @@ const _prefs = NotificationPreferences.allEnabled();
 void main() {
   setUpAll(() {
     registerFallbackValue(DependentRelationship.enfant);
+    registerFallbackValue(AccessRequestChannel.email);
+    registerFallbackValue(const <AccessRight>{});
     registerFallbackValue(const NotificationPreferences.allEnabled());
   });
 
@@ -76,6 +115,8 @@ void main() {
     late _MockDelete del;
     late _MockResendAccessRequest resendAccessRequest;
     late _MockCancelAccessRequest cancelAccessRequest;
+    late _MockSendAccessRequest sendAccessRequest;
+    late _MockRevokeAccess revokeAccess;
     late _MockGetAccount getAccount;
 
     setUp(() {
@@ -86,6 +127,8 @@ void main() {
       del = _MockDelete();
       resendAccessRequest = _MockResendAccessRequest();
       cancelAccessRequest = _MockCancelAccessRequest();
+      sendAccessRequest = _MockSendAccessRequest();
+      revokeAccess = _MockRevokeAccess();
       getAccount = _MockGetAccount();
       when(() => listAccessRequests.call())
           .thenAnswer((_) async => const Right([]));
@@ -94,8 +137,8 @@ void main() {
       // Non couvert par ces tests (comportement de la carte titulaire,
       // cf. dependents_page_test.dart) : échoue pour garder `account: null`
       // et les états attendus ci-dessous inchangés.
-      when(() => getAccount.call()).thenAnswer(
-          (_) async => const Left(ServerFailure(message: 'n/a')));
+      when(() => getAccount.call())
+          .thenAnswer((_) async => const Left(ServerFailure(message: 'n/a')));
     });
 
     blocTest<DependentsCubit, DependentsState>(
@@ -109,8 +152,10 @@ void main() {
           getAccount: getAccount,
           add: add,
           remove: del,
+          sendAccessRequest: sendAccessRequest,
           resendAccessRequest: resendAccessRequest,
           cancelAccessRequest: cancelAccessRequest,
+          revokeAccess: revokeAccess,
         );
       },
       act: (c) => c.load(),
@@ -133,8 +178,10 @@ void main() {
           getAccount: getAccount,
           add: add,
           remove: del,
+          sendAccessRequest: sendAccessRequest,
           resendAccessRequest: resendAccessRequest,
           cancelAccessRequest: cancelAccessRequest,
+          revokeAccess: revokeAccess,
         );
       },
       act: (c) => c.load(),
@@ -142,7 +189,7 @@ void main() {
         const DependentsLoading(),
         const DependentsLoaded(
           [_dep],
-          pendingAccessRequests: [_pendingRequest],
+          sentAccessRequests: [_pendingRequest],
         ),
       ],
     );
@@ -164,8 +211,10 @@ void main() {
           getAccount: getAccount,
           add: add,
           remove: del,
+          sendAccessRequest: sendAccessRequest,
           resendAccessRequest: resendAccessRequest,
           cancelAccessRequest: cancelAccessRequest,
+          revokeAccess: revokeAccess,
         );
       },
       seed: () => const DependentsLoaded([]),
@@ -186,6 +235,135 @@ void main() {
     );
 
     blocTest<DependentsCubit, DependentsState>(
+      'load → les demandes acceptées/refusées restent visibles (#7008) et '
+      'les demandes reçues sont séparées (#6809)',
+      build: () {
+        when(() => list.call()).thenAnswer((_) async => const Right([]));
+        when(() => listAccessRequests.call())
+            .thenAnswer((_) async => const Right([
+                  _pendingRequest,
+                  _acceptedRequest,
+                  _receivedRequest,
+                  _receivedRefused,
+                ]));
+        return DependentsCubit(
+          list: list,
+          listAccessRequests: listAccessRequests,
+          getUpcomingAppointments: getUpcomingAppointments,
+          getAccount: getAccount,
+          add: add,
+          remove: del,
+          sendAccessRequest: sendAccessRequest,
+          resendAccessRequest: resendAccessRequest,
+          cancelAccessRequest: cancelAccessRequest,
+          revokeAccess: revokeAccess,
+        );
+      },
+      act: (c) => c.load(),
+      expect: () => [
+        const DependentsLoading(),
+        const DependentsLoaded(
+          [],
+          sentAccessRequests: [_pendingRequest, _acceptedRequest],
+          // Une demande reçue déjà refusée n'a plus rien à proposer.
+          receivedAccessRequests: [_receivedRequest],
+        ),
+      ],
+      verify: (c) {
+        final state = c.state as DependentsLoaded;
+        expect(state.pendingAccessRequests, [_pendingRequest]);
+        expect(state.incomingPendingRequests, [_receivedRequest]);
+      },
+    );
+
+    blocTest<DependentsCubit, DependentsState>(
+      'sendAccessRequest → envoie une DEMANDE (canal e-mail + périmètre), '
+      'jamais un rattachement direct (#7009), puis recharge',
+      build: () {
+        when(() => sendAccessRequest(
+              firstName: any(named: 'firstName'),
+              lastName: any(named: 'lastName'),
+              relationship: any(named: 'relationship'),
+              channel: any(named: 'channel'),
+              scope: any(named: 'scope'),
+              email: any(named: 'email'),
+              phone: any(named: 'phone'),
+            )).thenAnswer((_) async => const Right(_pendingRequest));
+        when(() => list.call()).thenAnswer((_) async => const Right([]));
+        return DependentsCubit(
+          list: list,
+          listAccessRequests: listAccessRequests,
+          getUpcomingAppointments: getUpcomingAppointments,
+          getAccount: getAccount,
+          add: add,
+          remove: del,
+          sendAccessRequest: sendAccessRequest,
+          resendAccessRequest: resendAccessRequest,
+          cancelAccessRequest: cancelAccessRequest,
+          revokeAccess: revokeAccess,
+        );
+      },
+      seed: () => const DependentsLoaded([]),
+      act: (c) => c.sendAccessRequest(
+        firstName: 'Marie',
+        lastName: 'Curie',
+        relationship: DependentRelationship.conjoint,
+        email: 'marie.curie@example.test',
+        scope: const {AccessRight.rendezVous, AccessRight.documents},
+      ),
+      expect: () => [
+        const DependentsLoaded([], mutating: true),
+        const DependentsLoading(),
+        const DependentsLoaded([]),
+      ],
+      verify: (_) {
+        verify(() => sendAccessRequest(
+              firstName: 'Marie',
+              lastName: 'Curie',
+              relationship: DependentRelationship.conjoint,
+              channel: AccessRequestChannel.email,
+              scope: const {AccessRight.rendezVous, AccessRight.documents},
+              email: 'marie.curie@example.test',
+              phone: null,
+            )).called(1);
+        verifyNever(() => add(
+              firstName: any(named: 'firstName'),
+              lastName: any(named: 'lastName'),
+              birthDate: any(named: 'birthDate'),
+              relationship: any(named: 'relationship'),
+            ));
+        verify(() => list.call()).called(1);
+      },
+    );
+
+    blocTest<DependentsCubit, DependentsState>(
+      'revokeAccess → retire l\'accès puis recharge',
+      build: () {
+        when(() => revokeAccess(any()))
+            .thenAnswer((_) async => const Right(null));
+        when(() => list.call()).thenAnswer((_) async => const Right([_dep]));
+        return DependentsCubit(
+          list: list,
+          listAccessRequests: listAccessRequests,
+          getUpcomingAppointments: getUpcomingAppointments,
+          getAccount: getAccount,
+          add: add,
+          remove: del,
+          sendAccessRequest: sendAccessRequest,
+          resendAccessRequest: resendAccessRequest,
+          cancelAccessRequest: cancelAccessRequest,
+          revokeAccess: revokeAccess,
+        );
+      },
+      seed: () => const DependentsLoaded([_dep]),
+      act: (c) => c.revokeAccess('ar2'),
+      verify: (_) {
+        verify(() => revokeAccess('ar2')).called(1);
+        verify(() => list.call()).called(1);
+      },
+    );
+
+    blocTest<DependentsCubit, DependentsState>(
       'resend → relance la demande puis recharge',
       build: () {
         when(() => resendAccessRequest(any()))
@@ -198,8 +376,10 @@ void main() {
           getAccount: getAccount,
           add: add,
           remove: del,
+          sendAccessRequest: sendAccessRequest,
           resendAccessRequest: resendAccessRequest,
           cancelAccessRequest: cancelAccessRequest,
+          revokeAccess: revokeAccess,
         );
       },
       seed: () => const DependentsLoaded([_dep]),
@@ -223,8 +403,10 @@ void main() {
           getAccount: getAccount,
           add: add,
           remove: del,
+          sendAccessRequest: sendAccessRequest,
           resendAccessRequest: resendAccessRequest,
           cancelAccessRequest: cancelAccessRequest,
+          revokeAccess: revokeAccess,
         );
       },
       seed: () => const DependentsLoaded([_dep]),

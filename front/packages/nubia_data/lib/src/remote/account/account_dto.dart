@@ -140,50 +140,68 @@ class DependentDto {
 
 class AccessRequestDto {
   final String id;
+  final String direction;
   final String firstName;
   final String lastName;
+  final String? requesterFirstName;
+  final String? requesterLastName;
   final String relationship;
   final String status;
   final String channel;
   final List<String> scope;
   final String? sentAt;
+  final String? decidedAt;
   final String? revokedAt;
 
   const AccessRequestDto({
     required this.id,
+    this.direction = 'sent',
     required this.firstName,
     required this.lastName,
+    this.requesterFirstName,
+    this.requesterLastName,
     required this.relationship,
     required this.status,
     required this.channel,
     this.scope = const [],
     this.sentAt,
+    this.decidedAt,
     this.revokedAt,
   });
 
   factory AccessRequestDto.fromJson(Map<String, dynamic> json) =>
       AccessRequestDto(
         id: json['id'] as String,
+        direction: json['direction'] as String? ?? 'sent',
         firstName: json['first_name'] as String,
         lastName: json['last_name'] as String,
+        requesterFirstName: json['requester_first_name'] as String?,
+        requesterLastName: json['requester_last_name'] as String?,
         relationship: json['relationship'] as String? ?? 'autre',
         status: json['status'] as String,
         channel: json['channel'] as String,
-        scope: (json['scope'] as List<dynamic>? ?? const [])
-            .cast<String>(),
+        scope: (json['scope'] as List<dynamic>? ?? const []).cast<String>(),
         sentAt: json['sent_at'] as String?,
+        decidedAt: json['decided_at'] as String?,
         revokedAt: json['revoked_at'] as String?,
       );
 
   AccessRequest toDomain() => AccessRequest(
         id: id,
+        direction: direction == 'received'
+            ? AccessRequestDirection.received
+            : AccessRequestDirection.sent,
         firstName: firstName,
         lastName: lastName,
+        requesterFirstName: requesterFirstName,
+        requesterLastName: requesterLastName,
         relationship: DependentDto._relationshipFromString(relationship),
         status: _statusFromString(status),
         channel: _channelFromString(channel),
-        grantedScope: scope.map(_rightFromString).toSet(),
+        grantedScope:
+            scope.map(_rightFromString).whereType<AccessRight>().toSet(),
         sentAt: sentAt != null ? DateTime.tryParse(sentAt!) : null,
+        decidedAt: decidedAt != null ? DateTime.tryParse(decidedAt!) : null,
         revokedAt: revokedAt != null ? DateTime.tryParse(revokedAt!) : null,
       );
 
@@ -209,16 +227,22 @@ class AccessRequestDto {
     }
   }
 
-  static AccessRight _rightFromString(String value) {
+  /// `null` pour une valeur inconnue : un droit que l'app ne sait pas
+  /// représenter ne doit pas être confondu avec `rendez_vous`.
+  static AccessRight? _rightFromString(String value) {
     switch (value) {
+      case 'rendez_vous':
+        return AccessRight.rendezVous;
       case 'documents':
         return AccessRight.documents;
       case 'ordonnances':
         return AccessRight.ordonnances;
       case 'dossier_medical':
         return AccessRight.dossierMedical;
+      case 'messages':
+        return AccessRight.messages;
       default:
-        return AccessRight.rendezVous;
+        return null;
     }
   }
 }

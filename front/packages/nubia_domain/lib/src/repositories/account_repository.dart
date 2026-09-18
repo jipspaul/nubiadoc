@@ -37,7 +37,8 @@ abstract class AccountRepository {
   Future<Either<Failure, void>> deleteDependent(String id);
 
   /// GET /v1/account/access-requests — demandes d'accès (invitations proche
-  /// adulte) envoyées par ce compte, tous statuts confondus.
+  /// adulte) envoyées par ce compte, tous statuts confondus, ET reçues par
+  /// lui (`direction: received`, #6809).
   Future<Either<Failure, List<AccessRequest>>> getAccessRequests();
 
   /// POST /v1/account/access-requests — invite un proche adulte
@@ -61,16 +62,20 @@ abstract class AccountRepository {
   Future<Either<Failure, void>> cancelAccessRequest(String id);
 
   /// POST /v1/account/access-requests/{id}/accept — accepte une invitation
-  /// reçue, côté invité.
-  Future<Either<Failure, AccessRequest>> acceptAccessRequest(String id);
+  /// reçue, côté invité. [scope] : périmètre ajusté (body `{scope}`).
+  Future<Either<Failure, AccessRequest>> acceptAccessRequest(
+    String id, {
+    Set<AccessRight>? scope,
+  });
 
   /// POST /v1/account/access-requests/{id}/refuse — refuse une invitation
   /// reçue, côté invité.
   Future<Either<Failure, AccessRequest>> refuseAccessRequest(String id);
 
   /// POST /v1/account/access-requests/{id}/revoke — révoque un accès déjà
-  /// accordé, côté invité. Distinct de [deleteDependent], qui reste la
-  /// révocation côté gestionnaire d'un dépendant enfant.
+  /// accordé, par l'invité OU le demandeur (#7004). Distinct de
+  /// [deleteDependent], qui reste la révocation côté gestionnaire d'un
+  /// dépendant enfant.
   Future<Either<Failure, void>> revokeAccess(String id);
 
   /// Upload a coverage card image (recto or verso).

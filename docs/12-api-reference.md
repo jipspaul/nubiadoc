@@ -211,7 +211,14 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | POST | `/v1/account/dependents` | patient | Ajoute un proche (crée un `patient_account` lié). |
 | GET | `/v1/account/dependents/{id}` | patient | Détail d'un proche. |
 | PATCH | `/v1/account/dependents/{id}` | patient | Édite (sa propre couverture incluse). |
-| DELETE | `/v1/account/dependents/{id}` | patient | Révoque la tutelle (soft, `account_guardianship.active=false`). |
+| DELETE | `/v1/account/dependents/{id}` | patient | Révoque la tutelle (soft, `account_guardianship.active=false`) ; révoque aussi la demande d'accès d'origine s'il y en a une. |
+| GET | `/v1/account/access-requests` | patient | Demandes d'accès « proche adulte » envoyées (`direction:"sent"`) ET reçues (`direction:"received"`, avec `requester_first_name`/`requester_last_name`). |
+| POST | `/v1/account/access-requests` | patient | Invite un proche adulte : demande `envoyee`, aucun accès avant acceptation ; notification in-app + e-mail à l'invité. |
+| POST | `/v1/account/access-requests/{id}/resend` | patient | Relance une demande `envoyee` (invitant). |
+| DELETE | `/v1/account/access-requests/{id}` | patient | Annule une demande `envoyee` (invitant, soft `cancelled_at`). |
+| POST | `/v1/account/access-requests/{id}/accept` | patient | L'invité accepte (body optionnel `{scope}` pour restreindre) → crée `account_guardianship(guardian=demandeur, dependent=invité, authority='delegated')`. |
+| POST | `/v1/account/access-requests/{id}/refuse` | patient | L'invité refuse : rien n'est accordé. |
+| POST | `/v1/account/access-requests/{id}/revoke` | patient | Retire un accès `acceptee` — par l'invité OU le demandeur ; désactive le lien et notifie l'autre partie. |
 
 **Contrats clés**
 
@@ -221,7 +228,9 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 
 `POST /v1/account/coverage/card` — `multipart/form-data` : `side:"recto"|"verso"`, `file`. → `201 { document_id }`. Antivirus + chiffrement ; `document.category='carte_mutuelle'`.
 
-`POST /v1/account/dependents` — body : `{ first_name, last_name, birth_date, relationship:"enfant"|"conjoint"|…, coverage?{…} }`. → `201 { dependent_account_id }`. Crée un `patient_account` + `account_guardianship(guardian=moi, dependent, authority)`. Le titulaire peut ensuite réserver/gérer pour ce proche (header `X-On-Behalf-Of: <dependent_account_id>` sur les routes RDV/docs ; vérifié contre `account_guardianship`). Conformité mineurs : `07` §4.6.
+`POST /v1/account/dependents` — body : `{ first_name, last_name, birth_date, relationship:"enfant", coverage?{…} }`. → `201 { dependent_account_id }`. Crée un `patient_account` + `account_guardianship(guardian=moi, dependent, authority='full')`. **Réservé à un enfant mineur (#7009)** : `birth_date` obligatoire ; `relationship` ≠ `enfant` ou 18 ans et plus → `422 { code:"adult_requires_consent" }` — un adulte ne peut être rattaché qu'après son accord, via `POST /v1/account/access-requests`. Le titulaire peut ensuite réserver/gérer pour ce proche (header `X-On-Behalf-Of: <dependent_account_id>` sur les routes RDV/docs ; vérifié contre `account_guardianship`). Conformité mineurs : `07` §4.6.
+
+`POST /v1/account/access-requests` — body : `{ first_name, last_name, relationship:"conjoint"|"autre"|"enfant", channel:"email"|"sms", email?, phone?, scope:["rendez_vous"|"documents"|"ordonnances"|"dossier_medical"|"messages"] }`. → `201 { id, direction:"sent", first_name, last_name, relationship, status:"envoyee", channel, scope, sent_at }`. Sens du lien (maquette « Invitation proche adulte ») : le demandeur veut gérer le dossier de l'invité ; l'invité décide. Si un compte patient porte déjà l'e-mail, il est lié (`invitee_account_id`) et notifié (`access_request_received`) ; sinon la demande lui sera rapprochée par e-mail/téléphone à sa prochaine lecture de `GET /v1/account/access-requests`. Doublon actif → `409 duplicate_access_request` ; s'inviter soi-même → `422`. `accept` (body optionnel `{ scope }`, sous-ensemble du périmètre proposé) matérialise l'accès dans `account_guardianship` (`authority='delegated'`) et notifie le demandeur (`access_request_decided`) ; `revoke` (invité ou demandeur) le désactive et notifie l'autre partie (`access_request_revoked`). Statuts : `envoyee` / `acceptee` / `refusee` / `expiree`, plus `revoked_at` (accès retiré) et `decided_at`.
 
 ---
 

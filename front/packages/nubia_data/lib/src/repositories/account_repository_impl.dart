@@ -185,8 +185,7 @@ class AccountRepositoryImpl implements AccountRepository {
   }
 
   @override
-  Future<Either<Failure, AccessRequest>> resendAccessRequest(
-      String id) async {
+  Future<Either<Failure, AccessRequest>> resendAccessRequest(String id) async {
     try {
       final dto = await _api.resendAccessRequest(id);
       return Right(dto.toDomain());
@@ -211,9 +210,16 @@ class AccountRepositoryImpl implements AccountRepository {
 
   @override
   Future<Either<Failure, AccessRequest>> acceptAccessRequest(
-      String id) async {
+    String id, {
+    Set<AccessRight>? scope,
+  }) async {
     try {
-      final dto = await _api.acceptAccessRequest(id);
+      final dto = await _api.acceptAccessRequest(
+        id,
+        body: scope == null
+            ? null
+            : {'scope': scope.map(_rightToString).toList()},
+      );
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapError(e));
@@ -223,8 +229,7 @@ class AccountRepositoryImpl implements AccountRepository {
   }
 
   @override
-  Future<Either<Failure, AccessRequest>> refuseAccessRequest(
-      String id) async {
+  Future<Either<Failure, AccessRequest>> refuseAccessRequest(String id) async {
     try {
       final dto = await _api.refuseAccessRequest(id);
       return Right(dto.toDomain());
@@ -459,6 +464,8 @@ class AccountRepositoryImpl implements AccountRepository {
         return 'ordonnances';
       case AccessRight.dossierMedical:
         return 'dossier_medical';
+      case AccessRight.messages:
+        return 'messages';
     }
   }
 

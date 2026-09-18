@@ -70,8 +70,7 @@ class AccountApi {
   }
 
   Future<List<AccessRequestDto>> getAccessRequests() async {
-    final response =
-        await _dio.get<List<dynamic>>('/account/access-requests');
+    final response = await _dio.get<List<dynamic>>('/account/access-requests');
     return (response.data ?? [])
         .cast<Map<String, dynamic>>()
         .map(AccessRequestDto.fromJson)
@@ -79,9 +78,8 @@ class AccountApi {
   }
 
   Future<AccessRequestDto> sendAccessRequest(Map<String, dynamic> body) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-        '/account/access-requests',
-        data: body);
+    final response = await _dio
+        .post<Map<String, dynamic>>('/account/access-requests', data: body);
     return AccessRequestDto.fromJson(response.data!);
   }
 
@@ -95,9 +93,16 @@ class AccountApi {
     await _dio.delete<void>('/account/access-requests/$id');
   }
 
-  Future<AccessRequestDto> acceptAccessRequest(String id) async {
-    final response = await _dio
-        .post<Map<String, dynamic>>('/account/access-requests/$id/accept');
+  /// [body] : `{scope: [...]}` pour restreindre le périmètre proposé ;
+  /// `null` = accepter tel quel.
+  Future<AccessRequestDto> acceptAccessRequest(
+    String id, {
+    Map<String, dynamic>? body,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/account/access-requests/$id/accept',
+      data: body,
+    );
     return AccessRequestDto.fromJson(response.data!);
   }
 
