@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -803,6 +804,31 @@ void main() {
         find.byKey(const Key('waiting_room_call_next_button')),
       );
       expect(button.onPressed, isNotNull);
+    });
+
+    testWidgets(
+        'action call-next désactivée quand toutes les entrées sont '
+        'in_consultation — #7320', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'QA76 TunnelOK',
+            arrivedAt: DateTime(2026, 6, 20, 8, 0),
+            status: 'in_consultation',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_call_next_button')),
+      );
+      expect(button.onPressed, isNull);
+      expect(button.label, NubiaL10n.callNext);
     });
 
     testWidgets(
