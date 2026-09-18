@@ -1967,26 +1967,35 @@ pub struct CancelCabinetAppointmentResponse {
 }
 
 /// `POST /v1/cabinet/appointments/:id/cancel` — le secrétariat (ou le
-/// praticien) annule un RDV, geste le plus courant du comptoir (#7099).
-/// Jusqu'ici aucune voie cabinet n'existait pour ça : la seule route
-/// d'annulation (`POST /v1/appointments/:id/cancel`) exige un token patient
-/// et rejette tout token pro en 403 avant même le contrôle métier ; le
-/// PATCH générique cabinet (`patch_cabinet_appointment`) n'accepte comme
-/// `status` que `no_show`. Le seul repli disponible pour le cabinet posait
-/// donc un `no_show` (incrémente `no_show_count`, fiche patient) à la place
-/// d'une annulation — deux faits différents.
+/// praticien) annule un RDV, geste le plus courant du comptoir (#7099,
+/// #6953, #7011). Jusqu'ici aucune voie cabinet n'existait pour ça : la
+/// seule route d'annulation (`POST /v1/appointments/:id/cancel`) exige un
+/// token patient et rejette tout token pro en 403 avant même le contrôle
+/// métier ; le PATCH générique cabinet (`patch_cabinet_appointment`)
+/// n'acceptait comme `status` que `no_show`. Le seul repli disponible pour le
+/// cabinet posait donc un `no_show` (incrémente `no_show_count`, fiche
+/// patient) à la place d'une annulation — deux faits différents.
+///
+/// La transition elle-même vit dans [`cancel_cabinet_appointment_tx`],
+/// partagée avec `PATCH /v1/cabinet/appointments/:id {status:"cancelled"}`
+/// (#6953, voie 2 du QA) : une seule règle, deux points d'entrée.
 ///
 /// Token pro requis (secretary+). `cabinet_id` extrait du JWT — jamais du body.
 /// RLS scopée via `app.current_cabinet_id` + secrétariat actif (R10, même
 /// garde que `no_show_appointment`/`patch_cabinet_appointment`) : 404 si le
 /// RDV n'appartient pas au cabinet / secrétariat.
-/// Statut source hors `requested|confirmed|checked_in` → `409 invalid_status`.
-/// Un `checked_in` (patient déjà arrivé) devient `no_show`, pas `cancelled` —
-/// même règle que côté patient (`cancel_appointment`, appointments_actions.rs) :
-/// il a été vu, l'annulation ne décrit pas ce fait.
+/// Statut source hors `requested|confirmed|checked_in` → `409 invalid_status`
+/// (un RDV `done`, `in_progress`, `cancelled` ou `no_show` n'a plus rien à
+/// annuler). Pas de garde temporelle : un RDV `confirmed` dont l'heure est
+/// passée sans avoir été clôturé reste annulable (symétrique du chemin
+/// patient, #3811) — sinon le seul repli redeviendrait `no_show`, ce que
+/// #7011 dénonce. Un `checked_in` (patient déjà arrivé) devient `no_show`,
+/// pas `cancelled` — même règle que côté patient (`cancel_appointment`,
+/// appointments_actions.rs) : il a été vu, l'annulation ne décrit pas ce fait.
 /// Libère le créneau associé (best-effort, savepoint — cf. commentaire de
-/// `no_show_appointment`). Notifie le patient (`appointment_cancelled`) pour
-/// une vraie annulation, même résolution app_user_id/tuteur que
+/// `no_show_appointment`). Notifie le patient (`appointment_cancelled`,
+/// catégorie `rdv`, donc soumise à l'opt-out `inapp_rdv`) pour une vraie
+/// annulation, même résolution app_user_id/tuteur que
 /// `patch_cabinet_appointment`. Auditée (`cancel_appointment`) dans `audit_log`.
 pub async fn cancel_cabinet_appointment(
     State(state): State<AppState>,
@@ -2007,6 +2016,34 @@ pub async fn cancel_cabinet_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    let (id, new_status) =
+        cancel_cabinet_appointment_tx(&mut tx, &claims, appt_id, reason.as_deref()).await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        appointment_id = %id,
+        "cabinet appointment cancelled"
+    );
+
+    Ok(Json(CancelCabinetAppointmentResponse {
+        appointment_id: id,
+        status: new_status.to_string(),
+    }))
+}
+
+/// Transition d'annulation cabinet, dans la transaction de l'appelant
+/// (`app.current_cabinet_id` déjà posé). Retourne `(appointment_id, statut
+/// final)` — `cancelled`, ou `no_show` pour un `checked_in`. Règles et
+/// effets : cf. [`cancel_cabinet_appointment`].
+async fn cancel_cabinet_appointment_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &ProSecretaryPlusClaims,
+    appt_id: Uuid,
+    reason: Option<&str>,
+) -> Result<(Uuid, &'static str), AppError> {
     let secretariat_scope = if claims.role == "secretary" {
         Some(claims.secretariat_id.ok_or(AppError::NotFound)?)
     } else {
@@ -2027,7 +2064,7 @@ pub async fn cancel_cabinet_appointment(
     .bind(appt_id)
     .bind(claims.cabinet_id)
     .bind(secretariat_scope)
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut **tx)
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
@@ -2054,8 +2091,8 @@ pub async fn cancel_cabinet_appointment(
     )
     .bind(id)
     .bind(new_status)
-    .bind(reason.as_deref())
-    .execute(&mut *tx)
+    .bind(reason)
+    .execute(&mut **tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
@@ -2085,7 +2122,7 @@ pub async fn cancel_cabinet_appointment(
     .bind(claims.sub)
     .bind(&claims.role)
     .bind(id)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
@@ -2100,7 +2137,7 @@ pub async fn cancel_cabinet_appointment(
              WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(patient_id)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await
         .map_err(|_| AppError::Internal)?;
         if let Some(row) = pat_row {
@@ -2111,7 +2148,7 @@ pub async fn cancel_cabinet_appointment(
             let notify_data = serde_json::json!({ "appointment_id": id });
             if let Some(uid) = uid {
                 notify::notify_user(
-                    &mut tx,
+                    tx,
                     uid,
                     "appointment_cancelled",
                     "Rendez-vous annulé",
@@ -2124,14 +2161,14 @@ pub async fn cancel_cabinet_appointment(
                 // du RDV est un dépendant géré par un tuteur, la notification
                 // doit atteindre le tuteur.
                 let (guardians, _dependents) =
-                    patient_guardianship::aggregate_guardianship(&mut tx, account_id).await?;
+                    patient_guardianship::aggregate_guardianship(tx, account_id).await?;
                 let notify_target = guardians
                     .into_iter()
                     .next()
                     .map(|g| g.account_id)
                     .unwrap_or(account_id);
                 notify::notify_patient_account(
-                    &mut tx,
+                    tx,
                     notify_target,
                     "appointment_cancelled",
                     "Rendez-vous annulé",
@@ -2142,19 +2179,7 @@ pub async fn cancel_cabinet_appointment(
         }
     }
 
-    tx.commit().await.map_err(|_| AppError::Internal)?;
-
-    tracing::info!(
-        cabinet_id = %claims.cabinet_id,
-        user_id = %claims.sub,
-        appointment_id = %id,
-        "cabinet appointment cancelled"
-    );
-
-    Ok(Json(CancelCabinetAppointmentResponse {
-        appointment_id: id,
-        status: new_status.to_string(),
-    }))
+    Ok((id, new_status))
 }
 
 // ── Cabinet PATCH appointment ─────────────────────────────────────────────────
@@ -2174,8 +2199,11 @@ pub struct PatchCabinetAppointmentBody {
     pub starts_at: Option<String>,
     /// Nouveau motif administratif.
     pub motif: Option<String>,
-    /// Transition de clôture explicite — seule valeur acceptée : `no_show`,
-    /// pour sortir un RDV `checked_in` (jour passé ou non) de la file (#3670).
+    /// Transition de clôture explicite. Valeurs acceptées : `no_show` (sortir
+    /// un RDV `checked_in` — jour passé ou non — de la file, #3670) et
+    /// `cancelled` (annulation cabinet, #6953 : même transition que
+    /// `POST …/:id/cancel`, `motif` faisant alors office de motif
+    /// d'annulation). Toute autre valeur → `422 validation_error`.
     pub status: Option<String>,
 }
 
@@ -2371,6 +2399,10 @@ pub async fn start_consultation(
 /// `checked_in` ou `in_progress` → `409 invalid_status` si le RDV est dans un
 /// autre état, `422`/`400 validation_error` si une autre valeur est fournie.
 /// RDV pas encore commencé (`now() < starts_at`) → `409 too_early` (#4369).
+/// `status: "cancelled"` (#6953, voie 2 du QA — renvoyait 422) : annulation
+/// cabinet, strictement la même transition que
+/// `POST /v1/cabinet/appointments/:id/cancel` (`cancel_cabinet_appointment_tx`) ;
+/// `motif` est alors enregistré comme `cancel_reason`, `starts_at` ignoré.
 /// Nouveau `starts_at` : doit être dans le futur et correspondre à un
 /// `availability_slot` `open` du praticien → `409 slot_unavailable` sinon
 /// (même garde que `patch_appointment` côté patient, #3558).
@@ -2400,6 +2432,26 @@ pub async fn patch_cabinet_appointment(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    // #6953 : annulation par le PATCH générique — une seule règle, partagée
+    // avec la route dédiée. Avant ce correctif `status:"cancelled"` tombait
+    // dans le 422 ci-dessous et le cabinet n'avait que `no_show` (faux au
+    // dossier patient) comme sortie.
+    if body.status.as_deref() == Some("cancelled") {
+        let (id, new_status) =
+            cancel_cabinet_appointment_tx(&mut tx, &claims, appt_id, body.motif.as_deref()).await?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        tracing::info!(
+            cabinet_id = %claims.cabinet_id,
+            user_id = %claims.sub,
+            appointment_id = %id,
+            "cabinet appointment cancelled"
+        );
+        return Ok(Json(PatchCabinetAppointmentResponse {
+            appointment_id: id,
+            status: new_status.to_string(),
+        }));
+    }
 
     // R10 : secrétaire scopée au secrétariat actif — même garde que
     // confirm_appointment/no_show_appointment/get_waiting_room, jusqu'ici

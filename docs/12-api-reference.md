@@ -312,6 +312,10 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 
 `POST /v1/quotes/{id}/signature` → `202 { signature_id, provider:"yousign", redirect_url|embed_token }`. Le résultat arrive par **webhook** (§21). Un devis **signé est immuable** : toute modif ultérieure → `409 quote_locked` (`06` E5.1, `07` §5.5).
 
+`POST /v1/quotes/{id}/sign` (stub synchrone, app patient) → `200 { signed:true, signed_at }`. Devis déjà `signed` → `200` **idempotent** avec le `signed_at` existant ; `draft`/`refused`/`expired` → `409 invalid_status`.
+
+**Règle « double-submit » (signatures, #7012/#6794/#7015)** : la transition de statut est **sérialisée en base** (`SELECT … FOR UPDATE` dans la transaction) — N appels simultanés sur le même objet produisent **exactement une** signature et **un** document dans le coffre-fort, et chaque perdant reçoit **la réponse déterministe d'un second appel séquentiel**, jamais un 5xx : `200` idempotent (`signed_at` existant) pour `POST /v1/quotes/{id}/sign`, `409 invalid_status` pour `POST /v1/cabinet/prescriptions/{id}/sign` (§17).
+
 `POST /v1/payments/intent` — body : `{ quote_id, kind:"deposit"|"installment"|"full", amount_cents, method:"card"|"apple_pay"|"google_pay"|"sepa" }`. → `201 { payment_id, client_secret }` (Stripe ; SEPA via GoCardless). Confirmation finale par **webhook** ; statut `pending→paid|failed|refunded`. PCI délégué (`07` §6.1). Rejouable via la clé d'idempotence.
 
 ---
@@ -385,7 +389,8 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | POST | `/v1/cabinet/appointments/{id}/confirm` | pro | Valider une demande (`requested→confirmed`). |
 | POST | `/v1/cabinet/appointments/{id}/checkin` | secretary+ | Enregistrer l'arrivée au comptoir (`confirmed→checked_in`, mode `manual`). Fenêtre temporelle ci-dessous. |
 | POST | `/v1/cabinet/appointments/{id}/no-show` | secretary+ | Marquer un RDV manqué (`requested\|confirmed\|checked_in\|in_progress→no_show`) ; `409 too_early` avant `starts_at` pour un patient jamais présenté. |
-| PATCH | `/v1/cabinet/appointments/{id}` | pro | Déplacer/éditer (transition auditée). |
+| POST | `/v1/cabinet/appointments/{id}/cancel` | secretary+ | Annulation cabinet (X12, #6953/#7011) : `{reason?}` ; `requested\|confirmed→cancelled` (créneau libéré, patient notifié `appointment_cancelled`, audit) ; `checked_in→no_show` (patient déjà vu). Sans garde temporelle (un RDV passé jamais clôturé reste annulable). `409 invalid_status` sinon ; `404` hors cabinet/secrétariat. |
+| PATCH | `/v1/cabinet/appointments/{id}` | secretary+ | Déplacer/éditer (transition auditée). `status:"no_show"` (RDV commencé, sinon `409 too_early`) ou `status:"cancelled"` (même transition que `…/cancel`, `motif` = motif d'annulation) ; toute autre valeur → `422`. |
 | POST | `/v1/cabinet/slots` | pro | Ouvrir/bloquer un créneau. |
 | PATCH/DELETE | `/v1/cabinet/slots/{id}` | pro | Éditer/supprimer un créneau. |
 | PUT | `/v1/cabinet/slots/{id}/online` | pro | Exposer le créneau à la réservation en ligne (US-M19). |
@@ -526,6 +531,8 @@ Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue →
 
 `POST /v1/cabinet/prescriptions` — body : `{ patient_id, items:[{ label, form?, posology, duration, quantity }] }`. → `201`.
 > 🚨 **L'API n'effectue AUCUN contrôle automatique** d'allergies/interactions/contre-indications et **ne suggère aucune alternative** (= aide à la décision = dispositif médical, **exclu**). Elle peut **afficher** en lecture les allergies que le praticien a saisies dans `medical_record`. Le praticien décide seul. `/sign` réutilise la brique signature du wedge ; `/send` génère un `document(category='ordonnance')`.
+
+`POST /v1/cabinet/prescriptions/{id}/sign` → `200 { signed_at, document_id }` ; ordonnance non `draft` → `409 invalid_status`. Appels **concurrents** (double-clic, deux onglets) : sérialisés par `FOR UPDATE` — une seule signature eIDAS et un seul PDF émis, les perdants reçoivent `409 invalid_status` (règle « double-submit », §10).
 
 ---
 

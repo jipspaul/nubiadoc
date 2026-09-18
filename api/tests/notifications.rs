@@ -788,6 +788,7 @@ async fn notifications_excludes_all_rdv_kinds_when_opted_out() {
         "callback_requested",
         "appointment_confirmed",
         "appointment_rescheduled",
+        "appointment_cancelled",
         "appointment_motif_changed",
         "waiting_room_called",
         "waiting_list_slot_offered",
@@ -832,7 +833,7 @@ async fn notifications_excludes_all_rdv_kinds_when_opted_out() {
     // Seule la notification "message_received" (catégorie non opt-out) reste.
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["kind"], "message_received");
-    // Le badge non-lus ne compte plus aucun des 8 kinds RDV opt-out.
+    // Le badge non-lus ne compte plus aucun des 9 kinds RDV opt-out.
     assert_eq!(v["page"]["unread_count"], 1);
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")

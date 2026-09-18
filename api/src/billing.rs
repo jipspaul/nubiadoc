@@ -499,6 +499,10 @@ pub struct SignQuoteResponse {
 /// Retourne `404` si le devis n'appartient pas au patient authentifié.
 /// Retourne `409` si le devis n'est pas au statut `sent` (`draft`/`refused`/`expired` :
 /// seul un devis envoyé par le cabinet peut être signé).
+/// Devis déjà `signed` → `200` idempotent avec le `signed_at` existant — y
+/// compris pour le perdant d'une course (double-submit, #7015) : la ligne est
+/// verrouillée `FOR UPDATE` sous scope cabinet avant la transition, le perdant
+/// relit `signed` et prend la branche idempotente. Jamais de 5xx.
 /// Met à jour le devis : `status = 'signed'`, `signed_at = now()`.
 /// Génère le PDF du devis signé, l'uploade dans l'Object Storage et pose
 /// `quote.document_id` (`document(category='devis')` — même pattern que
@@ -585,6 +589,44 @@ pub async fn sign_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Verrou `FOR UPDATE` + relecture du statut (#7015). La lecture initiale
+    // ci-dessus (scope patient, policy SELECT-only `quote_patient_read`) ne
+    // peut pas verrouiller : `FOR UPDATE` exige aussi la policy UPDATE
+    // (`tenant_isolation`), d'où le verrou posé ici, sous scope cabinet.
+    // Sans lui, N double-submits lisaient tous `sent`, un seul UPDATE
+    // conditionnel touchait une ligne et les N-1 autres partaient en
+    // `RowNotFound` → 500. Le perdant attend le COMMIT du gagnant, relit
+    // `signed` et prend la même branche idempotente (200 + `signed_at`
+    // existant) qu'un second appel séquentiel. Même pattern que
+    // `payment_schedules.rs` (#4311/#4573).
+    let locked = sqlx::query(
+        "SELECT status, signed_at FROM quote \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL \
+         FOR UPDATE",
+    )
+    .bind(id)
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+    let locked_status: String = locked.try_get("status").map_err(|_| AppError::Internal)?;
+    if locked_status == "signed" {
+        let existing_signed_at: Option<chrono::DateTime<chrono::Utc>> = locked
+            .try_get("signed_at")
+            .map_err(|_| AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        return Ok(Json(SignQuoteResponse {
+            signed: true,
+            signed_at: existing_signed_at
+                .map(|d| d.to_rfc3339())
+                .unwrap_or_default(),
+        }));
+    }
+    if locked_status != "sent" {
+        return Err(AppError::InvalidStatus);
+    }
+
     let practitioner_row =
         sqlx::query("SELECT COALESCE(practitioner_display_name($1), 'Praticien') AS display_name")
             .bind(practitioner_id)
@@ -609,7 +651,9 @@ pub async fn sign_quote(
     )
     .await?;
 
-    // Transition stub Yousign : sent → signed.
+    // Transition stub Yousign : sent → signed. L'UPDATE reste conditionnel
+    // (défense en profondeur derrière le verrou) ; 0 ligne = état changé
+    // entre-temps → 409 déterministe (plus jamais `RowNotFound` aplati en 500).
     let update_row = sqlx::query(
         "UPDATE quote \
          SET status = 'signed', signed_at = now(), updated_at = now(), document_id = $3 \
@@ -619,9 +663,10 @@ pub async fn sign_quote(
     .bind(id)
     .bind(cabinet_id)
     .bind(document_id)
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await
-    .map_err(|_| AppError::Internal)?;
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::InvalidStatus)?;
 
     let signed_at: chrono::DateTime<chrono::Utc> = update_row
         .try_get("signed_at")

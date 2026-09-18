@@ -8,6 +8,14 @@
 //! - rejet `409 invalid_status` depuis un statut déjà terminal (`cancelled`,
 //!   `done`) ;
 //! - secrétaire hors du secrétariat scopé (R10) → `404`, anti-énumération.
+//!
+//! Complété pour #6953 / #7011 (X12, « le cabinet ne peut annuler aucun
+//! RDV ») : les trois voies relevées par le QA (route cabinet dédiée, PATCH
+//! `status:"cancelled"`, PATCH `status:"no_show"` sur un RDV futur) et les
+//! effets attendus d'une annulation cabinet — créneau libéré, notification
+//! `appointment_cancelled` au patient (soumise à l'opt-out `inapp_rdv`),
+//! audit — pour un token secrétaire ET praticien ; cabinet tiers → 404 ;
+//! token pro sur la route patient → 403 (chemins distincts).
 
 use axum::{
     body::Body,
@@ -64,6 +72,26 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid, secretariat_id: Uuid) -> St
     .unwrap()
 }
 
+fn make_practitioner_token(sub: Uuid, cabinet_id: Uuid) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    encode(
+        &Header::default(),
+        &json!({
+            "sub": sub,
+            "kind": "pro",
+            "cabinet_id": cabinet_id,
+            "role": "practitioner",
+            "exp": exp,
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 /// Insère cabinet + praticien + patient + slot `booked` + RDV.
 /// `status` est le statut initial du RDV inséré, `starts_at_offset` un
 /// intervalle SQL relatif à `now()`.
@@ -81,6 +109,10 @@ async fn insert_fixture_at(
     let patient_id = Uuid::new_v4();
     let appt_id = Uuid::new_v4();
     let slot_id = Uuid::new_v4();
+    // `app_user_id` du patient dérivé de `patient_id` (fixture déterministe,
+    // cf. `patient_user_id`) pour que la notification `appointment_cancelled`
+    // ait un destinataire (#6953 : « le patient en est informé »).
+    let patient_user_id = patient_user_id(patient_id);
 
     let mut tx = db.begin().await.unwrap();
 
@@ -147,11 +179,24 @@ async fn insert_fixture_at(
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
-         VALUES ($1, $2, 'Patient', 'CancelRoute')",
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!(
+        "cancel-route-patient+{}@nubia.test",
+        patient_user_id
+    ))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, $3, 'Patient', 'CancelRoute')",
     )
     .bind(patient_id)
     .bind(cabinet_id)
+    .bind(patient_user_id)
     .execute(&mut *tx)
     .await
     .unwrap();
@@ -193,6 +238,15 @@ async fn insert_fixture_at(
         secretariat_id,
         patient_id,
     )
+}
+
+/// `app_user_id` du patient de la fixture : dérivé de `patient_id` (premier
+/// octet inversé) pour rester lisible depuis les tests sans élargir le tuple
+/// retourné par `insert_fixture_at`.
+fn patient_user_id(patient_id: Uuid) -> Uuid {
+    let mut bytes = *patient_id.as_bytes();
+    bytes[0] ^= 0xFF;
+    Uuid::from_bytes(bytes)
 }
 
 /// RDV à venir (`starts_at` +3h) — cas nominal (une annulation cabinet vise
@@ -257,8 +311,23 @@ async fn cleanup_fixture(
         .execute(&mut *tx)
         .await
         .ok();
+    // Comptes patients de la fixture, supprimés APRÈS la fiche patient (FK
+    // patient.app_user_id) ; ON DELETE CASCADE nettoie notification +
+    // user_notification_preference.
+    let patient_user_ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT app_user_id FROM patient WHERE cabinet_id = $1 AND app_user_id IS NOT NULL",
+    )
+    .bind(cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .unwrap_or_default();
     sqlx::query("DELETE FROM patient WHERE cabinet_id = $1")
         .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = ANY($1)")
+        .bind(&patient_user_ids)
         .execute(&mut *tx)
         .await
         .ok();
@@ -531,6 +600,437 @@ async fn cancel_from_other_secretariat_returns_404() {
     let (status, body) = post_cancel(app(state), appt_id, &token).await;
 
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+// ── #6953 / #7011 — X12, les trois voies du QA + effets attendus ─────────────
+
+async fn patch_cabinet_appointment(
+    server: axum::Router,
+    appt_id: Uuid,
+    token: &str,
+    body: serde_json::Value,
+) -> (StatusCode, serde_json::Value) {
+    let response = server
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/appointments/{}", appt_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    (status, body)
+}
+
+/// `(status, cancel_reason)` du RDV, lu sous le GUC cabinet (RLS
+/// `tenant_isolation` sur `appointment`).
+async fn appointment_state(
+    app_db: &PgPool,
+    cabinet_id: Uuid,
+    appt_id: Uuid,
+) -> (String, Option<String>) {
+    let mut tx = app_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let row = sqlx::query("SELECT status, cancel_reason FROM appointment WHERE id = $1")
+        .bind(appt_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.rollback().await.ok();
+    (
+        row.try_get("status").unwrap(),
+        row.try_get("cancel_reason").unwrap(),
+    )
+}
+
+async fn cancelled_notification_count(seed_db: &PgPool, patient_id: Uuid) -> i64 {
+    sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notification \
+         WHERE app_user_id = $1 AND kind = 'appointment_cancelled'",
+    )
+    .bind(patient_user_id(patient_id))
+    .fetch_one(seed_db)
+    .await
+    .unwrap()
+}
+
+/// Voie 2 du QA (#6953) : `PATCH /v1/cabinet/appointments/:id {status:"cancelled"}`
+/// renvoyait `422 validation_error` — le PATCH n'acceptait que `no_show`.
+/// Attendu : même transition que la route dédiée (200, `cancelled`, créneau
+/// libéré, `motif` conservé comme motif d'annulation, patient notifié).
+#[tokio::test]
+async fn patch_status_cancelled_returns_200_frees_slot_and_notifies() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id, patient_id) =
+        insert_fixture(&seed_db, "confirmed").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
+    let (status, body) = patch_cabinet_appointment(
+        app(state),
+        appt_id,
+        &token,
+        json!({"status": "cancelled", "motif": "Praticien souffrant"}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["status"], "cancelled");
+
+    let (appt_status, cancel_reason) = appointment_state(&app_db, cabinet_id, appt_id).await;
+    assert_eq!(appt_status, "cancelled");
+    assert_eq!(
+        cancel_reason.as_deref(),
+        Some("Praticien souffrant"),
+        "le motif transmis doit être conservé comme motif d'annulation"
+    );
+
+    let slot_status: String =
+        sqlx::query_scalar("SELECT status FROM availability_slot WHERE id = $1")
+            .bind(slot_id)
+            .fetch_one(&seed_db)
+            .await
+            .unwrap();
+    assert_eq!(slot_status, "open");
+
+    assert_eq!(
+        cancelled_notification_count(&seed_db, patient_id).await,
+        1,
+        "le patient doit être notifié de l'annulation (X12)"
+    );
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+/// Voie 3 du QA (#6953) : `PATCH … {status:"no_show"}` sur un RDV **futur**
+/// reste `409 too_early` (#4369) — ce n'est pas une annulation, et ne doit
+/// pas le devenir : un patient prévenu par le cabinet ne doit jamais finir
+/// « absent » dans son historique (#7011, `no_show_count`).
+#[tokio::test]
+async fn patch_status_no_show_on_future_appointment_still_returns_409_too_early() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id, _patient_id) =
+        insert_fixture(&seed_db, "confirmed").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
+    let (status, body) =
+        patch_cabinet_appointment(app(state), appt_id, &token, json!({"status": "no_show"})).await;
+
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "too_early");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+/// Un token **praticien** (pas seulement secrétaire) peut annuler un RDV de
+/// son cabinet (#7011 : jeton praticien → 403 sur la route patient, aucune
+/// autre voie). Effets : 200 `cancelled`, motif conservé, créneau libéré,
+/// audit `cancel_appointment` avec `actor_role = practitioner`, patient
+/// notifié (`appointment_cancelled`).
+#[tokio::test]
+async fn cancel_by_practitioner_returns_200_audits_and_notifies_patient() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, _secretariat_id, patient_id) =
+        insert_fixture(&seed_db, "confirmed").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_practitioner_token(prac_user_id, cabinet_id);
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/appointments/{}/cancel", appt_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({"reason": "Cabinet fermé"}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["status"], "cancelled");
+
+    let (appt_status, cancel_reason) = appointment_state(&app_db, cabinet_id, appt_id).await;
+    assert_eq!(appt_status, "cancelled");
+    assert_eq!(cancel_reason.as_deref(), Some("Cabinet fermé"));
+
+    let slot_status: String =
+        sqlx::query_scalar("SELECT status FROM availability_slot WHERE id = $1")
+            .bind(slot_id)
+            .fetch_one(&seed_db)
+            .await
+            .unwrap();
+    assert_eq!(slot_status, "open");
+
+    let mut tx = app_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let audit_row = sqlx::query(
+        "SELECT action, actor_role FROM audit_log \
+         WHERE entity_id = $1 AND entity = 'appointment' \
+         ORDER BY occurred_at DESC LIMIT 1",
+    )
+    .bind(appt_id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    let audit_action: String = audit_row.try_get("action").unwrap();
+    let audit_role: String = audit_row.try_get("actor_role").unwrap();
+    assert_eq!(audit_action, "cancel_appointment");
+    assert_eq!(audit_role, "practitioner");
+
+    assert_eq!(cancelled_notification_count(&seed_db, patient_id).await, 1);
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+/// `appointment_cancelled` appartient à la catégorie `rdv` : un patient qui a
+/// coupé `inapp_rdv` ne doit pas recevoir la notification (#7021 : tout kind
+/// oublié du mapping passe en fail-open). L'annulation, elle, reste faite.
+#[tokio::test]
+async fn cancel_notification_respects_rdv_opt_out() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id, patient_id) =
+        insert_fixture(&seed_db, "confirmed").await;
+    sqlx::query(
+        "INSERT INTO user_notification_preference (app_user_id, inapp_rdv) VALUES ($1, false)",
+    )
+    .bind(patient_user_id(patient_id))
+    .execute(&seed_db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
+    let (status, body) = post_cancel(app(state), appt_id, &token).await;
+
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["status"], "cancelled");
+    assert_eq!(
+        cancelled_notification_count(&seed_db, patient_id).await,
+        0,
+        "opt-out inapp_rdv : aucune notification d'annulation"
+    );
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+/// Praticien d'un AUTRE cabinet : le RDV n'est pas visible (RLS
+/// `app.current_cabinet_id` + filtre `cabinet_id`) → `404`, rien ne bouge.
+#[tokio::test]
+async fn cancel_from_other_cabinet_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, _secretariat_id, patient_id) =
+        insert_fixture(&seed_db, "confirmed").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_practitioner_token(Uuid::new_v4(), Uuid::new_v4());
+    let (status, body) = post_cancel(app(state), appt_id, &token).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+
+    let (appt_status, _) = appointment_state(&app_db, cabinet_id, appt_id).await;
+    assert_eq!(appt_status, "confirmed");
+    assert_eq!(cancelled_notification_count(&seed_db, patient_id).await, 0);
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+/// Voie 1 du QA (#6953) : `POST /v1/appointments/:id/cancel` (chemin
+/// **patient**) avec un token pro reste `403 forbidden` — les chemins patient
+/// (`/v1/appointments`) et cabinet (`/v1/cabinet/appointments`) sont
+/// distincts, chacun avec son extracteur de claims ; la voie cabinet est
+/// `POST /v1/cabinet/appointments/:id/cancel`.
+#[tokio::test]
+async fn pro_token_on_patient_cancel_route_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id, _patient_id) =
+        insert_fixture(&seed_db, "confirmed").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/appointments/{}/cancel", appt_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let (appt_status, _) = appointment_state(&app_db, cabinet_id, appt_id).await;
+    assert_eq!(appt_status, "confirmed");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+/// RDV `confirmed` dont l'heure est **passée** mais jamais clôturé : le
+/// cabinet peut encore l'annuler (200, `cancelled`) — comportement
+/// documenté, symétrique du chemin patient (#3811). Bloquer ici forcerait le
+/// repli `no_show` que #7011 dénonce (patient prévenu par le cabinet
+/// enregistré « absent »). Un RDV réellement terminé (`done`) reste `409`
+/// (`cancel_from_done_returns_409`).
+#[tokio::test]
+async fn cancel_past_confirmed_never_closed_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id, _patient_id) =
+        insert_fixture_at(&seed_db, "confirmed", "- interval '2 days'").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
+    let (status, body) = post_cancel(app(state), appt_id, &token).await;
+
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["status"], "cancelled");
 
     cleanup_fixture(
         &seed_db,
