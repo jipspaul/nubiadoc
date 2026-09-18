@@ -161,3 +161,41 @@ async fn pro_register_duplicate_email_returns_201_generic_no_account_created() {
         .await
         .ok();
 }
+
+// ── Test 3 (#7303) : siret trop long (colonne char(14)) → 422, jamais 500 ────
+// Avant fix : une violation Postgres 22001 (value too long for type character(14))
+// remontait en 500 internal_error sur cette route publique et non authentifiée.
+
+#[tokio::test]
+async fn pro_register_oversized_siret_returns_422_not_500() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("pro_siret_{}@test.local", Uuid::new_v4());
+    let mut body = pro_register_body(&email);
+    body["cabinet"]["siret"] = json!("1".repeat(20));
+
+    let response = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/pro/register")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un siret de plus de 14 caractères doit être rejeté en 422, jamais en 500"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "validation_error");
+}
