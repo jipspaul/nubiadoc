@@ -9,6 +9,9 @@ import 'package:nubia_domain/nubia_domain.dart';
 import '../../router/app_router.dart';
 import '../agenda/agenda_bloc.dart';
 import '../agenda/agenda_event.dart';
+import '../tasks/tasks_bloc.dart';
+import '../tasks/tasks_card.dart';
+import '../tasks/tasks_event.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
@@ -50,8 +53,8 @@ class DashboardBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => GetIt.instance<DashboardBloc>()
-        ..add(const DashboardLoadRequested()),
+      create: (_) =>
+          GetIt.instance<DashboardBloc>()..add(const DashboardLoadRequested()),
       child: BlocProvider<OpportunitiesCubit>(
         create: (_) => GetIt.instance<OpportunitiesCubit>()..load(),
         child: const _DashboardContent(),
@@ -136,6 +139,13 @@ class _DashboardLoadedView extends StatelessWidget {
       child: TodayScheduleCard(summary: summary),
     );
     final pendingActionsCard = PendingActionsCard(summary: summary);
+    // Cabinet entier (pas de filtre assigné) : le filtre « Assignées à moi »
+    // vit dans `TasksPage` (#7210) — cette carte n'est qu'un aperçu.
+    final tasksCard = BlocProvider(
+      create: (_) => GetIt.instance<TasksBloc>()
+        ..add(const TasksLoadRequested(status: 'open')),
+      child: const TasksCard(),
+    );
     final notesCard = BlocProvider(
       create: (_) => GetIt.instance<TodayNotesBloc>()
         ..add(const TodayNotesLoadRequested()),
@@ -178,6 +188,8 @@ class _DashboardLoadedView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       pendingActionsCard,
+                      const SizedBox(height: 16),
+                      tasksCard,
                       if (opportunitiesCard != null) ...[
                         const SizedBox(height: 16),
                         opportunitiesCard,
@@ -203,6 +215,8 @@ class _DashboardLoadedView extends StatelessWidget {
               todayScheduleCard,
               const SizedBox(height: 24),
               pendingActionsCard,
+              const SizedBox(height: 16),
+              tasksCard,
               if (opportunitiesCard != null) ...[
                 const SizedBox(height: 16),
                 opportunitiesCard,

@@ -33,6 +33,7 @@ import '../features/stock/stock_bloc.dart';
 import '../features/stock/stock_inventory_bloc.dart';
 import '../features/stock/stock_inventory_page.dart';
 import '../features/stock/stock_page.dart';
+import '../features/tasks/tasks_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 import '../pro_config.dart';
@@ -58,6 +59,7 @@ class AppRouter {
   static const registerPro = '/register-pro';
   static const cabinetSetup = '/cabinet-setup';
   static const notificationPreferences = '/notification-preferences';
+  static const tasks = '/tasks';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -130,6 +132,10 @@ class AppRouter {
         GoRoute(
           path: notificationPreferences,
           builder: (_, __) => const NotificationPrefsPage(),
+        ),
+        GoRoute(
+          path: tasks,
+          builder: (_, __) => const TasksPage(),
         ),
         // #6286 — le `ProShell` enveloppe désormais TOUTES les autres
         // destinations de nav via `StatefulShellRoute.indexedStack` (une

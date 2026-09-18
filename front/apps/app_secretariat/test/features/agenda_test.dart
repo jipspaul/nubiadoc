@@ -42,6 +42,9 @@ class MockListBookableSlotsUseCase extends Mock
 class MockListCabinetPractitionersUseCase extends Mock
     implements ListCabinetPractitionersUseCase {}
 
+class MockCreateAppointmentTaskUseCase extends Mock
+    implements CreateAppointmentTaskUseCase {}
+
 class MockListCabinetPatientsUseCase extends Mock
     implements ListCabinetPatientsUseCase {}
 
@@ -86,6 +89,7 @@ AgendaBloc _makeBloc({
   required MockRescheduleAppointmentUseCase rescheduleAppointment,
   required MockListBookableSlotsUseCase listSlots,
   required MockListCabinetPractitionersUseCase listPractitioners,
+  required MockCreateAppointmentTaskUseCase createAppointmentTask,
 }) =>
     AgendaBloc(
       getAgenda: getAgenda,
@@ -96,6 +100,7 @@ AgendaBloc _makeBloc({
       rescheduleAppointment: rescheduleAppointment,
       listSlots: listSlots,
       listPractitioners: listPractitioners,
+      createAppointmentTask: createAppointmentTask,
     );
 
 Widget _wrap(AgendaBloc bloc) => MaterialApp(
@@ -179,6 +184,7 @@ void main() {
   late MockListBookableSlotsUseCase mockListSlots;
   late MockListCabinetPractitionersUseCase mockListPractitioners;
   late MockGetCabinetPatientUseCase mockGetPatient;
+  late MockCreateAppointmentTaskUseCase mockCreateTask;
 
   setUp(() {
     mockGetAgenda = MockGetCabinetAgendaUseCase();
@@ -190,8 +196,16 @@ void main() {
     mockListSlots = MockListBookableSlotsUseCase();
     mockListPractitioners = MockListCabinetPractitionersUseCase();
     mockGetPatient = MockGetCabinetPatientUseCase();
+    mockCreateTask = MockCreateAppointmentTaskUseCase();
     when(() => mockListPractitioners())
         .thenAnswer((_) async => const Right([]));
+    when(() => mockCreateTask(
+          appointmentId: any(named: 'appointmentId'),
+          title: any(named: 'title'),
+          description: any(named: 'description'),
+          assigneeUserId: any(named: 'assigneeUserId'),
+          dueDate: any(named: 'dueDate'),
+        )).thenAnswer((_) async => const Right('task-1'));
     // #7048 : le volet détail résout téléphone/couverture via ce use case
     // dès qu'un `patientId` est présent sur l'entrée sélectionnée.
     when(() => mockGetPatient(any())).thenAnswer(
@@ -219,6 +233,7 @@ void main() {
         rescheduleAppointment: mockReschedule,
         listSlots: mockListSlots,
         listPractitioners: mockListPractitioners,
+        createAppointmentTask: mockCreateTask,
       );
 
   group('AgendaBloc', () {
@@ -418,6 +433,7 @@ void main() {
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
           ));
 
       await tester.pumpWidget(
@@ -513,6 +529,7 @@ void main() {
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
           ));
       gi.registerFactory<GetCabinetPatientUseCase>(() => mockGetPatient);
 
@@ -823,6 +840,7 @@ void main() {
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
           ));
       gi.registerFactory<GetCabinetPatientUseCase>(() => mockGetPatient);
 
@@ -903,6 +921,7 @@ void main() {
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
           ));
 
       await tester.pumpWidget(
@@ -989,6 +1008,7 @@ void main() {
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
           ));
 
       await tester.pumpWidget(
@@ -1062,6 +1082,7 @@ void main() {
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
           ));
 
       await tester.pumpWidget(
@@ -1134,6 +1155,7 @@ void main() {
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
           ));
 
       await tester.pumpWidget(
@@ -1215,6 +1237,7 @@ void main() {
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
           ));
 
       await tester.pumpWidget(
@@ -1355,6 +1378,7 @@ void main() {
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
           ));
     }
 
@@ -1487,8 +1511,7 @@ void main() {
       await GetIt.instance.reset();
     });
 
-    testWidgets('Ctrl+N ouvre le dialogue Nouveau RDV (#6413)',
-        (tester) async {
+    testWidgets('Ctrl+N ouvre le dialogue Nouveau RDV (#6413)', (tester) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
           .thenAnswer((_) async => const Right([]));
@@ -1557,6 +1580,7 @@ void main() {
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
             listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
           ));
       gi.registerFactory<ListCabinetPatientsUseCase>(() => listPatients);
     }

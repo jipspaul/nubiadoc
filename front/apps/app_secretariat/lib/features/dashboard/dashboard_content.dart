@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart';
 import 'package:nubia_core/nubia_core.dart';
@@ -7,6 +8,9 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../router/app_router.dart';
+import '../tasks/tasks_bloc.dart';
+import '../tasks/tasks_card.dart';
+import '../tasks/tasks_event.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
@@ -230,6 +234,14 @@ class _DashboardLoadedView extends StatelessWidget {
                       waitingCount: waitingCount,
                       oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
                       pendingAppointmentsToday: pendingAppointmentsToday,
+                    ),
+                    BlocProvider(
+                      create: (_) => GetIt.instance<TasksBloc>()
+                        ..add(TasksLoadRequested(
+                          assigneeId: session.userId,
+                          status: 'open',
+                        )),
+                      child: const TasksCard(),
                     ),
                     if (opportunitiesState is OpportunitiesLoaded)
                       OpportunitiesCard(

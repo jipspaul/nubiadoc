@@ -2,6 +2,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart';
@@ -17,6 +18,9 @@ import 'package:app_secretariat/features/dashboard/dashboard_state.dart';
 import 'package:app_secretariat/features/dashboard/expiring_quotes_summary_cubit.dart';
 import 'package:app_secretariat/features/dashboard/patient_messages_summary_cubit.dart';
 import 'package:app_secretariat/features/dashboard/waiting_room_summary_cubit.dart';
+import 'package:app_secretariat/features/tasks/tasks_bloc.dart';
+import 'package:app_secretariat/features/tasks/tasks_event.dart';
+import 'package:app_secretariat/features/tasks/tasks_state.dart';
 import 'package:app_secretariat/router/app_router.dart';
 
 class _MockDashboardBloc extends MockBloc<DashboardEvent, DashboardState>
@@ -39,6 +43,9 @@ class _MockExpiringQuotesSummaryCubit
 class _MockOpportunitiesCubit extends MockCubit<OpportunitiesState>
     implements OpportunitiesCubit {}
 
+class _MockTasksBloc extends MockBloc<TasksEvent, TasksState>
+    implements TasksBloc {}
+
 const _session = AuthSession(
   kind: UserKind.pro,
   userId: 'user-1',
@@ -52,6 +59,7 @@ void main() {
   late _MockPatientMessagesSummaryCubit patientMessagesSummaryCubit;
   late _MockExpiringQuotesSummaryCubit expiringQuotesSummaryCubit;
   late _MockOpportunitiesCubit opportunitiesCubit;
+  late _MockTasksBloc tasksBloc;
 
   setUp(() {
     dashboardBloc = _MockDashboardBloc();
@@ -91,7 +99,15 @@ void main() {
     when(() => expiringQuotesSummaryCubit.state)
         .thenReturn(const ExpiringQuotesSummaryLoaded(quotes: []));
     opportunitiesCubit = _MockOpportunitiesCubit();
+    // `TasksCard` (#7210) résout son propre `TasksBloc` via GetIt (il ouvre
+    // sa propre `BlocProvider`, comme `WorkQueueCard`/`OpportunitiesCard` ne
+    // le font pas mais `todayScheduleCard` côté app_practicien le fait déjà).
+    tasksBloc = _MockTasksBloc();
+    when(() => tasksBloc.state).thenReturn(const TasksLoaded(tasks: []));
+    GetIt.instance.registerFactory<TasksBloc>(() => tasksBloc);
   });
+
+  tearDown(() => GetIt.instance.reset());
 
   Widget wrap(GoRouter router) => MultiBlocProvider(
         providers: [
@@ -105,7 +121,8 @@ void main() {
               value: expiringQuotesSummaryCubit),
           BlocProvider<OpportunitiesCubit>.value(value: opportunitiesCubit),
         ],
-        child: MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+        child:
+            MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
       );
 
   GoRouter makeRouter() => GoRouter(

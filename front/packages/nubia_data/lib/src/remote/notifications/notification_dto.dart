@@ -157,6 +157,8 @@ class NotificationDto {
         return "Aucune infirmière n'était disponible pour cette demande de visite.";
       case 'stock_request_received':
         return 'Une officine a besoin de ce produit, vérifiez votre stock.';
+      case 'task_assigned':
+        return 'Une nouvelle tâche vous a été assignée.';
       default:
         return '';
     }

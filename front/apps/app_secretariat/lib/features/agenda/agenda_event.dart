@@ -18,10 +18,22 @@ class AgendaLoadRequested extends AgendaEvent {
 
 class AgendaAppointmentCreateRequested extends AgendaEvent {
   final CabinetAppointment appointment;
-  const AgendaAppointmentCreateRequested({required this.appointment});
+
+  /// Titre de la « tâche pour l'assistante » (#7210) optionnellement posée
+  /// depuis ce formulaire — `null` si la case n'a pas été cochée.
+  /// `POST /v1/appointments/:id/tasks` une fois le RDV créé.
+  final String? assistantTaskTitle;
+  final String? assistantTaskAssigneeUserId;
+
+  const AgendaAppointmentCreateRequested({
+    required this.appointment,
+    this.assistantTaskTitle,
+    this.assistantTaskAssigneeUserId,
+  });
 
   @override
-  List<Object?> get props => [appointment];
+  List<Object?> get props =>
+      [appointment, assistantTaskTitle, assistantTaskAssigneeUserId];
 }
 
 class AgendaAppointmentConfirmRequested extends AgendaEvent {
