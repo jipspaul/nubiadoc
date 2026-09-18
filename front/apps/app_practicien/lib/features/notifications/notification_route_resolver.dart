@@ -21,6 +21,8 @@ class NotificationRouteResolver {
         return AppRouter.labWorkOrders;
       case 'message_received':
         return AppRouter.messages;
+      case 'task_assigned':
+        return AppRouter.tasks;
       default:
         return null;
     }

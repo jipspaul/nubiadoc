@@ -15,6 +15,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
   final RescheduleAppointmentUseCase _rescheduleAppointment;
   final ListBookableSlotsUseCase _listSlots;
   final ListCabinetPractitionersUseCase _listPractitioners;
+  final CreateAppointmentTaskUseCase _createAppointmentTask;
 
   DateTime? _currentWeekStart;
 
@@ -27,6 +28,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     required RescheduleAppointmentUseCase rescheduleAppointment,
     required ListBookableSlotsUseCase listSlots,
     required ListCabinetPractitionersUseCase listPractitioners,
+    required CreateAppointmentTaskUseCase createAppointmentTask,
   })  : _getAgenda = getAgenda,
         _createAppointment = createAppointment,
         _confirmAppointment = confirmAppointment,
@@ -35,6 +37,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
         _rescheduleAppointment = rescheduleAppointment,
         _listSlots = listSlots,
         _listPractitioners = listPractitioners,
+        _createAppointmentTask = createAppointmentTask,
         super(const AgendaInitial()) {
     on<AgendaLoadRequested>(_onLoad);
     on<AgendaAppointmentCreateRequested>(_onCreate);
@@ -94,12 +97,23 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     emit(current.copyWith(actionInProgress: true, clearActionError: true));
     try {
       final result = await _createAppointment(event.appointment);
-      result.fold(
-        (failure) => safeEmit(current.copyWith(
+      await result.fold(
+        (failure) async => safeEmit(current.copyWith(
           actionInProgress: false,
           actionError: failure.message,
         )),
-        (_) {
+        (created) async {
+          // #7210 : « tâche pour l'assistante » optionnelle posée depuis ce
+          // formulaire — best-effort, ne bloque pas le rafraîchissement de
+          // l'agenda si elle échoue (le RDV, lui, est bien créé).
+          final taskTitle = event.assistantTaskTitle?.trim();
+          if (taskTitle != null && taskTitle.isNotEmpty) {
+            await _createAppointmentTask(
+              appointmentId: created.id,
+              title: taskTitle,
+              assigneeUserId: event.assistantTaskAssigneeUserId,
+            );
+          }
           if (_currentWeekStart != null) {
             add(AgendaLoadRequested(weekStart: _currentWeekStart!));
           }

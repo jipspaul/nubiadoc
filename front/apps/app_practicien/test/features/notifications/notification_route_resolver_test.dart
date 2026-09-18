@@ -33,6 +33,13 @@ void main() {
       );
     });
 
+    test('task_assigned -> tasks', () {
+      expect(
+        NotificationRouteResolver.resolve(kind: 'task_assigned'),
+        AppRouter.tasks,
+      );
+    });
+
     test('kind inconnu -> null (pas de navigation, pas de crash)', () {
       expect(
         NotificationRouteResolver.resolve(kind: 'stock_request_received'),

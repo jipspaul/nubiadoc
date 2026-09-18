@@ -23,6 +23,7 @@ import '../remote/orthodontics/orthodontics_api.dart';
 import '../remote/sterilization/sterilization_api.dart';
 import '../remote/stock_items/stock_items_api.dart';
 import '../remote/lab_work_orders/lab_work_orders_api.dart';
+import '../remote/cabinet_tasks/cabinet_tasks_api.dart';
 import '../remote/dental_chart/dental_chart_api.dart';
 import '../remote/periodontal_chart/periodontal_chart_api.dart';
 import '../remote/cabinet_medical_questionnaire/cabinet_medical_questionnaire_api.dart';
@@ -79,6 +80,7 @@ import '../repositories/orthodontics_repository_impl.dart';
 import '../repositories/sterilization_repository_impl.dart';
 import '../repositories/stock_items_repository_impl.dart';
 import '../repositories/lab_work_orders_repository_impl.dart';
+import '../repositories/cabinet_tasks_repository_impl.dart';
 import '../repositories/dental_chart_repository_impl.dart';
 import '../repositories/periodontal_chart_repository_impl.dart';
 import '../repositories/cabinet_medical_questionnaire_repository_impl.dart';
@@ -562,6 +564,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<LabWorkOrdersApi>(
       () => LabWorkOrdersApi(gi()),
     )
+    ..registerLazySingleton<CabinetTasksApi>(
+      () => CabinetTasksApi(gi()),
+    )
     ..registerLazySingleton<DentalChartApi>(
       () => DentalChartApi(gi()),
     )
@@ -652,6 +657,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<LabWorkOrdersRepository>(
       () => LabWorkOrdersRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<CabinetTasksRepository>(
+      () => CabinetTasksRepositoryImpl(gi()),
     )
     ..registerLazySingleton<DentalChartRepository>(
       () => DentalChartRepositoryImpl(gi()),
@@ -748,6 +756,10 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => AddStockMovementUseCase(gi()))
     ..registerFactory(() => ListLabWorkOrdersUseCase(gi()))
     ..registerFactory(() => UpdateLabWorkOrderStatusUseCase(gi()))
+    ..registerFactory(() => ListCabinetTasksUseCase(gi()))
+    ..registerFactory(() => CreateCabinetTaskUseCase(gi()))
+    ..registerFactory(() => CreateAppointmentTaskUseCase(gi()))
+    ..registerFactory(() => CompleteCabinetTaskUseCase(gi()))
     ..registerFactory(() => GetDentalChartUseCase(gi()))
     ..registerFactory(() => PutDentalChartUseCase(gi()))
     ..registerFactory(() => GetPeriodontalChartUseCase(gi()))

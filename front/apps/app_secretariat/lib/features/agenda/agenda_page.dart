@@ -225,7 +225,8 @@ class _LoadedViewState extends State<_LoadedView> {
   /// même filtre praticien que la grille (pas par la recherche patient, qui
   /// ne s'applique pas à un créneau libre).
   List<Slot> get _filteredFreeSlots {
-    final slots = bookableSlots(widget.state.availableSlots, widget.state.entries);
+    final slots =
+        bookableSlots(widget.state.availableSlots, widget.state.entries);
     if (_practitionerFilter.isEmpty) return slots;
     return slots
         .where((s) => _practitionerFilter.contains(s.practitionerId))
@@ -534,9 +535,14 @@ class _LoadedViewState extends State<_LoadedView> {
         availableSlots: availableSlots,
         initialSlot: initialSlot,
         practitioners: practitioners,
-        onConfirm: (appointment) => context.read<AgendaBloc>().add(
-              AgendaAppointmentCreateRequested(appointment: appointment),
-            ),
+        onConfirm: (appointment, {taskTitle, taskAssigneeUserId}) =>
+            context.read<AgendaBloc>().add(
+                  AgendaAppointmentCreateRequested(
+                    appointment: appointment,
+                    assistantTaskTitle: taskTitle,
+                    assistantTaskAssigneeUserId: taskAssigneeUserId,
+                  ),
+                ),
       ),
     );
   }
@@ -821,7 +827,14 @@ class _NewAppointmentDialog extends StatefulWidget {
 
   final List<Slot> availableSlots;
   final Map<String, String> practitioners;
-  final void Function(CabinetAppointment) onConfirm;
+
+  /// [taskTitle]/[taskAssigneeUserId] portent la « tâche pour l'assistante »
+  /// optionnelle (#7210) posée depuis ce formulaire.
+  final void Function(
+    CabinetAppointment appointment, {
+    String? taskTitle,
+    String? taskAssigneeUserId,
+  }) onConfirm;
 
   /// Créneau pré-sélectionné (#5077 : clic sur une pastille de créneau
   /// libre de la grille) — le dialogue s'ouvre alors directement sur le
@@ -846,6 +859,15 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   List<CabinetPatient> _patients = const [];
   bool _loadingPatients = true;
   String? _patientsError;
+
+  // #7210 : « tâche pour l'assistante » optionnelle posée depuis ce
+  // formulaire — repliée par défaut, ne charge le roster du cabinet que si
+  // la case est cochée.
+  bool _addAssistantTask = false;
+  final _taskTitleCtrl = TextEditingController();
+  Member? _taskAssignee;
+  List<Member> _members = const [];
+  bool _loadingMembers = false;
 
   @override
   void initState() {
@@ -877,10 +899,24 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
     );
   }
 
+  Future<void> _loadMembers() async {
+    setState(() => _loadingMembers = true);
+    final result = await GetIt.instance<ListMembersUseCase>()();
+    if (!mounted) return;
+    result.fold(
+      (_) => setState(() => _loadingMembers = false),
+      (members) => setState(() {
+        _members = members;
+        _loadingMembers = false;
+      }),
+    );
+  }
+
   @override
   void dispose() {
     _motifCtrl.dispose();
     _patientSearchCtrl.dispose();
+    _taskTitleCtrl.dispose();
     super.dispose();
   }
 
@@ -994,8 +1030,10 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   @override
   Widget build(BuildContext context) {
     final hasSlots = widget.availableSlots.isNotEmpty;
-    final canCreate =
-        hasSlots && _selectedSlot != null && _selectedPatient != null;
+    final canCreate = hasSlots &&
+        _selectedSlot != null &&
+        _selectedPatient != null &&
+        (!_addAssistantTask || _taskTitleCtrl.text.trim().isNotEmpty);
 
     return AlertDialog(
       title: const Text('Nouveau rendez-vous'),
@@ -1047,6 +1085,58 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
                 decoration:
                     const InputDecoration(labelText: 'Motif (optionnel)'),
               ),
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                key: const Key('assistant_task_toggle'),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('Ajouter une tâche pour l\'assistante'),
+                value: _addAssistantTask,
+                onChanged: (checked) {
+                  setState(() => _addAssistantTask = checked ?? false);
+                  if (_addAssistantTask && _members.isEmpty) _loadMembers();
+                },
+              ),
+              if (_addAssistantTask) ...[
+                TextField(
+                  key: const Key('assistant_task_title_field'),
+                  controller: _taskTitleCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Tâche à réaliser *'),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 12),
+                if (_loadingMembers)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: LinearProgressIndicator(
+                      key: Key('assistant_task_members_loading'),
+                    ),
+                  )
+                else
+                  InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Assigné à'),
+                    child: DropdownButton<Member?>(
+                      key: const Key('assistant_task_assignee_dropdown'),
+                      isExpanded: true,
+                      underline: const SizedBox.shrink(),
+                      value: _taskAssignee,
+                      hint: const Text('Personne (optionnel)'),
+                      items: [
+                        const DropdownMenuItem<Member?>(
+                          value: null,
+                          child: Text('Personne (optionnel)'),
+                        ),
+                        for (final member in _members)
+                          DropdownMenuItem<Member?>(
+                            value: member,
+                            child: Text(member.fullName),
+                          ),
+                      ],
+                      onChanged: (m) => setState(() => _taskAssignee = m),
+                    ),
+                  ),
+              ],
             ],
           ],
         ),
@@ -1081,6 +1171,10 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
                         // slot_id : champ obligatoire du contrat back.
                         slotId: slot.id,
                       ),
+                      taskTitle:
+                          _addAssistantTask ? _taskTitleCtrl.text.trim() : null,
+                      taskAssigneeUserId:
+                          _addAssistantTask ? _taskAssignee?.id : null,
                     );
                     Navigator.of(context).pop();
                   }
@@ -1969,8 +2063,9 @@ class _AgendaWeekGrid extends StatelessWidget {
       .where((e) => !e.isFree && !e.isCancelled && _isSameDay(e.startsAt, day))
       .toList(growable: false);
 
-  List<Slot> _slotsFor(DateTime day) =>
-      freeSlots.where((s) => _isSameDay(s.startsAt, day)).toList(growable: false);
+  List<Slot> _slotsFor(DateTime day) => freeSlots
+      .where((s) => _isSameDay(s.startsAt, day))
+      .toList(growable: false);
 
   /// Jour courant (maquette design-v2, `.dh.now`/`.dcol.now` — #6417) :
   /// comparé en date locale, indépendamment de l'heure.
@@ -2356,8 +2451,7 @@ class _LaidOutLaneItem {
 /// dans chaque groupe pour un couloir stable par praticien.
 List<_LaidOutLaneItem> _layoutLanes(List<_LaneItem> items) {
   if (items.isEmpty) return const [];
-  final sorted = [...items]
-    ..sort((a, b) {
+  final sorted = [...items]..sort((a, b) {
       final byTop = a.top.compareTo(b.top);
       return byTop != 0 ? byTop : a.order.compareTo(b.order);
     });
@@ -2381,8 +2475,7 @@ List<_LaidOutLaneItem> _layoutLanes(List<_LaneItem> items) {
 }
 
 List<_LaidOutLaneItem> _assignLanes(List<_LaneItem> cluster) {
-  final ordered = [...cluster]
-    ..sort((a, b) {
+  final ordered = [...cluster]..sort((a, b) {
       final byRank = a.rank.compareTo(b.rank);
       return byRank != 0 ? byRank : a.order.compareTo(b.order);
     });

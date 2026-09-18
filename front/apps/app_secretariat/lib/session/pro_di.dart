@@ -25,6 +25,7 @@ import '../features/devis/devis_bloc.dart';
 import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/stock/stock_bloc.dart';
+import '../features/tasks/tasks_bloc.dart';
 import '../features/waiting_list/waiting_list_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 
@@ -57,6 +58,7 @@ void registerPro(GetIt gi) {
         rescheduleAppointment: gi<RescheduleAppointmentUseCase>(),
         listSlots: gi<ListBookableSlotsUseCase>(),
         listPractitioners: gi<ListCabinetPractitionersUseCase>(),
+        createAppointmentTask: gi<CreateAppointmentTaskUseCase>(),
       ),
     )
     ..registerFactory<PatientsBloc>(
@@ -188,6 +190,13 @@ void registerPro(GetIt gi) {
       () => NotificationPrefsCubit(
         get: gi<GetProNotificationPreferencesUseCase>(),
         update: gi<UpdateProNotificationPreferencesUseCase>(),
+      ),
+    )
+    ..registerFactory<TasksBloc>(
+      () => TasksBloc(
+        listTasks: gi<ListCabinetTasksUseCase>(),
+        createTask: gi<CreateCabinetTaskUseCase>(),
+        completeTask: gi<CompleteCabinetTaskUseCase>(),
       ),
     );
 }

@@ -23,6 +23,9 @@ import 'package:app_practicien/features/dashboard/today_notes_bloc.dart';
 import 'package:app_practicien/features/dashboard/today_notes_card.dart';
 import 'package:app_practicien/features/dashboard/today_schedule_card.dart';
 import 'package:app_practicien/features/dashboard/week_summary_card.dart';
+import 'package:app_practicien/features/tasks/tasks_bloc.dart';
+import 'package:app_practicien/features/tasks/tasks_event.dart';
+import 'package:app_practicien/features/tasks/tasks_state.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -45,6 +48,9 @@ class MockDashboardBloc extends MockBloc<DashboardEvent, DashboardState>
 
 class MockOpportunitiesCubit extends MockCubit<OpportunitiesState>
     implements OpportunitiesCubit {}
+
+class MockTasksBloc extends MockBloc<TasksEvent, TasksState>
+    implements TasksBloc {}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -219,8 +225,7 @@ void main() {
           when(() => mockUc())
               .thenAnswer((_) async => Right(_nextPatientSummary));
           when(() => mockStart('appt-1')).thenAnswer(
-            (_) async =>
-                const Left(ServerFailure(message: 'RDV déjà démarré')),
+            (_) async => const Left(ServerFailure(message: 'RDV déjà démarré')),
           );
           return _makeBloc(mockUc, startConsultation: mockStart);
         },
@@ -245,8 +250,7 @@ void main() {
           _nextPatientSummary,
           startedConsultationId: 'sess-1',
         ),
-        act: (bloc) =>
-            bloc.add(const DashboardStartedConsultationConsumed()),
+        act: (bloc) => bloc.add(const DashboardStartedConsultationConsumed()),
         expect: () => [
           DashboardLoaded(_nextPatientSummary),
         ],
@@ -687,13 +691,11 @@ void main() {
       await tester.pumpWidget(wrapCard(summary));
 
       expect(find.text('3 RDV · 1 restants'), findsOneWidget);
-      expect(
-          find.byKey(const Key('today_schedule_row_confirmed')),
+      expect(find.byKey(const Key('today_schedule_row_confirmed')),
           findsOneWidget);
       expect(
           find.byKey(const Key('today_schedule_row_cancelled')), findsNothing);
-      expect(
-          find.byKey(const Key('today_schedule_row_no-show')), findsNothing);
+      expect(find.byKey(const Key('today_schedule_row_no-show')), findsNothing);
     });
 
     testWidgets('affiche un état vide DS quand aucun RDV aujourd\'hui',
@@ -967,14 +969,18 @@ void main() {
       when(() => opportunitiesCubit.load()).thenAnswer((_) async {});
       GetIt.instance
           .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
+      // DashboardBody rend aussi TasksCard (#7210) via son propre bloc
+      // résolu par GetIt.
+      final tasksBloc = MockTasksBloc();
+      when(() => tasksBloc.state).thenReturn(const TasksLoaded(tasks: []));
+      GetIt.instance.registerFactory<TasksBloc>(() => tasksBloc);
       addTearDown(GetIt.instance.reset);
     });
 
     testWidgets(
         'ouvre la séance réellement démarrée au fauteuil, au lieu de la '
         'liste historique des consultations', (tester) async {
-      when(() => mockUc())
-          .thenAnswer((_) async => Right(_nextPatientSummary));
+      when(() => mockUc()).thenAnswer((_) async => Right(_nextPatientSummary));
       when(() => mockStart('appt-1'))
           .thenAnswer((_) async => const Right(_session));
 
@@ -1028,6 +1034,11 @@ void main() {
       final notesBloc = MockTodayNotesBloc();
       when(() => notesBloc.state).thenReturn(const TodayNotesLoaded([]));
       GetIt.instance.registerFactory<TodayNotesBloc>(() => notesBloc);
+      // DashboardBody rend aussi TasksCard (#7210) via son propre bloc
+      // résolu par GetIt.
+      final tasksBloc = MockTasksBloc();
+      when(() => tasksBloc.state).thenReturn(const TasksLoaded(tasks: []));
+      GetIt.instance.registerFactory<TasksBloc>(() => tasksBloc);
       addTearDown(GetIt.instance.reset);
     });
 
@@ -1055,6 +1066,12 @@ void main() {
     testWidgets(
       'devis/facture impayée → volet devis filtré sur le patient',
       (tester) async {
+        // TasksCard (#7210) allonge la colonne droite : agrandit la surface
+        // pour garder la ligne opportunité tapable (visible sans scroll).
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
         final opportunitiesCubit = MockOpportunitiesCubit();
         when(() => opportunitiesCubit.state).thenReturn(
           const OpportunitiesLoaded(categories: [
@@ -1078,11 +1095,13 @@ void main() {
             .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
 
         await tester.pumpWidget(
-          MaterialApp.router(theme: NubiaTheme.light, routerConfig: makeRouter()),
+          MaterialApp.router(
+              theme: NubiaTheme.light, routerConfig: makeRouter()),
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byKey(const Key('opportunity_row_unpaid_invoice')));
+        await tester
+            .tap(find.byKey(const Key('opportunity_row_unpaid_invoice')));
         await tester.pumpAndSettle();
 
         expect(find.text('devis patientId=pat-42'), findsOneWidget);
@@ -1092,6 +1111,12 @@ void main() {
     testWidgets(
       'anniversaire du jour → fiche patient',
       (tester) async {
+        // TasksCard (#7210) allonge la colonne droite : agrandit la surface
+        // pour garder la ligne opportunité tapable (visible sans scroll).
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
         final opportunitiesCubit = MockOpportunitiesCubit();
         when(() => opportunitiesCubit.state).thenReturn(
           const OpportunitiesLoaded(categories: [
@@ -1110,11 +1135,13 @@ void main() {
             .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
 
         await tester.pumpWidget(
-          MaterialApp.router(theme: NubiaTheme.light, routerConfig: makeRouter()),
+          MaterialApp.router(
+              theme: NubiaTheme.light, routerConfig: makeRouter()),
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byKey(const Key('opportunity_row_birthday_today')));
+        await tester
+            .tap(find.byKey(const Key('opportunity_row_birthday_today')));
         await tester.pumpAndSettle();
 
         expect(find.text('patient id=pat-7'), findsOneWidget);

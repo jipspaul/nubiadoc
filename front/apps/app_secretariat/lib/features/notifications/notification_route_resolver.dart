@@ -22,6 +22,8 @@ class NotificationRouteResolver {
         return AppRouter.messages;
       case 'quote_signed':
         return AppRouter.devis;
+      case 'task_assigned':
+        return AppRouter.tasks;
       default:
         return null;
     }
