@@ -423,9 +423,12 @@ La bascule en **marketplace santé** ajoute une face publique de découverte. Im
   n'est exposée sur ces pages (annuaire public déjà couvert par ADR-011).
 - **Conséquences** : deux moteurs de rendu HTML à maintenir en parallèle (Flutter côté app, templates Rust
   côté tunnel) pour une même charte graphique — surface volontairement restreinte à 3 pages vitrines pour
-  limiter cette dette. Le formulaire d'identité et le compte à rebours du hold (page confirmation)
-  nécessitent du JS une fois la page chargée ; le HTML initial (titre, contexte, contrat) reste indexable
-  sans JS.
+  limiter cette dette. La page de confirmation est un formulaire HTML classique (`GET` récapitulatif
+  praticien/créneau + formulaire, `POST` création du compte, hold et réservation via les mêmes fonctions que
+  `POST /v1/auth/register`, `POST /v1/slots/:id/hold`, `POST /v1/bookings`) — aucun JS, aucun compte à
+  rebours : un hold n'existe qu'au nom d'un compte (`slot_holds.user_id`), il est donc posé et consommé au
+  `POST`, et la page ne prétend jamais qu'un créneau est « retenu » avant (#6954/#6826/#6733). Sans
+  sélection → 404 ; créneau perdu → 410 avec retour vers la fiche du praticien.
 - **Statut** : Accepté. Implémentation : issue Forgejo #5356.
 
 > Détail des entités et politiques RLS : `05-modele-de-donnees.md` (dont section marketplace). Règles métier par écran : `06-specs-fonctionnelles.md`. Scope marketplace : `11-marketplace-recherche.md`. Checklist réglementaire : `07-conformite.md`. Détail des routes interop : `12-api-reference.md` §13.
