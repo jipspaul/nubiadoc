@@ -82,6 +82,7 @@ mod cabinet_quotes_export;
 mod cabinet_quotes_patch;
 mod cabinet_secretariats;
 mod cabinet_stats;
+mod cabinet_tasks;
 mod cabinet_team_messages;
 mod ccam_acts;
 mod ccam_stock_mappings;
@@ -611,6 +612,7 @@ fn build_router(
     let router = routes::nurse_routes::add(router);
     let router = routes::secretariats::add(router);
     let router = routes::webhooks_interop::add(router);
+    let router = routes::cabinet_tasks::add(router);
     // Route de service du `StorageSigner` self-hébergé (#6425) — sert les
     // objets `ObjectStorage` via les URL générées par `LocalStorageSigner`.
     // Toujours montée (coût nul si `ScalewayStorageSigner` est le signer
