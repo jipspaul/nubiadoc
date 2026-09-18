@@ -27,11 +27,19 @@ puis re-vérifiés à la main se sont révélés fonctionnels**. Les cinq piège
    Le même bloc remonté par molette à `y=448` répond normalement. **Toujours vérifier que la zone
    cliquée appartient bien au conteneur de l'élément**, pas seulement qu'elle est dans le viewport.
 
+7. **Effet purement local + micro-repeinture** (ronde R79, `/rdv/:id/prepare`) : une case à cocher
+   qui n'écrit que dans les préférences locales n'émet **aucune requête**, et son icône de 24 px
+   change trop peu de pixels pour franchir le seuil de `pixdiff`. Vérification fiable : recadrer
+   la zone du contrôle seul et comparer, puis **recharger la page** pour confirmer la persistance.
+
 **Règle** : ne jamais ouvrir d'issue « bouton mort » sans re-clic ciblé isolé + preuve
 (navigation, requête réseau, ou capture avant/après).
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
 |---|---|---|---|---|---|---|---|
+| patient | /rdv/:id/prepare (390) | 2 | 2 | 2 | 0 — « Carte Vitale » **prouvée fonctionnelle** (bascule de case + persistance au rechargement, effet purement local : `prepare_rdv_page.dart:100-109`) | 0 | 2026-09-18T08:50:00+00:00 |
+| patient | /rdv/:id/modifier (Reprogrammation, 390) | 50 | 50 | 50 | 0 | 0 | 2026-09-18T08:50:00+00:00 |
+| patient | /oubliettes (390) | 2 | 1 | 1 | 0 (conteneur `group`) | 0 | 2026-09-18T08:50:00+00:00 |
 | praticien | /stock-inventory (1280) | 28 | 27 | 27 | 0 | 0 | 2026-09-18T08:40:00+00:00 |
 | praticien | /team-messages (1280) | 19 | 17 | 16 | 0 (auto-nav + groupe non tappable) | 0 | 2026-09-18T08:40:00+00:00 |
 | praticien | /notification-preferences (1280) | 17 | 16 | 13 | 0 (3 conteneurs `group` autour des interrupteurs) | 0 | 2026-09-18T08:40:00+00:00 |
