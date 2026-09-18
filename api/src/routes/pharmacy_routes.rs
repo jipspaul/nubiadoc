@@ -49,6 +49,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
                 .post(pharmacy::stock::create_stock_request),
         )
         .route(
+            "/v1/cabinet/stock-requests/:id",
+            get(pharmacy::stock::get_cabinet_stock_request),
+        )
+        .route(
             "/v1/cabinet/stock-requests/:id/cancel",
             axum::routing::post(pharmacy::stock::cancel_stock_request),
         )
