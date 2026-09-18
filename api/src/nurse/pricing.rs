@@ -81,6 +81,11 @@ pub async fn estimate_visit_price(
     {
         return Err(AppError::ValidationError);
     }
+    // #7299 : endpoint jumeau de create_visit_request (#7228) — mêmes bornes
+    // géographiques, sinon lat=999/lng=181 passent ici en 200.
+    if !(-90.0..=90.0).contains(&body.lat) || !(-180.0..=180.0).contains(&body.lng) {
+        return Err(AppError::ValidationError);
+    }
     Ok(Json(EstimateVisitResponse {
         estimated_price_cents: estimate_price_cents(&body.requested_acts),
     }))
