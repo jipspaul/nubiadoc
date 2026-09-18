@@ -718,8 +718,8 @@ async fn resolve_context(
     }
     if let Some(name) = &prac_name {
         header.push(match &prac_rpps {
-            Some(rpps) => format!("Dr {name} — RPPS {rpps}"),
-            None => format!("Dr {name}"),
+            Some(rpps) => format!("{name} — RPPS {rpps}"),
+            None => name.clone(),
         });
     }
     header.push(format!("Le {today}"));
