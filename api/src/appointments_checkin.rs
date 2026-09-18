@@ -236,9 +236,14 @@ pub async fn checkin_appointment(
 /// RLS scopé via `app.current_cabinet_id` : 404 si le RDV n'appartient pas au
 /// cabinet. R10 : secrétaire scopée au secrétariat actif — même garde que
 /// `confirm_appointment`/`no_show_appointment`.
-/// Statut source attendu : `confirmed` → sinon `409 invalid_status` (pas de
-/// fenêtre horaire ±60 min ici, contrairement au check-in patient : le
-/// secrétariat constate une présence physique, pas une déclaration à distance).
+/// Statut source attendu : `confirmed` → sinon `409 invalid_status`. Fenêtre
+/// glissante `starts_at` DANS `now() ± 1 jour` → sinon `409 too_early`/
+/// `409 out_of_window` (#7248) : c'est la même fenêtre que celle utilisée par
+/// les trois vues de la file (`get_waiting_room`, `call_next_patient`, la
+/// queue patient) — sans cette garde, le secrétariat pouvait check-in un RDV
+/// de la semaine prochaine, qui passait `checked_in` sans jamais apparaître
+/// dans aucune de ces vues (bornées à ±1 jour) : un état sans sortie, sinon
+/// l'annulation patient qui l'aurait alors compté en no-show à tort.
 /// Auditée (`checkin_appointment`) dans `audit_log`, avec le rôle réel de
 /// l'acteur (secretary/practitioner/admin).
 pub async fn cabinet_checkin_appointment(
@@ -263,7 +268,7 @@ pub async fn cabinet_checkin_appointment(
     };
 
     let row = sqlx::query(
-        "SELECT id, status, practitioner_id FROM appointment a \
+        "SELECT id, status, starts_at, practitioner_id FROM appointment a \
          WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
            AND ($3::uuid IS NULL OR EXISTS ( \
                SELECT 1 FROM provider pr \
@@ -283,12 +288,25 @@ pub async fn cabinet_checkin_appointment(
 
     let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let starts_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("starts_at").map_err(|_| AppError::Internal)?;
     let practitioner_id: Uuid = row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
 
     if status != "confirmed" {
         return Err(AppError::InvalidStatus);
+    }
+
+    // Même fenêtre glissante que get_waiting_room/call_next_patient/la queue
+    // patient (now() ± 1 jour, cf. #4869) : un check-in hors fenêtre produirait
+    // un RDV `checked_in` invisible des trois vues de la file (#7248).
+    let now = chrono::Utc::now();
+    if now < starts_at - chrono::Duration::days(1) {
+        return Err(AppError::TooEarly);
+    }
+    if now > starts_at + chrono::Duration::days(1) {
+        return Err(AppError::OutOfWindow);
     }
 
     let updated = sqlx::query(
