@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/lab_work_orders/lab_work_orders_api.dart';
 import 'package:nubia_domain/src/entities/lab_work_order.dart';
+import 'package:nubia_domain/src/entities/today_lab_work_order.dart';
 import 'package:nubia_domain/src/repositories/lab_work_orders_repository.dart';
 
 class LabWorkOrdersRepositoryImpl implements LabWorkOrdersRepository {
@@ -21,6 +22,24 @@ class LabWorkOrdersRepositoryImpl implements LabWorkOrdersRepository {
       }
       return Left(ServerFailure(
         message: 'Impossible de charger les bons de travaux.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<TodayLabWorkOrder>>> todayOrders() async {
+    try {
+      final dtos = await _api.today();
+      return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de charger les prothèses du jour.',
         statusCode: e.response?.statusCode,
       ));
     } catch (e) {

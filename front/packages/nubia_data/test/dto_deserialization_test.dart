@@ -13,8 +13,56 @@ import 'package:nubia_data/src/remote/messaging/messaging_dto.dart';
 import 'package:nubia_data/src/remote/documents/document_dto.dart';
 import 'package:nubia_data/src/remote/billing/billing_dto.dart';
 import 'package:nubia_data/src/remote/lab_work_orders/lab_work_order_dto.dart';
+import 'package:nubia_data/src/remote/lab_work_orders/today_lab_work_order_dto.dart';
 
 void main() {
+  group('TodayLabWorkOrderDto (GET /v1/cabinet/lab-work-orders/today response)',
+      () {
+    // #7208 : tooth_fdi/work_nature/shipped_at/received_at sont omis du JSON
+    // (pas `null`) quand ils ne sont pas renseignés côté API — même piège que
+    // #6174 sur LabWorkOrderDto.
+    test('fromJson n\'échoue pas quand les champs optionnels sont absents',
+        () {
+      final dto = TodayLabWorkOrderDto.fromJson({
+        'id': 'lwo-1',
+        'patient_id': 'patient-1',
+        'patient_display_name': 'Julie Martin',
+        'appointment_id': 'appt-1',
+        'appointment_starts_at': '2026-01-01T09:00:00Z',
+        'lab_name': 'Labo Dentaire Alpha',
+        'status': 'sent',
+      });
+
+      expect(dto.id, 'lwo-1');
+      expect(dto.toothFdi, isNull);
+      expect(dto.workNature, isNull);
+      expect(dto.shippedAt, isNull);
+      expect(dto.receivedAt, isNull);
+    });
+
+    test('toDomain reporte tous les champs', () {
+      final dto = TodayLabWorkOrderDto.fromJson({
+        'id': 'lwo-2',
+        'patient_id': 'patient-2',
+        'patient_display_name': 'Ahmed Belkacem',
+        'appointment_id': 'appt-2',
+        'appointment_starts_at': '2026-01-02T09:00:00Z',
+        'tooth_fdi': '26',
+        'work_nature': 'Couronne céramo-métallique',
+        'lab_name': 'Labo Dentaire Beta',
+        'status': 'shipped',
+        'shipped_at': '2026-01-01T09:00:00Z',
+      });
+      final domain = dto.toDomain();
+
+      expect(domain.id, 'lwo-2');
+      expect(domain.toothFdi, '26');
+      expect(domain.status, 'shipped');
+      expect(domain.shippedAt, '2026-01-01T09:00:00Z');
+      expect(domain.receivedAt, isNull);
+    });
+  });
+
   group('LabWorkOrderDto (GET /v1/cabinet/lab-work-orders response)', () {
     // #6174 : `tooth_fdi`/`work_nature` sont omis du JSON (pas `null`) par
     // `#[serde(skip_serializing_if = "Option::is_none")]` côté API quand le

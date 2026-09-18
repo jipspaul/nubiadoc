@@ -355,6 +355,102 @@ void main() {
     });
   });
 
+  group('LabWorkOrdersPage — chips de statut d\'expédition (#7207)', () {
+    testWidgets(
+        'un bon "sent" affiche les chips des autres statuts d\'expédition, '
+        'pas le statut courant (déjà affiché par le StatusPill)',
+        (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state).thenReturn(const LabWorkOrdersLoaded([_sentOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.byKey(const Key('lab_work_order_expedition_chips_order-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_status_chip_order-1_in_progress')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_status_chip_order-1_shipped')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_status_chip_order-1_received')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_status_chip_order-1_sent')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'taper une chip envoie LabWorkOrdersStatusChangeRequested avec le '
+        'statut choisi', (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state).thenReturn(const LabWorkOrdersLoaded([_sentOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      await tester.tap(
+        find.byKey(const Key('lab_work_order_status_chip_order-1_shipped')),
+      );
+      await tester.pump();
+
+      // `LabWorkOrdersStatusChangeRequested` n'a pas d'égalité structurelle
+      // (pas d'Equatable) — comparaison champ à champ via `isA<T>().having`,
+      // même contournement que `verifyNever(... isA<...>())` plus bas dans ce
+      // fichier.
+      verify(() => bloc.add(any(
+            that: isA<LabWorkOrdersStatusChangeRequested>()
+                .having((e) => e.orderId, 'orderId', 'order-1')
+                .having((e) => e.status, 'status', 'shipped'),
+          ))).called(1);
+    });
+
+    testWidgets(
+        'un bon "fitted" (fin de progression) n\'affiche pas de chips '
+        'd\'expédition', (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(const LabWorkOrdersLoaded([_fittedOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.byKey(const Key('lab_work_order_expedition_chips_order-2')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'un bon "shipped" affiche les chips mais pas le bouton "Avancer" '
+        '(hors de portée de _kStatusOrder)', (tester) async {
+      await _setSurface(tester);
+      final shippedOrder = _sentOrder.copyWith(status: 'shipped');
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(LabWorkOrdersLoaded([shippedOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.byKey(const Key('lab_work_order_expedition_chips_order-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_status_chip_order-1_shipped')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_advance_order-1')),
+        findsNothing,
+      );
+    });
+  });
+
   group('LabWorkOrdersBloc (via LabWorkOrdersPage, vrai Bloc)', () {
     testWidgets('changer le statut d\'un bon met à jour le badge affiché',
         (tester) async {

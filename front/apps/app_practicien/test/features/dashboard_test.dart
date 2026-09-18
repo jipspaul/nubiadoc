@@ -19,6 +19,8 @@ import 'package:app_practicien/features/dashboard/dashboard_page.dart';
 import 'package:app_practicien/features/dashboard/dashboard_state.dart';
 import 'package:app_practicien/features/dashboard/next_patient_hero.dart';
 import 'package:app_practicien/features/dashboard/pending_actions_card.dart';
+import 'package:app_practicien/features/dashboard/prostheses_today_bloc.dart';
+import 'package:app_practicien/features/dashboard/prostheses_today_card.dart';
 import 'package:app_practicien/features/dashboard/today_notes_bloc.dart';
 import 'package:app_practicien/features/dashboard/today_notes_card.dart';
 import 'package:app_practicien/features/dashboard/today_schedule_card.dart';
@@ -39,6 +41,13 @@ class MockStartConsultationUseCase extends Mock
 
 class MockTodayNotesBloc extends MockBloc<TodayNotesEvent, TodayNotesState>
     implements TodayNotesBloc {}
+
+class MockProsthesesTodayBloc
+    extends MockBloc<ProsthesesTodayEvent, ProsthesesTodayState>
+    implements ProsthesesTodayBloc {}
+
+class MockListTodayLabWorkOrdersUseCase extends Mock
+    implements ListTodayLabWorkOrdersUseCase {}
 
 class MockAgendaBloc extends MockBloc<AgendaEvent, AgendaState>
     implements AgendaBloc {}
@@ -354,6 +363,164 @@ void main() {
       expect(find.byType(StatusPill), findsNWidgets(2));
       expect(find.byType(NubiaAvatar), findsNWidgets(2));
       expect(find.text('09:05'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // ProsthesesTodayBloc (#7207 — GET /v1/cabinet/lab-work-orders/today)
+  // ---------------------------------------------------------------------------
+
+  group('ProsthesesTodayBloc', () {
+    const order = TodayLabWorkOrder(
+      id: 'lwo-1',
+      patientId: 'pat-1',
+      patientDisplayName: 'Julie Martin',
+      appointmentId: 'appt-1',
+      appointmentStartsAt: '2026-01-01T09:00:00Z',
+      labName: 'Labo Dentaire Alpha',
+      status: 'sent',
+    );
+
+    blocTest<ProsthesesTodayBloc, ProsthesesTodayState>(
+      'ProsthesesTodayLoadRequested réussi émet Loading puis Loaded',
+      build: () {
+        final listToday = MockListTodayLabWorkOrdersUseCase();
+        when(() => listToday()).thenAnswer((_) async => const Right([order]));
+        return ProsthesesTodayBloc(listToday: listToday);
+      },
+      act: (bloc) => bloc.add(const ProsthesesTodayLoadRequested()),
+      expect: () => [
+        const ProsthesesTodayLoading(),
+        const ProsthesesTodayLoaded([order]),
+      ],
+    );
+
+    blocTest<ProsthesesTodayBloc, ProsthesesTodayState>(
+      'ProsthesesTodayLoadRequested en échec émet Loading puis Error',
+      build: () {
+        final listToday = MockListTodayLabWorkOrdersUseCase();
+        when(() => listToday()).thenAnswer(
+          (_) async => const Left(ServerFailure(message: 'Erreur réseau')),
+        );
+        return ProsthesesTodayBloc(listToday: listToday);
+      },
+      act: (bloc) => bloc.add(const ProsthesesTodayLoadRequested()),
+      expect: () => [
+        const ProsthesesTodayLoading(),
+        const ProsthesesTodayError('Erreur réseau'),
+      ],
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // ProsthesesTodayCard widget (#7207 — widget dashboard « prothèses du
+  // jour »)
+  // ---------------------------------------------------------------------------
+
+  group('ProsthesesTodayCard widget', () {
+    late MockProsthesesTodayBloc mockBloc;
+
+    setUp(() {
+      mockBloc = MockProsthesesTodayBloc();
+    });
+
+    Widget wrapProsthesesToday() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(
+            body: BlocProvider<ProsthesesTodayBloc>.value(
+              value: mockBloc,
+              child: const ProsthesesTodayCard(),
+            ),
+          ),
+        );
+
+    testWidgets('affiche un état vide DS quand aucune prothèse attendue',
+        (tester) async {
+      when(() => mockBloc.state).thenReturn(const ProsthesesTodayLoaded([]));
+      await tester.pumpWidget(wrapProsthesesToday());
+
+      expect(find.byKey(const Key('prostheses_today_card')), findsOneWidget);
+      expect(
+        find.byKey(const Key('prostheses_today_card_empty')),
+        findsOneWidget,
+      );
+      expect(find.byType(NubiaEmptyState), findsOneWidget);
+    });
+
+    testWidgets('affiche un squelette pendant le chargement', (tester) async {
+      when(() => mockBloc.state).thenReturn(const ProsthesesTodayInitial());
+      await tester.pumpWidget(wrapProsthesesToday());
+
+      expect(
+        find.byKey(const Key('prostheses_today_card_loading')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('affiche une erreur', (tester) async {
+      when(() => mockBloc.state)
+          .thenReturn(const ProsthesesTodayError('Erreur réseau'));
+      await tester.pumpWidget(wrapProsthesesToday());
+
+      expect(
+        find.byKey(const Key('prostheses_today_card_error')),
+        findsOneWidget,
+      );
+      expect(find.text('Erreur réseau'), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche patient, dent, labo et statut coloré pour chaque bon',
+        (tester) async {
+      const orders = [
+        TodayLabWorkOrder(
+          id: 'lwo-1',
+          patientId: 'pat-1',
+          patientDisplayName: 'Julie Martin',
+          appointmentId: 'appt-1',
+          appointmentStartsAt: '2026-01-01T09:00:00Z',
+          toothFdi: '26',
+          labName: 'Labo Dentaire Alpha',
+          status: 'sent',
+        ),
+        TodayLabWorkOrder(
+          id: 'lwo-2',
+          patientId: 'pat-2',
+          patientDisplayName: 'Ahmed Belkacem',
+          appointmentId: 'appt-2',
+          appointmentStartsAt: '2026-01-01T10:00:00Z',
+          labName: 'Labo Dentaire Beta',
+          status: 'received',
+        ),
+      ];
+      when(() => mockBloc.state).thenReturn(const ProsthesesTodayLoaded(orders));
+      await tester.pumpWidget(wrapProsthesesToday());
+
+      expect(find.byKey(const Key('prosthesis_today_lwo-1')), findsOneWidget);
+      expect(find.byKey(const Key('prosthesis_today_lwo-2')), findsOneWidget);
+      expect(find.text('Julie Martin'), findsOneWidget);
+      expect(find.text('Ahmed Belkacem'), findsOneWidget);
+      expect(find.text('Dent 26 · Labo Dentaire Alpha'), findsOneWidget);
+      expect(find.text('Labo Dentaire Beta'), findsOneWidget);
+      expect(find.byType(StatusPill), findsNWidgets(2));
+
+      final sentPill = tester.widget<StatusPill>(
+        find.descendant(
+          of: find.byKey(const Key('prosthesis_today_lwo-1')),
+          matching: find.byType(StatusPill),
+        ),
+      );
+      expect(sentPill.label, 'Envoyé au labo');
+      expect(sentPill.variant, StatusPillVariant.info);
+
+      final receivedPill = tester.widget<StatusPill>(
+        find.descendant(
+          of: find.byKey(const Key('prosthesis_today_lwo-2')),
+          matching: find.byType(StatusPill),
+        ),
+      );
+      expect(receivedPill.label, 'Reçu au cabinet');
+      expect(receivedPill.variant, StatusPillVariant.progress);
     });
   });
 
@@ -961,6 +1128,13 @@ void main() {
       final notesBloc = MockTodayNotesBloc();
       when(() => notesBloc.state).thenReturn(const TodayNotesLoaded([]));
       GetIt.instance.registerFactory<TodayNotesBloc>(() => notesBloc);
+      // DashboardBody rend aussi ProsthesesTodayCard (#7207) via son propre
+      // bloc résolu par GetIt.
+      final prosthesesTodayBloc = MockProsthesesTodayBloc();
+      when(() => prosthesesTodayBloc.state)
+          .thenReturn(const ProsthesesTodayLoaded([]));
+      GetIt.instance
+          .registerFactory<ProsthesesTodayBloc>(() => prosthesesTodayBloc);
       // DashboardBody rend aussi OpportunitiesCard (#7213) via son propre
       // cubit résolu par GetIt.
       final opportunitiesCubit = MockOpportunitiesCubit();
@@ -1034,6 +1208,13 @@ void main() {
       final notesBloc = MockTodayNotesBloc();
       when(() => notesBloc.state).thenReturn(const TodayNotesLoaded([]));
       GetIt.instance.registerFactory<TodayNotesBloc>(() => notesBloc);
+      // DashboardBody rend aussi ProsthesesTodayCard (#7207) via son propre
+      // bloc résolu par GetIt.
+      final prosthesesTodayBloc = MockProsthesesTodayBloc();
+      when(() => prosthesesTodayBloc.state)
+          .thenReturn(const ProsthesesTodayLoaded([]));
+      GetIt.instance
+          .registerFactory<ProsthesesTodayBloc>(() => prosthesesTodayBloc);
       // DashboardBody rend aussi TasksCard (#7210) via son propre bloc
       // résolu par GetIt.
       final tasksBloc = MockTasksBloc();

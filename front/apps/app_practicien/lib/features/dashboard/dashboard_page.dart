@@ -17,6 +17,8 @@ import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 import 'next_patient_hero.dart';
 import 'pending_actions_card.dart';
+import 'prostheses_today_bloc.dart';
+import 'prostheses_today_card.dart';
 import 'today_notes_bloc.dart';
 import 'today_notes_card.dart';
 import 'today_schedule_card.dart';
@@ -151,6 +153,11 @@ class _DashboardLoadedView extends StatelessWidget {
         ..add(const TodayNotesLoadRequested()),
       child: const TodayNotesCard(),
     );
+    final prosthesesTodayCard = BlocProvider(
+      create: (_) => GetIt.instance<ProsthesesTodayBloc>()
+        ..add(const ProsthesesTodayLoadRequested()),
+      child: const ProsthesesTodayCard(),
+    );
     final weekSummaryCard = WeekSummaryCard(summary: summary);
     final opportunitiesState = context.watch<OpportunitiesCubit>().state;
     final opportunitiesCard = opportunitiesState is OpportunitiesLoaded
@@ -197,6 +204,8 @@ class _DashboardLoadedView extends StatelessWidget {
                       const SizedBox(height: 16),
                       notesCard,
                       const SizedBox(height: 16),
+                      prosthesesTodayCard,
+                      const SizedBox(height: 16),
                       weekSummaryCard,
                     ],
                   ),
@@ -223,6 +232,8 @@ class _DashboardLoadedView extends StatelessWidget {
               ],
               const SizedBox(height: 16),
               notesCard,
+              const SizedBox(height: 16),
+              prosthesesTodayCard,
               const SizedBox(height: 16),
               weekSummaryCard,
             ],
