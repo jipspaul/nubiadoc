@@ -145,56 +145,68 @@ class NextPatientHero extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  key: const Key('next_patient_hero_start_consultation'),
-                  // #6241 : démarre réellement la séance de CE patient
-                  // (`POST /cabinet/appointments/<id>/start`, cf.
-                  // DashboardBloc) au lieu d'ouvrir la liste générique des
-                  // consultations, sans rien démarrer.
-                  onPressed: summary.nextPatientAppointmentId == null
-                      ? null
-                      : () => context.read<DashboardBloc>().add(
-                            DashboardConsultationStartRequested(
-                              appointmentId: summary.nextPatientAppointmentId!,
-                            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final startButton = FilledButton.icon(
+                key: const Key('next_patient_hero_start_consultation'),
+                // #6241 : démarre réellement la séance de CE patient
+                // (`POST /cabinet/appointments/<id>/start`, cf.
+                // DashboardBloc) au lieu d'ouvrir la liste générique des
+                // consultations, sans rien démarrer.
+                onPressed: summary.nextPatientAppointmentId == null
+                    ? null
+                    : () => context.read<DashboardBloc>().add(
+                          DashboardConsultationStartRequested(
+                            appointmentId: summary.nextPatientAppointmentId!,
                           ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: NubiaColors.brand700,
-                  ),
-                  icon: const Icon(Icons.medical_services_outlined),
-                  label: const Text(
-                    'Démarrer la consultation',
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                        ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: NubiaColors.brand700,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const Key('next_patient_hero_open_file'),
-                  // #6241 : ouvre la fiche de CE patient au lieu de
-                  // l'annuaire complet du cabinet.
-                  onPressed: summary.nextPatientPatientId == null
-                      ? null
-                      : () => context.go(
-                            '${AppRouter.patients}/${summary.nextPatientPatientId}',
-                          ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white),
-                  ),
-                  icon: const Icon(Icons.folder_open_outlined),
-                  label: const Text(
-                    'Ouvrir le dossier',
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                icon: const Icon(Icons.medical_services_outlined),
+                label: const Text('Démarrer la consultation'),
+              );
+              final openFileButton = OutlinedButton.icon(
+                key: const Key('next_patient_hero_open_file'),
+                // #6241 : ouvre la fiche de CE patient au lieu de
+                // l'annuaire complet du cabinet.
+                onPressed: summary.nextPatientPatientId == null
+                    ? null
+                    : () => context.go(
+                          '${AppRouter.patients}/${summary.nextPatientPatientId}',
+                        ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white),
                 ),
-              ),
-            ],
+                icon: const Icon(Icons.folder_open_outlined),
+                label: const Text('Ouvrir le dossier'),
+              );
+
+              // Sous ce seuil, les deux libellés ne tiennent plus sur une
+              // ligne dans un `Expanded` (#7254 : « Démarrer l... » /
+              // « Ouvrir le d... » tronqués de 390 à 600 px) — on empile les
+              // actions en pleine largeur plutôt que de les tronquer.
+              if (constraints.maxWidth < _actionsStackedBreakpoint) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    startButton,
+                    const SizedBox(height: 12),
+                    openFileButton,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: startButton),
+                  const SizedBox(width: 12),
+                  Expanded(child: openFileButton),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -209,4 +221,8 @@ class NextPatientHero extends StatelessWidget {
   static String _formatShortDate(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')}/'
       '${date.month.toString().padLeft(2, '0')}';
+
+  // #7254 : largeur disponible (hors padding du hero) sous laquelle les deux
+  // libellés d'action ne tiennent plus côte à côte sans être tronqués.
+  static const _actionsStackedBreakpoint = 640.0;
 }

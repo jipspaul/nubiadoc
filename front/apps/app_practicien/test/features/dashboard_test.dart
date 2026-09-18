@@ -904,6 +904,30 @@ void main() {
 
       expect(find.text('fiche patient pat-1'), findsOneWidget);
     });
+
+    testWidgets(
+        'viewport mobile (390 px, #7254) : les libellés des actions restent '
+        'lisibles en entier, boutons empilés plutôt que tronqués',
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(wrapCard(_nextPatientSummary));
+      await tester.pump();
+
+      expect(find.text('Démarrer la consultation'), findsOneWidget);
+      expect(find.text('Ouvrir le dossier'), findsOneWidget);
+
+      final startCenter = tester.getCenter(
+        find.byKey(const Key('next_patient_hero_start_consultation')),
+      );
+      final openFileCenter = tester.getCenter(
+        find.byKey(const Key('next_patient_hero_open_file')),
+      );
+      expect(startCenter.dy, lessThan(openFileCenter.dy));
+    });
   });
 
   // ---------------------------------------------------------------------------
