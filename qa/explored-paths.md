@@ -2486,3 +2486,4 @@ générique** — et c'est en creusant ces mêmes écrans que 6 des 11 défauts 
 > après déduplication par **(app, route, viewport)** en gardant la meilleure passe, la ronde couvre
 > **91 écrans distincts · 1 485 contrôles inventoriés · 1 257 activés · 0 mort avéré** —
 > patient 28, secrétariat 23, praticien 20, officine 10, infirmière 10.
+| reverif-7256-deployee | 2026-09-18T02:50:00Z | OK (1 reliquat) | **#7256 corrigé et re-vérifié déployé** (bundle officine reconstruit à 02:41:43 GMT, après le merge de 02:35) : à 390 px la ligne se replie, `"Marc D. ⏎ CMD-0010 ⏎ Reçue le 15/07 à 10:37 ⏎ Dr Hugo Marin ⏎ …"` — nom, référence et date entiers (capture `R78_reverif_7256_390.png`). **Reliquat signalé en commentaire sur l'issue plutôt qu'en 13ᵉ finding** : le bandeau de 4 KPI coupe toujours en plein mot à 390 px (« en préparatio / n », « délivrées aujourd'hu / i ») — même famille que #7219. |
