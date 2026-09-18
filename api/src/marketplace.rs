@@ -393,6 +393,23 @@ fn available_time_clause(available: Option<&str>) -> &'static str {
 const UNAVAILABILITY_EXCLUSION_CLAUSE: &str =
     " AND NOT provider_unavailable_at(sl.provider_id, sl.starts_at, sl.ends_at)";
 
+/// Prédicat « créneau réservable » des listings publics (alias `sl`) : `open`,
+/// OU `held` dont le hold est expiré (#6992/#6840). Avant, `sl.status = 'open'`
+/// seul : un hold abandonné (tunnel fermé, retour arrière, hésitation > 10 min)
+/// laissait le créneau `held` à vie — la seule libération existante
+/// (`claim_and_hold_slot`, 0141) est paresseuse et n'est atteinte que par un
+/// nouveau `POST /v1/slots/:id/hold` sur ce créneau précis, or il n'était plus
+/// listé nulle part, donc plus jamais candidat. Le stock de créneaux en ligne
+/// fondait silencieusement à chaque abandon. `slot_hold_expired` (SECURITY
+/// DEFINER, migration 0272 — `slot_holds` est sous FORCE RLS scopée cabinet,
+/// même contrainte que `provider_unavailable_at` ci-dessus) + policy RLS
+/// `slot_public_read_expired_hold` : le filtre `expires_at` est évalué DANS
+/// LA REQUÊTE, correct dès la première seconde après expiration, sans dépendre
+/// du passage du reaper périodique (`slot_hold_expiry.rs`), qui remet ensuite
+/// l'état en base au propre (`status='open'`, hold purgé).
+const SLOT_BOOKABLE_CLAUSE: &str =
+    "(sl.status = 'open' OR (sl.status = 'held' AND slot_hold_expired(sl.id)))";
+
 /// Lookup géo statique (#3753) : `place` (nom de ville) était parsé par
 /// `/search/parse` et par les query params `search_providers`/`search_slots`,
 /// mais totalement ignoré par le SQL — un vrai géocodage externe reste hors
@@ -611,7 +628,7 @@ pub async fn search_slots(
          LEFT JOIN specialty s ON s.id = p.specialty_id \
          LEFT JOIN profession pr ON pr.id = s.profession_id \
          WHERE p.is_listed = true \
-             AND sl.status = 'open' \
+             AND {SLOT_BOOKABLE_CLAUSE} \
              AND sl.deleted_at IS NULL \
              AND sl.online_booking = true \
              AND sl.starts_at > now() \
@@ -737,7 +754,7 @@ pub async fn search_slots(
             "SELECT sl.id AS slot_id, sl.provider_id, sl.starts_at \
              FROM availability_slot sl \
              WHERE sl.provider_id = ANY($1) \
-                 AND sl.status = 'open' \
+                 AND {SLOT_BOOKABLE_CLAUSE} \
                  AND sl.deleted_at IS NULL \
                  AND sl.online_booking = true \
                  AND sl.starts_at > now() \
@@ -877,7 +894,7 @@ pub async fn search_providers(
         format!(
             " AND EXISTS (\
               SELECT 1 FROM availability_slot sl \
-              WHERE sl.provider_id = p.id AND sl.status = 'open' \
+              WHERE sl.provider_id = p.id AND {SLOT_BOOKABLE_CLAUSE} \
               AND sl.deleted_at IS NULL AND sl.online_booking = true{available_time} \
               {UNAVAILABILITY_EXCLUSION_CLAUSE})"
         )
@@ -933,7 +950,7 @@ pub async fn search_providers(
                   THEN ST_Distance(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) \
                   ELSE NULL END AS distance_m, \
              (SELECT min(sl.starts_at) FROM availability_slot sl \
-              WHERE sl.provider_id = p.id AND sl.status = 'open' \
+              WHERE sl.provider_id = p.id AND {SLOT_BOOKABLE_CLAUSE} \
               AND sl.deleted_at IS NULL AND sl.online_booking = true \
               AND sl.starts_at > now() \
               {UNAVAILABILITY_EXCLUSION_CLAUSE}) AS next_slot_at, \
@@ -1258,12 +1275,14 @@ pub async fn get_provider_availability(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
 
+    // Même prédicat que `SLOT_BOOKABLE_CLAUSE` (#6992/#6840), recopié en
+    // littéral : la macro `query_as!` exige une chaîne SQL constante.
     let rows = sqlx::query_as!(
         AvailabilitySlotRow,
         r#"SELECT id AS "slot_id!", starts_at, ends_at, motif
            FROM availability_slot sl
            WHERE provider_id = $1
-             AND status = 'open'
+             AND (sl.status = 'open' OR (sl.status = 'held' AND slot_hold_expired(sl.id)))
              AND deleted_at IS NULL
              AND online_booking = true
              AND starts_at > now()

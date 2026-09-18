@@ -34,6 +34,10 @@ pub use reminder_dispatch::{
     dispatch_pending_reminders, run_dispatch_loop, ReminderDispatchError, ReminderDispatchSummary,
 };
 pub use scaleway_storage_signer::ScalewayStorageSigner;
+pub use slot_hold_expiry::{
+    dispatch_slot_hold_expiry, run_slot_hold_expiry_loop, SlotHoldExpiryError,
+    SlotHoldExpirySummary,
+};
 pub use twilio_sms::TwilioSmsSender;
 pub use visit_offer_expiry::{
     dispatch_visit_offer_expiry, run_visit_offer_expiry_loop, VisitOfferExpiryError,
@@ -137,6 +141,7 @@ mod reviews;
 mod routes;
 mod scaleway_storage_signer;
 mod scheduling;
+mod slot_hold_expiry;
 mod sterilization;
 mod sterilization_labels;
 mod stock_items;

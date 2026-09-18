@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{
-    run_dispatch_loop, run_quote_relance_loop, run_visit_offer_expiry_loop, AppState, BrevoMailer,
-    FcmJobDispatcher, LocalStorageSigner, ScalewayStorageSigner, StorageSigner, StubJobDispatcher,
-    TwilioSmsSender, YousignClient,
+    run_dispatch_loop, run_quote_relance_loop, run_slot_hold_expiry_loop,
+    run_visit_offer_expiry_loop, AppState, BrevoMailer, FcmJobDispatcher, LocalStorageSigner,
+    ScalewayStorageSigner, StorageSigner, StubJobDispatcher, TwilioSmsSender, YousignClient,
 };
 use sqlx::PgPool;
 
@@ -114,6 +114,20 @@ async fn main() {
             state.db.clone(),
         )),
         VISIT_OFFER_EXPIRY_INTERVAL,
+    ));
+
+    // Reaper des holds de créneau expirés (#6992/#6840) : même pattern
+    // tokio::spawn que les workers ci-dessus. Intervalle court : le TTL d'un
+    // hold est de 10 min (migration 0255/0256) et chaque tunnel abandonné
+    // laissait jusqu'ici son créneau `held` à vie. Les listings publics
+    // n'attendent pas ce passage (filtre `expires_at` dans la requête,
+    // marketplace.rs `SLOT_BOOKABLE_CLAUSE`) ; le reaper remet l'état en base
+    // au propre (créneau `open`, hold purgé) pour l'agenda cabinet et
+    // l'interop.
+    const SLOT_HOLD_EXPIRY_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
+    tokio::spawn(run_slot_hold_expiry_loop(
+        state.db.clone(),
+        SLOT_HOLD_EXPIRY_INTERVAL,
     ));
 
     // Pages SSR publiques du tunnel de réservation (#5356) : mêmes routes

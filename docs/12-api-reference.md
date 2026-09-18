@@ -354,7 +354,7 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | POST | `/v1/bookings` | patient | Réserver chez n'importe quel praticien (motif→créneau→confirm). |
 | POST | `/v1/slots/{id}/hold` | patient | Pose une **réservation temporaire** (anti-concurrence). |
 
-`POST /v1/slots/{id}/hold` → `200 { hold_token, expires_at }` (passe le slot en `held` quelques minutes). `POST /v1/bookings` — body : `{ slot_id, hold_token?, motif, on_behalf_of?, new_patient_info? }`, **`Idempotency-Key`**. → `201 { appointment_id }`. Crée l'`appointment` chez le praticien (tenant) **et** le rattache à l'espace patient global. Conflit/hold expiré → `409`. Pré-check-in proposé.
+`POST /v1/slots/{id}/hold` → `200 { hold_token, expires_at }` (passe le slot en `held` **10 min**). **Hold expiré** (#6992/#6840) : passé `expires_at`, le créneau est de nouveau réservable — il **réapparaît** dans `/v1/search/slots` et `/v1/providers/{id}/availability` (filtre `expires_at` dans la requête, fonction `slot_hold_expired`), un autre patient peut le tenir, et un reaper périodique (60 s, `release_expired_slot_holds()`) purge le hold et repasse le slot en `open`. Un hold **actif** reste bloquant (`409 slot_taken` pour un autre patient). `POST /v1/bookings` — body : `{ slot_id, hold_token?, motif, on_behalf_of?, new_patient_info? }`, **`Idempotency-Key`**. → `201 { appointment_id }`. Crée l'`appointment` chez le praticien (tenant) **et** le rattache à l'espace patient global. Conflit/hold expiré → `409`. Pré-check-in proposé.
 
 ### 12.4 Avis (`reviews`)
 | Méthode | Chemin | Rôle | Description |
