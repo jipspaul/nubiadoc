@@ -32,6 +32,10 @@ puis re-vérifiés à la main se sont révélés fonctionnels**. Les cinq piège
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts (vérifiés) | cassés | last_check |
 |---|---|---|---|---|---|---|---|
+| praticien | /stock-inventory (1280) | 28 | 27 | 27 | 0 | 0 | 2026-09-18T08:40:00+00:00 |
+| praticien | /team-messages (1280) | 19 | 17 | 16 | 0 (auto-nav + groupe non tappable) | 0 | 2026-09-18T08:40:00+00:00 |
+| praticien | /notification-preferences (1280) | 17 | 16 | 13 | 0 (3 conteneurs `group` autour des interrupteurs) | 0 | 2026-09-18T08:40:00+00:00 |
+| secretariat | /patients/new (Nouveau patient) | 6 | 6 | 5 | 0 | 0 — « Créer le dossier » **désactivé tant que le formulaire est incomplet** (garde légitime) ; téléphone malformé → `422` + message pertinent (#7232 corrigée) | 2026-09-18T08:40:00+00:00 |
 | patient | /home-care (390) | 17 | 17 | 17 | 0 | 0 | 2026-09-18T08:30:00+00:00 |
 | patient | /reviews (390) | 1 | 1 | 1 | 0 | 0 — `white=0.97` mais **état vide légitime** (« Aucun avis pour ce prestataire. »), pas un écran blanc | 2026-09-18T08:30:00+00:00 |
 | patient | /profile/referring-doctor (390) | 1 | 1 | 1 | 0 | 0 — idem : écran sobre, contenu bien rendu | 2026-09-18T08:30:00+00:00 |
