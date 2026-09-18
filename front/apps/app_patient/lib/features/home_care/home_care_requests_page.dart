@@ -58,19 +58,44 @@ class HomeCareRequestsBody extends StatelessWidget {
                 message: message,
                 onRetry: () => context.read<HomeCareListCubit>().load(),
               );
-            case HomeCareListLoaded(:final requests):
+            case HomeCareListLoaded(:final requests, :final skippedCount):
+              // #6961 / #6861 : succès partiel — les lignes indécodables sont
+              // écartées et signalées, jamais bloquantes pour les autres.
+              final skippedBanner = skippedCount > 0
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: NubiaInlineError(
+                        key: const Key('home_care_skipped_banner'),
+                        message: skippedCount == 1
+                            ? '1 demande n\'a pas pu être affichée.'
+                            : '$skippedCount demandes n\'ont pas pu être '
+                                'affichées.',
+                        onRetry: () => context.read<HomeCareListCubit>().load(),
+                      ),
+                    )
+                  : null;
               if (requests.isEmpty) {
-                return const NubiaEmptyState(
-                  icon: Icons.medical_services_outlined,
-                  title: 'Aucune demande',
-                  subtitle: 'Demandez la visite d\'une infirmière à domicile '
-                      'pour un soin (pansement, prise de sang…).',
+                return Column(
+                  children: [
+                    if (skippedBanner != null) skippedBanner,
+                    const Expanded(
+                      child: NubiaEmptyState(
+                        icon: Icons.medical_services_outlined,
+                        title: 'Aucune demande',
+                        subtitle:
+                            'Demandez la visite d\'une infirmière à domicile '
+                            'pour un soin (pansement, prise de sang…).',
+                      ),
+                    ),
+                  ],
                 );
               }
               return ListView.builder(
-                itemCount: requests.length,
+                itemCount: requests.length + (skippedBanner != null ? 1 : 0),
                 itemBuilder: (context, index) {
-                  final visit = requests[index];
+                  if (skippedBanner != null && index == 0) return skippedBanner;
+                  final visit =
+                      requests[skippedBanner != null ? index - 1 : index];
                   return ListRow(
                     key: Key('home_care_request_${visit.id}'),
                     title: visit.requestedActs
@@ -82,8 +107,8 @@ class HomeCareRequestsBody extends StatelessWidget {
                     ].join(' · '),
                     trailing: StatusPill(
                       label: visitStatusLabels[visit.status] ?? visit.status,
-                      variant:
-                          _statusVariants[visit.status] ?? StatusPillVariant.neutral,
+                      variant: _statusVariants[visit.status] ??
+                          StatusPillVariant.neutral,
                     ),
                     onTap: () =>
                         context.push('${AppRouter.homeCare}/${visit.id}'),

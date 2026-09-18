@@ -34,7 +34,7 @@ const _visit = VisitRequest(
   id: 'visit-1',
   status: 'offered',
   requestedActs: ['pansement'],
-  address: {'line1': '1 rue de Rivoli', 'city': 'Paris'},
+  address: VisitAddress(line1: '1 rue de Rivoli', city: 'Paris'),
   estimatedPriceCents: 4000,
 );
 
@@ -94,6 +94,105 @@ void main() {
       expect(find.text('Suivi visit-1'), findsOneWidget);
     });
 
+    testWidgets(
+        'succès partiel (skippedCount > 0) → bandeau + lignes valides (#6961)',
+        (tester) async {
+      when(() => cubit.state)
+          .thenReturn(const HomeCareListLoaded([_visit], skippedCount: 2));
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: BlocProvider<HomeCareListCubit>.value(
+          value: cubit,
+          child: const HomeCareRequestsBody(),
+        ),
+      ));
+
+      expect(find.byKey(const Key('home_care_skipped_banner')), findsOneWidget);
+      expect(
+          find.text("2 demandes n'ont pas pu être affichées."), findsOneWidget);
+      expect(
+          find.byKey(const Key('home_care_request_visit-1')), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets(
+        'cubit réel + payload QA (`address` = [] / "pas un objet" / null) → '
+        'liste affichée, pas de spinner infini (#6961 / #6861)',
+        (tester) async {
+      final apiClient = MockApiClient();
+      final dio = MockDio();
+      when(() => apiClient.dio).thenReturn(dio);
+      when(() => dio.get<List<dynamic>>('/account/visit-requests'))
+          .thenAnswer((_) async => _fakeResponse<List<dynamic>>([
+                {
+                  'id': 'ok-1',
+                  'status': 'done',
+                  'requested_acts': ['prise_de_sang'],
+                  'address': {
+                    'city': 'Lyon',
+                    'line1': '12 rue de la Republique',
+                    'postal_code': '69002',
+                  },
+                  'estimated_price_cents': 2000,
+                },
+                {
+                  'id': '28850f90-1240-4ef6-bcd8-99db246d7c35',
+                  'status': 'cancelled',
+                  'requested_acts': ['pansement'],
+                  'address': <dynamic>[],
+                  'estimated_price_cents': 2000,
+                },
+                {
+                  'id': '3d079852-ee48-446a-bdc9-8669cb634a02',
+                  'status': 'cancelled',
+                  'requested_acts': ['pansement'],
+                  'address': 'pas un objet',
+                  'estimated_price_cents': 2000,
+                },
+                {
+                  'id': 'f2c8db2f-1203-452c-8829-d2c62828fbcd',
+                  'status': 'cancelled',
+                  'requested_acts': ['pansement'],
+                  'address': null,
+                  'estimated_price_cents': 2000,
+                },
+              ]));
+      final realCubit = HomeCareListCubit(apiClient);
+      addTearDown(realCubit.close);
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: BlocProvider<HomeCareListCubit>.value(
+          value: realCubit..load(),
+          child: const HomeCareRequestsBody(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byKey(const Key('home_care_skipped_banner')), findsNothing);
+      expect(find.byKey(const Key('home_care_request_ok-1')), findsOneWidget);
+      expect(
+        find.byKey(const Key(
+            'home_care_request_28850f90-1240-4ef6-bcd8-99db246d7c35')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key(
+            'home_care_request_3d079852-ee48-446a-bdc9-8669cb634a02')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key(
+            'home_care_request_f2c8db2f-1203-452c-8829-d2c62828fbcd')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('12 rue de la Republique, 69002 Lyon'),
+          findsOneWidget);
+    });
+
     testWidgets('tap sur le FAB → navigue vers /home-care/new', (tester) async {
       when(() => cubit.state).thenReturn(const HomeCareListLoaded([]));
 
@@ -111,7 +210,8 @@ void main() {
             ),
             GoRoute(
               path: '/home-care/new',
-              builder: (_, __) => const Scaffold(body: Text('Nouvelle demande')),
+              builder: (_, __) =>
+                  const Scaffold(body: Text('Nouvelle demande')),
             ),
           ],
         ),
@@ -155,7 +255,6 @@ void main() {
             id: 'visit-1',
             status: 'done',
             requestedActs: ['pansement'],
-            address: {},
             estimatedPriceCents: 4000,
           ),
         ),
@@ -176,15 +275,15 @@ void main() {
       verify(() => cubit.cancel()).called(1);
     });
 
-    testWidgets(
-        'infirmière assignée → nom affiché au patient (#6506)', (tester) async {
+    testWidgets('infirmière assignée → nom affiché au patient (#6506)',
+        (tester) async {
       when(() => cubit.state).thenReturn(
         const HomeCareTrackingLoaded(
           VisitRequest(
             id: 'visit-1',
             status: 'accepted',
             requestedActs: ['pansement'],
-            address: {'line1': '1 rue de Rivoli', 'city': 'Paris'},
+            address: VisitAddress(line1: '1 rue de Rivoli', city: 'Paris'),
             estimatedPriceCents: 4000,
             nurseDisplayName: 'Camille D.',
           ),
@@ -197,7 +296,8 @@ void main() {
       expect(find.text('Infirmière : Camille D.'), findsOneWidget);
     });
 
-    testWidgets('pas d\'infirmière assignée → pas de ligne nom', (tester) async {
+    testWidgets('pas d\'infirmière assignée → pas de ligne nom',
+        (tester) async {
       when(() => cubit.state).thenReturn(const HomeCareTrackingLoaded(_visit));
 
       await tester.pumpWidget(wrap());
@@ -227,8 +327,7 @@ void main() {
           '/account/visit-requests/estimate',
           data: any(named: 'data'),
         ),
-      ).thenAnswer(
-          (_) async => _fakeResponse({'estimated_price_cents': 4000}));
+      ).thenAnswer((_) async => _fakeResponse({'estimated_price_cents': 4000}));
       when(
         () => dio.post<Map<String, dynamic>>(
           '/account/visit-requests',

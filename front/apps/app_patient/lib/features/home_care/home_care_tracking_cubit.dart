@@ -52,11 +52,15 @@ class HomeCareTrackingCubit extends Cubit<HomeCareTrackingState>
     _id = id;
     safeEmit(const HomeCareTrackingLoading());
     try {
-      final res =
-          await _api.dio.get<Map<String, dynamic>>('/account/visit-requests/$id');
+      final res = await _api.dio
+          .get<Map<String, dynamic>>('/account/visit-requests/$id');
       safeEmit(HomeCareTrackingLoaded(VisitRequest.fromJson(res.data!)));
     } on DioException catch (e) {
       safeEmit(HomeCareTrackingError(_msg(e)));
+    } catch (_) {
+      // #6961 : même garde que `HomeCareListCubit` — une réponse indécodable
+      // doit aboutir à l'état d'erreur (« Réessayer »), pas au spinner.
+      safeEmit(const HomeCareTrackingError('Réponse inattendue du serveur.'));
     }
   }
 
@@ -76,6 +80,8 @@ class HomeCareTrackingCubit extends Cubit<HomeCareTrackingState>
       safeEmit(HomeCareTrackingLoaded(VisitRequest.fromJson(res.data!)));
     } on DioException catch (e) {
       safeEmit(HomeCareTrackingError(_msg(e)));
+    } catch (_) {
+      safeEmit(const HomeCareTrackingError('Réponse inattendue du serveur.'));
     }
   }
 
