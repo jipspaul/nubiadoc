@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nubia_app_shell/nubia_app_shell.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
+import '../../router/app_router.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
@@ -13,6 +16,26 @@ import 'widgets/today_flow_card.dart';
 import 'widgets/waiting_room_card.dart';
 import 'widgets/week_occupancy_card.dart';
 import 'widgets/work_queue_card.dart';
+
+/// Navigation d'une ligne du widget « opportunités du moment » (#7213) :
+/// devis/facture → volet devis du patient concerné (#6246 : cible l'entité,
+/// pas la liste complète), patient sans RDV/anniversaire → fiche patient.
+/// Toujours appelé avec un [category] non vide ([OpportunitiesCard]
+/// n'active [onTap] que si `count > 0`).
+void _openOpportunity(BuildContext context, OpportunityCategory category) {
+  final item = category.items.first;
+  switch (category.kind) {
+    case 'quote_sent_no_response':
+    case 'quote_accepted_no_appointment':
+    case 'unpaid_invoice':
+      context.push(AppRouter.devis, extra: item.quoteId);
+      break;
+    case 'patient_no_next_appointment':
+    case 'birthday_today':
+      context.push(AppRouter.patients, extra: item.patientId);
+      break;
+  }
+}
 
 /// Tableau de bord opérationnel du secrétariat : sélectionné par
 /// `DashboardPage._bodyBuilders` pour la destination [ProConfig.dashboardRoute].
@@ -200,12 +223,19 @@ class _DashboardLoadedView extends StatelessWidget {
                 builder: (context, constraints) {
                   final twoColumns = constraints.maxWidth >= 720;
                   final leftColumn = TodayFlowCard(entries: todayFlow);
+                  final opportunitiesState =
+                      context.watch<OpportunitiesCubit>().state;
                   final rightColumn = [
                     WorkQueueCard(
                       waitingCount: waitingCount,
                       oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
                       pendingAppointmentsToday: pendingAppointmentsToday,
                     ),
+                    if (opportunitiesState is OpportunitiesLoaded)
+                      OpportunitiesCard(
+                        categories: opportunitiesState.categories,
+                        onCategoryTap: _openOpportunity,
+                      ),
                     const WaitingRoomCard(),
                     const CashCollectionCard(),
                     WeekOccupancyCard(

@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:nubia_app_shell/nubia_app_shell.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_data/nubia_data.dart';
@@ -73,6 +74,12 @@ void registerPro(GetIt gi) {
 
   gi.registerFactory<TodayNotesBloc>(
     () => TodayNotesBloc(getTodayNotes: gi<GetTodayNotesUseCase>()),
+  );
+
+  gi.registerFactory<OpportunitiesCubit>(
+    () => OpportunitiesCubit(
+      getOpportunities: gi<GetCabinetOpportunitiesUseCase>(),
+    ),
   );
 
   gi.registerFactory<WaitingRoomBloc>(

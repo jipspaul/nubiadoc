@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nubia_app_shell/nubia_app_shell.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -18,6 +19,27 @@ import 'today_notes_card.dart';
 import 'today_schedule_card.dart';
 import 'week_summary_card.dart';
 
+/// Navigation d'une ligne du widget « opportunités du moment » (#7213) :
+/// devis/facture → volet devis filtré sur le patient concerné (la route
+/// `/devis` de cette app ne prend qu'un `patientId`, pas d'ouverture directe
+/// par id de devis), patient sans RDV/anniversaire → fiche patient.
+/// Toujours appelé avec un [category] non vide ([OpportunitiesCard]
+/// n'active [onTap] que si `count > 0`).
+void _openOpportunity(BuildContext context, OpportunityCategory category) {
+  final item = category.items.first;
+  switch (category.kind) {
+    case 'quote_sent_no_response':
+    case 'quote_accepted_no_appointment':
+    case 'unpaid_invoice':
+      context.go('${AppRouter.devis}?patientId=${item.patientId}');
+      break;
+    case 'patient_no_next_appointment':
+    case 'birthday_today':
+      context.go('${AppRouter.patients}/${item.patientId}');
+      break;
+  }
+}
+
 /// Contenu de la branche « Tableau de bord » du `StatefulShellRoute`
 /// (`app_router.dart`) — construit son propre `DashboardBloc`,
 /// indépendamment de `PracticienShell` qui l'héberge (#6286, même approche
@@ -30,7 +52,10 @@ class DashboardBody extends StatelessWidget {
     return BlocProvider(
       create: (_) => GetIt.instance<DashboardBloc>()
         ..add(const DashboardLoadRequested()),
-      child: const _DashboardContent(),
+      child: BlocProvider<OpportunitiesCubit>(
+        create: (_) => GetIt.instance<OpportunitiesCubit>()..load(),
+        child: const _DashboardContent(),
+      ),
     );
   }
 }
@@ -117,6 +142,13 @@ class _DashboardLoadedView extends StatelessWidget {
       child: const TodayNotesCard(),
     );
     final weekSummaryCard = WeekSummaryCard(summary: summary);
+    final opportunitiesState = context.watch<OpportunitiesCubit>().state;
+    final opportunitiesCard = opportunitiesState is OpportunitiesLoaded
+        ? OpportunitiesCard(
+            categories: opportunitiesState.categories,
+            onCategoryTap: _openOpportunity,
+          )
+        : null;
 
     return SingleChildScrollView(
       key: const Key('dashboard_loaded'),
@@ -146,6 +178,10 @@ class _DashboardLoadedView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       pendingActionsCard,
+                      if (opportunitiesCard != null) ...[
+                        const SizedBox(height: 16),
+                        opportunitiesCard,
+                      ],
                       const SizedBox(height: 16),
                       notesCard,
                       const SizedBox(height: 16),
@@ -167,6 +203,10 @@ class _DashboardLoadedView extends StatelessWidget {
               todayScheduleCard,
               const SizedBox(height: 24),
               pendingActionsCard,
+              if (opportunitiesCard != null) ...[
+                const SizedBox(height: 16),
+                opportunitiesCard,
+              ],
               const SizedBox(height: 16),
               notesCard,
               const SizedBox(height: 16),
