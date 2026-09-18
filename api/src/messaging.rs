@@ -600,6 +600,11 @@ pub struct SendMessageBody {
     pub body: String,
 }
 
+/// Borne haute du corps d'un message de messagerie patient↔cabinet (#7275) :
+/// sans elle, un message de plusieurs milliers de caractères s'affiche en
+/// entier dans le fil et dans l'aperçu de la liste des conversations.
+const MAX_MESSAGE_BODY_CHARS: usize = 4_000;
+
 /// Réponse de `POST /v1/conversations/:id/messages`.
 #[derive(Serialize)]
 pub struct SendMessageResponse {
@@ -650,7 +655,7 @@ pub async fn send_message(
     Path(conversation_id): Path<Uuid>,
     Json(body): Json<SendMessageBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    if body.body.trim().is_empty() {
+    if body.body.trim().is_empty() || body.body.chars().count() > MAX_MESSAGE_BODY_CHARS {
         return Err(AppError::ValidationError);
     }
 
