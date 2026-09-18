@@ -305,12 +305,14 @@ class _JournalEntryRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 52,
+            width: 84,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   _dayMonth,
+                  softWrap: false,
+                  overflow: TextOverflow.visible,
                   style: textTheme.bodySmall?.copyWith(
                     color: cs.onSurface,
                     fontWeight: FontWeight.w700,
