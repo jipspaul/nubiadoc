@@ -558,6 +558,24 @@ Cloisonnement : un fil clinique escaladé n'est lisible que par le `practitioner
 
 ---
 
+### 18bis. Back-office — tâches du cabinet (`cabinet_task`, DP-F2.b #7211)
+> Tâche opérationnelle du cabinet (to-do secrétariat, note à l'assistante), pas une décision clinique — `secretary+` (practitioner/admin/manager également autorisés). Table `cabinet_task` (migration 0273, DP-F2.a #7212).
+
+| Méthode | Chemin | Rôle | Description |
+|---|---|---|---|
+| GET | `/v1/cabinet/tasks` | secretary+ | Liste, filtrable par `assignee_id`/`status`/`patient_id`. |
+| POST | `/v1/cabinet/tasks` | secretary+ | Créer une tâche (statut `open`). |
+| PATCH | `/v1/cabinet/tasks/{id}` | secretary+ | Éditer les champs et/ou changer le statut (édition partielle). |
+| POST | `/v1/cabinet/tasks/{id}/complete` | secretary+ | Clôturer une tâche `open` (`status: done`, `done_at`). |
+| POST | `/v1/appointments/{id}/tasks` | secretary+ | Raccourci : crée une tâche en pré-remplissant `patient_id`/`appointment_id` depuis le RDV (ex. « prépare le guide chirurgical »). |
+
+`POST /v1/cabinet/tasks` — body : `{ title, description?, assignee_user_id?, patient_id?, appointment_id?, due_date? }` (`due_date` au format `YYYY-MM-DD`). → `201 { id }`. `title` vide → `422`. `assignee_user_id`/`patient_id`/`appointment_id`, quand fournis, doivent appartenir à ce cabinet (RDV et patient cohérents entre eux) → `404` sinon. `assignee_user_id` fourni → notifie l'assigné in-app + push (kind `task_assigned`, cf. `19`).
+`PATCH /v1/cabinet/tasks/{id}` — mêmes champs que la création plus `status` (`open`/`done`/`cancelled`) ; un champ absent laisse la valeur existante inchangée (pas de remise à `null`). Tâche inexistante/hors tenant → `404`. `status` hors énum → `422`. Pas de notification sur réassignation.
+`POST /v1/cabinet/tasks/{id}/complete` — tâche déjà `done`/`cancelled` → `409 invalid_status`.
+`POST /v1/appointments/{id}/tasks` — body : `{ title, description?, assignee_user_id?, due_date? }` ; RDV inexistant/hors tenant → `404`.
+
+---
+
 ## 19. Notifications & devices
 
 | Méthode | Chemin | Rôle | Description |
@@ -569,7 +587,7 @@ Cloisonnement : un fil clinique escaladé n'est lisible que par le `practitioner
 | GET | `/v1/me/notification-preferences` | oui | Préférences notif. du porteur du token (patient, pro, pharma, nurse). |
 | PATCH | `/v1/me/notification-preferences` | oui | MAJ opt-in par catégorie/canal (partiel). |
 
-`POST /v1/devices` — body : `{ fcm_token, platform:"ios"|"android"|"web" }`. → `201`. ⚠️ **Payload push sans PII** (`06` E3.7, `07` §2.7) : le contenu réel se charge **authentifié** après ouverture. Types : RDV à venir/modifié/annulé, document à signer, nouveau message, paiement en attente, « c'est bientôt à vous ».
+`POST /v1/devices` — body : `{ fcm_token, platform:"ios"|"android"|"web" }`. → `201`. ⚠️ **Payload push sans PII** (`06` E3.7, `07` §2.7) : le contenu réel se charge **authentifié** après ouverture. Types : RDV à venir/modifié/annulé, document à signer, nouveau message, paiement en attente, « c'est bientôt à vous », tâche assignée (`task_assigned`, cf. `18bis`).
 
 `GET /v1/me/notification-preferences` → `{ inapp_rdv, inapp_messagerie, inapp_devis, inapp_stock, inapp_labo, inapp_visites, email_rdv, email_messagerie, email_devis }` (booléens). Distinct de `/v1/account/notification-preferences` (§6, patient uniquement) : keyed par `app_user_id`, ouvert à tout user authentifié — pro/pharma/nurse inclus (#6257). Défaut avant toute écriture : in-app `true`, email `false`. `PATCH` partiel : seules les clés envoyées sont modifiées (`deny_unknown_fields`, 422 sur clé inconnue). RBAC : RLS scopée par `app.current_user_id`, un user ne lit/écrit que ses propres préférences.
 
