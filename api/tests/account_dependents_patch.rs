@@ -295,7 +295,10 @@ async fn dependent_patch_relationship_to_adult_returns_422() {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
     )
     .bind(guardian_user_id)
-    .bind(format!("guardian-patch-adult+{}@nubia.test", guardian_user_id))
+    .bind(format!(
+        "guardian-patch-adult+{}@nubia.test",
+        guardian_user_id
+    ))
     .execute(&db)
     .await
     .unwrap();
@@ -416,7 +419,10 @@ async fn dependent_patch_birth_date_to_adult_returns_422() {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
     )
     .bind(guardian_user_id)
-    .bind(format!("guardian-patch-age+{}@nubia.test", guardian_user_id))
+    .bind(format!(
+        "guardian-patch-age+{}@nubia.test",
+        guardian_user_id
+    ))
     .execute(&db)
     .await
     .unwrap();

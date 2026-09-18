@@ -4851,7 +4851,10 @@ pub async fn patch_account_dependent(
     // champs non fournis conservent leur valeur actuelle) — un lien à
     // autorité pleine ne doit jamais pouvoir devenir un lien vers un adulte
     // sans passer par POST /v1/account/access-requests.
-    let effective_relationship = body.relationship.as_deref().unwrap_or(&current_relationship);
+    let effective_relationship = body
+        .relationship
+        .as_deref()
+        .unwrap_or(&current_relationship);
     if effective_relationship != "enfant" {
         return Err(AppError::AdultRequiresConsent);
     }
