@@ -12,6 +12,7 @@ import 'package:app_practicien/features/devis/devis_bloc.dart';
 import 'package:app_practicien/features/devis/devis_event.dart';
 import 'package:app_practicien/features/devis/devis_page.dart';
 import 'package:app_practicien/features/devis/devis_state.dart';
+import 'package:app_practicien/features/devis/invoice_reminder_cubit.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -28,6 +29,9 @@ class MockSendCabinetQuoteUseCase extends Mock
 
 class MockDevisBloc extends MockBloc<DevisEvent, DevisState>
     implements DevisBloc {}
+
+class MockInvoiceReminderRepository extends Mock
+    implements InvoiceReminderRepository {}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -67,6 +71,20 @@ final _sentQuote = CabinetQuote(
   patientShareCents: 50000,
   status: CabinetQuoteStatus.sent,
   createdAt: DateTime(2026, 6, 21),
+);
+
+final _overdueQuote = CabinetQuote(
+  id: 'q3',
+  quoteRef: 'q3',
+  cabinetId: 'cab-1',
+  patientId: 'pat-3',
+  patientName: 'Paul Impaye',
+  totalCents: 60000,
+  patientShareCents: 31600,
+  status: CabinetQuoteStatus.signed,
+  createdAt: DateTime(2026, 6, 20),
+  signedAt: DateTime(2026, 5, 1),
+  isOverdue: true,
 );
 
 DevisBloc _makeBloc({
@@ -276,6 +294,79 @@ void main() {
       when(() => bloc.state).thenReturn(DevisSent(_sentQuote));
       await tester.pumpWidget(_wrap(bloc));
       expect(find.byKey(const Key('devis_sent')), findsOneWidget);
+    });
+  });
+
+  // --- Bouton « Relancer le patient » (#7205) ---------------------------------
+  group('DevisBody — relance facture échue (#7205)', () {
+    late MockInvoiceReminderRepository reminderRepo;
+
+    setUp(() {
+      reminderRepo = MockInvoiceReminderRepository();
+      GetIt.instance.registerFactory<InvoiceReminderCubit>(
+        () => InvoiceReminderCubit(
+          listReminders: ListInvoiceRemindersUseCase(reminderRepo),
+          sendReminder: SendInvoiceReminderUseCase(reminderRepo),
+        ),
+      );
+      addTearDown(GetIt.instance.reset);
+    });
+
+    testWidgets('facture non échue : aucun bouton « Relancer le patient »',
+        (tester) async {
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_sentQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+      expect(find.byKey(const Key('btn_relancer_patient')), findsNothing);
+    });
+
+    testWidgets('facture échue : bouton visible + historique vide par défaut',
+        (tester) async {
+      when(() => reminderRepo.listHistory('q3'))
+          .thenAnswer((_) async => const Right([]));
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_overdueQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('btn_relancer_patient')), findsOneWidget);
+      expect(
+        find.byKey(const Key('invoice_reminder_history_empty')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'tap sur « Relancer le patient » envoie la relance puis recharge '
+        'l\'historique', (tester) async {
+      when(() => reminderRepo.listHistory('q3'))
+          .thenAnswer((_) async => const Right([]));
+      when(() => reminderRepo.send('q3')).thenAnswer((_) async {
+        when(() => reminderRepo.listHistory('q3')).thenAnswer(
+          (_) async => Right([
+            InvoiceReminder(
+              channel: InvoiceReminderChannel.push,
+              sentAt: DateTime(2026, 8, 1, 9, 30),
+            ),
+          ]),
+        );
+        return const Right(null);
+      });
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_overdueQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('btn_relancer_patient')));
+      await tester.pumpAndSettle();
+
+      verify(() => reminderRepo.send('q3')).called(1);
+      expect(
+        find.byKey(const Key('invoice_reminder_history_list')),
+        findsOneWidget,
+      );
+      expect(find.text('Notification'), findsOneWidget);
     });
   });
 

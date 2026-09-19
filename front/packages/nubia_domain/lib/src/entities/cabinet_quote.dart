@@ -24,6 +24,11 @@ class CabinetQuote extends Equatable {
   final DateTime? expiresAt;
   final List<QuoteLineItem>? items;
 
+  /// Même définition que `?overdue=true` côté back (#4130/#7205) : devis
+  /// signé, solde restant dû positif, sans activité de paiement récente.
+  /// Pilote l'affichage du bouton « Relancer le patient ».
+  final bool isOverdue;
+
   const CabinetQuote({
     required this.id,
     required this.quoteRef,
@@ -37,6 +42,7 @@ class CabinetQuote extends Equatable {
     this.signedAt,
     this.expiresAt,
     this.items,
+    this.isOverdue = false,
   });
 
   bool get isSigned => status == CabinetQuoteStatus.signed;

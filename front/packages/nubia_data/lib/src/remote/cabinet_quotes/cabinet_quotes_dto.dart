@@ -27,6 +27,10 @@ class CabinetQuoteDto {
   /// (`GET /v1/cabinet/quotes/:id`), absentes de la liste.
   final List<QuoteLineItem>? items;
 
+  /// `is_overdue` (#7205) : présent uniquement sur le détail
+  /// (`GET /v1/cabinet/quotes/:id`), absent de la liste -> `false` par défaut.
+  final bool isOverdue;
+
   const CabinetQuoteDto({
     required this.id,
     required this.quoteRef,
@@ -41,6 +45,7 @@ class CabinetQuoteDto {
     this.expiresAt,
     this.depositPaid = false,
     this.items,
+    this.isOverdue = false,
   });
 
   factory CabinetQuoteDto.fromJson(Map<String, dynamic> json) {
@@ -61,6 +66,7 @@ class CabinetQuoteDto {
       signedAt: json['signed_at'] as String?,
       expiresAt: json['expires_at'] as String?,
       depositPaid: json['deposit_paid'] as bool? ?? false,
+      isOverdue: json['is_overdue'] as bool? ?? false,
       items: rawItems
           ?.map((e) => _lineFromJson(e as Map<String, dynamic>))
           .toList(),
@@ -98,6 +104,7 @@ class CabinetQuoteDto {
         signedAt: signedAt != null ? DateTime.parse(signedAt!) : null,
         expiresAt: expiresAt != null ? DateTime.parse(expiresAt!) : null,
         items: items,
+        isOverdue: isOverdue,
       );
 
   /// `depositPaid` (#5094) : le back n'a pas de statut `paid` distinct

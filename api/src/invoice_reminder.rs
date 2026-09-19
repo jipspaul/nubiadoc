@@ -209,3 +209,76 @@ pub async fn send_invoice_reminder(
         balance_due_cents,
     }))
 }
+
+/// Une relance enregistrée (`invoice_reminder`, migration 0275).
+#[derive(Serialize)]
+pub struct InvoiceReminderHistoryItem {
+    pub channel: String,
+    pub sent_at: String,
+}
+
+/// Réponse de `GET /v1/invoices/:id/reminders`.
+#[derive(Serialize)]
+pub struct InvoiceReminderHistoryResponse {
+    pub data: Vec<InvoiceReminderHistoryItem>,
+}
+
+/// `GET /v1/invoices/:id/reminders` — historique des relances patient sur
+/// une facture (#7205, front secrétariat/praticien pour l'affichage sous le
+/// bouton « Relancer le patient »). Même garde que le `POST` ci-dessus
+/// (`ProSecretaryPlusClaims`) : `:id` = devis signé. Trié `sent_at DESC`
+/// (la relance la plus récente en tête) — inverse de
+/// `quote_relances::list_quote_relances` qui liste des jalons J+3/J+7
+/// intrinsèquement chronologiques, alors qu'ici chaque ligne est un
+/// événement répétable dont le plus récent est ce qui intéresse l'utilisateur.
+pub async fn list_invoice_reminders(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<InvoiceReminderHistoryResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let quote_exists = sqlx::query(
+        "SELECT 1 FROM quote WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if quote_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let rows = sqlx::query(
+        "SELECT channel, sent_at FROM invoice_reminder \
+         WHERE invoice_id = $1 AND cabinet_id = $2 \
+         ORDER BY sent_at DESC",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut data: Vec<InvoiceReminderHistoryItem> = Vec::with_capacity(rows.len());
+    for row in rows {
+        let channel: String = row.try_get("channel").map_err(|_| AppError::Internal)?;
+        let sent_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("sent_at").map_err(|_| AppError::Internal)?;
+        data.push(InvoiceReminderHistoryItem {
+            channel,
+            sent_at: sent_at.to_rfc3339(),
+        });
+    }
+
+    Ok(Json(InvoiceReminderHistoryResponse { data }))
+}

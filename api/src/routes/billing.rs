@@ -61,6 +61,11 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/invoices/:id/reminder",
             axum::routing::post(invoice_reminder::send_invoice_reminder),
         )
+        // Historique des relances (#7205) : liste ce que le bouton ci-dessus a envoyé.
+        .route(
+            "/v1/invoices/:id/reminders",
+            get(invoice_reminder::list_invoice_reminders),
+        )
         // `/sign` : stub historique synchrone (sent → signed immédiat),
         // toujours utilisé par app_patient Flutter (#3705) — INCHANGÉ.
         .route(

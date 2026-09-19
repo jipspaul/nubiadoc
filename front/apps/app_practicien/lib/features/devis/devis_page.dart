@@ -7,6 +7,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'devis_bloc.dart';
 import 'devis_event.dart';
 import 'devis_state.dart';
+import 'invoice_reminder_cubit.dart';
+import 'widgets/invoice_reminder_section.dart';
 
 /// Plan de traitement / devis — vue praticien.
 ///
@@ -309,6 +311,16 @@ class _DetailView extends StatelessWidget {
                   ],
                   total: _formatCents(quote.totalCents),
                 ),
+                // Bouton « Relancer le patient » (#7205) : uniquement sur
+                // une facture échue (même définition que `?overdue=true`
+                // côté back, cf. `CabinetQuote.isOverdue`).
+                if (quote.isOverdue) ...[
+                  const SizedBox(height: 16),
+                  BlocProvider<InvoiceReminderCubit>(
+                    create: (_) => GetIt.instance<InvoiceReminderCubit>(),
+                    child: InvoiceReminderSection(quote: quote),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 const _ReassuranceRow(),
               ],

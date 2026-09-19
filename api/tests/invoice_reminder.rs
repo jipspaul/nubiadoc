@@ -327,6 +327,97 @@ async fn reminder_on_unsigned_quote_returns_not_found() {
 }
 
 #[tokio::test]
+async fn list_reminders_returns_history_after_send() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let f = seed(&owner_db).await;
+    let token = make_practitioner_token(f.staff_user_id, f.cabinet_id);
+
+    // Aucune relance encore envoyée -> historique vide (#7205).
+    let response = app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/invoices/{}/reminders", f.quote_id))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["data"], json!([]));
+
+    app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/invoices/{}/reminder", f.quote_id))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Une relance envoyée sur 2 canaux (push + email) -> 2 entrées.
+    let response = app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/invoices/{}/reminders", f.quote_id))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = body["data"].as_array().unwrap();
+    assert_eq!(data.len(), 2);
+    let channels: Vec<&str> = data.iter().map(|r| r["channel"].as_str().unwrap()).collect();
+    assert!(channels.contains(&"push"), "channels={channels:?}");
+    assert!(channels.contains(&"email"), "channels={channels:?}");
+
+    cleanup(&owner_db, &f).await;
+}
+
+#[tokio::test]
+async fn list_reminders_on_unknown_invoice_returns_not_found() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let f = seed(&owner_db).await;
+    let token = make_practitioner_token(f.staff_user_id, f.cabinet_id);
+
+    let response = app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/invoices/{}/reminders", Uuid::new_v4()))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    cleanup(&owner_db, &f).await;
+}
+
+#[tokio::test]
 async fn reminder_on_unknown_invoice_returns_not_found() {
     if !db_available() {
         return;

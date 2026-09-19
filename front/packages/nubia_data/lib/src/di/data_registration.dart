@@ -30,6 +30,7 @@ import '../remote/cabinet_medical_questionnaire/cabinet_medical_questionnaire_ap
 import '../remote/treatment_plans/treatment_plans_api.dart';
 import '../remote/cabinet_team_messages/cabinet_team_messages_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
+import '../remote/invoice_reminder/invoice_reminder_api.dart';
 import '../remote/cabinet_payouts/cabinet_payouts_api.dart';
 import '../remote/cabinet_stats/cabinet_stats_api.dart';
 import '../remote/cabinet_opportunities/cabinet_opportunities_api.dart';
@@ -87,6 +88,7 @@ import '../repositories/cabinet_medical_questionnaire_repository_impl.dart';
 import '../repositories/treatment_plans_repository_impl.dart';
 import '../repositories/cabinet_team_messages_repository_impl.dart';
 import '../repositories/cabinet_quotes_repository_impl.dart';
+import '../repositories/invoice_reminder_repository_impl.dart';
 import '../repositories/cabinet_payouts_repository_impl.dart';
 import '../repositories/cabinet_stats_repository_impl.dart';
 import '../repositories/cabinet_opportunities_repository_impl.dart';
@@ -606,6 +608,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetQuotesApi>(
       () => CabinetQuotesApi(gi()),
     )
+    ..registerLazySingleton<InvoiceReminderApi>(
+      () => InvoiceReminderApi(gi()),
+    )
     ..registerLazySingleton<CabinetStatsApi>(
       () => CabinetStatsApi(gi()),
     )
@@ -700,6 +705,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetQuotesRepository>(
       () => CabinetQuotesRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<InvoiceReminderRepository>(
+      () => InvoiceReminderRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<CabinetStatsRepository>(
       () => CabinetStatsRepositoryImpl(gi()),
     )
@@ -787,6 +795,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => GetAuditLogUseCase(gi()))
     ..registerFactory(() => GetCabinetQuoteUseCase(gi()))
     ..registerFactory(() => SendCabinetQuoteUseCase(gi()))
+    ..registerFactory(() => SendInvoiceReminderUseCase(gi()))
+    ..registerFactory(() => ListInvoiceRemindersUseCase(gi()))
     ..registerFactory(() => ListBookableSlotsUseCase(gi()))
     ..registerFactory(() => CreateSlotUseCase(gi()))
     ..registerFactory(() => ListWaitingListUseCase(gi()))

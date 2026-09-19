@@ -40,6 +40,7 @@ export 'src/entities/cabinet_patient.dart';
 export 'src/entities/cabinet_practitioner.dart';
 export 'src/entities/cabinet_quote.dart';
 export 'src/entities/cabinet_task.dart';
+export 'src/entities/invoice_reminder.dart';
 export 'src/entities/opportunity_category.dart';
 export 'src/entities/consultation_context.dart';
 export 'src/entities/dental_chart.dart';
@@ -112,6 +113,7 @@ export 'src/repositories/treatment_plans_repository.dart';
 export 'src/repositories/patient_treatment_plans_repository.dart';
 export 'src/repositories/cabinet_team_messages_repository.dart';
 export 'src/repositories/cabinet_quotes_repository.dart';
+export 'src/repositories/invoice_reminder_repository.dart';
 export 'src/repositories/consultation_repository.dart';
 export 'src/repositories/members_repository.dart';
 export 'src/repositories/secretariat_repository.dart';
@@ -326,6 +328,9 @@ export 'src/usecases/cabinet_quotes/get_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/create_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/update_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/send_cabinet_quote_use_case.dart';
+// relance patient sur facture impayée (#7205/#7206)
+export 'src/usecases/invoice_reminder/send_invoice_reminder_use_case.dart';
+export 'src/usecases/invoice_reminder/list_invoice_reminders_use_case.dart';
 // cabinet appointments pro — use cases are in agenda/ (create + reschedule)
 // cabinet messaging pro
 export 'src/entities/cabinet_conversation.dart';
