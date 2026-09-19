@@ -135,6 +135,8 @@ pub async fn login(
         return Err(AppError::TooManyRequests(300));
     }
 
+    crate::text_validation::reject_nul_byte(&body.email)?;
+
     let mut auth_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_login_email', $1, true)")
         .bind(&body.email)
