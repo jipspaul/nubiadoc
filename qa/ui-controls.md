@@ -2845,3 +2845,34 @@ sélecteur « Assigné à » des 3 dialogues de tâche, qui n'offre jamais que �
 > ⚠️ **Note de méthode pour la ronde suivante** : sur ces deux lots, **19 verdicts « mort/cassé » bruts sur 19 se sont révélés faux**. Un verdict négatif du harnais n'est JAMAIS publiable tel quel — il doit être rejoué contrôle par contrôle sur page neuve, après mise en vue à la molette, avant d'être rapporté.
 
 **Total R84 tous lots : 331 contrôles inventoriés, 200 activés, 200 OK, 0 mort, 0 cassé, 3 désactivés (tous légitimes, preuve par le code).**
+
+#### Lots D + E R84 — 9 écran×viewport de plus
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/patients` (1280×800) | 32 | 14 | 14 | 0 | 0 | 0 | 2026-09-19T13:36:00Z |
+| praticien | `/lab-work-orders` (1280×800) | 19 | 5 | 5 | 0 | 0 | 0 | 2026-09-19T13:38:00Z |
+| praticien | `/ordonnances` (1280×800) | — | — | — | — | — | — | *(reporté : lot E interrompu par le plafond de temps du harnais)* |
+| secretariat | `/admin-membres` (1280×800) | 25 | 9 | 9 | 0 | 0 | 0 | 2026-09-19T13:36:00Z |
+| secretariat | `/cabinet-payouts` (1280×800) | 25 | 7 | 7 | 0 | 0 | **2** | 2026-09-19T13:38:00Z |
+| secretariat | `/team-messages` (1280×800) | 26 | 8 | 8 | 0 | 0 | **2** | 2026-09-19T14:10:00Z |
+| patient | `/notifications` (390×844) | 20 | 18 | 18 | 0 | 0 | 0 | 2026-09-19T13:38:00Z |
+| patient | `/profile` (390×844) | 24 | 12 | 12 | 0 | 0 | **1** | 2026-09-19T14:10:00Z |
+| pharmacie | `/messages` (1280×800) | 15 | 10 | 10 | 0 | 0 | 0 | 2026-09-19T14:15:00Z |
+
+**Les 8 contrôles DÉSACTIVÉS de la ronde sont TOUS prouvés légitimes** (exigence « si le code n'a aucune raison de le désactiver, c'est un finding ») :
+- `secretariat /audit-log` — « Filtrer », « Réinitialiser » : `audit_log_page.dart:107-108`, le rôle n'a pas accès (`ProAdminOrManagerClaims`).
+- `secretariat /cabinet-payouts` — « Exporter (CSV) », « Connecter Stripe » : l'écran affiche « **Connexion Stripe indisponible pour l'instant.** » ; sans compte Stripe connecté, ni l'export ni la connexion ne sont actionnables. Capture `secretariat/R84_payouts.png`.
+- `secretariat /team-messages` — « Joindre un patient, un devis… », « Épingler » : affordances non encore implémentées, **libellées honnêtement** (« … indisponible pour l'instant. ») ; déjà traité par **#7082** (fermée), non re-filé.
+- `patient /profile` — « Authentification biométrique » : sans objet sur le web.
+- `patient /profile/consents` — « Soins » : consentement **« Requis pour être soigné »** (`consents_page.dart:190`), base légale non révocable — désactivation correcte.
+
+**Faux positifs du lot D/E, tous invalidés au re-test individuel** : « Nouveau bon » (`/lab-work-orders`, pourtant à y=54 **dans** le viewport — c'est un panneau ouvert par un clic précédent qui absorbait le clic, pas la position) ; « Voir le rendez-vous » (`patient /notifications`) qui en réalité **marque la notification lue** (`POST /v1/notifications/:id/read`) **et** navigue en lien profond vers `/mes-rdv?id=9ab9095d-…` — le RDV annulé au scénario X12, chaîne de notification donc vérifiée de bout en bout ; 3 lignes de conversation `pharmacie /messages` qui émettent bien `GET /v1/pharmacy/conversations/:id/messages` ; 2 « morts » de `/team-messages` qui sont des **nœuds de texte** d'infobulle, pas des contrôles.
+
+*Incident transitoire non retenu* : un passage a rendu `net::ERR_HTTP_RESPONSE_CODE_FAILURE` sur `pharmacie /messages` et un `500` sur `patient/favicon.png` ; **non reproductibles** — `curl` rend `200` sur les deux, et l'écran se charge normalement au re-test (15 contrôles, facettes `Toutes 4 / Non lues 1 / Urgentes 0`). Non filé.
+
+### TOTAL RONDE R84 — 28 écran×viewport, 5/5 apps
+
+**514 contrôles inventoriés · 281 activés · 281 OK · 0 mort · 0 cassé · 8 désactivés (tous légitimes, preuve par le code ou par le message d'écran).**
+
+> **27 verdicts négatifs bruts sur 27 se sont révélés FAUX.** C'est le chiffre à retenir de cette ronde : le harnais d'audit, même corrigé (mise en vue à la molette), reste incapable de produire un verdict « mort » publiable. Causes cumulées : clic hors viewport, panneau/dialogue ouvert qui absorbe les clics suivants, et nœuds de texte confondus avec des contrôles. **Règle pour la ronde suivante : aucun verdict négatif ne part en issue sans re-test individuel sur page neuve.**
