@@ -38,9 +38,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
-    pdf_text,
-    permissions::ProBillingClaims,
-    text_validation, AppState, ObjectStorage,
+    pdf_text, text_validation, AppState, ObjectStorage,
 };
 
 /// Catégories d'acte (CHECK `consent_template_act_category_check`, migration 0279).
@@ -372,8 +370,10 @@ fn push_unique(list: &mut Vec<String>, value: String) {
 /// `POST /v1/consent-templates/:id/render` — rend un modèle pour un patient
 /// et un devis, stocké comme document patient (PDF).
 ///
-/// `ProBillingClaims` (même garde que le reste du domaine devis, DP-F5.b) :
-/// devis inexistant/hors tenant → `404`. Modèle inexistant ou privé d'un
+/// `ProPractitionerClaims` (même garde que les 3 autres routes du domaine
+/// `consent_template` — produire un consentement éclairé est un acte du
+/// praticien, pas du secrétariat, cf. #7391) : devis inexistant/hors tenant →
+/// `404`. Modèle inexistant ou privé d'un
 /// autre cabinet (RLS `tenant_isolation`/`global_template_read`) → `404`
 /// (même doctrine que `prescription_templates::apply_prescription_template` :
 /// pas de distinction entre les deux cas).
@@ -388,7 +388,7 @@ fn push_unique(list: &mut Vec<String>, value: String) {
 /// `POST /v1/cabinet/quotes/:id/attachments` (`kind: "consent"`, #7203).
 pub async fn render_consent_template(
     State(state): State<AppState>,
-    claims: ProBillingClaims,
+    claims: ProPractitionerClaims,
     Extension(object_storage): Extension<std::sync::Arc<dyn ObjectStorage>>,
     Path(id): Path<Uuid>,
     Json(body): Json<RenderConsentTemplateBody>,
