@@ -652,10 +652,7 @@ mod tests {
     #[test]
     fn non_canonical_redirect_target_leaves_already_lowercase_slugs_alone() {
         assert_eq!(non_canonical_redirect_target("dentiste", "lyon"), None);
-        assert_eq!(
-            non_canonical_redirect_target("dentiste", "paris-2e"),
-            None
-        );
+        assert_eq!(non_canonical_redirect_target("dentiste", "paris-2e"), None);
     }
 
     #[test]
