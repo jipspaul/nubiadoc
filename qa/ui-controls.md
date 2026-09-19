@@ -7,9 +7,9 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Bilan complet de la ronde R83 — harnais corrigé (37 écran×viewport)
+### Bilan complet de la ronde R83 — harnais corrigé (44 écran×viewport)
 
-**721 contrôles inventoriés, 299 activés, 229 OK, 60 « morts » bruts, 10 « cassés » bruts, 4 désactivés, 38 hors champ.**
+**828 contrôles inventoriés, 355 activés, 285 OK, 60 « morts » bruts, 10 « cassés » bruts, 7 désactivés, 38 hors champ.**
 
 > 🔴 **AUCUN bouton mort ni cassé n'est CONFIRMÉ cette ronde.** Les 60 verdicts « mort » et 10 « cassé »
 > du tableau sont des **artefacts du harnais** : chacun des candidats re-testé individuellement sur page
@@ -83,6 +83,26 @@ avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupu
 | secretariat | /salle-attente @390 | 4 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
 | pharmacie | / @390 | 13 | 8 | 8 | 0 | 0 | 1 | 2026-09-19T09:05:00+00:00 |
 | infirmiere | / @1280 | 7 | 1 | 1 | 0 | 0 | 3 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /admin-membres @1280 | 24 | 9 | 9 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /admin-secretariats @1280 | 21 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /audit-log @1280 | 24 | 7 | 7 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /notification-preferences @1280 | 12 | 11 | 11 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | /notification-preferences @1280 | 12 | 11 | 11 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | /cabinet-setup @1280 | 5 | 4 | 4 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| pharmacie | /notification-preferences @1280 | 9 | 8 | 8 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+**Écrans jamais audités avant cette ronde, tous propres** : `/admin-membres`, `/admin-secretariats`,
+`/audit-log`, `/notification-preferences` (secrétariat, praticien et pharmacie) et `/cabinet-setup`
+(praticien) — 0 mort, 0 cassé. Trois contrôles désactivés y sont **légitimes et prouvés** :
+« Filtrer » / « Réinitialiser » de `/audit-log` (le secrétariat n'est ni admin ni manager, la route
+répond `403` — cf. le sondage de rôle documenté dans `audit_log_access_cubit.dart`), et
+« Enregistrer » de `/cabinet-setup`, qui **redevient actif dès que les 3 champs requis sont saisis**
+(vérifié : `aria-disabled` passe de `true` à absent après saisie).
+
+**Contrôle d'accessibilité mené sur `/cabinet-setup`** (4 champs peints sur le canvas) : les 4 `<input>`
+portent bien un `aria-label` exact — « Nom du cabinet », « Adresse », « Téléphone »,
+« SIRET (14 chiffres, optionnel) » — tout comme les champs de recherche de `/agenda`, `/documents` et
+`/devis`. **Aucun défaut d'accessibilité.** (Note de méthode : interroger uniquement les nœuds
+`flt-semantics` fait manquer ces champs — les proxies de saisie de Flutter sont des `<input>` frères.)
 
 ### Bilan consolidé de la ronde R79 (2026-09-18)
 
