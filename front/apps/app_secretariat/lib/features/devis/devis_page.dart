@@ -8,9 +8,11 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'devis_bloc.dart';
 import 'devis_event.dart';
 import 'devis_state.dart';
+import 'invoice_reminder_cubit.dart';
 import 'widgets/devis_kpis.dart';
 import 'widgets/devis_status_facets.dart';
 import 'widgets/devis_table.dart';
+import 'widgets/invoice_reminder_section.dart';
 import 'widgets/quote_timeline.dart';
 
 /// Écran "Devis" côté secrétariat — liste des devis du cabinet.
@@ -555,7 +557,6 @@ class _DevisSheetBodyState extends State<_DevisSheetBody> {
   Widget build(BuildContext context) {
     final quote = widget.quote;
     final onClose = widget.onClose;
-    final sending = widget.sending;
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     final hasItems = quote.items != null && quote.items!.isNotEmpty;
@@ -656,6 +657,18 @@ class _DevisSheetBodyState extends State<_DevisSheetBody> {
                 const SizedBox(height: 16),
                 // Bloc « Suivi » (#5090, #6589) : où en est ce devis ?
                 QuoteTimeline(quote: quote),
+                // Bouton « Relancer le patient » (#7205, #7368) : uniquement
+                // sur une facture échue (même définition que
+                // `?overdue=true` côté back, cf. `CabinetQuote.isOverdue`) —
+                // appelle `POST /v1/invoices/:id/reminder`, pas `/send`
+                // (réservé à l'envoi initial d'un devis brouillon).
+                if (quote.isOverdue) ...[
+                  const SizedBox(height: 16),
+                  BlocProvider<InvoiceReminderCubit>(
+                    create: (_) => GetIt.instance<InvoiceReminderCubit>(),
+                    child: InvoiceReminderSection(quote: quote),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 const _DevisSheetConfidentialityNotice(),
               ],
@@ -666,19 +679,6 @@ class _DevisSheetBodyState extends State<_DevisSheetBody> {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: Column(
             children: [
-              NubiaButton(
-                key: const Key('btn_relance_devis_secretariat'),
-                label: 'Relancer le patient',
-                icon: Icons.send_outlined,
-                size: NubiaButtonSize.lg,
-                isLoading: sending,
-                onPressed: sending
-                    ? null
-                    : () => context
-                        .read<DevisBloc>()
-                        .add(DevisSendRequested(quote.id)),
-              ),
-              const SizedBox(height: 8),
               NubiaButton(
                 key: const Key('btn_call_devis_secretariat'),
                 label: 'Appeler',
