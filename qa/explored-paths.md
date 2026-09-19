@@ -105,6 +105,14 @@ de #7354 — un correctif frais se re-teste sur ses cas légitimes autant que su
 - **#7376 (backfill des 2 secrétaires seed)** — noms rendus par `/v1/cabinet/members` et
   `assignee_display_name` renseigné sur les tâches qui leur sont assignées.
 
+**Smoke de clôture après les 5 merges du jour** (les 4 correctifs de la ronde + la migration #7379) :
+**25 / 25 assertions vertes** sur les chaînes métier complètes — X1 (création + signature d'ordonnance,
+visible côté patient), X2 (commande patient → officine, reçue), X3 (accept → ready → **QR de retrait** →
+scan → `picked_up` reflété côté patient), X6 (devis créé → envoyé → signé par le patient → vu `signed`
+par le secrétariat), X7 (demande de stock → acceptée par l'officine), X10 (demande de visite → offre
+reçue → accept → en-route → arrived → done → suivi patient `done`), plus les 3 cloisonnements croisés
+(nurse→cabinet, patient→pharmacy, pharma→nurse, tous `403`). **Aucune régression de plateforme.**
+
 > ⚠️ **Note de méthode (R83)** — le harnais d'audit hérité cliquait aux coordonnées Semantics **sans
 > vérifier qu'elles tombent dans le viewport** : tout contrôle sous la ligne de flottaison recevait un
 > clic hors écran et était classé « MORT » à tort (`document.elementFromPoint` → `RIEN`). Vérifié sur
