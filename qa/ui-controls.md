@@ -7,41 +7,82 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Bilan de la ronde R83 (2026-09-19, 06:00–09:10 UTC)
+### Bilan complet de la ronde R83 — harnais corrigé (37 écran×viewport)
 
-> ⚠️ **Correctif de méthode appliqué cette ronde — à lire avant d'exploiter les colonnes « morts » des rondes antérieures.**
-> Le harnais d'audit hérité cliquait aux coordonnées de l'arbre Semantics **sans vérifier qu'elles tombent
-> dans le viewport**. Or ces rects sont en coordonnées de PAGE : tout contrôle sous la ligne de flottaison
-> recevait un clic **hors écran** (`document.elementFromPoint` → `RIEN`), donc aucun effet, donc le verdict
-> « MORT ». Prouvé sur « Relancer » (`/stock` secrétariat, y=858 pour un viewport de 800) : au repos le clic
-> ne produit rien ; après défilement, **le même clic émet `POST /v1/cabinet/stock-requests/:id/resend`**.
-> Le harnais applique désormais `bringIntoView` (défilement + ré-inventaire) avant chaque activation, et
-> compte « **hors champ** » — et non « mort » — un contrôle qu'il n'a pas pu amener dans le cadre.
-> **5 candidats « bouton mort » de cette ronde ont été invalidés** après re-vérification sur page neuve :
-> les blocs RDV de l'agenda secrétariat, `Envoyer`/`PDF`/`Relancer` de `/devis`, `Renouveler` de `/stock`,
-> les chips d'expédition du labo praticien, et `Accepter` de l'app infirmière. **Aucun bouton mort confirmé
-> cette ronde.** Les verdicts MORT antérieurs produits par l'ancien harnais sont à re-prouver avant tout signalement.
+**721 contrôles inventoriés, 299 activés, 229 OK, 60 « morts » bruts, 10 « cassés » bruts, 4 désactivés, 38 hors champ.**
 
-Chiffres ci-dessous : **harnais corrigé uniquement** (12 écran×viewport, 238 contrôles inventoriés,
-82 activés). Le parcours secrétariat de la ronde (12 écrans, 604 contrôles inventoriés) a tourné sous
-l'ancien harnais : ses verdicts « morts » sont **écartés** et l'écran est à ré-auditer à la ronde suivante.
-S'ajoutent ~35 activations ciblées hors tableau (3 onglets de l'app infirmière, dialogue « Nouveau RDV »,
-chips du labo, actions de ligne `/stock` et `/devis`, cas adversariaux double-submit / BACK / coupure réseau).
+> 🔴 **AUCUN bouton mort ni cassé n'est CONFIRMÉ cette ronde.** Les 60 verdicts « mort » et 10 « cassé »
+> du tableau sont des **artefacts du harnais** : chacun des candidats re-testé individuellement sur page
+> neuve s'est révélé fonctionnel. Quatre causes distinctes ont été identifiées et **trois sont corrigées** ;
+> la quatrième est documentée ici faute de correctif simple.
+>
+> 1. **Clic hors viewport** *(corrigé — `bringIntoView`)*. Les rects Semantics sont en coordonnées de page ;
+>    un contrôle sous la ligne de flottaison recevait un clic hors écran (`document.elementFromPoint` → `RIEN`).
+>    Prouvé sur « Relancer » (`/stock` secrétariat, y=858 pour un viewport de 800) : hors champ rien ne se
+>    passe ; après défilement, **le même clic émet `POST /v1/cabinet/stock-requests/:id/resend`**.
+> 2. **Rect de CONTENEUR pris pour celui du contrôle** *(corrigé — n'activer que les rôles de contrôle réels)*.
+>    Un `flt-semantics` sans `role` concatène le texte de ses descendants : il « contient » le libellé d'un
+>    bouton tout en ayant le rect de la carte entière. Prouvé sur « Je suis là » (`/mes-rdv`, 390 px) : le
+>    nœud trouvé par libellé mesurait 390×739 ; ciblé sur son **rect DOM réel** (86×36), le clic émet
+>    `POST /v1/appointments/:id/checkin`.
+> 3. **Panneau de détail qui absorbe les clics suivants** *(atténué — page neuve par contrôle sur re-test)*.
+>    Après l'ouverture d'un volet, les clics suivants de la boucle tombent sur le volet. Cause des 32 faux
+>    « morts » sur les blocs de l'agenda secrétariat et des lignes de conversation des 3 apps — toutes
+>    re-testées comme **fonctionnelles** (`GET /v1/cabinet/conversations/:id/messages` émis à chaque fois).
+> 4. **Dialogue natif non détecté** *(non corrigé — documenté)*. Un contrôle qui ouvre un sélecteur de
+>    fichier ne produit ni requête, ni repeinture, ni changement d'arbre. Prouvé sur « Modifier la photo de
+>    profil » (`/profile`, 390 px) : classé « mort » par la boucle, il **ouvre bien le sélecteur de fichier**
+>    aux trois points testés (`page.on('filechooser')`). Le harnais devrait écouter cet événement.
+>
+> Une 5ᵉ limite reste ouverte : les bandeaux à **défilement horizontal** (facettes de `/documents` à 390 px,
+> rendues de x=607 à x=1394) sortent du cadre latéralement ; `bringIntoView` ne défile que verticalement.
+>
+> **Conséquence pour les rondes suivantes : les verdicts MORT antérieurs produits par ce harnais sont à
+> re-prouver individuellement avant tout signalement.**
 
-| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | hors champ | last_check |
+Non repris dans le tableau : ~35 activations ciblées (3 onglets de l'app infirmière, dialogue « Nouveau RDV »,
+chips d'expédition du labo, actions de ligne `/stock` et `/devis`, facettes de `/stock`, créneaux de `/book`,
+avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupure réseau) — tous **OK**.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts (bruts) | cassés (bruts) | hors champ | last_check |
 |---|---|---|---|---|---|---|---|---|
-| pharmacie | / @1280×800 | 22 | 7 | 7 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
-| pharmacie | /stock @1280×800 | 19 | 8 | 8 | 0 | 0 | 1 | 2026-09-19T09:05:00+00:00 |
-| pharmacie | /devis @1280×800 | 26 | 11 | 11 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
-| pharmacie | /messages @1280×800 | 15 | 7 | 6 | 1 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
-| infirmiere | / @390×844 | 7 | 2 | 2 | 0 | 0 | 3 | 2026-09-19T09:05:00+00:00 |
-| infirmiere | /notification-preferences @390×844 | 3 | 2 | 2 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
-| praticien | / @1280×800 | 23 | 5 | 5 | 0 | 0 | 4 | 2026-09-19T09:05:00+00:00 |
-| praticien | /lab-work-orders @1280×800 | 23 | 9 | 7 | 2 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
-| praticien | /devis @1280×800 | 24 | 7 | 3 | 4 | 0 | 3 | 2026-09-19T09:05:00+00:00 |
-| praticien | /stock-inventory @1280×800 | 28 | 4 | 4 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
-| praticien | /ordonnances @1280×800 | 17 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
-| praticien | /patients @1280×800 | 31 | 17 | 7 | 0 | 10 | 0 | 2026-09-19T09:05:00+00:00 |
+| pharmacie | / @1280 | 22 | 7 | 7 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| pharmacie | /stock @1280 | 19 | 8 | 8 | 0 | 0 | 1 | 2026-09-19T09:05:00+00:00 |
+| pharmacie | /devis @1280 | 26 | 11 | 11 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| pharmacie | /messages @1280 | 15 | 7 | 6 | 1 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| infirmiere | / @390 | 7 | 2 | 2 | 0 | 0 | 3 | 2026-09-19T09:05:00+00:00 |
+| infirmiere | /notification-preferences @390 | 3 | 2 | 2 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | / @1280 | 23 | 5 | 5 | 0 | 0 | 4 | 2026-09-19T09:05:00+00:00 |
+| praticien | /lab-work-orders @1280 | 23 | 9 | 7 | 2 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | /devis @1280 | 24 | 7 | 3 | 4 | 0 | 3 | 2026-09-19T09:05:00+00:00 |
+| praticien | /stock-inventory @1280 | 28 | 4 | 4 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | /ordonnances @1280 | 17 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | /patients @1280 | 31 | 17 | 7 | 0 | 10 | 0 | 2026-09-19T09:05:00+00:00 |
+| secretariat | / @1280 | 26 | 8 | 6 | 2 | 0 | 2 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /stock @1280 | 38 | 13 | 7 | 6 | 0 | 1 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /devis @1280 | 38 | 14 | 12 | 2 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /patients @1280 | 37 | 17 | 11 | 6 | 0 | 5 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /messages @1280 | 28 | 13 | 7 | 6 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /salle-attente @1280 | 22 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | /agenda @1280 | 22 | 7 | 7 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | /waiting-room @1280 | 21 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | /consultation @1280 | 34 | 14 | 6 | 8 | 0 | 4 | 2026-09-19T09:05:00+00:00 |
+| praticien | /messages @1280 | 24 | 10 | 3 | 7 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | /stock @1280 | 18 | 4 | 4 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | /team-messages @1280 | 17 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | / @390 | 17 | 10 | 10 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /documents @390 | 27 | 14 | 7 | 7 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /profile @390 | 13 | 12 | 11 | 1 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /messaging @390 | 8 | 8 | 8 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /pharmacy @390 | 7 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /book @390 | 20 | 16 | 8 | 8 | 0 | 2 | 2026-09-19T09:05:00+00:00 |
+| patient | / @1280 | 17 | 10 | 10 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| praticien | / @390 | 11 | 7 | 7 | 0 | 0 | 4 | 2026-09-19T09:05:00+00:00 |
+| praticien | /waiting-room @390 | 5 | 4 | 4 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| secretariat | / @390 | 9 | 3 | 3 | 0 | 0 | 5 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /salle-attente @390 | 4 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| pharmacie | / @390 | 13 | 8 | 8 | 0 | 0 | 1 | 2026-09-19T09:05:00+00:00 |
+| infirmiere | / @1280 | 7 | 1 | 1 | 0 | 0 | 3 | 2026-09-19T09:05:00+00:00 |
 
 ### Bilan consolidé de la ronde R79 (2026-09-18)
 
