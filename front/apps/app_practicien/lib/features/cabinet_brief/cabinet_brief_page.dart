@@ -251,6 +251,24 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
+/// Heure courte `HH:MM` (heure locale) d'un horodatage RDV ISO 8601 — le
+/// brief est un plan de journée, l'heure de chaque RDV est ce qui distingue
+/// deux RDV du même patient au même motif (#7413).
+String _formatApptTime(String startsAt) {
+  final dt = DateTime.parse(startsAt).toLocal();
+  final hh = dt.hour.toString().padLeft(2, '0');
+  final mm = dt.minute.toString().padLeft(2, '0');
+  return '$hh:$mm';
+}
+
+/// Date courte `JJ/MM/AAAA` (heure locale) d'un horodatage ISO 8601.
+String _formatApptDate(String iso) {
+  final dt = DateTime.parse(iso).toLocal();
+  final dd = dt.day.toString().padLeft(2, '0');
+  final mm = dt.month.toString().padLeft(2, '0');
+  return '$dd/$mm/${dt.year}';
+}
+
 class _AppointmentsSection extends StatelessWidget {
   const _AppointmentsSection({required this.groups});
   final List<BriefPractitionerAppointments> groups;
@@ -276,6 +294,7 @@ class _AppointmentsSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: Text(
+                '${_formatApptTime(appt.startsAt)} '
                 '${appt.patientDisplayName} — '
                 '${appt.motif ?? 'Sans motif'}',
                 style: textTheme.bodyMedium,
@@ -347,6 +366,7 @@ class _ProsthesesSection extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: Text(
+              '${_formatApptDate(prosthesis.appointmentStartsAt)} '
               '${prosthesis.patientDisplayName} — '
               '${prosthesis.labName} (${prosthesis.status})',
             ),
@@ -373,7 +393,8 @@ class _OpenTasksSection extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: Text(
               '${task.title} '
-              '(assigné : ${task.assigneeDisplayName ?? 'non assigné'})',
+              '(assigné : ${task.assigneeDisplayName ?? 'non assigné'}, '
+              'échéance : ${task.dueDate ?? 'aucune'})',
             ),
           ),
       ],
