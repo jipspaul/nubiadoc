@@ -2825,3 +2825,23 @@ sélecteur « Assigné à » des 3 dialogues de tâche, qui n'offre jamais que �
 | **Texte très long** (250 car.) dans le formulaire de modèle | praticien `/consent-templates` | **OK** — saisie dans les 2 champs, **0 nœud débordant du viewport**, 0 erreur console. |
 | **Coupure réseau** `route.abort('**/v1/**')` | praticien `/consent-templates`, `/agenda` ; secrétariat `/devis` | **INDIGNE → #7397** — page blanche (0.992) ou rail seul (0.783 / 0.794), stable à 30 s, aucun message, aucune reprise, aucune redirection. |
 | **Coupure réseau pendant la soumission** | praticien `/consent-templates` (dialogue rempli) | Dialogue réduit à un nœud « Alerte » sans message exploitable — même famille que #7397, non compté à part. |
+
+#### Lot C R84 — écrans jamais audités (6 écran×viewport de plus)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/liste-attente` (1280×800) | 20 | 4 | 4 | 0 | 0 | 0 | 2026-09-19T13:28:00Z |
+| secretariat | `/appointment-motifs` (1280×800) | 21 | 5 | 5 | 0 | 0 | 0 | 2026-09-19T13:28:00Z |
+| secretariat | `/cabinet-stats` (1280×800) | 21 | 5 | 5 | 0 | 0 | 0 | 2026-09-19T13:32:00Z |
+| praticien | `/stock` (1280×800) | 19 | 5 | 5 | 0 | 0 | 0 | 2026-09-19T13:28:00Z |
+| patient | `/profile/consents` (390×844) | 8 | 5 | 5 | 0 | 0 | 1 | 2026-09-19T13:32:00Z |
+| pharmacie | `/stock` (1280×800) | 19 | 13 | 13 | 0 | 0 | 0 | 2026-09-19T13:32:00Z |
+
+**5 candidats « mort/cassé » du lot C, tous écartés au re-test individuel** — le harnais reste sujet aux faux positifs dès qu'un contrôle est sous la ligne de flottaison ou qu'un panneau absorbe le clic :
+- `patient /profile/consents` « Partage avec un confrère » (y=711) et « Détails » (y=824) → après molette (rects ramenés à y=711/394), **repeinture observée** sur les deux.
+- `pharmacie /stock` « Refuser — motif obligatoire » ×2 (y=552, y=743) → après molette (y=361/552), **repeinture observée** sur les deux.
+- `secretariat /cabinet-stats` « Actualiser » compté CASSÉ sur un `403 GET /v1/cabinet/stats/activity` → **faux positif** : l'écran gère le refus proprement (cadenas + « **Réservé aux praticiens** » / « Votre rôle ne permet pas d'afficher l'activité par praticien. ») et **les 4 KPI du haut se rafraîchissent normalement** (`6 383,46 € CA encaissé`, `66 083,94 € reste à encaisser`, `67 % taux de transformation`, `268/400 devis signés`). Seule la section « Activité par praticien » est gardée. Capture `secretariat/R84_stats403.png`.
+
+> ⚠️ **Note de méthode pour la ronde suivante** : sur ces deux lots, **19 verdicts « mort/cassé » bruts sur 19 se sont révélés faux**. Un verdict négatif du harnais n'est JAMAIS publiable tel quel — il doit être rejoué contrôle par contrôle sur page neuve, après mise en vue à la molette, avant d'être rapporté.
+
+**Total R84 tous lots : 331 contrôles inventoriés, 200 activés, 200 OK, 0 mort, 0 cassé, 3 désactivés (tous légitimes, preuve par le code).**
