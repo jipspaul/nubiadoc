@@ -138,13 +138,15 @@ async fn mfa_disable_correct_password_returns_200_and_login_no_longer_requires_c
     }
     let db = owner_pool().await;
     let (user_id, email, password) = insert_pro_with_mfa_enabled(&db).await;
-    let jwt = make_pro_jwt(user_id);
 
+    // #7342 : aucun JWT — c'est justement ce que `login` refuse d'émettre
+    // tant que la MFA est active. Seule preuve de possession : le mot de
+    // passe courant, comme sur `login`.
     let response = nubia_api::app(app_state(app_pool().await))
         .oneshot(post_json(
             "/v1/auth/mfa/disable",
-            Some(&jwt),
-            json!({"password": password}),
+            None,
+            json!({"email": email, "password": password}),
         ))
         .await
         .unwrap();
@@ -189,14 +191,13 @@ async fn mfa_disable_wrong_password_returns_401_and_leaves_mfa_enabled() {
         return;
     }
     let db = owner_pool().await;
-    let (user_id, _email, _password) = insert_pro_with_mfa_enabled(&db).await;
-    let jwt = make_pro_jwt(user_id);
+    let (user_id, email, _password) = insert_pro_with_mfa_enabled(&db).await;
 
     let response = nubia_api::app(app_state(app_pool().await))
         .oneshot(post_json(
             "/v1/auth/mfa/disable",
-            Some(&jwt),
-            json!({"password": "totalement-faux"}),
+            None,
+            json!({"email": email, "password": "totalement-faux"}),
         ))
         .await
         .unwrap();
@@ -218,10 +219,11 @@ async fn mfa_disable_when_not_enabled_returns_409() {
     }
     let db = owner_pool().await;
     let user_id = Uuid::new_v4();
+    let email = format!("mfa-disable-noop+{user_id}@nubia.test");
     let password = "password123";
     sqlx::query("INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'pro')")
         .bind(user_id)
-        .bind(format!("mfa-disable-noop+{user_id}@nubia.test"))
+        .bind(&email)
         .bind(hash_password(password))
         .execute(&db)
         .await
@@ -230,8 +232,8 @@ async fn mfa_disable_when_not_enabled_returns_409() {
     let response = nubia_api::app(app_state(app_pool().await))
         .oneshot(post_json(
             "/v1/auth/mfa/disable",
-            Some(&make_pro_jwt(user_id)),
-            json!({"password": password}),
+            None,
+            json!({"email": email, "password": password}),
         ))
         .await
         .unwrap();
@@ -239,10 +241,10 @@ async fn mfa_disable_when_not_enabled_returns_409() {
     assert_eq!(json_body(response).await["code"], "invalid_status");
 }
 
-// ── Sans JWT → 401 ─────────────────────────────────────────────────────────
+// ── Email inconnu → 401 (anti-énumération, même contrat que `login`) ───────
 
 #[tokio::test]
-async fn mfa_disable_without_jwt_returns_401() {
+async fn mfa_disable_unknown_email_returns_401() {
     if std::env::var("APP_DATABASE_URL").is_err() || std::env::var("DATABASE_URL").is_err() {
         return;
     }
@@ -251,9 +253,10 @@ async fn mfa_disable_without_jwt_returns_401() {
         .oneshot(post_json(
             "/v1/auth/mfa/disable",
             None,
-            json!({"password": "whatever123"}),
+            json!({"email": "personne-ne-connait-cette-adresse@nubia.test", "password": "whatever123"}),
         ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(json_body(response).await["code"], "unauthenticated");
 }
