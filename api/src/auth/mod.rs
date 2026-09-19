@@ -215,6 +215,12 @@ pub(crate) enum AppError {
     /// a bien `UNIQUE (practitioner_id, ccam_code)` mais l'app évite de
     /// laisser remonter une violation de contrainte brute en 500).
     FavoriteActAlreadyExists,
+    /// `POST /v1/cabinet/practitioner-objectives` (#7189) : un objectif existe
+    /// déjà pour ce couple `(cabinet_id, provider_id, month)` (`UNIQUE
+    /// practitioner_objective_unique_cabinet_provider_month`, migration
+    /// 0282) — même choix que `FavoriteActAlreadyExists` : le manager doit
+    /// utiliser `PATCH` sur l'objectif existant plutôt que d'en recréer un.
+    ObjectiveAlreadyExists,
     /// `POST /v1/cabinet/orthodontics/:id/steps` (#4135) : `step_number`
     /// déjà utilisé pour ce traitement (index unique `(treatment_id,
     /// step_number)`, migration 0189) — même choix que
@@ -567,6 +573,11 @@ impl IntoResponse for AppError {
             AppError::FavoriteActAlreadyExists => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "favorite_act_already_exists"})),
+            )
+                .into_response(),
+            AppError::ObjectiveAlreadyExists => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "objective_already_exists"})),
             )
                 .into_response(),
             AppError::StepNumberTaken => (
