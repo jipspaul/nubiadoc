@@ -497,7 +497,7 @@ class AppRouter {
             create: (_) => GetIt.instance<MessagingBloc>()
               ..add(const MessagingConversationsLoadRequested()),
             child: Scaffold(
-              appBar: AppBar(title: const Text('Messages')),
+              appBar: const MessagingAppBar(),
               body: const MessagingPage(),
             ),
           ),

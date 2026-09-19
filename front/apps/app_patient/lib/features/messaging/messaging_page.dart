@@ -30,6 +30,61 @@ class MessagingPage extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+/// En-tête de l'écran Messages : titre + compteur de synthèse
+/// « N conversations · M non lus » sous le titre, verbatim maquette
+/// design-v2 (point 1) — même pattern que `NotificationsAppBar`.
+///
+/// Doit être placée dans un [BlocProvider<MessagingBloc>].
+class MessagingAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const MessagingAppBar({super.key});
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<MessagingBloc, MessagingState>(
+      builder: (context, state) {
+        final conversations =
+            state is MessagingConversationsLoaded ? state.conversations : null;
+        return AppBar(
+          titleSpacing: 0,
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Messages',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (conversations != null && conversations.isNotEmpty)
+                Text(
+                  _summaryLabel(conversations),
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: NubiaColors.n500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static String _summaryLabel(List<Conversation> conversations) {
+    final unread =
+        conversations.fold<int>(0, (sum, conv) => sum + conv.unreadCount);
+    final convWord = conversations.length == 1 ? 'conversation' : 'conversations';
+    final unreadWord = unread == 1 ? 'non lu' : 'non lus';
+    return '${conversations.length} $convWord · $unread $unreadWord';
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 class _MessagingBody extends StatelessWidget {
   const _MessagingBody();
 
@@ -97,41 +152,51 @@ class _ConversationsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final items = _listItemsFor(conversations);
     return ListView.builder(
       key: const Key('messaging_conversations_list'),
-      itemCount: conversations.length,
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final conv = conversations[index];
-        final last = conv.lastMessage;
-        // Le contrat liste (`GET /v1/conversations`) renvoie
-        // `last_message_at` + `last_message_preview` (aperçu tronqué côté
-        // serveur) ; fallback sur l'état non-lu pour les anciens payloads.
-        final lastAt = conv.lastMessageAt ?? last?.sentAt;
-        return ListRow(
-          key: Key('conv_${conv.id}'),
-          leading: _InterlocutorAvatar(type: conv.interlocutorType),
-          title: conv.cabinetName,
-          subtitle: _subtitle(
-            conv.lastMessagePreview ?? last?.text,
-            conv.unreadCount,
-          ),
-          unread: conv.unreadCount > 0,
-          trailing: _Trailing(
-            timestamp: lastAt != null ? NubiaDate.relative(lastAt) : null,
-            urgent: last?.urgency == MessageUrgency.urgent,
-          ),
-          onTap: () => context.push(
-            '${AppRouter.messaging}/${conv.id}',
-            extra: conv,
-          ),
-        );
+        final item = items[index];
+        return switch (item) {
+          _PreviousConversationsHeader() => const _PreviousSectionLabel(),
+          _ConversationRow(:final conversation) =>
+            _buildRow(context, conversation),
+        };
       },
+    );
+  }
+
+  ListRow _buildRow(BuildContext context, Conversation conv) {
+    final last = conv.lastMessage;
+    // Le contrat liste (`GET /v1/conversations`) renvoie
+    // `last_message_at` + `last_message_preview` (aperçu tronqué côté
+    // serveur) ; fallback sur l'état non-lu pour les anciens payloads.
+    final lastAt = conv.lastMessageAt ?? last?.sentAt;
+    return ListRow(
+      key: Key('conv_${conv.id}'),
+      leading: _InterlocutorAvatar(type: conv.interlocutorType),
+      title: conv.cabinetName,
+      subtitleWidget: _ConversationSubtitle(
+        who: _who(conv),
+        preview: _subtitle(conv.lastMessagePreview ?? last?.text, conv.unreadCount),
+        unread: conv.unreadCount > 0,
+      ),
+      unread: conv.unreadCount > 0,
+      trailing: _Trailing(
+        timestamp: lastAt != null ? NubiaDate.relative(lastAt) : null,
+        urgent: last?.urgency == MessageUrgency.urgent,
+      ),
+      onTap: () => context.push(
+        '${AppRouter.messaging}/${conv.id}',
+        extra: conv,
+      ),
     );
   }
 
   /// Sous-titre affiché sous le nom du cabinet : aperçu du dernier message
   /// (`last_message_preview`) ; à défaut on résume l'état non-lu.
-  String _subtitle(String? preview, int unreadCount) {
+  static String _subtitle(String? preview, int unreadCount) {
     if (preview != null && preview.trim().isNotEmpty) return preview.trim();
     if (unreadCount > 0) {
       return unreadCount == 1
@@ -139,6 +204,117 @@ class _ConversationsList extends StatelessWidget {
           : '$unreadCount nouveaux messages';
     }
     return 'Appuyez pour ouvrir la conversation';
+  }
+
+  /// Sous-ligne auteur/rôle sous le nom de l'interlocuteur (maquette
+  /// design-v2, point 3) : le patient échange soit avec une personne nommée
+  /// du cabinet (`Message.authorName`/`authorRole`), soit avec la
+  /// pharmacie — dont les envois ne sont jamais signés par une personne.
+  static String? _who(Conversation conv) {
+    if (conv.interlocutorType == ConversationInterlocutorType.pharmacy) {
+      return 'Votre pharmacie';
+    }
+    final last = conv.lastMessage;
+    return last?.authorName ?? last?.authorRole;
+  }
+}
+
+/// Élément affiché dans la liste des conversations : soit une ligne de
+/// conversation, soit le séparateur de section devant les fils déjà lus
+/// (maquette design-v2, point 2 — « Conversations précédentes »).
+sealed class _ConversationListItem {
+  const _ConversationListItem();
+}
+
+class _ConversationRow extends _ConversationListItem {
+  const _ConversationRow(this.conversation);
+
+  final Conversation conversation;
+}
+
+class _PreviousConversationsHeader extends _ConversationListItem {
+  const _PreviousConversationsHeader();
+}
+
+/// Regroupe les conversations non lues en tête (sans en-tête, comme les
+/// fils "récents" de la maquette), puis insère un séparateur de section
+/// devant le reste — dès lors qu'il y a effectivement deux groupes à
+/// distinguer.
+List<_ConversationListItem> _listItemsFor(List<Conversation> conversations) {
+  final unread = conversations.where((conv) => conv.unreadCount > 0);
+  final previous = conversations.where((conv) => conv.unreadCount == 0);
+  return [
+    for (final conv in unread) _ConversationRow(conv),
+    if (previous.isNotEmpty) const _PreviousConversationsHeader(),
+    for (final conv in previous) _ConversationRow(conv),
+  ];
+}
+
+/// Libellé du séparateur de section (maquette design-v2, point 2) :
+/// capitales grises, verbatim `.gh` de la maquette — même pattern que
+/// `_DocumentGroupHeader` (`documents_page.dart`).
+class _PreviousSectionLabel extends StatelessWidget {
+  const _PreviousSectionLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        'CONVERSATIONS PRÉCÉDENTES',
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+          color: NubiaColors.n400,
+        ),
+      ),
+    );
+  }
+}
+
+/// Sous-titre à deux lignes d'une ligne de conversation : auteur/rôle
+/// (maquette design-v2, point 3) au-dessus de l'aperçu du dernier message.
+/// `ListRow.subtitle` ne porte qu'une seule ligne de texte, d'où ce widget
+/// libre passé en `subtitleWidget`.
+class _ConversationSubtitle extends StatelessWidget {
+  const _ConversationSubtitle({
+    required this.who,
+    required this.preview,
+    required this.unread,
+  });
+
+  final String? who;
+  final String preview;
+  final bool unread;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (who != null)
+          Text(
+            who!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+          ),
+        Text(
+          preview,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: textTheme.bodySmall?.copyWith(
+            color: unread ? cs.onSurfaceVariant : tokens.textTertiary,
+            fontWeight: unread ? FontWeight.w500 : FontWeight.w400,
+          ),
+        ),
+      ],
+    );
   }
 }
 
