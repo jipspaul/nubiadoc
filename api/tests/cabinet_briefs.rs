@@ -253,6 +253,25 @@ async fn call_bytes(
     (status, bytes.to_vec(), content_type)
 }
 
+/// 07:00 UTC du jour courant — soit 08 h ou 09 h locales `Europe/Paris`
+/// (UTC+1 en hiver, UTC+2 en été), donc toujours dans la journée locale
+/// correspondant à la date UTC du jour.
+///
+/// Sert d'ancre aux fixtures de RDV. Les briefs découpent la journée en jours
+/// LOCAUX (`scheduling::cabinet_local_days_utc_range`) : ancrées sur `now()`,
+/// les fixtures « +1 h » jouées après 22 h UTC basculaient sur le LENDEMAIN
+/// local et vidaient le brief du jour — deux tests rouges chaque soir sur
+/// `main`, bloquant toute PR Rust (constaté le 2026-09-19 à 21 h 31 UTC).
+fn brief_day_anchor_utc() -> chrono::DateTime<chrono::Utc> {
+    let today = chrono::Utc::now().date_naive();
+    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+        today
+            .and_hms_opt(7, 0, 0)
+            .expect("07:00 est une heure valide"),
+        chrono::Utc,
+    )
+}
+
 async fn insert_appointment(db: &PgPool, f: &Fixture, offset_interval: &str, motif: &str) -> Uuid {
     let appointment_id = Uuid::new_v4();
     let mut tx = db.begin().await.unwrap();
@@ -264,8 +283,8 @@ async fn insert_appointment(db: &PgPool, f: &Fixture, offset_interval: &str, mot
     sqlx::query(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
-         VALUES ($1, $2, $3, $4, now() + $5::interval, \
-                  now() + $5::interval + interval '30 minutes', 'confirmed', $6)",
+         VALUES ($1, $2, $3, $4, $7::timestamptz + $5::interval, \
+                  $7::timestamptz + $5::interval + interval '30 minutes', 'confirmed', $6)",
     )
     .bind(appointment_id)
     .bind(f.cabinet_id)
@@ -273,6 +292,8 @@ async fn insert_appointment(db: &PgPool, f: &Fixture, offset_interval: &str, mot
     .bind(f.prac_id)
     .bind(offset_interval)
     .bind(motif)
+    // Ancre déterministe (cf. `brief_day_anchor_utc`) plutôt que `now()`.
+    .bind(brief_day_anchor_utc())
     .execute(&mut *tx)
     .await
     .unwrap();
