@@ -13,6 +13,7 @@ import 'package:app_secretariat/features/devis/devis_detail_page.dart';
 import 'package:app_secretariat/features/devis/devis_event.dart';
 import 'package:app_secretariat/features/devis/devis_page.dart';
 import 'package:app_secretariat/features/devis/devis_state.dart';
+import 'package:app_secretariat/features/devis/invoice_reminder_cubit.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_kpis.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_table.dart';
 import 'package:app_secretariat/features/devis/widgets/quote_timeline.dart';
@@ -23,6 +24,9 @@ class _MockCabinetQuotesRepository extends Mock
 
 class _MockCabinetPatientsRepository extends Mock
     implements CabinetPatientsRepository {}
+
+class _MockInvoiceReminderRepository extends Mock
+    implements InvoiceReminderRepository {}
 
 class _MockDevisBloc extends MockBloc<DevisEvent, DevisState>
     implements DevisBloc {}
@@ -1033,6 +1037,167 @@ void main() {
       expect(find.byKey(const Key('quote_timeline')), findsOneWidget);
       expect(find.text('Devis créé'), findsOneWidget);
       expect(find.text('Signature attendue'), findsNothing);
+    });
+  });
+
+  // --- DevisDetailPage — bouton « Relancer le patient » (#7205) ---------------
+  group('DevisDetailPage — relance facture échue (#7205)', () {
+    late _MockDevisBloc bloc;
+    late _MockInvoiceReminderRepository reminderRepo;
+
+    final overdueQuote = CabinetQuote(
+      id: 'q1',
+      quoteRef: 'DEV-0001',
+      cabinetId: 'c1',
+      patientId: 'p1',
+      patientName: 'Albert Einstein',
+      totalCents: 35000,
+      patientShareCents: 12000,
+      status: CabinetQuoteStatus.signed,
+      createdAt: DateTime(2026, 2, 1),
+      signedAt: DateTime(2026, 2, 10),
+      isOverdue: true,
+    );
+
+    final notOverdueQuote = CabinetQuote(
+      id: 'q1',
+      quoteRef: 'DEV-0001',
+      cabinetId: 'c1',
+      patientId: 'p1',
+      patientName: 'Albert Einstein',
+      totalCents: 35000,
+      patientShareCents: 12000,
+      status: CabinetQuoteStatus.signed,
+      createdAt: DateTime(2026, 2, 1),
+      signedAt: DateTime(2026, 2, 10),
+    );
+
+    setUp(() {
+      bloc = _MockDevisBloc();
+      reminderRepo = _MockInvoiceReminderRepository();
+      GetIt.instance.registerFactory<InvoiceReminderCubit>(
+        () => InvoiceReminderCubit(
+          listReminders: ListInvoiceRemindersUseCase(reminderRepo),
+          sendReminder: SendInvoiceReminderUseCase(reminderRepo),
+        ),
+      );
+      addTearDown(GetIt.instance.reset);
+    });
+
+    Widget buildDetailPage() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<DevisBloc>.value(
+            value: bloc,
+            child: const DevisDetailPage(id: 'q1'),
+          ),
+        );
+
+    testWidgets('facture non échue : aucun bouton « Relancer le patient »',
+        (tester) async {
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(notOverdueQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('btn_relancer_patient')), findsNothing);
+    });
+
+    testWidgets(
+        'facture échue : bouton visible + historique vide affiché par défaut',
+        (tester) async {
+      when(() => reminderRepo.listHistory('q1'))
+          .thenAnswer((_) async => const Right([]));
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(overdueQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('btn_relancer_patient')), findsOneWidget);
+      expect(
+        find.byKey(const Key('invoice_reminder_history_empty')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'facture échue : historique affiché après une relance précédente',
+        (tester) async {
+      when(() => reminderRepo.listHistory('q1')).thenAnswer(
+        (_) async => Right([
+          InvoiceReminder(
+            channel: InvoiceReminderChannel.push,
+            sentAt: DateTime(2026, 8, 1, 9, 30),
+          ),
+          InvoiceReminder(
+            channel: InvoiceReminderChannel.email,
+            sentAt: DateTime(2026, 8, 1, 9, 30),
+          ),
+        ]),
+      );
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(overdueQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('invoice_reminder_history_list')),
+        findsOneWidget,
+      );
+      expect(find.text('Notification'), findsOneWidget);
+      expect(find.text('E-mail'), findsOneWidget);
+    });
+
+    testWidgets(
+        'tap sur « Relancer le patient » envoie la relance puis recharge '
+        'l\'historique', (tester) async {
+      when(() => reminderRepo.listHistory('q1'))
+          .thenAnswer((_) async => const Right([]));
+      when(() => reminderRepo.send('q1')).thenAnswer((_) async {
+        when(() => reminderRepo.listHistory('q1')).thenAnswer(
+          (_) async => Right([
+            InvoiceReminder(
+              channel: InvoiceReminderChannel.push,
+              sentAt: DateTime(2026, 8, 1, 9, 30),
+            ),
+          ]),
+        );
+        return const Right(null);
+      });
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(overdueQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('btn_relancer_patient')));
+      await tester.pumpAndSettle();
+
+      verify(() => reminderRepo.send('q1')).called(1);
+      expect(
+        find.byKey(const Key('invoice_reminder_history_list')),
+        findsOneWidget,
+      );
+      expect(find.text('Notification'), findsOneWidget);
+    });
+
+    testWidgets(
+        'tap sur « Relancer le patient » en échec (409) affiche un message',
+        (tester) async {
+      when(() => reminderRepo.listHistory('q1'))
+          .thenAnswer((_) async => const Right([]));
+      when(() => reminderRepo.send('q1')).thenAnswer(
+        (_) async => const Left(ServerFailure(
+          message: 'Une relance a déjà été envoyée cette semaine.',
+          statusCode: 409,
+          code: 'invoice_reminder_cooldown',
+        )),
+      );
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(overdueQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('btn_relancer_patient')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Une relance a déjà été envoyée cette semaine.'),
+        findsOneWidget,
+      );
     });
   });
 

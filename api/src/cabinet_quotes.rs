@@ -575,6 +575,11 @@ pub struct CabinetQuoteDetail {
     pub deposit_amount_cents: Option<i64>,
     /// `quote.deposit_paid` (migration 0093, #5094) : voir `CabinetQuoteItem.deposit_paid`.
     pub deposit_paid: bool,
+    /// Même définition que `?overdue=true` sur `GET /v1/cabinet/quotes`
+    /// (#4130, `OVERDUE_THRESHOLD_DAYS`) : devis signé, solde restant dû
+    /// positif, sans activité de paiement récente. Pilote l'affichage du
+    /// bouton « Relancer le patient » (#7205).
+    pub is_overdue: bool,
 }
 
 /// `GET /v1/cabinet/quotes/:id` — détail d'un devis du cabinet courant.
@@ -615,7 +620,18 @@ pub async fn get_cabinet_quote(
                 q.deposit_paid, \
                 CASE WHEN q.status = 'sent' AND q.sent_at IS NOT NULL \
                      THEN q.sent_at + interval '{QUOTE_VALIDITY_DAYS} days' \
-                     ELSE NULL END AS expires_at \
+                     ELSE NULL END AS expires_at, \
+                COALESCE(q.status = 'signed' \
+                 AND (SELECT coalesce(sum((qi.qty * qi.unit_amount \
+                         - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
+                      FROM quote_item qi WHERE qi.quote_id = q.id) > COALESCE(( \
+                      SELECT sum(amount * 100)::bigint FROM payment \
+                      WHERE quote_id = q.id AND status IN ('pending', 'paid') \
+                 ), 0) \
+                 AND GREATEST(q.signed_at, COALESCE(( \
+                      SELECT max(created_at) FROM payment \
+                      WHERE quote_id = q.id AND status IN ('pending', 'paid') \
+                 ), q.signed_at)) < now() - interval '{OVERDUE_THRESHOLD_DAYS} days', false) AS is_overdue \
          FROM quote q \
          LEFT JOIN patient p ON p.id = q.patient_id \
          WHERE q.id = $1 AND q.cabinet_id = $2 AND q.deleted_at IS NULL"
@@ -678,6 +694,9 @@ pub async fn get_cabinet_quote(
     let deposit_paid: bool = quote_row
         .try_get("deposit_paid")
         .map_err(|_| AppError::Internal)?;
+    let is_overdue: bool = quote_row
+        .try_get("is_overdue")
+        .map_err(|_| AppError::Internal)?;
 
     let mut items = Vec::with_capacity(item_rows.len());
     let mut patient_share_total: i64 = 0;
@@ -737,6 +756,7 @@ pub async fn get_cabinet_quote(
         deposit_pct,
         deposit_amount_cents,
         deposit_paid,
+        is_overdue,
     }))
 }
 

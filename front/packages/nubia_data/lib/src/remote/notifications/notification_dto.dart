@@ -75,6 +75,7 @@ class NotificationDto {
     if (raw.startsWith('payment') ||
         raw.startsWith('quote') ||
         raw == 'unpaid_invoice' ||
+        raw.startsWith('invoice') ||
         raw.startsWith('pharmacy_quote')) {
       return NotificationType.payment;
     }
@@ -151,6 +152,8 @@ class NotificationDto {
         return 'Le patient a répondu à votre devis.';
       case 'unpaid_invoice':
         return 'Une facture reste impayée depuis plus de 30 jours.';
+      case 'invoice_reminder':
+        return 'Le cabinet vous relance au sujet d\'une facture impayée.';
       case 'visit_offer':
         return 'Une nouvelle demande de visite est disponible près de chez vous.';
       case 'visit_request_expired':

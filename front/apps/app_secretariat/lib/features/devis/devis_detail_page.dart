@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -7,6 +8,8 @@ import 'devis_bloc.dart';
 import 'devis_event.dart';
 import 'devis_page.dart' show mapQuoteStatus;
 import 'devis_state.dart';
+import 'invoice_reminder_cubit.dart';
+import 'widgets/invoice_reminder_section.dart';
 import 'widgets/quote_timeline.dart';
 
 /// Détail d'un devis côté secrétariat.
@@ -223,6 +226,16 @@ class _DevisDetailBody extends StatelessWidget {
                 ? null
                 : () =>
                     context.read<DevisBloc>().add(DevisSendRequested(quote.id)),
+          ),
+        ],
+        // Bouton « Relancer le patient » (#7205) : uniquement sur une
+        // facture échue (même définition que `?overdue=true` côté back,
+        // cf. `CabinetQuote.isOverdue`).
+        if (quote.isOverdue) ...[
+          const SizedBox(height: 16),
+          BlocProvider<InvoiceReminderCubit>(
+            create: (_) => GetIt.instance<InvoiceReminderCubit>(),
+            child: InvoiceReminderSection(quote: quote),
           ),
         ],
         // Bloc « Suivi » (#5090) : où en est ce devis ? Étapes dont la

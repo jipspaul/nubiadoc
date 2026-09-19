@@ -92,6 +92,11 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
         // cabinet sans route de détail par id (cf. `cabinet_quotes.rs` et
         // `quote_relance_dispatch.rs` qui n'émettent que `quote_id` en data).
         "quote_received" | "quote_relance" => Some("/financial".to_string()),
+        // Relance patient sur facture (devis signé) impayée (#7205/#7206) :
+        // même raisonnement que `quote_received`/`quote_relance` ci-dessus,
+        // `AppRouter.financial` liste déjà les devis signés du patient sans
+        // route de détail par id dédiée.
+        "invoice_reminder" => Some("/financial".to_string()),
         // Demande d'avis post-consultation (#4152, émise par
         // `consultations::complete_consultation`) — #6624 : jusqu'ici `None`,
         // donc aucune action sous la notification et aucun moyen d'atteindre
@@ -740,6 +745,15 @@ mod tests {
         let data = serde_json::json!({ "quote_id": "8258d93e" });
         assert_eq!(
             derive_deep_link("quote_relance", &data),
+            Some("/financial".to_string())
+        );
+    }
+
+    #[test]
+    fn invoice_reminder_derives_financial_deep_link() {
+        let data = serde_json::json!({ "invoice_id": "8258d93e" });
+        assert_eq!(
+            derive_deep_link("invoice_reminder", &data),
             Some("/financial".to_string())
         );
     }

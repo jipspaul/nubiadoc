@@ -28,6 +28,7 @@ void main() {
       'quote_received': NotificationType.payment,
       'pharmacy_quote_sent': NotificationType.payment,
       'unpaid_invoice': NotificationType.payment,
+      'invoice_reminder': NotificationType.payment,
       'order_received': NotificationType.other,
       'order_status_changed': NotificationType.other,
       'pharmacy_order_preparing': NotificationType.other,

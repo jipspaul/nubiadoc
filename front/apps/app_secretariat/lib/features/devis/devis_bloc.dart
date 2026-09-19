@@ -116,5 +116,6 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
         signedAt: quote.signedAt,
         expiresAt: quote.expiresAt,
         items: quote.items,
+        isOverdue: quote.isOverdue,
       );
 }

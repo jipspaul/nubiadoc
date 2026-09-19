@@ -22,6 +22,7 @@ import '../features/dashboard/patient_messages_summary_cubit.dart';
 import '../features/dashboard/rail_badges_cubit.dart';
 import '../features/dashboard/waiting_room_summary_cubit.dart';
 import '../features/devis/devis_bloc.dart';
+import '../features/devis/invoice_reminder_cubit.dart';
 import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/stock/stock_bloc.dart';
@@ -78,6 +79,12 @@ void registerPro(GetIt gi) {
         listQuotes: gi<ListCabinetQuotesUseCase>(),
         getQuote: gi<GetCabinetQuoteUseCase>(),
         sendQuote: gi<SendCabinetQuoteUseCase>(),
+      ),
+    )
+    ..registerFactory<InvoiceReminderCubit>(
+      () => InvoiceReminderCubit(
+        listReminders: gi<ListInvoiceRemindersUseCase>(),
+        sendReminder: gi<SendInvoiceReminderUseCase>(),
       ),
     )
     ..registerFactory<RailBadgesCubit>(
