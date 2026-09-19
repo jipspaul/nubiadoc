@@ -720,6 +720,7 @@ async fn patch_cannot_resurrect_done_or_cancelled_task() {
         StatusCode::CONFLICT,
         "PATCH ne doit pas accepter une transition que /complete refuse"
     );
+    assert_eq!(patch_resp["code"], "invalid_status");
 
     cleanup(&db, &f).await;
 }
