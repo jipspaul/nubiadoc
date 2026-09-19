@@ -2936,3 +2936,15 @@ les plus graves de la ronde ont été trouvés**, dont le P0 #7392.
 | contenu | néant | « Retour » + cartes de devis « Dr Hugo Marin · Signé · Reste à charge · … » |
 
 Captures `patient/R84_VERIF_financial_{390,1280}.png`. **L'écran « Devis & reste à charge » est de nouveau utilisable par les patients.**
+
+**Détail des re-vérifications de correctifs (toutes exécutées contre l'API/les fronts live, pas déduites du statut de l'issue)** :
+
+| issue | statut Forgejo | vérification live | verdict |
+|---|---|---|---|
+| **#7390** | fermée | `PATCH` à valeurs identiques → `200 {id: 808d3e2b…, version: 1}` — **`id` ET `version` inchangés** | ✅ **effectif** |
+| **#7391** | fermée | secrétariat `POST /consent-templates/:id/render` → **403** ; praticien → **201** (non régressé) | ✅ **effectif** |
+| **#7392** | fermée | `/financial` peint aux 2 viewports (10 et 9 contrôles), **0 erreur GetIt**, **4** `GET /v1/billing/quotes` | ✅ **effectif** |
+| **#7399** | fermée | `POST /v1/auth/login` avec octet NUL dans `email` → **422 `validation_error`** (était 500) | ✅ **effectif** |
+| **#7397** | fermée | correctif **mergé** (`6115d26f`, 13:30:16 UTC, `AuthRestoreFailed` ×3 + `NubiaErrorWidget`/`onRetry` câblés) mais **absent du bundle déployé à 13:53:41** (0 occurrence de « Réessayer ») ; comportement **inchangé** : `ratio_near_white=0.992`, aucun libellé | ⚠️ **NON livré** — signalé en commentaire sur #7397 |
+| **#7388** | **ouverte** | `PATCH` sur une version désactivée → toujours `200` + nouvelle ligne active `version 2` | ⏳ à traiter |
+| **#7396** | **ouverte** | — | ⏳ à traiter |
