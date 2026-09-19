@@ -391,6 +391,7 @@ pub async fn list_today_lab_work_orders(
          LEFT JOIN quote_item qi ON qi.id = lwo.quote_item_id \
          WHERE lwo.cabinet_id = $1 \
            AND a.deleted_at IS NULL \
+           AND a.status NOT IN ('cancelled', 'no_show') \
            AND a.starts_at >= date_trunc('day', now()) \
            AND a.starts_at <  date_trunc('day', now()) + interval '2 days' \
            AND EXISTS ( \

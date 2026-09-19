@@ -155,6 +155,7 @@ pub async fn get_patient_alerts(
          JOIN appointment a ON a.id = lwo.appointment_id \
          WHERE lwo.patient_id = $1 AND lwo.cabinet_id = $2 \
            AND a.deleted_at IS NULL \
+           AND a.status NOT IN ('cancelled', 'no_show') \
            AND a.starts_at >= date_trunc('day', now()) + interval '1 day' \
            AND a.starts_at <  date_trunc('day', now()) + interval '2 days' \
          ORDER BY a.starts_at ASC",
