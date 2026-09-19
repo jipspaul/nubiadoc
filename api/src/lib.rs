@@ -136,6 +136,7 @@ mod permissions;
 mod pharmacy;
 mod postgres_object_storage;
 mod practitioner_favorite_acts;
+mod practitioner_kpis;
 mod prescription_list;
 mod prescription_renew;
 mod prescription_send;

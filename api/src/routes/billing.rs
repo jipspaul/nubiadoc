@@ -6,13 +6,25 @@ use crate::{
     bank_deposit_slip, billing, billing_payments, cabinet_cash_collection, cabinet_cash_register,
     cabinet_correspondents, cabinet_opportunities, cabinet_payments_manual, cabinet_payouts,
     cabinet_quote_item_parts, cabinet_quotes, cabinet_quotes_export, cabinet_quotes_patch,
-    cabinet_stats, dashboard, invoice_reminder, payment_schedules, quote_attachments,
-    quote_attestation, quote_relances, quote_signature, treatment_plans, AppState,
+    cabinet_stats, dashboard, invoice_reminder, payment_schedules, practitioner_kpis,
+    quote_attachments, quote_attestation, quote_relances, quote_signature, treatment_plans,
+    AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
     router
         .route("/v1/dashboard", get(dashboard::get_dashboard))
+        .route("/v1/me/kpis", get(practitioner_kpis::get_my_kpis))
+        .route(
+            "/v1/cabinet/practitioner-objectives",
+            get(practitioner_kpis::list_practitioner_objectives)
+                .post(practitioner_kpis::create_practitioner_objective),
+        )
+        .route(
+            "/v1/cabinet/practitioner-objectives/:id",
+            axum::routing::patch(practitioner_kpis::patch_practitioner_objective)
+                .delete(practitioner_kpis::delete_practitioner_objective),
+        )
         .route(
             "/v1/treatment-plans",
             get(treatment_plans::list_treatment_plans),
