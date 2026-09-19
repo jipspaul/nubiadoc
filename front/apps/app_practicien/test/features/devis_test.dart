@@ -13,6 +13,7 @@ import 'package:app_practicien/features/devis/devis_event.dart';
 import 'package:app_practicien/features/devis/devis_page.dart';
 import 'package:app_practicien/features/devis/devis_state.dart';
 import 'package:app_practicien/features/devis/invoice_reminder_cubit.dart';
+import 'package:app_practicien/features/devis/quote_documents_cubit.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -32,6 +33,18 @@ class MockDevisBloc extends MockBloc<DevisEvent, DevisState>
 
 class MockInvoiceReminderRepository extends Mock
     implements InvoiceReminderRepository {}
+
+class MockQuoteAttachmentsRepository extends Mock
+    implements QuoteAttachmentsRepository {}
+
+class MockQuoteAttestationRepository extends Mock
+    implements QuoteAttestationRepository {}
+
+class MockPatientDocumentsRepository extends Mock
+    implements PatientDocumentsRepository {}
+
+class MockLetterTemplatesRepository extends Mock
+    implements LetterTemplatesRepository {}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -113,10 +126,47 @@ Widget _wrap(DevisBloc bloc) => MaterialApp(
 void main() {
   late MockListCabinetQuotesUseCase mockList;
   late MockGetCabinetQuoteUseCase mockGet;
+  late MockQuoteAttachmentsRepository attachmentsRepo;
+  late MockQuoteAttestationRepository attestationRepo;
+  late MockPatientDocumentsRepository patientDocumentsRepo;
+  late MockLetterTemplatesRepository letterTemplatesRepo;
 
+  // `QuoteDocumentsSection` (#7202/#7203) est rendue pour tout devis en
+  // détail : son `BlocProvider<QuoteDocumentsCubit>` doit donc être
+  // enregistré pour TOUS les tests du fichier, pas seulement ceux qui la
+  // ciblent — sinon `GetIt.instance<QuoteDocumentsCubit>()` explose dès le
+  // premier `pumpWidget` sur `DevisDetailLoaded`.
   setUp(() {
     mockList = MockListCabinetQuotesUseCase();
     mockGet = MockGetCabinetQuoteUseCase();
+
+    attachmentsRepo = MockQuoteAttachmentsRepository();
+    attestationRepo = MockQuoteAttestationRepository();
+    patientDocumentsRepo = MockPatientDocumentsRepository();
+    letterTemplatesRepo = MockLetterTemplatesRepository();
+
+    when(() => attachmentsRepo.list(any()))
+        .thenAnswer((_) async => const Right([]));
+    when(() => attestationRepo.get(any()))
+        .thenAnswer((_) async => const Right(null));
+    when(() =>
+            patientDocumentsRepo.list(any(), category: any(named: 'category')))
+        .thenAnswer((_) async => const Right([]));
+    when(() => letterTemplatesRepo.list())
+        .thenAnswer((_) async => const Right([]));
+
+    GetIt.instance.registerFactory<QuoteDocumentsCubit>(
+      () => QuoteDocumentsCubit(
+        listAttachments: ListQuoteAttachmentsUseCase(attachmentsRepo),
+        createAttachment: CreateQuoteAttachmentUseCase(attachmentsRepo),
+        deleteAttachment: DeleteQuoteAttachmentUseCase(attachmentsRepo),
+        getAttestation: GetQuoteAttestationUseCase(attestationRepo),
+        createAttestation: CreateQuoteAttestationUseCase(attestationRepo),
+        listPatientDocuments: ListPatientDocumentsUseCase(patientDocumentsRepo),
+        listLetterTemplates: ListLetterTemplatesUseCase(letterTemplatesRepo),
+      ),
+    );
+    addTearDown(GetIt.instance.reset);
   });
 
   group('DevisBloc', () {
@@ -358,6 +408,10 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
 
+      // Le panneau « documents à joindre » (#7202/#7203) ajouté au-dessus
+      // pousse ce bouton sous la surface de test visible.
+      await tester.ensureVisible(find.byKey(const Key('btn_relancer_patient')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('btn_relancer_patient')));
       await tester.pumpAndSettle();
 
@@ -395,6 +449,175 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(() => mockList(patientId: 'pat-1')).called(1);
+    });
+  });
+
+  // --- Documents à joindre + attestation d'information (#7202/#7203) -------
+  group('QuoteDocumentsSection', () {
+    testWidgets('affiche les pièces jointes déjà déposées', (tester) async {
+      when(() => attachmentsRepo.list('q1')).thenAnswer((_) async => Right([
+            QuoteAttachment(
+              id: 'a1',
+              kind: QuoteAttachmentKind.consent,
+              documentId: 'doc1',
+              createdAt: DateTime(2026, 6, 20),
+            ),
+          ]));
+      when(() => patientDocumentsRepo.list('pat-1', category: 'consentement'))
+          .thenAnswer((_) async => Right([
+                PatientDocument(
+                  id: 'doc1',
+                  category: 'consentement',
+                  filename: 'Consentement extraction.pdf',
+                  mimeType: 'application/pdf',
+                  sizeBytes: 1024,
+                  createdAt: DateTime(2026, 6, 1),
+                ),
+              ]));
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_draftQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('quote_attachment_a1')), findsOneWidget);
+      expect(find.text('Consentement extraction.pdf'), findsOneWidget);
+    });
+
+    testWidgets('ajoute un consentement en pièce jointe', (tester) async {
+      when(() => patientDocumentsRepo.list('pat-1', category: 'consentement'))
+          .thenAnswer((_) async => Right([
+                PatientDocument(
+                  id: 'doc1',
+                  category: 'consentement',
+                  filename: 'Consentement extraction.pdf',
+                  mimeType: 'application/pdf',
+                  sizeBytes: 1024,
+                  createdAt: DateTime(2026, 6, 1),
+                ),
+              ]));
+      when(() => attachmentsRepo.create(
+            'q1',
+            kind: QuoteAttachmentKind.consent,
+            documentId: 'doc1',
+            templateRef: null,
+          )).thenAnswer((_) async {
+        final created = QuoteAttachment(
+          id: 'a1',
+          kind: QuoteAttachmentKind.consent,
+          documentId: 'doc1',
+          createdAt: DateTime(2026, 6, 20),
+        );
+        when(() => attachmentsRepo.list('q1'))
+            .thenAnswer((_) async => Right([created]));
+        return Right(created);
+      });
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_draftQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester
+          .ensureVisible(find.byKey(const Key('quote_documents_add_button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('quote_documents_add_button')));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const Key('add_quote_attachment_kind_consent')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('add_quote_attachment_item_doc1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('add_quote_attachment_confirm')));
+      await tester.pumpAndSettle();
+
+      verify(() => attachmentsRepo.create(
+            'q1',
+            kind: QuoteAttachmentKind.consent,
+            documentId: 'doc1',
+            templateRef: null,
+          )).called(1);
+      expect(find.byKey(const Key('quote_attachment_a1')), findsOneWidget);
+    });
+
+    testWidgets('retire une pièce jointe', (tester) async {
+      when(() => attachmentsRepo.list('q1')).thenAnswer((_) async => Right([
+            QuoteAttachment(
+              id: 'a1',
+              kind: QuoteAttachmentKind.consent,
+              documentId: 'doc1',
+              createdAt: DateTime(2026, 6, 20),
+            ),
+          ]));
+      when(() => attachmentsRepo.delete('q1', 'a1')).thenAnswer((_) async {
+        when(() => attachmentsRepo.list('q1'))
+            .thenAnswer((_) async => const Right([]));
+        return const Right(null);
+      });
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_draftQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester
+          .ensureVisible(find.byKey(const Key('quote_attachment_remove_a1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('quote_attachment_remove_a1')));
+      await tester.pumpAndSettle();
+
+      verify(() => attachmentsRepo.delete('q1', 'a1')).called(1);
+      expect(find.byKey(const Key('quote_attachments_empty')), findsOneWidget);
+    });
+
+    testWidgets('génère une attestation d\'information', (tester) async {
+      when(() => attestationRepo.create('q1', body: 'Texte informatif'))
+          .thenAnswer((_) async => Right(QuoteAttestation(
+                id: 'att1',
+                body: 'Texte informatif',
+                createdAt: DateTime(2026, 6, 20),
+              )));
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_draftQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('quote_attestation_status_none')),
+          findsOneWidget);
+
+      await tester.ensureVisible(
+          find.byKey(const Key('quote_attestation_generate_button')));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const Key('quote_attestation_generate_button')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('quote_attestation_body_field')),
+        'Texte informatif',
+      );
+      await tester.tap(find.byKey(const Key('quote_attestation_confirm')));
+      await tester.pumpAndSettle();
+
+      verify(() => attestationRepo.create('q1', body: 'Texte informatif'))
+          .called(1);
+      expect(find.byKey(const Key('quote_attestation_status_pending')),
+          findsOneWidget);
+    });
+
+    testWidgets('affiche une attestation déjà signée', (tester) async {
+      when(() => attestationRepo.get('q1')).thenAnswer((_) async => Right(
+            QuoteAttestation(
+              id: 'att1',
+              body: 'Texte informatif',
+              signedAt: DateTime(2026, 6, 25),
+              createdAt: DateTime(2026, 6, 20),
+            ),
+          ));
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_draftQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('quote_attestation_status_signed')),
+          findsOneWidget);
+      expect(find.textContaining('Signée le 25/06/2026'), findsOneWidget);
     });
   });
 }
