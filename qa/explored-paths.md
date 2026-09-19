@@ -85,6 +85,26 @@ régression (#7354 → #7369).** La matrice cross-app **X1→X12 a été couvert
 
 > Les 5 issues sont **closes**. Boucle complète dans la ronde : détection → preuve → root-cause → correctif mergé → re-vérification live.
 
+**Non-régression des 4 correctifs mergés pendant la ronde** (même méthode que celle qui a fait sortir #7369
+de #7354 — un correctif frais se re-teste sur ses cas légitimes autant que sur le cas rapporté) :
+
+- **#7378 / #7377 (bornes du tunnel public)** — aucun refus abusif : nom français accentué et composé
+  (« Jean-Élodie Dupont-Mçöñ »), **nouveau-né né aujourd'hui**, patient de 100 ans, patient de **119 ans**
+  (juste sous la borne des 120), nom de 100 caractères et e-mail de 60 caractères passent tous en `200`.
+  Et les 6 cas aberrants restent refusés en `422` (naissance 2099 / 1800 / demain, prénom, nom et
+  téléphone de 20 000 caractères).
+- **#7369 (casse des slugs SSR)** — la matrice complète est désormais **cohérente** : `/dentiste/LYON`,
+  `/dentiste/LyOn`, `/DENTISTE/lyon`, `/Dentiste/LYON`, `/DeNtIsTe/LyOn`, `/URGENCE-DENTISTE/LYON` et
+  `/implant-dentiste/Paris` redirigent tous en `308` vers leur forme canonique minuscule **et la cible
+  rend `200`**. Le `query_slug` est normalisé lui aussi — `/DENTISTE/lyon`, qui rendait `404` avant la
+  ronde, est maintenant servi. Les slugs invalides (`/PIZZA/LYON`, `/dentiste/ATLANTIDE`) rendent `404`
+  **directement**, sans redirection préalable. Sitemap toujours **62/62 en `200`**.
+- **#7373 (messagerie interne)** — le fil s'ouvre sur les jours récents, **et l'envoi fonctionne toujours** :
+  `POST /v1/cabinet/messages` émis, bouton « Envoyer » actif, et **le message envoyé est visible sans
+  défiler** (la vue reste calée en bas après l'envoi).
+- **#7376 (backfill des 2 secrétaires seed)** — noms rendus par `/v1/cabinet/members` et
+  `assignee_display_name` renseigné sur les tâches qui leur sont assignées.
+
 > ⚠️ **Note de méthode (R83)** — le harnais d'audit hérité cliquait aux coordonnées Semantics **sans
 > vérifier qu'elles tombent dans le viewport** : tout contrôle sous la ligne de flottaison recevait un
 > clic hors écran et était classé « MORT » à tort (`document.elementFromPoint` → `RIEN`). Vérifié sur
