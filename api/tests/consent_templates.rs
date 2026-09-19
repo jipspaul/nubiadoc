@@ -451,6 +451,77 @@ async fn patch_without_real_change_is_a_noop() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 3c : PATCH d'une version désactivée → 404, pas de fork (#7388) ─────
+
+#[tokio::test]
+async fn patch_on_deactivated_version_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "practitioner");
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/consent-templates",
+        &token,
+        Some(json!({
+            "act_category": "implantologie",
+            "title": "R84 modele test",
+            "body_markdown": "corps initial"
+        })),
+    )
+    .await;
+    let v1_id = created["id"].as_str().unwrap().to_string();
+
+    // Premier PATCH : v1 -> v2, v1_id désormais désactivé.
+    let (status, patched) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/consent-templates/{v1_id}"),
+        &token,
+        Some(json!({"title": "R84 modele test v2"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(patched["version"], 2);
+
+    // Rejouer un PATCH sur v1_id (désactivé) ne doit plus forker la chaîne.
+    let (status, retry) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/consent-templates/{v1_id}"),
+        &token,
+        Some(json!({"title": "R84 zombie"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(retry["code"], "not_found");
+
+    // Le catalogue actif ne contient toujours qu'une seule lignée « version 2 ».
+    let (_, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/consent-templates",
+        &token,
+        None,
+    )
+    .await;
+    let templates = list.as_array().unwrap();
+    assert_eq!(
+        templates
+            .iter()
+            .filter(|t| t["title"].as_str().unwrap_or("").starts_with("R84"))
+            .count(),
+        1,
+        "une seule version active pour cette lignée"
+    );
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 4 : RLS — PATCH le modèle d'un autre cabinet → 404 ─────────────────
 
 #[tokio::test]
