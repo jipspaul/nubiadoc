@@ -1778,7 +1778,9 @@ void main() {
         find.descendant(of: sheet, matching: find.text('émis le 04/08/2026')),
         findsOneWidget,
       );
-      expect(find.text('Relancer le patient'), findsOneWidget);
+      // #7368 : « Relancer le patient » n'apparaît que sur une facture
+      // échue (`quote.isOverdue`) — ce devis `sent` ne l'est pas.
+      expect(find.text('Relancer le patient'), findsNothing);
       expect(find.text('Appeler'), findsOneWidget);
       expect(
         find.byKey(const Key('devis_sheet_confidentiality_notice')),
@@ -2025,6 +2027,61 @@ void main() {
         find.descendant(of: sheet, matching: find.text('Julie Martin')),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        '#7368 : devis signé échu — « Relancer le patient » appelle la '
+        "relance de facture (pas l'envoi de devis, qui rend 409 sur les "
+        'devis signés)', (tester) async {
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final overdueQuote = CabinetQuote(
+        id: 'q1',
+        quoteRef: 'q1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Julie Martin',
+        totalCents: 43592,
+        patientShareCents: 14850,
+        status: CabinetQuoteStatus.signed,
+        createdAt: DateTime(2026, 8, 4),
+        isOverdue: true,
+      );
+      when(() => repo.getById(any()))
+          .thenAnswer((_) async => Right(overdueQuote));
+
+      final reminderRepo = _MockInvoiceReminderRepository();
+      when(() => reminderRepo.listHistory('q1'))
+          .thenAnswer((_) async => const Right([]));
+      when(() => reminderRepo.send('q1'))
+          .thenAnswer((_) async => const Right(null));
+      GetIt.instance.registerFactory<InvoiceReminderCubit>(
+        () => InvoiceReminderCubit(
+          listReminders: ListInvoiceRemindersUseCase(reminderRepo),
+          sendReminder: SendInvoiceReminderUseCase(reminderRepo),
+        ),
+      );
+
+      when(() => bloc.state).thenReturn(DevisLoaded([overdueQuote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Julie Martin'));
+      await tester.pumpAndSettle();
+
+      final sheet = find.byKey(const Key('devis_sheet_q1'));
+      final relanceButton =
+          find.descendant(of: sheet, matching: find.text('Relancer le patient'));
+      expect(relanceButton, findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('btn_relancer_patient')));
+      await tester.pumpAndSettle();
+
+      verify(() => reminderRepo.send('q1')).called(1);
+      verifyNever(() => repo.sendQuote(any()));
     });
   });
 }
