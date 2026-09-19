@@ -446,6 +446,16 @@ class _DetailViewState extends State<_DetailView> {
             onPressed: () => context.push('/ordonnances/new?patientId=${p.id}'),
           ),
           const SizedBox(height: 12),
+          // #7196 : rédaction d'un courrier depuis la fiche patient — même
+          // route nestée sous /patients/:id que dental-chart/periodontal-chart.
+          NubiaButton(
+            key: const Key('btn_create_courrier'),
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.mail_outlined,
+            label: 'Rédiger un courrier',
+            onPressed: () => context.go('/patients/${p.id}/courrier'),
+          ),
+          const SizedBox(height: 12),
           NubiaButton(
             key: const Key('btn_export_pdf'),
             variant: NubiaButtonVariant.secondary,

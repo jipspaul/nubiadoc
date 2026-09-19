@@ -1156,6 +1156,7 @@ const _kDocumentCategories = <(String, String, IconData)>[
   ('devis', 'Devis', Icons.request_quote_outlined),
   ('facture', 'Facture', Icons.receipt_long_outlined),
   ('ordonnance', 'Ordonnance', Icons.medication_outlined),
+  ('courrier', 'Courrier', Icons.mail_outlined),
   ('radio', 'Radio', Icons.image_outlined),
   ('cbct', 'CBCT', Icons.view_in_ar_outlined),
   ('photo', 'Photo', Icons.photo_camera_outlined),
