@@ -44,6 +44,7 @@ use crate::auth::register::{
 use crate::auth::{is_valid_email_format, PatientAccountClaims};
 use crate::bookings::{create_booking, CreateBookingBody};
 use crate::marketplace::{get_provider, hold_slot, search_slots, SearchProvidersQuery};
+use crate::text_validation::validate_phone_format;
 use crate::AppState;
 
 use super::html::{escape, page, PageMeta};
@@ -227,6 +228,16 @@ pub async fn confirm_page(
 /// l'`appointment`, cf. `bookings::create_booking`).
 const MOTIF_MAX_CHARS: usize = 500;
 
+/// Même borne que `prenom`/`nom` sur `POST /v1/cabinet/patients/quick` et
+/// `POST /v1/account/dependents` (#7041/#7079) — cette route publique écrit
+/// dans la même colonne `patient_account.first_name`/`last_name` et doit
+/// donc refuser aux mêmes bornes (#7375, suite de #7226/#7253/#7275/#7330).
+const PRENOM_MAX_CHARS: usize = 100;
+const NOM_MAX_CHARS: usize = 100;
+
+/// RFC 5321 §4.5.3.1.3 : longueur maximale d'une adresse email (`local@domain`).
+const EMAIL_MAX_CHARS: usize = 254;
+
 #[derive(Deserialize)]
 pub struct ConfirmSubmitForm {
     #[serde(rename = "providerId")]
@@ -297,7 +308,11 @@ pub async fn confirm_submit(
     let has_required_fields = !prenom.is_empty()
         && !nom.is_empty()
         && !telephone.is_empty()
+        && prenom.chars().count() <= PRENOM_MAX_CHARS
+        && nom.chars().count() <= NOM_MAX_CHARS
+        && validate_phone_format(telephone).is_ok()
         && is_valid_email_format(email)
+        && email.chars().count() <= EMAIL_MAX_CHARS
         && consent_given
         && motif
             .as_deref()

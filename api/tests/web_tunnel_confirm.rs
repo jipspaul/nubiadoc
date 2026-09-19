@@ -429,6 +429,39 @@ async fn post_without_consent_is_422_and_writes_nothing() {
 }
 
 #[tokio::test]
+async fn post_with_oversized_prenom_nom_or_telephone_is_422_and_writes_nothing() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    // (valeur par défaut dans `valid_form`, valeur démesurée à substituer)
+    let cases = [
+        ("prenom=Julie", format!("prenom={}", "P".repeat(20_000))),
+        ("nom=Martin", format!("nom={}", "N".repeat(20_000))),
+        (
+            "telephone=%2B33612345678",
+            format!("telephone={}", "0".repeat(20_000)),
+        ),
+    ];
+
+    for (needle, oversized) in cases {
+        let suffix = Uuid::new_v4().to_string();
+        let f = insert_provider_with_open_slot(&db, &suffix).await;
+        let email = format!("wtc-oversized-{suffix}@nubia.test");
+        let form = valid_form(&f, &email, true).replace(needle, &oversized);
+
+        let response = post_form(&form).await;
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "champ démesuré ({needle}) doit être refusé"
+        );
+        assert_eq!(count_users_with_email(&db, &email).await, 0);
+    }
+}
+
+#[tokio::test]
 async fn post_on_a_slot_lost_meanwhile_is_410_and_creates_no_account() {
     if !db_available() {
         return;
