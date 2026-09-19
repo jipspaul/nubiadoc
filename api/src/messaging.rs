@@ -246,15 +246,13 @@ pub async fn list_conversations(
             .map_err(|_| AppError::Internal)?;
         // Même mapping que `get_conversation_messages` (#6343) : le rôle
         // vient de sender_kind, le nom uniquement pour un praticien.
-        let (last_message_author_name, last_message_author_role) =
-            match last_sender_kind.as_deref() {
-                Some("practitioner") => {
-                    (last_author_display_name, Some("Praticien".to_string()))
-                }
-                Some("secretary") => (None, Some("Secrétariat".to_string())),
-                Some("pharmacist") => (None, Some("Pharmacie".to_string())),
-                _ => (None, None),
-            };
+        let (last_message_author_name, last_message_author_role) = match last_sender_kind.as_deref()
+        {
+            Some("practitioner") => (last_author_display_name, Some("Praticien".to_string())),
+            Some("secretary") => (None, Some("Secrétariat".to_string())),
+            Some("pharmacist") => (None, Some("Pharmacie".to_string())),
+            _ => (None, None),
+        };
 
         last_lma = lma;
         last_id = Some(id);
