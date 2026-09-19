@@ -185,7 +185,10 @@ void registerData(
     ..registerLazySingleton<NotificationApi>(() => NotificationApi(gi()))
     ..registerLazySingleton<ReviewApi>(() => ReviewApi(gi()))
     ..registerLazySingleton<SchedulingApi>(() => SchedulingApi(gi()))
-    ..registerLazySingleton<SearchApi>(() => SearchApi(gi()));
+    ..registerLazySingleton<SearchApi>(() => SearchApi(gi()))
+    ..registerLazySingleton<PatientQuoteDocumentsApi>(
+      () => PatientQuoteDocumentsApi(gi()),
+    );
 
   // --- Repositories ---------------------------------------------------------
   if (useCache) {
@@ -243,6 +246,9 @@ void registerData(
     )
     ..registerLazySingleton<SearchRepository>(
       () => SearchRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<PatientQuoteDocumentsRepository>(
+      () => PatientQuoteDocumentsRepositoryImpl(gi()),
     );
 
   // --- Annuaire pharmacie (toutes les apps) ---------------------------------
@@ -470,6 +476,9 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetQuoteByIdUseCase(gi()))
     ..registerFactory(() => InitiateDepositUseCase(gi()))
     ..registerFactory(() => InitiateSignatureUseCase(gi()))
+    ..registerFactory(() => GetPatientQuoteAttachmentsUseCase(gi()))
+    ..registerFactory(() => GetPatientQuoteAttestationUseCase(gi()))
+    ..registerFactory(() => SignPatientQuoteAttestationUseCase(gi()))
     // dashboard
     ..registerFactory(() => GetDashboardSummaryUseCase(gi()))
     // documents
@@ -639,9 +648,6 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<QuoteAttestationApi>(
       () => QuoteAttestationApi(gi()),
     )
-    ..registerLazySingleton<PatientQuoteDocumentsApi>(
-      () => PatientQuoteDocumentsApi(gi()),
-    )
     ..registerLazySingleton<LetterTemplatesApi>(
       () => LetterTemplatesApi(gi()),
     )
@@ -751,9 +757,6 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<QuoteAttestationRepository>(
       () => QuoteAttestationRepositoryImpl(gi()),
     )
-    ..registerLazySingleton<PatientQuoteDocumentsRepository>(
-      () => PatientQuoteDocumentsRepositoryImpl(gi()),
-    )
     ..registerLazySingleton<LetterTemplatesRepository>(
       () => LetterTemplatesRepositoryImpl(gi()),
     )
@@ -854,9 +857,6 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => DeleteQuoteAttachmentUseCase(gi()))
     ..registerFactory(() => GetQuoteAttestationUseCase(gi()))
     ..registerFactory(() => CreateQuoteAttestationUseCase(gi()))
-    ..registerFactory(() => GetPatientQuoteAttachmentsUseCase(gi()))
-    ..registerFactory(() => GetPatientQuoteAttestationUseCase(gi()))
-    ..registerFactory(() => SignPatientQuoteAttestationUseCase(gi()))
     ..registerFactory(() => ListLetterTemplatesUseCase(gi()))
     ..registerFactory(() => GenerateLetterUseCase(gi()))
     ..registerFactory(() => ListBookableSlotsUseCase(gi()))
