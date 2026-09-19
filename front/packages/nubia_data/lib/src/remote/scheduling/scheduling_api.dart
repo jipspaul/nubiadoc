@@ -98,6 +98,7 @@ class SchedulingApi {
         '/appointments',
         queryParameters: {
           'filter': 'upcoming',
+          'limit': 100,
           if (cursor != null) 'cursor': cursor,
         },
       );
@@ -114,7 +115,8 @@ class SchedulingApi {
   // `page` n'a pas d'existence côté API (pagination par cursor, cf.
   // api/src/appointments.rs `AppointmentsQuery`) : conservé uniquement pour
   // compatibilité de signature, sans effet. On suit `page.next_cursor` en
-  // interne jusqu'à épuisement pour ramener l'historique complet.
+  // interne jusqu'à épuisement pour ramener l'historique complet, avec
+  // `limit=100` (max serveur) pour minimiser les allers-retours (#7356).
   Future<List<AppointmentDto>> getHistory({int page = 1}) async {
     final result = <AppointmentDto>[];
     String? cursor;
@@ -123,6 +125,7 @@ class SchedulingApi {
         '/appointments',
         queryParameters: {
           'filter': 'history',
+          'limit': 100,
           if (cursor != null) 'cursor': cursor,
         },
       );
