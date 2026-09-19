@@ -86,28 +86,32 @@ void main() {
       when(
         () => dio.get<Map<String, dynamic>>(
           '/appointments',
-          queryParameters: {'filter': 'upcoming'},
+          queryParameters: {'filter': 'upcoming', 'limit': 100},
         ),
       ).thenAnswer(
         (_) async => fakeResponse({
           'data': [
             {...fullAppointment, 'id': 'appt-1', 'status': 'requested'},
           ],
-          'page': {'next_cursor': 'CURSOR_1', 'limit': 20},
+          'page': {'next_cursor': 'CURSOR_1', 'limit': 100},
         }),
       );
 
       when(
         () => dio.get<Map<String, dynamic>>(
           '/appointments',
-          queryParameters: {'filter': 'upcoming', 'cursor': 'CURSOR_1'},
+          queryParameters: {
+            'filter': 'upcoming',
+            'limit': 100,
+            'cursor': 'CURSOR_1',
+          },
         ),
       ).thenAnswer(
         (_) async => fakeResponse({
           'data': [
             {...fullAppointment, 'id': 'appt-2', 'status': 'confirmed'},
           ],
-          'page': {'next_cursor': null, 'limit': 20},
+          'page': {'next_cursor': null, 'limit': 100},
         }),
       );
 
@@ -120,13 +124,17 @@ void main() {
       verify(
         () => dio.get<Map<String, dynamic>>(
           '/appointments',
-          queryParameters: {'filter': 'upcoming'},
+          queryParameters: {'filter': 'upcoming', 'limit': 100},
         ),
       ).called(1);
       verify(
         () => dio.get<Map<String, dynamic>>(
           '/appointments',
-          queryParameters: {'filter': 'upcoming', 'cursor': 'CURSOR_1'},
+          queryParameters: {
+            'filter': 'upcoming',
+            'limit': 100,
+            'cursor': 'CURSOR_1',
+          },
         ),
       ).called(1);
     });
@@ -135,14 +143,14 @@ void main() {
       when(
         () => dio.get<Map<String, dynamic>>(
           '/appointments',
-          queryParameters: {'filter': 'upcoming'},
+          queryParameters: {'filter': 'upcoming', 'limit': 100},
         ),
       ).thenAnswer(
         (_) async => fakeResponse({
           'data': [
             {...fullAppointment, 'id': 'appt-1', 'status': 'requested'},
           ],
-          'page': {'next_cursor': null, 'limit': 20},
+          'page': {'next_cursor': null, 'limit': 100},
         }),
       );
 
@@ -152,7 +160,7 @@ void main() {
       verify(
         () => dio.get<Map<String, dynamic>>(
           '/appointments',
-          queryParameters: {'filter': 'upcoming'},
+          queryParameters: {'filter': 'upcoming', 'limit': 100},
         ),
       ).called(1);
     });
