@@ -244,14 +244,13 @@ pub async fn list_invoice_reminders(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let quote_exists = sqlx::query(
-        "SELECT 1 FROM quote WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
-    )
-    .bind(id)
-    .bind(claims.cabinet_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let quote_exists =
+        sqlx::query("SELECT 1 FROM quote WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL")
+            .bind(id)
+            .bind(claims.cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
     if quote_exists.is_none() {
         return Err(AppError::NotFound);
     }

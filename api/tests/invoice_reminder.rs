@@ -385,7 +385,10 @@ async fn list_reminders_returns_history_after_send() {
     let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let data = body["data"].as_array().unwrap();
     assert_eq!(data.len(), 2);
-    let channels: Vec<&str> = data.iter().map(|r| r["channel"].as_str().unwrap()).collect();
+    let channels: Vec<&str> = data
+        .iter()
+        .map(|r| r["channel"].as_str().unwrap())
+        .collect();
     assert!(channels.contains(&"push"), "channels={channels:?}");
     assert!(channels.contains(&"email"), "channels={channels:?}");
 
