@@ -624,8 +624,8 @@ async fn cabinet_quotes_post_persists_ccam_fields_and_get_returns_them() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO ccam_act (code, label, tarif_cents, panier_sante, active) \
-         VALUES ($1, 'Acte de test #4060', 1000, 'rac0', true) \
+        "INSERT INTO ccam_act (code, label, tarif_cents, panier_sante, active, category) \
+         VALUES ($1, 'Acte de test #4060', 1000, 'rac0', true, 'soins_conservateurs') \
          ON CONFLICT (code) DO UPDATE SET panier_sante = EXCLUDED.panier_sante, active = true",
     )
     .bind(TEST_CODE)

@@ -411,8 +411,8 @@ async fn cabinet_quote_detail_exposes_panier_sante_per_line() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO ccam_act (code, label, tarif_cents, panier_sante, active) \
-         VALUES ($1, 'Acte de test #4056', 1000, 'rac0', true) \
+        "INSERT INTO ccam_act (code, label, tarif_cents, panier_sante, active, category) \
+         VALUES ($1, 'Acte de test #4056', 1000, 'rac0', true, 'soins_conservateurs') \
          ON CONFLICT (code) DO UPDATE SET panier_sante = EXCLUDED.panier_sante, active = true",
     )
     .bind(TEST_CODE)
