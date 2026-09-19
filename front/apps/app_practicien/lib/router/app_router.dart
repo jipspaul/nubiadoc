@@ -11,6 +11,7 @@ import '../features/cabinet_team_messages/cabinet_team_messages_page.dart';
 import '../features/agenda/agenda_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/consultation_clinique/consultation_clinique_page.dart';
+import '../features/courriers/courrier_new_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/dental_chart/dental_chart_page.dart';
 import '../features/periodontal_chart/periodontal_chart_page.dart';
@@ -207,6 +208,16 @@ class AppRouter {
                         path: 'treatment-plans',
                         builder: (_, state) => TreatmentPlansPage(
                           patientId: state.pathParameters['id']!,
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'courrier',
+                        builder: (_, state) => Scaffold(
+                          key: const Key('courrier_new_scaffold'),
+                          appBar: AppBar(title: const Text('Nouveau courrier')),
+                          body: CourrierNewPage(
+                            patientId: state.pathParameters['id']!,
+                          ),
                         ),
                       ),
                     ],

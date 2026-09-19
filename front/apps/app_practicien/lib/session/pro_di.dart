@@ -11,6 +11,7 @@ import '../features/dashboard/prostheses_today_bloc.dart';
 import '../features/dashboard/today_notes_bloc.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/consent_templates/consent_templates_bloc.dart';
+import '../features/courriers/letter_compose_cubit.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/invoice_reminder_cubit.dart';
 import '../features/devis/quote_documents_cubit.dart';
@@ -149,6 +150,14 @@ void registerPro(GetIt gi) {
       applyTemplate: gi<ApplyPrescriptionTemplateUseCase>(),
       list: gi<ListPrescriptionsUseCase>(),
       renew: gi<RenewPrescriptionUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<LetterComposeCubit>(
+    () => LetterComposeCubit(
+      listTemplates: gi<ListLetterTemplatesUseCase>(),
+      getPatient: gi<GetCabinetPatientUseCase>(),
+      generateLetter: gi<GenerateLetterUseCase>(),
     ),
   );
 

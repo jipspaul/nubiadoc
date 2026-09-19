@@ -35,6 +35,7 @@ import '../remote/quote_attachments/quote_attachments_api.dart';
 import '../remote/quote_attestation/quote_attestation_api.dart';
 import '../remote/quote_documents/patient_quote_documents_api.dart';
 import '../remote/letter_templates/letter_templates_api.dart';
+import '../remote/letters/letters_api.dart';
 import '../remote/cabinet_payouts/cabinet_payouts_api.dart';
 import '../remote/cabinet_stats/cabinet_stats_api.dart';
 import '../remote/cabinet_opportunities/cabinet_opportunities_api.dart';
@@ -98,6 +99,7 @@ import '../repositories/quote_attachments_repository_impl.dart';
 import '../repositories/quote_attestation_repository_impl.dart';
 import '../repositories/patient_quote_documents_repository_impl.dart';
 import '../repositories/letter_templates_repository_impl.dart';
+import '../repositories/letters_repository_impl.dart';
 import '../repositories/cabinet_payouts_repository_impl.dart';
 import '../repositories/cabinet_stats_repository_impl.dart';
 import '../repositories/cabinet_opportunities_repository_impl.dart';
@@ -643,6 +645,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<LetterTemplatesApi>(
       () => LetterTemplatesApi(gi()),
     )
+    ..registerLazySingleton<LettersApi>(
+      () => LettersApi(gi()),
+    )
     ..registerLazySingleton<CabinetStatsApi>(
       () => CabinetStatsApi(gi()),
     )
@@ -752,6 +757,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<LetterTemplatesRepository>(
       () => LetterTemplatesRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<LettersRepository>(
+      () => LettersRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<CabinetStatsRepository>(
       () => CabinetStatsRepositoryImpl(gi()),
     )
@@ -850,6 +858,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => GetPatientQuoteAttestationUseCase(gi()))
     ..registerFactory(() => SignPatientQuoteAttestationUseCase(gi()))
     ..registerFactory(() => ListLetterTemplatesUseCase(gi()))
+    ..registerFactory(() => GenerateLetterUseCase(gi()))
     ..registerFactory(() => ListBookableSlotsUseCase(gi()))
     ..registerFactory(() => CreateSlotUseCase(gi()))
     ..registerFactory(() => ListWaitingListUseCase(gi()))
