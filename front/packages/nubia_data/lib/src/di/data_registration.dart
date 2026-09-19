@@ -31,6 +31,9 @@ import '../remote/treatment_plans/treatment_plans_api.dart';
 import '../remote/cabinet_team_messages/cabinet_team_messages_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
 import '../remote/invoice_reminder/invoice_reminder_api.dart';
+import '../remote/quote_attachments/quote_attachments_api.dart';
+import '../remote/quote_attestation/quote_attestation_api.dart';
+import '../remote/letter_templates/letter_templates_api.dart';
 import '../remote/cabinet_payouts/cabinet_payouts_api.dart';
 import '../remote/cabinet_stats/cabinet_stats_api.dart';
 import '../remote/cabinet_opportunities/cabinet_opportunities_api.dart';
@@ -89,6 +92,9 @@ import '../repositories/treatment_plans_repository_impl.dart';
 import '../repositories/cabinet_team_messages_repository_impl.dart';
 import '../repositories/cabinet_quotes_repository_impl.dart';
 import '../repositories/invoice_reminder_repository_impl.dart';
+import '../repositories/quote_attachments_repository_impl.dart';
+import '../repositories/quote_attestation_repository_impl.dart';
+import '../repositories/letter_templates_repository_impl.dart';
 import '../repositories/cabinet_payouts_repository_impl.dart';
 import '../repositories/cabinet_stats_repository_impl.dart';
 import '../repositories/cabinet_opportunities_repository_impl.dart';
@@ -611,6 +617,15 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<InvoiceReminderApi>(
       () => InvoiceReminderApi(gi()),
     )
+    ..registerLazySingleton<QuoteAttachmentsApi>(
+      () => QuoteAttachmentsApi(gi()),
+    )
+    ..registerLazySingleton<QuoteAttestationApi>(
+      () => QuoteAttestationApi(gi()),
+    )
+    ..registerLazySingleton<LetterTemplatesApi>(
+      () => LetterTemplatesApi(gi()),
+    )
     ..registerLazySingleton<CabinetStatsApi>(
       () => CabinetStatsApi(gi()),
     )
@@ -708,6 +723,15 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<InvoiceReminderRepository>(
       () => InvoiceReminderRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<QuoteAttachmentsRepository>(
+      () => QuoteAttachmentsRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<QuoteAttestationRepository>(
+      () => QuoteAttestationRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<LetterTemplatesRepository>(
+      () => LetterTemplatesRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<CabinetStatsRepository>(
       () => CabinetStatsRepositoryImpl(gi()),
     )
@@ -797,6 +821,12 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => SendCabinetQuoteUseCase(gi()))
     ..registerFactory(() => SendInvoiceReminderUseCase(gi()))
     ..registerFactory(() => ListInvoiceRemindersUseCase(gi()))
+    ..registerFactory(() => ListQuoteAttachmentsUseCase(gi()))
+    ..registerFactory(() => CreateQuoteAttachmentUseCase(gi()))
+    ..registerFactory(() => DeleteQuoteAttachmentUseCase(gi()))
+    ..registerFactory(() => GetQuoteAttestationUseCase(gi()))
+    ..registerFactory(() => CreateQuoteAttestationUseCase(gi()))
+    ..registerFactory(() => ListLetterTemplatesUseCase(gi()))
     ..registerFactory(() => ListBookableSlotsUseCase(gi()))
     ..registerFactory(() => CreateSlotUseCase(gi()))
     ..registerFactory(() => ListWaitingListUseCase(gi()))

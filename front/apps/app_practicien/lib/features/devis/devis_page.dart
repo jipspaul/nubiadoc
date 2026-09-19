@@ -8,7 +8,9 @@ import 'devis_bloc.dart';
 import 'devis_event.dart';
 import 'devis_state.dart';
 import 'invoice_reminder_cubit.dart';
+import 'quote_documents_cubit.dart';
 import 'widgets/invoice_reminder_section.dart';
+import 'widgets/quote_documents_section.dart';
 
 /// Plan de traitement / devis — vue praticien.
 ///
@@ -310,6 +312,21 @@ class _DetailView extends StatelessWidget {
                       ),
                   ],
                   total: _formatCents(quote.totalCents),
+                ),
+                // Panneau « documents à joindre » + attestation
+                // d'information (#7202/#7203) : verrouillé une fois le
+                // devis signé, même doctrine que l'API
+                // (`409 quote_locked`).
+                const SizedBox(height: 16),
+                BlocProvider<QuoteDocumentsCubit>(
+                  key: ValueKey('quote_documents_provider_${quote.id}'),
+                  create: (_) => GetIt.instance<QuoteDocumentsCubit>(),
+                  child: QuoteDocumentsSection(
+                    quoteId: quote.id,
+                    patientId: quote.patientId,
+                    locked: quote.status == CabinetQuoteStatus.signed ||
+                        quote.status == CabinetQuoteStatus.paid,
+                  ),
                 ),
                 // Bouton « Relancer le patient » (#7205) : uniquement sur
                 // une facture échue (même définition que `?overdue=true`
