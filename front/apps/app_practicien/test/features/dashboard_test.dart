@@ -17,6 +17,7 @@ import 'package:app_practicien/features/dashboard/dashboard_bloc.dart';
 import 'package:app_practicien/features/dashboard/dashboard_event.dart';
 import 'package:app_practicien/features/dashboard/dashboard_page.dart';
 import 'package:app_practicien/features/dashboard/dashboard_state.dart';
+import 'package:app_practicien/features/dashboard/kpi_tiles_cubit.dart';
 import 'package:app_practicien/features/dashboard/next_patient_hero.dart';
 import 'package:app_practicien/features/dashboard/pending_actions_card.dart';
 import 'package:app_practicien/features/dashboard/prostheses_today_bloc.dart';
@@ -61,6 +62,9 @@ class MockOpportunitiesCubit extends MockCubit<OpportunitiesState>
 class MockTasksBloc extends MockBloc<TasksEvent, TasksState>
     implements TasksBloc {}
 
+class MockKpiTilesCubit extends MockCubit<KpiTilesState>
+    implements KpiTilesCubit {}
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -100,6 +104,15 @@ const _session = ClinicalSession(
   appointmentId: 'appt-1',
   status: 'in_progress',
   acts: [],
+);
+
+const _kpis = PractitionerKpis(
+  periodMonth: '2026-08-01',
+  today: PractitionerKpiAmounts(billedCents: 0, collectedCents: 0),
+  month: PractitionerKpiAmounts(billedCents: 0, collectedCents: 0),
+  appointmentsToday: 0,
+  pendingReminders: 0,
+  byCabinet: [],
 );
 
 DashboardBloc _makeBloc(
@@ -1148,6 +1161,12 @@ void main() {
       final tasksBloc = MockTasksBloc();
       when(() => tasksBloc.state).thenReturn(const TasksLoaded(tasks: []));
       GetIt.instance.registerFactory<TasksBloc>(() => tasksBloc);
+      // DashboardBody rend aussi KpiTilesRow (#7188) via son propre cubit
+      // résolu par GetIt.
+      final kpiTilesCubit = MockKpiTilesCubit();
+      when(() => kpiTilesCubit.state).thenReturn(const KpiTilesLoaded(kpis: _kpis));
+      when(() => kpiTilesCubit.load()).thenAnswer((_) async {});
+      GetIt.instance.registerFactory<KpiTilesCubit>(() => kpiTilesCubit);
       addTearDown(GetIt.instance.reset);
     });
 
@@ -1178,8 +1197,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester
-          .tap(find.byKey(const Key('next_patient_hero_start_consultation')));
+      final startButton =
+          find.byKey(const Key('next_patient_hero_start_consultation'));
+      await tester.ensureVisible(startButton);
+      await tester.pumpAndSettle();
+      await tester.tap(startButton);
       await tester.pumpAndSettle();
 
       expect(find.text('consultation démarrée id=sess-1'), findsOneWidget);
@@ -1220,6 +1242,12 @@ void main() {
       final tasksBloc = MockTasksBloc();
       when(() => tasksBloc.state).thenReturn(const TasksLoaded(tasks: []));
       GetIt.instance.registerFactory<TasksBloc>(() => tasksBloc);
+      // DashboardBody rend aussi KpiTilesRow (#7188) via son propre cubit
+      // résolu par GetIt.
+      final kpiTilesCubit = MockKpiTilesCubit();
+      when(() => kpiTilesCubit.state).thenReturn(const KpiTilesLoaded(kpis: _kpis));
+      when(() => kpiTilesCubit.load()).thenAnswer((_) async {});
+      GetIt.instance.registerFactory<KpiTilesCubit>(() => kpiTilesCubit);
       addTearDown(GetIt.instance.reset);
     });
 
@@ -1281,8 +1309,10 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester
-            .tap(find.byKey(const Key('opportunity_row_unpaid_invoice')));
+        final row = find.byKey(const Key('opportunity_row_unpaid_invoice'));
+        await tester.ensureVisible(row);
+        await tester.pumpAndSettle();
+        await tester.tap(row);
         await tester.pumpAndSettle();
 
         expect(find.text('devis patientId=pat-42'), findsOneWidget);
@@ -1321,8 +1351,10 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester
-            .tap(find.byKey(const Key('opportunity_row_birthday_today')));
+        final row = find.byKey(const Key('opportunity_row_birthday_today'));
+        await tester.ensureVisible(row);
+        await tester.pumpAndSettle();
+        await tester.tap(row);
         await tester.pumpAndSettle();
 
         expect(find.text('patient id=pat-7'), findsOneWidget);

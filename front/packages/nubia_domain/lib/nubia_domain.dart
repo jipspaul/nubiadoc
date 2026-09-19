@@ -384,6 +384,10 @@ export 'src/usecases/medical_record/get_medical_record_use_case.dart';
 // cabinet dashboard pro
 export 'src/repositories/cabinet_dashboard_repository.dart';
 export 'src/usecases/cabinet_dashboard/get_pro_dashboard_summary_use_case.dart';
+// KPI praticien (#7188, #7189)
+export 'src/entities/practitioner_kpis.dart';
+export 'src/repositories/practitioner_kpis_repository.dart';
+export 'src/usecases/practitioner_kpis/get_my_kpis_use_case.dart';
 // today notes pro
 export 'src/entities/clinical_note_summary.dart';
 export 'src/repositories/today_notes_repository.dart';

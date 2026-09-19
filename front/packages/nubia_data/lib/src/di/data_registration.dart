@@ -60,6 +60,7 @@ import '../remote/pharmacy_orders/pharmacy_orders_api.dart';
 import '../remote/pharmacy_quotes/pharmacy_quotes_api.dart';
 import '../remote/pharmacy_session/pharmacy_session_api.dart';
 import '../remote/pharmacy_stock/pharmacy_stock_api.dart';
+import '../remote/practitioner_kpis/practitioner_kpis_api.dart';
 import '../remote/prescriptions/prescription_api.dart';
 import '../remote/reviews/review_api.dart';
 import '../remote/scheduling/scheduling_api.dart';
@@ -126,6 +127,7 @@ import '../repositories/pharmacy_directory_repository_impl.dart';
 import '../repositories/pharmacy_orders_repository_impl.dart';
 import '../repositories/pharmacy_quotes_repository_impl.dart';
 import '../repositories/pharmacy_session_repository_impl.dart';
+import '../repositories/practitioner_kpis_repository_impl.dart';
 import '../repositories/prescription_repository_impl.dart';
 import '../repositories/review_repository_impl.dart';
 import '../repositories/secretariat_repository_impl.dart';
@@ -574,6 +576,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetDashboardApi>(
       () => CabinetDashboardApi(gi()),
     )
+    ..registerLazySingleton<PractitionerKpisApi>(
+      () => PractitionerKpisApi(gi()),
+    )
     ..registerLazySingleton<CabinetPatientsApi>(
       () => CabinetPatientsApi(gi()),
     )
@@ -685,6 +690,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<CabinetDashboardRepository>(
       () => CabinetDashboardRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<PractitionerKpisRepository>(
+      () => PractitionerKpisRepositoryImpl(gi()),
     )
     ..registerLazySingleton<CabinetPatientsRepository>(
       () => CabinetPatientsRepositoryImpl(gi()),
@@ -800,6 +808,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
   gi
     ..registerFactory(() => UpdateCabinetUseCase(gi()))
     ..registerFactory(() => GetProDashboardSummaryUseCase(gi()))
+    ..registerFactory(() => GetMyKpisUseCase(gi()))
     ..registerFactory(() => GetCabinetAgendaUseCase(gi()))
     ..registerFactory(() => ListCabinetPractitionersUseCase(gi()))
     ..registerFactory(() => ConfirmAppointmentUseCase(gi()))
