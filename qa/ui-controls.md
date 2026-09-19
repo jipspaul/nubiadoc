@@ -2876,3 +2876,12 @@ sélecteur « Assigné à » des 3 dialogues de tâche, qui n'offre jamais que �
 **514 contrôles inventoriés · 281 activés · 281 OK · 0 mort · 0 cassé · 8 désactivés (tous légitimes, preuve par le code ou par le message d'écran).**
 
 > **27 verdicts négatifs bruts sur 27 se sont révélés FAUX.** C'est le chiffre à retenir de cette ronde : le harnais d'audit, même corrigé (mise en vue à la molette), reste incapable de produire un verdict « mort » publiable. Causes cumulées : clic hors viewport, panneau/dialogue ouvert qui absorbe les clics suivants, et nœuds de texte confondus avec des contrôles. **Règle pour la ronde suivante : aucun verdict négatif ne part en issue sans re-test individuel sur page neuve.**
+
+#### Complément lot E2
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/ordonnances` (1280×800) | 21 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T14:30:00Z |
+| secretariat | `/patients` (1280×800) | 30 | 9 | 9 | 0 | 0 | 0 | 2026-09-19T14:30:00Z |
+
+Les 4 « morts » du lot E2 sont des **lignes de fiche patient sous la ligne de flottaison** (y=604 à 799) — même artefact que partout ailleurs. Le « cassé » (« Alertes 50 ») est une **erreur de WebSocket** (`wss://api.doc.nubia-link.com/v1/ws`) survenue pendant la fenêtre d'observation, **sans lien causal avec le clic**.
