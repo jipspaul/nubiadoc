@@ -196,6 +196,9 @@ SELECT fk_ok('patient_tag', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY[
 SELECT fk_ok('periodontal_chart', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('dental_chart_history', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('orthodontic_treatment', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0280 (#7195) : patient.referred_by_correspondent_id,
+-- cf. tests/101_cabinet_correspondent.sql.
+SELECT fk_ok('patient', ARRAY['referred_by_correspondent_id', 'cabinet_id'], 'cabinet_correspondent', ARRAY['id', 'cabinet_id']);
 -- FK composite tenant-scopée depuis 0214 (#4291) : groupe "practitioner" (parent),
 -- cf. tests/89_practitioner_children_composite_fk.sql.
 SELECT fk_ok('appointment', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
