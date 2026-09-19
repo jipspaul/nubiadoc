@@ -2553,3 +2553,76 @@ Les 14 verdicts MORT bruts sont tous attribués et levés :
 
 **TOTAUX CONSOLIDÉS R81 — 41 écrans (app × viewport × route) · 648 contrôles inventoriés · 223 activés · 190 OK · 0 CASSÉ réel · 0 MORT réel · 3 désactivés légitimes · 5/5 apps aux deux viewports.**
 
+
+### Bilan de la ronde R82 (2026-09-19)
+
+**18 écran×viewport audités bouton par bouton** sur les **5 apps**, aux deux viewports (1280×800 et
+390×844) : **473 contrôles inventoriés via l'arbre Semantics, 473 activés**. S'y ajoutent
+~33 activations de parcours ciblés (dialogue « Nouveau RDV » + tâche assistante, dialogues
+« Nouvelle tâche » des deux apps pro, chips d'expédition labo, puce « Assignées à moi » + « Réessayer »,
+menu « Plus d'actions » de Mes RDV, onglet Historique, bouton « Appeler » par ligne, « Accepter » d'une
+demande de stock), comptées dans le total ci-dessus.
+
+**Chaque verdict négatif porteur d'une action métier a été re-vérifié à la main.** Trois se sont
+révélés être des **faux positifs du détecteur** — consignés ici parce qu'ils sont réutilisables :
+
+- **8ᵉ piège — le 409 rattrapé.** `Démarrer la consultation` (héros praticien) émet bien
+  `409 POST /v1/cabinet/appointments/:id/start` quand la consultation est **déjà ouverte** — mais le
+  front **rattrape le 409** : `GET /v1/cabinet/consultations?status=in_progress`, puis navigation vers
+  `/consultation?id=35836536-…`, écran chargé (dental-chart + favoris CCAM inclus). Le détecteur, qui
+  marque « CASSÉ » dès qu'une requête ≥ 400 part, se trompe ici. **Un 4xx n'est un défaut que si
+  l'utilisateur en subit quelque chose.**
+- **9ᵉ piège — le libellé qui contient tout.** Chercher un contrôle par `label.match(...)` ramène
+  l'`alertdialog` englobant (dont le `textContent` concatène tout le dialogue) avant le `button` visé :
+  le clic part au centre du dialogue et ne fait rien. Le sélecteur de créneau « Sélectionner un
+  créneau » a d'abord été classé MORT pour cette raison ; filtré sur `role === 'button'`, il ouvre bien
+  son menu (`Dim 20 sep. – 08:34`, `– 15:35`). **Toujours contraindre le rôle avant le libellé.**
+- **10ᵉ piège — l'état de session sauvegardé trop tôt.** Les apps **pharmacie** et **infirmière**
+  scopent leur token en 2 temps (`select-pharmacy-context` / `select-nurse-context`). Un
+  `storageState` capturé avant la 2ᵉ étape rejoue un token `kind:"pro"` et fait rendre **403** à tout
+  `/v1/pharmacy/*` et `/v1/nurse/*` — d'où 20 « MORT » fantômes sur `/` pharmacie. Vérifié en rejouant
+  le login complet : `200 POST /v1/auth/login → 200 GET /v1/nurse/memberships → 200 POST
+  /v1/auth/select-nurse-context → 200` sur profile/offers/visits, et `200 POST
+  /v1/pharmacy/stock-requests/a86081b1-…/accept` au clic sur « Accepter ».
+
+**Verdicts négatifs CONFIRMÉS (et filés) :** les 3 chips d'expédition d'un bon « Reçu au cabinet »
+(3×409 + « Transition de statut invalide. ») → **#7349** ; les 4 contrôles de `/tasks` secrétariat
+(onglets « Actives »/« Historique », puce « Assignées à moi », « Réessayer ») → **#7346** ; le
+sélecteur « Assigné à » des 3 dialogues de tâche, qui n'offre jamais que « Personne (optionnel) »
+(403 `/v1/cabinet/members`) → **#7351**.
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/` | 1280×800 | 29 | 29 | 17 | 9 (conteneurs `group` + rail) | 2 (403 admin-only `/members`, `/audit-log`) | 0 | 2026-09-19T00:30:00+00:00 |
+| secretariat | `/tasks` | 1280×800 | 9 | 9 | 1 | 4 | **4 CONFIRMÉS → #7346** | 0 | 2026-09-19T00:31:00+00:00 |
+| secretariat | `/agenda` | 1280×800 | 31 | 31 | 23 | 5 | 2 (403 admin-only) | 0 | 2026-09-19T00:33:00+00:00 |
+| secretariat | `/salle-attente` | 1280×800 | 31 | 31 | 20 | 7 | 2 (403 admin-only) | 1 (« Appeler suivant » grisé — **légitime**, 0 patient en attente) | 2026-09-19T00:35:00+00:00 |
+| praticien | `/` | 1280×800 | 31 | 31 | 20 | 10 | 0 (1 « CASSÉ » = 8ᵉ piège, 409 rattrapé) | 0 | 2026-09-19T00:36:00+00:00 |
+| praticien | `/lab-work-orders` | 1280×800 | 33 | 33 | 18 | 11 | **3 CONFIRMÉS → #7349** | 0 | 2026-09-19T00:38:00+00:00 |
+| praticien | `/waiting-room` | 1280×800 | 27 | 27 | 21 | 3 | 0 | 2 | 2026-09-19T00:40:00+00:00 |
+| praticien | `/agenda` | 1280×800 | 25 | 25 | 20 | 4 | 0 | 0 | 2026-09-19T00:41:00+00:00 |
+| praticien | `/` | 390×844 | 17 | 17 | 7 | 9 | 0 (8ᵉ piège) | 0 | 2026-09-19T01:18:00+00:00 |
+| praticien | `/tasks` | 390×844 | 11 | 11 | 4 | 6 | 1 (403 `/members` → **#7351**) | 0 | 2026-09-19T01:19:00+00:00 |
+| pharmacie | `/` | 1280×800 | 35 | 35 | 13 | 20 (**10ᵉ piège** — token non scopé) | 1 (idem) | 0 | 2026-09-19T00:56:00+00:00 |
+| pharmacie | `/messages` | 1280×800 | 17 | 17 | 10 | 7 | 0 | 0 | 2026-09-19T00:57:00+00:00 |
+| pharmacie | `/stock` | 1280×800 | 27 | 27 | 15 | 11 (dont « Accepter », **infirmé** : `200 POST …/accept`) | 0 | 1 | 2026-09-19T00:58:00+00:00 |
+| infirmiere | `/` | 390×844 | 8 | 8 | 7 | 0 | 0 | 0 | 2026-09-19T00:52:00+00:00 |
+| infirmiere | `/notification-preferences` | 390×844 | 5 | 5 | 1 | 4 (conteneurs `group` d'interrupteurs) | 0 | 0 | 2026-09-19T00:53:00+00:00 |
+| infirmiere | onglets `Disponibilité` / `Offres` / `Ma visite` | 390×844 | 25 | 25 | 20 | 5 | **0** | 0 | 2026-09-19T00:55:00+00:00 |
+| patient | `/` | 390×844 | 22 | 22 | 17 | 5 | 0 | 0 | 2026-09-19T00:47:00+00:00 |
+| patient | `/mes-rdv` | 390×844 | 11 | 11 | 10 | 1 | 0 | 0 | 2026-09-19T01:04:00+00:00 |
+| patient | `/prescriptions` | 390×844 | 17 | 17 | 13 | 4 | 0 | 0 | 2026-09-19T01:06:00+00:00 |
+| patient | `/home-care` | 390×844 | 18 | 18 | 15 | 3 | 0 | 0 | 2026-09-19T01:08:00+00:00 |
+| patient | `/financial` | 390×844 | 11 | 11 | 9 | 2 | 0 | 0 | 2026-09-19T01:10:00+00:00 |
+
+> **App infirmière — parcours métier complet exécuté dans l'UI** (onglet `Offres` → « Accepter » →
+> onglet `Ma visite` → « Je pars ») : **0 mort porteur d'action, 0 cassé, aucune requête ≥ 400**. Les
+> 5 « morts » sont le bouton « Passer » d'une offre **déjà acceptée** (sans objet), des conteneurs
+> `group` et l'auto-navigation de l'onglet courant.
+
+> **Limite assumée de cette ronde** : `patient /documents` (428 documents, plusieurs centaines de
+> contrôles) n'a pas été mené à son terme dans le budget — à reprendre en tête de rotation à la
+> prochaine ronde. `patient` n'a donc été audité qu'au viewport **390×844** ; `pharmacie` et
+> `secretariat` qu'au viewport **1280×800** (leur viewport cible).
+
+**TOTAUX R82 — 21 écrans (app × viewport × route) · 473 contrôles inventoriés · 473 activés · 281 OK · 8 CASSÉS confirmés (→ #7346, #7349, #7351) · 0 MORT porteur d'action métier confirmé · 4 désactivés légitimes · 5/5 apps parcourues.**
