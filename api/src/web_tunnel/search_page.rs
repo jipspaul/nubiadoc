@@ -131,13 +131,22 @@ fn is_known_query_slug(query_slug: &str) -> bool {
 /// sur elle-même — jusqu'à 2^len(ville) URL indexables pour une seule page
 /// réelle. Une casse non normalisée doit rediriger en 301 vers le slug
 /// normalisé plutôt que servir une énième page auto-canonique ; `Some(_)`
-/// porte le chemin cible, `None` si `locality_slug` est déjà normalisé.
-fn non_canonical_locality_redirect(query_slug: &str, locality_slug: &str) -> Option<String> {
-    let normalized = locality_slug.to_lowercase();
-    if normalized == locality_slug {
+/// porte le chemin cible, `None` si les deux segments sont déjà normalisés.
+///
+/// #7369 — régression du fix ci-dessus : ne rabaisser que `locality_slug` et
+/// recopier `query_slug` tel quel dans la cible pouvait produire un 308
+/// permanent vers une page qui 404 (`/DeNtIsTe/LyOn` -> `/DeNtIsTe/lyon`).
+/// Les deux segments sont désormais normalisés ; l'appelant ne doit invoquer
+/// cette fonction qu'une fois `is_known_place`/`is_known_query_slug` validés
+/// (sur les segments normalisés), pour garantir que la cible du 308 existe
+/// bel et bien.
+fn non_canonical_redirect_target(query_slug: &str, locality_slug: &str) -> Option<String> {
+    let normalized_query = query_slug.to_lowercase();
+    let normalized_locality = locality_slug.to_lowercase();
+    if normalized_query == query_slug && normalized_locality == locality_slug {
         return None;
     }
-    Some(format!("/{query_slug}/{normalized}"))
+    Some(format!("/{normalized_query}/{normalized_locality}"))
 }
 
 fn related_specialty_slug(specialty_slug: &str) -> &'static str {
@@ -162,10 +171,6 @@ pub async fn search_page(
     State(state): State<AppState>,
     Path((query_slug, locality_slug)): Path<(String, String)>,
 ) -> Response {
-    if let Some(target) = non_canonical_locality_redirect(&query_slug, &locality_slug) {
-        return Redirect::permanent(&target).into_response();
-    }
-
     let loc = locality::parse(&locality_slug);
 
     // #7224 : un slug de ville hors du lookup géo statique
@@ -179,9 +184,18 @@ pub async fn search_page(
     }
 
     // #7295 : symétrique du garde-fou ville ci-dessus, côté second paramètre
-    // de la route — voir `is_known_query_slug`.
-    if !is_known_query_slug(&query_slug) {
+    // de la route — voir `is_known_query_slug`. Validé sur la forme
+    // normalisée (#7369) : la casse n'est pas encore canonique à ce stade,
+    // `is_known_query_slug` compare pourtant en case-sensible.
+    if !is_known_query_slug(&query_slug.to_lowercase()) {
         return query_not_found(&query_slug, &locality_slug);
+    }
+
+    // #7369 — doit être tenté seulement une fois la ville ET le query_slug
+    // validés ci-dessus : une redirection 308 permanente ne doit jamais
+    // désigner une URL qui 404 (voir doc de `non_canonical_redirect_target`).
+    if let Some(target) = non_canonical_redirect_target(&query_slug, &locality_slug) {
+        return Redirect::permanent(&target).into_response();
     }
 
     let loc_label = locality_label(&loc);
@@ -609,24 +623,36 @@ mod tests {
     /// doivent tous deux rediriger vers le slug de ville normalisé, pas se
     /// canoniser chacun sur eux-mêmes.
     #[test]
-    fn non_canonical_locality_redirect_normalizes_any_case_variant() {
+    fn non_canonical_redirect_target_normalizes_any_locality_case_variant() {
         assert_eq!(
-            non_canonical_locality_redirect("dentiste", "LYON"),
+            non_canonical_redirect_target("dentiste", "LYON"),
             Some("/dentiste/lyon".to_string())
         );
         assert_eq!(
-            non_canonical_locality_redirect("dentiste", "LyOn"),
+            non_canonical_redirect_target("dentiste", "LyOn"),
+            Some("/dentiste/lyon".to_string())
+        );
+    }
+
+    /// #7369 — repro exacte de l'issue : `/DeNtIsTe/LyOn` redirigeait en 308
+    /// vers `/DeNtIsTe/lyon`, qui 404 (`query_slug` jamais renormalisé). La
+    /// cible doit désormais normaliser les DEUX segments.
+    #[test]
+    fn non_canonical_redirect_target_normalizes_the_query_slug_too() {
+        assert_eq!(
+            non_canonical_redirect_target("DeNtIsTe", "LyOn"),
+            Some("/dentiste/lyon".to_string())
+        );
+        assert_eq!(
+            non_canonical_redirect_target("DENTISTE", "lyon"),
             Some("/dentiste/lyon".to_string())
         );
     }
 
     #[test]
-    fn non_canonical_locality_redirect_leaves_already_lowercase_slugs_alone() {
-        assert_eq!(non_canonical_locality_redirect("dentiste", "lyon"), None);
-        assert_eq!(
-            non_canonical_locality_redirect("dentiste", "paris-2e"),
-            None
-        );
+    fn non_canonical_redirect_target_leaves_already_lowercase_slugs_alone() {
+        assert_eq!(non_canonical_redirect_target("dentiste", "lyon"), None);
+        assert_eq!(non_canonical_redirect_target("dentiste", "paris-2e"), None);
     }
 
     #[test]

@@ -1,6 +1,7 @@
 # Rust build artifacts
 target/
 **/*.rs.bk
+core.[0-9]*
 
 # web-console
 web-console/node_modules/
