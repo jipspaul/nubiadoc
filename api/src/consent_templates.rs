@@ -236,8 +236,10 @@ pub struct PatchConsentTemplateBody {
 /// cabinet.
 ///
 /// Champs absents = inchangés (même convention que `cr_templates::patch_cr_template`).
-/// Modèle absent, hors tenant, ou global (`cabinet_id IS NULL`, RLS ne
-/// couvre pas son `UPDATE`/lecture-écriture applicative ici) → `404`.
+/// Modèle absent, hors tenant, global (`cabinet_id IS NULL`, RLS ne
+/// couvre pas son `UPDATE`/lecture-écriture applicative ici), ou déjà
+/// désactivé (`is_active = false` — ce n'est plus la version courante,
+/// la chaîne de versions ne doit pas forker) → `404`.
 /// N'édite jamais la ligne existante quand le contenu change réellement :
 /// désactive la version courante (`is_active = false`) et insère une
 /// nouvelle ligne `version + 1` — voir doc de module. Retourne
@@ -273,7 +275,7 @@ pub async fn patch_consent_template(
 
     let current = sqlx::query(
         "SELECT act_category, title, body_markdown, version FROM consent_template \
-         WHERE id = $1 AND cabinet_id = $2",
+         WHERE id = $1 AND cabinet_id = $2 AND is_active = true",
     )
     .bind(id)
     .bind(claims.cabinet_id)
