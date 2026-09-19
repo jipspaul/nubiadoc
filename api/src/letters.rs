@@ -357,11 +357,12 @@ pub async fn create_letter_template(
 #[serde(deny_unknown_fields)]
 pub struct GenerateLetterBody {
     pub template_id: Uuid,
-    /// Réservé : aucune entité « correspondant cabinet » n'existe encore
-    /// (`patient_correspondent`, migration 0176, est scopée compte patient,
-    /// invisible d'une session cabinet). Toute valeur → `501
-    /// correspondent_not_supported` ; passer `{{correspondant.nom}}` via
-    /// `overrides` en attendant.
+    /// Correspondant du cabinet (`cabinet_correspondent`, migration 0280,
+    /// #7195) à qui adresser le courrier — distinct de `patient_correspondent`
+    /// (migration 0176), scopée compte patient et invisible d'une session
+    /// cabinet. Inexistant ou d'un autre cabinet (RLS `tenant_isolation`) →
+    /// `404`. Résout automatiquement `{{correspondant.nom}}` (peut être
+    /// remplacé par `overrides`, qui prime toujours).
     pub correspondent_id: Option<Uuid>,
     /// Valeurs forcées, clé = placeholder sans accolades (ex. `"rdv.date"`).
     /// Priment sur les valeurs résolues en base. Clé inconnue → `422
@@ -404,7 +405,10 @@ fn insert_opt(values: &mut BTreeMap<String, String>, key: &str, value: Option<St
 /// - Token pro `secretary`/`practitioner`/`admin` requis. Patient hors
 ///   cabinet (ou hors scope secrétariat, R10) → `404`.
 /// - `template_id` inexistant ou privé d'un autre cabinet → `404` (RLS).
-/// - `correspondent_id` fourni → `501 correspondent_not_supported`.
+/// - `correspondent_id` fourni, inexistant ou d'un autre cabinet (RLS
+///   `tenant_isolation`, migration 0280) → `404`. Sinon résout
+///   `{{correspondant.nom}}` et lie le document créé (`document.
+///   correspondent_id`, migration 0281) au correspondant.
 /// - Clé d'`overrides` inconnue, ou placeholder inconnu dans le modèle →
 ///   `422 unknown_placeholders { placeholders }`. Valeur d'`overrides` >
 ///   `MAX_OVERRIDE_VALUE_CHARS` → `422 validation_error`.
@@ -427,9 +431,6 @@ pub async fn generate_patient_letter(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<GenerateLetterBody>,
 ) -> Result<(StatusCode, Json<GenerateLetterResponse>), AppError> {
-    if body.correspondent_id.is_some() {
-        return Err(AppError::CorrespondentNotSupported);
-    }
     let unknown_overrides: Vec<String> = body
         .overrides
         .keys()
@@ -482,8 +483,24 @@ pub async fn generate_patient_letter(
     // avant toute lecture supplémentaire.
     placeholders(&body_template)?;
 
+    // RLS (tenant_isolation, migration 0280) : un correspondant d'un autre
+    // cabinet est invisible → même 404 que « n'existe pas ».
+    let correspondent_name: Option<String> = match body.correspondent_id {
+        Some(correspondent_id) => {
+            let row = sqlx::query("SELECT display_name FROM cabinet_correspondent WHERE id = $1")
+                .bind(correspondent_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+                .ok_or(AppError::NotFound)?;
+            Some(row.try_get("display_name").map_err(|_| AppError::Internal)?)
+        }
+        None => None,
+    };
+
     let ctx = resolve_context(&mut tx, &claims, patient_id, &patient_row, kind).await?;
     let mut values = ctx.values;
+    insert_opt(&mut values, "correspondant.nom", correspondent_name);
     for (key, value) in &body.overrides {
         values.insert(key.clone(), value.trim().to_string());
     }
@@ -506,9 +523,9 @@ pub async fn generate_patient_letter(
     sqlx::query(
         "INSERT INTO document \
          (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, \
-          sha256, scan_status, uploaded_by, size_bytes) \
+          sha256, scan_status, uploaded_by, size_bytes, correspondent_id) \
          VALUES ($1, $2, $3, 'courrier', $4, $5, 'application/pdf', \
-                 encode(digest($6, 'sha256'), 'hex'), 'clean', $7, $8)",
+                 encode(digest($6, 'sha256'), 'hex'), 'clean', $7, $8, $9)",
     )
     .bind(document_id)
     .bind(claims.cabinet_id)
@@ -518,6 +535,7 @@ pub async fn generate_patient_letter(
     .bind(&pdf_bytes)
     .bind(claims.sub)
     .bind(size_bytes)
+    .bind(body.correspondent_id)
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

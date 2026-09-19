@@ -316,11 +316,12 @@ pub(crate) enum AppError {
     /// valeur résolue (pas de RDV, pas de RPPS, correspondant…) ni override
     /// — `422` avec la liste ; un courrier n'est jamais rendu avec un trou.
     MissingPlaceholderValues(Vec<String>),
-    /// `POST /v1/patients/:id/letters` (#7197) : `correspondent_id` fourni
-    /// alors qu'aucune entité « correspondant cabinet » n'existe encore
-    /// (`patient_correspondent` est scopée compte patient) — `501`, le
-    /// client passe `{{correspondant.nom}}` via `overrides` en attendant.
-    CorrespondentNotSupported,
+    /// `DELETE /v1/cabinet/correspondents/:id` (#7194) : ce correspondant est
+    /// référencé par au moins un `patient.referred_by_correspondent_id` ou un
+    /// `document.correspondent_id` (FK composite, migrations 0280/0281) —
+    /// `409` explicite plutôt que de laisser la violation `23503` remonter
+    /// en `500`.
+    CorrespondentInUse,
     /// `POST /v1/invoices/:id/reminder` (#7206) : une relance existe déjà
     /// pour cette facture (devis signé) dans les 7 derniers jours — garde-fou
     /// anti-spam, pré-vérifié plutôt que de laisser une contrainte le faire.
@@ -658,9 +659,9 @@ impl IntoResponse for AppError {
                 Json(json!({"code": "missing_placeholder_values", "placeholders": placeholders})),
             )
                 .into_response(),
-            AppError::CorrespondentNotSupported => (
-                StatusCode::NOT_IMPLEMENTED,
-                Json(json!({"code": "correspondent_not_supported"})),
+            AppError::CorrespondentInUse => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "correspondent_in_use"})),
             )
                 .into_response(),
             AppError::InvoiceReminderCooldown => (
