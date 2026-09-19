@@ -5,7 +5,7 @@
 //! la réponse initiale du `POST` était perdue).
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -40,6 +40,10 @@ pub struct CreateWaitingListResponse {
     pub status: String,
 }
 
+/// Borne haute de `motif` (#7355, même défaut que #7226/#4394 : champ texte
+/// utilisateur non filtré ni borné avant le `bind()` SQL).
+const MAX_MOTIF_LEN: usize = 2_000;
+
 /// `POST /v1/waiting-list` — inscrit le patient sur la liste d'attente pour un praticien.
 ///
 /// Token `kind:"patient"` requis → 401/403 sinon.
@@ -52,6 +56,13 @@ pub async fn create_waiting_list_entry(
     claims: PatientAccountClaims,
     Json(body): Json<CreateWaitingListBody>,
 ) -> Result<(StatusCode, Json<CreateWaitingListResponse>), AppError> {
+    // Champ texte utilisateur : NUL rejeté avant bind() SQL (#4394 et suite) et
+    // borné en haut (#7226) — sinon 500 masqué ou libellé illisible sans limite.
+    if let Some(motif) = &body.motif {
+        crate::text_validation::reject_nul_byte(motif)?;
+        crate::text_validation::validate_max_len(motif, MAX_MOTIF_LEN)?;
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Résout le cabinet via le provider (policy provider_public_read : is_listed = true).
@@ -179,6 +190,18 @@ pub struct ListWaitingListResponse {
     pub data: Vec<WaitingListEntryItem>,
 }
 
+/// Paramètres de `GET /v1/account/waiting-list`.
+///
+/// `limit` (défaut 200, max 500) et `offset` bornent le résultat (#7355, même
+/// défaut que `/v1/cabinet/stock-requests` avant #7322 : sans borne, un
+/// `SELECT … ORDER BY created_at DESC` sans `LIMIT` sert tout l'historique du
+/// patient, sans pagination, à chaque ouverture de l'écran).
+#[derive(Deserialize)]
+pub struct ListWaitingListQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
 /// `GET /v1/account/waiting-list` — les inscriptions du patient sur les
 /// listes d'attente (#4357 : sans ce GET, un patient inscrit ne pouvait ni
 /// voir son inscription ni récupérer l'`id` requis par
@@ -192,7 +215,11 @@ pub struct ListWaitingListResponse {
 pub async fn list_waiting_list_entries(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
+    Query(params): Query<ListWaitingListQuery>,
 ) -> Result<Json<ListWaitingListResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
+    let offset: i64 = params.offset.unwrap_or(0).max(0);
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
@@ -204,8 +231,11 @@ pub async fn list_waiting_list_entries(
     let rows = sqlx::query(
         "SELECT id, cabinet_id, provider_id, desired_window, status, created_at \
          FROM waiting_list_entry \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC \
+         LIMIT $1 OFFSET $2",
     )
+    .bind(limit)
+    .bind(offset)
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

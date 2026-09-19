@@ -368,6 +368,133 @@ async fn account_waiting_list_returns_own_entry_with_id() {
     cleanup_fixture(&db, &f).await;
 }
 
+// ── GET /v1/account/waiting-list?limit=&offset= : pagination (#7355) ─────────
+
+/// #7355 : avant, `SELECT … ORDER BY created_at DESC` sans `LIMIT` servait tout
+/// l'historique du patient en une fois. `limit`/`offset` doivent borner le résultat.
+#[tokio::test]
+async fn account_waiting_list_is_paginated() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db).await;
+
+    // Un second provider du même cabinet pour poser une seconde entrée active
+    // (l'anti-doublon est par provider, pas par cabinet).
+    let provider_id_2 = Uuid::new_v4();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+             SELECT $1, cabinet_id, practitioner_id, user_id, 'Dr. Attente 2', true, true \
+             FROM provider WHERE id = $2",
+        )
+        .bind(provider_id_2)
+        .bind(f.provider_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let make_state = || AppState {
+        db: PgPool::connect_lazy(
+            &std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+        )
+        .unwrap(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_patient_jwt(f.patient_user_id, f.patient_account_id);
+
+    for pid in [f.provider_id, provider_id_2] {
+        let r = app(make_state())
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/waiting-list")
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::from(
+                        serde_json::to_string(&json!({ "provider_id": pid })).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(r.status(), StatusCode::CREATED);
+    }
+
+    let list_resp = app(make_state())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/account/waiting-list?limit=1&offset=0")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(list_resp.status(), StatusCode::OK);
+    let list_bytes = axum::body::to_bytes(list_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let list_v: serde_json::Value = serde_json::from_slice(&list_bytes).unwrap();
+    let data = list_v["data"].as_array().expect("data[]");
+    assert_eq!(data.len(), 1, "limit=1 doit borner le résultat à 1 entrée");
+
+    let list_resp_2 = app(make_state())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/account/waiting-list?limit=1&offset=1")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(list_resp_2.status(), StatusCode::OK);
+    let list_bytes_2 = axum::body::to_bytes(list_resp_2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let list_v_2: serde_json::Value = serde_json::from_slice(&list_bytes_2).unwrap();
+    let data_2 = list_v_2["data"].as_array().expect("data[]");
+    assert_eq!(data_2.len(), 1, "offset=1 doit décaler d'une entrée");
+    assert_ne!(
+        data[0]["id"], data_2[0]["id"],
+        "les deux pages ne doivent pas se recouvrir"
+    );
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM waiting_list_entry WHERE provider_id = $1")
+        .bind(provider_id_2)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(provider_id_2)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+
+    cleanup_fixture(&db, &f).await;
+}
+
 // ── GET /v1/cabinet/waiting-list : nom du patient (#3364) ────────────────────
 
 fn make_pro_token(cabinet_id: Uuid, role: &str) -> String {
