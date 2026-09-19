@@ -98,12 +98,14 @@ async fn seed(db: &PgPool) -> Fixture {
         .await
         .unwrap();
 
-    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Quick Create')")
-        .bind(secretariat_id)
-        .bind(cabinet_id)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Quick Create')",
+    )
+    .bind(secretariat_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
 
     tx.commit().await.unwrap();
 
@@ -243,10 +245,7 @@ async fn quick_create_with_correspondent_id_persists_and_shows_on_detail() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{detail}");
-    assert_eq!(
-        detail["referred_by_correspondent"]["id"],
-        correspondent_id
-    );
+    assert_eq!(detail["referred_by_correspondent"]["id"], correspondent_id);
     assert_eq!(
         detail["referred_by_correspondent"]["display_name"],
         "Dr Adresseur Quick"

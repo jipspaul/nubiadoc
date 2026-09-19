@@ -332,8 +332,7 @@ pub async fn get_cabinet_patient(
                 .await
                 .map_err(|_| AppError::Internal)?;
         if let Some(r) = correspondent_row {
-            let display_name: String =
-                r.try_get("display_name").map_err(|_| AppError::Internal)?;
+            let display_name: String = r.try_get("display_name").map_err(|_| AppError::Internal)?;
             referred_by_correspondent = Some(ReferringCorrespondent {
                 id: correspondent_id,
                 display_name,
