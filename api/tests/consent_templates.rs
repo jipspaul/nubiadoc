@@ -380,6 +380,77 @@ async fn patch_creates_new_version_and_deactivates_old() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 3b : PATCH sans changement réel → no-op (#7390) ────────────────────
+
+#[tokio::test]
+async fn patch_without_real_change_is_a_noop() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "practitioner");
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/consent-templates",
+        &token,
+        Some(json!({
+            "act_category": "parodontologie",
+            "title": "R84 identique",
+            "body_markdown": "Texte inchange R84"
+        })),
+    )
+    .await;
+    let id = created["id"].as_str().unwrap().to_string();
+    assert_eq!(created["version"], 1);
+
+    // PATCH à valeurs strictement identiques : ne doit rien créer.
+    let (status, patched) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/consent-templates/{id}"),
+        &token,
+        Some(json!({
+            "act_category": "parodontologie",
+            "title": "R84 identique",
+            "body_markdown": "Texte inchange R84"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(patched["id"], id, "id stable : aucun changement réel");
+    assert_eq!(patched["version"], 1, "pas de nouvelle version");
+
+    // PATCH avec corps vide : chaque champ retombe sur la valeur courante, donc no-op aussi.
+    let (status, patched_empty) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/consent-templates/{id}"),
+        &token,
+        Some(json!({})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(patched_empty["id"], id);
+    assert_eq!(patched_empty["version"], 1);
+
+    // La version courante est toujours active et le modèle apparaît une seule fois.
+    let (_, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/consent-templates",
+        &token,
+        None,
+    )
+    .await;
+    let templates = list.as_array().unwrap();
+    assert_eq!(templates.iter().filter(|t| t["id"] == id).count(), 1);
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 4 : RLS — PATCH le modèle d'un autre cabinet → 404 ─────────────────
 
 #[tokio::test]

@@ -12,7 +12,12 @@
 //! et insère une nouvelle ligne (`version + 1`) — un `consent_record` déjà
 //! signé référence le texte exact qui a été présenté au patient, jamais
 //! réécrit rétroactivement. La réponse porte donc un `id` NEUF, distinct de
-//! celui passé dans l'URL.
+//! celui passé dans l'URL — SAUF si les valeurs effectives (après
+//! application des champs fournis sur la version courante) sont
+//! rigoureusement identiques à la version courante : dans ce cas `PATCH`
+//! est un no-op et renvoie l'`id`/`version` courants inchangés, sans créer
+//! de ligne ni toucher `is_active` (#7390 : un `PATCH` sans changement réel
+//! — y compris un corps `{}` — ne doit pas polluer l'historique).
 //!
 //! `render_consent_template` matérialise un modèle en document PDF pour un
 //! patient et un devis donnés : nom/prénom du patient, dents et actes du
@@ -233,10 +238,13 @@ pub struct PatchConsentTemplateBody {
 /// Champs absents = inchangés (même convention que `cr_templates::patch_cr_template`).
 /// Modèle absent, hors tenant, ou global (`cabinet_id IS NULL`, RLS ne
 /// couvre pas son `UPDATE`/lecture-écriture applicative ici) → `404`.
-/// N'édite jamais la ligne existante : désactive la version courante
-/// (`is_active = false`) et insère une nouvelle ligne `version + 1` — voir
-/// doc de module. Retourne `200 { id, version }` où `id` est celui de la
-/// NOUVELLE ligne.
+/// N'édite jamais la ligne existante quand le contenu change réellement :
+/// désactive la version courante (`is_active = false`) et insère une
+/// nouvelle ligne `version + 1` — voir doc de module. Retourne
+/// `200 { id, version }` où `id` est celui de la NOUVELLE ligne — SAUF si
+/// les valeurs effectives sont identiques à la version courante (mêmes
+/// valeurs envoyées, ou corps `{}`) : no-op, `id`/`version` courants
+/// renvoyés tels quels (#7390).
 pub async fn patch_consent_template(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -283,20 +291,34 @@ pub async fn patch_consent_template(
         .map_err(|_| AppError::Internal)?;
     let cur_version: i32 = current.try_get("version").map_err(|_| AppError::Internal)?;
 
-    let new_act_category = body.act_category.unwrap_or(cur_act_category);
+    let new_act_category = body
+        .act_category
+        .unwrap_or_else(|| cur_act_category.clone());
     let new_title = body
         .title
         .map(|s| s.trim().to_string())
-        .unwrap_or(cur_title);
+        .unwrap_or_else(|| cur_title.clone());
     let new_body = body
         .body_markdown
         .map(|s| s.trim().to_string())
-        .unwrap_or(cur_body);
+        .unwrap_or_else(|| cur_body.clone());
 
     text_validation::reject_nul_byte(&new_title)?;
     text_validation::reject_nul_byte(&new_body)?;
     text_validation::validate_max_len(&new_title, MAX_TITLE_LEN)?;
     text_validation::validate_max_len(&new_body, MAX_BODY_LEN)?;
+
+    // Pas de changement réel : ne pas créer de version (#7390). Un PATCH aux
+    // valeurs identiques (ou `{}`, où chaque champ retombe sur la valeur
+    // courante) est un no-op — l'id/version renvoyés restent ceux de la
+    // ligne courante, `is_active` n'est pas touché.
+    if new_act_category == cur_act_category && new_title == cur_title && new_body == cur_body {
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        return Ok(Json(ConsentTemplateIdResponse {
+            id,
+            version: cur_version,
+        }));
+    }
 
     sqlx::query("UPDATE consent_template SET is_active = false WHERE id = $1 AND cabinet_id = $2")
         .bind(id)
