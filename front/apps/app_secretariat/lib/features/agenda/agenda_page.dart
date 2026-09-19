@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import 'agenda_bloc.dart';
 import 'agenda_event.dart';
 import 'agenda_state.dart';
@@ -781,6 +783,13 @@ class _WeekNavBar extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           const NubiaBadge.label(label: 'T'),
+          const SizedBox(width: 6),
+          IconButton(
+            key: const Key('agenda_open_brief'),
+            icon: const Icon(Icons.summarize_outlined),
+            tooltip: 'Brief',
+            onPressed: () => context.push(AppRouter.cabinetBrief),
+          ),
         ],
       ),
     );
@@ -892,8 +901,8 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
       });
       return;
     }
-    _patientSearchDebounce =
-        Timer(const Duration(milliseconds: 300), () => _searchPatients(trimmed));
+    _patientSearchDebounce = Timer(
+        const Duration(milliseconds: 300), () => _searchPatients(trimmed));
   }
 
   Future<void> _searchPatients(String query) async {

@@ -9,6 +9,9 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import '../features/a2ui_demo/a2ui_demo_page.dart';
 import '../features/cabinet_team_messages/cabinet_team_messages_page.dart';
 import '../features/agenda/agenda_page.dart';
+import '../features/cabinet_brief/cabinet_brief_bloc.dart';
+import '../features/cabinet_brief/cabinet_brief_event.dart';
+import '../features/cabinet_brief/cabinet_brief_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/consultation_clinique/consultation_clinique_page.dart';
 import '../features/courriers/courrier_new_page.dart';
@@ -64,6 +67,7 @@ class AppRouter {
   static const cabinetSetup = '/cabinet-setup';
   static const notificationPreferences = '/notification-preferences';
   static const tasks = '/tasks';
+  static const cabinetBrief = '/cabinet-brief';
   static const consentTemplates = '/consent-templates';
 
   static GoRouter create(RouterNotifier notifier) {
@@ -153,6 +157,14 @@ class AppRouter {
         GoRoute(
           path: tasks,
           builder: (_, __) => const TasksPage(),
+        ),
+        GoRoute(
+          path: cabinetBrief,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<CabinetBriefBloc>()
+              ..add(const CabinetBriefLoadRequested(view: 'day')),
+            child: const CabinetBriefPage(),
+          ),
         ),
         GoRoute(
           path: consentTemplates,

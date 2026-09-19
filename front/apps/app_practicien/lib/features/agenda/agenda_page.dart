@@ -51,6 +51,12 @@ class _AgendaView extends StatelessWidget {
             title: const Text('Agenda'),
             actions: [
               IconButton(
+                key: const Key('agenda_open_brief'),
+                icon: const Icon(Icons.summarize_outlined),
+                tooltip: 'Brief',
+                onPressed: () => context.push(AppRouter.cabinetBrief),
+              ),
+              IconButton(
                 key: const Key('agenda_create_series'),
                 icon: const Icon(Icons.event_repeat),
                 tooltip: 'Série de RDV',
@@ -99,8 +105,7 @@ Future<void> _showCreateSeriesFlow(BuildContext context) async {
   final patient = await showModalBottomSheet<CabinetPatient>(
     context: context,
     builder: (sheetContext) => _PatientPickerSheet(
-      onPatientSelected: (selected) =>
-          Navigator.of(sheetContext).pop(selected),
+      onPatientSelected: (selected) => Navigator.of(sheetContext).pop(selected),
     ),
   );
   if (patient == null || !context.mounted) return;

@@ -8,6 +8,9 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../features/agenda/agenda_page.dart';
+import '../features/cabinet_brief/cabinet_brief_bloc.dart';
+import '../features/cabinet_brief/cabinet_brief_event.dart';
+import '../features/cabinet_brief/cabinet_brief_page.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/admin_membres/admin_membres_page.dart';
 import '../features/admin_secretariats/admin_secretariats_bloc.dart';
@@ -82,6 +85,7 @@ class AppRouter {
   static const correspondents = '/correspondents';
   static const notificationPreferences = '/notification-preferences';
   static const tasks = '/tasks';
+  static const cabinetBrief = '/cabinet-brief';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -160,6 +164,14 @@ class AppRouter {
         GoRoute(
           path: tasks,
           builder: (_, __) => const TasksPage(),
+        ),
+        GoRoute(
+          path: cabinetBrief,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<CabinetBriefBloc>()
+              ..add(const CabinetBriefLoadRequested(view: 'day')),
+            child: const CabinetBriefPage(),
+          ),
         ),
         // #5154 — le `ProShell` enveloppe désormais TOUTES les destinations
         // de nav via `StatefulShellRoute.indexedStack` (une branche par

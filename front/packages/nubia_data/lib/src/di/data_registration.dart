@@ -25,6 +25,7 @@ import '../remote/sterilization/sterilization_api.dart';
 import '../remote/stock_items/stock_items_api.dart';
 import '../remote/lab_work_orders/lab_work_orders_api.dart';
 import '../remote/cabinet_tasks/cabinet_tasks_api.dart';
+import '../remote/cabinet_briefs/cabinet_briefs_api.dart';
 import '../remote/dental_chart/dental_chart_api.dart';
 import '../remote/periodontal_chart/periodontal_chart_api.dart';
 import '../remote/cabinet_medical_questionnaire/cabinet_medical_questionnaire_api.dart';
@@ -90,6 +91,7 @@ import '../repositories/sterilization_repository_impl.dart';
 import '../repositories/stock_items_repository_impl.dart';
 import '../repositories/lab_work_orders_repository_impl.dart';
 import '../repositories/cabinet_tasks_repository_impl.dart';
+import '../repositories/cabinet_briefs_repository_impl.dart';
 import '../repositories/dental_chart_repository_impl.dart';
 import '../repositories/periodontal_chart_repository_impl.dart';
 import '../repositories/cabinet_medical_questionnaire_repository_impl.dart';
@@ -899,6 +901,18 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListStockRequestsUseCase(gi()))
     ..registerFactory(() => CreateStockRequestUseCase(gi()))
     ..registerFactory(() => ResendStockRequestUseCase(gi()));
+
+  // Briefs cabinet jour/semaine/prothèses (#7191/#7192) — accès
+  // cabinet-wide, pas de garde `includeClinical` (secrétariat inclus).
+  gi
+    ..registerLazySingleton<CabinetBriefsApi>(
+      () => CabinetBriefsApi(gi()),
+    )
+    ..registerLazySingleton<CabinetBriefsRepository>(
+      () => CabinetBriefsRepositoryImpl(gi()),
+    )
+    ..registerFactory(() => GetCabinetBriefUseCase(gi()))
+    ..registerFactory(() => GetCabinetBriefPdfUseCase(gi()));
 
   if (includeClinical) {
     gi
