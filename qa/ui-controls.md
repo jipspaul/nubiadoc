@@ -2783,3 +2783,45 @@ sélecteur « Assigné à » des 3 dialogues de tâche, qui n'offre jamais que �
 > une SnackBar de ~1 s est invisible à qui ne capture qu'une fois.**
 
 **TOTAUX R82 — 25 écrans (app × viewport × route) · 511 contrôles inventoriés · 511 activés · 308 OK · 12 CASSÉS confirmés (→ #7346 ×3 écrans, #7349, #7351) · 0 MORT porteur d'action métier confirmé · 4 désactivés légitimes · 5/5 apps parcourues, dont 3 aux DEUX viewports (praticien, secrétariat, pharmacie).**
+
+### Ronde R84 — 2026-09-19 (15 écran×viewport, 5/5 apps, harnais corrigé une 2ᵉ fois)
+
+> **231 contrôles inventoriés, 161 activés, 161 OK, 0 mort CONFIRMÉ, 0 cassé, 2 désactivés (légitimes, preuve par le code), 68 hors champ (nav latérale + destructifs).**
+>
+> 🔧 **Correction de harnais appliquée cette ronde.** Le premier passage a produit 14 verdicts « MORT » ; **les 14 se sont révélés faux** au re-test individuel. Cause confirmée : la note R83 disait le clic hors viewport « corrigé par `bringIntoView` », mais le correctif n'était **pas** dans le script d'audit, et surtout `window.scrollTo` **ne défile pas un canvas Flutter**. Le harnais R84 amène désormais chaque contrôle dans le viewport **à la molette** (`p.mouse.wheel`), en **relisant son rect après chaque cran** ; un contrôle qui reste hors champ après 14 crans est compté « hors champ », jamais « mort ». Preuves du faux positif :
+> - `secretariat /devis` « PDF » ×9 et « Relancer » ×2 → après molette, **tous émettent leur requête** (`GET /v1/cabinet/quotes/:id` + `/cabinet/patients/:id` pour PDF ; `POST /v1/cabinet/quotes/:id/send` pour Relancer).
+> - `praticien /consent-templates` cartes de modèle à y=944/1042 → après molette, rect ramené à y=624/402/500, **repeinture observée** à chaque clic.
+>
+> Conséquence : **aucun bouton mort ni cassé n'est rapporté cette ronde**, et les 161 verdicts OK sont adossés à un effet observable (navigation, requête réseau ou repeinture).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/consent-templates` (1280×800) — **écran NEUF (#7198)** | 11 | 9 | 9 | 0 | 0 | 0 | 2026-09-19T12:40:00Z |
+| praticien | `/devis` (1280×800) | 25 | 11 | 11 | 0 | 0 | 0 | 2026-09-19T12:12:00Z |
+| praticien | `/tasks` (1280×800) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-19T12:45:00Z |
+| secretariat | `/devis` (1280×800) | 38 | 23 | 23 | 0 | 0 | 0 | 2026-09-19T12:12:00Z |
+| secretariat | `/audit-log` (1280×800) | 24 | 7 | 7 | 0 | 0 | **2** | 2026-09-19T12:40:00Z |
+| patient | `/financial` (390×844) | **0** | 0 | 0 | 0 | 0 | 0 | 2026-09-19T12:13:00Z |
+| patient | `/financial` (1280×800) | **0** | 0 | 0 | 0 | 0 | 0 | 2026-09-19T12:13:00Z |
+| patient | `/prescriptions` (390×844) | 16 | 16 | 16 | 0 | 0 | 0 | 2026-09-19T12:40:00Z |
+| patient | `/home-care` (390×844) | 17 | 17 | 17 | 0 | 0 | 0 | 2026-09-19T12:45:00Z |
+| patient | `/profile/dependents` (390×844) | 22 | 14 | 14 | 0 | 0 | 0 | 2026-09-19T12:45:00Z |
+| patient | `/messaging` (390×844) | 8 | 8 | 8 | 0 | 0 | 0 | 2026-09-19T12:55:00Z |
+| patient | `/implant-passport` (390×844) | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T12:50:00Z |
+| pharmacie | `/` file des commandes (1280×800) | 22 | 17 | 17 | 0 | 0 | 0 | 2026-09-19T12:40:00Z |
+| pharmacie | `/devis` (1280×800) | 26 | 21 | 21 | 0 | 0 | 0 | 2026-09-19T12:40:00Z |
+| infirmiere | `/` (390×844) | 7 | 5 | 5 | 0 | 0 | 0 | 2026-09-19T12:45:00Z |
+| infirmiere | `/` (1280×800) | 7 | 5 | 5 | 0 | 0 | 0 | 2026-09-19T12:45:00Z |
+
+**Deux lignes à zéro contrôle — c'est le P0 de la ronde, pas un échec de relevé** : `patient /financial` ne rend **rien** aux deux viewports (`canvas=0`, arbre Semantics vide, aucun `GET /v1/billing/quotes` émis, console `Bad state: GetIt … not registered`) → **#7392**. Écran de contrôle pris dans la même session pour écarter un problème de jeton : `patient /treatment-plans` @390 → `semantics=17`, **0 erreur console**.
+
+**Les 2 contrôles DÉSACTIVÉS sont prouvés légitimes** (exigence « si le code n'a aucune raison de le désactiver, c'est un finding ») : « Filtrer » et « Réinitialiser » sur `secretariat /audit-log`, désactivés par `audit_log_page.dart:107-108` (`onApply/onReset: isForbidden ? null : …`) parce que `GET /v1/cabinet/audit-log` renvoie 403 aux rôles `practitioner`/`secretary` (garde `ProAdminOrManagerClaims`, `audit_log.rs:63`). L'écran affiche le message adéquat « Accès réservé aux administrateurs ».
+
+#### Cas adversariaux R84
+
+| cas | écran | résultat |
+|---|---|---|
+| **Double-clic** sur « Nouveau modèle » | praticien `/consent-templates` | **OK** — le 2ᵉ clic tombe sur la barrière modale et referme le dialogue : **0 requête émise, 0 dialogue doublé, 0 erreur console**. Ni action doublée ni crash. |
+| **Texte très long** (250 car.) dans le formulaire de modèle | praticien `/consent-templates` | **OK** — saisie dans les 2 champs, **0 nœud débordant du viewport**, 0 erreur console. |
+| **Coupure réseau** `route.abort('**/v1/**')` | praticien `/consent-templates`, `/agenda` ; secrétariat `/devis` | **INDIGNE → #7397** — page blanche (0.992) ou rail seul (0.783 / 0.794), stable à 30 s, aucun message, aucune reprise, aucune redirection. |
+| **Coupure réseau pendant la soumission** | praticien `/consent-templates` (dialogue rempli) | Dialogue réduit à un nœud « Alerte » sans message exploitable — même famille que #7397, non compté à part. |
