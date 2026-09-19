@@ -47,6 +47,7 @@ avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupu
 | app | écran/route | contrôles inventoriés | activés | OK | morts (bruts) | cassés (bruts) | hors champ | last_check |
 |---|---|---|---|---|---|---|---|---|
 | secretariat | `/patients/new` (Création rapide + champ « Adressé par » #7193, 1280) | 8 | 4 | 3 | 0 | 0 | **1** | 2026-09-19T20:45:00+00:00 |
+| secretariat | `/cabinet-brief` (Brief du cabinet, jumeau de l'écran praticien, 1280) | 6 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T20:50:00+00:00 |
 | praticien | `/` (Tableau de bord, 1280) | 32 | 2 | 2 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
 | praticien | `/agenda` (1280) | 27 | 2 | 2 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
 | praticien | `/agenda` → **Brief du cabinet** (écran neuf #7191, 1280) | 7 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
@@ -65,7 +66,7 @@ avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupu
 
 ### Ronde R85 — 2026-09-19 (diff-driven : PR #7401/#7403-#7408 mergées le jour même)
 
-**353 contrôles inventoriés, 67 activés, 56 OK, 0 mort, 8 cassés, 2 désactivés (légitimes), 1 sans effet légitime.**
+**359 contrôles inventoriés, 70 activés, 59 OK, 0 mort, 8 cassés, 2 désactivés (légitimes), 1 sans effet légitime.**
 
 - Les **8 « cassés »** sont les entrées du rail secrétariat qui ouvrent le **mauvais écran** (Correspondants→`/devis`, Devis→`/cabinet-payouts`, Encaissements→`/messages`, Patients→`/team-messages`, Équipe→`/cabinet-stats`, Statistiques→`/bookable-slots`, Créneaux ouverts→`/appointment-motifs`, Motifs de RDV→`/correspondents`). 4 mesurés en session neuve, les 8 déduits du décalage d'index prouvé → **#7416 (P0)**.
 - Les **2 désactivés** sont légitimes et doublent tous deux une garde serveur : « Ajouter » (formulaire correspondant) tant que « Nom » est vide → 422 `display_name` non blanc ; « Créer le dossier » (`/patients/new`) tant que Prénom/Nom sont vides → 422 `validation_error`.
