@@ -388,3 +388,8 @@ export 'src/usecases/cabinet_dashboard/get_pro_dashboard_summary_use_case.dart';
 export 'src/entities/clinical_note_summary.dart';
 export 'src/repositories/today_notes_repository.dart';
 export 'src/usecases/today_notes/get_today_notes_use_case.dart';
+// cabinet briefs (#7191/#7192)
+export 'src/entities/cabinet_brief.dart';
+export 'src/repositories/cabinet_briefs_repository.dart';
+export 'src/usecases/cabinet_briefs/get_cabinet_brief_use_case.dart';
+export 'src/usecases/cabinet_briefs/get_cabinet_brief_pdf_use_case.dart';

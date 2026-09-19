@@ -26,6 +26,7 @@ import '../features/stock/stock_bloc.dart';
 import '../features/lab_work/lab_work_orders_bloc.dart';
 import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/tasks/tasks_bloc.dart';
+import '../features/cabinet_brief/cabinet_brief_bloc.dart';
 import '../features/stock/stock_inventory_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
@@ -106,6 +107,13 @@ void registerPro(GetIt gi) {
       startConsultation: gi<StartConsultationUseCase>(),
       createAppointmentSeries: gi<CreateAppointmentSeriesUseCase>(),
       practitionerId: _currentPractitionerId(gi),
+    ),
+  );
+
+  gi.registerFactory<CabinetBriefBloc>(
+    () => CabinetBriefBloc(
+      getBrief: gi<GetCabinetBriefUseCase>(),
+      getBriefPdf: gi<GetCabinetBriefPdfUseCase>(),
     ),
   );
 

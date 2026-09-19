@@ -15,6 +15,7 @@ import '../features/correspondents/correspondents_bloc.dart';
 import '../features/audit_log/audit_log_access_cubit.dart';
 import '../features/audit_log/audit_log_bloc.dart';
 import '../features/bookable_slots/bookable_slots_bloc.dart';
+import '../features/cabinet_brief/cabinet_brief_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/cabinet_payouts/cabinet_payouts_bloc.dart';
 import '../features/cabinet_stats/cabinet_stats_bloc.dart';
@@ -156,7 +157,8 @@ void registerPro(GetIt gi) {
       ),
     )
     ..registerFactory<CorrespondentStatsCubit>(
-      () => CorrespondentStatsCubit(getStats: gi<GetCorrespondentStatsUseCase>()),
+      () =>
+          CorrespondentStatsCubit(getStats: gi<GetCorrespondentStatsUseCase>()),
     )
     ..registerFactory<AdminSecretariatsBloc>(
       () => AdminSecretariatsBloc(
@@ -191,6 +193,12 @@ void registerPro(GetIt gi) {
       () => CabinetStatsBloc(
         getActivityStats: gi<GetCabinetActivityStatsUseCase>(),
         getBillingStats: gi<GetCabinetBillingStatsUseCase>(),
+      ),
+    )
+    ..registerFactory<CabinetBriefBloc>(
+      () => CabinetBriefBloc(
+        getBrief: gi<GetCabinetBriefUseCase>(),
+        getBriefPdf: gi<GetCabinetBriefPdfUseCase>(),
       ),
     )
     ..registerFactory<CabinetPayoutsBloc>(
