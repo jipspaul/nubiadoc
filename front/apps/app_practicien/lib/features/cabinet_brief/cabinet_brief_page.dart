@@ -156,6 +156,10 @@ class _LoadedBrief extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final brief = state.brief;
+    // Vue focalisée (#7412) : `build_prostheses_brief` côté API ne requête
+    // que `prostheses_to_fit` — les 4 autres listes reviennent vides sans
+    // avoir été consultées, donc on ne peut pas rendre leur `emptyLabel`.
+    final isProsthesesView = state.view == 'prostheses';
     return Column(
       children: [
         _ViewSelector(selected: state.view, date: state.date),
@@ -165,17 +169,21 @@ class _LoadedBrief extends StatelessWidget {
             key: const Key('cabinet_brief_list'),
             padding: const EdgeInsets.all(16),
             children: [
-              _AppointmentsSection(
-                groups: brief.appointmentsByPractitioner,
-              ),
-              const SizedBox(height: 16),
-              _NewPatientsSection(patients: brief.newPatients),
-              const SizedBox(height: 16),
-              _PlannedActsSection(acts: brief.plannedActs),
-              const SizedBox(height: 16),
+              if (!isProsthesesView) ...[
+                _AppointmentsSection(
+                  groups: brief.appointmentsByPractitioner,
+                ),
+                const SizedBox(height: 16),
+                _NewPatientsSection(patients: brief.newPatients),
+                const SizedBox(height: 16),
+                _PlannedActsSection(acts: brief.plannedActs),
+                const SizedBox(height: 16),
+              ],
               _ProsthesesSection(prostheses: brief.prosthesesToFit),
-              const SizedBox(height: 16),
-              _OpenTasksSection(tasks: brief.openTasks),
+              if (!isProsthesesView) ...[
+                const SizedBox(height: 16),
+                _OpenTasksSection(tasks: brief.openTasks),
+              ],
             ],
           ),
         ),
