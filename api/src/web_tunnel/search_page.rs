@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use uuid::Uuid;
@@ -122,6 +122,24 @@ fn is_known_query_slug(query_slug: &str) -> bool {
     false
 }
 
+/// #7354 — root cause : `marketplace::resolve_place_coords` (donc
+/// `is_known_place`) résout `locality_slug` en case-insensible
+/// (`to_lowercase()`), mais `search_page` recopiait jusque-là la casse brute
+/// de l'URL dans le `canonical` et le H1 (via `locality::parse`/`titleize`,
+/// qui ne rabaissent pas une lettre déjà majuscule). Chaque variante de
+/// casse d'une ville valide (`LYON`, `LyOn`, …) se déclarait donc canonique
+/// sur elle-même — jusqu'à 2^len(ville) URL indexables pour une seule page
+/// réelle. Une casse non normalisée doit rediriger en 301 vers le slug
+/// normalisé plutôt que servir une énième page auto-canonique ; `Some(_)`
+/// porte le chemin cible, `None` si `locality_slug` est déjà normalisé.
+fn non_canonical_locality_redirect(query_slug: &str, locality_slug: &str) -> Option<String> {
+    let normalized = locality_slug.to_lowercase();
+    if normalized == locality_slug {
+        return None;
+    }
+    Some(format!("/{query_slug}/{normalized}"))
+}
+
 fn related_specialty_slug(specialty_slug: &str) -> &'static str {
     match specialty_slug {
         "dentiste" => "orthodontiste",
@@ -144,6 +162,10 @@ pub async fn search_page(
     State(state): State<AppState>,
     Path((query_slug, locality_slug)): Path<(String, String)>,
 ) -> Response {
+    if let Some(target) = non_canonical_locality_redirect(&query_slug, &locality_slug) {
+        return Redirect::permanent(&target).into_response();
+    }
+
     let loc = locality::parse(&locality_slug);
 
     // #7224 : un slug de ville hors du lookup géo statique
@@ -582,6 +604,30 @@ fn maillage_links(query_slug: &str, loc: &Locality) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #7354 — repro exacte de l'issue : `/dentiste/LYON` et `/dentiste/LyOn`
+    /// doivent tous deux rediriger vers le slug de ville normalisé, pas se
+    /// canoniser chacun sur eux-mêmes.
+    #[test]
+    fn non_canonical_locality_redirect_normalizes_any_case_variant() {
+        assert_eq!(
+            non_canonical_locality_redirect("dentiste", "LYON"),
+            Some("/dentiste/lyon".to_string())
+        );
+        assert_eq!(
+            non_canonical_locality_redirect("dentiste", "LyOn"),
+            Some("/dentiste/lyon".to_string())
+        );
+    }
+
+    #[test]
+    fn non_canonical_locality_redirect_leaves_already_lowercase_slugs_alone() {
+        assert_eq!(non_canonical_locality_redirect("dentiste", "lyon"), None);
+        assert_eq!(
+            non_canonical_locality_redirect("dentiste", "paris-2e"),
+            None
+        );
+    }
 
     #[test]
     fn page_subject_label_keeps_specialty_pluralization_unchanged() {
