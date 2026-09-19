@@ -768,6 +768,11 @@ pub struct SendCabinetQuoteResponse {
     pub id: Uuid,
     pub status: String,
     pub sent: bool,
+    /// `kind` des pièces jointes du devis (#7203) — listées ici et dans la
+    /// notification patient (`quote_received`) pour que l'app patient sache
+    /// qu'il y a des pièces à consulter (`GET /v1/quotes/:id/attachments`)
+    /// avant de signer.
+    pub attachments: Vec<String>,
 }
 
 /// `POST /v1/cabinet/quotes/:id/send` — envoie un devis (brouillon) au patient.
@@ -815,6 +820,17 @@ pub async fn send_cabinet_quote(
         .try_get("patient_account_id")
         .map_err(|_| AppError::Internal)?;
 
+    // Pièces jointes (#7203) : listées dans la réponse et la notification
+    // patient, quel que soit le statut (branche idempotente comprise).
+    let attachments: Vec<String> = sqlx::query_scalar(
+        "SELECT kind FROM quote_attachment WHERE quote_id = $1 AND cabinet_id = $2 ORDER BY created_at",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     // Idempotence : déjà envoyé → 200 sans nouvelle écriture.
     if status == "sent" {
         tx.commit().await.map_err(|_| AppError::Internal)?;
@@ -822,6 +838,7 @@ pub async fn send_cabinet_quote(
             id,
             status,
             sent: true,
+            attachments,
         }));
     }
 
@@ -856,7 +873,7 @@ pub async fn send_cabinet_quote(
             account_id,
             "quote_received",
             "Un devis vous a été envoyé",
-            serde_json::json!({ "quote_id": id }),
+            serde_json::json!({ "quote_id": id, "attachments": attachments.clone() }),
         )
         .await?;
     }
@@ -880,5 +897,6 @@ pub async fn send_cabinet_quote(
         id,
         status,
         sent: true,
+        attachments,
     }))
 }

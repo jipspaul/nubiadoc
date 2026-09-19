@@ -140,6 +140,8 @@ mod prescription_templates;
 mod prescriptions;
 mod provider_secretariat;
 mod provider_unavailability;
+mod quote_attachments;
+mod quote_attestation;
 mod quote_relance_dispatch;
 mod quote_relances;
 mod quote_signature;

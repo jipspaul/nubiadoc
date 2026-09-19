@@ -6,8 +6,8 @@ use crate::{
     bank_deposit_slip, billing, billing_payments, cabinet_cash_collection, cabinet_cash_register,
     cabinet_opportunities, cabinet_payments_manual, cabinet_payouts, cabinet_quote_item_parts,
     cabinet_quotes, cabinet_quotes_export, cabinet_quotes_patch, cabinet_stats, dashboard,
-    invoice_reminder, payment_schedules, quote_relances, quote_signature, treatment_plans,
-    AppState,
+    invoice_reminder, payment_schedules, quote_attachments, quote_attestation, quote_relances,
+    quote_signature, treatment_plans, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -111,6 +111,36 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/quotes/:id/relances",
             get(quote_relances::list_quote_relances),
+        )
+        // Pièces jointes de devis (#7203) : dépôt/consultation/retrait côté
+        // cabinet ; consultation côté patient sous `/v1/quotes/:id/attachments`.
+        .route(
+            "/v1/cabinet/quotes/:id/attachments",
+            get(quote_attachments::list_cabinet_quote_attachments)
+                .post(quote_attachments::create_quote_attachment),
+        )
+        .route(
+            "/v1/cabinet/quotes/:id/attachments/:attachment_id",
+            axum::routing::delete(quote_attachments::delete_quote_attachment),
+        )
+        .route(
+            "/v1/quotes/:id/attachments",
+            get(quote_attachments::list_patient_quote_attachments),
+        )
+        // Attestation d'information (#7203) : dépôt/consultation côté cabinet ;
+        // consultation + signature côté patient, même mécanique stub que `/sign`.
+        .route(
+            "/v1/cabinet/quotes/:id/attestation",
+            get(quote_attestation::get_cabinet_quote_attestation)
+                .post(quote_attestation::create_quote_attestation),
+        )
+        .route(
+            "/v1/quotes/:id/attestation",
+            get(quote_attestation::get_patient_quote_attestation),
+        )
+        .route(
+            "/v1/quotes/:id/attestation/sign",
+            axum::routing::post(quote_attestation::sign_quote_attestation),
         )
         .route(
             "/v1/cabinet/quotes/:id/items/:item_id/parts",

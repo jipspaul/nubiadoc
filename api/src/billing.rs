@@ -627,6 +627,28 @@ pub async fn sign_quote(
         return Err(AppError::InvalidStatus);
     }
 
+    // Attestation d'information (#7203) : tant qu'une attestation existe
+    // pour ce devis et n'est pas signée, la signature du devis lui-même est
+    // refusée — le patient doit d'abord passer par
+    // `POST /v1/quotes/:id/attestation/sign` (quote_attestation.rs).
+    let attestation_row = sqlx::query(
+        "SELECT signed_at FROM quote_information_attestation \
+         WHERE quote_id = $1 AND cabinet_id = $2 \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(id)
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if let Some(row) = attestation_row {
+        let signed_at: Option<chrono::DateTime<chrono::Utc>> =
+            row.try_get("signed_at").map_err(|_| AppError::Internal)?;
+        if signed_at.is_none() {
+            return Err(AppError::AttestationNotSigned);
+        }
+    }
+
     let practitioner_row =
         sqlx::query("SELECT COALESCE(practitioner_display_name($1), 'Praticien') AS display_name")
             .bind(practitioner_id)
