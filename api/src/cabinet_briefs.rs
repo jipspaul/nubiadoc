@@ -564,7 +564,31 @@ pub async fn prostheses_brief(
 /// Traduit un brief en lignes de corps PDF (une section par bloc, séparées
 /// par une ligne vide) — même mécanique de repli que `letters.rs`
 /// (`pdf_text::wrap_lines`).
+///
+/// Vue `prostheses` (#7192) : brief focalisé, seule `prostheses_to_fit` est
+/// renseignée (cf. [`build_prostheses_brief`]) — n'imprime que cette
+/// section. Imprimer les 4 autres sections vidées à dessein afficherait de
+/// fausses affirmations (« Aucun RDV », etc.) sur un document remis au labo
+/// (#7410).
 fn brief_body_lines(brief: &CabinetBriefResponse) -> Vec<String> {
+    if brief.view == "prostheses" {
+        let mut lines: Vec<String> = Vec::new();
+        lines.push("PROTHÈSES À POSER".to_string());
+        if brief.prostheses_to_fit.is_empty() {
+            lines.push("Aucune prothèse à poser sur la période.".to_string());
+        }
+        for pr in &brief.prostheses_to_fit {
+            let starts_at = chrono::DateTime::parse_from_rfc3339(&pr.appointment_starts_at)
+                .map(|dt| format_paris_date(dt.with_timezone(&chrono::Utc)))
+                .unwrap_or_default();
+            lines.push(format!(
+                "- {} {} — {} ({})",
+                starts_at, pr.patient_display_name, pr.lab_name, pr.status
+            ));
+        }
+        return lines;
+    }
+
     let mut lines: Vec<String> = Vec::new();
 
     lines.push("RENDEZ-VOUS PAR PRATICIEN".to_string());

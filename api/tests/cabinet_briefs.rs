@@ -498,6 +498,35 @@ async fn prostheses_brief_lists_lab_work_order_with_appointment_in_window() {
         .map(|a| a.is_empty())
         .unwrap_or(true));
 
+    // Le PDF remis au labo (#7410) ne doit imprimer que la section
+    // "prothèses à poser" — pas les 4 autres sections vidées à dessein,
+    // dont l'impression affirmerait faussement "Aucun RDV", "Aucune tâche
+    // ouverte", etc. sur la même fenêtre.
+    let (pdf_status, pdf_bytes, pdf_content_type) = call_bytes(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/briefs/prostheses.pdf",
+        &token,
+    )
+    .await;
+    assert_eq!(pdf_status, StatusCode::OK);
+    assert_eq!(pdf_content_type.as_deref(), Some("application/pdf"));
+    // Note : les lettres accentuées sont écrites en WinAnsi (1 octet, ex.
+    // 0xe2 pour "â") donc invisibles telles quelles après un décodage UTF-8
+    // lossy — les substrings ci-dessous sont volontairement coupés avant le
+    // premier caractère accentué de chaque phrase pour rester fiables.
+    let pdf_text = String::from_utf8_lossy(&pdf_bytes);
+    assert!(pdf_text.contains("PROTH"));
+    assert!(pdf_text.contains("Labo Briefs"));
+    assert!(!pdf_text.contains("Aucun RDV"));
+    assert!(!pdf_text.contains("Aucun nouveau patient"));
+    assert!(!pdf_text.contains("Aucun acte renseign"));
+    assert!(!pdf_text.contains("ouverte."));
+    assert!(!pdf_text.contains("RENDEZ-VOUS PAR PRATICIEN"));
+    assert!(!pdf_text.contains("PATIENTS NOUVEAUX"));
+    assert!(!pdf_text.contains("ACTES PR"));
+    assert!(!pdf_text.contains("CHES OUVERTES"));
+
     cleanup(&db, &f).await;
 }
 
