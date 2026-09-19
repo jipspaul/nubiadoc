@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -25,6 +26,15 @@ class AuthUnauthenticated extends AuthState {
   const AuthUnauthenticated([this.message, this.invalidInvite = false]);
   final String? message;
   final bool invalidInvite;
+}
+
+/// #7397 (port de #6750) : `restore()` n'a pas pu confirmer la session
+/// (réseau/serveur), mais le token stocké n'a pas été invalidé — distinct de
+/// [AuthUnauthenticated] pour que l'écran de démarrage propose « Réessayer »
+/// au lieu de renvoyer vers le login un professionnel encore authentifié.
+class AuthRestoreFailed extends AuthState {
+  const AuthRestoreFailed(this.message);
+  final String message;
 }
 
 /// Professional auth cubit. Reuses the shared [LoginUseCase]; the role is
@@ -77,9 +87,11 @@ class ProAuthCubit extends Cubit<AuthState> {
         emit(const AuthUnauthenticated());
         return;
       }
-      emit(AuthAuthenticated(await _session()));
-    } catch (_) {
+      emit(AuthAuthenticated(await _session(blockOnMeFailure: true)));
+    } on UnauthorizedFailure {
       emit(const AuthUnauthenticated());
+    } catch (_) {
+      emit(AuthRestoreFailed(const NetworkFailure().message));
     }
   }
 
@@ -137,10 +149,14 @@ class ProAuthCubit extends Cubit<AuthState> {
 
   /// Identité réelle du shell pro (#6170) : `display_name` et le nom du
   /// cabinet courant viennent de `GET /v1/me`, jamais du JWT (qui ne porte
-  /// que `sub`/`kind`). Best-effort — un `/me` en échec ne bloque jamais la
-  /// session, il retombe silencieusement sur les libellés génériques
-  /// existants ([ProConfig.role]/[ProConfig.appTitle]).
-  Future<AuthSession> _session() async {
+  /// que `sub`/`kind`). Best-effort au login (signIn) — un `/me` en échec ne
+  /// bloque jamais une connexion qui vient de réussir, il retombe
+  /// silencieusement sur les libellés génériques existants
+  /// ([ProConfig.role]/[ProConfig.appTitle]). Au restore (#7397, port de
+  /// #6750), [blockOnMeFailure] fait au contraire remonter l'échec : un
+  /// token stocké mais jamais reconfirmé ne doit pas produire une session
+  /// fantôme derrière laquelle tous les écrans échouent en silence.
+  Future<AuthSession> _session({bool blockOnMeFailure = false}) async {
     String userId = 'me';
     String? displayName;
     String? cabinetName;
@@ -158,8 +174,15 @@ class ProAuthCubit extends Cubit<AuthState> {
           ? ownRoleMatches.first
           : (memberships.isNotEmpty ? memberships.first : null);
       cabinetName = match?['cabinet_name'] as String?;
+    } on DioException catch (e) {
+      if (blockOnMeFailure) {
+        if (e.response?.statusCode == 401) throw const UnauthorizedFailure();
+        rethrow;
+      }
+      // Non bloquant (signIn) : voir doc ci-dessus.
     } catch (_) {
-      // Non bloquant : voir doc ci-dessus.
+      if (blockOnMeFailure) rethrow;
+      // Non bloquant (signIn) : voir doc ci-dessus.
     }
     return AuthSession(
       kind: UserKind.pro,
