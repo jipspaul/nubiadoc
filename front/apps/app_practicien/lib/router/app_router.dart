@@ -23,6 +23,8 @@ import '../features/notification_prefs/notification_prefs_page.dart';
 import '../features/patients/patients_page.dart';
 import '../features/cabinet/cabinet_info_cubit.dart';
 import '../features/cabinet/cabinet_info_page.dart';
+import '../features/consent_templates/consent_templates_bloc.dart';
+import '../features/consent_templates/consent_templates_page.dart';
 import '../features/register/pro_register_cubit.dart';
 import '../features/register/pro_register_page.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
@@ -60,6 +62,7 @@ class AppRouter {
   static const cabinetSetup = '/cabinet-setup';
   static const notificationPreferences = '/notification-preferences';
   static const tasks = '/tasks';
+  static const consentTemplates = '/consent-templates';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -136,6 +139,14 @@ class AppRouter {
         GoRoute(
           path: tasks,
           builder: (_, __) => const TasksPage(),
+        ),
+        GoRoute(
+          path: consentTemplates,
+          redirect: (_, __) => ProConfig.includeClinical ? null : home,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<ConsentTemplatesBloc>(),
+            child: const ConsentTemplatesPage(),
+          ),
         ),
         // #6286 — le `ProShell` enveloppe désormais TOUTES les autres
         // destinations de nav via `StatefulShellRoute.indexedStack` (une

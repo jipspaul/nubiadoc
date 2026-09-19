@@ -46,6 +46,9 @@ class MockPatientDocumentsRepository extends Mock
 class MockLetterTemplatesRepository extends Mock
     implements LetterTemplatesRepository {}
 
+class MockConsentTemplateRepository extends Mock
+    implements ConsentTemplateRepository {}
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -130,6 +133,7 @@ void main() {
   late MockQuoteAttestationRepository attestationRepo;
   late MockPatientDocumentsRepository patientDocumentsRepo;
   late MockLetterTemplatesRepository letterTemplatesRepo;
+  late MockConsentTemplateRepository consentTemplateRepo;
 
   // `QuoteDocumentsSection` (#7202/#7203) est rendue pour tout devis en
   // détail : son `BlocProvider<QuoteDocumentsCubit>` doit donc être
@@ -144,6 +148,7 @@ void main() {
     attestationRepo = MockQuoteAttestationRepository();
     patientDocumentsRepo = MockPatientDocumentsRepository();
     letterTemplatesRepo = MockLetterTemplatesRepository();
+    consentTemplateRepo = MockConsentTemplateRepository();
 
     when(() => attachmentsRepo.list(any()))
         .thenAnswer((_) async => const Right([]));
@@ -153,6 +158,8 @@ void main() {
             patientDocumentsRepo.list(any(), category: any(named: 'category')))
         .thenAnswer((_) async => const Right([]));
     when(() => letterTemplatesRepo.list())
+        .thenAnswer((_) async => const Right([]));
+    when(() => consentTemplateRepo.list())
         .thenAnswer((_) async => const Right([]));
 
     GetIt.instance.registerFactory<QuoteDocumentsCubit>(
@@ -164,6 +171,9 @@ void main() {
         createAttestation: CreateQuoteAttestationUseCase(attestationRepo),
         listPatientDocuments: ListPatientDocumentsUseCase(patientDocumentsRepo),
         listLetterTemplates: ListLetterTemplatesUseCase(letterTemplatesRepo),
+        listConsentTemplates: ListConsentTemplatesUseCase(consentTemplateRepo),
+        renderConsentTemplate:
+            RenderConsentTemplateUseCase(consentTemplateRepo),
       ),
     );
     addTearDown(GetIt.instance.reset);
@@ -536,6 +546,75 @@ void main() {
             templateRef: null,
           )).called(1);
       expect(find.byKey(const Key('quote_attachment_a1')), findsOneWidget);
+    });
+
+    // #7198 — sélection d'un modèle de consentement depuis le devis : le
+    // modèle est rendu pour ce devis (document généré), puis attaché.
+    testWidgets('génère et attache un consentement depuis un modèle',
+        (tester) async {
+      when(() => consentTemplateRepo.list()).thenAnswer((_) async => Right([
+            ConsentTemplate(
+              id: 'tpl1',
+              actCategory: 'implantologie',
+              title: 'Consentement implant',
+              bodyMarkdown: 'Texte du modèle',
+              version: 1,
+              isGlobal: true,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ]));
+      when(() => consentTemplateRepo.render('tpl1', quoteId: 'q1')).thenAnswer(
+        (_) async => const Right(RenderedConsentTemplate(
+          documentId: 'doc-rendered',
+          filename: 'consentement-implantologie-doc-rendered.pdf',
+          sizeBytes: 512,
+          body: 'Texte rendu',
+        )),
+      );
+      when(() => attachmentsRepo.create(
+            'q1',
+            kind: QuoteAttachmentKind.consent,
+            documentId: 'doc-rendered',
+            templateRef: null,
+          )).thenAnswer((_) async {
+        final created = QuoteAttachment(
+          id: 'a2',
+          kind: QuoteAttachmentKind.consent,
+          documentId: 'doc-rendered',
+          createdAt: DateTime(2026, 6, 20),
+        );
+        when(() => attachmentsRepo.list('q1'))
+            .thenAnswer((_) async => Right([created]));
+        return Right(created);
+      });
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_draftQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester
+          .ensureVisible(find.byKey(const Key('quote_documents_add_button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('quote_documents_add_button')));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const Key('add_quote_attachment_kind_consent')));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const Key('add_quote_attachment_template_tpl1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('add_quote_attachment_confirm')));
+      await tester.pumpAndSettle();
+
+      verify(() => consentTemplateRepo.render('tpl1', quoteId: 'q1'))
+          .called(1);
+      verify(() => attachmentsRepo.create(
+            'q1',
+            kind: QuoteAttachmentKind.consent,
+            documentId: 'doc-rendered',
+            templateRef: null,
+          )).called(1);
+      expect(find.byKey(const Key('quote_attachment_a2')), findsOneWidget);
     });
 
     testWidgets('retire une pièce jointe', (tester) async {
