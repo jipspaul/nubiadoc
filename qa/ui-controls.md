@@ -51,7 +51,7 @@ avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupu
 | praticien | `/` (Tableau de bord, 1280) | 32 | 2 | 2 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
 | praticien | `/agenda` (1280) | 27 | 2 | 2 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
 | praticien | `/agenda` → **Brief du cabinet** (écran neuf #7191, 1280) | 7 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
-| secretariat | `/` (rail de navigation, 1280) | 30 | 16 | 8 | 0 | **8** | 0 | 2026-09-19T20:20:00+00:00 |
+| secretariat | `/` (rail de navigation, 1280) | 30 | 20 | 12 | 0 | **8** *(corrigés en fin de ronde)* | 0 | 2026-09-19T20:55:00+00:00 |
 | secretariat | `/correspondents` (écran neuf #7193, 1280) | 29 | 5 | 4 | 0 | 0 | **1** | 2026-09-19T20:20:00+00:00 |
 | secretariat | `/messages` (messagerie patients, 1280) | 33 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
 | patient | `/` (Accueil, 390x844) | 22 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
@@ -68,7 +68,7 @@ avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupu
 
 **359 contrôles inventoriés, 70 activés, 59 OK, 0 mort, 8 cassés, 2 désactivés (légitimes), 1 sans effet légitime.**
 
-- Les **8 « cassés »** sont les entrées du rail secrétariat qui ouvrent le **mauvais écran** (Correspondants→`/devis`, Devis→`/cabinet-payouts`, Encaissements→`/messages`, Patients→`/team-messages`, Équipe→`/cabinet-stats`, Statistiques→`/bookable-slots`, Créneaux ouverts→`/appointment-motifs`, Motifs de RDV→`/correspondents`). 4 mesurés en session neuve, les 8 déduits du décalage d'index prouvé → **#7416 (P0)**.
+- Les **8 « cassés »** sont les entrées du rail secrétariat qui ouvrent le **mauvais écran** (Correspondants→`/devis`, Devis→`/cabinet-payouts`, Encaissements→`/messages`, Patients→`/team-messages`, Équipe→`/cabinet-stats`, Statistiques→`/bookable-slots`, Créneaux ouverts→`/appointment-motifs`, Motifs de RDV→`/correspondents`). 4 mesurés en session neuve, les 8 déduits du décalage d'index prouvé → **#7416 (P0)**. **Corrigé pendant la ronde** (PR #7418, branche `correspondents` replacée au rang 6) : re-test final en session neuve, **4/4** — Correspondants→`/correspondents`, Devis→`/devis`, Encaissements→`/cabinet-payouts`, Équipe→`/team-messages`. Le rail est donc **sain à la clôture**.
 - Les **2 désactivés** sont légitimes et doublent tous deux une garde serveur : « Ajouter » (formulaire correspondant) tant que « Nom » est vide → 422 `display_name` non blanc ; « Créer le dossier » (`/patients/new`) tant que Prénom/Nom sont vides → 422 `validation_error`.
 - Le **sans effet légitime** est l'onglet « Disponibilité » de l'app infirmière, **déjà actif** au moment du clic — non compté comme mort.
 - **0 contrôle mort** et **0 erreur console** (hors échec de handshake WebSocket `wss://…/v1/ws`, observé sur l'app pharmacie et sans effet visible) sur l'ensemble des 15 écran×viewport audités.
