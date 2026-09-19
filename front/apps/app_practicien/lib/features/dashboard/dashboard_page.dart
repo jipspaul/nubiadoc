@@ -15,6 +15,8 @@ import '../tasks/tasks_event.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
+import 'kpi_tiles_cubit.dart';
+import 'kpi_tiles_row.dart';
 import 'next_patient_hero.dart';
 import 'pending_actions_card.dart';
 import 'prostheses_today_bloc.dart';
@@ -127,6 +129,10 @@ class _DashboardLoadedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final kpiTilesRow = BlocProvider(
+      create: (_) => GetIt.instance<KpiTilesCubit>()..load(),
+      child: const KpiTilesRow(),
+    );
     final todayScheduleCard = BlocProvider(
       create: (_) {
         final now = DateTime.now();
@@ -173,42 +179,49 @@ class _DashboardLoadedView extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth >= _wideBreakpoint) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _DashboardHeader(),
-                      const SizedBox(height: 16),
-                      NextPatientHero(summary: summary),
-                      const SizedBox(height: 16),
-                      todayScheduleCard,
-                    ],
-                  ),
-                ),
-                const SizedBox(width: _gutter),
-                SizedBox(
-                  width: _rightColumnWidth,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      pendingActionsCard,
-                      const SizedBox(height: 16),
-                      tasksCard,
-                      if (opportunitiesCard != null) ...[
-                        const SizedBox(height: 16),
-                        opportunitiesCard,
-                      ],
-                      const SizedBox(height: 16),
-                      notesCard,
-                      const SizedBox(height: 16),
-                      prosthesesTodayCard,
-                      const SizedBox(height: 16),
-                      weekSummaryCard,
-                    ],
-                  ),
+                const _DashboardHeader(),
+                const SizedBox(height: 16),
+                kpiTilesRow,
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          NextPatientHero(summary: summary),
+                          const SizedBox(height: 16),
+                          todayScheduleCard,
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: _gutter),
+                    SizedBox(
+                      width: _rightColumnWidth,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          pendingActionsCard,
+                          const SizedBox(height: 16),
+                          tasksCard,
+                          if (opportunitiesCard != null) ...[
+                            const SizedBox(height: 16),
+                            opportunitiesCard,
+                          ],
+                          const SizedBox(height: 16),
+                          notesCard,
+                          const SizedBox(height: 16),
+                          prosthesesTodayCard,
+                          const SizedBox(height: 16),
+                          weekSummaryCard,
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             );
@@ -218,6 +231,8 @@ class _DashboardLoadedView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const _DashboardHeader(),
+              const SizedBox(height: 16),
+              kpiTilesRow,
               const SizedBox(height: 16),
               NextPatientHero(summary: summary),
               const SizedBox(height: 16),
