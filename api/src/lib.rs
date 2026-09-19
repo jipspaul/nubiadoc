@@ -87,6 +87,7 @@ mod cabinet_team_messages;
 mod ccam_acts;
 mod ccam_stock_mappings;
 mod clinical;
+mod consent_templates;
 mod consultation_act_create;
 mod consultation_act_stock;
 mod consultation_acts;
