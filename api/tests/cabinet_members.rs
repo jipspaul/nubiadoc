@@ -238,10 +238,14 @@ async fn get_cabinet_members_returns_list_with_admin() {
         .ok();
 }
 
-// ── Test 3 : GET /v1/cabinet/members non-admin → 403 ─────────────────────────
+// ── Test 3 : GET /v1/cabinet/members secretary/practitioner → 200 ────────────
+// #7351 : lire le roster de son propre cabinet n'est pas un acte
+// d'administration — c'est le pré-requis du sélecteur « Assigné à » des
+// tâches (#7210/#7211), inatteignable pour ces deux rôles tant que
+// l'endpoint était réservé à `admin`.
 
 #[tokio::test]
-async fn get_cabinet_members_non_admin_returns_403() {
+async fn get_cabinet_members_secretary_returns_200() {
     if !db_available() {
         return;
     }
@@ -263,7 +267,7 @@ async fn get_cabinet_members_non_admin_returns_403() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    assert_eq!(resp.status(), StatusCode::OK);
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
