@@ -4,9 +4,9 @@
 use axum::{routing::get, Router};
 
 use crate::{
-    ccam_stock_mappings, cr_templates, lab_work_orders, prescription_renew, prescription_send,
-    prescription_templates, prescriptions, sterilization, sterilization_labels, stock_items,
-    AppState,
+    ccam_stock_mappings, consent_templates, cr_templates, lab_work_orders, prescription_renew,
+    prescription_send, prescription_templates, prescriptions, sterilization, sterilization_labels,
+    stock_items, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -82,6 +82,19 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/cabinet/cr-templates/:id",
             axum::routing::patch(cr_templates::patch_cr_template)
                 .delete(cr_templates::delete_cr_template),
+        )
+        .route(
+            "/v1/cabinet/consent-templates",
+            get(consent_templates::list_consent_templates)
+                .post(consent_templates::create_consent_template),
+        )
+        .route(
+            "/v1/cabinet/consent-templates/:id",
+            axum::routing::patch(consent_templates::patch_consent_template),
+        )
+        .route(
+            "/v1/consent-templates/:id/render",
+            axum::routing::post(consent_templates::render_consent_template),
         )
         .route(
             "/v1/cabinet/lab-work-orders",
