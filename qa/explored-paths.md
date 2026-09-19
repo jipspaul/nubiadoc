@@ -2921,3 +2921,18 @@ les plus graves de la ronde ont été trouvés**, dont le P0 #7392.
 | B12-RDV-cas-limites | 2026-09-19T14:08:00+00:00 | OK | **Reprogrammation prouvée avec libération du créneau** : `PATCH /v1/appointments/:id {starts_at}` → 200, le RDV passe réellement de `2026-09-23T08:00` à `09:00`, et **l'ancien créneau redevient réservable** (reprise → 201). Double-booking du créneau courant → **409 `slot_taken`**. `PATCH {motif}` seul → 200, motif relu modifié. Annulation patient → 200, **re-annuler → 409 `invalid_status`**, check-in sur annulé → 409, RDV d'un tiers → **404**. `callback-request` → 200 et **idempotent** (même `callback_requested_at` au rejeu). `no-show` sur un RDV futur → **409 `too_early`**. `directions`, `preparation`, `queue` → 200. *Faux positifs écartés* : `/appointments/:id/reschedule` **n'existe pas** (c'est `PATCH /v1/appointments/:id`, `appointments.rs:17-18`), et `PATCH {slot_id}` → 422 car le contrat porte `starts_at`/`motif` (`appointments_actions.rs:37-40`). |
 | B5-stock-gardes-et-cloisonnement | 2026-09-19T14:12:00+00:00 | OK | Officine inconnue → **404**, `items` vide → 422, `qty` négative → 422, `accept` d'une demande inconnue → 404. Cloisonnement de kind **4/4** : patient et pharma → 403 sur `/cabinet/stock-requests` ; patient et secrétariat → 403 sur `/pharmacy/stock-requests`. (Chaîne fonctionnelle complète déjà prouvée en X7 : `sent → accept → fulfill`, état final `fulfilled` vu du secrétariat, `reject`/`cancel` après `fulfill` → 409.) |
 | B8-notifications-et-rappels | 2026-09-19T14:15:00+00:00 | OK | `POST /notifications/:id/read` → 200, **idempotent** au rejeu, id inconnu → **404** (pas de fuite). `/reminders` → 119 rappels typés (`type`, `title`, `due_at`, `status`). Le compteur de non-lus **bouge bien à l'événement** : mesuré **54 → 55** à l'annulation du RDV par le cabinet (scénario X12), avec la notification `appointment_cancelled` portant le bon `appointment_id` et un `deep_link` — lien profond **exécuté depuis l'UI** (« Voir le rendez-vous » → `POST /v1/notifications/:id/read` puis navigation vers `/mes-rdv?id=9ab9095d-…`). *Faux positif écarté* : le compteur est retombé à 0 en fin de ronde sur **tous** les `limit` (1→500) — ce n'est pas un bug de pagination mais l'effet de l'audit de `patient /notifications`, qui a activé les 18 contrôles de l'écran, dont « tout marquer comme lu ». Note mineure non filée : `/notifications?limit=200` plafonne à 100 lignes. |
+
+#### Vérification de fin de ronde R84 — correctifs appliqués pendant la ronde
+
+**5 des 7 findings ont été corrigés et fermés dans l'heure** qui a suivi leur dépôt (#7390, #7391, #7392, #7397, #7399). Restent ouvertes : **#7388** (fourche de version sur `PATCH` d'un modèle désactivé) et **#7396** (structure design-v2 de la messagerie patient).
+
+**Le P0 #7392 a été re-vérifié en direct après correctif, aux deux viewports** :
+
+| | avant (12:13) | après (14:25) |
+|---|---|---|
+| `canvas` / arbre Semantics | 0 / vide | écran peint, **10 contrôles** à 390×844, **9** à 1280×800 |
+| erreur console GetIt | `Bad state: … not registered` | **aucune** |
+| requêtes `GET /v1/billing/quotes` | **0** | **4** |
+| contenu | néant | « Retour » + cartes de devis « Dr Hugo Marin · Signé · Reste à charge · … » |
+
+Captures `patient/R84_VERIF_financial_{390,1280}.png`. **L'écran « Devis & reste à charge » est de nouveau utilisable par les patients.**
