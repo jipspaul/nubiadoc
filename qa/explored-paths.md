@@ -73,6 +73,18 @@ régression (#7354 → #7369).** La matrice cross-app **X1→X12 a été couvert
 | adversarial-ui-apps-pro | 2026-09-19T09:05:00+00:00 | OK | Compléments adversariaux côté pro : **saisie invalide via l'UI** — « Nouveau patient » (secrétariat) avec un téléphone `abc` → le bouton « Créer le dossier » est **désactivé tant que les champs requis sont vides** puis s'active, la soumission rend `422` sur `POST /v1/cabinet/patients/quick` et l'écran affiche un message **digne** (« Certaines informations sont manquantes ou invalides. Merci de vérifier le formulaire. ») — **aucun 5xx, aucun submit silencieux**. **Double-clic** sur « Relancer » (stock) → exactement 1 `POST /resend`. « Délivrer » (officine) est un bouton de **navigation** vers `/orders/:id/pickup` (0 POST attendu et constaté). |
 | spotlight-commande-k | 2026-09-19T09:05:00+00:00 | OK | Re-vérification (1 scénario CLEAN re-prouvé, quota respecté) : ⌘K ouvre, la saisie filtre, ↑/↓ déplacent la sélection, ⏎ ouvre le résultat, Échap ferme — aux **deux** rôles back-office. Seul écart : « Demander à Nubia » en tête de liste, **déjà filé et ouvert (#6950, #6818)**, non re-filé. |
 
+#### R83 — suivi de clôture : **les 5 findings de la ronde ont été corrigés ET re-vérifiés en live avant la fin de la ronde**
+
+| issue | correctif mergé | re-vérification live en fin de ronde |
+|---|---|---|
+| **#7369** — 308 permanent vers une 404 | (tunnel SSR) | `/DeNtIsTe/LyOn` → `308` vers **`/dentiste/lyon`** (le `query_slug` est désormais normalisé lui aussi) et la cible rend **`200`**. Plus de redirection permanente vers une page morte. ✅ |
+| **#7371** — 2 membres seed sans nom | #7376 `fix(db)` | `GET /v1/cabinet/members` rend « **Léna Monceau** » et « **Marie Secrétaire** » ; les tâches qui leur sont assignées portent `assignee_display_name: "Léna Monceau"` / `"Marie Secrétaire"`. ✅ |
+| **#7372** — messagerie interne ouverte sur le plus ancien | #7373 `fix(flutter-front)` | `/team-messages` s'ouvre désormais sur « **Mardi 15 / Mercredi 16 / Jeudi 17 septembre** » (les messages récents) au lieu du 24 juillet. ✅ |
+| **#7374** — date de naissance non bornée (tunnel public) | #7378 `fix(rust-api)` | `POST /reservation/confirmer` avec `naissance=2099-12-31` → **`422`** « Vos informations » (était `200 Rendez-vous confirmé`). ✅ |
+| **#7375** — champs non bornés (tunnel public) | #7377 `fix(rust-api)` | `POST /reservation/confirmer` avec un `nom` de 20 000 caractères → **`422`** (était `200`). ✅ |
+
+> Les 5 issues sont **closes**. Boucle complète dans la ronde : détection → preuve → root-cause → correctif mergé → re-vérification live.
+
 > ⚠️ **Note de méthode (R83)** — le harnais d'audit hérité cliquait aux coordonnées Semantics **sans
 > vérifier qu'elles tombent dans le viewport** : tout contrôle sous la ligne de flottaison recevait un
 > clic hors écran et était classé « MORT » à tort (`document.elementFromPoint` → `RIEN`). Vérifié sur
