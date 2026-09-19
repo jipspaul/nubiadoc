@@ -458,9 +458,21 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | POST | `/v1/letter-templates` | pro | `{ name, kind, body_template }` → `201 { template_id, placeholders[] }`. `kind` ∈ `convocation, relance, courrier_confrere, attestation, autre`. |
 | POST | `/v1/patients/{id}/letters` | pro | `{ template_id, correspondent_id?, overrides? }` → `201 { document_id, filename, size_bytes, body }` : rend le modèle, produit le PDF (en-tête/pied cabinet + RPPS, pagination) et le stocke en **document patient** `category='courrier'` (audit `generate_letter`). |
 
-Placeholders reconnus (`{{nom}}`, espaces internes tolérés) : `patient.prenom`, `patient.nom`, `patient.date_naissance` (JJ/MM/AAAA), `cabinet.nom`, `cabinet.adresse` (`settings.address`), `cabinet.telephone` (`settings.contact.phone`), `praticien.nom`, `praticien.rpps` (praticien appelant si `practitioner`, sinon celui du RDV), `rdv.date`, `rdv.heure` (heure Paris ; prochain RDV non annulé, sinon le dernier passé), `date.aujourdhui`, `correspondant.nom` (uniquement via `overrides` pour l'instant). `overrides` : `{ "rdv.date": "12/10/2026", … }`, prime sur les valeurs résolues.
+Placeholders reconnus (`{{nom}}`, espaces internes tolérés) : `patient.prenom`, `patient.nom`, `patient.date_naissance` (JJ/MM/AAAA), `cabinet.nom`, `cabinet.adresse` (`settings.address`), `cabinet.telephone` (`settings.contact.phone`), `praticien.nom`, `praticien.rpps` (praticien appelant si `practitioner`, sinon celui du RDV), `rdv.date`, `rdv.heure` (heure Paris ; prochain RDV non annulé, sinon le dernier passé), `date.aujourdhui`, `correspondant.nom` (résolu depuis `correspondent_id`, cf. ci-dessous, sinon via `overrides`). `overrides` : `{ "rdv.date": "12/10/2026", … }`, prime sur les valeurs résolues.
 
-Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue → `422 { code:"unknown_placeholders", placeholders:[…] }` ; placeholder connu sans valeur ni override → `422 { code:"missing_placeholder_values", placeholders:[…] }` (jamais de courrier rendu avec un trou) ; `{{` non fermé → `422 validation_error` ; `correspondent_id` fourni → `501 { code:"correspondent_not_supported" }` (aucune entité correspondant cabinet encore, cf. issue dédiée) ; patient ou modèle hors cabinet → `404`.
+`correspondent_id` (#7194) : optionnel, référence l'annuaire `GET/POST /v1/cabinet/correspondents` — résout `{{correspondant.nom}}` et lie le document créé au correspondant (compté dans ses stats comme « courrier envoyé »).
+
+Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue → `422 { code:"unknown_placeholders", placeholders:[…] }` ; placeholder connu sans valeur ni override → `422 { code:"missing_placeholder_values", placeholders:[…] }` (jamais de courrier rendu avec un trou) ; `{{` non fermé → `422 validation_error` ; `correspondent_id` fourni, inexistant ou d'un autre cabinet → `404` ; patient ou modèle hors cabinet → `404`.
+
+**Correspondants du cabinet (#7194, DP-F8.b)** — `secretary`/`practitioner`/`admin`.
+
+| Méthode | Chemin | Rôle | Description |
+|---|---|---|---|
+| GET | `/v1/cabinet/correspondents` | pro | Annuaire du cabinet, trié par nom. `{ id, display_name, specialty, email, phone, address, rpps, notes, created_at, updated_at }[]`. |
+| POST | `/v1/cabinet/correspondents` | pro | `{ display_name, specialty?, email?, phone?, address?, rpps?, notes? }` → `201`, même forme que `GET`. `display_name` non blanc requis ; `email`, s'il est fourni, doit être syntaxiquement valide. |
+| PATCH | `/v1/cabinet/correspondents/{id}` | pro | Champ absent = inchangé ; champ optionnel fourni blanc = effacé (`NULL`). → `200`. Hors cabinet → `404`. |
+| DELETE | `/v1/cabinet/correspondents/{id}` | pro | → `204`. Référencé par un patient adressé ou un courrier → `409 { code:"correspondent_in_use" }`. Hors cabinet → `404`. |
+| GET | `/v1/cabinet/correspondents/{id}/stats` | pro | `{ referred_patients_count, billed_revenue_cents, letters_sent_count }` : patients dont `referred_by_correspondent_id` pointe vers ce correspondant, CA **facturé** (devis `signed`, brut, distinct du CA encaissé de `/v1/cabinet/stats/billing`) sur ces patients, courriers générés avec ce correspondant comme destinataire. Hors cabinet → `404`. |
 
 ---
 

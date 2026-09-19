@@ -4,10 +4,10 @@ use axum::{routing::get, Router};
 
 use crate::{
     bank_deposit_slip, billing, billing_payments, cabinet_cash_collection, cabinet_cash_register,
-    cabinet_opportunities, cabinet_payments_manual, cabinet_payouts, cabinet_quote_item_parts,
-    cabinet_quotes, cabinet_quotes_export, cabinet_quotes_patch, cabinet_stats, dashboard,
-    invoice_reminder, payment_schedules, quote_attachments, quote_attestation, quote_relances,
-    quote_signature, treatment_plans, AppState,
+    cabinet_correspondents, cabinet_opportunities, cabinet_payments_manual, cabinet_payouts,
+    cabinet_quote_item_parts, cabinet_quotes, cabinet_quotes_export, cabinet_quotes_patch,
+    cabinet_stats, dashboard, invoice_reminder, payment_schedules, quote_attachments,
+    quote_attestation, quote_relances, quote_signature, treatment_plans, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -175,5 +175,20 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/payouts/:id/flag-accountant",
             axum::routing::post(cabinet_payouts::flag_payout_to_accountant),
+        )
+        // Annuaire des correspondants du cabinet (#7194, DP-F8.b).
+        .route(
+            "/v1/cabinet/correspondents",
+            get(cabinet_correspondents::list_correspondents)
+                .post(cabinet_correspondents::create_correspondent),
+        )
+        .route(
+            "/v1/cabinet/correspondents/:id",
+            axum::routing::patch(cabinet_correspondents::patch_correspondent)
+                .delete(cabinet_correspondents::delete_correspondent),
+        )
+        .route(
+            "/v1/cabinet/correspondents/:id/stats",
+            get(cabinet_correspondents::get_correspondent_stats),
         )
 }

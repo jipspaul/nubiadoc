@@ -187,6 +187,11 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM cabinet_correspondent WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM audit_log WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
@@ -526,7 +531,7 @@ async fn create_and_generate_report_placeholder_errors() {
     assert_eq!(resp["code"], "unknown_placeholders");
     assert_eq!(resp["placeholders"], json!(["patient.email"]));
 
-    // correspondent_id → 501 documenté.
+    // correspondent_id inexistant (ou d'un autre cabinet) → 404 (#7194).
     let (status, resp) = call(
         state_with(app_pool().await),
         "POST",
@@ -538,8 +543,57 @@ async fn create_and_generate_report_placeholder_errors() {
         })),
     )
     .await;
-    assert_eq!(status, StatusCode::NOT_IMPLEMENTED, "{resp}");
-    assert_eq!(resp["code"], "correspondent_not_supported");
+    assert_eq!(status, StatusCode::NOT_FOUND, "{resp}");
+
+    // correspondent_id valide → 201, {{correspondant.nom}} résolu automatiquement
+    // (sans override) et le document créé référence ce correspondant.
+    let correspondent_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO cabinet_correspondent (id, cabinet_id, display_name) \
+         VALUES ($1, $2, 'Dr Confrère Test')",
+    )
+    .bind(correspondent_id)
+    .bind(f.cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/patients/{}/letters", f.patient_id),
+        &token,
+        Some(json!({
+            "template_id": SEED_CONFRERE_ID,
+            "correspondent_id": correspondent_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{resp}");
+    assert!(
+        resp["body"]
+            .as_str()
+            .unwrap()
+            .contains("Cher confrère, chère consœur Dr Confrère Test,"),
+        "{resp}"
+    );
+    let document_id: Uuid = serde_json::from_value(resp["document_id"].clone()).unwrap();
+    let doc_correspondent: Uuid =
+        sqlx::query("SELECT correspondent_id FROM document WHERE id = $1")
+            .bind(document_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("correspondent_id")
+            .unwrap();
+    assert_eq!(doc_correspondent, correspondent_id);
 
     cleanup(&db, &f).await;
 }
