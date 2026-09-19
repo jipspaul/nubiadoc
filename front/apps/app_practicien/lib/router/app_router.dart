@@ -40,6 +40,7 @@ import '../features/tasks/tasks_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 import '../pro_config.dart';
+import '../session/pro_auth_cubit.dart';
 
 class AppRouter {
   AppRouter._();
@@ -100,8 +101,20 @@ class AppRouter {
       routes: [
         GoRoute(
           path: splash,
-          builder: (_, __) =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
+          // #7397 (port de #6750) : une coupure réseau pendant
+          // ProAuthCubit.restore() ne doit pas se voir comme une page vide
+          // indéfinie (token jamais confirmé ni invalidé) — on propose
+          // Réessayer plutôt que de laisser le shell pro sans contenu.
+          builder: (_, __) => Scaffold(
+            body: BlocBuilder<ProAuthCubit, AuthState>(
+              builder: (context, state) => state is AuthRestoreFailed
+                  ? NubiaErrorWidget(
+                      message: state.message,
+                      onRetry: () => context.read<ProAuthCubit>().restore(),
+                    )
+                  : const Center(child: CircularProgressIndicator()),
+            ),
+          ),
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
         // #6286 — reste un `GoRoute` autonome hors du `StatefulShellRoute`
