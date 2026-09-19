@@ -110,14 +110,52 @@ String _pad2(int n) => n.toString().padLeft(2, '0');
 String _formatTimestamp(DateTime d) =>
     '${_pad2(d.day)}/${_pad2(d.month)} ${_pad2(d.hour)}:${_pad2(d.minute)}';
 
-class _MessagesList extends StatelessWidget {
+class _MessagesList extends StatefulWidget {
   const _MessagesList({required this.messages});
 
   final List<CabinetTeamMessage> messages;
 
   @override
+  State<_MessagesList> createState() => _MessagesListState();
+}
+
+/// #7372 : le fil doit s'ouvrir sur le dernier message, pas sur le plus
+/// ancien. L'API sert les messages en ordre chronologique croissant, donc on
+/// pousse le `ScrollController` sur `maxScrollExtent` dès le premier rendu
+/// (et à chaque nouveau message) plutôt que d'inverser l'ordre affiché.
+class _MessagesListState extends State<_MessagesList> {
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollToBottom();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MessagesList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.messages.length != oldWidget.messages.length) {
+      _scrollToBottom();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (messages.isEmpty) {
+    if (widget.messages.isEmpty) {
       return const NubiaEmptyState(
         key: Key('team_messages_empty'),
         icon: Icons.forum_outlined,
@@ -127,10 +165,11 @@ class _MessagesList extends StatelessWidget {
     }
     return ListView.builder(
       key: const Key('team_messages_list'),
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
-      itemCount: messages.length,
+      itemCount: widget.messages.length,
       itemBuilder: (context, i) {
-        final m = messages[i];
+        final m = widget.messages[i];
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Column(

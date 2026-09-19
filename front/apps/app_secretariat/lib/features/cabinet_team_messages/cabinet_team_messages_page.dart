@@ -635,27 +635,66 @@ List<_ThreadItem> _threadItemsFor(List<CabinetTeamMessage> messages) {
   return items;
 }
 
-class _MessagesList extends StatelessWidget {
+class _MessagesList extends StatefulWidget {
   const _MessagesList({required this.messages, this.isSearching = false});
 
   final List<CabinetTeamMessage> messages;
   final bool isSearching;
 
   @override
+  State<_MessagesList> createState() => _MessagesListState();
+}
+
+/// #7372 : le fil doit s'ouvrir sur le dernier message, pas sur le plus
+/// ancien. L'API sert les messages en ordre chronologique croissant, donc on
+/// pousse le `ScrollController` sur `maxScrollExtent` dès le premier rendu
+/// (et à chaque nouveau message) plutôt que d'inverser l'ordre affiché.
+class _MessagesListState extends State<_MessagesList> {
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollToBottom();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MessagesList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.messages.length != oldWidget.messages.length) {
+      _scrollToBottom();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (messages.isEmpty) {
+    if (widget.messages.isEmpty) {
       return NubiaEmptyState(
         key: const Key('team_messages_empty'),
-        icon: isSearching ? Icons.search_off : Icons.forum_outlined,
-        title: isSearching ? 'Aucun résultat' : 'Aucun message',
-        subtitle: isSearching
+        icon: widget.isSearching ? Icons.search_off : Icons.forum_outlined,
+        title: widget.isSearching ? 'Aucun résultat' : 'Aucun message',
+        subtitle: widget.isSearching
             ? 'Essayez un autre terme de recherche.'
             : 'Écrivez le premier message à votre équipe.',
       );
     }
-    final items = _threadItemsFor(messages);
+    final items = _threadItemsFor(widget.messages);
     return ListView.builder(
       key: const Key('team_messages_list'),
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       itemCount: items.length,
       itemBuilder: (context, i) {
