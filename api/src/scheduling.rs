@@ -76,7 +76,11 @@ fn last_sunday_of_month(year: i32, month: u32) -> chrono::NaiveDate {
 /// Fenêtre `[début, fin[` en UTC pour `days` jours locaux cabinet à partir de
 /// `base_date` (#6577) : la journée du cabinet se découpe sur minuit local,
 /// pas minuit UTC.
-fn cabinet_local_days_utc_range(
+///
+/// `pub(crate)` : réutilisée par `cabinet_briefs.rs` (#7192) pour les mêmes
+/// fenêtres jour/semaine que l'agenda, plutôt que de dupliquer la logique
+/// DST `Europe/Paris`.
+pub(crate) fn cabinet_local_days_utc_range(
     base_date: chrono::NaiveDate,
     days: i64,
 ) -> Result<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>), AppError> {

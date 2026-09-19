@@ -10,6 +10,7 @@
 pub mod appointments;
 pub mod auth_account;
 pub mod billing;
+pub mod cabinet_briefs;
 pub mod cabinet_messaging;
 pub mod cabinet_tasks;
 pub mod clinical;
