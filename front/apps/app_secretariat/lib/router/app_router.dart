@@ -243,6 +243,15 @@ class AppRouter {
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
+                path: correspondents,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<CorrespondentsBloc>(),
+                  child: const CorrespondentsPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
                 path: devis,
                 builder: (_, state) => BlocProvider(
                   create: (_) => GetIt.instance<DevisBloc>(),
@@ -314,15 +323,6 @@ class AppRouter {
                 builder: (_, __) => BlocProvider(
                   create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
                   child: const AppointmentMotifsPage(),
-                ),
-              ),
-            ]),
-            StatefulShellBranch(routes: [
-              GoRoute(
-                path: correspondents,
-                builder: (_, __) => BlocProvider(
-                  create: (_) => GetIt.instance<CorrespondentsBloc>(),
-                  child: const CorrespondentsPage(),
                 ),
               ),
             ]),
