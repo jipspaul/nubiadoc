@@ -113,6 +113,8 @@ par le secrétariat), X7 (demande de stock → acceptée par l'officine), X10 (d
 reçue → accept → en-route → arrived → done → suivi patient `done`), plus les 3 cloisonnements croisés
 (nurse→cabinet, patient→pharmacy, pharma→nurse, tous `403`). **Aucune régression de plateforme.**
 
+| relance-facture-impayee | 2026-09-19T09:05:00+00:00 | OK | **Fonctionnalité #7205/#7206 mergée PENDANT la ronde (#7368, 06:02Z) — couverte à chaud, propre de bout en bout.** Routes réelles : `POST /v1/invoices/:id/reminder` et `GET /v1/invoices/:id/reminders` (et non `/cabinet/quotes/:id/reminders`). Relance sur un devis encore `draft` → `404` (ce n'est pas encore une facture) ; historique vide avant ; après la relance → `200 {"sent":true,"channels":["push","email"],"balance_due_cents":20000}` et l'historique liste les **2 canaux horodatés** ; **2ᵉ relance immédiate → `409 invoice_reminder_cooldown`** (garde anti-spam) ; pharmacie et patient → `403` à l'envoi **et** sur l'historique ; devis inexistant → `404`. **Chaîne cross-app bouclée** : le patient reçoit réellement la notification `kind: "invoice_reminder"` « Une facture reste impayée ». |
+
 > ⚠️ **Note de méthode (R83)** — le harnais d'audit hérité cliquait aux coordonnées Semantics **sans
 > vérifier qu'elles tombent dans le viewport** : tout contrôle sous la ligne de flottaison recevait un
 > clic hors écran et était classé « MORT » à tort (`document.elementFromPoint` → `RIEN`). Vérifié sur
