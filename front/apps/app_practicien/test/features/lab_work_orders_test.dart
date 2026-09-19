@@ -448,6 +448,36 @@ void main() {
         find.byKey(const Key('lab_work_order_advance_order-1')),
         findsNothing,
       );
+      expect(
+        find.byKey(const Key('lab_work_order_status_chip_order-1_sent')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(
+            const Key('lab_work_order_status_chip_order-1_in_progress')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('lab_work_order_status_chip_order-1_received')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'un bon "received" (dernier statut d\'expédition) n\'affiche aucune '
+        'chip — tous les statuts d\'expédition sont déjà franchis (#7349)',
+        (tester) async {
+      await _setSurface(tester);
+      final receivedOrder = _sentOrder.copyWith(status: 'received');
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(LabWorkOrdersLoaded([receivedOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.byKey(const Key('lab_work_order_expedition_chips_order-1')),
+        findsNothing,
+      );
     });
   });
 

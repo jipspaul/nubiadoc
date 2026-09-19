@@ -34,6 +34,16 @@ const _kStatusVariants = kLabWorkOrderStatusVariants;
 String _columnOf(String status) =>
     _kExpeditionStatuses.contains(status) ? 'sent' : status;
 
+/// Statuts d'expédition encore atteignables depuis [status] (#7349) : l'API
+/// n'autorise que les transitions vers un rang strictement supérieur dans
+/// `STATUS_ORDER` (`api/src/lab_work_orders.rs`, `is_forward_transition`) —
+/// les statuts déjà franchis sont donc exclus, pas seulement le statut
+/// courant. Vide une fois `received` atteint.
+Iterable<String> _remainingExpeditionStatuses(String status) {
+  final i = _kExpeditionStatuses.indexOf(status);
+  return i < 0 ? const [] : _kExpeditionStatuses.skip(i + 1);
+}
+
 /// Couleur de la pastille d'en-tête de colonne (maquette design-v2, point 3) :
 /// `--infoFg`, `--warnFg`, `--brand600`, `--n400` dans l'ordre de
 /// `_kStatusOrder`. Distinct de [_kStatusVariants] (couleur du `StatusPill`
@@ -424,8 +434,8 @@ class _LabWorkStatusColumn extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _LabWorkOrderInfo(order: order, now: now),
-                              if (_kExpeditionStatuses
-                                  .contains(order.status)) ...[
+                              if (_remainingExpeditionStatuses(order.status)
+                                  .isNotEmpty) ...[
                                 const SizedBox(height: 12),
                                 _ExpeditionStatusChips(
                                   order: order,
@@ -506,12 +516,12 @@ class _LabWorkArchiveNote extends StatelessWidget {
 /// Chips de sélection directe du statut d'expédition (#7207) — un bon
 /// `sent`/`in_progress`/`shipped`/`received` (migration 0274, #7209) n'a pas
 /// de bouton "Avancer" fonctionnel (ces statuts sont hors de
-/// `_kStatusOrder`) : ces chips permettent de choisir le statut exact. Le
-/// statut courant du bon (déjà affiché par le `StatusPill` de
-/// [_LabWorkOrderInfo]) n'est pas reproposé en chip — évite un doublon
-/// visuel du même libellé sur la même carte. `Wrap` plutôt que `Row` — évite
-/// tout débordement horizontal dans une colonne étroite (guide-fou CI
-/// Flutter).
+/// `_kStatusOrder`) : ces chips permettent de choisir le statut exact. Seuls
+/// les statuts encore atteignables (cf. [_remainingExpeditionStatuses]) sont
+/// proposés — ni le statut courant (déjà affiché par le `StatusPill` de
+/// [_LabWorkOrderInfo]), ni les statuts déjà franchis (409 garanti côté API,
+/// #7349). `Wrap` plutôt que `Row` — évite tout débordement horizontal dans
+/// une colonne étroite (guide-fou CI Flutter).
 class _ExpeditionStatusChips extends StatelessWidget {
   const _ExpeditionStatusChips({
     required this.order,
@@ -526,8 +536,7 @@ class _ExpeditionStatusChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isUpdating = updatingId == order.id;
-    final options =
-        _kExpeditionStatuses.where((status) => status != order.status);
+    final options = _remainingExpeditionStatuses(order.status);
     return Wrap(
       key: Key('lab_work_order_expedition_chips_${order.id}'),
       spacing: 8,
