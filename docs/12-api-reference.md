@@ -308,6 +308,9 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 |---|---|---|---|
 | GET | `/v1/quotes` | patient | Mes devis (`?status=`). |
 | GET | `/v1/quotes/{id}` | patient | Détail devis (lignes, reste à charge). |
+| GET | `/v1/quotes/{id}/attachments` | patient | Pièces jointes du devis (consentement, ordonnance, courrier). |
+| GET | `/v1/quotes/{id}/attestation` | patient | Attestation d'information courante du devis. |
+| POST | `/v1/quotes/{id}/attestation/sign` | patient | Signe l'attestation d'information (stub, même mécanique que `/sign`). |
 | POST | `/v1/quotes/{id}/signature` | patient | Démarre la signature eIDAS (Yousign). |
 | GET | `/v1/quotes/{id}/signature` | patient | Statut de signature. |
 | GET | `/v1/invoices` | patient | Factures. |
@@ -319,7 +322,9 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 
 `POST /v1/quotes/{id}/signature` → `202 { signature_id, provider:"yousign", redirect_url|embed_token }`. Le résultat arrive par **webhook** (§21). Un devis **signé est immuable** : toute modif ultérieure → `409 quote_locked` (`06` E5.1, `07` §5.5).
 
-`POST /v1/quotes/{id}/sign` (stub synchrone, app patient) → `200 { signed:true, signed_at }`. Devis déjà `signed` → `200` **idempotent** avec le `signed_at` existant ; `draft`/`refused`/`expired` → `409 invalid_status`.
+`POST /v1/quotes/{id}/sign` (stub synchrone, app patient) → `200 { signed:true, signed_at }`. Devis déjà `signed` → `200` **idempotent** avec le `signed_at` existant ; `draft`/`refused`/`expired` → `409 invalid_status`. Si une **attestation d'information** existe pour ce devis et n'est pas signée → `409 attestation_not_signed` (#7203) : le patient doit d'abord `POST /v1/quotes/{id}/attestation/sign`.
+
+**Pièces jointes + attestation d'information (#7203)** : `quote_attachment` rattache un devis à un document déjà stocké (`document_id` — consentement/ordonnance scanné) OU à un modèle de courrier pas encore matérialisé (`template_ref`, id `letter_template`), jamais les deux (`422` sinon). Dépôt/retrait côté cabinet : `POST/GET /v1/cabinet/quotes/{id}/attachments`, `DELETE /v1/cabinet/quotes/{id}/attachments/{attachment_id}` (`409 quote_locked` si le devis est déjà `signed`) — lecture patient : `GET /v1/quotes/{id}/attachments`. `POST /v1/cabinet/quotes/{id}/send` liste désormais les `kind` des pièces jointes dans sa réponse et dans le payload de la notification patient `quote_received`. L'attestation d'information (`quote_information_attestation`, texte + trace de signature) se dépose côté cabinet via `POST /v1/cabinet/quotes/{id}/attestation` (`409 attestation_already_pending` si une attestation non signée existe déjà) et se lit via `GET /v1/cabinet/quotes/{id}/attestation` ; côté patient : `GET /v1/quotes/{id}/attestation` + `POST /v1/quotes/{id}/attestation/sign` (stub, `200` idempotent si déjà signée).
 
 **Règle « double-submit » (signatures, #7012/#6794/#7015)** : la transition de statut est **sérialisée en base** (`SELECT … FOR UPDATE` dans la transaction) — N appels simultanés sur le même objet produisent **exactement une** signature et **un** document dans le coffre-fort, et chaque perdant reçoit **la réponse déterministe d'un second appel séquentiel**, jamais un 5xx : `200` idempotent (`signed_at` existant) pour `POST /v1/quotes/{id}/sign`, `409 invalid_status` pour `POST /v1/cabinet/prescriptions/{id}/sign` (§17).
 
@@ -493,6 +498,9 @@ Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue →
 | PATCH | `/v1/cabinet/quotes/{id}` | practitioner | Éditer tant que **non signé** (versioning). |
 | POST | `/v1/cabinet/quotes/{id}/send` | practitioner | Envoyer au patient pour signature. |
 | GET | `/v1/cabinet/quotes/{id}` | pro | Statut signature/paiement. |
+| GET, POST | `/v1/cabinet/quotes/{id}/attachments` | pro (billing) | Lister/déposer une pièce jointe du devis (`DP-F5.b` #7203). |
+| DELETE | `/v1/cabinet/quotes/{id}/attachments/{attachment_id}` | pro (billing) | Retirer une pièce jointe (`409 quote_locked` si devis `signed`). |
+| GET, POST | `/v1/cabinet/quotes/{id}/attestation` | pro (billing) | Lire/déposer l'attestation d'information du devis (`DP-F5.b` #7203). |
 | POST | `/v1/cabinet/quotes/{id}/remind` | pro | Relancer (acompte/signature). |
 | POST | `/v1/invoices/{id}/reminder` | pro | Relance patient sur facture (devis **signé**) impayée : in-app+push, e-mail si le compte app du patient a une adresse connue (`DP-F4.a` #7206). |
 | GET | `/v1/cabinet/opportunities` | secretary+ (secretary/practitioner/manager/admin) | Vue « opportunités du moment » du cabinet (widget dashboard Dental Pilot, `DP-F1.a` #7214). |
@@ -716,6 +724,8 @@ Listener MLLP dédié (port `2575` par défaut), TLS mutuel obligatoire (emprein
 | `slot_taken` | 409 | Créneau pris / double-booking. |
 | `too_late` | 409 | Hors délai d'annulation/modification. |
 | `quote_locked` | 409 | Devis signé immuable. |
+| `attestation_not_signed` | 409 | `POST /v1/quotes/{id}/sign` refusé : une attestation d'information existe pour ce devis et n'est pas signée (#7203). |
+| `attestation_already_pending` | 409 | `POST /v1/cabinet/quotes/{id}/attestation` refusé : une attestation non signée existe déjà pour ce devis (#7203). |
 | `provider_not_verified` | 409 | Mise en ligne refusée (RPPS non vérifié). |
 | `hold_expired` | 409 | Réservation temporaire expirée. |
 | `link_expired` | 410 | URL signée / lien périmé. |

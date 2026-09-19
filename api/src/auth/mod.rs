@@ -325,6 +325,16 @@ pub(crate) enum AppError {
     /// pour cette facture (devis signé) dans les 7 derniers jours — garde-fou
     /// anti-spam, pré-vérifié plutôt que de laisser une contrainte le faire.
     InvoiceReminderCooldown,
+    /// `POST /v1/cabinet/quotes/:id/attestation` (#7203) : une attestation
+    /// d'information existe déjà pour ce devis et n'est pas encore signée —
+    /// le cabinet doit attendre la signature (ou que le patient réponde)
+    /// avant d'en déposer une nouvelle, `quote_attestation.rs`.
+    AttestationAlreadyPending,
+    /// `POST /v1/quotes/:id/sign` (#7203) : une attestation d'information
+    /// existe pour ce devis et n'est pas signée — la signature du devis est
+    /// bloquée tant que le patient n'a pas signé l'attestation via
+    /// `POST /v1/quotes/:id/attestation/sign`.
+    AttestationNotSigned,
 }
 
 impl IntoResponse for AppError {
@@ -656,6 +666,16 @@ impl IntoResponse for AppError {
             AppError::InvoiceReminderCooldown => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "invoice_reminder_cooldown"})),
+            )
+                .into_response(),
+            AppError::AttestationAlreadyPending => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "attestation_already_pending"})),
+            )
+                .into_response(),
+            AppError::AttestationNotSigned => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "attestation_not_signed"})),
             )
                 .into_response(),
         }
