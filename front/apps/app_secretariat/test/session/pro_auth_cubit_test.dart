@@ -66,6 +66,45 @@ void main() {
         app: 'secretariat',
       );
 
+  group('ProAuthCubit.signIn', () {
+    blocTest<ProAuthCubit, AuthState>(
+      // #7346 : la session doit porter l'UUID réel de /me, pas le stub 'me' —
+      // sinon assignee_id=me part sur les endpoints tâches et l'API rejette
+      // en 400 (elle attend un Uuid, cf. api/src/cabinet_tasks.rs).
+      "succès : la session porte l'user_id retourné par /me",
+      build: () {
+        when(
+          () => mockLogin(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        ).thenAnswer((_) async => const Right(_account));
+        when(() => mockDio.get<Map<String, dynamic>>('/me')).thenAnswer(
+          (_) async => Response(
+            data: {
+              'user_id': 'a0000000-0000-0000-0000-0000000000a2',
+              'memberships': <Map<String, dynamic>>[],
+            },
+            requestOptions: RequestOptions(path: '/me'),
+          ),
+        );
+        return buildCubit();
+      },
+      act: (cubit) => cubit.signIn(
+        email: 'sonia.accueil@cabinet-lyon.test',
+        password: 's3cr3t',
+      ),
+      expect: () => [
+        const AuthLoading(),
+        isA<AuthAuthenticated>().having(
+          (s) => s.session.userId,
+          'session.userId',
+          'a0000000-0000-0000-0000-0000000000a2',
+        ),
+      ],
+    );
+  });
+
   group('ProAuthCubit.registerWithInvitation', () {
     blocTest<ProAuthCubit, AuthState>(
       'succès : émet AuthLoading puis AuthAuthenticated et appelle registerOnLogin',
