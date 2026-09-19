@@ -30,7 +30,10 @@ const IP_RATE_MAX_ATTEMPTS: u32 = 5;
 static LOGIN_IP_RATE: LazyLock<Mutex<HashMap<String, (u32, Instant)>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-fn is_ip_rate_limited(ip: &str) -> bool {
+/// `pub(crate)` : réutilisé par `auth::mfa_disable` (#7342), qui vérifie un
+/// mot de passe sur un endpoint anonyme au même titre que `login` et mérite
+/// la même protection anti-brute-force par IP.
+pub(crate) fn is_ip_rate_limited(ip: &str) -> bool {
     let mut map = LOGIN_IP_RATE.lock().unwrap_or_else(|e| e.into_inner());
     let now = Instant::now();
     let entry = map.entry(ip.to_string()).or_insert((0, now));
@@ -62,7 +65,9 @@ static LOGIN_RATE: LazyLock<Mutex<HashMap<String, (u32, Instant)>>> =
 /// latence mesurable ici) soit identique au chemin « email connu, mauvais
 /// mot de passe » — sinon le temps de réponse fuit l'existence du compte
 /// (canal auxiliaire, même classe que #3785).
-static DECOY_PASSWORD_HASH: LazyLock<String> = LazyLock::new(|| {
+/// `pub(crate)` : réutilisé par `auth::mfa_disable` (#7342) pour le même
+/// anti-timing-oracle sur un email inconnu (cf. #3813 ci-dessus).
+pub(crate) static DECOY_PASSWORD_HASH: LazyLock<String> = LazyLock::new(|| {
     let salt = SaltString::from_b64("ZGVjb3lzYWx0Q29uc3RhbnQ").expect("salt b64 valide");
     Argon2::default()
         .hash_password(b"decoy-constant-time-password", &salt)
@@ -70,7 +75,9 @@ static DECOY_PASSWORD_HASH: LazyLock<String> = LazyLock::new(|| {
         .to_string()
 });
 
-fn is_rate_limited(email: &str) -> bool {
+/// `pub(crate)` : réutilisé par `auth::mfa_disable` (#7342), même raison que
+/// `is_ip_rate_limited` ci-dessus.
+pub(crate) fn is_rate_limited(email: &str) -> bool {
     let mut map = LOGIN_RATE.lock().unwrap_or_else(|e| e.into_inner());
     let now = Instant::now();
     let entry = map.entry(email.to_lowercase()).or_insert((0, now));
