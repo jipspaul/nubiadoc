@@ -2620,10 +2620,16 @@ sélecteur « Assigné à » des 3 dialogues de tâche, qui n'offre jamais que �
 > 5 « morts » sont le bouton « Passer » d'une offre **déjà acceptée** (sans objet), des conteneurs
 > `group` et l'auto-navigation de l'onglet courant.
 
-> **Limite assumée de cette ronde** : `patient /documents` (428 documents, plusieurs centaines de
-> contrôles) n'a pas été mené à son terme dans le budget — à reprendre en tête de rotation à la
-> prochaine ronde. `patient` n'a donc été audité qu'au viewport **390×844** ; `pharmacie` et
-> `secretariat` qu'au viewport **1280×800** (leur viewport cible).
+> **Limites assumées de cette ronde — à reprendre en TÊTE de rotation à la prochaine :**
+> 1. `patient /documents` (428 documents, plusieurs centaines de contrôles) n'a pas été mené à son
+>    terme dans le budget.
+> 2. **`patient` à 1280×800** : le parcours a été lancé deux fois et n'a produit aucun écran complet
+>    en 23 min à chaque tentative (le tableau de bord patient enchaîne les contrôles navigants, et
+>    chaque retour coûte un rechargement complet). `patient` n'est donc audité qu'à **390×844** —
+>    son viewport cible (« mobile d'abord »), ce qui limite la portée du manque, mais le second
+>    viewport reste à faire.
+> 3. `secretariat`, `pharmacie` et `praticien` ont été audités aux **deux** viewports ;
+>    `infirmiere` uniquement à 390×844 (son viewport cible, « soins à domicile, mobile »).
 
 | secretariat | `/` | 390×844 | 10 | 10 | 3 | 7 | 0 (les 4xx sont `/members`, `/audit-log` admin-only + le **400 `assignee_id=me`** → #7346) | 0 | 2026-09-19T01:29:00+00:00 |
 | secretariat | `/tasks` | 390×844 | 15 | 15 | 1 | 10 | **4 CONFIRMÉS → #7346** (défaut identique à 1280 : indépendant du viewport) | 0 | 2026-09-19T01:31:00+00:00 |
