@@ -46,6 +46,34 @@ avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupu
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts (bruts) | cassés (bruts) | hors champ | last_check |
 |---|---|---|---|---|---|---|---|---|
+| praticien | `/` (Tableau de bord, 1280) | 32 | 2 | 2 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| praticien | `/agenda` (1280) | 27 | 2 | 2 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| praticien | `/agenda` → **Brief du cabinet** (écran neuf #7191, 1280) | 7 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| secretariat | `/` (rail de navigation, 1280) | 30 | 16 | 8 | 0 | **8** | 0 | 2026-09-19T20:20:00+00:00 |
+| secretariat | `/correspondents` (écran neuf #7193, 1280) | 29 | 5 | 4 | 0 | 0 | **1** | 2026-09-19T20:20:00+00:00 |
+| secretariat | `/messages` (messagerie patients, 1280) | 33 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| patient | `/` (Accueil, 390x844) | 22 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| patient | `/messaging` (liste, 390x844) | 9 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| patient | `/messaging/:id` (fil, 390x844) | 9 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| patient | `/notifications` (390x844) | 22 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| pharmacie | `/` (File des commandes, 1280) | 35 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| pharmacie | `/stock` (1280) | 24 | 1 | 1 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| pharmacie | `/messages` (1280) | 17 | 1 | 1 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| pharmacie | `/devis` (1280) | 41 | 1 | 1 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+| infirmiere | `/` (3 onglets, 390x844) | 8 | 5 | 4 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
+
+### Ronde R85 — 2026-09-19 (diff-driven : PR #7401/#7403-#7408 mergées le jour même)
+
+**345 contrôles inventoriés, 63 activés, 53 OK, 0 mort, 8 cassés, 1 désactivé (légitime), 1 sans effet légitime.**
+
+- Les **8 « cassés »** sont les entrées du rail secrétariat qui ouvrent le **mauvais écran** (Correspondants→`/devis`, Devis→`/cabinet-payouts`, Encaissements→`/messages`, Patients→`/team-messages`, Équipe→`/cabinet-stats`, Statistiques→`/bookable-slots`, Créneaux ouverts→`/appointment-motifs`, Motifs de RDV→`/correspondents`). 4 mesurés en session neuve, les 8 déduits du décalage d'index prouvé → **#7416 (P0)**.
+- Le **désactivé** est le bouton « Ajouter » du formulaire correspondant tant que « Nom » est vide : **légitime**, il double la garde serveur `display_name` non blanc (422).
+- Le **sans effet légitime** est l'onglet « Disponibilité » de l'app infirmière, **déjà actif** au moment du clic — non compté comme mort.
+- **0 contrôle mort** et **0 erreur console** (hors échec de handshake WebSocket `wss://…/v1/ws`, observé sur l'app pharmacie et sans effet visible) sur l'ensemble des 15 écran×viewport audités.
+
+⚠️ **Leçon de harnais de cette ronde.** Deux pièges de mesure ont d'abord produit de faux « morts », écartés avant publication :
+1. **Coordonnées périmées** — activer une liste de contrôles inventoriée *une seule fois* donne des clics dans le vide dès que le premier a navigué. Il faut **ré-inventorier avant chaque clic** et revenir à l'écran.
+2. **Rail à sections repliables** — les en-têtes de groupe du rail secrétariat (« Ma journée », « Patients », « Facturation », « Messages ») sont exposés en `role=button` et **replient leur section** au clic : un balayage séquentiel décale toute la colonne et invente des destinations. Le seul protocole fiable est **une session neuve par clic**, capture prise *avant* le clic, libellé confirmé par recadrage de la capture.
 | pharmacie | / @1280 | 22 | 7 | 7 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
 | pharmacie | /stock @1280 | 19 | 8 | 8 | 0 | 0 | 1 | 2026-09-19T09:05:00+00:00 |
 | pharmacie | /devis @1280 | 26 | 11 | 11 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
