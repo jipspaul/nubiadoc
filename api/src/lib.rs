@@ -67,6 +67,7 @@ mod billing;
 mod billing_payments;
 mod bookings;
 mod brevo_mailer;
+mod cabinet_briefs;
 mod cabinet_cash_collection;
 mod cabinet_cash_register;
 mod cabinet_conversation_convert;
@@ -623,6 +624,7 @@ fn build_router(
     let router = routes::secretariats::add(router);
     let router = routes::webhooks_interop::add(router);
     let router = routes::cabinet_tasks::add(router);
+    let router = routes::cabinet_briefs::add(router);
     // Route de service du `StorageSigner` self-hébergé (#6425) — sert les
     // objets `ObjectStorage` via les URL générées par `LocalStorageSigner`.
     // Toujours montée (coût nul si `ScalewayStorageSigner` est le signer

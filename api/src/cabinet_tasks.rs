@@ -51,7 +51,10 @@ fn is_valid_task_status_transition(current: &str, target: &str) -> bool {
 /// pour l'affichage. RLS `app_user` self-only (policy `user_self_select`,
 /// migration 0045) : même contournement (GUC reposé par user, avec cache)
 /// que `cabinet_team_messages.rs::list_cabinet_team_messages`.
-async fn resolve_member_name(
+///
+/// `pub(crate)` : réutilisée par `cabinet_briefs.rs` (#7192) pour afficher
+/// l'assigné des tâches ouvertes dans le brief, même besoin que `list_cabinet_tasks`.
+pub(crate) async fn resolve_member_name(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     cache: &mut HashMap<Uuid, Option<String>>,
     user_id: Uuid,
