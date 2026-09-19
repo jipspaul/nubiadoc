@@ -2126,10 +2126,14 @@ pub struct CabinetMemberItem {
 
 /// `GET /v1/cabinet/members` — liste tous les membres (y compris inactifs) du cabinet courant.
 ///
-/// Rôle `admin` requis. `cabinet_id` toujours extrait du JWT. RLS scoped via `SET LOCAL`.
+/// Accès secrétariat+ (secretary, practitioner, admin) — #7351 : lire le
+/// roster de son propre cabinet n'est pas un acte d'administration, c'est le
+/// pré-requis du sélecteur « Assigné à » des tâches (#7210/#7211), inatteignable
+/// pour ces deux rôles tant que l'endpoint était réservé à `admin`.
+/// `cabinet_id` toujours extrait du JWT. RLS scoped via `SET LOCAL`.
 pub async fn get_cabinet_members(
     State(state): State<AppState>,
-    claims: ProAdminClaims,
+    claims: ProSecretaryPlusClaims,
 ) -> Result<Json<Vec<CabinetMemberItem>>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
