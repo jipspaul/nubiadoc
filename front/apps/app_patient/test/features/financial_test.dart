@@ -30,6 +30,15 @@ class MockInitiateDepositUseCase extends Mock
 class MockGetDocumentSignedUrlUseCase extends Mock
     implements GetDocumentSignedUrlUseCase {}
 
+class MockGetPatientQuoteAttachmentsUseCase extends Mock
+    implements GetPatientQuoteAttachmentsUseCase {}
+
+class MockGetPatientQuoteAttestationUseCase extends Mock
+    implements GetPatientQuoteAttestationUseCase {}
+
+class MockSignPatientQuoteAttestationUseCase extends Mock
+    implements SignPatientQuoteAttestationUseCase {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -85,12 +94,30 @@ final _signedQuoteWithDocument = Quote(
   documentId: 'doc-1',
 );
 
+/// Attestation d'information non signée — bloque la signature du devis
+/// tant qu'elle n'est pas signée (#7201/#7203).
+final _pendingAttestation = QuoteAttestation(
+  id: 'att-1',
+  body: "Ce traitement comporte les risques suivants : ...",
+  createdAt: DateTime(2026, 6, 1),
+);
+
+final _signedAttestation = QuoteAttestation(
+  id: 'att-1',
+  body: _pendingAttestation.body,
+  signedAt: DateTime(2026, 6, 2),
+  createdAt: DateTime(2026, 6, 1),
+);
+
 FinancialBloc _makeBloc({
   required MockGetPendingQuotesUseCase getPendingQuotes,
   required MockGetQuoteByIdUseCase getQuoteById,
   required MockInitiateSignatureUseCase initiateSignature,
   required MockInitiateDepositUseCase initiateDeposit,
   required MockGetDocumentSignedUrlUseCase getDocumentSignedUrl,
+  required MockGetPatientQuoteAttachmentsUseCase getQuoteAttachments,
+  required MockGetPatientQuoteAttestationUseCase getQuoteAttestation,
+  required MockSignPatientQuoteAttestationUseCase signQuoteAttestation,
 }) =>
     FinancialBloc(
       getPendingQuotes: getPendingQuotes,
@@ -98,6 +125,9 @@ FinancialBloc _makeBloc({
       initiateSignature: initiateSignature,
       initiateDeposit: initiateDeposit,
       getDocumentSignedUrl: getDocumentSignedUrl,
+      getQuoteAttachments: getQuoteAttachments,
+      getQuoteAttestation: getQuoteAttestation,
+      signQuoteAttestation: signQuoteAttestation,
     );
 
 Widget _wrap(FinancialBloc bloc) => MaterialApp(
@@ -118,6 +148,9 @@ void main() {
   late MockInitiateSignatureUseCase mockInitiateSignature;
   late MockInitiateDepositUseCase mockInitiateDeposit;
   late MockGetDocumentSignedUrlUseCase mockGetDocumentSignedUrl;
+  late MockGetPatientQuoteAttachmentsUseCase mockGetQuoteAttachments;
+  late MockGetPatientQuoteAttestationUseCase mockGetQuoteAttestation;
+  late MockSignPatientQuoteAttestationUseCase mockSignQuoteAttestation;
 
   setUpAll(() {
     registerFallbackValue(_quote);
@@ -129,6 +162,16 @@ void main() {
     mockInitiateSignature = MockInitiateSignatureUseCase();
     mockInitiateDeposit = MockInitiateDepositUseCase();
     mockGetDocumentSignedUrl = MockGetDocumentSignedUrlUseCase();
+    mockGetQuoteAttachments = MockGetPatientQuoteAttachmentsUseCase();
+    mockGetQuoteAttestation = MockGetPatientQuoteAttestationUseCase();
+    mockSignQuoteAttestation = MockSignPatientQuoteAttestationUseCase();
+    // Défaut neutre (aucune pièce jointe/attestation) : la plupart des tests
+    // de cette suite ne portent pas sur #7201, ils ne doivent pas avoir à le
+    // stubber explicitement.
+    when(() => mockGetQuoteAttachments(any()))
+        .thenAnswer((_) async => const Right([]));
+    when(() => mockGetQuoteAttestation(any()))
+        .thenAnswer((_) async => const Right(null));
   });
 
   group('FinancialPage widget', () {
@@ -139,6 +182,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
 
       await tester.pumpWidget(_wrap(bloc));
@@ -157,6 +203,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -176,6 +225,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -201,6 +253,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -232,6 +287,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -256,6 +314,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -284,6 +345,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -312,6 +376,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -392,6 +459,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -418,6 +488,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -445,6 +518,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -491,8 +567,7 @@ void main() {
       );
     });
 
-    testWidgets(
-        'n\'affiche pas le CTA de téléchargement sans documentId',
+    testWidgets('n\'affiche pas le CTA de téléchargement sans documentId',
         (tester) async {
       when(() => mockGetPendingQuotes())
           .thenAnswer((_) async => Right([_quote]));
@@ -517,6 +592,9 @@ void main() {
         initiateSignature: mockInitiateSignature,
         initiateDeposit: mockInitiateDeposit,
         getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
       );
       bloc.add(const FinancialLoadRequested());
 
@@ -527,6 +605,110 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('btn_download')), findsNothing);
+    });
+
+    testWidgets(
+        'affiche les pièces jointes et verrouille "Signer le devis" tant '
+        'que l\'attestation n\'est pas signée (#7201)', (tester) async {
+      when(() => mockGetPendingQuotes())
+          .thenAnswer((_) async => Right([_quote]));
+      when(() => mockGetQuoteById(any()))
+          .thenAnswer((_) async => Right(_quote));
+      when(() => mockGetQuoteAttachments(any())).thenAnswer((_) async => Right([
+            QuoteAttachment(
+              id: 'qa-1',
+              kind: QuoteAttachmentKind.consent,
+              createdAt: DateTime(2026, 6, 1),
+            ),
+          ]));
+      when(() => mockGetQuoteAttestation(any()))
+          .thenAnswer((_) async => Right(_pendingAttestation));
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      bloc.add(const FinancialQuoteSelected('q-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('quote_attachments_card')), findsOneWidget);
+      expect(find.byKey(const Key('quote_attachment_qa-1')), findsOneWidget);
+      expect(find.byKey(const Key('quote_attestation_pending_card')),
+          findsOneWidget);
+      expect(find.byKey(const Key('btn_sign')), findsNothing);
+
+      // Le bouton "Signer l'attestation" reste désactivé tant que la case
+      // "j'ai lu" n'est pas cochée.
+      final signAttestationButton = tester
+          .widget<NubiaButton>(find.byKey(const Key('btn_sign_attestation')));
+      expect(signAttestationButton.onPressed, isNull);
+
+      await tester.ensureVisible(
+          find.byKey(const Key('quote_attestation_read_checkbox')));
+      await tester
+          .tap(find.byKey(const Key('quote_attestation_read_checkbox')));
+      await tester.pumpAndSettle();
+
+      final enabledButton = tester
+          .widget<NubiaButton>(find.byKey(const Key('btn_sign_attestation')));
+      expect(enabledButton.onPressed, isNotNull);
+    });
+
+    testWidgets(
+        'signer l\'attestation débloque le bouton "Signer le devis" '
+        '(#7201)', (tester) async {
+      when(() => mockGetPendingQuotes())
+          .thenAnswer((_) async => Right([_quote]));
+      when(() => mockGetQuoteById(any()))
+          .thenAnswer((_) async => Right(_quote));
+      when(() => mockGetQuoteAttestation(any()))
+          .thenAnswer((_) async => Right(_pendingAttestation));
+      when(() => mockSignQuoteAttestation(any()))
+          .thenAnswer((_) async => Right(_signedAttestation));
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      bloc.add(const FinancialQuoteSelected('q-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('btn_sign')), findsNothing);
+
+      await tester.ensureVisible(
+          find.byKey(const Key('quote_attestation_read_checkbox')));
+      await tester
+          .tap(find.byKey(const Key('quote_attestation_read_checkbox')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('btn_sign_attestation')));
+      await tester.tap(find.byKey(const Key('btn_sign_attestation')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('quote_attestation_signed_card')),
+          findsOneWidget);
+      expect(find.byKey(const Key('btn_sign')), findsOneWidget);
     });
   });
 
@@ -542,6 +724,9 @@ void main() {
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
           getDocumentSignedUrl: mockGetDocumentSignedUrl,
+          getQuoteAttachments: mockGetQuoteAttachments,
+          getQuoteAttestation: mockGetQuoteAttestation,
+          signQuoteAttestation: mockSignQuoteAttestation,
         );
       },
       act: (bloc) => bloc.add(const FinancialLoadRequested()),
@@ -562,6 +747,9 @@ void main() {
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
           getDocumentSignedUrl: mockGetDocumentSignedUrl,
+          getQuoteAttachments: mockGetQuoteAttachments,
+          getQuoteAttestation: mockGetQuoteAttestation,
+          signQuoteAttestation: mockSignQuoteAttestation,
         );
       },
       act: (bloc) => bloc.add(const FinancialLoadRequested()),
@@ -583,6 +771,9 @@ void main() {
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
           getDocumentSignedUrl: mockGetDocumentSignedUrl,
+          getQuoteAttachments: mockGetQuoteAttachments,
+          getQuoteAttestation: mockGetQuoteAttestation,
+          signQuoteAttestation: mockSignQuoteAttestation,
         );
       },
       act: (bloc) => bloc.add(const FinancialLoadRequested()),
@@ -604,6 +795,9 @@ void main() {
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
           getDocumentSignedUrl: mockGetDocumentSignedUrl,
+          getQuoteAttachments: mockGetQuoteAttachments,
+          getQuoteAttestation: mockGetQuoteAttestation,
+          signQuoteAttestation: mockSignQuoteAttestation,
         );
       },
       seed: () => FinancialLoaded([_quote]),
@@ -638,6 +832,9 @@ void main() {
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
           getDocumentSignedUrl: mockGetDocumentSignedUrl,
+          getQuoteAttachments: mockGetQuoteAttachments,
+          getQuoteAttestation: mockGetQuoteAttestation,
+          signQuoteAttestation: mockSignQuoteAttestation,
         );
       },
       seed: () => FinancialQuoteDetail(quote: _quote, quotes: [_quote]),
@@ -663,6 +860,9 @@ void main() {
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
           getDocumentSignedUrl: mockGetDocumentSignedUrl,
+          getQuoteAttachments: mockGetQuoteAttachments,
+          getQuoteAttestation: mockGetQuoteAttestation,
+          signQuoteAttestation: mockSignQuoteAttestation,
         );
       },
       seed: () => FinancialQuoteDetail(quote: _quote, quotes: const []),
@@ -689,6 +889,9 @@ void main() {
           initiateSignature: mockInitiateSignature,
           initiateDeposit: mockInitiateDeposit,
           getDocumentSignedUrl: mockGetDocumentSignedUrl,
+          getQuoteAttachments: mockGetQuoteAttachments,
+          getQuoteAttestation: mockGetQuoteAttestation,
+          signQuoteAttestation: mockSignQuoteAttestation,
         );
       },
       seed: () => FinancialQuoteDetail(
@@ -702,6 +905,72 @@ void main() {
       ],
       verify: (_) {
         verify(() => mockGetDocumentSignedUrl('doc-1')).called(1);
+      },
+    );
+
+    blocTest<FinancialBloc, FinancialState>(
+      'émet [QuoteDetail(pièces jointes + attestation)] quand '
+      'AttestationLoadRequested est reçu (#7201)',
+      build: () {
+        when(() => mockGetQuoteAttachments(any()))
+            .thenAnswer((_) async => Right([
+                  QuoteAttachment(
+                    id: 'qa-1',
+                    kind: QuoteAttachmentKind.consent,
+                    createdAt: DateTime(2026, 6, 1),
+                  ),
+                ]));
+        when(() => mockGetQuoteAttestation(any()))
+            .thenAnswer((_) async => Right(_pendingAttestation));
+        return _makeBloc(
+          getPendingQuotes: mockGetPendingQuotes,
+          getQuoteById: mockGetQuoteById,
+          initiateSignature: mockInitiateSignature,
+          initiateDeposit: mockInitiateDeposit,
+          getDocumentSignedUrl: mockGetDocumentSignedUrl,
+          getQuoteAttachments: mockGetQuoteAttachments,
+          getQuoteAttestation: mockGetQuoteAttestation,
+          signQuoteAttestation: mockSignQuoteAttestation,
+        );
+      },
+      seed: () => FinancialQuoteDetail(quote: _quote, quotes: [_quote]),
+      act: (bloc) => bloc.add(const FinancialAttestationLoadRequested()),
+      expect: () => [
+        isA<FinancialQuoteDetail>()
+            .having((s) => s.attachments.length, 'attachments.length', 1)
+            .having((s) => s.attestation, 'attestation', _pendingAttestation),
+      ],
+    );
+
+    blocTest<FinancialBloc, FinancialState>(
+      'émet [QuoteDetail(attestation signée)] quand '
+      'AttestationSignRequested est reçu (#7201)',
+      build: () {
+        when(() => mockSignQuoteAttestation(any()))
+            .thenAnswer((_) async => Right(_signedAttestation));
+        return _makeBloc(
+          getPendingQuotes: mockGetPendingQuotes,
+          getQuoteById: mockGetQuoteById,
+          initiateSignature: mockInitiateSignature,
+          initiateDeposit: mockInitiateDeposit,
+          getDocumentSignedUrl: mockGetDocumentSignedUrl,
+          getQuoteAttachments: mockGetQuoteAttachments,
+          getQuoteAttestation: mockGetQuoteAttestation,
+          signQuoteAttestation: mockSignQuoteAttestation,
+        );
+      },
+      seed: () => FinancialQuoteDetail(
+        quote: _quote,
+        quotes: [_quote],
+        attestation: _pendingAttestation,
+      ),
+      act: (bloc) => bloc.add(const FinancialAttestationSignRequested()),
+      expect: () => [
+        isA<FinancialQuoteDetail>().having(
+            (s) => s.attestation?.isSigned, 'attestation.isSigned', true),
+      ],
+      verify: (_) {
+        verify(() => mockSignQuoteAttestation('q-1')).called(1);
       },
     );
   });

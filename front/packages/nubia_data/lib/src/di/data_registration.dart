@@ -33,6 +33,7 @@ import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
 import '../remote/invoice_reminder/invoice_reminder_api.dart';
 import '../remote/quote_attachments/quote_attachments_api.dart';
 import '../remote/quote_attestation/quote_attestation_api.dart';
+import '../remote/quote_documents/patient_quote_documents_api.dart';
 import '../remote/letter_templates/letter_templates_api.dart';
 import '../remote/cabinet_payouts/cabinet_payouts_api.dart';
 import '../remote/cabinet_stats/cabinet_stats_api.dart';
@@ -94,6 +95,7 @@ import '../repositories/cabinet_quotes_repository_impl.dart';
 import '../repositories/invoice_reminder_repository_impl.dart';
 import '../repositories/quote_attachments_repository_impl.dart';
 import '../repositories/quote_attestation_repository_impl.dart';
+import '../repositories/patient_quote_documents_repository_impl.dart';
 import '../repositories/letter_templates_repository_impl.dart';
 import '../repositories/cabinet_payouts_repository_impl.dart';
 import '../repositories/cabinet_stats_repository_impl.dart';
@@ -623,6 +625,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<QuoteAttestationApi>(
       () => QuoteAttestationApi(gi()),
     )
+    ..registerLazySingleton<PatientQuoteDocumentsApi>(
+      () => PatientQuoteDocumentsApi(gi()),
+    )
     ..registerLazySingleton<LetterTemplatesApi>(
       () => LetterTemplatesApi(gi()),
     )
@@ -729,6 +734,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<QuoteAttestationRepository>(
       () => QuoteAttestationRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<PatientQuoteDocumentsRepository>(
+      () => PatientQuoteDocumentsRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<LetterTemplatesRepository>(
       () => LetterTemplatesRepositoryImpl(gi()),
     )
@@ -826,6 +834,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => DeleteQuoteAttachmentUseCase(gi()))
     ..registerFactory(() => GetQuoteAttestationUseCase(gi()))
     ..registerFactory(() => CreateQuoteAttestationUseCase(gi()))
+    ..registerFactory(() => GetPatientQuoteAttachmentsUseCase(gi()))
+    ..registerFactory(() => GetPatientQuoteAttestationUseCase(gi()))
+    ..registerFactory(() => SignPatientQuoteAttestationUseCase(gi()))
     ..registerFactory(() => ListLetterTemplatesUseCase(gi()))
     ..registerFactory(() => ListBookableSlotsUseCase(gi()))
     ..registerFactory(() => CreateSlotUseCase(gi()))
