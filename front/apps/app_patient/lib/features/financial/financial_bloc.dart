@@ -14,11 +14,17 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     required InitiateSignatureUseCase initiateSignature,
     required InitiateDepositUseCase initiateDeposit,
     required GetDocumentSignedUrlUseCase getDocumentSignedUrl,
+    required GetPatientQuoteAttachmentsUseCase getQuoteAttachments,
+    required GetPatientQuoteAttestationUseCase getQuoteAttestation,
+    required SignPatientQuoteAttestationUseCase signQuoteAttestation,
   })  : _getPendingQuotes = getPendingQuotes,
         _getQuoteById = getQuoteById,
         _initiateSignature = initiateSignature,
         _initiateDeposit = initiateDeposit,
         _getDocumentSignedUrl = getDocumentSignedUrl,
+        _getQuoteAttachments = getQuoteAttachments,
+        _getQuoteAttestation = getQuoteAttestation,
+        _signQuoteAttestation = signQuoteAttestation,
         super(const FinancialInitial()) {
     on<FinancialLoadRequested>(_onLoad);
     on<FinancialQuoteSelected>(_onQuoteSelected);
@@ -26,6 +32,8 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     on<FinancialSignatureRequested>(_onSignatureRequested);
     on<FinancialPaymentRequested>(_onPaymentRequested);
     on<FinancialDownloadRequested>(_onDownloadRequested);
+    on<FinancialAttestationLoadRequested>(_onAttestationLoadRequested);
+    on<FinancialAttestationSignRequested>(_onAttestationSignRequested);
   }
 
   final GetPendingQuotesUseCase _getPendingQuotes;
@@ -33,6 +41,9 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
   final InitiateSignatureUseCase _initiateSignature;
   final InitiateDepositUseCase _initiateDeposit;
   final GetDocumentSignedUrlUseCase _getDocumentSignedUrl;
+  final GetPatientQuoteAttachmentsUseCase _getQuoteAttachments;
+  final GetPatientQuoteAttestationUseCase _getQuoteAttestation;
+  final SignPatientQuoteAttestationUseCase _signQuoteAttestation;
 
   Future<void> _onLoad(
     FinancialLoadRequested event,
@@ -94,8 +105,8 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
       result.fold(
         (f) => safeEmit(
             FinancialError(message: f.message, quotes: current.quotes)),
-        (quote) =>
-            safeEmit(FinancialQuoteDetail(quote: quote, quotes: current.quotes)),
+        (quote) => safeEmit(
+            FinancialQuoteDetail(quote: quote, quotes: current.quotes)),
       );
     } catch (_) {
       safeEmit(FinancialError(
@@ -154,6 +165,60 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     } catch (_) {
       safeEmit(FinancialError(
           message: 'Erreur lors du téléchargement.', quotes: current.quotes));
+    }
+  }
+
+  // Chargement séparé de `_onQuoteSelected` (#7201) : les pièces jointes et
+  // l'attestation sont des sous-ressources, une erreur réseau sur l'une
+  // d'elles ne doit pas empêcher l'affichage du devis déjà chargé.
+  Future<void> _onAttestationLoadRequested(
+    FinancialAttestationLoadRequested event,
+    Emitter<FinancialState> emit,
+  ) async {
+    final current = state;
+    if (current is! FinancialQuoteDetail) return;
+    try {
+      final attachmentsResult = await _getQuoteAttachments(current.quote.id);
+      final attestationResult = await _getQuoteAttestation(current.quote.id);
+      final latest = state;
+      if (latest is! FinancialQuoteDetail) return;
+      safeEmit(FinancialQuoteDetail(
+        quote: latest.quote,
+        quotes: latest.quotes,
+        documentUrl: latest.documentUrl,
+        attachments: attachmentsResult.fold((_) => const [], (v) => v),
+        attestation: attestationResult.fold((_) => null, (v) => v),
+      ));
+    } catch (_) {
+      // Silencieux : le détail du devis reste affiché sans pièces jointes.
+    }
+  }
+
+  Future<void> _onAttestationSignRequested(
+    FinancialAttestationSignRequested event,
+    Emitter<FinancialState> emit,
+  ) async {
+    final current = state;
+    if (current is! FinancialQuoteDetail) return;
+    if (current.attestation == null) return;
+    try {
+      final result = await _signQuoteAttestation(current.quote.id);
+      result.fold(
+        (f) => safeEmit(
+            FinancialError(message: f.message, quotes: current.quotes)),
+        (attestation) => safeEmit(FinancialQuoteDetail(
+          quote: current.quote,
+          quotes: current.quotes,
+          documentUrl: current.documentUrl,
+          attachments: current.attachments,
+          attestation: attestation,
+        )),
+      );
+    } catch (_) {
+      safeEmit(FinancialError(
+        message: "Erreur lors de la signature de l'attestation.",
+        quotes: current.quotes,
+      ));
     }
   }
 

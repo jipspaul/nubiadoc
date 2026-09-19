@@ -32,6 +32,18 @@ final class FinancialSignatureRequested extends FinancialEvent {
   const FinancialSignatureRequested();
 }
 
+/// Charge les pièces jointes et l'attestation d'information du devis
+/// actuellement affiché en détail (#7201).
+final class FinancialAttestationLoadRequested extends FinancialEvent {
+  const FinancialAttestationLoadRequested();
+}
+
+/// Signe l'attestation d'information du devis actuellement affiché
+/// (préalable obligatoire à la signature du devis, #7201/#7203).
+final class FinancialAttestationSignRequested extends FinancialEvent {
+  const FinancialAttestationSignRequested();
+}
+
 /// Lance le paiement de l'acompte.
 /// [idempotencyKey] doit être fixé par l'écran avant le premier appel.
 final class FinancialPaymentRequested extends FinancialEvent {

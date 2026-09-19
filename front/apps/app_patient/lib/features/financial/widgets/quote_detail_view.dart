@@ -9,6 +9,7 @@ import '../financial_bloc.dart';
 import '../financial_event.dart';
 import '../financial_state.dart';
 import 'financial_format_utils.dart';
+import 'quote_documents_panel.dart';
 
 /// Détail d'un devis (actes, panier 100% Santé, acompte, signature) —
 /// extrait de `financial_page.dart` (#4061, CLAUDE.md plafond 700 lignes).
@@ -27,11 +28,25 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
       '${widget.state.quote.id}-pay-${DateTime.now().microsecondsSinceEpoch}';
 
   @override
+  void initState() {
+    super.initState();
+    context
+        .read<FinancialBloc>()
+        .add(const FinancialAttestationLoadRequested());
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final quote = widget.state.quote;
-    final canSign = quote.canSign;
+    final attestation = widget.state.attestation;
+    // Verrou UI (#7201/#7203) : le devis n'est signable que si aucune
+    // attestation d'information n'a été déposée, ou si elle est déjà signée
+    // — l'API refuse de toute façon avec `409 attestation_not_signed` sinon
+    // (cf. `billing::sign_quote`), ce verrou n'est qu'un confort d'affichage.
+    final attestationPending = attestation != null && !attestation.isSigned;
+    final canSign = quote.canSign && !attestationPending;
     final canPay = quote.status == QuoteStatus.signed && quote.depositCents > 0;
     final canDownload =
         quote.status == QuoteStatus.signed && quote.documentId != null;
@@ -116,6 +131,9 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                QuoteAttachmentsList(attachments: widget.state.attachments),
+                if (attestation != null)
+                  QuoteAttestationPanel(attestation: attestation),
                 if (canPay) ...[
                   _DepositCard(quote: quote),
                   _PaymentSchedule(quote: quote),
@@ -238,8 +256,7 @@ class _Rac0AlternativeBanner extends StatelessWidget {
                   count <= 1
                       ? 'Un acte de ce devis a une option 100 % Santé.'
                       : '$count actes de ce devis ont une option 100 % Santé.',
-                  style:
-                      theme.textTheme.bodySmall?.copyWith(color: _bodyColor),
+                  style: theme.textTheme.bodySmall?.copyWith(color: _bodyColor),
                 ),
                 const SizedBox(height: 10),
                 Material(
@@ -259,8 +276,7 @@ class _Rac0AlternativeBanner extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.chat_bubble,
-                              size: 14, color: _titleColor),
+                          Icon(Icons.chat_bubble, size: 14, color: _titleColor),
                           const SizedBox(width: 6),
                           Text(
                             'En parler au praticien',

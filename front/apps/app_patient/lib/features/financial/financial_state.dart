@@ -34,6 +34,8 @@ final class FinancialQuoteDetail extends FinancialState {
     required this.quote,
     required this.quotes,
     this.documentUrl,
+    this.attachments = const [],
+    this.attestation,
   });
 
   final Quote quote;
@@ -43,8 +45,16 @@ final class FinancialQuoteDetail extends FinancialState {
   /// (déclenche l'ouverture externe, cf. `implant_passport_cubit.dart`).
   final String? documentUrl;
 
+  /// Pièces jointes du devis (consentements, ordonnances, courriers, #7201).
+  final List<QuoteAttachment> attachments;
+
+  /// Attestation d'information à lire et signer avant de pouvoir signer le
+  /// devis (#7201/#7203) — `null` si aucune n'a été déposée par le cabinet.
+  final QuoteAttestation? attestation;
+
   @override
-  List<Object?> get props => [quote, quotes, documentUrl];
+  List<Object?> get props =>
+      [quote, quotes, documentUrl, attachments, attestation];
 }
 
 /// Paiement en cours.

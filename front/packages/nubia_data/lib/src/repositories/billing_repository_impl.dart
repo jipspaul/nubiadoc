@@ -43,8 +43,19 @@ class BillingRepositoryImpl implements BillingRepository {
       final dto = await _api.getQuoteById(quoteId);
       return Right(dto.toDomain());
     } on DioException catch (e) {
-      return Left(
-          _mapDioError(e, 'Erreur lors de la signature du devis.'));
+      final apiCode = e.response?.data is Map
+          ? (e.response!.data as Map)['code'] as String?
+          : null;
+      if (e.response?.statusCode == 409 &&
+          apiCode == 'attestation_not_signed') {
+        return const Left(ServerFailure(
+          message:
+              "Vous devez d'abord lire et signer l'attestation d'information.",
+          statusCode: 409,
+          code: 'attestation_not_signed',
+        ));
+      }
+      return Left(_mapDioError(e, 'Erreur lors de la signature du devis.'));
     } catch (e) {
       return const Left(ParseFailure());
     }
