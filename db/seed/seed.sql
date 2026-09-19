@@ -365,10 +365,10 @@ ON CONFLICT (id) DO NOTHING;
 -- User a4 (admin) = manager
 -- Nouveau user a10 (lena.monceau) = secretary
 -- =====================================================================
-INSERT INTO app_user (id, email, password_hash, kind, status) VALUES
+INSERT INTO app_user (id, email, password_hash, kind, status, first_name, last_name) VALUES
   ('a0000000-0000-0000-0000-000000000a10', 'lena.monceau@cabinet-lyon.test',
    '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwMTA$THTl7H7U4XRNE7VRF3JD3cVKkYHRQFI5Bwz+5TkULkA',
-   'pro', 'active')
+   'pro', 'active', 'Léna', 'Monceau')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO cabinet_membership (id, cabinet_id, user_id, role, active) VALUES
@@ -402,11 +402,11 @@ ON CONFLICT (id) DO NOTHING;
 -- Deux nouvelles secrétaires : lea (a10) et marie (a11).
 -- UUID préfixe 12000000.
 -- =====================================================================
-INSERT INTO app_user (id, email, password_hash, kind) VALUES
+INSERT INTO app_user (id, email, password_hash, kind, first_name, last_name) VALUES
   ('a0000000-0000-0000-0000-000000000010', 'lea.secretaire@cabinet-lyon.test',
-   'SEED_PLACEHOLDER', 'pro'),
+   'SEED_PLACEHOLDER', 'pro', 'Léa', 'Secrétaire'),
   ('a0000000-0000-0000-0000-000000000011', 'marie.secretaire@cabinet-lyon.test',
-   'SEED_PLACEHOLDER', 'pro')
+   'SEED_PLACEHOLDER', 'pro', 'Marie', 'Secrétaire')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO cabinet_membership (id, cabinet_id, user_id, role, active) VALUES
