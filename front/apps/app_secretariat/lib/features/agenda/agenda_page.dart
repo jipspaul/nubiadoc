@@ -853,12 +853,13 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   String _patientQuery = '';
 
   // Le back attend un `patient_id` (UUID d'une fiche patient du cabinet), pas
-  // un nom libre. On charge la liste des patients du cabinet pour la
-  // recherche (#5078 : champ de recherche, plus un dropdown de toute la
-  // patientèle).
-  List<CabinetPatient> _patients = const [];
-  bool _loadingPatients = true;
+  // un nom libre. La recherche interroge le serveur (`q`, #7350) plutôt que
+  // de filtrer une page locale : la patientèle dépasse la taille d'une page
+  // (#5078 : champ de recherche, plus un dropdown de toute la patientèle).
+  List<CabinetPatient> _searchResults = const [];
+  bool _searchingPatients = false;
   String? _patientsError;
+  Timer? _patientSearchDebounce;
 
   // #7210 : « tâche pour l'assistante » optionnelle posée depuis ce
   // formulaire — repliée par défaut, ne charge le roster du cabinet que si
@@ -873,28 +874,43 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   void initState() {
     super.initState();
     _selectedSlot = widget.initialSlot;
-    _loadPatients();
   }
 
-  List<CabinetPatient> get _filteredPatients {
-    final query = _patientQuery.trim().toLowerCase();
-    if (query.isEmpty) return const [];
-    return _patients
-        .where((p) => p.fullName.toLowerCase().contains(query))
-        .toList(growable: false);
+  /// Recherche patient serveur (#7350, débouncée 300ms comme la recherche
+  /// globale, cf. `global_search_dialog.dart`) — la saisie précédente ne
+  /// déclenchait aucune requête et filtrait localement les 50 fiches d'une
+  /// seule page, rendant introuvable tout patient hors de cette page.
+  void _onPatientQueryChanged(String value) {
+    setState(() => _patientQuery = value);
+    _patientSearchDebounce?.cancel();
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _searchResults = const [];
+        _searchingPatients = false;
+        _patientsError = null;
+      });
+      return;
+    }
+    _patientSearchDebounce =
+        Timer(const Duration(milliseconds: 300), () => _searchPatients(trimmed));
   }
 
-  Future<void> _loadPatients() async {
-    final result = await GetIt.instance<ListCabinetPatientsUseCase>()();
+  Future<void> _searchPatients(String query) async {
+    setState(() {
+      _searchingPatients = true;
+      _patientsError = null;
+    });
+    final result = await GetIt.instance<ListCabinetPatientsUseCase>()(q: query);
     if (!mounted) return;
     result.fold(
       (failure) => setState(() {
-        _loadingPatients = false;
+        _searchingPatients = false;
         _patientsError = failure.message;
       }),
       (patients) => setState(() {
-        _loadingPatients = false;
-        _patients = patients;
+        _searchingPatients = false;
+        _searchResults = patients;
       }),
     );
   }
@@ -914,6 +930,7 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
 
   @override
   void dispose() {
+    _patientSearchDebounce?.cancel();
     _motifCtrl.dispose();
     _patientSearchCtrl.dispose();
     _taskTitleCtrl.dispose();
@@ -944,8 +961,9 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
     return '${weekdays[d.weekday - 1]} ${d.day} ${months[d.month - 1]} – $h';
   }
 
-  /// Champ patient (#5078) : recherche par nom filtrant `_patients`, plutôt
-  /// qu'un `DropdownButton` listant toute la patientèle. Le back attend un
+  /// Champ patient (#5078) : recherche par nom interrogeant le serveur
+  /// (`q`, débouncée — #7350), plutôt qu'un `DropdownButton` listant toute la
+  /// patientèle ou qu'un filtre local sur une seule page. Le back attend un
   /// `patient_id` — la recherche résout donc vers un [CabinetPatient], pas un
   /// nom libre.
   Widget _buildPatientField(BuildContext context) {
@@ -972,7 +990,6 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
       );
     }
 
-    final results = _filteredPatients;
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     return Column(
@@ -987,11 +1004,24 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
           key: const Key('patient_search_field'),
           controller: _patientSearchCtrl,
           hint: 'Rechercher un patient par nom',
-          onChanged: (value) => setState(() => _patientQuery = value),
+          onChanged: _onPatientQueryChanged,
         ),
         if (_patientQuery.trim().isNotEmpty) ...[
           const SizedBox(height: 4),
-          if (results.isEmpty)
+          if (_searchingPatients)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: LinearProgressIndicator(
+                key: Key('patient_search_loading'),
+              ),
+            )
+          else if (_patientsError != null)
+            Text(
+              _patientsError!,
+              key: const Key('patient_search_error'),
+              style: TextStyle(color: cs.error),
+            )
+          else if (_searchResults.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Text(
@@ -1007,7 +1037,7 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (final p in results)
+                    for (final p in _searchResults)
                       ListTile(
                         key: Key('patient_option_${p.id}'),
                         dense: true,
@@ -1063,21 +1093,7 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
                 ),
               ),
               const SizedBox(height: 12),
-              if (_loadingPatients)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: LinearProgressIndicator(
-                    key: Key('patient_picker_loading'),
-                  ),
-                )
-              else if (_patientsError != null)
-                Text(
-                  _patientsError!,
-                  key: const Key('patient_picker_error'),
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                )
-              else
-                _buildPatientField(context),
+              _buildPatientField(context),
               const SizedBox(height: 12),
               TextField(
                 key: const Key('motif_field'),

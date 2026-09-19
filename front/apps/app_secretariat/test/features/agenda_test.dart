@@ -1643,8 +1643,11 @@ void main() {
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
           .thenAnswer((_) async => Right([freeSlot]));
       final mockListPatients = MockListCabinetPatientsUseCase();
-      when(() => mockListPatients())
-          .thenAnswer((_) async => Right([alice, bob]));
+      // #7350 : la recherche interroge le serveur (`q`) plutôt que de
+      // filtrer localement une page — le mock ne renvoie donc que ce que le
+      // serveur renverrait pour cette requête.
+      when(() => mockListPatients(q: 'ali'))
+          .thenAnswer((_) async => Right([alice]));
 
       final gi = GetIt.instance;
       await gi.reset();
@@ -1661,6 +1664,7 @@ void main() {
 
       await tester.enterText(
           find.byKey(const Key('patient_search_field')), 'ali');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('patient_option_pat-alice')), findsOneWidget);
@@ -1677,12 +1681,40 @@ void main() {
     });
 
     testWidgets(
+        '#7350 — la recherche interroge le serveur (`q`) : un patient hors '
+        'de la première page (Bob) reste trouvable', (tester) async {
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => Right([freeSlot]));
+      final mockListPatients = MockListCabinetPatientsUseCase();
+      when(() => mockListPatients(q: 'bob'))
+          .thenAnswer((_) async => Right([bob]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      registerBloc(gi, mockListPatients);
+
+      await pumpAgenda(tester);
+      await openDialogAndPickSlot(tester, freeSlot, freeSlotLabel);
+
+      await tester.enterText(
+          find.byKey(const Key('patient_search_field')), 'bob');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('patient_option_pat-bob')), findsOneWidget);
+      expect(find.text('Aucun patient trouvé'), findsNothing);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
         'créer le RDV envoie un CabinetAppointment avec slotId et le '
         'patientId résolu par la recherche', (tester) async {
       when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
           .thenAnswer((_) async => Right([freeSlot]));
       final mockListPatients = MockListCabinetPatientsUseCase();
-      when(() => mockListPatients()).thenAnswer((_) async => Right([alice]));
+      when(() => mockListPatients(q: 'ali'))
+          .thenAnswer((_) async => Right([alice]));
       when(() => mockCreate(any())).thenAnswer(
         (_) async => Right(CabinetAppointment(
           id: 'appt-1',
@@ -1708,6 +1740,7 @@ void main() {
 
       await tester.enterText(
           find.byKey(const Key('patient_search_field')), 'ali');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('patient_option_pat-alice')));
       await tester.pumpAndSettle();
