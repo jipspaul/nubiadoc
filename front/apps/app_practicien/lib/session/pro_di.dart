@@ -10,6 +10,7 @@ import '../features/dashboard/dashboard_bloc.dart';
 import '../features/dashboard/prostheses_today_bloc.dart';
 import '../features/dashboard/today_notes_bloc.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
+import '../features/consent_templates/consent_templates_bloc.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/invoice_reminder_cubit.dart';
 import '../features/devis/quote_documents_cubit.dart';
@@ -175,6 +176,16 @@ void registerPro(GetIt gi) {
       createAttestation: gi<CreateQuoteAttestationUseCase>(),
       listPatientDocuments: gi<ListPatientDocumentsUseCase>(),
       listLetterTemplates: gi<ListLetterTemplatesUseCase>(),
+      listConsentTemplates: gi<ListConsentTemplatesUseCase>(),
+      renderConsentTemplate: gi<RenderConsentTemplateUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<ConsentTemplatesBloc>(
+    () => ConsentTemplatesBloc(
+      listTemplates: gi<ListConsentTemplatesUseCase>(),
+      createTemplate: gi<CreateConsentTemplateUseCase>(),
+      patchTemplate: gi<PatchConsentTemplateUseCase>(),
     ),
   );
 

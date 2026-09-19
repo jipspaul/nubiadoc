@@ -118,6 +118,13 @@ class PracticienShell extends StatelessWidget {
           icon: const Icon(Icons.settings_outlined),
           onPressed: () => context.go(AppRouter.notificationPreferences),
         ),
+        if (ProConfig.includeClinical)
+          IconButton(
+            key: const Key('consent_templates_button'),
+            tooltip: 'Modèles de consentement',
+            icon: const Icon(Icons.verified_user_outlined),
+            onPressed: () => context.push(AppRouter.consentTemplates),
+          ),
       ],
       onSignOut: () => context.read<ProAuthCubit>().signOut(),
     );

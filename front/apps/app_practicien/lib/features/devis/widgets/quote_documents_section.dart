@@ -188,8 +188,14 @@ class _AttachmentsPanel extends StatelessWidget {
       consents: state.availableConsents,
       prescriptions: state.availablePrescriptions,
       letterTemplates: state.availableLetterTemplates,
+      consentTemplates: state.availableConsentTemplates,
     );
     if (result == null) return;
+    final consentTemplateId = result.consentTemplateId;
+    if (consentTemplateId != null) {
+      cubit.attachConsentTemplate(quoteId, consentTemplateId);
+      return;
+    }
     cubit.addAttachment(
       quoteId,
       kind: result.kind,

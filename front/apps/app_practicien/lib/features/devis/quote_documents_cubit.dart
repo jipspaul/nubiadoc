@@ -30,6 +30,7 @@ class QuoteDocumentsLoaded extends QuoteDocumentsState {
     this.availableConsents = const [],
     this.availablePrescriptions = const [],
     this.availableLetterTemplates = const [],
+    this.availableConsentTemplates = const [],
     this.busy = false,
     this.actionError,
   });
@@ -51,6 +52,11 @@ class QuoteDocumentsLoaded extends QuoteDocumentsState {
   /// `kind=letter`.
   final List<LetterTemplate> availableLetterTemplates;
 
+  /// Modèles de consentement (catalogue + cabinet, #7198) proposés en
+  /// alternative aux [availableConsents] déjà numérisés : la sélection d'un
+  /// modèle le rend pour ce devis avant de l'attacher (cf. [attachConsentTemplate]).
+  final List<ConsentTemplate> availableConsentTemplates;
+
   /// Ajout/retrait de pièce jointe ou dépôt d'attestation en cours.
   final bool busy;
   final String? actionError;
@@ -61,6 +67,7 @@ class QuoteDocumentsLoaded extends QuoteDocumentsState {
     List<PatientDocument>? availableConsents,
     List<PatientDocument>? availablePrescriptions,
     List<LetterTemplate>? availableLetterTemplates,
+    List<ConsentTemplate>? availableConsentTemplates,
     bool? busy,
     String? actionError,
   }) =>
@@ -72,6 +79,8 @@ class QuoteDocumentsLoaded extends QuoteDocumentsState {
             availablePrescriptions ?? this.availablePrescriptions,
         availableLetterTemplates:
             availableLetterTemplates ?? this.availableLetterTemplates,
+        availableConsentTemplates:
+            availableConsentTemplates ?? this.availableConsentTemplates,
         busy: busy ?? this.busy,
         actionError: actionError,
       );
@@ -83,6 +92,7 @@ class QuoteDocumentsLoaded extends QuoteDocumentsState {
         availableConsents,
         availablePrescriptions,
         availableLetterTemplates,
+        availableConsentTemplates,
         busy,
         actionError,
       ];
@@ -100,6 +110,8 @@ class QuoteDocumentsCubit extends Cubit<QuoteDocumentsState>
     required CreateQuoteAttestationUseCase createAttestation,
     required ListPatientDocumentsUseCase listPatientDocuments,
     required ListLetterTemplatesUseCase listLetterTemplates,
+    required ListConsentTemplatesUseCase listConsentTemplates,
+    required RenderConsentTemplateUseCase renderConsentTemplate,
   })  : _listAttachments = listAttachments,
         _createAttachment = createAttachment,
         _deleteAttachment = deleteAttachment,
@@ -107,6 +119,8 @@ class QuoteDocumentsCubit extends Cubit<QuoteDocumentsState>
         _createAttestation = createAttestation,
         _listPatientDocuments = listPatientDocuments,
         _listLetterTemplates = listLetterTemplates,
+        _listConsentTemplates = listConsentTemplates,
+        _renderConsentTemplate = renderConsentTemplate,
         super(const QuoteDocumentsLoading());
 
   final ListQuoteAttachmentsUseCase _listAttachments;
@@ -116,6 +130,8 @@ class QuoteDocumentsCubit extends Cubit<QuoteDocumentsState>
   final CreateQuoteAttestationUseCase _createAttestation;
   final ListPatientDocumentsUseCase _listPatientDocuments;
   final ListLetterTemplatesUseCase _listLetterTemplates;
+  final ListConsentTemplatesUseCase _listConsentTemplates;
+  final RenderConsentTemplateUseCase _renderConsentTemplate;
 
   Future<void> load(String quoteId, String patientId) async {
     safeEmit(const QuoteDocumentsLoading());
@@ -127,6 +143,7 @@ class QuoteDocumentsCubit extends Cubit<QuoteDocumentsState>
     final prescriptionsFuture =
         _listPatientDocuments(patientId, category: 'ordonnance');
     final templatesFuture = _listLetterTemplates();
+    final consentTemplatesFuture = _listConsentTemplates();
 
     final attachmentsResult = await attachmentsFuture;
     final attestationResult = await attestationFuture;
@@ -139,14 +156,16 @@ class QuoteDocumentsCubit extends Cubit<QuoteDocumentsState>
     }
 
     // Listes d'assistance au choix (consentements/ordonnances/modèles de
-    // courrier) : best-effort, une erreur ici n'empêche pas d'afficher les
-    // pièces déjà jointes et l'attestation.
+    // courrier/modèles de consentement) : best-effort, une erreur ici
+    // n'empêche pas d'afficher les pièces déjà jointes et l'attestation.
     final consents =
         (await consentsFuture).fold((_) => <PatientDocument>[], (v) => v);
     final prescriptions =
         (await prescriptionsFuture).fold((_) => <PatientDocument>[], (v) => v);
     final templates =
         (await templatesFuture).fold((_) => <LetterTemplate>[], (v) => v);
+    final consentTemplates = (await consentTemplatesFuture)
+        .fold((_) => <ConsentTemplate>[], (v) => v);
 
     safeEmit(QuoteDocumentsLoaded(
       attachments: attachmentsResult.fold((_) => const [], (v) => v),
@@ -154,7 +173,44 @@ class QuoteDocumentsCubit extends Cubit<QuoteDocumentsState>
       availableConsents: consents,
       availablePrescriptions: prescriptions,
       availableLetterTemplates: templates,
+      availableConsentTemplates: consentTemplates,
     ));
+  }
+
+  /// Rend un modèle de consentement pour ce devis puis l'attache
+  /// immédiatement (`kind=consent`, `documentId` = document généré) — même
+  /// écran que l'ajout d'un document déjà numérisé, mais la matérialisation
+  /// PDF se fait ici plutôt qu'en amont dans le dossier patient (#7198).
+  Future<void> attachConsentTemplate(
+    String quoteId,
+    String consentTemplateId,
+  ) async {
+    final current = state;
+    if (current is! QuoteDocumentsLoaded || current.busy) return;
+
+    safeEmit(current.copyWith(busy: true, actionError: null));
+    final renderResult = await _renderConsentTemplate(
+      consentTemplateId,
+      quoteId: quoteId,
+    );
+    final renderFailure = renderResult.fold((f) => f, (_) => null);
+    if (renderFailure != null) {
+      safeEmit(current.copyWith(busy: false, actionError: renderFailure.message));
+      return;
+    }
+    final rendered = renderResult.fold((_) => null, (v) => v)!;
+
+    final result = await _createAttachment(
+      quoteId,
+      kind: QuoteAttachmentKind.consent,
+      documentId: rendered.documentId,
+    );
+    final failure = result.fold((f) => f, (_) => null);
+    if (failure != null) {
+      safeEmit(current.copyWith(busy: false, actionError: failure.message));
+      return;
+    }
+    await _reloadAttachments(quoteId);
   }
 
   Future<void> addAttachment(
