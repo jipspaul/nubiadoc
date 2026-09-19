@@ -493,7 +493,10 @@ pub async fn generate_patient_letter(
                 .await
                 .map_err(|_| AppError::Internal)?
                 .ok_or(AppError::NotFound)?;
-            Some(row.try_get("display_name").map_err(|_| AppError::Internal)?)
+            Some(
+                row.try_get("display_name")
+                    .map_err(|_| AppError::Internal)?,
+            )
         }
         None => None,
     };

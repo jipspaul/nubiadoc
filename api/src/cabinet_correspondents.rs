@@ -314,14 +314,11 @@ pub async fn patch_correspondent(
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
-    let new_display_name = body
-        .display_name
-        .map(|s| s.trim().to_string())
-        .unwrap_or(
-            current
-                .try_get("display_name")
-                .map_err(|_| AppError::Internal)?,
-        );
+    let new_display_name = body.display_name.map(|s| s.trim().to_string()).unwrap_or(
+        current
+            .try_get("display_name")
+            .map_err(|_| AppError::Internal)?,
+    );
     let new_specialty = specialty.unwrap_or(
         current
             .try_get("specialty")
