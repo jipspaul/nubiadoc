@@ -462,6 +462,42 @@ async fn post_with_oversized_prenom_nom_or_telephone_is_422_and_writes_nothing()
 }
 
 #[tokio::test]
+async fn post_with_a_birth_date_outside_the_120_year_window_is_422_and_writes_nothing() {
+    // #7374 : le tunnel SSR public est la seule voie créant un
+    // `patient_account` qui ne bornait pas `naissance` — une date dans le
+    // futur ou vieille de plus de 120 ans doit être refusée, comme sur les
+    // voies authentifiées (#6653, auth/mod.rs).
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let tomorrow = (chrono::Utc::now() + chrono::Duration::days(1))
+        .format("%Y-%m-%d")
+        .to_string();
+    let cases = [
+        ("naissance=1990-01-01", "naissance=2099-12-31".to_string()),
+        ("naissance=1990-01-01", "naissance=1800-01-01".to_string()),
+        ("naissance=1990-01-01", format!("naissance={tomorrow}")),
+    ];
+
+    for (needle, out_of_range) in cases {
+        let suffix = Uuid::new_v4().to_string();
+        let f = insert_provider_with_open_slot(&db, &suffix).await;
+        let email = format!("wtc-birthdate-{suffix}@nubia.test");
+        let form = valid_form(&f, &email, true).replace(needle, &out_of_range);
+
+        let response = post_form(&form).await;
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "naissance hors bornes ({out_of_range}) doit être refusée"
+        );
+        assert_eq!(count_users_with_email(&db, &email).await, 0);
+    }
+}
+
+#[tokio::test]
 async fn post_on_a_slot_lost_meanwhile_is_410_and_creates_no_account() {
     if !db_available() {
         return;

@@ -325,6 +325,18 @@ pub async fn confirm_submit(
         return invalid_submission_page(provider_id, slot_id);
     };
 
+    // Borne symétrique à celle des voies authentifiées (#6653, #7009,
+    // auth/mod.rs) : une naissance il y a plus de 120 ans est aussi
+    // impossible qu'une naissance dans le futur. Le tunnel SSR public n'a
+    // jusqu'ici jamais posé cette garde (#7374).
+    let today = chrono::Utc::now().date_naive();
+    let min_birth_date = today.checked_sub_months(chrono::Months::new(120 * 12));
+    let birth_date_valid =
+        birth_date <= today && min_birth_date.is_some_and(|min| birth_date >= min);
+    if !birth_date_valid {
+        return invalid_submission_page(provider_id, slot_id);
+    }
+
     if is_rate_limited(email) {
         return invalid_submission_page(provider_id, slot_id);
     }
