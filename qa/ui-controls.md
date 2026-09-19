@@ -2625,4 +2625,35 @@ sélecteur « Assigné à » des 3 dialogues de tâche, qui n'offre jamais que �
 > prochaine ronde. `patient` n'a donc été audité qu'au viewport **390×844** ; `pharmacie` et
 > `secretariat` qu'au viewport **1280×800** (leur viewport cible).
 
-**TOTAUX R82 — 21 écrans (app × viewport × route) · 473 contrôles inventoriés · 473 activés · 281 OK · 8 CASSÉS confirmés (→ #7346, #7349, #7351) · 0 MORT porteur d'action métier confirmé · 4 désactivés légitimes · 5/5 apps parcourues.**
+| secretariat | `/` | 390×844 | 10 | 10 | 3 | 7 | 0 (les 4xx sont `/members`, `/audit-log` admin-only + le **400 `assignee_id=me`** → #7346) | 0 | 2026-09-19T01:29:00+00:00 |
+| secretariat | `/tasks` | 390×844 | 15 | 15 | 1 | 10 | **4 CONFIRMÉS → #7346** (défaut identique à 1280 : indépendant du viewport) | 0 | 2026-09-19T01:31:00+00:00 |
+| pharmacie | `/` | 390×844 | 9 (session périmée) → **20 (session fraîche)** | 20 | 20 | 0 | **0** | 0 | 2026-09-19T01:35:00+00:00 |
+| pharmacie | `/devis` | 390×844 | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T01:33:00+00:00 |
+
+> **`pharmacie /` à 390 px — faux positif écarté (10ᵉ piège).** Avec le `storageState` périmé, l'écran
+> rendait « **Impossible de charger les commandes.** » + « Réessayer » (capture `pharmacie/root-390.png`).
+> Rejoué avec un **login complet dans le navigateur** — `200 POST /v1/auth/login → 200 GET /v1/me →
+> 200 POST /v1/auth/select-pharmacy-context → 200 GET /v1/pharmacy/orders` — l'écran est **sain et
+> complet** : 4 KPI (`4 à préparer d'urgence / 13 en préparation / 54 prêtes à retirer / 0 délivrée`),
+> 4 facettes comptées (`Toutes 71 / Reçues 4 / En préparation 13 / Prêtes 54`), recherche, et les cartes
+> de commande avec leur action « Délivrer ». **Aucune requête ≥ 400.** Capture
+> `pharmacie/root-390-session-fraiche.png`.
+>
+> **Dette #7256 vérifiée soldée au passage** : la carte de commande à 390 px rend désormais
+> « Marc D. · CMD-0102 · Reçue le 09/08 à 13:12 · Dr Hugo Marin · Cabinet Lyon · 1 ligne · Prête » en
+> bloc empilé lisible — plus de nom réduit à « **M...** » ni de date hachée sur 6 lignes.
+
+**Cas adversariaux (Étape 2f) — écran `/tasks` praticien, code livré cette nuit : 4/4 passés.**
+
+| cas | résultat |
+|---|---|
+| **Double-submit** : 3 clics rapides sur « Créer » | **un seul** `201 POST /v1/cabinet/tasks`, **une seule** ligne à l'écran — pas de doublon, pas de crash |
+| **Saisie requise vide** : « Créer » avec titre vide | bouton `aria-disabled`, **aucune requête émise** (garde client), pas de submit silencieux |
+| **Texte très long** : titre de 300 caractères | `422` côté serveur, **dialogue non débordé** (rect inchangé 1280×800), « Créer » resté atteignable |
+| **Coupure réseau** (`route.abort()` sur `*/v1/*` pendant la création) | **erreur digne** : SnackBar « **Impossible de créer la tâche.** » (visible ~1 s, échantillonnage à 300 ms), liste précédente préservée, pas d'écran blanc ni de spinner infini |
+
+> Le cas « coupure réseau » avait d'abord été noté *silencieux* sur une capture prise à t+6 s — la
+> SnackBar avait déjà disparu. Ré-échantillonné toutes les 300 ms, le message est bien là. **11ᵉ piège :
+> une SnackBar de ~1 s est invisible à qui ne capture qu'une fois.**
+
+**TOTAUX R82 — 25 écrans (app × viewport × route) · 511 contrôles inventoriés · 511 activés · 308 OK · 12 CASSÉS confirmés (→ #7346 ×3 écrans, #7349, #7351) · 0 MORT porteur d'action métier confirmé · 4 désactivés légitimes · 5/5 apps parcourues, dont 3 aux DEUX viewports (praticien, secrétariat, pharmacie).**
