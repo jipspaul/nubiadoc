@@ -43,6 +43,17 @@ class _TasksViewState extends State<_TasksView> {
   bool _showHistory = false;
   bool _onlyMine = true;
 
+  @override
+  void didUpdateWidget(covariant _TasksView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // La session (ProAuthCubit) peut devenir disponible après le premier
+    // build : le `create:` du BlocProvider parent n'est pas rejoué, il faut
+    // donc redemander explicitement avec le bon assigneeId.
+    if (oldWidget.myUserId != widget.myUserId) {
+      _reload(context);
+    }
+  }
+
   void _reload(BuildContext context) {
     context.read<TasksBloc>().add(TasksLoadRequested(
           assigneeId: _onlyMine ? widget.myUserId : null,
