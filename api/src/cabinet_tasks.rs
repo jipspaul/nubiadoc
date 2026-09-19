@@ -31,6 +31,22 @@ use crate::{
 
 const VALID_STATUSES: [&str; 3] = ["open", "done", "cancelled"];
 
+/// Bornes hautes sur `title`/`description`, sur le modèle de
+/// `text_validation::validate_max_len` (#7226) — 6ᵉ module livré sans cette
+/// borne après #7138/#7226/#7253/#7275/#7330 (#7344).
+const MAX_TASK_TITLE_LEN: usize = 200;
+const MAX_TASK_DESCRIPTION_LEN: usize = 4_000;
+
+/// Transition de statut valide via `PATCH` : seule une tâche `open` peut
+/// changer de statut — même doctrine que `POST .../complete`, qui ne clôture
+/// qu'une tâche `open` (`lab_work_orders.rs::is_forward_transition`, même
+/// principe). Renvoyer le même statut (no-op) est toujours permis, y compris
+/// sur une tâche `done`/`cancelled` (#7344 : le `PATCH` laissait rouvrir une
+/// tâche `done`/`cancelled`, contournant la garde de `complete_cabinet_task`).
+fn is_valid_task_status_transition(current: &str, target: &str) -> bool {
+    target == current || current == "open"
+}
+
 /// Résout le nom d'un membre du cabinet (`app_user.first_name`/`last_name`)
 /// pour l'affichage. RLS `app_user` self-only (policy `user_self_select`,
 /// migration 0045) : même contournement (GUC reposé par user, avec cache)
@@ -343,11 +359,12 @@ pub struct CreateCabinetTaskResponse {
 
 /// `POST /v1/cabinet/tasks` — crée une tâche (statut `open`).
 ///
-/// `title` non vide → 422 sinon. `due_date` doit être une date ISO valide →
-/// 422 sinon. `assignee_user_id`/`patient_id`/`appointment_id`, quand
-/// fournis, doivent appartenir à ce cabinet (et le RDV au même patient si
-/// les deux sont fournis) → 404 sinon. Assigné fourni → notifie (in-app +
-/// push) via `task_assigned`.
+/// `title` non vide et ≤ [`MAX_TASK_TITLE_LEN`] caractères, `description` ≤
+/// [`MAX_TASK_DESCRIPTION_LEN`] caractères → 422 sinon. `due_date` doit être
+/// une date ISO valide → 422 sinon. `assignee_user_id`/`patient_id`/
+/// `appointment_id`, quand fournis, doivent appartenir à ce cabinet (et le
+/// RDV au même patient si les deux sont fournis) → 404 sinon. Assigné fourni
+/// → notifie (in-app + push) via `task_assigned`.
 pub async fn create_cabinet_task(
     State(state): State<AppState>,
     Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
@@ -359,8 +376,10 @@ pub async fn create_cabinet_task(
         return Err(AppError::ValidationError);
     }
     text_validation::reject_nul_byte(&title)?;
+    text_validation::validate_max_len(&title, MAX_TASK_TITLE_LEN)?;
     if let Some(ref description) = body.description {
         text_validation::reject_nul_byte(description)?;
+        text_validation::validate_max_len(description, MAX_TASK_DESCRIPTION_LEN)?;
     }
     let due_date = body
         .due_date
@@ -436,9 +455,11 @@ pub struct CabinetTaskStatusResponse {
 
 /// `PATCH /v1/cabinet/tasks/:id` — met à jour une tâche (édition de champs
 /// et/ou changement de statut, ex. `cancelled`). Tâche inexistante/hors
-/// tenant → 404. `status` hors énum → 422. Passage à `done` pose `done_at =
-/// now()` ; passage hors `done` remet `done_at` à `null`. Pas de
-/// notification sur réassignation (hors scope #7211).
+/// tenant → 404. `status` hors énum → 422. Changement de statut alors que la
+/// tâche courante n'est pas `open` → `409 invalid_status` (même garde que
+/// `POST .../complete`, cf. [`is_valid_task_status_transition`]). Passage à
+/// `done` pose `done_at = now()` ; passage hors `done` remet `done_at` à
+/// `null`. Pas de notification sur réassignation (hors scope #7211).
 pub async fn patch_cabinet_task(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -456,9 +477,11 @@ pub async fn patch_cabinet_task(
             return Err(AppError::ValidationError);
         }
         text_validation::reject_nul_byte(title)?;
+        text_validation::validate_max_len(title, MAX_TASK_TITLE_LEN)?;
     }
     if let Some(ref description) = body.description {
         text_validation::reject_nul_byte(description)?;
+        text_validation::validate_max_len(description, MAX_TASK_DESCRIPTION_LEN)?;
     }
     let due_date = body
         .due_date
@@ -511,6 +534,10 @@ pub async fn patch_cabinet_task(
     let new_appointment = body.appointment_id.or(existing_appointment);
     let new_due_date = due_date.or(existing_due_date);
     let new_status = body.status.unwrap_or_else(|| current_status.clone());
+
+    if !is_valid_task_status_transition(&current_status, &new_status) {
+        return Err(AppError::InvalidStatus);
+    }
 
     validate_task_refs(
         &mut tx,
@@ -646,8 +673,10 @@ pub async fn create_appointment_task(
         return Err(AppError::ValidationError);
     }
     text_validation::reject_nul_byte(&title)?;
+    text_validation::validate_max_len(&title, MAX_TASK_TITLE_LEN)?;
     if let Some(ref description) = body.description {
         text_validation::reject_nul_byte(description)?;
+        text_validation::validate_max_len(description, MAX_TASK_DESCRIPTION_LEN)?;
     }
     let due_date = body
         .due_date

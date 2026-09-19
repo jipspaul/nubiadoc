@@ -580,3 +580,147 @@ async fn blank_title_returns_422_and_foreign_assignee_returns_404() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Validation : title/description bornés en haut (#7344) ────────────────
+
+#[tokio::test]
+async fn oversized_title_and_description_return_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/tasks",
+        &token,
+        Some(json!({ "title": "T".repeat(20_000) })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/tasks",
+        &token,
+        Some(json!({
+            "title": "Tâche normale",
+            "description": "D".repeat(100_000),
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
+// ── PATCH ne doit pas contourner la garde de statut de complete (#7344) ──
+
+#[tokio::test]
+async fn patch_cannot_resurrect_done_or_cancelled_task() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/tasks",
+        &token,
+        Some(json!({ "title": "Tâche QA R82 nominale" })),
+    )
+    .await;
+    let task_id = created["id"].as_str().unwrap().to_string();
+
+    let (status, completed) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/tasks/{task_id}/complete"),
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(completed["status"], "done");
+
+    // `done` → `open` via PATCH : pas de résurrection.
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/tasks/{task_id}"),
+        &token,
+        Some(json!({ "status": "open" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    // `done` → `cancelled` via PATCH : bloqué, tâche déjà dans un état terminal.
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/tasks/{task_id}"),
+        &token,
+        Some(json!({ "status": "cancelled" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    // Sur une tâche `open` puis annulée, `cancelled` → `done` via PATCH doit
+    // être refusé comme le serait `POST .../complete` (409 sur cette même
+    // transition, cf. corps de l'issue #7344).
+    let (_, created2) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/tasks",
+        &token,
+        Some(json!({ "title": "Tâche QA R82 annulée" })),
+    )
+    .await;
+    let task_id2 = created2["id"].as_str().unwrap().to_string();
+
+    let (status, cancelled) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/tasks/{task_id2}"),
+        &token,
+        Some(json!({ "status": "cancelled" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cancelled["status"], "cancelled");
+
+    let (status, complete_resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/tasks/{task_id2}/complete"),
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(complete_resp["code"], "invalid_status");
+
+    let (status, patch_resp) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/tasks/{task_id2}"),
+        &token,
+        Some(json!({ "status": "done" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::CONFLICT,
+        "PATCH ne doit pas accepter une transition que /complete refuse"
+    );
+    assert_eq!(patch_resp["code"], "invalid_status");
+
+    cleanup(&db, &f).await;
+}
