@@ -10,6 +10,8 @@ import '../features/admin_membres/members_access_cubit.dart';
 import '../features/admin_secretariats/admin_secretariats_bloc.dart';
 import '../features/appointment_motifs/appointment_motifs_bloc.dart';
 import '../features/appointments/appointments_bloc.dart';
+import '../features/correspondents/correspondent_stats_cubit.dart';
+import '../features/correspondents/correspondents_bloc.dart';
 import '../features/audit_log/audit_log_access_cubit.dart';
 import '../features/audit_log/audit_log_bloc.dart';
 import '../features/bookable_slots/bookable_slots_bloc.dart';
@@ -144,6 +146,17 @@ void registerPro(GetIt gi) {
         update: gi<UpdateAppointmentMotifUseCase>(),
         delete: gi<DeleteAppointmentMotifUseCase>(),
       ),
+    )
+    ..registerFactory<CorrespondentsBloc>(
+      () => CorrespondentsBloc(
+        list: gi<ListCabinetCorrespondentsUseCase>(),
+        create: gi<CreateCabinetCorrespondentUseCase>(),
+        update: gi<UpdateCabinetCorrespondentUseCase>(),
+        delete: gi<DeleteCabinetCorrespondentUseCase>(),
+      ),
+    )
+    ..registerFactory<CorrespondentStatsCubit>(
+      () => CorrespondentStatsCubit(getStats: gi<GetCorrespondentStatsUseCase>()),
     )
     ..registerFactory<AdminSecretariatsBloc>(
       () => AdminSecretariatsBloc(

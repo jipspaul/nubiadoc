@@ -58,6 +58,19 @@ pub struct PatientAdminSection {
     /// aucun RDV `done`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_visit_at: Option<String>,
+    /// Correspondant de l'annuaire du cabinet ayant adressé ce patient
+    /// (`patient.referred_by_correspondent_id`, #7193) — `null` si le
+    /// patient n'a pas été adressé par un correspondant identifié.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub referred_by_correspondent: Option<ReferringCorrespondent>,
+}
+
+/// Correspondant de l'annuaire ayant adressé le patient (résumé, cf.
+/// [`PatientAdminSection::referred_by_correspondent`]).
+#[derive(Serialize)]
+pub struct ReferringCorrespondent {
+    pub id: Uuid,
+    pub display_name: String,
 }
 
 /// Réponse complète praticien (admin + données cliniques).
@@ -143,7 +156,7 @@ pub async fn get_cabinet_patient(
 
     let row = sqlx::query(
         "SELECT id, first_name, last_name, birth_date, contact, mutuelle, created_at, \
-                patient_account_id \
+                patient_account_id, referred_by_correspondent_id \
          FROM patient \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
@@ -165,6 +178,9 @@ pub async fn get_cabinet_patient(
         row.try_get("created_at").map_err(|_| AppError::Internal)?;
     let patient_account_id: Option<Uuid> = row
         .try_get("patient_account_id")
+        .map_err(|_| AppError::Internal)?;
+    let referred_by_correspondent_id: Option<Uuid> = row
+        .try_get("referred_by_correspondent_id")
         .map_err(|_| AppError::Internal)?;
 
     // `patient.mutuelle` n'est jamais écrite par le flux normal (cf. issue #3485) : pour
@@ -303,6 +319,27 @@ pub async fn get_cabinet_patient(
         None => (Vec::new(), Vec::new()),
     };
 
+    // Correspondant ayant adressé le patient (#7193) — résolu séparément
+    // (plutôt qu'un LEFT JOIN sur la requête `patient` ci-dessus) car
+    // `referred_by_correspondent_id` est `None` pour la grande majorité des
+    // patients.
+    let mut referred_by_correspondent = None;
+    if let Some(correspondent_id) = referred_by_correspondent_id {
+        let correspondent_row =
+            sqlx::query("SELECT display_name FROM cabinet_correspondent WHERE id = $1")
+                .bind(correspondent_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        if let Some(r) = correspondent_row {
+            let display_name: String = r.try_get("display_name").map_err(|_| AppError::Internal)?;
+            referred_by_correspondent = Some(ReferringCorrespondent {
+                id: correspondent_id,
+                display_name,
+            });
+        }
+    }
+
     let admin = PatientAdminSection {
         id,
         first_name,
@@ -317,6 +354,7 @@ pub async fn get_cabinet_patient(
         dependents,
         created_at: created_at.to_rfc3339(),
         last_visit_at: last_visit_at.map(|dt| dt.to_rfc3339()),
+        referred_by_correspondent,
     };
 
     // Secrétaire : retourne uniquement la partie administrative (R.4127-72).

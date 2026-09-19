@@ -68,6 +68,7 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
         lastName: event.lastName,
         phone: event.phone,
         birthDate: event.birthDate,
+        correspondentId: event.correspondentId,
       );
       result.fold(
         (failure) => safeEmit(PatientsCreateError(failure.message)),

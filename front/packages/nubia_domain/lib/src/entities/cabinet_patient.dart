@@ -76,6 +76,16 @@ class CabinetPatient extends Equatable {
   /// (absent) — même disponibilité que [mutuelleAmc].
   final bool mutuelleTiersPayant;
 
+  /// Correspondant de l'annuaire du cabinet ayant adressé ce patient
+  /// (#7193). `null` si non adressé par un correspondant identifié.
+  final String? referredByCorrespondentId;
+
+  /// Nom du correspondant ci-dessus — présent uniquement sur
+  /// `GET /cabinet/patients/:id` (objet imbriqué `referred_by_correspondent`,
+  /// `api/src/patient_detail.rs`), `null` sur la liste et sur la réponse de
+  /// création rapide (qui ne renvoie que l'id).
+  final String? referredByCorrespondentName;
+
   const CabinetPatient({
     required this.id,
     required this.cabinetId,
@@ -95,6 +105,8 @@ class CabinetPatient extends Equatable {
     this.hasUpcomingAppointment,
     this.mutuelleAmc,
     this.mutuelleTiersPayant = false,
+    this.referredByCorrespondentId,
+    this.referredByCorrespondentName,
   });
 
   /// #4542 : quelques dossiers ont `firstName`/`lastName` vides côté back

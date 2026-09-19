@@ -19,6 +19,8 @@ class CabinetPatientDto {
   final bool? hasUpcomingAppointment;
   final String? mutuelleAmc;
   final bool mutuelleTiersPayant;
+  final String? referredByCorrespondentId;
+  final String? referredByCorrespondentName;
 
   const CabinetPatientDto({
     required this.id,
@@ -39,6 +41,8 @@ class CabinetPatientDto {
     this.hasUpcomingAppointment,
     this.mutuelleAmc,
     this.mutuelleTiersPayant = false,
+    this.referredByCorrespondentId,
+    this.referredByCorrespondentName,
   });
 
   factory CabinetPatientDto.fromJson(Map<String, dynamic> json) {
@@ -56,6 +60,14 @@ class CabinetPatientDto {
     // un compte plateforme est lié et a renseigné sa couverture, `null`
     // sinon (#7048).
     final mutuelle = json['mutuelle'] as Map<String, dynamic>? ?? const {};
+    // `GET /v1/cabinet/patients/:id` imbrique le correspondant ayant adressé
+    // le patient sous `referred_by_correspondent` (objet `{id, display_name}`,
+    // `api/src/patient_detail.rs`) ; `POST /v1/cabinet/patients/quick`
+    // renvoie uniquement l'id top-level `referred_by_correspondent_id`
+    // (#7193) — pas de display_name à ce moment (l'annuaire n'est pas
+    // rejoint sur cette route).
+    final referredByCorrespondent =
+        json['referred_by_correspondent'] as Map<String, dynamic>?;
     List<GuardianshipLink>? parseLinks(String key) {
       final raw = json[key] as List<dynamic>?;
       if (raw == null) return null;
@@ -98,6 +110,10 @@ class CabinetPatientDto {
       hasUpcomingAppointment: json['has_upcoming_appointment'] as bool?,
       mutuelleAmc: mutuelle['amc'] as String?,
       mutuelleTiersPayant: (mutuelle['tiers_payant'] as bool?) ?? false,
+      referredByCorrespondentId: (referredByCorrespondent?['id'] as String?) ??
+          (json['referred_by_correspondent_id'] as String?),
+      referredByCorrespondentName:
+          referredByCorrespondent?['display_name'] as String?,
     );
   }
 
@@ -133,6 +149,8 @@ class CabinetPatientDto {
         hasUpcomingAppointment: hasUpcomingAppointment,
         mutuelleAmc: mutuelleAmc,
         mutuelleTiersPayant: mutuelleTiersPayant,
+        referredByCorrespondentId: referredByCorrespondentId,
+        referredByCorrespondentName: referredByCorrespondentName,
       );
 
   factory CabinetPatientDto.fromDomain(CabinetPatient p) => CabinetPatientDto(

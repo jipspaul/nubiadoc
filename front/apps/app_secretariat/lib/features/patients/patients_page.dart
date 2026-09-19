@@ -1107,6 +1107,10 @@ class _PatientSheetState extends State<_PatientSheet> {
                 patient: _patientDetail,
                 error: _balanceError,
               ),
+              if (_patientDetail?.referredByCorrespondentName != null) ...[
+                const SizedBox(height: 16),
+                PatientReferralSection(patient: _patientDetail!),
+              ],
               const SizedBox(height: 16),
               PatientTagsSection(
                 patientId: patient.id,
@@ -1387,6 +1391,36 @@ class PatientBalanceSection extends StatelessWidget {
             ],
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Correspondant de l'annuaire du cabinet ayant adressé ce patient (#7193) —
+/// présentation pure, lecture seule (aucun endpoint de modification côté
+/// fiche existante ; le champ ne se renseigne qu'à la création rapide,
+/// `patient_quick_create_page.dart`). [patient] vient du chargement unique
+/// de la fiche (`_PatientSheetState._load`) — la liste (`PatientsLoaded`)
+/// n'expose pas `referredByCorrespondentName`.
+class PatientReferralSection extends StatelessWidget {
+  const PatientReferralSection({super.key, required this.patient});
+
+  final CabinetPatient patient;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(Icons.person_search_outlined, size: 18, color: cs.onSurfaceVariant),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Adressé par : ${patient.referredByCorrespondentName}',
+            key: const Key('patient_referred_by_correspondent'),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }

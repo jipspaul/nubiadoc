@@ -9,6 +9,7 @@ import '../remote/account/account_api.dart';
 import '../remote/appointment_motifs/appointment_motifs_api.dart';
 import '../remote/auth/auth_api.dart';
 import '../remote/billing/billing_api.dart';
+import '../remote/cabinet_correspondents/cabinet_correspondents_api.dart';
 import '../remote/cabinet_info/cabinet_info_api.dart';
 import '../remote/medical_record/medical_record_api.dart';
 import '../remote/cabinet_agenda/cabinet_agenda_api.dart';
@@ -76,6 +77,7 @@ import '../repositories/cabinet_repository_impl.dart';
 import '../repositories/medical_record_repository_impl.dart';
 import '../repositories/cabinet_agenda_repository_impl.dart';
 import '../repositories/cabinet_appointments_repository_impl.dart';
+import '../repositories/cabinet_correspondents_repository_impl.dart';
 import '../repositories/cabinet_dashboard_repository_impl.dart';
 import '../repositories/cabinet_message_repository_impl.dart';
 import '../repositories/cabinet_patients_repository_impl.dart';
@@ -582,6 +584,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<AppointmentMotifsApi>(
       () => AppointmentMotifsApi(gi()),
     )
+    ..registerLazySingleton<CabinetCorrespondentsApi>(
+      () => CabinetCorrespondentsApi(gi()),
+    )
     ..registerLazySingleton<PatientDocumentsApi>(
       () => PatientDocumentsApi(gi()),
     )
@@ -690,6 +695,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<AppointmentMotifsRepository>(
       () => AppointmentMotifsRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<CabinetCorrespondentsRepository>(
+      () => CabinetCorrespondentsRepositoryImpl(gi()),
     )
     ..registerLazySingleton<PatientDocumentsRepository>(
       () => PatientDocumentsRepositoryImpl(gi()),
@@ -809,6 +817,11 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => CreateAppointmentMotifUseCase(gi()))
     ..registerFactory(() => UpdateAppointmentMotifUseCase(gi()))
     ..registerFactory(() => DeleteAppointmentMotifUseCase(gi()))
+    ..registerFactory(() => ListCabinetCorrespondentsUseCase(gi()))
+    ..registerFactory(() => CreateCabinetCorrespondentUseCase(gi()))
+    ..registerFactory(() => UpdateCabinetCorrespondentUseCase(gi()))
+    ..registerFactory(() => DeleteCabinetCorrespondentUseCase(gi()))
+    ..registerFactory(() => GetCorrespondentStatsUseCase(gi()))
     ..registerFactory(() => ListPatientDocumentsUseCase(gi()))
     ..registerFactory(() => UploadPatientDocumentUseCase(gi()))
     ..registerFactory(() => ListOrthodonticTreatmentsUseCase(gi()))

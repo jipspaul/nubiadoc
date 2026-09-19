@@ -14,11 +14,13 @@ class CreateCabinetPatientUseCase {
     required String lastName,
     String? phone,
     DateTime? birthDate,
+    String? correspondentId,
   }) =>
       _repository.create(
         firstName: firstName,
         lastName: lastName,
         phone: phone,
         birthDate: birthDate,
+        correspondentId: correspondentId,
       );
 }

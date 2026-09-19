@@ -196,6 +196,7 @@ void main() {
               lastName: any(named: 'lastName'),
               phone: any(named: 'phone'),
               birthDate: any(named: 'birthDate'),
+              correspondentId: any(named: 'correspondentId'),
             )).thenAnswer((_) async => Right(created));
         return PatientsBloc(
             listPatients: listUseCase, createPatient: createUseCase);
@@ -215,6 +216,7 @@ void main() {
               lastName: 'Patient',
               phone: '0600000000',
               birthDate: null,
+              correspondentId: null,
             )).called(1);
       },
     );

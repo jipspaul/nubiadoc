@@ -27,10 +27,15 @@ class PatientsCreateRequested extends PatientsEvent {
     required this.lastName,
     this.phone,
     this.birthDate,
+    this.correspondentId,
   });
 
   final String firstName;
   final String lastName;
   final String? phone;
   final DateTime? birthDate;
+
+  /// Correspondant de l'annuaire du cabinet ayant adressé ce patient
+  /// (#7193) — champ « adressé par » du formulaire de création rapide.
+  final String? correspondentId;
 }

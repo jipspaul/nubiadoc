@@ -22,6 +22,8 @@ import '../features/cabinet_team_messages/cabinet_team_messages_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_event.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
+import '../features/correspondents/correspondents_bloc.dart';
+import '../features/correspondents/correspondents_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/devis_detail_page.dart';
@@ -77,6 +79,7 @@ class AppRouter {
   static const adminMembres = '/admin-membres';
   static const adminSecretariats = '/admin-secretariats';
   static const appointmentMotifs = '/appointment-motifs';
+  static const correspondents = '/correspondents';
   static const notificationPreferences = '/notification-preferences';
   static const tasks = '/tasks';
 
@@ -299,6 +302,15 @@ class AppRouter {
                 builder: (_, __) => BlocProvider(
                   create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
                   child: const AppointmentMotifsPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: correspondents,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<CorrespondentsBloc>(),
+                  child: const CorrespondentsPage(),
                 ),
               ),
             ]),
