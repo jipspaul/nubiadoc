@@ -24,6 +24,9 @@ abstract class CabinetPatientsRepository {
     required String lastName,
     String? phone,
     DateTime? birthDate,
+    /// Correspondant de l'annuaire du cabinet ayant adressé ce patient
+    /// (#7193) — `cabinet_correspondent.id`.
+    String? correspondentId,
   });
 
   Future<Either<Failure, CabinetPatient>> update(CabinetPatient patient);

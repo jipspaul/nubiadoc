@@ -6,9 +6,11 @@
 //! soumission (loading) et état d'erreur.
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -22,8 +24,12 @@ import 'package:app_secretariat/features/patients/patients_state.dart';
 class _MockPatientsBloc extends MockBloc<PatientsEvent, PatientsState>
     implements PatientsBloc {}
 
+class _MockListCabinetCorrespondents extends Mock
+    implements ListCabinetCorrespondentsUseCase {}
+
 void main() {
   late _MockPatientsBloc bloc;
+  late _MockListCabinetCorrespondents listCorrespondents;
 
   setUp(() {
     bloc = _MockPatientsBloc();
@@ -31,6 +37,16 @@ void main() {
       firstName: '',
       lastName: '',
     ));
+    // `PatientQuickCreatePage` fetch son propre use case via GetIt (#7193,
+    // même pattern que `_PatientSheet` — patients_page.dart) pour peupler le
+    // sélecteur « adressé par » — sans ça, l'écran lève un GetIt StateError.
+    listCorrespondents = _MockListCabinetCorrespondents();
+    when(() => listCorrespondents())
+        .thenAnswer((_) async => const Right(<CabinetCorrespondent>[]));
+    GetIt.instance.registerFactory<ListCabinetCorrespondentsUseCase>(
+      () => listCorrespondents,
+    );
+    addTearDown(GetIt.instance.reset);
   });
 
   Widget buildPage() => MaterialApp(
@@ -315,6 +331,68 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Liste patients'), findsOneWidget);
+    });
+  });
+
+  group('PatientQuickCreatePage — sélecteur « adressé par » (#7193)', () {
+    testWidgets(
+        'aucun correspondant au cabinet : le sélecteur reste masqué',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const PatientsInitial());
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('patient_create_correspondent_field')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'correspondants disponibles : sélection ajoutée à '
+        'PatientsCreateRequested', (tester) async {
+      when(() => listCorrespondents()).thenAnswer(
+        (_) async => Right([
+          CabinetCorrespondent(
+            id: 'corr-1',
+            displayName: 'Dr Adresseur',
+            createdAt: DateTime(2026, 1, 1),
+            updatedAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      when(() => bloc.state).thenReturn(const PatientsInitial());
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('patient_create_correspondent_field')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const Key('patient_create_correspondent_field')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dr Adresseur'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('patient_create_first_name_field')),
+        'Marie',
+      );
+      await tester.enterText(
+        find.byKey(const Key('patient_create_last_name_field')),
+        'Curie',
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('patient_create_submit_button')));
+      await tester.pump();
+
+      final captured = verify(() => bloc.add(captureAny())).captured.single
+          as PatientsCreateRequested;
+      expect(captured.correspondentId, 'corr-1');
     });
   });
 }

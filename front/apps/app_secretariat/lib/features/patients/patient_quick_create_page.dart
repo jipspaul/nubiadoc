@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
 import '../../router/back_or_home_leading.dart';
@@ -27,6 +29,29 @@ class _PatientQuickCreatePageState extends State<PatientQuickCreatePage> {
   final _lastName = TextEditingController();
   final _phone = TextEditingController();
   DateTime? _birthDate;
+  String? _correspondentId;
+
+  // Options du sélecteur « adressé par » (#7193) — chargement auxiliaire
+  // direct via GetIt, même pattern que `_PatientSheetState._load` (fiche
+  // patient, ce même fichier) pour une donnée secondaire au formulaire.
+  List<CabinetCorrespondent>? _correspondents;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCorrespondents();
+  }
+
+  Future<void> _loadCorrespondents() async {
+    final result = await GetIt.instance<ListCabinetCorrespondentsUseCase>()();
+    if (!mounted) return;
+    result.fold(
+      // Best-effort : le sélecteur reste vide (masqué) si le chargement
+      // échoue, la création du patient n'en dépend pas.
+      (failure) => setState(() => _correspondents = const []),
+      (correspondents) => setState(() => _correspondents = correspondents),
+    );
+  }
 
   // Garde synchrone (#6351) : `state is PatientsCreating` ne devient vrai
   // qu'au rebuild consécutif à `emit`, donc un 2e clic survenant avant ce
@@ -72,6 +97,7 @@ class _PatientQuickCreatePageState extends State<PatientQuickCreatePage> {
             lastName: _lastName.text.trim(),
             phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
             birthDate: _birthDate,
+            correspondentId: _correspondentId,
           ),
         );
   }
@@ -145,6 +171,23 @@ class _PatientQuickCreatePageState extends State<PatientQuickCreatePage> {
                     ),
                   ),
                 ),
+                if (_correspondents != null && _correspondents!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  NubiaSelect<String>(
+                    key: const Key('patient_create_correspondent_field'),
+                    label: 'Adressé par (optionnel)',
+                    hint: 'Aucun correspondant',
+                    value: _correspondentId,
+                    items: [
+                      for (final correspondent in _correspondents!)
+                        NubiaSelectItem(
+                          value: correspondent.id,
+                          label: correspondent.displayName,
+                        ),
+                    ],
+                    onChanged: (id) => setState(() => _correspondentId = id),
+                  ),
+                ],
                 if (state is PatientsCreateError) ...[
                   const SizedBox(height: 12),
                   Text(

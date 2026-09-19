@@ -37,6 +37,7 @@ class CabinetPatientsApi {
     required String lastName,
     String? phone,
     DateTime? birthDate,
+    String? correspondentId,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/cabinet/patients/quick',
@@ -45,6 +46,7 @@ class CabinetPatientsApi {
         'last_name': lastName,
         if (phone != null && phone.isNotEmpty) 'phone': phone,
         if (birthDate != null) 'birth_date': _formatDate(birthDate),
+        if (correspondentId != null) 'correspondent_id': correspondentId,
       },
     );
     return CabinetPatientDto.fromJson(response.data!);

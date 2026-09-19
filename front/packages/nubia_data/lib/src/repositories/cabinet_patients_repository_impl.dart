@@ -58,6 +58,7 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
     required String lastName,
     String? phone,
     DateTime? birthDate,
+    String? correspondentId,
   }) async {
     try {
       final dto = await _api.create(
@@ -65,9 +66,13 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         lastName: lastName,
         phone: phone,
         birthDate: birthDate,
+        correspondentId: correspondentId,
       );
       return Right(dto.toDomain());
     } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Correspondant introuvable.'));
+      }
       if (e.response?.statusCode == 422) {
         // `quick_create_patient` renvoie 422 pour plusieurs causes distinctes
         // (nom/prénom vides, format téléphone invalide, etc. — api/src/clinical.rs

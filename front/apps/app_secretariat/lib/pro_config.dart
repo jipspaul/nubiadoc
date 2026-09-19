@@ -118,6 +118,15 @@ class ProConfig {
         route: appointmentsRoute,
         group: patientsGroup,
       ),
+      // Annuaire des correspondants du cabinet (#7193, DP-F8.c) — adressages
+      // et CA apporté, groupe « Patients » (lié au champ « adressé par » de
+      // la fiche patient).
+      shell.ProNavDestination(
+        label: 'Correspondants',
+        icon: Icons.contacts_outlined,
+        route: '/correspondents',
+        group: patientsGroup,
+      ),
       // Groupe « Facturation ».
       shell.ProNavDestination(
         label: 'Devis',

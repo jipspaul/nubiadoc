@@ -573,6 +573,10 @@ pub struct QuickCreatePatientBody {
     pub phone: Option<String>,
     /// ISO 8601 "YYYY-MM-DD".
     pub birth_date: Option<String>,
+    /// Correspondant de l'annuaire du cabinet ayant adressé ce patient
+    /// (#7193, DP-F8.c) — `cabinet_correspondent.id`. `None` si le patient
+    /// n'a pas été adressé par un correspondant identifié.
+    pub correspondent_id: Option<Uuid>,
 }
 
 /// Réponse de `POST /v1/cabinet/patients/quick`.
@@ -586,6 +590,9 @@ pub struct QuickCreatePatientResponse {
     pub phone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub birth_date: Option<String>,
+    /// Voir [`QuickCreatePatientBody::correspondent_id`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub referred_by_correspondent_id: Option<Uuid>,
     pub created_at: String,
 }
 
@@ -604,6 +611,12 @@ pub struct QuickCreatePatientResponse {
 /// `cabinet_id` extrait du JWT, jamais du body. `first_name`/`last_name`
 /// vides (après trim) → `422 {"code":"validation_error"}`. Auditée
 /// (`quick_create_patient`) dans `audit_log`.
+///
+/// `correspondent_id` (#7193) : s'il est fourni, doit référencer un
+/// `cabinet_correspondent` de CE cabinet (RLS `tenant_isolation`) — sinon
+/// `404`, même convention qu'un `consultation_id` invalide sur
+/// `POST /v1/prescriptions` (`prescriptions.rs`) plutôt qu'une violation FK
+/// `23503` remontée en `500`.
 pub async fn quick_create_patient(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -655,6 +668,18 @@ pub async fn quick_create_patient(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #7193 : le correspondant, s'il est fourni, doit exister dans CE cabinet
+    // (RLS tenant_isolation déjà positionnée ci-dessus) — sinon 404 plutôt
+    // que la violation FK 23503 de l'INSERT plus bas remontée en 500.
+    if let Some(correspondent_id) = body.correspondent_id {
+        sqlx::query("SELECT 1 FROM cabinet_correspondent WHERE id = $1")
+            .bind(correspondent_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
+    }
+
     // #5428 : trace le secrétariat créateur (walk-in, aucun appointment à la
     // création) pour que la garde R10 (list_cabinet_patients / get_cabinet_patient)
     // puisse voir ce patient sans attendre un premier RDV. NULL pour un créateur
@@ -673,7 +698,7 @@ pub async fn quick_create_patient(
     // par le même auteur dans ce cabinet, on renvoie ce dossier existant au
     // lieu d'en insérer un second.
     let duplicate = sqlx::query(
-        "SELECT id, created_at FROM patient \
+        "SELECT id, created_at, referred_by_correspondent_id FROM patient \
          WHERE cabinet_id = $1 \
            AND created_by_secretariat_id IS NOT DISTINCT FROM $2 \
            AND first_name = $3 AND last_name = $4 \
@@ -696,6 +721,9 @@ pub async fn quick_create_patient(
         let patient_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let referred_by_correspondent_id: Option<Uuid> = row
+            .try_get("referred_by_correspondent_id")
+            .map_err(|_| AppError::Internal)?;
         tx.commit().await.map_err(|_| AppError::Internal)?;
         tracing::warn!(
             cabinet_id = %claims.cabinet_id,
@@ -711,14 +739,15 @@ pub async fn quick_create_patient(
                 last_name,
                 phone: phone.map(str::to_string),
                 birth_date: birth_date.map(|d| d.to_string()),
+                referred_by_correspondent_id,
                 created_at: created_at.to_rfc3339(),
             }),
         ));
     }
 
     let row = sqlx::query(
-        "INSERT INTO patient (cabinet_id, first_name, last_name, birth_date, contact, created_by_secretariat_id) \
-         VALUES ($1, $2, $3, $4, $5, $6) \
+        "INSERT INTO patient (cabinet_id, first_name, last_name, birth_date, contact, created_by_secretariat_id, referred_by_correspondent_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) \
          RETURNING id, created_at",
     )
     .bind(claims.cabinet_id)
@@ -727,6 +756,7 @@ pub async fn quick_create_patient(
     .bind(birth_date)
     .bind(&contact)
     .bind(created_by_secretariat_id)
+    .bind(body.correspondent_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -766,6 +796,7 @@ pub async fn quick_create_patient(
             last_name,
             phone: phone.map(str::to_string),
             birth_date: birth_date.map(|d| d.to_string()),
+            referred_by_correspondent_id: body.correspondent_id,
             created_at: created_at.to_rfc3339(),
         }),
     ))
