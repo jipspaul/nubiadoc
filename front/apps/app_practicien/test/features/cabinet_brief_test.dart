@@ -130,6 +130,44 @@ void main() {
       expect(find.textContaining('Rappeler le patient'), findsOneWidget);
     });
 
+    testWidgets(
+        'vue prothèses : n\'affiche que la carte prothèses, sans faux états vides '
+        'sur les sections non requêtées (#7412)', (tester) async {
+      final bloc = MockCabinetBriefBloc();
+      when(() => bloc.state).thenReturn(
+        const CabinetBriefLoaded(brief: _emptyBrief, view: 'prostheses'),
+      );
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.byKey(const Key('cabinet_brief_prostheses_section')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('cabinet_brief_appointments_section')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('cabinet_brief_new_patients_section')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('cabinet_brief_planned_acts_section')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('cabinet_brief_open_tasks_section')),
+        findsNothing,
+      );
+      expect(find.text('Aucun RDV sur la période.'), findsNothing);
+      expect(
+        find.text('Aucun nouveau patient sur la période.'),
+        findsNothing,
+      );
+      expect(find.text('Aucun acte renseigné sur la période.'), findsNothing);
+      expect(find.text('Aucune tâche ouverte.'), findsNothing);
+    });
+
     testWidgets('affiche le message d\'erreur avec bouton réessayer',
         (tester) async {
       final bloc = MockCabinetBriefBloc();
