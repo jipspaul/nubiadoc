@@ -566,6 +566,76 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // En-tête « N patient(s) en attente » (#7353 — comptait toute la file,
+  // statuts confondus, au lieu des seules entrées `isWaiting` comme #6708
+  // l'impose côté secrétariat)
+  // ---------------------------------------------------------------------------
+
+  group('En-tête « patient(s) en attente » (#7353)', () {
+    testWidgets(
+        'ne compte pas les entrées in_consultation : 1 patient(s) en '
+        'attente sur 3 présents', (tester) async {
+      final entries = [
+        WaitingRoomEntry(
+          id: 'wr-1',
+          cabinetId: 'cab-1',
+          patientId: 'pat-1',
+          patientName: 'QA76 TunnelOK',
+          arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+          status: 'in_consultation',
+        ),
+        WaitingRoomEntry(
+          id: 'wr-2',
+          cabinetId: 'cab-1',
+          patientId: 'pat-2',
+          patientName: 'QA R77B',
+          arrivedAt: DateTime.now().subtract(const Duration(minutes: 3)),
+          status: 'in_consultation',
+        ),
+        WaitingRoomEntry(
+          id: 'wr-3',
+          cabinetId: 'cab-1',
+          patientId: 'pat-3',
+          patientName: 'Marc Dubois',
+          arrivedAt: DateTime.now().subtract(const Duration(minutes: 1)),
+        ),
+      ];
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'me')),
+      );
+      await tester.pump();
+
+      expect(find.text('1 patient(s) en attente'), findsOneWidget);
+    });
+
+    testWidgets('0 patient(s) en attente quand tous sont in_consultation',
+        (tester) async {
+      final entries = [
+        WaitingRoomEntry(
+          id: 'wr-1',
+          cabinetId: 'cab-1',
+          patientId: 'pat-1',
+          patientName: 'QA76 TunnelOK',
+          arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+          status: 'in_consultation',
+        ),
+      ];
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'me')),
+      );
+      await tester.pump();
+
+      expect(find.text('0 patient(s) en attente'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Carte hero « Prochain patient à appeler » (#5037)
   // ---------------------------------------------------------------------------
 

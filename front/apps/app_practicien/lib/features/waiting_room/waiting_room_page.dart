@@ -298,7 +298,9 @@ class _LoadedViewState extends State<_LoadedView> {
               children: [
                 Expanded(
                   child: Text(
-                    '${widget.state.entries.length} patient(s) en attente',
+                    // #6708 : compter les patients qui attendent, pas la file
+                    // entière — un patient `in_consultation` n'attend plus.
+                    '${widget.state.entries.where((e) => e.isWaiting).length} patient(s) en attente',
                     style: textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w600),
                   ),
