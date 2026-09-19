@@ -16,6 +16,14 @@ class ConversationDto {
   /// `last_message_preview` — aperçu du dernier message, tronqué côté serveur.
   final String? lastMessagePreview;
 
+  /// `last_message_author_name` — nom de l'auteur du dernier message (#7421),
+  /// ex. « Dr Amélie Rousseau » pour un praticien.
+  final String? lastMessageAuthorName;
+
+  /// `last_message_author_role` — rôle de l'auteur du dernier message
+  /// (#7421), ex. « Secrétariat », affiché à défaut d'un nom.
+  final String? lastMessageAuthorRole;
+
   /// `type` — discriminant explicite du destinataire (`"cabinet"` ou
   /// `"pharmacy"`, cf. `ConversationItem` côté API) ; absent des anciens
   /// payloads, on retombe alors sur `"cabinet"`.
@@ -29,6 +37,8 @@ class ConversationDto {
     this.lastMessage,
     this.lastMessageAt,
     this.lastMessagePreview,
+    this.lastMessageAuthorName,
+    this.lastMessageAuthorRole,
     this.type = 'cabinet',
   });
 
@@ -43,6 +53,8 @@ class ConversationDto {
             : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
         lastMessageAt: json['last_message_at'] as String?,
         lastMessagePreview: json['last_message_preview'] as String?,
+        lastMessageAuthorName: json['last_message_author_name'] as String?,
+        lastMessageAuthorRole: json['last_message_author_role'] as String?,
         type: json['type'] as String? ?? 'cabinet',
       );
 
@@ -55,6 +67,8 @@ class ConversationDto {
         lastMessageAt:
             lastMessageAt == null ? null : DateTime.parse(lastMessageAt!),
         lastMessagePreview: lastMessagePreview,
+        lastMessageAuthorName: lastMessageAuthorName,
+        lastMessageAuthorRole: lastMessageAuthorRole,
         interlocutorType: type == 'pharmacy'
             ? ConversationInterlocutorType.pharmacy
             : ConversationInterlocutorType.cabinet,

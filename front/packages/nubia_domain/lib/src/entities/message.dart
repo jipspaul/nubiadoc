@@ -27,6 +27,15 @@ class Conversation extends Equatable {
   /// Aperçu tronqué du dernier message (`last_message_preview`).
   final String? lastMessagePreview;
 
+  /// Nom de l'auteur du dernier message (`last_message_author_name`), ex.
+  /// « Dr Amélie Rousseau » — `null` sauf si un praticien nommé a envoyé le
+  /// dernier message.
+  final String? lastMessageAuthorName;
+
+  /// Rôle de l'auteur du dernier message (`last_message_author_role`), ex.
+  /// « Secrétariat » — affiché à défaut de [lastMessageAuthorName].
+  final String? lastMessageAuthorRole;
+
   const Conversation({
     required this.id,
     required this.cabinetId,
@@ -35,6 +44,8 @@ class Conversation extends Equatable {
     this.lastMessage,
     this.lastMessageAt,
     this.lastMessagePreview,
+    this.lastMessageAuthorName,
+    this.lastMessageAuthorRole,
     this.interlocutorType = ConversationInterlocutorType.cabinet,
   });
 
@@ -47,6 +58,8 @@ class Conversation extends Equatable {
       lastMessage: lastMessage,
       lastMessageAt: lastMessageAt,
       lastMessagePreview: lastMessagePreview,
+      lastMessageAuthorName: lastMessageAuthorName,
+      lastMessageAuthorRole: lastMessageAuthorRole,
       interlocutorType: interlocutorType,
     );
   }

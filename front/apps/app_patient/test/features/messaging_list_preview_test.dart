@@ -94,6 +94,44 @@ void main() {
     );
   });
 
+  // Régression #7421 : le contrat liste (`GET /v1/conversations`) ne renvoie
+  // pas d'objet `last_message` (seulement `last_message_at`/`_preview`), donc
+  // la sous-ligne auteur doit lire les champs top-level `lastMessageAuthorName`/
+  // `lastMessageAuthorRole`, pas `lastMessage?.authorName`.
+  testWidgets('affiche la sous-ligne auteur pour une conversation de cabinet',
+      (tester) async {
+    final bloc = MockMessagingBloc();
+    when(() => bloc.state).thenReturn(
+      MessagingConversationsLoaded([
+        Conversation(
+          id: 'c1',
+          cabinetId: 'cab',
+          cabinetName: 'Cabinet Nubia Opéra',
+          unreadCount: 1,
+          lastMessageAt: DateTime(2026, 9, 19, 11, 24),
+          lastMessagePreview:
+              'Bonjour Julie, votre couronne est arrivée du laboratoire.',
+          lastMessageAuthorName: 'Dr Amélie Rousseau',
+          lastMessageAuthorRole: 'Praticien',
+        ),
+        Conversation(
+          id: 'c2',
+          cabinetId: 'cab2',
+          cabinetName: 'Cabinet Nubia Opéra',
+          unreadCount: 1,
+          lastMessageAt: DateTime(2026, 8, 4, 10, 0),
+          lastMessagePreview: 'Votre devis DEV-2041 vous a été envoyé.',
+          lastMessageAuthorRole: 'Secrétariat',
+        ),
+      ]),
+    );
+
+    await tester.pumpWidget(_wrap(bloc));
+
+    expect(find.text('Dr Amélie Rousseau'), findsOneWidget);
+    expect(find.text('Secrétariat'), findsOneWidget);
+  });
+
   testWidgets('reste rendable sans aperçu ni date (anciens payloads)',
       (tester) async {
     final bloc = MockMessagingBloc();

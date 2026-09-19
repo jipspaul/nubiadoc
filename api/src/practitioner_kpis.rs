@@ -36,7 +36,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProAdminOrManagerClaims, ProPractitionerClaims},
-    scheduling::cabinet_local_days_utc_range,
+    scheduling::{cabinet_local_days_utc_range, paris_today},
     AppState,
 };
 
@@ -125,7 +125,7 @@ pub async fn get_my_kpis(
     let month_start = match params.period.as_deref() {
         Some(p) => parse_month(p)?,
         None => {
-            let today = chrono::Utc::now().date_naive();
+            let today = paris_today();
             chrono::NaiveDate::from_ymd_opt(today.year(), today.month(), 1).expect("mois valide")
         }
     };
@@ -134,7 +134,7 @@ pub async fn get_my_kpis(
         (next_month_start(month_start) - month_start).num_days(),
     )?;
 
-    let today = chrono::Utc::now().date_naive();
+    let today = paris_today();
     let (day_start_utc, day_end_utc) = cabinet_local_days_utc_range(today, 1)?;
 
     // Semaine courante = lundi-dimanche (procédure #7189, étape 2).

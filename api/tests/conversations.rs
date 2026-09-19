@@ -1420,6 +1420,232 @@ async fn conversations_messages_includes_author_name_and_role() {
         .ok();
 }
 
+/// #7421 : `GET /v1/conversations` doit porter `last_message_author_name`/
+/// `last_message_author_role` (dérivés du dernier message), même mapping que
+/// `GET /v1/conversations/:id/messages` — sinon la sous-ligne auteur de la
+/// maquette design-v2 (#7401) reste inerte pour les fils de cabinet.
+#[tokio::test]
+async fn conversations_list_includes_last_message_author() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let sec_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let conv_id = Uuid::new_v4();
+    let msg_prac_id = Uuid::new_v4();
+    let msg_sec_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("conv-list-author+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Eve', 'ListAuthor')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("conv-list-author-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(sec_user_id)
+    .bind(format!("conv-list-author-sec+{}@nubia.test", sec_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet List Author Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO provider (id, practitioner_id, cabinet_id, user_id, display_name, rpps_verified, is_listed) \
+             VALUES ($1, $2, $3, $4, 'Dr Amélie Rousseau', true, true)",
+        )
+        .bind(provider_id)
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Eve', 'ListAuthor', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO conversation (id, cabinet_id, patient_id) VALUES ($1, $2, $3)")
+            .bind(conv_id)
+            .bind(cabinet_id)
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        // Premier message (praticien), puis un second plus récent
+        // (secrétariat) : la sous-ligne doit refléter le DERNIER message.
+        sqlx::query(
+            "INSERT INTO message \
+             (id, cabinet_id, conversation_id, sender_kind, sender_id, \
+              body_ciphertext, body_key_ref, created_at) \
+             VALUES ($1, $2, $3, 'practitioner', $4, \
+              convert_to('Votre couronne est arrivée.', 'UTF8'), 'key-ref-test', \
+              now() - interval '1 hour')",
+        )
+        .bind(msg_prac_id)
+        .bind(cabinet_id)
+        .bind(conv_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO message \
+             (id, cabinet_id, conversation_id, sender_kind, sender_id, \
+              body_ciphertext, body_key_ref, created_at) \
+             VALUES ($1, $2, $3, 'secretary', $4, \
+              convert_to('Votre devis vous a été envoyé.', 'UTF8'), 'key-ref-test', now())",
+        )
+        .bind(msg_sec_id)
+        .bind(cabinet_id)
+        .bind(conv_id)
+        .bind(sec_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/conversations")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1, "doit avoir 1 conversation");
+
+    let conv = &data[0];
+    assert!(
+        conv["last_message_author_name"].is_null(),
+        "dernier message = secrétariat, pas de nom"
+    );
+    assert_eq!(
+        conv["last_message_author_role"], "Secrétariat",
+        "dernier message = secrétariat"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for q in &[
+            ("DELETE FROM message WHERE conversation_id = $1", conv_id),
+            ("DELETE FROM conversation WHERE id = $1", conv_id),
+            ("DELETE FROM patient WHERE id = $1", patient_id),
+            ("DELETE FROM provider WHERE id = $1", provider_id),
+            ("DELETE FROM practitioner WHERE id = $1", prac_id),
+            ("DELETE FROM cabinet WHERE id = $1", cabinet_id),
+        ] {
+            sqlx::query(q.0).bind(q.1).execute(&mut *tx).await.ok();
+        }
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2 OR id = $3")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .bind(sec_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 /// Conversation accessible mais sans aucun message → 200 + data:[] + page conforme.
 #[tokio::test]
 async fn conversations_messages_empty_conversation_returns_200_with_empty_data() {
