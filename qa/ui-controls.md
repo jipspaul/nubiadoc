@@ -7,9 +7,9 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Bilan complet de la ronde R83 — harnais corrigé (44 écran×viewport)
+### Bilan complet de la ronde R83 — harnais corrigé (54 écran×viewport)
 
-**828 contrôles inventoriés, 355 activés, 285 OK, 60 « morts » bruts, 10 « cassés » bruts, 7 désactivés, 38 hors champ.**
+**940 contrôles inventoriés, 404 activés, 334 OK, 60 « morts » bruts, 10 « cassés » bruts, 10 désactivés, 39 hors champ.**
 
 > 🔴 **AUCUN bouton mort ni cassé n'est CONFIRMÉ cette ronde.** Les 60 verdicts « mort » et 10 « cassé »
 > du tableau sont des **artefacts du harnais** : chacun des candidats re-testé individuellement sur page
@@ -90,6 +90,17 @@ avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupu
 | praticien | /notification-preferences @1280 | 12 | 11 | 11 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
 | praticien | /cabinet-setup @1280 | 5 | 4 | 4 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
 | pharmacie | /notification-preferences @1280 | 9 | 8 | 8 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /prescriptions @390 | 16 | 5 | 5 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /home-care @390 | 17 | 16 | 16 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /pharmacy/orders @390 | 16 | 9 | 9 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /pharmacy/quotes @390 | 1 | 0 | 0 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /profile/dependents @390 | 22 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /profile/referring-doctor @390 | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /reviews @390 | 1 | 0 | 0 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /implant-passport @390 | 6 | 5 | 5 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+| patient | /profile/consents @390 | 8 | 3 | 3 | 0 | 0 | 1 | 2026-09-19T09:05:00+00:00 |
+| secretariat | /team-messages @1280 | 24 | 7 | 7 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
+
 **Écrans jamais audités avant cette ronde, tous propres** : `/admin-membres`, `/admin-secretariats`,
 `/audit-log`, `/notification-preferences` (secrétariat, praticien et pharmacie) et `/cabinet-setup`
 (praticien) — 0 mort, 0 cassé. Trois contrôles désactivés y sont **légitimes et prouvés** :
@@ -97,6 +108,18 @@ avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupu
 répond `403` — cf. le sondage de rôle documenté dans `audit_log_access_cubit.dart`), et
 « Enregistrer » de `/cabinet-setup`, qui **redevient actif dès que les 3 champs requis sont saisis**
 (vérifié : `aria-disabled` passe de `true` à absent après saisie).
+
+**Dernier lot de la ronde — 10 routes jamais visitées, toutes propres** : `/prescriptions`, `/home-care`,
+`/pharmacy/orders`, `/pharmacy/quotes`, `/profile/dependents`, `/profile/referring-doctor`, `/reviews`,
+`/implant-passport`, `/profile/consents` (patient) et `/team-messages` (secrétariat) — **0 mort, 0 cassé**.
+Quatre d'entre elles dépassent le seuil de blancheur de 0,92 (`/reviews` 0,991 · `/profile/referring-doctor`
+0,982 · `/prescriptions` 0,934 · `/pharmacy/quotes` 0,922) : **ce ne sont PAS des canvas vides**, l'arbre
+Semantics est peuplé dans les quatre cas (« Aucun avis pour ce prestataire. » en état vide légitime ;
+« Dr Hugo Marin · Implantologie · 12 rue de la République » ; la liste des ordonnances avec leurs statuts
+« Signée » / « Transmise à une pharmacie » ; la liste des devis d'officine avec « Refusé » / « Accepté »).
+**Le ratio de pixels blancs seul ne suffit pas à conclure sur un écran mobile peu dense — il faut le
+croiser avec l'arbre Semantics.** (Et `document.querySelectorAll('canvas').length` vaut 0 sur ces écrans
+alors qu'ils rendent : ce n'est pas non plus un signal d'emptiness exploitable.)
 
 **Contrôle d'accessibilité mené sur `/cabinet-setup`** (4 champs peints sur le canvas) : les 4 `<input>`
 portent bien un `aria-label` exact — « Nom du cabinet », « Adresse », « Téléphone »,
