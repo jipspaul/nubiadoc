@@ -399,12 +399,8 @@ async fn cabinet_can_read_its_own_quote_events() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let response = get_cabinet_events_response(
-        state_with(app_pool().await),
-        f.quote_id,
-        &pro_token,
-    )
-    .await;
+    let response =
+        get_cabinet_events_response(state_with(app_pool().await), f.quote_id, &pro_token).await;
     assert_eq!(response.status(), StatusCode::OK);
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
@@ -428,12 +424,8 @@ async fn cabinet_quote_events_rejects_patient_token() {
     let f = insert_fixtures(&owner_db).await;
     let patient_token = make_patient_jwt(f.patient_user_id, f.patient_account_id);
 
-    let response = get_cabinet_events_response(
-        state_with(app_pool().await),
-        f.quote_id,
-        &patient_token,
-    )
-    .await;
+    let response =
+        get_cabinet_events_response(state_with(app_pool().await), f.quote_id, &patient_token).await;
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
     cleanup_fixtures(&owner_db, &f).await;
@@ -449,12 +441,8 @@ async fn cabinet_quote_events_unknown_quote_returns_404() {
     let f = insert_fixtures(&owner_db).await;
     let pro_token = make_pro_jwt(f.pro_user_id, f.cabinet_id, "secretary");
 
-    let response = get_cabinet_events_response(
-        state_with(app_pool().await),
-        Uuid::new_v4(),
-        &pro_token,
-    )
-    .await;
+    let response =
+        get_cabinet_events_response(state_with(app_pool().await), Uuid::new_v4(), &pro_token).await;
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     cleanup_fixtures(&owner_db, &f).await;
