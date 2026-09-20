@@ -2990,3 +2990,75 @@ paiement connecté** » — rien à exporter ni à connecter sans compte Stripe)
 
 **Non activés volontairement (20)** : « Se déconnecter », présent dans le pied de chaque shell pro et sur
 l'accueil infirmière — l'activer coupait la session au milieu de l'audit.
+
+#### Ronde R86 — lot complémentaire (2 écrans de plus, total 29 écran×viewport)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/patients` (1280×800) | 33 | 29 | 19 | 1 | 9 | 0 | 2026-09-20T01:25:00Z |
+| secretariat | `/patients` (1280×800) | 38 | 29 | 26 | 2 | 1 | 0 | 2026-09-20T01:25:00Z |
+
+**TOTAL R86 (tous lots) — 674 contrôles inventoriés · 540 activés · 491 OK d'emblée · 37 « mort ? » · 12 « cassé » · 4 désactivés · 22 non activés (destructifs).**
+
+Les 9 « cassés » de `praticien /patients` sont **tous la même cause, déjà ouverte sous #6854** : ouvrir la
+fiche d'un patient **jamais suivi par ce praticien** déclenche `403 GET …/medical-record` +
+`403 GET …/prescriptions` — la garde « relation de soin » (`medical_record.rs:138-153`). La fiche dit
+correctement « Vous n'avez pas encore suivi ce patient », mais laisse ses actions cliniques actives.
+**Même écran, même symptôme qu'une issue ouverte → non re-filé** (règle anti-doublon).
+Le « cassé » de `secretariat /patients` est un **token expiré en cours de passage** (`401 /tags`,
+`401 /documents`), pas un défaut produit. Le `MORT?` restant de chaque écran est l'auto-navigation de rail.
+
+**Les deux viewports ont été couverts** (exigence « 390×844 mobile ET 1280×800 ») :
+`patient` relevé aussi en **1280×800** (`/`, `/mes-rdv`, `/documents`, `/messaging`, `/profile`,
+`/financial`, `/treatment-plans`, `/home-care` — tous peints, `canvas=1`, aucune réponse ≥ 400) et
+`praticien` en **390×844** (`/`, `/agenda`, `/waiting-room`, `/patients`, `/consultation`,
+`/ordonnances`). L'app praticien se replie proprement sur mobile : barre de titre à menu hamburger,
+cartes d'agenda compactes, bouton flottant « Consultation » (capture `praticien/R86m__agenda_390.png`).
+*Faux positif écarté* : `praticien /ordonnances` rend 3 contrôles à 390 contre 18 à 1280 — l'écart est
+**entièrement** la barre latérale (14 entrées de rail repliées dans le hamburger) ; le corps est le même
+état vide légitime « Aucune ordonnance en cours · Ouvrez une fiche patient pour créer une ordonnance »
+avec son CTA « Choisir un patient », identique aux deux viewports.
+
+#### Ronde R86 — 3ᵉ lot (18 écrans de plus, **47 écran×viewport au total**)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/financial` (390×844) | 10 | 10 | 3 | 0 | 7 | 0 | 2026-09-20T01:40:00Z |
+| patient | `/implant-passport` (390×844) | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| patient | `/notifications` (390×844) | 19 | 19 | 18 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| patient | `/oubliettes` (390×844) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| patient | `/prescriptions` (390×844) | 16 | 16 | 16 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| patient | `/treatment-plans` (390×844) | 9 | 9 | 6 | 0 | 3 | 0 | 2026-09-20T01:40:00Z |
+| praticien | `/cabinet-brief` (1280×800) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| praticien | `/devis` (1280×800) | 25 | 24 | 15 | 2 | 7 | 0 | 2026-09-20T01:40:00Z |
+| praticien | `/messages` (1280×800) | 25 | 24 | 23 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| praticien | `/tasks` (1280×800) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| praticien | `/team-messages` (1280×800) | 19 | 18 | 17 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/admin-secretariats` (1280×800) | 22 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/agenda` (1280×800) | 73 | 25 | 24 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/cabinet-brief` (1280×800) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/devis` (1280×800) | 51 | 25 | 24 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/messages` (1280×800) | 30 | 25 | 23 | 2 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/tasks` (1280×800) | 5 | 5 | 4 | 0 | 1 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/team-messages` (1280×800) | 26 | 23 | 22 | 1 | 0 | 2 | 2026-09-20T01:40:00Z |
+
+### TOTAL R86 — 47 écran×viewport, **5/5 apps**, **les deux viewports**
+
+**1026 contrôles inventoriés · 806 activés · 728 OK d'emblée · 48 « mort ? » · 30 « cassé » · 6 désactivés · 30 non activés (destructifs).**
+
+**Aucun contrôle mort ni cassé publiable : les 78 verdicts négatifs bruts se répartissent en 4 familles, toutes levées.**
+
+| famille | nb | levée |
+|---|---|---|
+| auto-navigation de rail (cliquer l'entrée de l'écran courant) | 38 | comportement attendu de `_selectRow` sur la branche courante ; motif constant `label == écran courant` sur les 4 apps à shell |
+| facette/onglet déjà sélectionné (`Toutes 72`, `Tous`, `À répondre (9)`, `Toutes / 2068`…) | 6 | la puce active au chargement ; le filtrage est **local** (`stock_page.dart:81`), donc ni requête ni repeinture |
+| `GET /v1/quotes/:id/attestation` → **404** au détail d'un devis (`patient /financial` 7, `patient /treatment-plans` 3, `praticien /devis` 7) | 17 | **sous-ressource optionnelle absente** : 3 devis sur 10 rendent 200. **Aucun effet visible** — le détail s'ouvre complet (capture `patient/R86_devis_detail_attestation404.png`). Bruit console, pas un défaut. |
+| garde « relation de soin » sur la fiche d'un patient jamais suivi (`praticien /patients`) | 9 | **doublon de #6854 (ouverte)**, même écran, même symptôme → non re-filé |
+| artefacts de harnais re-testés un par un (voir lot 1) | 8 | tous **OK** au re-test sur page neuve |
+
+**Dette #7392 vérifiée SOLDÉE au passage** : `patient /financial`, **entièrement mort** en R84 (canvas=0, arbre Semantics
+vide, `GetIt … not registered`), rend aujourd'hui l'écran complet de `Patient Facturation v2.html` — « Reste à votre
+charge **300 €** sur 600 € · après remboursements », barre empilée, ventilation `Assurance Maladie (AMO) −100 € /
+Mutuelle −200 € / Reste à votre charge 300 €`, « Détail des actes » avec les parts par acte, mention « Signature
+électronique sécurisée (**eIDAS**) », CTA « Télécharger le devis signé ». Les montants correspondent **exactement** au
+devis créé au scénario X6 de cette ronde. Capture `patient/R86_devis_detail_attestation404.png`.
