@@ -56,6 +56,11 @@ class ProConfig {
   /// confirmé de [membersRoute] pour masquer cette entrée admin (#5156).
   static const String secretariatsRoute = '/admin-secretariats';
 
+  /// Route de l'entrée « Reprise de données » (#7178, DP-F14.c) : import
+  /// CSV patients/RDV. `POST /v1/cabinet/imports` exige `ProAdminClaims`
+  /// (rôle strict `admin`, #7179) — même gate que [membersRoute].
+  static const String dataImportRoute = '/reprise-donnees';
+
   /// Groupe « Réglages du cabinet » (#5139, maquette design-v2) — paramétrage
   /// ouvert quelques fois par an, replié par défaut derrière son chevron pour
   /// que les écrans quotidiens restent en haut du rail/drawer.
@@ -199,6 +204,12 @@ class ProConfig {
         route: auditLogRoute,
         group: settingsGroup,
       ),
+      shell.ProNavDestination(
+        label: 'Reprise de données',
+        icon: Icons.upload_file_outlined,
+        route: dataImportRoute,
+        group: settingsGroup,
+      ),
     ],
   );
 
@@ -253,7 +264,9 @@ class ProConfig {
       destinations: shellConfig.destinations
           .where((d) =>
               (canManageMembers ||
-                  (d.route != membersRoute && d.route != secretariatsRoute)) &&
+                  (d.route != membersRoute &&
+                      d.route != secretariatsRoute &&
+                      d.route != dataImportRoute)) &&
               (canViewAuditLog || d.route != auditLogRoute))
           .map((d) {
         final badgeCount = badgeCounts[d.route];

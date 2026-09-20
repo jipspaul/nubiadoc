@@ -27,6 +27,7 @@ import '../features/cabinet_messaging/cabinet_messaging_event.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/correspondents/correspondents_bloc.dart';
 import '../features/correspondents/correspondents_page.dart';
+import '../features/data_import/data_import_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/devis_detail_page.dart';
@@ -86,6 +87,7 @@ class AppRouter {
   static const notificationPreferences = '/notification-preferences';
   static const tasks = '/tasks';
   static const cabinetBrief = '/cabinet-brief';
+  static const dataImport = '/reprise-donnees';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -361,6 +363,12 @@ class AppRouter {
                     ..add(const AuditLogLoadRequested()),
                   child: const AuditLogPage(),
                 ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: dataImport,
+                builder: (_, __) => const DataImportPage(),
               ),
             ]),
           ],
