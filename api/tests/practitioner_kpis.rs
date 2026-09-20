@@ -69,6 +69,19 @@ fn current_month_start() -> chrono::NaiveDate {
     chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1).unwrap()
 }
 
+/// Point sûr (mercredi midi) de la semaine courante (lundi-dimanche) — à
+/// l'abri des bords de semaine que `now + N heures` peut franchir quand le
+/// test tourne en fin de semaine (`occupancy_rate` ne compte que les
+/// créneaux de la semaine courante, cf. `practitioner_kpis::get_my_kpis`).
+fn safe_week_time() -> chrono::DateTime<Utc> {
+    let today = Utc::now().date_naive();
+    let week_start = today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64);
+    (week_start + chrono::Duration::days(2))
+        .and_hms_opt(12, 0, 0)
+        .unwrap()
+        .and_utc()
+}
+
 /// Fixture : un praticien (même `user_id`) exerçant dans DEUX cabinets, avec
 /// un `provider`/patient/manager par cabinet — de quoi couvrir facturé,
 /// encaissé, RDV du jour, rappels, occupation et objectif, en multi-cabinet.
@@ -344,6 +357,7 @@ async fn my_kpis_aggregates_across_multiple_cabinets() {
     .await
     .unwrap();
     // 2 créneaux cette semaine : 1 ouvert, 1 réservé -> occupation 50%.
+    let week_time = safe_week_time();
     sqlx::query(
         "INSERT INTO availability_slot (id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
          VALUES ($1, $2, $3, $4, $5, 'open')",
@@ -351,8 +365,8 @@ async fn my_kpis_aggregates_across_multiple_cabinets() {
     .bind(Uuid::new_v4())
     .bind(f.cabinet_a)
     .bind(f.practitioner_a)
-    .bind(now + Duration::hours(2))
-    .bind(now + Duration::hours(3))
+    .bind(week_time)
+    .bind(week_time + Duration::hours(1))
     .execute(&db)
     .await
     .unwrap();
@@ -363,8 +377,8 @@ async fn my_kpis_aggregates_across_multiple_cabinets() {
     .bind(Uuid::new_v4())
     .bind(f.cabinet_a)
     .bind(f.practitioner_a)
-    .bind(now + Duration::hours(4))
-    .bind(now + Duration::hours(5))
+    .bind(week_time + Duration::hours(2))
+    .bind(week_time + Duration::hours(3))
     .execute(&db)
     .await
     .unwrap();
