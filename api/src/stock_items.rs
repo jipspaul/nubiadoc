@@ -257,7 +257,16 @@ pub async fn add_stock_movement(
     // Un inventaire physique n'est jamais negatif - un mouvement qui ferait
     // passer le stock sous 0 est refuse plutot que de persister une donnee
     // fausse (meme esprit que l'anti-sur-encaissement #4311).
-    if current_quantity + body.delta < 0 {
+    // #7453 : `current_quantity + body.delta` en `i32` non protege s'enroulait
+    // vers le negatif quand `current_quantity` etait deja proche de `i32::MAX`
+    // (donnee corrompue par un import CSV sans borne haute), et le garde-fou
+    // ci-dessous l'attrapait alors par accident, rendant "stock insuffisant"
+    // sur une reception qui ne fait qu'ajouter une unite. `checked_add`
+    // distingue le vrai depassement de capacite du sous-stock reel.
+    let Some(new_quantity) = current_quantity.checked_add(body.delta) else {
+        return Err(AppError::ValidationError);
+    };
+    if new_quantity < 0 {
         return Err(AppError::InsufficientStock);
     }
 

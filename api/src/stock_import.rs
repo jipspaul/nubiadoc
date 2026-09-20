@@ -25,6 +25,20 @@ use crate::{
 /// contrairement à la création manuelle (`stock_items.rs::CreateStockItemBody`).
 const IMPORT_UNIT: &str = "unité";
 
+/// Borne haute de la quantité importée par ligne — aucune facture
+/// fournisseur d'un cabinet dentaire ne porte de quantités de cet ordre ;
+/// au-delà, la ligne est probablement mal saisie (colonne décalée). Sans
+/// cette borne, une quantité aberrante (`i32::MAX`) était acceptée puis
+/// faisait déborder `quantity_on_hand` (`integer` Postgres, migration 0192)
+/// dès le réimport suivant de la même référence, en 500 (#7453).
+const MAX_IMPORT_QUANTITY: i32 = 100_000;
+
+/// Bornes de longueur de `reference`/`label`, mêmes ordres de grandeur que
+/// les autres libellés d'article de l'inventaire — un CSV mal formé peut
+/// décaler une colonne entière dans `label` (#7453).
+const MAX_REFERENCE_LEN: usize = 100;
+const MAX_LABEL_LEN: usize = 500;
+
 /// Body de `POST /v1/stock/import`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -67,9 +81,10 @@ struct ParsedLine {
 }
 
 /// Découpe une ligne `ref;libellé;quantité;prix` (`prix` optionnel).
-/// `quantité` doit être un entier strictement positif ; `prix`, s'il est
-/// présent, un décimal positif (`.` ou `,` comme séparateur), converti en
-/// centimes.
+/// `quantité` doit être un entier strictement positif borné par
+/// `MAX_IMPORT_QUANTITY` ; `reference`/`label` bornés par
+/// `MAX_REFERENCE_LEN`/`MAX_LABEL_LEN` ; `prix`, s'il est présent, un
+/// décimal positif (`.` ou `,` comme séparateur), converti en centimes.
 fn parse_line(line: &str) -> Result<ParsedLine, &'static str> {
     let fields: Vec<&str> = line.split(';').collect();
     if fields.len() < 3 || fields.len() > 4 {
@@ -83,11 +98,17 @@ fn parse_line(line: &str) -> Result<ParsedLine, &'static str> {
     if reference.is_empty() {
         return Err("reference_vide");
     }
+    if crate::text_validation::validate_max_len(reference, MAX_REFERENCE_LEN).is_err() {
+        return Err("reference_trop_longue");
+    }
     if label.is_empty() {
         return Err("libelle_vide");
     }
+    if crate::text_validation::validate_max_len(label, MAX_LABEL_LEN).is_err() {
+        return Err("libelle_trop_long");
+    }
     let quantity: i32 = quantity_str.parse().map_err(|_| "quantite_invalide")?;
-    if quantity <= 0 {
+    if quantity <= 0 || quantity > MAX_IMPORT_QUANTITY {
         return Err("quantite_invalide");
     }
     let unit_price_cents = if price_str.is_empty() {
@@ -171,16 +192,33 @@ pub async fn import_stock_csv(
             continue;
         }
 
-        let existing =
-            sqlx::query("SELECT id FROM stock_item WHERE cabinet_id = $1 AND reference = $2")
-                .bind(claims.cabinet_id)
-                .bind(&parsed.reference)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
+        let existing = sqlx::query(
+            "SELECT id, quantity_on_hand FROM stock_item WHERE cabinet_id = $1 AND reference = $2",
+        )
+        .bind(claims.cabinet_id)
+        .bind(&parsed.reference)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
         let item_id: Uuid = if let Some(row) = existing {
             let item_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let current_quantity: i32 = row
+                .try_get("quantity_on_hand")
+                .map_err(|_| AppError::Internal)?;
+            // #7453 : une quantite deja aberrante en base (import anterieur au
+            // borne-haute ci-dessus) ne doit pas faire deborder
+            // `quantity_on_hand` (integer Postgres) au reimport de cette
+            // reference — la ligne est rejetee et rapportee dans `errors`
+            // plutot que de faire echouer toute la transaction en 500.
+            if current_quantity.checked_add(parsed.quantity).is_none() {
+                errors.push(StockImportLineError {
+                    line: line_number,
+                    raw: raw_line.to_string(),
+                    error: "quantite_totale_trop_elevee".to_string(),
+                });
+                continue;
+            }
             sqlx::query(
                 "UPDATE stock_item SET unit_price_cents = coalesce($1, unit_price_cents) \
                  WHERE id = $2 AND cabinet_id = $3",
