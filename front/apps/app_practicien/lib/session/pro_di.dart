@@ -19,6 +19,7 @@ import '../features/devis/quote_documents_cubit.dart';
 import '../features/ordonnances/ordonnances_bloc.dart';
 import '../features/ordonnances/send_to_pharmacy_cubit.dart';
 import '../features/patients/patients_bloc.dart';
+import '../features/cabinet/act_categories_cubit.dart';
 import '../features/cabinet/cabinet_info_cubit.dart';
 import '../features/register/pro_register_cubit.dart';
 import '../features/consultation_clinique/ccam_picker.dart';
@@ -70,6 +71,13 @@ void registerPro(GetIt gi) {
 
   gi.registerFactory<CabinetInfoCubit>(
     () => CabinetInfoCubit(updateCabinet: gi<UpdateCabinetUseCase>()),
+  );
+
+  gi.registerFactory<ActCategoriesCubit>(
+    () => ActCategoriesCubit(
+      get: gi<GetActCategoriesUseCase>(),
+      update: gi<UpdateActCategoriesUseCase>(),
+    ),
   );
 
   gi.registerFactory<DashboardBloc>(

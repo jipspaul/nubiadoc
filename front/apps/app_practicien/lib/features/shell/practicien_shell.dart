@@ -125,6 +125,15 @@ class PracticienShell extends StatelessWidget {
             icon: const Icon(Icons.verified_user_outlined),
             onPressed: () => context.push(AppRouter.consentTemplates),
           ),
+        // #7185 : réglage réservé aux admins (même contrat backend que
+        // `PUT /v1/cabinet/settings/act-categories`, ProAdminOrManagerClaims).
+        if (session.isAdmin)
+          IconButton(
+            key: const Key('act_categories_button'),
+            tooltip: 'Catégories d\'actes',
+            icon: const Icon(Icons.category_outlined),
+            onPressed: () => context.push(AppRouter.actCategories),
+          ),
       ],
       onSignOut: () => context.read<ProAuthCubit>().signOut(),
     );

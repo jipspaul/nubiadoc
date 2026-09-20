@@ -25,6 +25,7 @@ import '../features/ordonnances/ordonnances_page.dart';
 import '../features/login/login_page.dart';
 import '../features/notification_prefs/notification_prefs_page.dart';
 import '../features/patients/patients_page.dart';
+import '../features/cabinet/act_categories_page.dart';
 import '../features/cabinet/cabinet_info_cubit.dart';
 import '../features/cabinet/cabinet_info_page.dart';
 import '../features/consent_templates/consent_templates_bloc.dart';
@@ -65,6 +66,7 @@ class AppRouter {
   static const a2uiDemo = '/a2ui-demo';
   static const registerPro = '/register-pro';
   static const cabinetSetup = '/cabinet-setup';
+  static const actCategories = '/act-categories';
   static const notificationPreferences = '/notification-preferences';
   static const tasks = '/tasks';
   static const cabinetBrief = '/cabinet-brief';
@@ -153,6 +155,10 @@ class AppRouter {
         GoRoute(
           path: notificationPreferences,
           builder: (_, __) => const NotificationPrefsPage(),
+        ),
+        GoRoute(
+          path: actCategories,
+          builder: (_, __) => const ActCategoriesPage(),
         ),
         GoRoute(
           path: tasks,
