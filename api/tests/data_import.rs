@@ -679,7 +679,8 @@ async fn imported_patients_are_visible_to_the_importing_secretariat() {
     let f = insert_fixture(&db, "r10").await;
     let secretary = make_secretary_jwt(f.admin_id, f.cabinet_id, f.secretariat_id);
 
-    let csv = "ref_externe;nom;prenom;date_naissance;telephone;email;adresse;code_postal;ville;ins\n\
+    let csv =
+        "ref_externe;nom;prenom;date_naissance;telephone;email;adresse;code_postal;ville;ins\n\
                QA1;DupontQA89;Jean;1980-05-04;;jean.dupont.qa89@example.test;;;;\n";
 
     let (status, job) = upload(app_pool().await, &secretary, "csv_patients", csv).await;
