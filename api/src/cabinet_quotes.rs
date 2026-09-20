@@ -19,6 +19,24 @@ use crate::{
     AppState, JobDispatcher,
 };
 
+/// Valide un code dent ISO 3950 (notation FDI) : `<quadrant><dent>`,
+/// quadrant 1-4 (dentition permanente, dents 1-8) ou 5-8 (temporaire, 1-5).
+/// Même règle que `consultation_acts.rs::is_valid_fdi_tooth` (#4426) —
+/// dupliquée ici faute de module de validation partagé pour une fonction
+/// aussi courte (#7434 : la ligne de devis n'était pas validée du tout,
+/// contrairement à l'acte de consultation).
+fn is_valid_fdi_tooth(code: &str) -> bool {
+    code.len() == 2 && code.chars().all(|c| c.is_ascii_digit()) && {
+        let quadrant = code.as_bytes()[0] - b'0';
+        let tooth = code.as_bytes()[1] - b'0';
+        match quadrant {
+            1..=4 => (1..=8).contains(&tooth),
+            5..=8 => (1..=5).contains(&tooth),
+            _ => false,
+        }
+    }
+}
+
 // ── POST /v1/cabinet/quotes ──────────────────────────────────────────────────
 
 /// Un item du devis dans le body de création.
@@ -71,9 +89,12 @@ pub(crate) const MAX_QUOTE_ITEM_LABEL_LEN: usize = 500;
 /// `cabinet_quotes_patch::patch_cabinet_quote`, #4065) : non vide,
 /// `amount_cents` dans `]0, MAX_ITEM_AMOUNT_CENTS]`, libellé non vide/blanc
 /// (#3770) et borné à `MAX_QUOTE_ITEM_LABEL_LEN` (#7226),
-/// `amo_part_cents`/`amc_part_cents` non négatifs (#4060), et leur somme ne
+/// `amo_part_cents`/`amc_part_cents` non négatifs (#4060), leur somme ne
 /// dépasse pas `amount_cents` (#4309) — sinon le reste à charge patient
-/// (`amount_cents - amo_part - amc_part`) devient négatif.
+/// (`amount_cents - amo_part - amc_part`) devient négatif — et `tooth`,
+/// quand fourni, au format FDI (#7434, même règle que
+/// `consultation_acts.rs`) : c'est cette valeur qui traverse jusqu'au bon de
+/// travail prothétique puis au brief du cabinet (`tooth_fdi`).
 pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppError> {
     if items.is_empty() {
         return Err(AppError::ValidationError);
@@ -102,6 +123,35 @@ pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppEr
     {
         return Err(AppError::ValidationError);
     }
+    if items
+        .iter()
+        .any(|i| i.tooth.as_deref().is_some_and(|t| !is_valid_fdi_tooth(t)))
+    {
+        return Err(AppError::ValidationError);
+    }
+    Ok(())
+}
+
+/// Vérifie que chaque `ccam_code` fourni existe au référentiel `ccam_act`
+/// (#7434, symétrique à `consultation_act_create.rs` #4412) — sans ce
+/// contrôle, un code inconnu passait silencieusement jusqu'au devis signé,
+/// référentiellement incohérent avec la cotation conventionnelle qu'il est
+/// censé porter. Async (requiert la DB) donc séparée de `validate_quote_items`
+/// (pure) — appelée après ouverture de la transaction par les deux appelants.
+pub(crate) async fn validate_quote_items_ccam_codes(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    items: &[QuoteItemInput],
+) -> Result<(), AppError> {
+    for code in items.iter().filter_map(|i| i.ccam_code.as_deref()) {
+        let code_exists = sqlx::query("SELECT 1 FROM ccam_act WHERE code = $1")
+            .bind(code)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        if code_exists.is_none() {
+            return Err(AppError::ValidationError);
+        }
+    }
     Ok(())
 }
 
@@ -114,8 +164,10 @@ pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppEr
 /// - `label` de chaque ligne ne doit pas être vide/blanc (trim), ni dépasser
 ///   `MAX_QUOTE_ITEM_LABEL_LEN` caractères → 422 sinon (#3770, #7226).
 /// - `deposit_pct` doit être entre 0 et 100 si fourni → 422 sinon.
-/// - `ccam_code`/`tooth`/`amo_part_cents`/`amc_part_cents` optionnels par ligne,
-///   persistés tels quels (#4060) ; `amo_part_cents`/`amc_part_cents` négatifs → 422.
+/// - `ccam_code`/`tooth`/`amo_part_cents`/`amc_part_cents` optionnels par ligne
+///   (#4060) ; `amo_part_cents`/`amc_part_cents` négatifs → 422 ; `tooth` doit
+///   être au format FDI si fourni → 422 sinon (#7434) ; `ccam_code`, si fourni,
+///   doit exister au référentiel `ccam_act` → 422 sinon (#7434).
 /// - `total_amount` calculé depuis les items (`sum(amount_cents) / 100`).
 /// - Insert `quote` + N `quote_item` dans une transaction RLS-scopée.
 /// - Retourne `201 { quote_id, total_amount_cents }`.
@@ -141,6 +193,8 @@ pub async fn create_cabinet_quote(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    validate_quote_items_ccam_codes(&mut tx, &body.items).await?;
 
     // Vérifie que le patient appartient au cabinet (RLS garantit le tenant),
     // récupère patient_account_id pour la résolution du responsable légal

@@ -374,3 +374,33 @@ async fn patch_with_secretary_token_returns_403() {
 
     cleanup(&db, cabinet_id).await;
 }
+
+// ── Test 6 (#7434) : tooth hors format FDI → 422, rien modifié ──────────────
+
+#[tokio::test]
+async fn patch_invalid_tooth_returns_422_and_leaves_items_untouched() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let quote_id = seed_quote(&db, cabinet_id, patient_id, "draft").await;
+
+    let (status, _) = patch(
+        state_with(app_pool().await),
+        quote_id,
+        make_pro_jwt(user_id, cabinet_id, "practitioner"),
+        json!({ "items": [{ "label": "Couronne", "amount_cents": 50000, "tooth": "ZZZZ" }] }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Rollback transactionnel : la ligne initiale doit être intacte.
+    let labels = item_labels(&db, cabinet_id, quote_id).await;
+    assert_eq!(labels, vec!["Ligne initiale".to_string()]);
+
+    cleanup(&db, cabinet_id).await;
+}
