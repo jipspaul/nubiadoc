@@ -109,7 +109,8 @@ void main() {
         () {
       // #5156 : /admin-secretariats partage le même rôle admin strict que
       // /admin-membres (ProAdminClaims côté back) et se gate donc via le
-      // même signal.
+      // même signal. #7178 : /reprise-donnees (ProAdminClaims aussi) rejoint
+      // ce même signal.
       final config = ProConfig.shellConfigFor(
           canManageMembers: false, canViewAuditLog: true);
       expect(
@@ -117,10 +118,15 @@ void main() {
             .where((d) => d.route == ProConfig.secretariatsRoute),
         isEmpty,
       );
-      // Deux destinations retirées (Membres + Secrétariats) : pas de trou
-      // d'index.
+      expect(
+        config.destinations
+            .where((d) => d.route == ProConfig.dataImportRoute),
+        isEmpty,
+      );
+      // Trois destinations retirées (Membres + Secrétariats + Reprise de
+      // données) : pas de trou d'index.
       expect(config.destinations.length,
-          ProConfig.shellConfig.destinations.length - 2);
+          ProConfig.shellConfig.destinations.length - 3);
     });
 
     test('canManageMembers=true : conserve l\'entrée « Secrétariats »', () {
@@ -139,7 +145,8 @@ void main() {
       final base = ProConfig.shellConfig.destinations
           .where((d) =>
               d.route != ProConfig.membersRoute &&
-              d.route != ProConfig.secretariatsRoute)
+              d.route != ProConfig.secretariatsRoute &&
+              d.route != ProConfig.dataImportRoute)
           .map((d) => d.route)
           .toList();
       final filtered = ProConfig.shellConfigFor(

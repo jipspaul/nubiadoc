@@ -92,21 +92,22 @@ void main() {
     });
 
     test(
-        'canManageMembers=false et canViewAuditLog=false : masque les trois '
-        'entrées admin', () {
+        'canManageMembers=false et canViewAuditLog=false : masque les '
+        'quatre entrées admin', () {
       final config = ProConfig.shellConfigFor(
           canManageMembers: false, canViewAuditLog: false);
       expect(
         config.destinations.where((d) =>
             d.route == ProConfig.membersRoute ||
             d.route == ProConfig.secretariatsRoute ||
-            d.route == ProConfig.auditLogRoute),
+            d.route == ProConfig.auditLogRoute ||
+            d.route == ProConfig.dataImportRoute),
         isEmpty,
       );
-      // Membres + Secrétariats (#5156, même signal canManageMembers) +
-      // Journal d'accès.
+      // Membres + Secrétariats + Reprise de données (#5156/#7178, même
+      // signal canManageMembers) + Journal d'accès.
       expect(config.destinations.length,
-          ProConfig.shellConfig.destinations.length - 3);
+          ProConfig.shellConfig.destinations.length - 4);
     });
   });
 }

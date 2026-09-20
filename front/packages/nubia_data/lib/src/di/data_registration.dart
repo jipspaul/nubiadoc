@@ -26,6 +26,7 @@ import '../remote/sterilization/sterilization_api.dart';
 import '../remote/stock_items/stock_items_api.dart';
 import '../remote/stock_locations/stock_locations_api.dart';
 import '../remote/stock_import/stock_import_api.dart';
+import '../remote/data_import/data_import_api.dart';
 import '../remote/lab_work_orders/lab_work_orders_api.dart';
 import '../remote/cabinet_tasks/cabinet_tasks_api.dart';
 import '../remote/cabinet_briefs/cabinet_briefs_api.dart';
@@ -96,6 +97,7 @@ import '../repositories/sterilization_repository_impl.dart';
 import '../repositories/stock_items_repository_impl.dart';
 import '../repositories/stock_locations_repository_impl.dart';
 import '../repositories/stock_import_repository_impl.dart';
+import '../repositories/data_import_repository_impl.dart';
 import '../repositories/lab_work_orders_repository_impl.dart';
 import '../repositories/cabinet_tasks_repository_impl.dart';
 import '../repositories/cabinet_briefs_repository_impl.dart';
@@ -626,6 +628,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<StockImportApi>(
       () => StockImportApi(gi()),
     )
+    ..registerLazySingleton<DataImportApi>(
+      () => DataImportApi(gi()),
+    )
     ..registerLazySingleton<LabWorkOrdersApi>(
       () => LabWorkOrdersApi(gi()),
     )
@@ -749,6 +754,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<StockImportRepository>(
       () => StockImportRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<DataImportRepository>(
+      () => DataImportRepositoryImpl(gi()),
     )
     ..registerLazySingleton<LabWorkOrdersRepository>(
       () => LabWorkOrdersRepositoryImpl(gi()),
@@ -879,6 +887,10 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => TransferStockUseCase(gi()))
     ..registerFactory(() => SetItemLocationThresholdUseCase(gi()))
     ..registerFactory(() => ImportStockCsvUseCase(gi()))
+    ..registerFactory(() => UploadDataImportUseCase(gi()))
+    ..registerFactory(() => DryRunDataImportUseCase(gi()))
+    ..registerFactory(() => RunDataImportUseCase(gi()))
+    ..registerFactory(() => GetDataImportStatusUseCase(gi()))
     ..registerFactory(() => ListLabWorkOrdersUseCase(gi()))
     ..registerFactory(() => ListTodayLabWorkOrdersUseCase(gi()))
     ..registerFactory(() => UpdateLabWorkOrderStatusUseCase(gi()))
