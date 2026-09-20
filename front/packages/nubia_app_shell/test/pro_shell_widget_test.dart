@@ -193,9 +193,37 @@ void main() {
         await tester.pumpAndSettle();
 
         final badges = tester.widgetList<Badge>(find.byType(Badge)).toList();
-        // 3 destinations → 3 Badge wrappers, 2 masqués (null et 0).
-        expect(badges.length, 3);
-        expect(badges.where((b) => b.isLabelVisible == false), hasLength(2));
+        // 3 destinations, seule celle à badgeCount: 5 rend un Badge (#7428 :
+        // plus de wrapper masqué pour les 2 autres, pas juste une pastille
+        // invisible).
+        expect(badges.length, 1);
+        expect((badges.single.label as Text).data, '5');
+      },
+    );
+
+    // #7428 — le badge se pose en fin de ligne, après le libellé, au lieu
+    // d'être ancré sur l'icône (où il débordait et la recouvrait dès 2
+    // chiffres). Un Badge Material sans `child` n'a pas de positionnement
+    // absolu : il ne peut donc plus chevaucher l'icône de destination.
+    testWidgets(
+      'badgeCount > 0 : le badge est autonome (pas de child), l\'icône '
+      'reste une Icon nue (rail desktop)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: badgeConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final badge = tester.widget<Badge>(find.byType(Badge));
+        expect(badge.child, isNull);
+
+        final icon = tester.widget<Icon>(
+          find.byIcon(Icons.meeting_room).first,
+        );
+        expect(icon.icon, Icons.meeting_room);
       },
     );
 

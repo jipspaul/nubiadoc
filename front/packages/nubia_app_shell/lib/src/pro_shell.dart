@@ -297,14 +297,17 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     );
   }
 
-  /// Icône de destination surmontée d'un badge compteur (#5387) quand
-  /// [ProNavDestination.badgeCount] est renseigné et non nul — même icône
-  /// nue sinon (pas de pastille vide). Couleur sémantique selon
-  /// [ProNavDestination.badgeColor] : vert (`--brand600`, personnes
-  /// présentes / non lus) ou ambre (`--warnFg`, à traiter avant échéance),
-  /// conformément à la maquette « Architecture de navigation » (#5142).
-  Widget _iconWithBadge(BuildContext context, ProNavDestination destination) {
+  /// Pastille de charge de travail (#5387) d'une destination, positionnée
+  /// en FIN DE LIGNE après le libellé — `null` si aucun compteur à
+  /// afficher. Couleur sémantique selon [ProNavDestination.badgeColor] :
+  /// vert (`--brand600`, personnes présentes / non lus) ou ambre
+  /// (`--warnFg`, à traiter avant échéance), conformément à la maquette
+  /// « Architecture de navigation » (#5142), qui rend le compteur après le
+  /// libellé plutôt que sur l'icône (#7428 : un badge Material ancré sur
+  /// l'icône déborde et la recouvre entièrement dès 2 chiffres).
+  Widget? _workloadBadge(BuildContext context, ProNavDestination destination) {
     final count = destination.badgeCount;
+    if (count == null || count <= 0) return null;
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final badgeColor = switch (destination.badgeColor) {
       ProNavBadgeColor.brand => NubiaColors.brand600,
@@ -312,10 +315,8 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     };
     return Badge(
       label: Text('$count'),
-      isLabelVisible: count != null && count > 0,
       backgroundColor: badgeColor,
       textColor: Colors.white,
-      child: Icon(destination.icon),
     );
   }
 
@@ -405,7 +406,7 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
   /// clic fonctionnels.
   ///
   /// `excludeSemantics: true` écarte aussi la sémantique du [Badge] de
-  /// charge de travail construit par [_iconWithBadge] : [badgeCount], quand
+  /// charge de travail construit par [_workloadBadge] : [badgeCount], quand
   /// renseigné et non nul, est donc concaténé au [label] du nœud englobant
   /// (#6555) — même motif que la cloche de notifications
   /// (`ProNotificationsBell`, « Notifications 46 »).
@@ -416,6 +417,7 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     required bool selected,
     required VoidCallback onTap,
     int? badgeCount,
+    Widget? trailing,
   }) {
     final color = selected ? Colors.white : _sidebarText;
     final semanticLabel =
@@ -461,6 +463,10 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
+                if (trailing != null) ...[
+                  const SizedBox(width: 8),
+                  trailing,
+                ],
               ],
             ),
           ),
@@ -624,12 +630,13 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                           if (rows[i].destination != null)
                             _sidebarEntry(
                               context,
-                              icon:
-                                  _iconWithBadge(context, rows[i].destination!),
+                              icon: Icon(rows[i].destination!.icon),
                               label: rows[i].destination!.label,
                               selected: i == rowIndex,
                               onTap: () => _selectRow(destinations, rows, i),
                               badgeCount: rows[i].destination!.badgeCount,
+                              trailing:
+                                  _workloadBadge(context, rows[i].destination!),
                             )
                           else
                             _sidebarGroupHeader(
@@ -689,8 +696,9 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
               for (int i = 0; i < rows.length; i++)
                 if (rows[i].destination != null)
                   ListTile(
-                    leading: _iconWithBadge(context, rows[i].destination!),
+                    leading: Icon(rows[i].destination!.icon),
                     title: Text(rows[i].destination!.label),
+                    trailing: _workloadBadge(context, rows[i].destination!),
                     selected: i == rowIndex,
                     onTap: () {
                       Navigator.of(context).pop();
