@@ -49,6 +49,7 @@ import '../remote/cabinet_stats/cabinet_stats_api.dart';
 import '../remote/cabinet_opportunities/cabinet_opportunities_api.dart';
 import '../remote/cash_collection/cash_collection_api.dart';
 import '../remote/audit_log/audit_log_api.dart';
+import '../remote/compliance/compliance_api.dart';
 import '../remote/clinical/clinical_session_api.dart';
 import '../remote/consultation/consultation_api.dart';
 import '../remote/consent_templates/consent_template_api.dart';
@@ -123,6 +124,7 @@ import '../repositories/cabinet_stats_repository_impl.dart';
 import '../repositories/cabinet_opportunities_repository_impl.dart';
 import '../repositories/cash_collection_repository_impl.dart';
 import '../repositories/audit_log_repository_impl.dart';
+import '../repositories/compliance_repository_impl.dart';
 import '../repositories/cached_appointments_repository_impl.dart';
 import '../repositories/clinical_session_repository_impl.dart';
 import '../repositories/consultation_repository_impl.dart';
@@ -716,6 +718,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<AuditLogApi>(
       () => AuditLogApi(gi()),
     )
+    ..registerLazySingleton<ComplianceApi>(
+      () => ComplianceApi(gi()),
+    )
     // Repositories
     ..registerLazySingleton<CabinetRepository>(
       () => CabinetRepositoryImpl(gi()),
@@ -849,6 +854,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<AuditLogRepository>(
       () => AuditLogRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<ComplianceRepository>(
+      () => ComplianceRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<CabinetMessageRepository>(
       () => CabinetMessageRepositoryImpl(gi()),
     )
@@ -941,6 +949,11 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => GetCabinetOpportunitiesUseCase(gi()))
     ..registerFactory(() => GetCashCollectionSummaryUseCase(gi()))
     ..registerFactory(() => GetAuditLogUseCase(gi()))
+    ..registerFactory(() => ListComplianceItemsUseCase(gi()))
+    ..registerFactory(() => CreateComplianceItemUseCase(gi()))
+    ..registerFactory(() => CompleteComplianceItemUseCase(gi()))
+    ..registerFactory(() => AttachComplianceEvidenceUseCase(gi()))
+    ..registerFactory(() => DeclareCustomDeviceUseCase(gi()))
     ..registerFactory(() => GetCabinetQuoteUseCase(gi()))
     ..registerFactory(() => SendCabinetQuoteUseCase(gi()))
     ..registerFactory(() => SendInvoiceReminderUseCase(gi()))

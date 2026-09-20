@@ -49,6 +49,7 @@ import '../features/cabinet_stats/cabinet_stats_page.dart';
 import '../features/cabinet_payouts/cabinet_payouts_bloc.dart';
 import '../features/cabinet_payouts/cabinet_payouts_event.dart';
 import '../features/cabinet_payouts/cabinet_payouts_page.dart';
+import '../features/compliance/compliance_page.dart';
 import '../features/audit_log/audit_log_bloc.dart';
 import '../features/audit_log/audit_log_event.dart';
 import '../features/audit_log/audit_log_page.dart';
@@ -86,6 +87,7 @@ class AppRouter {
   static const correspondents = '/correspondents';
   static const notificationPreferences = '/notification-preferences';
   static const tasks = '/tasks';
+  static const compliance = '/conformite';
   static const cabinetBrief = '/cabinet-brief';
   static const dataImport = '/reprise-donnees';
 
@@ -166,6 +168,10 @@ class AppRouter {
         GoRoute(
           path: tasks,
           builder: (_, __) => const TasksPage(),
+        ),
+        GoRoute(
+          path: compliance,
+          builder: (_, __) => const CompliancePage(),
         ),
         GoRoute(
           path: cabinetBrief,

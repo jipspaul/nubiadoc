@@ -15,6 +15,7 @@ import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 import 'widgets/cash_collection_card.dart';
+import 'widgets/compliance_alerts_card.dart';
 import 'widgets/practitioners_today_card.dart';
 import 'widgets/today_flow_card.dart';
 import 'widgets/waiting_room_card.dart';
@@ -249,6 +250,7 @@ class _DashboardLoadedView extends StatelessWidget {
                         onCategoryTap: _openOpportunity,
                       ),
                     const WaitingRoomCard(),
+                    const ComplianceAlertsCard(),
                     const CashCollectionCard(),
                     WeekOccupancyCard(
                       dailyOccupancyRates: dailyOccupancyRates,

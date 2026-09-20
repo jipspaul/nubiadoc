@@ -14,6 +14,7 @@ import '../admin_membres/members_access_cubit.dart';
 import '../audit_log/audit_log_access_cubit.dart';
 import '../notifications/notification_route_resolver.dart';
 import 'cash_collection_cubit.dart';
+import 'compliance_alerts_summary_cubit.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_content.dart';
 import 'dashboard_event.dart';
@@ -194,7 +195,11 @@ class DashboardBody extends StatelessWidget {
                   GetIt.instance<ExpiringQuotesSummaryCubit>()..load(),
               child: BlocProvider<OpportunitiesCubit>(
                 create: (_) => GetIt.instance<OpportunitiesCubit>()..load(),
-                child: DashboardContent(session: session),
+                child: BlocProvider<ComplianceAlertsSummaryCubit>(
+                  create: (_) =>
+                      GetIt.instance<ComplianceAlertsSummaryCubit>()..load(),
+                  child: DashboardContent(session: session),
+                ),
               ),
             ),
           ),

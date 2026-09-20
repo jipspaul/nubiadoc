@@ -19,7 +19,9 @@ import '../features/cabinet_brief/cabinet_brief_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/cabinet_payouts/cabinet_payouts_bloc.dart';
 import '../features/cabinet_stats/cabinet_stats_bloc.dart';
+import '../features/compliance/compliance_bloc.dart';
 import '../features/dashboard/cash_collection_cubit.dart';
+import '../features/dashboard/compliance_alerts_summary_cubit.dart';
 import '../features/dashboard/expiring_quotes_summary_cubit.dart';
 import '../features/dashboard/patient_messages_summary_cubit.dart';
 import '../features/dashboard/rail_badges_cubit.dart';
@@ -250,6 +252,19 @@ void registerPro(GetIt gi) {
         listTasks: gi<ListCabinetTasksUseCase>(),
         createTask: gi<CreateCabinetTaskUseCase>(),
         completeTask: gi<CompleteCabinetTaskUseCase>(),
+      ),
+    )
+    ..registerFactory<ComplianceBloc>(
+      () => ComplianceBloc(
+        listItems: gi<ListComplianceItemsUseCase>(),
+        createItem: gi<CreateComplianceItemUseCase>(),
+        completeItem: gi<CompleteComplianceItemUseCase>(),
+        attachEvidence: gi<AttachComplianceEvidenceUseCase>(),
+      ),
+    )
+    ..registerFactory<ComplianceAlertsSummaryCubit>(
+      () => ComplianceAlertsSummaryCubit(
+        listItems: gi<ListComplianceItemsUseCase>(),
       ),
     );
 }
