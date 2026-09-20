@@ -44,3 +44,33 @@ const _phaseStatusVariants = {
     _phaseStatusVariants[status] ?? StatusPillVariant.info,
   );
 }
+
+/// Libellés/couleurs du statut de SÉANCE (#7172, `treatment_session.status`
+/// côté API — seuls `planned`/`scheduled` sont atteignables depuis le front
+/// pour l'instant, `in_progress`/`done`/`cancelled` n'ont pas encore
+/// d'action dédiée à cet écran).
+const _sessionStatusLabels = {
+  'planned': 'À programmer',
+  'scheduled': 'Programmée',
+  'in_progress': 'En cours',
+  'done': 'Terminée',
+  'cancelled': 'Annulée',
+};
+
+const _sessionStatusVariants = {
+  'planned': StatusPillVariant.neutral,
+  'scheduled': StatusPillVariant.success,
+  'in_progress': StatusPillVariant.warning,
+  'done': StatusPillVariant.success,
+  'cancelled': StatusPillVariant.neutral,
+};
+
+/// Style du pill pour un statut de SÉANCE — voir [treatmentPlanStatusStyle].
+(String label, StatusPillVariant variant) treatmentSessionStatusStyle(
+  String status,
+) {
+  return (
+    _sessionStatusLabels[status] ?? status,
+    _sessionStatusVariants[status] ?? StatusPillVariant.info,
+  );
+}

@@ -25,6 +25,14 @@ class _MockGetActs extends Mock implements GetActsUseCase {}
 
 class _MockFavoriteActs extends Mock implements FavoriteActsUseCase {}
 
+class _MockProposeSessions extends Mock
+    implements ProposeTreatmentSessionsUseCase {}
+
+class _MockProposeSlots extends Mock implements ProposeSessionSlotsUseCase {}
+
+class _MockScheduleSession extends Mock
+    implements ScheduleTreatmentSessionUseCase {}
+
 const _emptyPlans = <TreatmentPlan>[];
 
 final _patient = CabinetPatient(
@@ -133,6 +141,9 @@ void main() {
   late _MockGetPatient getPatient;
   late _MockGetActs getActs;
   late _MockFavoriteActs favoriteActs;
+  late _MockProposeSessions proposeSessions;
+  late _MockProposeSlots proposeSlots;
+  late _MockScheduleSession scheduleSession;
 
   setUp(() {
     listPlans = _MockListPlans();
@@ -141,6 +152,9 @@ void main() {
     getPatient = _MockGetPatient();
     getActs = _MockGetActs();
     favoriteActs = _MockFavoriteActs();
+    proposeSessions = _MockProposeSessions();
+    proposeSlots = _MockProposeSlots();
+    scheduleSession = _MockScheduleSession();
     GetIt.instance.registerFactory<ListTreatmentPlansUseCase>(() => listPlans);
     GetIt.instance
         .registerFactory<CreateTreatmentPlanUseCase>(() => createPlan);
@@ -149,6 +163,12 @@ void main() {
     GetIt.instance.registerFactory<GetCabinetPatientUseCase>(() => getPatient);
     GetIt.instance.registerFactory<GetActsUseCase>(() => getActs);
     GetIt.instance.registerFactory<FavoriteActsUseCase>(() => favoriteActs);
+    GetIt.instance.registerFactory<ProposeTreatmentSessionsUseCase>(
+        () => proposeSessions);
+    GetIt.instance
+        .registerFactory<ProposeSessionSlotsUseCase>(() => proposeSlots);
+    GetIt.instance
+        .registerFactory<ScheduleTreatmentSessionUseCase>(() => scheduleSession);
     when(() => getPatient('pat-1')).thenAnswer((_) async => Right(_patient));
     when(() => favoriteActs.list()).thenAnswer((_) async => const []);
     addTearDown(GetIt.instance.reset);

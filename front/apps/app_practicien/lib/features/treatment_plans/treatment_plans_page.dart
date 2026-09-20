@@ -12,6 +12,7 @@ import '../../router/app_router.dart';
 import '../consultation_clinique/ccam_picker.dart';
 import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
+import 'treatment_sessions_cubit.dart';
 import 'treatment_status_style.dart';
 import 'widgets/coverage_column.dart';
 import 'widgets/patient_header_bar.dart';
@@ -20,6 +21,7 @@ import 'widgets/phase_quote_banner.dart';
 import 'widgets/phase_timeline.dart';
 import 'widgets/plan_footer.dart';
 import 'widgets/plan_kpi_row.dart';
+import 'widgets/plan_sessions_section.dart';
 
 class TreatmentPlansPage extends StatelessWidget {
   const TreatmentPlansPage({super.key, required this.patientId});
@@ -693,6 +695,23 @@ class _PlanCardState extends State<_PlanCard> {
                 onTap:
                     busy ? null : () => setState(() => _composingPhase = true),
               ),
+            const SizedBox(height: 16),
+            // Séances du plan (#7172, DP-F16.c) — cubit scopé au plan
+            // affiché (`ValueKey` : recrée le cubit à chaque changement de
+            // plan sélectionné, `_PlanCardState` persiste sinon d'un plan à
+            // l'autre, cf. `_PlansSplitViewState`).
+            BlocProvider<TreatmentSessionsCubit>(
+              key: ValueKey('plan_sessions_${plan.id}'),
+              create: (_) => TreatmentSessionsCubit(
+                planId: plan.id,
+                proposeSessions:
+                    GetIt.instance<ProposeTreatmentSessionsUseCase>(),
+                proposeSlots: GetIt.instance<ProposeSessionSlotsUseCase>(),
+                scheduleSession:
+                    GetIt.instance<ScheduleTreatmentSessionUseCase>(),
+              ),
+              child: PlanSessionsSection(planId: plan.id),
+            ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.only(top: 12),
