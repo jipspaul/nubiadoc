@@ -74,6 +74,14 @@ void registerPro(GetIt gi) {
     () => CabinetInfoCubit(updateCabinet: gi<UpdateCabinetUseCase>()),
   );
 
+  gi.registerFactory<GetActCategoriesUseCase>(
+    () => GetActCategoriesUseCase(gi<CabinetActCategoriesRepository>()),
+  );
+
+  gi.registerFactory<UpdateActCategoriesUseCase>(
+    () => UpdateActCategoriesUseCase(gi<CabinetActCategoriesRepository>()),
+  );
+
   gi.registerFactory<ActCategoriesCubit>(
     () => ActCategoriesCubit(
       get: gi<GetActCategoriesUseCase>(),
