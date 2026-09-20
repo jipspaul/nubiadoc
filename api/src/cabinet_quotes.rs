@@ -16,6 +16,7 @@ use crate::{
     auth::{AppError, ProPractitionerClaims},
     notify,
     patient_guardianship::aggregate_guardianship,
+    quote_events::record_quote_event,
     AppState, JobDispatcher,
 };
 
@@ -916,6 +917,18 @@ pub async fn send_cabinet_quote(
     .map_err(|_| AppError::Internal)?;
 
     let status: String = updated.try_get("status").map_err(|_| AppError::Internal)?;
+
+    // Journal du devis (#7176) : événement 'sent', émis par le cabinet.
+    record_quote_event(
+        &mut tx,
+        id,
+        claims.cabinet_id,
+        "sent",
+        "cabinet",
+        Some(claims.sub),
+        serde_json::json!({}),
+    )
+    .await?;
 
     // Notifie le patient (#6262). Titre sans montant (anti-PII). Patient sans
     // compte app (walk-in) : notification silencieusement absente, même choix

@@ -416,6 +416,20 @@ pub async fn get_quote(
         document_id = Some(generated_id);
     }
 
+    // Journal du devis (#7176) : événement 'viewed', une entrée par lecture
+    // (pas de déduplication — la timeline reflète chaque ouverture réelle
+    // de l'app patient sur ce devis).
+    crate::quote_events::record_quote_event(
+        &mut tx,
+        id,
+        cabinet_id,
+        "viewed",
+        "patient",
+        Some(claims.account_id),
+        serde_json::json!({}),
+    )
+    .await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let mut items = Vec::with_capacity(item_rows.len());
@@ -693,6 +707,18 @@ pub async fn sign_quote(
     let signed_at: chrono::DateTime<chrono::Utc> = update_row
         .try_get("signed_at")
         .map_err(|_| AppError::Internal)?;
+
+    // Journal du devis (#7176) : événement 'signed', émis par le patient.
+    crate::quote_events::record_quote_event(
+        &mut tx,
+        id,
+        cabinet_id,
+        "signed",
+        "patient",
+        Some(claims.account_id),
+        serde_json::json!({}),
+    )
+    .await?;
 
     // Notifie le cabinet (#6262). Titre sans montant (anti-PII).
     let push_targets = notify::notify_cabinet_staff(

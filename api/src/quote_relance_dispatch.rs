@@ -23,7 +23,7 @@
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use crate::{auth::AppError, notify};
+use crate::{auth::AppError, notify, quote_events::record_quote_event};
 
 /// Résumé d'une passe de dispatch (logs/tests).
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -94,6 +94,19 @@ async fn maybe_send_milestone(
     let did_insert = inserted.is_some();
 
     if did_insert {
+        // Journal du devis (#7176) : événement 'reminded', émis par le
+        // système (worker périodique, pas d'acteur humain).
+        record_quote_event(
+            &mut tx,
+            quote_id,
+            cabinet_id,
+            "reminded",
+            "system",
+            None,
+            serde_json::json!({ "milestone": milestone }),
+        )
+        .await?;
+
         if let Some(account_id) = patient_account_id {
             notify::notify_patient_account(
                 &mut tx,
