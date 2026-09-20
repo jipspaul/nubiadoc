@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
-/// Bloc « Suivi » du volet détail devis (#5090) : timeline chronologique
-/// répondant à « où en est ce devis ? ».
+import '../quote_events_cubit.dart';
+
+/// Bloc « Suivi » du volet détail devis (#5090, complété #7467) : timeline
+/// chronologique répondant à « où en est ce devis ? ».
 ///
-/// `CabinetQuote` ne porte pas (encore) d'horodatage « envoyé au patient »
-/// ni « consulté par le patient » (pas de timeline d'événements côté
-/// domaine/API) : ces étapes sont omises plutôt que d'afficher un
-/// horodatage inventé (cf. issue #5090, note 6). Seules les étapes dont la
-/// donnée existe sont rendues, à la lettre de la maquette : « Devis créé »
-/// (toujours) et « Signature attendue » (devis envoyé, en attente de
-/// signature, avec `expiresAt`) — la maquette ne définit pas d'étape pour
-/// un devis déjà signé/payé/expiré, donc aucune n'est inventée ici.
-class QuoteTimeline extends StatelessWidget {
+/// « Devis créé » vient toujours de `CabinetQuote.createdAt`. « Envoyé au
+/// patient », « Consulté par le patient » et « Signé » viennent du journal
+/// `quote_event` (`GET /v1/cabinet/quotes/:id/events`, #7176/#7467) exposé
+/// par [QuoteEventsCubit] — tant que le chargement n'a pas abouti, ces
+/// étapes sont simplement omises plutôt que d'afficher un horodatage
+/// inventé (cf. issue #5090, note 6). « Signature attendue » reste dérivée
+/// de `CabinetQuoteStatus.sent` + `expiresAt`, et s'efface dès qu'un
+/// événement `signed` existe.
+///
+/// Doit être placée dans un `BlocProvider<QuoteEventsCubit>`.
+class QuoteTimeline extends StatefulWidget {
   const QuoteTimeline({super.key, required this.quote, this.now});
 
   final CabinetQuote quote;
@@ -22,23 +27,79 @@ class QuoteTimeline extends StatelessWidget {
   /// tests pour un rendu déterministe, `DateTime.now()` sinon.
   final DateTime? now;
 
-  List<_TimelineStep> _steps() {
+  @override
+  State<QuoteTimeline> createState() => _QuoteTimelineState();
+}
+
+class _QuoteTimelineState extends State<QuoteTimeline> {
+  @override
+  void initState() {
+    super.initState();
+    context.read<QuoteEventsCubit>().load(widget.quote.id);
+  }
+
+  QuoteEvent? _firstOfKind(List<QuoteEvent> events, QuoteEventKind kind) {
+    for (final event in events) {
+      if (event.kind == kind) return event;
+    }
+    return null;
+  }
+
+  List<_TimelineStep> _steps(List<QuoteEvent> events) {
     final steps = <_TimelineStep>[
       _TimelineStep(
         id: 'created',
         label: 'Devis créé',
-        subtitle: _formatDateTime(quote.createdAt),
+        subtitle: _formatDateTime(widget.quote.createdAt),
         done: true,
       ),
     ];
 
-    final expiresAt = quote.expiresAt;
-    if (quote.status == CabinetQuoteStatus.sent && expiresAt != null) {
+    final sent = _firstOfKind(events, QuoteEventKind.sent);
+    if (sent != null) {
+      steps.add(
+        _TimelineStep(
+          id: 'sent',
+          label: 'Envoyé au patient',
+          subtitle: _formatDateTime(sent.at),
+          done: true,
+        ),
+      );
+    }
+
+    final viewed = _firstOfKind(events, QuoteEventKind.viewed);
+    if (viewed != null) {
+      steps.add(
+        _TimelineStep(
+          id: 'viewed',
+          label: 'Consulté par le patient',
+          subtitle: _formatDateTime(viewed.at),
+          done: true,
+        ),
+      );
+    }
+
+    final signed = _firstOfKind(events, QuoteEventKind.signed);
+    if (signed != null) {
+      steps.add(
+        _TimelineStep(
+          id: 'signed',
+          label: 'Signé',
+          subtitle: _formatDateTime(signed.at),
+          done: true,
+        ),
+      );
+    }
+
+    final expiresAt = widget.quote.expiresAt;
+    if (signed == null &&
+        widget.quote.status == CabinetQuoteStatus.sent &&
+        expiresAt != null) {
       steps.add(
         _TimelineStep(
           id: 'pending_signature',
           label: 'Signature attendue',
-          subtitle: _formatExpiry(expiresAt, now ?? DateTime.now()),
+          subtitle: _formatExpiry(expiresAt, widget.now ?? DateTime.now()),
           done: false,
         ),
       );
@@ -49,7 +110,11 @@ class QuoteTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = _steps();
+    final eventsState = context.watch<QuoteEventsCubit>().state;
+    final events = eventsState is QuoteEventsLoaded
+        ? eventsState.events
+        : const <QuoteEvent>[];
+    final steps = _steps(events);
     if (steps.isEmpty) return const SizedBox.shrink();
 
     return NubiaCard(

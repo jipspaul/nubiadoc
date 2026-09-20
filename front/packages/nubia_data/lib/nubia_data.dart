@@ -138,3 +138,7 @@ export 'src/repositories/waiting_room_repository_impl.dart';
 export 'src/repositories/cached_appointments_repository_impl.dart';
 export 'src/repositories/search_repository_impl.dart';
 export 'src/repositories/user_settings_repository_impl.dart';
+// timeline « Suivi » du devis côté cabinet (#7467)
+export 'src/remote/quote_events/quote_events_api.dart';
+export 'src/remote/quote_events/quote_events_dto.dart';
+export 'src/repositories/quote_events_repository_impl.dart';
