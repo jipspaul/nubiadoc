@@ -2,7 +2,7 @@
 //! liée (#7173, DP-F16.b — dépend des tables posées par #7174, migration
 //! `0288_create_treatment_session.sql`).
 //!
-//! Trois handlers :
+//! Cinq handlers :
 //! - `POST /v1/cabinet/treatment-plans/:id/sessions/propose` — répartit les
 //!   actes du plan (non encore affectés à une séance) en `treatment_session`
 //!   selon les règles du cabinet (`cabinet_session_rules`). Algorithme pur,
@@ -12,6 +12,12 @@
 //!   que `scheduling::create_cabinet_appointment`).
 //! - `POST /v1/cabinet/treatment-plans/:id/sessions/:sessionId/schedule` —
 //!   réserve un créneau proposé et crée le RDV, lié à la séance.
+//! - `GET/PUT /v1/cabinet/settings/session-rules` (#7479) — lecture/réglage
+//!   de `cabinet_session_rules`, jusqu'ici sans route : aucun cabinet ne
+//!   pouvait s'écarter des défauts (`SessionRules::default()`), qui ne
+//!   déclenchent jamais de découpage (`max_duration_min: None`,
+//!   `separate_arches: false`, `multi_endo: true`). Même pattern que
+//!   `cabinet_act_categories.rs` (réglage cabinet, `ProAdminOrManagerClaims`).
 //!
 //! Même garde §14 (relation de soin) et même extraction `cabinet_id` depuis
 //! le JWT que `treatment_phases.rs`/`treatment_plans.rs`.
@@ -28,7 +34,7 @@ use uuid::Uuid;
 
 use crate::{
     appointments_response::is_exclusion_violation,
-    auth::{AppError, ProPractitionerClaims},
+    auth::{AppError, ProAdminOrManagerClaims, ProPractitionerClaims},
     AppState,
 };
 
@@ -421,6 +427,116 @@ async fn fetch_session_rules(
             .map_err(|_| AppError::Internal)?,
         multi_endo: row.try_get("multi_endo").map_err(|_| AppError::Internal)?,
     })
+}
+
+// ── GET/PUT /v1/cabinet/settings/session-rules ────────────────────────────────
+
+#[derive(Serialize)]
+pub struct SessionRulesResponse {
+    pub max_duration_min: Option<i32>,
+    pub separate_arches: bool,
+    pub group_by_sector: bool,
+    pub multi_endo: bool,
+}
+
+impl From<SessionRules> for SessionRulesResponse {
+    fn from(rules: SessionRules) -> Self {
+        Self {
+            max_duration_min: rules.max_duration_min,
+            separate_arches: rules.separate_arches,
+            group_by_sector: rules.group_by_sector,
+            multi_endo: rules.multi_endo,
+        }
+    }
+}
+
+/// `GET /v1/cabinet/settings/session-rules` — réglage courant du cabinet
+/// (défauts `SessionRules::default()` si le cabinet n'a jamais réglé).
+pub async fn get_session_rules(
+    State(state): State<AppState>,
+    claims: ProAdminOrManagerClaims,
+) -> Result<Json<SessionRulesResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rules = fetch_session_rules(&mut tx, claims.cabinet_id).await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok(Json(rules.into()))
+}
+
+/// Corps de `PUT /v1/cabinet/settings/session-rules` — remplacement complet
+/// (pas de patch partiel : les 4 règles se combinent, un réglage incomplet
+/// n'a pas de sens métier).
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateSessionRulesBody {
+    pub max_duration_min: Option<i32>,
+    #[serde(default)]
+    pub separate_arches: bool,
+    #[serde(default)]
+    pub group_by_sector: bool,
+    #[serde(default)]
+    pub multi_endo: bool,
+}
+
+/// `PUT /v1/cabinet/settings/session-rules` — upsert de la ligne unique du
+/// cabinet dans `cabinet_session_rules`. `422` si `max_duration_min` fourni
+/// est `<= 0` (même contrainte que le `CHECK` de la migration 0288).
+pub async fn update_session_rules(
+    State(state): State<AppState>,
+    claims: ProAdminOrManagerClaims,
+    Json(body): Json<UpdateSessionRulesBody>,
+) -> Result<Json<SessionRulesResponse>, AppError> {
+    if matches!(body.max_duration_min, Some(d) if d <= 0) {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO cabinet_session_rules \
+             (cabinet_id, max_duration_min, separate_arches, group_by_sector, multi_endo) \
+         VALUES ($1, $2, $3, $4, $5) \
+         ON CONFLICT (cabinet_id) \
+         DO UPDATE SET max_duration_min = EXCLUDED.max_duration_min, \
+                        separate_arches = EXCLUDED.separate_arches, \
+                        group_by_sector = EXCLUDED.group_by_sector, \
+                        multi_endo = EXCLUDED.multi_endo, \
+                        updated_at = now()",
+    )
+    .bind(claims.cabinet_id)
+    .bind(body.max_duration_min)
+    .bind(body.separate_arches)
+    .bind(body.group_by_sector)
+    .bind(body.multi_endo)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let rules = fetch_session_rules(&mut tx, claims.cabinet_id).await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        "cabinet session-rules setting updated"
+    );
+
+    Ok(Json(rules.into()))
 }
 
 // ── POST /v1/cabinet/treatment-plans/:id/sessions/propose ────────────────────
