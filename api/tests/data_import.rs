@@ -580,8 +580,13 @@ async fn import_allows_secretary_plus_rejects_non_pro_and_unparsable_file() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(job["status"], "pending");
 
-    let (status, job) =
-        upload(app_pool().await, &practitioner, "csv_patients", PATIENTS_CSV).await;
+    let (status, job) = upload(
+        app_pool().await,
+        &practitioner,
+        "csv_patients",
+        PATIENTS_CSV,
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(job["status"], "pending");
 
