@@ -145,7 +145,7 @@ pub(crate) async fn validate_quote_items_ccam_codes(
     for code in items.iter().filter_map(|i| i.ccam_code.as_deref()) {
         let code_exists = sqlx::query("SELECT 1 FROM ccam_act WHERE code = $1")
             .bind(code)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await
             .map_err(|_| AppError::Internal)?;
         if code_exists.is_none() {
