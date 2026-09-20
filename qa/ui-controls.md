@@ -3189,3 +3189,20 @@ qui impose `onPressed: null` + `Tooltip` porteur du motif. Captures `praticien/l
 
 **6 contrôles désactivés, tous justifiés par le code** : « Exporter (CSV) » (`payouts.isEmpty`),
 « Connecter Stripe » (`Tooltip` + #6702), « Appeler suivant » (file vide, `{"data":[]}`).
+
+> **6ᵉ correctif de harnais (R87)** — clôt la limite n°5 laissée ouverte par R83 (« les bandeaux à
+> défilement horizontal sortent du cadre latéralement ; `bringIntoView` ne défile que verticalement ») :
+> le défilement horizontal d'une bande de puces se pilote avec **`page.mouse.wheel(dx, 0)`**. Prouvé sur
+> `pharmacie /devis` à 390 px — `Acceptés (91)` passe de x=386 (hors cadre) à x=56, `Refusés / expirés (21)`
+> de x=525 à x=195. Ces puces ne sont donc **pas** inatteignables, contrairement à ce que laissait croire
+> le verdict « HORS_CHAMP ».
+>
+> **7ᵉ** — un écran encore sur son **squelette de chargement** au moment de l'inventaire rend « 1 contrôle »
+> et un ratio near-white très élevé, indiscernable d'un écran mort. Prouvé sur `patient /documents` à
+> 1280 px (1 contrôle à 2,8 s ; **27 contrôles** une fois chargé). Il faut **boucler sur le nombre de
+> contrôles** jusqu'à stabilisation avant de conclure quoi que ce soit.
+>
+> **8ᵉ** — avant tout test de **cloisonnement**, décoder le JWT et vérifier `kind`/`pharmacy_id`/`nurse_id` :
+> un `select-*-context` sur un login en **429** rend un jeton **vide**, et toutes les routes répondent alors
+> 401/403… ce qui ressemble trait pour trait à un cloisonnement qui fonctionne. Un 403 obtenu avec un jeton
+> vide ne prouve **rien**.
