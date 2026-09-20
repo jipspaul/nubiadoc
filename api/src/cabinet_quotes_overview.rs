@@ -159,7 +159,9 @@ pub async fn get_cabinet_quotes_overview(
     for row in &status_rows {
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
         let count: i64 = row.try_get("count").map_err(|_| AppError::Internal)?;
-        let amount_cents: i64 = row.try_get("amount_cents").map_err(|_| AppError::Internal)?;
+        let amount_cents: i64 = row
+            .try_get("amount_cents")
+            .map_err(|_| AppError::Internal)?;
         if let Some(entry) = by_status.iter_mut().find(|s| s.status == status) {
             entry.count = count;
             entry.amount_cents = amount_cents;
@@ -172,8 +174,8 @@ pub async fn get_cabinet_quotes_overview(
            COUNT(*) FILTER (WHERE status = 'signed')::bigint AS signed_count, \
            COUNT(*) FILTER (WHERE status IN ('sent', 'signed', 'refused', 'expired'))::bigint \
              AS sent_total, \
-           AVG(EXTRACT(EPOCH FROM (signed_at - sent_at)) / 3600.0) \
-             FILTER (WHERE status = 'signed' AND signed_at IS NOT NULL AND sent_at IS NOT NULL) \
+           (AVG(EXTRACT(EPOCH FROM (signed_at - sent_at)) / 3600.0) \
+             FILTER (WHERE status = 'signed' AND signed_at IS NOT NULL AND sent_at IS NOT NULL))::float8 \
              AS avg_hours \
          FROM quote \
          WHERE cabinet_id = $1 AND deleted_at IS NULL \
@@ -212,8 +214,8 @@ pub async fn get_cabinet_quotes_overview(
                 COUNT(*) FILTER (WHERE q.status = 'signed')::bigint AS signed_count, \
                 COUNT(*) FILTER (WHERE q.status IN ('sent', 'signed', 'refused', 'expired'))::bigint \
                   AS sent_total, \
-                AVG(EXTRACT(EPOCH FROM (q.signed_at - q.sent_at)) / 3600.0) \
-                  FILTER (WHERE q.status = 'signed' AND q.signed_at IS NOT NULL AND q.sent_at IS NOT NULL) \
+                (AVG(EXTRACT(EPOCH FROM (q.signed_at - q.sent_at)) / 3600.0) \
+                  FILTER (WHERE q.status = 'signed' AND q.signed_at IS NOT NULL AND q.sent_at IS NOT NULL))::float8 \
                   AS avg_hours \
          FROM quote q \
          WHERE q.cabinet_id = $1 AND q.deleted_at IS NULL AND q.practitioner_id IS NOT NULL \
@@ -241,8 +243,12 @@ pub async fn get_cabinet_quotes_overview(
             .try_get("practitioner_name")
             .map_err(|_| AppError::Internal)?;
         let count: i64 = row.try_get("count").map_err(|_| AppError::Internal)?;
-        let amount_cents: i64 = row.try_get("amount_cents").map_err(|_| AppError::Internal)?;
-        let p_signed_count: i64 = row.try_get("signed_count").map_err(|_| AppError::Internal)?;
+        let amount_cents: i64 = row
+            .try_get("amount_cents")
+            .map_err(|_| AppError::Internal)?;
+        let p_signed_count: i64 = row
+            .try_get("signed_count")
+            .map_err(|_| AppError::Internal)?;
         let p_sent_total: i64 = row.try_get("sent_total").map_err(|_| AppError::Internal)?;
         let p_avg_hours: Option<f64> = row.try_get("avg_hours").map_err(|_| AppError::Internal)?;
 

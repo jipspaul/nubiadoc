@@ -302,10 +302,7 @@ async fn quote_timeline_records_every_milestone_in_order() {
 
     // Timeline patient-lisible : les 4 jalons, dans l'ordre chronologique.
     let events = get_events(state_with(app_pool().await), f.quote_id, &patient_token).await;
-    let kinds: Vec<&str> = events
-        .iter()
-        .map(|e| e["kind"].as_str().unwrap())
-        .collect();
+    let kinds: Vec<&str> = events.iter().map(|e| e["kind"].as_str().unwrap()).collect();
     assert_eq!(kinds, vec!["sent", "viewed", "reminded", "signed"]);
 
     assert_eq!(events[0]["actor_kind"], "cabinet");
