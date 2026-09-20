@@ -11,6 +11,7 @@ import '../remote/auth/auth_api.dart';
 import '../remote/billing/billing_api.dart';
 import '../remote/cabinet_correspondents/cabinet_correspondents_api.dart';
 import '../remote/cabinet_info/cabinet_info_api.dart';
+import '../remote/cabinet_info/cabinet_act_categories_api.dart';
 import '../remote/medical_record/medical_record_api.dart';
 import '../remote/cabinet_agenda/cabinet_agenda_api.dart';
 import '../remote/cabinet_appointments/cabinet_appointments_api.dart';
@@ -76,6 +77,7 @@ import '../repositories/appointment_repository_impl.dart';
 import '../repositories/auth_repository_impl.dart';
 import '../repositories/billing_repository_impl.dart';
 import '../repositories/cabinet_repository_impl.dart';
+import '../repositories/cabinet_act_categories_repository_impl.dart';
 import '../repositories/medical_record_repository_impl.dart';
 import '../repositories/cabinet_agenda_repository_impl.dart';
 import '../repositories/cabinet_appointments_repository_impl.dart';
@@ -575,6 +577,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetInfoApi>(
       () => CabinetInfoApi(gi()),
     )
+    ..registerLazySingleton<CabinetActCategoriesApi>(
+      () => CabinetActCategoriesApi(gi()),
+    )
     ..registerLazySingleton<MedicalRecordApi>(
       () => MedicalRecordApi(gi()),
     )
@@ -689,6 +694,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     // Repositories
     ..registerLazySingleton<CabinetRepository>(
       () => CabinetRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<CabinetActCategoriesRepository>(
+      () => CabinetActCategoriesRepositoryImpl(gi()),
     )
     ..registerLazySingleton<MedicalRecordRepository>(
       () => MedicalRecordRepositoryImpl(gi()),

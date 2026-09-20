@@ -377,6 +377,11 @@ export 'src/usecases/cabinet_messaging/convert_conversation_to_appointment_use_c
 // cabinet info pro
 export 'src/repositories/cabinet_repository.dart';
 export 'src/usecases/cabinet_info/update_cabinet_use_case.dart';
+// cabinet act-categories pro (#7185/#7186)
+export 'src/entities/act_category_setting.dart';
+export 'src/repositories/cabinet_act_categories_repository.dart';
+export 'src/usecases/cabinet_act_categories/get_act_categories_use_case.dart';
+export 'src/usecases/cabinet_act_categories/update_act_categories_use_case.dart';
 // medical record pro (#4076)
 export 'src/entities/medical_record_summary.dart';
 export 'src/repositories/medical_record_repository.dart';
