@@ -445,7 +445,8 @@ pub async fn list_pharmacy_stock_requests(
     Ok(Json(StockRequestsResponse { data }))
 }
 
-/// Body optionnel de `POST /v1/pharmacy/stock-requests/{id}/accept|reject`.
+/// Body de `POST /v1/pharmacy/stock-requests/{id}/accept|reject`
+/// (optionnel pour `accept`, `note` obligatoire pour `reject`).
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct RespondStockBody {
@@ -518,16 +519,27 @@ pub async fn accept_stock_request(
     Ok(Json(request))
 }
 
-/// `POST /v1/pharmacy/stock-requests/{id}/reject` — sent → rejected (note optionnelle).
+/// `POST /v1/pharmacy/stock-requests/{id}/reject` — sent → rejected.
+/// Motif obligatoire → 422 si absent/vide (même règle que `reject_pharmacy_order`).
 pub async fn reject_stock_request(
     State(state): State<AppState>,
     claims: PharmaMemberClaims,
     Path(id): Path<Uuid>,
-    body: Option<Json<RespondStockBody>>,
+    Json(body): Json<RespondStockBody>,
 ) -> Result<Json<StockRequestDto>, AppError> {
-    let note = body.as_ref().and_then(|b| b.note.as_deref());
-    let request =
-        stock_response(&state, claims.pharmacy_id, id, &["sent"], "rejected", note).await?;
+    let note = body.note.as_deref().unwrap_or("").trim();
+    if note.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    let request = stock_response(
+        &state,
+        claims.pharmacy_id,
+        id,
+        &["sent"],
+        "rejected",
+        Some(note),
+    )
+    .await?;
     Ok(Json(request))
 }
 
