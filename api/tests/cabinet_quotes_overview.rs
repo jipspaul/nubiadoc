@@ -71,6 +71,23 @@ async fn insert_fixtures(db: &PgPool) -> Fixtures {
     let prac_b_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
 
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_a_user_id)
+    .bind(format!("overview-prac-a+{prac_a_user_id}@nubia.test"))
+    .execute(db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_b_user_id)
+    .bind(format!("overview-prac-b+{prac_b_user_id}@nubia.test"))
+    .execute(db)
+    .await
+    .unwrap();
+
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())

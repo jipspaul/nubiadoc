@@ -174,8 +174,8 @@ pub async fn get_cabinet_quotes_overview(
            COUNT(*) FILTER (WHERE status = 'signed')::bigint AS signed_count, \
            COUNT(*) FILTER (WHERE status IN ('sent', 'signed', 'refused', 'expired'))::bigint \
              AS sent_total, \
-           AVG(EXTRACT(EPOCH FROM (signed_at - sent_at)) / 3600.0) \
-             FILTER (WHERE status = 'signed' AND signed_at IS NOT NULL AND sent_at IS NOT NULL) \
+           (AVG(EXTRACT(EPOCH FROM (signed_at - sent_at)) / 3600.0) \
+             FILTER (WHERE status = 'signed' AND signed_at IS NOT NULL AND sent_at IS NOT NULL))::float8 \
              AS avg_hours \
          FROM quote \
          WHERE cabinet_id = $1 AND deleted_at IS NULL \
@@ -214,8 +214,8 @@ pub async fn get_cabinet_quotes_overview(
                 COUNT(*) FILTER (WHERE q.status = 'signed')::bigint AS signed_count, \
                 COUNT(*) FILTER (WHERE q.status IN ('sent', 'signed', 'refused', 'expired'))::bigint \
                   AS sent_total, \
-                AVG(EXTRACT(EPOCH FROM (q.signed_at - q.sent_at)) / 3600.0) \
-                  FILTER (WHERE q.status = 'signed' AND q.signed_at IS NOT NULL AND q.sent_at IS NOT NULL) \
+                (AVG(EXTRACT(EPOCH FROM (q.signed_at - q.sent_at)) / 3600.0) \
+                  FILTER (WHERE q.status = 'signed' AND q.signed_at IS NOT NULL AND q.sent_at IS NOT NULL))::float8 \
                   AS avg_hours \
          FROM quote q \
          WHERE q.cabinet_id = $1 AND q.deleted_at IS NULL AND q.practitioner_id IS NOT NULL \
