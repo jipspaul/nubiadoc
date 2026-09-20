@@ -2157,6 +2157,25 @@ async fn cancel_cabinet_appointment_tx(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Cul-de-sac #7482 : une séance de plan de traitement (treatment_session,
+    // #7173) pointée sur ce RDV via appointment_id reste sinon bloquée en
+    // `scheduled` pour toujours (schedule_treatment_session refuse tout
+    // nouveau schedule tant que le statut n'est pas `planned`). Une vraie
+    // annulation la rend donc replanifiable ; un no_show n'y touche pas (le
+    // RDV a eu lieu au sens créneau, seul le patient ne s'est pas présenté).
+    if new_status == "cancelled" {
+        sqlx::query(
+            "UPDATE treatment_session \
+             SET status = 'planned', appointment_id = NULL, updated_at = now() \
+             WHERE appointment_id = $1 AND cabinet_id = $2",
+        )
+        .bind(id)
+        .bind(claims.cabinet_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
     // Best-effort : cf. commentaire de `no_show_appointment` (#5698,
     // symétrique de cancel_appointment #5392/#5393).
     if let Some(sid) = slot_id {
