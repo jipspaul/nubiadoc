@@ -5,10 +5,10 @@ use axum::{routing::get, Router};
 use crate::{
     bank_deposit_slip, billing, billing_payments, cabinet_cash_collection, cabinet_cash_register,
     cabinet_correspondents, cabinet_opportunities, cabinet_payments_manual, cabinet_payouts,
-    cabinet_quote_item_parts, cabinet_quotes, cabinet_quotes_export, cabinet_quotes_patch,
-    cabinet_stats, dashboard, invoice_reminder, payment_schedules, practitioner_kpis,
-    quote_attachments, quote_attestation, quote_relances, quote_signature, treatment_plans,
-    AppState,
+    cabinet_quote_item_parts, cabinet_quotes, cabinet_quotes_export, cabinet_quotes_overview,
+    cabinet_quotes_patch, cabinet_stats, dashboard, invoice_reminder, payment_schedules,
+    practitioner_kpis, quote_attachments, quote_attestation, quote_events, quote_relances,
+    quote_signature, treatment_plans, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -54,6 +54,14 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/quotes/export.csv",
             get(cabinet_quotes_export::export_cabinet_quotes_csv),
+        )
+        .route(
+            "/v1/cabinet/quotes/overview",
+            get(cabinet_quotes_overview::get_cabinet_quotes_overview),
+        )
+        .route(
+            "/v1/quotes/:id/events",
+            get(quote_events::list_patient_quote_events),
         )
         .route(
             "/v1/cabinet/stats/activity",

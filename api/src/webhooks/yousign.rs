@@ -152,6 +152,22 @@ pub async fn yousign_webhook(
     // (anti-PII), même politique que `billing::sign_quote`.
     let mut push_targets: Vec<(Uuid, Uuid)> = Vec::new();
     if update_result.rows_affected() > 0 {
+        // Journal du devis (#7176) : événement 'signed'. Émis par le patient
+        // (c'est sa signature Yousign qui déclenche ce webhook) — `actor_id`
+        // absent : le webhook n'a aucun contexte JWT, donc aucun `account_id`
+        // à rattacher (cf. doc de module, `quote_find_by_id` ne remonte que
+        // `cabinet_id`).
+        crate::quote_events::record_quote_event(
+            &mut tx,
+            quote_id,
+            cabinet_id,
+            "signed",
+            "patient",
+            None,
+            serde_json::json!({ "provider": "yousign" }),
+        )
+        .await?;
+
         push_targets = crate::notify::notify_cabinet_staff(
             &mut tx,
             cabinet_id,

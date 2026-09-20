@@ -313,6 +313,7 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | POST | `/v1/quotes/{id}/attestation/sign` | patient | Signe l'attestation d'information (stub, même mécanique que `/sign`). |
 | POST | `/v1/quotes/{id}/signature` | patient | Démarre la signature eIDAS (Yousign). |
 | GET | `/v1/quotes/{id}/signature` | patient | Statut de signature. |
+| GET | `/v1/quotes/{id}/events` | patient | Journal du devis (#7176, DP-F15.b) : timeline `envoyé`/`consulté`/`relancé`/`signé`. |
 | GET | `/v1/invoices` | patient | Factures. |
 | GET | `/v1/payments` | patient | Historique des règlements. |
 | POST | `/v1/payments/intent` | patient | Crée un PaymentIntent (acompte/solde). |
@@ -329,6 +330,8 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 **Règle « double-submit » (signatures, #7012/#6794/#7015)** : la transition de statut est **sérialisée en base** (`SELECT … FOR UPDATE` dans la transaction) — N appels simultanés sur le même objet produisent **exactement une** signature et **un** document dans le coffre-fort, et chaque perdant reçoit **la réponse déterministe d'un second appel séquentiel**, jamais un 5xx : `200` idempotent (`signed_at` existant) pour `POST /v1/quotes/{id}/sign`, `409 invalid_status` pour `POST /v1/cabinet/prescriptions/{id}/sign` (§17).
 
 `POST /v1/payments/intent` — body : `{ quote_id, kind:"deposit"|"installment"|"full", amount_cents, method:"card"|"apple_pay"|"google_pay"|"sepa" }`. → `201 { payment_id, client_secret }` (Stripe ; SEPA via GoCardless). Confirmation finale par **webhook** ; statut `pending→paid|failed|refunded`. PCI délégué (`07` §6.1). Rejouable via la clé d'idempotence.
+
+**Journal du devis (`quote_event`, migration 0287, #7176/#7177, DP-F15.b)** : table append-only alimentée à chaque étape du cycle de vie — `sent` (`POST /v1/cabinet/quotes/{id}/send`, acteur `cabinet`), `viewed` (`GET /v1/quotes/{id}`, acteur `patient`, une entrée par lecture), `reminded` (relance J+3/J+7 automatique, acteur `system`), `signed` (`POST /v1/quotes/{id}/sign` ou webhook Yousign `signature.completed`, acteur `patient`). `refused` existe dans le schéma (CHECK `kind`) mais n'a aujourd'hui aucun point d'émission : aucune route ne fait transiter un devis vers `status = 'refused'`. `GET /v1/quotes/{id}/events` → `{ data: [{ kind, at, actor_kind }] }`, tri chronologique, devis `draft`/hors patient/inexistant → liste vide (jamais `404`, même contrat que `quote_patient_read`).
 
 ---
 
@@ -506,6 +509,7 @@ Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue →
 | POST | `/v1/cabinet/patients/{id}/orthodontics` | practitioner | Créer un traitement orthodontique. |
 | POST | `/v1/cabinet/orthodontics/{id}/steps` | practitioner | Ajouter une étape (`bague`/`contention`/`gouttiere`). |
 | GET | `/v1/cabinet/quotes` | pro | Suivi devis & paiements (`?status=`, `?overdue=true` #4130, relances). |
+| GET | `/v1/cabinet/quotes/overview` | pro (billing) | Vue « suivi devis » multi-praticiens : compteurs par statut, taux de signature, délai moyen (`?period=YYYY-MM&provider=` #7176, DP-F15.b). |
 | POST | `/v1/cabinet/quotes` | practitioner | Créer un devis (lignes CCAM, AMO/AMC, dent). |
 | PATCH | `/v1/cabinet/quotes/{id}` | practitioner | Éditer tant que **non signé** (versioning). |
 | POST | `/v1/cabinet/quotes/{id}/send` | practitioner | Envoyer au patient pour signature. |
@@ -518,6 +522,8 @@ Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue →
 | GET | `/v1/cabinet/opportunities` | secretary+ (secretary/practitioner/manager/admin) | Vue « opportunités du moment » du cabinet (widget dashboard Dental Pilot, `DP-F1.a` #7214). |
 
 `POST /v1/cabinet/quotes` — body : `{ patient_id, plan_id?, items:[{ label, ccam_code?, tooth?, qty, unit_amount_cents, amo_part_cents?, amc_part_cents? }], deposit_pct? }`. → `201`. **Reste à charge** = calculé (`unit_amount − amo − amc`). Un devis **signé** : `PATCH`/`send` → `409 quote_locked` (`06` E5.1).
+
+`GET /v1/cabinet/quotes/overview` (#7176, DP-F15.b) — `?period=YYYY-MM` (défaut mois courant, calendrier `Europe/Paris`) filtre sur `quote.created_at` ; `?provider=` isole un `practitioner_id`. → `{ period_month, by_status:[{status,count,amount_cents}] (5 valeurs de l'énum, toujours présentes), signature_rate?, avg_time_to_sign_hours?, by_practitioner:[{practitioner_id, practitioner_name?, count, amount_cents, signed_count, signature_rate?, avg_time_to_sign_hours?}] }`. `signature_rate` = `signed / (sent+signed+refused+expired)` (même formule que `conversion_rate` de `GET /v1/cabinet/stats/billing`, absent si dénominateur nul) ; `avg_time_to_sign_hours` = moyenne `signed_at − sent_at` sur les devis `signed` ayant les deux dates. `by_practitioner` exclut les devis sans `practitioner_id`, trié par `count` décroissant. `?period=` malformé → `422 validation_error`.
 
 `POST /v1/invoices/{id}/reminder` (#7206) — `:id` = devis **signé** ("facture" ; introuvable/non signé → `404`). Contient le solde restant dû (part patient nette moins les paiements enregistrés). Canaux effectivement délivrés retournés dans `channels` (`push` et/ou `email`) ; tracés dans `invoice_reminder` (date, canal, auteur). **Garde-fou** : une seule relance par 7 jours par facture → `409 invoice_reminder_cooldown` sinon.
 
