@@ -6,7 +6,7 @@ use axum::{routing::get, Router};
 use crate::{
     ccam_stock_mappings, consent_templates, cr_templates, lab_work_orders, medication_references,
     prescription_renew, prescription_send, prescription_templates, prescriptions, sterilization,
-    sterilization_labels, stock_items, AppState,
+    sterilization_labels, stock_import, stock_items, stock_locations, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -44,6 +44,30 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/ccam-stock-mappings/:id",
             axum::routing::delete(ccam_stock_mappings::delete_ccam_stock_mapping),
+        )
+        .route(
+            "/v1/cabinet/stock-locations",
+            get(stock_locations::list_stock_locations).post(stock_locations::create_stock_location),
+        )
+        .route(
+            "/v1/cabinet/stock-locations/:id",
+            axum::routing::delete(stock_locations::delete_stock_location),
+        )
+        .route(
+            "/v1/cabinet/stock-items/:id/locations",
+            get(stock_locations::list_item_locations),
+        )
+        .route(
+            "/v1/cabinet/stock-items/:id/locations/:location_id",
+            axum::routing::patch(stock_locations::set_item_location_threshold),
+        )
+        .route(
+            "/v1/cabinet/stock-items/:id/transfer",
+            axum::routing::post(stock_locations::transfer_stock),
+        )
+        .route(
+            "/v1/stock/import",
+            axum::routing::post(stock_import::import_stock_csv),
         )
         .route(
             "/v1/medication-references",
