@@ -423,3 +423,7 @@ export 'src/entities/cabinet_brief.dart';
 export 'src/repositories/cabinet_briefs_repository.dart';
 export 'src/usecases/cabinet_briefs/get_cabinet_brief_use_case.dart';
 export 'src/usecases/cabinet_briefs/get_cabinet_brief_pdf_use_case.dart';
+// timeline « Suivi » du devis côté cabinet (#7467)
+export 'src/entities/quote_event.dart';
+export 'src/repositories/quote_events_repository.dart';
+export 'src/usecases/quote_events/list_cabinet_quote_events_use_case.dart';

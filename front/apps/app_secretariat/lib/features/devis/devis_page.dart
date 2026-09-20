@@ -9,6 +9,7 @@ import 'devis_bloc.dart';
 import 'devis_event.dart';
 import 'devis_state.dart';
 import 'invoice_reminder_cubit.dart';
+import 'quote_events_cubit.dart';
 import 'widgets/devis_kpis.dart';
 import 'widgets/devis_status_facets.dart';
 import 'widgets/devis_table.dart';
@@ -655,8 +656,11 @@ class _DevisSheetBodyState extends State<_DevisSheetBody> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                // Bloc « Suivi » (#5090, #6589) : où en est ce devis ?
-                QuoteTimeline(quote: quote),
+                // Bloc « Suivi » (#5090, #6589, #7467) : où en est ce devis ?
+                BlocProvider<QuoteEventsCubit>(
+                  create: (_) => GetIt.instance<QuoteEventsCubit>(),
+                  child: QuoteTimeline(quote: quote),
+                ),
                 // Bouton « Relancer le patient » (#7205, #7368) : uniquement
                 // sur une facture échue (même définition que
                 // `?overdue=true` côté back, cf. `CabinetQuote.isOverdue`) —

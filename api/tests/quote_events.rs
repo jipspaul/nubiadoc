@@ -352,3 +352,98 @@ async fn draft_quote_events_are_hidden_from_patient() {
 
     cleanup_fixtures(&owner_db, &f).await;
 }
+
+// ── Timeline côté cabinet (#7467) ─────────────────────────────────────────
+
+async fn get_cabinet_events_response(
+    state: AppState,
+    quote_id: Uuid,
+    token: &str,
+) -> axum::response::Response {
+    app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/quotes/{quote_id}/events"))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+/// Secrétariat/praticien pouvaient lire le devis (#7463) mais pas son
+/// journal : `403 forbidden` sur `/v1/quotes/:id/events` (réservé au
+/// patient). `/v1/cabinet/quotes/:id/events` doit renvoyer la même timeline.
+#[tokio::test]
+async fn cabinet_can_read_its_own_quote_events() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let f = insert_fixtures(&owner_db).await;
+
+    let pro_token = make_pro_jwt(f.pro_user_id, f.cabinet_id, "secretary");
+
+    let response = app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/quotes/{}/send", f.quote_id))
+                .header("Authorization", format!("Bearer {pro_token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let response =
+        get_cabinet_events_response(state_with(app_pool().await), f.quote_id, &pro_token).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let events = v["data"].as_array().unwrap().clone();
+    let kinds: Vec<&str> = events.iter().map(|e| e["kind"].as_str().unwrap()).collect();
+    assert_eq!(kinds, vec!["sent"]);
+    assert_eq!(events[0]["actor_kind"], "cabinet");
+
+    cleanup_fixtures(&owner_db, &f).await;
+}
+
+/// Un token patient reste rejeté sur la route cabinet (`kind != "pro"`).
+#[tokio::test]
+async fn cabinet_quote_events_rejects_patient_token() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let f = insert_fixtures(&owner_db).await;
+    let patient_token = make_patient_jwt(f.patient_user_id, f.patient_account_id);
+
+    let response =
+        get_cabinet_events_response(state_with(app_pool().await), f.quote_id, &patient_token).await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    cleanup_fixtures(&owner_db, &f).await;
+}
+
+/// Devis inexistant (ou hors tenant) → `404`, pas de fuite d'information.
+#[tokio::test]
+async fn cabinet_quote_events_unknown_quote_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let f = insert_fixtures(&owner_db).await;
+    let pro_token = make_pro_jwt(f.pro_user_id, f.cabinet_id, "secretary");
+
+    let response =
+        get_cabinet_events_response(state_with(app_pool().await), Uuid::new_v4(), &pro_token).await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    cleanup_fixtures(&owner_db, &f).await;
+}

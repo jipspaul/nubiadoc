@@ -9,6 +9,7 @@ import 'devis_event.dart';
 import 'devis_page.dart' show mapQuoteStatus;
 import 'devis_state.dart';
 import 'invoice_reminder_cubit.dart';
+import 'quote_events_cubit.dart';
 import 'widgets/invoice_reminder_section.dart';
 import 'widgets/quote_timeline.dart';
 
@@ -238,10 +239,13 @@ class _DevisDetailBody extends StatelessWidget {
             child: InvoiceReminderSection(quote: quote),
           ),
         ],
-        // Bloc « Suivi » (#5090) : où en est ce devis ? Étapes dont la
-        // donnée existe uniquement (cf. commentaire de QuoteTimeline).
+        // Bloc « Suivi » (#5090, #7467) : où en est ce devis ? Étapes dont
+        // la donnée existe uniquement (cf. commentaire de QuoteTimeline).
         const SizedBox(height: 16),
-        QuoteTimeline(quote: quote),
+        BlocProvider<QuoteEventsCubit>(
+          create: (_) => GetIt.instance<QuoteEventsCubit>(),
+          child: QuoteTimeline(quote: quote),
+        ),
         if (hasDates) ...[
           const SizedBox(height: 16),
           NubiaCard(

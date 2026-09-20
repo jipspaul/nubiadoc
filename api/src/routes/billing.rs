@@ -63,6 +63,12 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/quotes/:id/events",
             get(quote_events::list_patient_quote_events),
         )
+        // Timeline côté cabinet (#7467) : même table/policy tenant, lecture
+        // secrétariat/praticien plutôt que patient uniquement.
+        .route(
+            "/v1/cabinet/quotes/:id/events",
+            get(quote_events::list_cabinet_quote_events),
+        )
         .route(
             "/v1/cabinet/stats/activity",
             get(cabinet_stats::get_cabinet_activity_stats),

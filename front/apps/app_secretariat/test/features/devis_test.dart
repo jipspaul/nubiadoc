@@ -14,6 +14,7 @@ import 'package:app_secretariat/features/devis/devis_event.dart';
 import 'package:app_secretariat/features/devis/devis_page.dart';
 import 'package:app_secretariat/features/devis/devis_state.dart';
 import 'package:app_secretariat/features/devis/invoice_reminder_cubit.dart';
+import 'package:app_secretariat/features/devis/quote_events_cubit.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_kpis.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_table.dart';
 import 'package:app_secretariat/features/devis/widgets/quote_timeline.dart';
@@ -30,6 +31,23 @@ class _MockInvoiceReminderRepository extends Mock
 
 class _MockDevisBloc extends MockBloc<DevisEvent, DevisState>
     implements DevisBloc {}
+
+class _MockQuoteEventsCubit extends MockCubit<QuoteEventsState>
+    implements QuoteEventsCubit {}
+
+/// `QuoteTimeline` (#7467) exige un `QuoteEventsCubit` dans son contexte —
+/// enregistré dans GetIt (même découpage que `InvoiceReminderCubit`).
+/// `events` vide par défaut : dégrade vers le comportement historique
+/// (seule « Devis créé »/« Signature attendue » dérivées de `CabinetQuote`).
+_MockQuoteEventsCubit _registerQuoteEventsCubit({
+  List<QuoteEvent> events = const [],
+}) {
+  final cubit = _MockQuoteEventsCubit();
+  when(() => cubit.state).thenReturn(QuoteEventsLoaded(events: events));
+  when(() => cubit.load(any())).thenAnswer((_) async {});
+  GetIt.instance.registerFactory<QuoteEventsCubit>(() => cubit);
+  return cubit;
+}
 
 void main() {
   setUpAll(() {
@@ -602,6 +620,7 @@ void main() {
       GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
         () => GetCabinetPatientUseCase(patientsRepo),
       );
+      _registerQuoteEventsCubit();
       addTearDown(GetIt.instance.reset);
 
       when(() => bloc.state).thenReturn(DevisLoaded([quote]));
@@ -817,6 +836,8 @@ void main() {
 
     setUp(() {
       bloc = _MockDevisBloc();
+      _registerQuoteEventsCubit();
+      addTearDown(GetIt.instance.reset);
     });
 
     Widget buildDetailPage() => MaterialApp(
@@ -1081,6 +1102,7 @@ void main() {
           sendReminder: SendInvoiceReminderUseCase(reminderRepo),
         ),
       );
+      _registerQuoteEventsCubit();
       addTearDown(GetIt.instance.reset);
     });
 
@@ -1201,14 +1223,28 @@ void main() {
     });
   });
 
-  // --- QuoteTimeline (#5090) ----------------------------------------------------
+  // --- QuoteTimeline (#5090, #7467) ----------------------------------------------
   group('QuoteTimeline', () {
-    Widget buildTimeline(CabinetQuote quote, {DateTime? now}) => MaterialApp(
-          theme: NubiaTheme.light,
-          home: Scaffold(
-            body: QuoteTimeline(quote: quote, now: now),
+    setUp(() {
+      addTearDown(GetIt.instance.reset);
+    });
+
+    Widget buildTimeline(
+      CabinetQuote quote, {
+      DateTime? now,
+      List<QuoteEvent> events = const [],
+    }) {
+      final cubit = _registerQuoteEventsCubit(events: events);
+      return MaterialApp(
+        theme: NubiaTheme.light,
+        home: Scaffold(
+          body: BlocProvider<QuoteEventsCubit>.value(
+            value: cubit,
+            child: QuoteTimeline(quote: quote, now: now),
           ),
-        );
+        ),
+      );
+    }
 
     testWidgets('devis brouillon sans expiresAt : seule « Devis créé » '
         'est affichée', (tester) async {
@@ -1272,6 +1308,90 @@ void main() {
 
       expect(find.text('expire le 13/08'), findsOneWidget);
       expect(find.textContaining('dans'), findsNothing);
+    });
+
+    testWidgets(
+        '#7467 : devis envoyé + consulté (journal quote_event) affiche les '
+        '4 étapes de la maquette design-v2', (tester) async {
+      final now = DateTime(2026, 8, 10);
+      final quote = CabinetQuote(
+        id: 'q1',
+        quoteRef: 'q1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Alice',
+        totalCents: 10000,
+        patientShareCents: 4000,
+        status: CabinetQuoteStatus.sent,
+        createdAt: DateTime(2026, 8, 4, 9, 12),
+        expiresAt: DateTime(2026, 8, 13),
+      );
+      await tester.pumpWidget(
+        buildTimeline(
+          quote,
+          now: now,
+          events: [
+            QuoteEvent(
+              kind: QuoteEventKind.sent,
+              at: DateTime(2026, 8, 4, 9, 20),
+            ),
+            QuoteEvent(
+              kind: QuoteEventKind.viewed,
+              at: DateTime(2026, 8, 5, 21, 4),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Devis créé'), findsOneWidget);
+      expect(find.text('Envoyé au patient'), findsOneWidget);
+      expect(find.text('04/08 · 09:20'), findsOneWidget);
+      expect(find.text('Consulté par le patient'), findsOneWidget);
+      expect(find.text('05/08 · 21:04'), findsOneWidget);
+      expect(find.text('Signature attendue'), findsOneWidget);
+      expect(find.text('expire le 13/08 · dans 3 jours'), findsOneWidget);
+    });
+
+    testWidgets(
+        '#7467 : devis signé (événement `signed`) affiche « Signé » et '
+        'plus « Signature attendue »', (tester) async {
+      final quote = CabinetQuote(
+        id: 'q1',
+        quoteRef: 'q1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Alice',
+        totalCents: 10000,
+        patientShareCents: 4000,
+        status: CabinetQuoteStatus.signed,
+        createdAt: DateTime(2026, 8, 4, 9, 12),
+        signedAt: DateTime(2026, 8, 6, 10, 0),
+      );
+      await tester.pumpWidget(
+        buildTimeline(
+          quote,
+          events: [
+            QuoteEvent(
+              kind: QuoteEventKind.sent,
+              at: DateTime(2026, 8, 4, 9, 20),
+            ),
+            QuoteEvent(
+              kind: QuoteEventKind.viewed,
+              at: DateTime(2026, 8, 5, 21, 4),
+            ),
+            QuoteEvent(
+              kind: QuoteEventKind.signed,
+              at: DateTime(2026, 8, 6, 10, 0),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Signé'), findsOneWidget);
+      expect(find.text('06/08 · 10:00'), findsOneWidget);
+      expect(find.text('Signature attendue'), findsNothing);
     });
   });
 
@@ -1732,6 +1852,7 @@ void main() {
       GetIt.instance.registerFactory<GetCabinetPatientUseCase>(
         () => GetCabinetPatientUseCase(patientsRepo),
       );
+      _registerQuoteEventsCubit();
       addTearDown(GetIt.instance.reset);
     });
 

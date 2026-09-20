@@ -19,7 +19,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, PatientAccountClaims},
+    auth::{AppError, PatientAccountClaims, ProSecretaryPlusClaims},
     AppState,
 };
 
@@ -93,6 +93,70 @@ pub async fn list_patient_quote_events(
         "SELECT kind, at, actor_kind FROM quote_event WHERE quote_id = $1 ORDER BY at ASC",
     )
     .bind(id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut data = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let kind: String = row.try_get("kind").map_err(|_| AppError::Internal)?;
+        let at: chrono::DateTime<chrono::Utc> =
+            row.try_get("at").map_err(|_| AppError::Internal)?;
+        let actor_kind: String = row.try_get("actor_kind").map_err(|_| AppError::Internal)?;
+        data.push(QuoteEventItem {
+            kind,
+            at: at.to_rfc3339(),
+            actor_kind,
+        });
+    }
+
+    Ok(Json(QuoteEventsResponse { data }))
+}
+
+/// `GET /v1/cabinet/quotes/:id/events` — timeline d'un devis côté cabinet
+/// (#7467) : `list_patient_quote_events` n'était lisible que par le patient
+/// (`PatientAccountClaims`), laissant secrétariat/praticien sans accès au
+/// journal pourtant déjà alimenté par `record_quote_event` — le bloc
+/// « Suivi » du volet détail (design-v2) n'a donc jamais pu s'appuyer dessus.
+///
+/// Praticien/secrétaire (`ProSecretaryPlusClaims`) — `cabinet_id` extrait du
+/// JWT, policy `tenant_isolation` (migration 0287), même pattern que
+/// `quote_relances::list_quote_relances`. Devis inexistant ou hors tenant →
+/// `404`. Contrairement à la variante patient, `draft` n'est pas filtré : le
+/// cabinet voit ses propres événements dès la création du devis. Tri `at
+/// ASC`.
+pub async fn list_cabinet_quote_events(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(quote_id): Path<Uuid>,
+) -> Result<Json<QuoteEventsResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let quote_exists =
+        sqlx::query("SELECT 1 FROM quote WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL")
+            .bind(quote_id)
+            .bind(claims.cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    if quote_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let rows = sqlx::query(
+        "SELECT kind, at, actor_kind FROM quote_event \
+         WHERE quote_id = $1 AND cabinet_id = $2 ORDER BY at ASC",
+    )
+    .bind(quote_id)
+    .bind(claims.cabinet_id)
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

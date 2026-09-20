@@ -37,6 +37,7 @@ import '../remote/treatment_plans/treatment_plans_api.dart';
 import '../remote/cabinet_team_messages/cabinet_team_messages_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
 import '../remote/invoice_reminder/invoice_reminder_api.dart';
+import '../remote/quote_events/quote_events_api.dart';
 import '../remote/quote_attachments/quote_attachments_api.dart';
 import '../remote/quote_attestation/quote_attestation_api.dart';
 import '../remote/quote_documents/patient_quote_documents_api.dart';
@@ -108,6 +109,7 @@ import '../repositories/treatment_plans_repository_impl.dart';
 import '../repositories/cabinet_team_messages_repository_impl.dart';
 import '../repositories/cabinet_quotes_repository_impl.dart';
 import '../repositories/invoice_reminder_repository_impl.dart';
+import '../repositories/quote_events_repository_impl.dart';
 import '../repositories/quote_attachments_repository_impl.dart';
 import '../repositories/quote_attestation_repository_impl.dart';
 import '../repositories/patient_quote_documents_repository_impl.dart';
@@ -679,6 +681,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<InvoiceReminderApi>(
       () => InvoiceReminderApi(gi()),
     )
+    ..registerLazySingleton<QuoteEventsApi>(
+      () => QuoteEventsApi(gi()),
+    )
     ..registerLazySingleton<QuoteAttachmentsApi>(
       () => QuoteAttachmentsApi(gi()),
     )
@@ -806,6 +811,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<InvoiceReminderRepository>(
       () => InvoiceReminderRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<QuoteEventsRepository>(
+      () => QuoteEventsRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<QuoteAttachmentsRepository>(
       () => QuoteAttachmentsRepositoryImpl(gi()),
     )
@@ -926,6 +934,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => SendCabinetQuoteUseCase(gi()))
     ..registerFactory(() => SendInvoiceReminderUseCase(gi()))
     ..registerFactory(() => ListInvoiceRemindersUseCase(gi()))
+    ..registerFactory(() => ListCabinetQuoteEventsUseCase(gi()))
     ..registerFactory(() => ListQuoteAttachmentsUseCase(gi()))
     ..registerFactory(() => CreateQuoteAttachmentUseCase(gi()))
     ..registerFactory(() => DeleteQuoteAttachmentUseCase(gi()))
