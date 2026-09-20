@@ -51,6 +51,13 @@ const MAX_EQUIPMENT_LABEL_LEN: usize = 200;
 const MAX_LAB_NAME_LEN: usize = 200;
 const MAX_DEVICE_DESCRIPTION_LEN: usize = 2_000;
 
+/// Plafond métier réaliste (#7486) : sans borne haute, un `recurrence_months`
+/// démesuré passait en 201 puis faisait déborder `NaiveDate::checked_add_months`
+/// à la clôture (`None` → 500 systématique, item inclôturable). Une
+/// périodicité de conformité se compte en mois, au plus quelques dizaines
+/// d'années : 1200 mois = 100 ans, largement suffisant.
+const MAX_RECURRENCE_MONTHS: i32 = 1_200;
+
 /// Seuils d'alerte dashboard (jours avant `due_date`), du plus urgent au
 /// moins urgent.
 const ALERT_DUE_J7_DAYS: i64 = 7;
@@ -139,7 +146,7 @@ fn validate_item_fields(
     };
 
     if let Some(months) = recurrence_months {
-        if months <= 0 {
+        if months <= 0 || months > MAX_RECURRENCE_MONTHS {
             return Err(AppError::ValidationError);
         }
     }
@@ -269,8 +276,9 @@ pub struct CreateComplianceItemResponse {
 ///
 /// `kind` ∈ `training`/`equipment_check`/`register`/`other`, `label` non
 /// blanc (≤ [`MAX_LABEL_LEN`]), `due_date` au format `YYYY-MM-DD`,
-/// `recurrence_months` > 0 si fourni → `422` sinon. `subject_user_id`, si
-/// fourni, doit être membre du cabinet → `404` sinon.
+/// `recurrence_months` dans `]0, MAX_RECURRENCE_MONTHS]` si fourni → `422`
+/// sinon. `subject_user_id`, si fourni, doit être membre du cabinet → `404`
+/// sinon.
 pub async fn create_compliance_item(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -622,7 +630,7 @@ pub async fn complete_compliance_item(
         Some(months) => {
             let next_due_date = due_date
                 .checked_add_months(chrono::Months::new(months as u32))
-                .ok_or(AppError::Internal)?;
+                .ok_or(AppError::ValidationError)?;
             let row = sqlx::query(
                 "INSERT INTO compliance_item \
                  (cabinet_id, kind, label, subject_user_id, equipment_label, due_date, recurrence_months) \
