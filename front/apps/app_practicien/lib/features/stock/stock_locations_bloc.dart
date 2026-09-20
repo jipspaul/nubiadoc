@@ -17,17 +17,20 @@ class StockLocationsBloc extends Bloc<StockLocationsEvent, StockLocationsState>
     required ListStockItemsUseCase listItems,
     required ListItemLocationsUseCase listItemLocations,
     required CreateStockLocationUseCase createLocation,
+    required DeleteStockLocationUseCase deleteLocation,
     required TransferStockUseCase transfer,
     required SetItemLocationThresholdUseCase setThreshold,
   })  : _listLocations = listLocations,
         _listItems = listItems,
         _listItemLocations = listItemLocations,
         _createLocation = createLocation,
+        _deleteLocation = deleteLocation,
         _transfer = transfer,
         _setThreshold = setThreshold,
         super(const StockLocationsLoading()) {
     on<StockLocationsLoadRequested>(_onLoad);
     on<StockLocationsCreateRequested>(_onCreate);
+    on<StockLocationsDeleteRequested>(_onDelete);
     on<StockLocationsTransferRequested>(_onTransfer);
     on<StockLocationsThresholdRequested>(_onThreshold);
   }
@@ -36,6 +39,7 @@ class StockLocationsBloc extends Bloc<StockLocationsEvent, StockLocationsState>
   final ListStockItemsUseCase _listItems;
   final ListItemLocationsUseCase _listItemLocations;
   final CreateStockLocationUseCase _createLocation;
+  final DeleteStockLocationUseCase _deleteLocation;
   final TransferStockUseCase _transfer;
   final SetItemLocationThresholdUseCase _setThreshold;
 
@@ -83,6 +87,30 @@ class StockLocationsBloc extends Bloc<StockLocationsEvent, StockLocationsState>
     Emitter<StockLocationsState> emit,
   ) async {
     final result = await _createLocation(event.name);
+    final failure = result.fold((f) => f, (_) => null);
+    if (failure != null) {
+      safeEmit(StockLocationsError(failure.message));
+      return;
+    }
+    await _onLoad(const StockLocationsLoadRequested(), emit);
+  }
+
+  Future<void> _onDelete(
+    StockLocationsDeleteRequested event,
+    Emitter<StockLocationsState> emit,
+  ) async {
+    final current = state;
+    if (current is StockLocationsLoaded) {
+      emit(StockLocationsLoaded(
+        locations: current.locations,
+        items: current.items,
+        itemLocations: current.itemLocations,
+        submittingItemId: current.submittingItemId,
+        deletingLocationId: event.locationId,
+      ));
+    }
+
+    final result = await _deleteLocation(event.locationId);
     final failure = result.fold((f) => f, (_) => null);
     if (failure != null) {
       safeEmit(StockLocationsError(failure.message));

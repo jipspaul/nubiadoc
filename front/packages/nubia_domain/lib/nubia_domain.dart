@@ -312,6 +312,7 @@ export 'src/usecases/stock_items/list_stock_items_use_case.dart';
 export 'src/usecases/stock_items/add_stock_movement_use_case.dart';
 export 'src/usecases/stock_locations/list_stock_locations_use_case.dart';
 export 'src/usecases/stock_locations/create_stock_location_use_case.dart';
+export 'src/usecases/stock_locations/delete_stock_location_use_case.dart';
 export 'src/usecases/stock_locations/list_item_locations_use_case.dart';
 export 'src/usecases/stock_locations/transfer_stock_use_case.dart';
 export 'src/usecases/stock_locations/set_item_location_threshold_use_case.dart';

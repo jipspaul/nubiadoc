@@ -31,6 +31,9 @@ class MockListItemLocationsUseCase extends Mock
 class MockCreateStockLocationUseCase extends Mock
     implements CreateStockLocationUseCase {}
 
+class MockDeleteStockLocationUseCase extends Mock
+    implements DeleteStockLocationUseCase {}
+
 class MockTransferStockUseCase extends Mock implements TransferStockUseCase {}
 
 class MockSetItemLocationThresholdUseCase extends Mock
@@ -193,6 +196,54 @@ void main() {
       expect(captured.toLocationId, 'loc-1');
       expect(captured.quantity, 3);
     });
+
+    testWidgets(
+        'confirmer la suppression d\'une salle dispatch l\'événement attendu '
+        '(#7452) — pas d\'échappatoire sinon pour une salle créée par erreur',
+        (tester) async {
+      final bloc = MockStockLocationsBloc();
+      when(() => bloc.state).thenReturn(const StockLocationsLoaded(
+        locations: [_mainLocation, _room1],
+        items: [_item],
+        itemLocations: {
+          'item-1': [
+            StockItemLocation(
+              locationId: 'loc-main',
+              locationName: 'Stock principal',
+              isMain: true,
+              quantity: 10,
+            ),
+            StockItemLocation(
+              locationId: 'loc-1',
+              locationName: 'Salle 1',
+              isMain: false,
+              quantity: 2,
+            ),
+          ],
+        },
+      ));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      // Localisation principale : jamais de bouton de suppression (l'API le
+      // refuserait de toute façon, `stock_location_is_main`).
+      expect(
+        find.byKey(const Key('stock_location_delete_loc-main')),
+        findsNothing,
+      );
+
+      await tester.tap(find.text('Salle 1'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('stock_location_delete_loc-1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Supprimer'));
+      await tester.pump();
+
+      final captured = verify(() => bloc.add(captureAny())).captured.last
+          as StockLocationsDeleteRequested;
+      expect(captured.locationId, 'loc-1');
+    });
   });
 
   group('StockLocationsBloc (vrai Bloc)', () {
@@ -202,6 +253,7 @@ void main() {
       final mockListItems = MockListStockItemsUseCase();
       final mockListItemLocations = MockListItemLocationsUseCase();
       final mockCreateLocation = MockCreateStockLocationUseCase();
+      final mockDeleteLocation = MockDeleteStockLocationUseCase();
       final mockTransfer = MockTransferStockUseCase();
       final mockSetThreshold = MockSetItemLocationThresholdUseCase();
 
@@ -235,6 +287,7 @@ void main() {
         listItems: mockListItems,
         listItemLocations: mockListItemLocations,
         createLocation: mockCreateLocation,
+        deleteLocation: mockDeleteLocation,
         transfer: mockTransfer,
         setThreshold: mockSetThreshold,
       );

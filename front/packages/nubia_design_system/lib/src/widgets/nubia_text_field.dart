@@ -58,6 +58,9 @@ enum NubiaTextFieldVariant {
 /// - [min] : valeur plancher (variante `numberStepper` uniquement, #5177).
 ///   `1` par défaut. Le bouton `-` est désactivé et toute saisie/valeur
 ///   inférieure est ramenée à cette borne à la perte du focus.
+/// - [maxLength] : nombre maximal de caractères saisissables, compteur
+///   affiché sous le champ (#7452). `null` par défaut : aucune borne pour
+///   les champs existants qui ne le renseignent pas.
 class NubiaTextField extends StatefulWidget {
   const NubiaTextField({
     super.key,
@@ -73,6 +76,7 @@ class NubiaTextField extends StatefulWidget {
     this.enabled = true,
     this.borderRadius,
     this.min = 1,
+    this.maxLength,
   });
 
   final NubiaTextFieldVariant variant;
@@ -87,6 +91,11 @@ class NubiaTextField extends StatefulWidget {
   final bool enabled;
   final double? borderRadius;
   final int min;
+
+  /// Nombre maximal de caractères saisissables, compteur affiché sous le
+  /// champ (#7452). `null` par défaut : aucune borne, comportement inchangé
+  /// pour les champs existants qui ne le renseignent pas.
+  final int? maxLength;
 
   @override
   State<NubiaTextField> createState() => _NubiaTextFieldState();
@@ -204,6 +213,7 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
           : null,
       obscureText: obscureText,
       maxLines: obscureText ? 1 : (maxLines ?? 1),
+      maxLength: widget.maxLength,
       enabled: widget.enabled,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,

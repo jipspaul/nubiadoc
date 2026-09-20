@@ -12,6 +12,12 @@ class StockLocationsCreateRequested extends StockLocationsEvent {
   final String name;
 }
 
+class StockLocationsDeleteRequested extends StockLocationsEvent {
+  const StockLocationsDeleteRequested(this.locationId);
+
+  final String locationId;
+}
+
 class StockLocationsTransferRequested extends StockLocationsEvent {
   const StockLocationsTransferRequested({
     required this.itemId,

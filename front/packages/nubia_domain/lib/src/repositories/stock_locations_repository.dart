@@ -10,6 +10,11 @@ abstract class StockLocationsRepository {
   /// POST /v1/cabinet/stock-locations (#7183). Renvoie l'id créé.
   Future<Either<Failure, String>> createLocation(String name);
 
+  /// DELETE /v1/cabinet/stock-locations/:id (#7183/#7452) : retire une
+  /// localisation créée par erreur — seule échappatoire depuis l'écran
+  /// « Stock par salle » pour un nom mal saisi.
+  Future<Either<Failure, void>> deleteLocation(String locationId);
+
   /// GET /v1/cabinet/stock-items/:id/locations (#7183) : quantité et seuil
   /// de cet article dans chaque localisation du cabinet.
   Future<Either<Failure, List<StockItemLocation>>> listItemLocations(

@@ -17,6 +17,10 @@ class CreateStockLocationDialog extends StatefulWidget {
       _CreateStockLocationDialogState();
 }
 
+/// Borne haute du nom, alignée sur `MAX_STOCK_LOCATION_NAME_LEN` côté API
+/// (#7452 — un nom trop long rendait la barre d'onglets inutilisable).
+const _maxNameLength = 80;
+
 class _CreateStockLocationDialogState
     extends State<CreateStockLocationDialog> {
   final _nameController = TextEditingController();
@@ -37,6 +41,7 @@ class _CreateStockLocationDialogState
           key: const Key('new_location_name'),
           controller: _nameController,
           label: 'Nom de la salle',
+          maxLength: _maxNameLength,
         ),
       ),
       actions: [

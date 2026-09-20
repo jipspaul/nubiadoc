@@ -18,6 +18,7 @@ class StockLocationsLoaded extends StockLocationsState {
     required this.items,
     required this.itemLocations,
     this.submittingItemId,
+    this.deletingLocationId,
   });
 
   final List<StockLocation> locations;
@@ -31,8 +32,13 @@ class StockLocationsLoaded extends StockLocationsState {
   /// (bouton en loading), `null` si aucune soumission en cours.
   final String? submittingItemId;
 
+  /// Id de la localisation en cours de suppression (#7452), `null` si
+  /// aucune suppression en cours.
+  final String? deletingLocationId;
+
   @override
-  List<Object?> get props => [locations, items, itemLocations, submittingItemId];
+  List<Object?> get props =>
+      [locations, items, itemLocations, submittingItemId, deletingLocationId];
 }
 
 class StockLocationsError extends StockLocationsState {
