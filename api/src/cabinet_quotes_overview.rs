@@ -159,7 +159,9 @@ pub async fn get_cabinet_quotes_overview(
     for row in &status_rows {
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
         let count: i64 = row.try_get("count").map_err(|_| AppError::Internal)?;
-        let amount_cents: i64 = row.try_get("amount_cents").map_err(|_| AppError::Internal)?;
+        let amount_cents: i64 = row
+            .try_get("amount_cents")
+            .map_err(|_| AppError::Internal)?;
         if let Some(entry) = by_status.iter_mut().find(|s| s.status == status) {
             entry.count = count;
             entry.amount_cents = amount_cents;
@@ -241,8 +243,12 @@ pub async fn get_cabinet_quotes_overview(
             .try_get("practitioner_name")
             .map_err(|_| AppError::Internal)?;
         let count: i64 = row.try_get("count").map_err(|_| AppError::Internal)?;
-        let amount_cents: i64 = row.try_get("amount_cents").map_err(|_| AppError::Internal)?;
-        let p_signed_count: i64 = row.try_get("signed_count").map_err(|_| AppError::Internal)?;
+        let amount_cents: i64 = row
+            .try_get("amount_cents")
+            .map_err(|_| AppError::Internal)?;
+        let p_signed_count: i64 = row
+            .try_get("signed_count")
+            .map_err(|_| AppError::Internal)?;
         let p_sent_total: i64 = row.try_get("sent_total").map_err(|_| AppError::Internal)?;
         let p_avg_hours: Option<f64> = row.try_get("avg_hours").map_err(|_| AppError::Internal)?;
 
