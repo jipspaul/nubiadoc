@@ -15,11 +15,19 @@
 //! Extrait de `consultation_act_create.rs` (déjà > 500 lignes, cible
 //! CLAUDE.md) plutôt que d'y ajouter davantage — module dédié, une
 //! responsabilité.
+//!
+//! #7183 (DP-F12.b) : la décrémentation ajuste aussi la localisation
+//! principale du cabinet (`stock_location.is_main`, migration 0285) via
+//! `stock_locations::adjust_location_quantity`, en plus de
+//! `stock_item.quantity_on_hand` — la garde `insufficient_stock` (#4438)
+//! reste basée sur ce dernier, inchangée ; l'ajustement par localisation,
+//! lui, est planché à 0 et ne peut jamais faire échouer l'acte.
 
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::auth::AppError;
+use crate::stock_locations::{adjust_location_quantity, ensure_main_location};
 
 /// Applique la consommation de stock mappée à `ccam_code` (s'il y en a) pour
 /// l'acte `consultation_act_id` qui vient d'être inséré dans ce cabinet.
@@ -92,6 +100,10 @@ pub async fn apply_stock_consumption(
         .execute(&mut **tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+        let main_location_id = ensure_main_location(tx, cabinet_id).await?;
+        adjust_location_quantity(tx, cabinet_id, stock_item_id, main_location_id, -quantity)
+            .await?;
     }
 
     Ok(())
@@ -153,6 +165,12 @@ pub async fn reverse_stock_consumption(
         .execute(&mut **tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+        // `delta` est négatif (mouvement `consumption` d'origine) : créditer
+        // `-delta` (positif) restaure la même quantité que
+        // `adjust_location_quantity` avait débitée dans `apply_stock_consumption`.
+        let main_location_id = ensure_main_location(tx, cabinet_id).await?;
+        adjust_location_quantity(tx, cabinet_id, stock_item_id, main_location_id, -delta).await?;
     }
 
     sqlx::query(

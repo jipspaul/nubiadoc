@@ -347,6 +347,21 @@ pub(crate) enum AppError {
     /// — `400` explicite plutôt que de laisser la contrainte Postgres (23514)
     /// remonter en 500, même doctrine que `InvalidQuoteStatusFilter`.
     InvalidActCategory,
+    /// `POST /v1/cabinet/stock-locations` (#7183) : `name` déjà utilisé dans
+    /// ce cabinet (index unique `(cabinet_id, name)`, migration 0285) — même
+    /// choix que `StockReferenceAlreadyUsed`.
+    StockLocationNameAlreadyUsed,
+    /// `DELETE /v1/cabinet/stock-locations/:id` (#7183) : la localisation
+    /// principale (`is_main`, migration 0285) ne peut pas être supprimée — un
+    /// cabinet doit toujours conserver une localisation par défaut pour le
+    /// décrément automatique (`consultation_act_stock::apply_stock_consumption`).
+    StockLocationIsMain,
+    /// `DELETE /v1/cabinet/stock-locations/:id` (#7183) : au moins un
+    /// `stock_item_location` référence encore cette localisation (FK
+    /// composite `(location_id, cabinet_id)`, migration 0285) — pré-vérifié
+    /// plutôt que de laisser la violation `23503` remonter en 500, même
+    /// doctrine que `CorrespondentInUse`.
+    StockLocationInUse,
 }
 
 impl IntoResponse for AppError {
@@ -704,6 +719,21 @@ impl IntoResponse for AppError {
                         ortho, chirurgie, implanto, imagerie, atm, esthetique, \
                         appareillages."
                 })),
+            )
+                .into_response(),
+            AppError::StockLocationNameAlreadyUsed => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "stock_location_name_already_used"})),
+            )
+                .into_response(),
+            AppError::StockLocationIsMain => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "stock_location_is_main"})),
+            )
+                .into_response(),
+            AppError::StockLocationInUse => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "stock_location_in_use"})),
             )
                 .into_response(),
         }
