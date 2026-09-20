@@ -3361,3 +3361,15 @@ La ronde R87 avait laissé ce trou (« *Non vérifié cette ronde : `secretariat
 | secretariat | `/devis` | 390 | 20 | 10 | 9 | 1 | 0 | 2026-09-20T19:27:00Z |
 
 **Observation, non filée** (`app_secretariat` est une app **PC** au périmètre du brief) : à 390 px l'écran s'adapte partiellement — menu hamburger, facettes empilées verticalement, tuiles de synthèse **tronquées proprement** en `…` (« 1 088 46… », « montant eng… ») — mais **le tableau conserve ses colonnes desktop** : la colonne « Action » part à `x≈805` sur un viewport de 390, donc **6 × « Envoyer », 2 × « Relancer » et 2 × « PDF » sont hors cadre**, et le « Envoyer » activé est resté sans effet (clic hors page, même artefact que « Ma pharmacie » ci-dessus). Rien n'est cassé et la cible produit de cet écran est le poste PC ; à rouvrir seulement si le secrétariat doit devenir utilisable sur mobile.
+
+### R89 — cas adversariaux (Étape 2f), joués sur le code mergé ce jour
+
+Cible : la modale « Proposer des séances » du plan de traitement (DP-F16.c, `#7172`), praticien 1280×800.
+
+| cas | observé | verdict |
+|---|---|---|
+| **Double-clic rapide** sur « Proposer » (2 clics sans délai) | **1 seul** `POST …/sessions/propose` émis (1 attendu) ; aucun 4xx, aucune erreur console | **OK** — le 2ᵉ clic ne double pas l'action |
+| **Saisie invalide** : durée = `-99` | `422 POST …/sessions/propose` — **refus propre côté serveur, pas de 500, pas de submit silencieux** ; l'écran survit (47 contrôles, blanc 0,632) et l'erreur ressort en `SnackBar` via `actionError`. *Nuance* : le champ accepte la saisie négative côté client et laisse partir la requête ; le refus est digne mais tardif. Non filé. | **OK** |
+| **Texte très long** : 240 caractères dans le champ durée | **aucun contrôle hors cadre** après saisie (pas de débordement/overlap), **aucun 4xx**, aucune erreur console | **OK** |
+| **Coupure réseau** (`route.abort('failed')` sur `**/v1/**`) pendant « Proposer » | l'écran **reste intact** : 47 contrôles, blanc 0,632 (ni page blanche ni canvas vide), **aucun spinner infini** | **OK** |
+| **Retour navigateur** au milieu du flux (modale ouverte → `goBack()`) | retour à la racine de l'app avec un **état cohérent** : 24 contrôles, 0 × 4xx, 0 erreur console, blanc 0,761. Le retour ne referme pas seulement la modale mais quitte l'écran — acceptable (`go_router` dépile la route), rien d'incohérent. | **OK** |
