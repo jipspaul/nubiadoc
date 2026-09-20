@@ -105,6 +105,7 @@ import '../repositories/quote_attestation_repository_impl.dart';
 import '../repositories/patient_quote_documents_repository_impl.dart';
 import '../repositories/letter_templates_repository_impl.dart';
 import '../repositories/letters_repository_impl.dart';
+import '../repositories/medication_reference_repository_impl.dart';
 import '../repositories/cabinet_payouts_repository_impl.dart';
 import '../repositories/cabinet_stats_repository_impl.dart';
 import '../repositories/cabinet_opportunities_repository_impl.dart';
@@ -531,6 +532,9 @@ void _registerClinical(GetIt gi) {
     ..registerLazySingleton<PrescriptionRepository>(
       () => PrescriptionRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<MedicationReferenceRepository>(
+      () => MedicationReferenceRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<CrTemplateRepository>(
       () => CrTemplateRepositoryImpl(gi()),
     )
@@ -557,7 +561,8 @@ void _registerClinical(GetIt gi) {
     ..registerFactory(() => ListPrescriptionTemplatesUseCase(gi()))
     ..registerFactory(() => ApplyPrescriptionTemplateUseCase(gi()))
     ..registerFactory(() => ListPrescriptionsUseCase(gi()))
-    ..registerFactory(() => RenewPrescriptionUseCase(gi()));
+    ..registerFactory(() => RenewPrescriptionUseCase(gi()))
+    ..registerFactory(() => SearchMedicationReferencesUseCase(gi()));
 }
 
 /// Registers the pro/cabinet data stack.

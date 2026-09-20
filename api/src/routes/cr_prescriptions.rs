@@ -4,9 +4,9 @@
 use axum::{routing::get, Router};
 
 use crate::{
-    ccam_stock_mappings, consent_templates, cr_templates, lab_work_orders, prescription_renew,
-    prescription_send, prescription_templates, prescriptions, sterilization, sterilization_labels,
-    stock_items, AppState,
+    ccam_stock_mappings, consent_templates, cr_templates, lab_work_orders, medication_references,
+    prescription_renew, prescription_send, prescription_templates, prescriptions, sterilization,
+    sterilization_labels, stock_items, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -44,6 +44,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/ccam-stock-mappings/:id",
             axum::routing::delete(ccam_stock_mappings::delete_ccam_stock_mapping),
+        )
+        .route(
+            "/v1/medication-references",
+            get(medication_references::search_medication_references),
         )
         .route(
             "/v1/cabinet/prescriptions",

@@ -117,6 +117,7 @@ mod local_storage_signer;
 mod marketplace;
 mod medical_questionnaire;
 mod medical_record;
+mod medication_references;
 mod messaging;
 mod ngap_acts;
 mod notifications;
