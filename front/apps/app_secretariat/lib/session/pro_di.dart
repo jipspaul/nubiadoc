@@ -29,6 +29,8 @@ import '../features/devis/invoice_reminder_cubit.dart';
 import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/stock/stock_bloc.dart';
+import '../features/stock/stock_inventory_bloc.dart';
+import '../features/stock/stock_locations_bloc.dart';
 import '../features/tasks/tasks_bloc.dart';
 import '../features/waiting_list/waiting_list_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
@@ -187,6 +189,22 @@ void registerPro(GetIt gi) {
         list: gi<ListStockRequestsUseCase>(),
         create: gi<CreateStockRequestUseCase>(),
         resend: gi<ResendStockRequestUseCase>(),
+      ),
+    )
+    ..registerFactory<StockInventoryBloc>(
+      () => StockInventoryBloc(
+        list: gi<ListStockItemsUseCase>(),
+        addMovement: gi<AddStockMovementUseCase>(),
+      ),
+    )
+    ..registerFactory<StockLocationsBloc>(
+      () => StockLocationsBloc(
+        listLocations: gi<ListStockLocationsUseCase>(),
+        listItems: gi<ListStockItemsUseCase>(),
+        listItemLocations: gi<ListItemLocationsUseCase>(),
+        createLocation: gi<CreateStockLocationUseCase>(),
+        transfer: gi<TransferStockUseCase>(),
+        setThreshold: gi<SetItemLocationThresholdUseCase>(),
       ),
     )
     ..registerFactory<CabinetStatsBloc>(
