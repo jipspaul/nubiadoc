@@ -260,23 +260,30 @@ void main() {
     });
 
     testWidgets(
-        'le bouton "Nouveau bon" affiche un feedback "à venir" plutôt que '
-        'de créer silencieusement un bon (#5065)', (tester) async {
+        'le bouton "Nouveau bon" est désactivé avec un motif plutôt que '
+        "de laisser croire à une création possible (#7458)", (tester) async {
       await _setSurface(tester);
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state)
           .thenReturn(const LabWorkOrdersLoaded([_sentOrder]));
       await tester.pumpWidget(_wrap(bloc));
 
+      final buttonFinder = find.byKey(const Key('lab_work_orders_new_button'));
+      expect(buttonFinder, findsOneWidget);
+
+      final button = tester.widget<NubiaButton>(buttonFinder);
+      expect(button.onPressed, isNull);
+
       expect(
-        find.byKey(const Key('lab_work_orders_new_button')),
+        find.ancestor(
+          of: buttonFinder,
+          matching: find.byWidgetPredicate((w) =>
+              w is Tooltip &&
+              w.message ==
+                  "Création de bon de travail indisponible pour l'instant."),
+        ),
         findsOneWidget,
       );
-
-      await tester.tap(find.byKey(const Key('lab_work_orders_new_button')));
-      await tester.pump();
-
-      expect(find.byType(SnackBar), findsOneWidget);
     });
 
     testWidgets(

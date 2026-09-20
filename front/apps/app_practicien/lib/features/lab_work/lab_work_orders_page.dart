@@ -161,15 +161,18 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
           ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: NubiaButton(
-              key: const Key('lab_work_orders_new_button'),
-              label: 'Nouveau bon',
-              icon: Icons.add,
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                      'Création de bon de travail à venir — bientôt disponible.'),
-                ),
+            // #7458 (cf. #6702) : aucun endpoint de création de bon n'existe
+            // côté API — un bouton d'apparence active qui ne faisait
+            // qu'afficher une snackbar « à venir » induisait en erreur.
+            // Grisé avec la raison, comme « Connecter Stripe » sur
+            // /cabinet-payouts.
+            child: Tooltip(
+              message: "Création de bon de travail indisponible pour l'instant.",
+              child: NubiaButton(
+                key: const Key('lab_work_orders_new_button'),
+                label: 'Nouveau bon',
+                icon: Icons.add,
+                onPressed: null,
               ),
             ),
           ),
