@@ -3062,3 +3062,83 @@ charge **300 €** sur 600 € · après remboursements », barre empilée, vent
 Mutuelle −200 € / Reste à votre charge 300 €`, « Détail des actes » avec les parts par acte, mention « Signature
 électronique sécurisée (**eIDAS**) », CTA « Télécharger le devis signé ». Les montants correspondent **exactement** au
 devis créé au scénario X6 de cette ronde. Capture `patient/R86_devis_detail_attestation404.png`.
+
+### Ronde R87 — 2026-09-20 — 20 écrans audités, **431 contrôles inventoriés, 396 activés**
+
+**365 OK · 22 « morts » bruts · 9 « cassés » bruts · 3 désactivés — et, après re-test individuel,
+ZÉRO bouton mort ou cassé publiable.** Les 31 verdicts négatifs se répartissent en trois causes
+connues, toutes re-prouvées une par une cette ronde :
+
+1. **Entrée de rail déjà active** (14 cas : `Inventaire`, `Stock`, `Devis`, `Agenda`, `Commandes`,
+   `Messages`, `Salle d'attente`, `Fiches patients`, `Ordonnances`…). Cliquer l'écran courant est un
+   no-op voulu — motif constant sur les 4 apps à shell.
+2. **Facette déjà sélectionnée au chargement** (7 cas : `Toutes 72`, `Tous 477`, `Tous (128)`,
+   `À répondre (7)`, `Toutes 4`, `À venir (91)`, `Toutes 2087`). **Prouvé non-mort** : sur
+   `pharmacie /`, la facette `Prêtes 54` semble morte depuis l'état par défaut (la file est triée
+   par réception croissante, donc les plus anciennes — toutes `Prête` — sont déjà en tête), mais
+   depuis `En préparation` elle **rebascule bien la liste** (`CMD-0118 [En préparation]` →
+   `CMD-0038 [Prête]`). Captures `pharmacie/facet2-*.png`.
+3. **Filtre qui matche 100 % des lignes chargées** (1 cas). `secretariat /patients` → `Alertes 50` :
+   aucun effet observable (semCount 67→67, 0 libellé ajouté/retiré). **Ce n'est pas un bug** : les
+   50 patients de la 1re page ont tous `has_active_alerts: true` (vérifié sur `GET /cabinet/patients`),
+   donc filtrer 50→50 ne change rien. Le chip voisin `Impayés 0`, lui, agit visiblement
+   (semCount 67→53, « Aucun patient ne correspond aux filtres sélectionnés »). La page 2 rend bien
+   `{True: 39, False: 3}` — le drapeau n'est pas constamment vrai. Captures `secretariat/pf-*.png`.
+
+**Les 9 « cassés » sont également des artefacts :**
+- 8 sur `patient /financial` : l'ouverture d'un devis émet `GET /v1/quotes/:id/attestation` → **404**
+  (sous-ressource optionnelle absente, `quote_attestation.rs:227`). **Aucun effet visible** — le détail
+  s'ouvre complet et **« Signer le devis » fonctionne** : `POST /v1/quotes/:id/sign`, aucun 4xx, et
+  l'écran bascule sur « Télécharger le devis signé ». Captures `patient/financial-detail-devis.png`
+  et `patient/financial-apres-signer.png`. Même constat qu'en R86 (bruit console, pas un défaut).
+- 1 sur `secretariat /patients` (`Nouveau patient`) : **expiration du jeton en cours de ronde longue**
+  — `401 GET /cabinet/correspondents` immédiatement suivi d'un `POST /v1/auth/refresh` réussi.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | /stock-inventory (+ Stock par salle, dialogue Nouvelle salle) | 31 | 30 | 29 | 0 confirmé | 0 | 2026-09-20T06:50:00Z |
+| praticien | /stock | 19 | 18 | 17 | 0 confirmé | 0 | 2026-09-20T06:52:00Z |
+| praticien | /waiting-room | 19 | 17 | 16 | 0 confirmé | 0 | 2026-09-20T06:54:00Z |
+| praticien | /ordonnances | 18 | 17 | 16 | 0 confirmé | 0 | 2026-09-20T06:56:00Z |
+| praticien | /act-categories | 1 | 1 | 1 | 0 | 0 | 2026-09-20T06:20:00Z |
+| patient | /documents | 28 | 20 | 19 | 0 confirmé | 0 | 2026-09-20T06:40:00Z |
+| patient | /messaging | 9 | 9 | 9 | 0 | 0 | 2026-09-20T06:42:00Z |
+| patient | /home-care | 17 | 14 | 14 | 0 | 0 | 2026-09-20T06:44:00Z |
+| patient | /prescriptions | 16 | 13 | 13 | 0 | 0 | 2026-09-20T06:46:00Z |
+| patient | /mes-rdv | 8 | 8 | 7 | 0 confirmé | 0 | 2026-09-20T07:40:00Z |
+| patient | /financial (+ détail devis + signature) | 10 | 10 | 10 | 0 | 0 confirmé | 2026-09-20T07:45:00Z |
+| patient | /profile | 13 | 12 | 12 | 0 | 0 | 2026-09-20T07:42:00Z |
+| secretariat | /stock (+ Inventaire) | 40 | 38 | 37 | 0 confirmé | 0 | 2026-09-20T07:05:00Z |
+| secretariat | /devis | 39 | 38 | 37 | 0 confirmé | 0 | 2026-09-20T07:08:00Z |
+| secretariat | /salle-attente | 22 | 20 | 19 | 0 confirmé | 0 | 2026-09-20T07:10:00Z |
+| secretariat | /patients | 38 | 37 | 34 | 0 confirmé | 0 confirmé | 2026-09-20T07:50:00Z |
+| secretariat | /agenda | 28 | 26 | 24 | 0 confirmé | 0 | 2026-09-20T07:48:00Z |
+| pharmacie | / (Commandes) | 22 | 20 | 20 | 0 confirmé | 0 | 2026-09-20T07:15:00Z |
+| pharmacie | /devis | 26 | 24 | 22 | 0 confirmé | 0 | 2026-09-20T07:17:00Z |
+| pharmacie | /stock | 13 | 11 | 9 | 0 confirmé | 0 | 2026-09-20T07:18:00Z |
+| pharmacie | /messages | 15 | 14 | 12 | 0 confirmé | 0 | 2026-09-20T07:19:00Z |
+| infirmiere | / (3 onglets : Disponibilité / Offres / Ma visite) | 7 | 7 | 7 | 0 | 0 | 2026-09-20T06:48:00Z |
+
+**Cas adversariaux joués cette ronde (tous propres) :**
+- **Double-clic rapide** sur « Créer » du dialogue *Nouvelle salle* (code mergé ce matin) →
+  **un seul** `POST /v1/cabinet/stock-locations`, aucun doublon, aucune erreur console.
+- **Texte de 220 caractères** dans « Nom de la salle » → dialogue intact (champ 328×56, boutons en place),
+  aucun débordement. *(La borne manquante côté serveur est traitée à part, #7452.)*
+- **Bouton RETOUR du navigateur** au milieu du flux Stock par salle → retour propre au tableau de bord,
+  24 contrôles, aucun 4xx, aucune erreur console, état cohérent.
+- **Coupure réseau** (`route.abort()` sur `**/v1/**`) sur les 5 apps → **erreur digne** partout :
+  icône, « Erreur réseau. Vérifiez votre connexion. » et bouton **« Réessayer »**. La dette #7397
+  (pages vides praticien/secrétariat) est **soldée**. Captures `*/adv-coupure-reseau.png`.
+- **Course serveur** : 5 transferts de stock concurrents → 3 × 200 / 2 × 422, somme conservée.
+
+> ⚠️ **Correctifs de harnais apportés cette ronde**, à conserver :
+> 1. Ce build Flutter **ne rend AUCUN `<canvas>` DOM** (surface `flt-glass-pane`). `document.querySelectorAll('canvas').length`
+>    vaut 0 sur une app parfaitement peinte → **signal inutilisable**. Utiliser `<flutter-view>` + le ratio near-white.
+> 2. `window.scrollBy` est un **no-op** dans une app CanvasKit : le défilement est interne au canvas.
+>    Il faut `page.mouse.wheel()` — sinon tout contrôle sous la ligne de flottaison sort en « HORS_CHAMP ».
+> 3. Le champ texte Flutter **perd la 1re frappe** si l'on tape juste après le clic (login en 401 avec un
+>    mot de passe amputé d'un caractère). Cliquer, **attendre ~400 ms**, taper, puis **vérifier `inputValue()`**.
+> 4. N'inventorier que les **rôles de contrôle réels** : `role=group` concatène le texte de ses descendants
+>    et produisait 9 faux « morts » sur les seules cartes d'article de `/stock-inventory`.
+> 5. `semHash` tronqué à 8 000 caractères **compare égal** sur deux arbres différents (les chips d'agenda
+>    passaient « morts » avec semCount 254→109). Comparer **semCount + diff des libellés**, pas un hash tronqué.
