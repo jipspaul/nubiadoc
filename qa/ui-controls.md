@@ -3206,3 +3206,11 @@ qui impose `onPressed: null` + `Tooltip` porteur du motif. Captures `praticien/l
 > un `select-*-context` sur un login en **429** rend un jeton **vide**, et toutes les routes répondent alors
 > 401/403… ce qui ressemble trait pour trait à un cloisonnement qui fonctionne. Un 403 obtenu avec un jeton
 > vide ne prouve **rien**.
+
+> **9ᵉ correctif de harnais (R87) — le plus traître** : le contenu d'une **modale / d'un overlay**
+> peut être **totalement absent de l'arbre Semantics**. Prouvé sur la palette ⌘K du secrétariat :
+> `⌘K`, `Ctrl+K`, le clic sur la barre de recherche puis la saisie de « Dubois » ajoutent **0 nœud**
+> `flt-semantics`… alors que la **capture** montre la modale « Recherche globale » ouverte, le champ
+> rempli et 5 résultats typés dont le premier surligné en vert. Un diff de l'arbre Semantics aurait
+> conclu « palette morte » et fait filer un P1 imaginaire sur une fonctionnalité qui marche.
+> **Pour tout overlay : trancher à la capture d'écran, jamais au diff Semantics.**
