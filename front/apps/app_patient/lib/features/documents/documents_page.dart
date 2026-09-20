@@ -300,7 +300,11 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                       },
                       child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                        // Bottom padding 88 : dégage la place sous le
+                        // dernier document pour que le FAB « Ajouter un
+                        // document » (toujours affiché, cf. plus bas) ne le
+                        // recouvre pas — même valeur que `mes_rdv_page.dart`.
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 88),
                         children: [
                           if (pending != null) ...[
                             _PendingUploadCard(
@@ -329,15 +333,30 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                               const SizedBox(height: 12),
                             ],
                           ],
-                          _AddDocumentDropZone(
-                            onTap: () => _pickAndUpload(context),
-                          ),
                         ],
                       ),
                     ),
             ),
           ],
         ),
+        // #7427 : action primaire de l'écran (déposer une pièce dans son
+        // coffre) — un CTA planqué en fin de `ListView` n'est plus atteignable
+        // dès que le coffre grossit (des dizaines de milliers de px de
+        // défilement sur un coffre bien rempli). Flottant, il reste
+        // accessible quel que soit le volume de documents ; masqué sur le
+        // coffre réellement vide où `_buildEmptyState` porte déjà sa propre
+        // action d'ajout.
+        if (state.documents.isNotEmpty)
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton.extended(
+              key: const Key('documents_add_fab'),
+              onPressed: () => _pickAndUpload(context),
+              icon: const Icon(Icons.upload_file_outlined),
+              label: const Text('Ajouter un document'),
+            ),
+          ),
       ],
     );
   }
@@ -448,92 +467,6 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
       ),
     );
   }
-}
-
-// ---------------------------------------------------------------------------
-
-/// Zone de dépôt en fin de liste — remplace le FAB flottant : sur une app
-/// patient l'ajout est occasionnel, la zone reste visible sans masquer le
-/// contenu (maquette design-v2, point 5).
-class _AddDocumentDropZone extends StatelessWidget {
-  const _AddDocumentDropZone({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return SizedBox(
-      key: const Key('upload_fab'),
-      width: double.infinity,
-      height: 52,
-      child: CustomPaint(
-        foregroundPainter: const _DashedRRectPainter(
-          color: NubiaColors.n300,
-          radius: 14,
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: onTap,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.upload_file_outlined, size: 20, color: cs.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'Ajouter un document',
-                  style: textTheme.labelLarge?.copyWith(color: cs.primary),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Bordure pointillée d'un rectangle arrondi — Flutter n'a pas de
-/// `BorderStyle.dashed` natif (maquette, zone de dépôt documents).
-class _DashedRRectPainter extends CustomPainter {
-  const _DashedRRectPainter({required this.color, required this.radius});
-
-  final Color color;
-  final double radius;
-
-  static const _dashWidth = 4.0;
-  static const _dashGap = 3.0;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rrect = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      Radius.circular(radius),
-    );
-    final path = Path()..addRRect(rrect);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    for (final metric in path.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final next = distance + _dashWidth;
-        canvas.drawPath(
-          metric.extractPath(distance, next.clamp(0, metric.length)),
-          paint,
-        );
-        distance = next + _dashGap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedRRectPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.radius != radius;
 }
 
 // ---------------------------------------------------------------------------
