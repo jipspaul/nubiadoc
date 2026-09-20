@@ -73,6 +73,19 @@ fn last_sunday_of_month(year: i32, month: u32) -> chrono::NaiveDate {
     last_of_month - chrono::Duration::days(days_since_sunday as i64)
 }
 
+/// Date locale « aujourd'hui » `Europe/Paris` à l'instant courant (#7421) —
+/// à utiliser comme défaut partout où le "jour" du cabinet doit suivre
+/// l'horloge locale plutôt que le calendrier UTC. `Utc::now().date_naive()`
+/// reste sur la date UTC de la veille jusqu'à 22h (CEST) / 23h (CET), alors
+/// qu'il est déjà le lendemain à Paris : utiliser ce calendrier-là comme
+/// défaut fait paraître vide la fenêtre "aujourd'hui"
+/// ([`cabinet_local_days_utc_range`]) pour le reste de la soirée.
+pub(crate) fn paris_today() -> chrono::NaiveDate {
+    let now = chrono::Utc::now();
+    let offset_hours = paris_utc_offset_hours(now.date_naive());
+    (now + chrono::Duration::hours(offset_hours)).date_naive()
+}
+
 /// Fenêtre `[début, fin[` en UTC pour `days` jours locaux cabinet à partir de
 /// `base_date` (#6577) : la journée du cabinet se découpe sur minuit local,
 /// pas minuit UTC.

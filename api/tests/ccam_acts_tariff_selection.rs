@@ -127,8 +127,8 @@ async fn insert_fixtures(db: &PgPool, conventions: serde_json::Value) -> Fixture
 
     sqlx::query(
         "INSERT INTO ccam_act \
-         (code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante, active) \
-         VALUES ($1, 'Acte de test #4056', 1000, 1000, 1200, 'libre', true) \
+         (code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante, active, category) \
+         VALUES ($1, 'Acte de test #4056', 1000, 1000, 1200, 'libre', true, 'soins_conservateurs') \
          ON CONFLICT (code) DO UPDATE SET \
            tarif_cents = EXCLUDED.tarif_cents, \
            secteur1_cents = EXCLUDED.secteur1_cents, \
@@ -265,8 +265,8 @@ async fn practitioner_without_row_falls_back_gracefully() {
     // practitioner, ex. juste après provisioning).
     sqlx::query(
         "INSERT INTO ccam_act \
-         (code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante, active) \
-         VALUES ($1, 'Acte de test #4056', 1000, 1000, 1200, 'libre', true)",
+         (code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante, active, category) \
+         VALUES ($1, 'Acte de test #4056', 1000, 1000, 1200, 'libre', true, 'soins_conservateurs')",
     )
     .bind(&code)
     .execute(&db)

@@ -80,8 +80,8 @@ async fn insert_fixture(db: &PgPool, tag: &str, mapped: bool, initial_qty: i32) 
     let ccam_code = format!("TSTSTK{}", tag.to_uppercase());
 
     sqlx::query(
-        "INSERT INTO ccam_act (code, label, tarif_cents, active) \
-         VALUES ($1, 'Acte test stock', 10000, true)",
+        "INSERT INTO ccam_act (code, label, tarif_cents, active, category) \
+         VALUES ($1, 'Acte test stock', 10000, true, 'soins_conservateurs')",
     )
     .bind(&ccam_code)
     .execute(db)

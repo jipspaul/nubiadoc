@@ -46,6 +46,15 @@ pub struct ConversationItem {
     /// Déchiffrable côté serveur tant que le chiffrement est le POC UTF-8
     /// (voir `send_message`) — à revoir si un vrai chiffrement arrive.
     pub last_message_preview: Option<String>,
+    /// Nom de l'émetteur du dernier message (#7421), `provider.display_name`
+    /// pour un praticien — même mapping que `author_name` de
+    /// `get_conversation_messages`. `null` sinon (secrétariat, pharmacie : le
+    /// rôle seul suffit côté maquette, cf. point 3 design-v2).
+    pub last_message_author_name: Option<String>,
+    /// Rôle de l'émetteur du dernier message (#7421), dérivé de
+    /// `sender_kind` — même mapping que `author_role` de
+    /// `get_conversation_messages`.
+    pub last_message_author_role: Option<String>,
     /// Messages reçus (practitioner/secretary) non lus (`read_at IS NULL`).
     pub unread_count: i64,
 }
@@ -129,6 +138,14 @@ pub async fn list_conversations(
                  (SELECT m.body_ciphertext FROM message m \
                   WHERE m.conversation_id = c.id \
                   ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_body, \
+                 (SELECT m.sender_kind FROM message m \
+                  WHERE m.conversation_id = c.id \
+                  ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_sender_kind, \
+                 (SELECT pv.display_name FROM message m \
+                  LEFT JOIN provider pv \
+                      ON pv.user_id = m.sender_id AND m.sender_kind = 'practitioner' \
+                  WHERE m.conversation_id = c.id \
+                  ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_author_display_name, \
                  (SELECT COUNT(*) FROM message m \
                   WHERE m.conversation_id = c.id \
                     AND m.sender_kind IN ('practitioner','secretary','pharmacist') \
@@ -137,7 +154,8 @@ pub async fn list_conversations(
              LEFT JOIN cabinet cab ON cab.id = c.cabinet_id \
              LEFT JOIN pharmacy ph ON ph.id = c.pharmacy_id \
          ) \
-         SELECT id, cabinet_id, pharmacy_id, cabinet_name, last_message_at, last_body, unread_count \
+         SELECT id, cabinet_id, pharmacy_id, cabinet_name, last_message_at, last_body, \
+                last_sender_kind, last_author_display_name, unread_count \
          FROM conv \
          {cursor_clause} \
          ORDER BY last_message_at DESC NULLS LAST, id DESC \
@@ -220,6 +238,21 @@ pub async fn list_conversations(
         let last_message_preview = last_body
             .and_then(|b| String::from_utf8(b).ok())
             .map(|t| t.chars().take(120).collect::<String>());
+        let last_sender_kind: Option<String> = row
+            .try_get("last_sender_kind")
+            .map_err(|_| AppError::Internal)?;
+        let last_author_display_name: Option<String> = row
+            .try_get("last_author_display_name")
+            .map_err(|_| AppError::Internal)?;
+        // Même mapping que `get_conversation_messages` (#6343) : le rôle
+        // vient de sender_kind, le nom uniquement pour un praticien.
+        let (last_message_author_name, last_message_author_role) = match last_sender_kind.as_deref()
+        {
+            Some("practitioner") => (last_author_display_name, Some("Praticien".to_string())),
+            Some("secretary") => (None, Some("Secrétariat".to_string())),
+            Some("pharmacist") => (None, Some("Pharmacie".to_string())),
+            _ => (None, None),
+        };
 
         last_lma = lma;
         last_id = Some(id);
@@ -232,6 +265,8 @@ pub async fn list_conversations(
             conversation_type,
             last_message_at: lma.map(|dt| dt.to_rfc3339()),
             last_message_preview,
+            last_message_author_name,
+            last_message_author_role,
             unread_count,
         });
     }

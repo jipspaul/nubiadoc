@@ -208,14 +208,14 @@ class _ConversationsList extends StatelessWidget {
 
   /// Sous-ligne auteur/rôle sous le nom de l'interlocuteur (maquette
   /// design-v2, point 3) : le patient échange soit avec une personne nommée
-  /// du cabinet (`Message.authorName`/`authorRole`), soit avec la
+  /// du cabinet (`last_message_author_name`/`last_message_author_role`, #7421
+  /// — le contrat liste ne renvoie pas d'objet `last_message`), soit avec la
   /// pharmacie — dont les envois ne sont jamais signés par une personne.
   static String? _who(Conversation conv) {
     if (conv.interlocutorType == ConversationInterlocutorType.pharmacy) {
       return 'Votre pharmacie';
     }
-    final last = conv.lastMessage;
-    return last?.authorName ?? last?.authorRole;
+    return conv.lastMessageAuthorName ?? conv.lastMessageAuthorRole;
   }
 }
 
