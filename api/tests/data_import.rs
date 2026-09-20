@@ -75,6 +75,29 @@ fn make_pro_jwt(user_id: Uuid, cabinet_id: Uuid, role: &str) -> String {
     .unwrap()
 }
 
+/// Comme `make_pro_jwt`, mais pose `secretariat_id` (R10 : scope la vision
+/// patients du secrétariat) — requis pour reproduire #7480.
+fn make_secretary_jwt(user_id: Uuid, cabinet_id: Uuid, secretariat_id: Uuid) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    encode(
+        &Header::default(),
+        &json!({
+            "sub": user_id,
+            "kind": "pro",
+            "cabinet_id": cabinet_id,
+            "role": "secretary",
+            "secretariat_id": secretariat_id,
+            "exp": exp
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 fn make_patient_jwt(user_id: Uuid) -> String {
     let exp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -98,13 +121,16 @@ struct Fixture {
     cabinet_id: Uuid,
     admin_id: Uuid,
     prac_user_id: Uuid,
+    secretariat_id: Uuid,
 }
 
-/// Cabinet + admin + 1 praticien (RPPS `10001234567`, cible des RDV).
+/// Cabinet + admin + 1 praticien (RPPS `10001234567`, cible des RDV) + 1
+/// secrétariat (scope R10 des tokens `secretary`).
 async fn insert_fixture(db: &PgPool, tag: &str) -> Fixture {
     let cabinet_id = Uuid::new_v4();
     let admin_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
+    let secretariat_id = Uuid::new_v4();
 
     for (id, label) in [(admin_id, "admin"), (prac_user_id, "prac")] {
         sqlx::query(
@@ -140,12 +166,19 @@ async fn insert_fixture(db: &PgPool, tag: &str) -> Fixture {
     .execute(&mut *tx)
     .await
     .unwrap();
+    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Import7179')")
+        .bind(secretariat_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
 
     Fixture {
         cabinet_id,
         admin_id,
         prac_user_id,
+        secretariat_id,
     }
 }
 
@@ -159,6 +192,7 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         "DELETE FROM appointment WHERE cabinet_id = $1",
         "DELETE FROM patient WHERE cabinet_id = $1",
         "DELETE FROM practitioner WHERE cabinet_id = $1",
+        "DELETE FROM secretariat WHERE cabinet_id = $1",
         "DELETE FROM cabinet WHERE id = $1",
     ] {
         let mut tx = db.begin().await.unwrap();
@@ -626,6 +660,72 @@ async fn import_allows_secretary_plus_rejects_non_pro_and_unparsable_file() {
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+
+    cleanup(&db, &f).await;
+}
+
+/// #7480 : un secrétariat qui importe des patients doit ensuite les
+/// retrouver dans SA liste/fiche (garde R10, cf. #5428 pour la création
+/// walk-in) — la reprise de données posait `created_by_secretariat_id`
+/// à `NULL`, ce qui les rendait invisibles au secrétariat qui vient de les
+/// créer (visibles seulement du praticien).
+#[tokio::test]
+async fn imported_patients_are_visible_to_the_importing_secretariat() {
+    if !db_available() {
+        return;
+    }
+    ensure_kms();
+    let db = owner_pool().await;
+    let f = insert_fixture(&db, "r10").await;
+    let secretary = make_secretary_jwt(f.admin_id, f.cabinet_id, f.secretariat_id);
+
+    let csv = "ref_externe;nom;prenom;date_naissance;telephone;email;adresse;code_postal;ville;ins\n\
+               QA1;DupontQA89;Jean;1980-05-04;;jean.dupont.qa89@example.test;;;;\n";
+
+    let (status, job) = upload(app_pool().await, &secretary, "csv_patients", csv).await;
+    assert_eq!(status, StatusCode::CREATED, "{job}");
+    let job_id = job["id"].as_str().unwrap().to_string();
+
+    let (status, job) = call(
+        app_pool().await,
+        &secretary,
+        "POST",
+        &format!("/v1/cabinet/imports/{job_id}/run"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{job}");
+    assert_eq!(job["imported_count"], 1, "{}", job["report"]);
+    let patient_id = job["report"]["lines"][0]["entity_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let (status, list) = call(
+        app_pool().await,
+        &secretary,
+        "GET",
+        "/v1/cabinet/patients?q=DupontQA89",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    assert_eq!(
+        list["data"].as_array().unwrap().len(),
+        1,
+        "patient importé absent de la liste du secrétariat importateur : {list}"
+    );
+
+    let (status, detail) = call(
+        app_pool().await,
+        &secretary,
+        "GET",
+        &format!("/v1/cabinet/patients/{patient_id}"),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "fiche patient importé inaccessible au secrétariat importateur : {detail}"
+    );
 
     cleanup(&db, &f).await;
 }

@@ -88,12 +88,18 @@ impl Summary {
 
 /// Applique `lines` dans le cabinet. `dry_run` = tout est annulé à la fin
 /// (rapport identique à ce que ferait le run sur cet état de la base).
+///
+/// `created_by_secretariat_id` : posé sur les patients créés (#5428) quand
+/// l'import est lancé par un secrétariat, sinon `None` — sans quoi la garde
+/// R10 (`list_cabinet_patients` / `get_cabinet_patient`) rend invisibles au
+/// secrétariat les patients qu'il vient lui-même d'importer (#7480).
 pub(crate) async fn apply(
     db: &PgPool,
     cabinet_id: Uuid,
     lines: &[ParsedLine],
     dry_run: bool,
     key_manager: &LocalKeyManager,
+    created_by_secretariat_id: Option<Uuid>,
 ) -> Result<Summary, AppError> {
     let mut tx = db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -121,7 +127,15 @@ pub(crate) async fn apply(
                 let mut sp = (&mut tx).begin().await.map_err(|_| AppError::Internal)?;
                 let result = match record {
                     ImportRecord::Patient(p) => {
-                        apply_patient(&mut sp, &mut index, cabinet_id, p, key_manager).await
+                        apply_patient(
+                            &mut sp,
+                            &mut index,
+                            cabinet_id,
+                            p,
+                            key_manager,
+                            created_by_secretariat_id,
+                        )
+                        .await
                     }
                     ImportRecord::Appointment(a) => {
                         apply_appointment(&mut sp, &mut index, cabinet_id, a).await
@@ -376,6 +390,7 @@ async fn apply_patient(
     cabinet_id: Uuid,
     p: &PatientRecord,
     key_manager: &LocalKeyManager,
+    created_by_secretariat_id: Option<Uuid>,
 ) -> Result<Applied, LineError> {
     let lookup = PatientLookup {
         external_ref: p.external_ref.clone(),
@@ -444,8 +459,8 @@ async fn apply_patient(
         None => {
             let row = sqlx::query(
                 "INSERT INTO patient \
-                   (cabinet_id, first_name, last_name, birth_date, contact, external_ref) \
-                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+                   (cabinet_id, first_name, last_name, birth_date, contact, external_ref, created_by_secretariat_id) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
             )
             .bind(cabinet_id)
             .bind(&p.first_name)
@@ -453,6 +468,7 @@ async fn apply_patient(
             .bind(p.birth_date)
             .bind(&contact)
             .bind(&p.external_ref)
+            .bind(created_by_secretariat_id)
             .fetch_one(&mut **tx)
             .await
             .map_err(classify)?;
