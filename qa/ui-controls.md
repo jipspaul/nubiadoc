@@ -3164,6 +3164,26 @@ Après re-test individuel : **1 seul contrôle réellement mort, 0 réellement c
 | secretariat | /correspondents | 28 | 27 | 27 | 0 | 0 | 2026-09-20T07:49:00Z |
 | patient | /notifications | 20 | 19 | 19 | 0 | 0 | 2026-09-20T07:41:00Z |
 | patient | /treatment-plans | 9 | 9 | 9 | 0 | 0 (3 × `attestation` 404) | 2026-09-20T07:42:00Z |
+| secretariat | `/reprise-donnees` (Reprise de données, **écran neuf #7178**) | 6 | 6 | 4 | 0 | **1** | 2026-09-20T15:20:00Z |
+| praticien | `/stock-inventory` → « Stock par salle » (**delete neuf #7452**) | 12 | 10 | 8 | 0 | **1** | 2026-09-20T15:20:00Z |
+| secretariat | `/devis` (volet détail + bloc Suivi) | 38 | 38 | 37 | 0 | 0 | 2026-09-20T15:20:00Z |
+| secretariat | `/stock` | 41 | 41 | 41 | 0 | 0 | 2026-09-20T15:20:00Z |
+| secretariat | `/agenda` | 28 | 28 | 28 | 0 | 0 | 2026-09-20T15:20:00Z |
+| praticien | `/` (Tableau de bord) | 24 | 24 | 20 | 0* | 0 | 2026-09-20T15:20:00Z |
+| praticien | `/devis` | 24 | 24 | 21 | 0* | 0 | 2026-09-20T15:20:00Z |
+| praticien | `/tasks` | 4 | 4 | 4 | 0 | 0 | 2026-09-20T15:20:00Z |
+| praticien | `/cabinet-brief` | 5 | 5 | 5 | 0 | 0 | 2026-09-20T15:20:00Z |
+| patient | `/` (Accueil) | 17 | 17 | 16 | 0* | 0 | 2026-09-20T15:20:00Z |
+| patient | `/mes-rdv` | 7 | 7 | 3 | 0* | 0 | 2026-09-20T15:20:00Z |
+| patient | `/financial` | 10 | 10 | 1 | 0* | 0* | 2026-09-20T15:20:00Z |
+| patient | `/prescriptions` | 16 | 16 | 12 | 0* | 0 | 2026-09-20T15:20:00Z |
+| patient | `/home-care` | 17 | 17 | 14 | 0* | 0 | 2026-09-20T15:20:00Z |
+| pharmacie | `/` (File des commandes) | 21 | 21 | 16 | 0* | 0 | 2026-09-20T15:20:00Z |
+| pharmacie | `/devis` | 25 | 25 | 11 | 0* | 0 | 2026-09-20T15:20:00Z |
+| pharmacie | `/stock` | 14 | 14 | 10 | 0* | 0 | 2026-09-20T15:20:00Z |
+| pharmacie | `/messages` | 14 | 14 | 7 | 0* | 0 | 2026-09-20T15:20:00Z |
+| infirmiere | `/` (Disponibilité / Offres / Ma visite) | 6 | 6 | 6 | 0 | 0 | 2026-09-20T15:20:00Z |
+| infirmiere | `/notification-preferences` | 3 | 3 | 3 | 0 | 0 | 2026-09-20T15:20:00Z |
 
 **Le seul vrai défaut de contrôle de la ronde — `praticien /lab-work-orders` → « Nouveau bon » (#7458)** :
 cliqué au centre exact de son rect (1200, 76), il ne produit **ni navigation, ni requête `/v1/`, ni
@@ -3226,3 +3246,23 @@ qui impose `onPressed: null` + `Tooltip` porteur du motif. Captures `praticien/l
 > géolocalisation (défaut de Chromium headless) — ce qui imite parfaitement un bouton mort. L'app est
 > pourtant irréprochable : elle affiche « **Position indisponible : activez la géolocalisation.** ».
 > **Accorder `permissions:['geolocation']` dans le contexte Playwright** pour auditer cet écran.
+
+
+### Ronde R88 (2026-09-20) — 227 contrôles inventoriés, 227 activés
+
+**`0*` = candidat « MORT » du heuristique non confirmé.** Le walker en vrac a levé 51 verdicts MORT bruts
+(« ni navigation, ni requête, ni repeinture »). La vérification **une par une, page fraîche** en a infirmé
+le premier échantillon testé : `pharmacie /devis` → « Préparer » **fonctionne** (navigation vers
+`/orders/:id` + `GET /v1/pharmacy/orders/:id` + `/items` → 200). Cause des faux positifs : le walker
+re-navigue vers la route entre deux clics et réutilise les **coordonnées de l'inventaire initial**, devenues
+obsolètes après re-rendu. **Aucun contrôle mort n'est donc confirmé cette ronde, et aucun n'a été filé.**
+À la ronde suivante : ré-inventorier AVANT chaque clic au lieu de réutiliser le rect initial.
+
+**2 contrôles CASSÉS confirmés et filés** :
+- `secretariat /reprise-donnees` → « Importer le fichier » → `POST /v1/cabinet/imports` **403** → **#7465 (P0)**
+- `praticien` « Stock par salle » → « Supprimer cette salle » sur salle occupée → 409 qui **détruit l'écran** → **#7466 (P1)**
+
+**Note Semantics** : les lignes de `secretariat /devis` sont bien exposées (`flt-semantics role="group"`,
+`tabindex=0`, `flt-tappable`, `aria-label` complet) et **cliquables** (ouvrent le volet détail). Elles
+portent `role=group` et non `button` — elles sont donc invisibles à un filtre `[role=button]`.
+**Ne pas filtrer sur `role=button` seul** pour inventorier une liste.
