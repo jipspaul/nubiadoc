@@ -3271,3 +3271,93 @@ obsolètes après re-rendu. **Aucun contrôle mort n'est donc confirmé cette ro
 `tabindex=0`, `flt-tappable`, `aria-label` complet) et **cliquables** (ouvrent le volet détail). Elles
 portent `role=group` et non `button` — elles sont donc invisibles à un filtre `[role=button]`.
 **Ne pas filtrer sur `role=button` seul** pour inventorier une liste.
+
+## R89 — 2026-09-20 (soir) — audit de commandes, 5 apps
+
+> Méthode inchangée : inventaire Semantics → activation de CHAQUE contrôle → verdict.
+> **Correctif de harnais appliqué cette ronde** (il faussait les rondes précédentes) :
+> `L.inventory()` rend `x,y` = **centre** du rect (`rx,ry` = coin haut-gauche). Le helper
+> de connexion et le marcheur ajoutaient encore `w/2`/`h/2` à un point déjà centré : les
+> clics tombaient **à côté** de la cible. Second correctif : l'écran est désormais
+> **rechargé avant chaque contrôle** — un onglet ou une feuille change l'écran SANS changer
+> l'URL (cas `app_infirmiere`), et tous les contrôles suivants devenaient « INTROUVABLE »,
+> donc jamais audités.
+
+| app | écran/route | vw | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| praticien | `/` (Tableau de bord) | 1280 | 24 | 23 | 23 | 0 | 0 | 0 | 2026-09-20T18:30:00Z |
+| praticien | `/patients/:id/treatment-plans` | 1280 | 32 | 28 | 28 | 0 | 0 | 0 | 2026-09-20T18:35:00Z |
+| praticien | `/devis` | 1280 | 25 | 19 | 16 | 0 | 3* | 0 | 2026-09-20T18:38:00Z |
+| praticien | `/stock` | 1280 | 19 | 18 | 18 | 0 | 0 | 0 | 2026-09-20T18:42:00Z |
+| praticien | `/agenda` | 1280 | 24 | 22 | 22 | 0 | 0 | 0 | 2026-09-20T18:45:00Z |
+| praticien | `/waiting-room` | 1280 | 19 | 17 | 17 | 0 | 0 | 1 | 2026-09-20T18:48:00Z |
+| praticien | `/patients` | 1280 | 33 | 31 | 17 | 0 | 14* | 0 | 2026-09-20T19:10:00Z |
+| praticien | `/consultation` (liste) | 1280 | 34 | 32 | 32 | 0 | 0 | 0 | 2026-09-20T19:14:00Z |
+| secretariat | `/` (Tableau de bord) | 1280 | 28 | 26 | 26 | 0 | 0 | 0 | 2026-09-20T18:31:00Z |
+| secretariat | `/devis` | 1280 | 40 | 30 | 30 | 0 | 0 | 0 | 2026-09-20T18:36:00Z |
+| secretariat | `/stock` | 1280 | 40 | 32 | 32 | 0 | 0 | 0 | 2026-09-20T18:40:00Z |
+| secretariat | `/reprise-donnees` | 1280 | 25 | 23 | 23 | 0 | 0 | 1 | 2026-09-20T18:44:00Z |
+| secretariat | `/salle-attente` | 1280 | 22 | 20 | 20 | 0 | 0 | 1 | 2026-09-20T18:50:00Z |
+| secretariat | `/agenda` | 1280 | 73 | 66 | 59 | 6* | 1* | 0 | 2026-09-20T18:55:00Z |
+| secretariat | `/patients` | 1280 | 38 | 37 | 36 | 0 | 1* | 0 | 2026-09-20T19:08:00Z |
+| secretariat | `/liste-attente` | 1280 | 21 | 20 | 20 | 0 | 0 | 0 | 2026-09-20T19:12:00Z |
+| pharmacie | `/` (File des commandes) | 1280 | 22 | 12 | 12 | 0 | 0 | 0 | 2026-09-20T18:33:00Z |
+| pharmacie | `/devis` | 1280 | 26 | 15 | 15 | 0 | 0 | 0 | 2026-09-20T18:37:00Z |
+| pharmacie | `/stock` | 1280 | 15 | 12 | 12 | 0 | 0 | 0 | 2026-09-20T18:41:00Z |
+| pharmacie | `/messages` | 1280 | 15 | 12 | 12 | 0 | 0 | 0 | 2026-09-20T18:45:00Z |
+| patient | `/` (Accueil) | 1280 | 17 | 17 | 17 | 0 | 0 | 0 | 2026-09-20T18:41:00Z |
+| infirmiere | `/` · onglet Disponibilité | 390 | 7 | 3 | 3 | 0 | 0 | 0 | 2026-09-20T18:36:00Z |
+| infirmiere | `/` · onglet Offres | 390 | 6 | 2 | 2 | 0 | 0 | 0 | 2026-09-20T18:40:00Z |
+| infirmiere | `/` · onglet Ma visite | 390 | 6 | 2 | 2 | 0 | 0 | 0 | 2026-09-20T18:44:00Z |
+| infirmiere | `/notification-preferences` | 1280 | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-20T18:29:00Z |
+
+### (*) Les 24 verdicts négatifs bruts, vérifiés un par un — 23 sont des faux positifs
+
+| verdict brut | écran | vérification | conclusion |
+|---|---|---|---|
+| 3 × CASSÉ | praticien `/devis` | `404 GET /v1/cabinet/quotes/:id/attestation` à l'ouverture d'un devis. L'attestation (#7203) est **facultative** : 404 = absence. Prouvé en en déposant une (201) — le 404 disparaît, et l'écran se peint correctement dans les deux cas. | **faux positif** (404 = absence, géré) |
+| 14 × CASSÉ | praticien `/patients` | `403 GET /v1/cabinet/patients/:id/medical-record`. C'est la **garde §14 « relation de soin »** (`clinical.rs:1233` : « un praticien sans `appointment` avec ce patient reste 403 »). Vérifié : Marc Dubois (nombreux RDV avec Dr Hugo Marin) → **200** ; les patients importés ce soir (0 RDV) → **403**. | **faux positif** (garde métier correcte) |
+| 6 × MORT + 1 × CASSÉ (401) | secretariat `/agenda` | Cartes de RDV sans effet, après ~40 min de marche. **Rejoué en session fraîche sur 5 cartes : 5 ouvertes, 0 morte, 0 erreur réseau** — le volet de détail s'ouvre avec « Brief / Fermer / Marquer arrivé / Déplacer / Annuler / Appeler ». Le 401 isolé est une expiration de session en fin de marche longue. | **faux positif** (artefact de session longue) |
+| 1 × CASSÉ | secretariat `/patients` | `500 GET /favicon.png` — ressource statique, sans rapport avec le contrôle activé. | **faux positif** (bruit d'asset) |
+| — | praticien `/stock-inventory` → « Stock par salle » | Testé hors marcheur : un **transfert refusé** (`422 insufficient_stock`) fait tomber l'écran de **31 à 21 contrôles**, « Transférer » disparaît, « Réessayer » apparaît. | **BUG RÉEL → #7485** |
+
+**Bilan : 0 contrôle réellement mort, 1 chemin réellement cassé (#7485).** Les 3 contrôles
+désactivés sont légitimes (« Appeler suivant » sur file vide ; 2 boutons conditionnés à une
+sélection). Leçon de méthode : un 4xx déclenché par un clic n'est PAS un bug en soi — il faut
+lire le code de la garde et regarder la capture avant de conclure.
+
+### R89 — second lot (écrans non audités en début de ronde)
+
+| app | écran/route | vw | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| praticien | `/ordonnances` | 1280 | 18 | 17 | 17 | 0 | 0 | 0 | 2026-09-20T19:16:00Z |
+| praticien | `/lab-work-orders` | 1280 | 20 | 18 | 18 | 0 | 0 | 1** | 2026-09-20T19:22:00Z |
+| praticien | `/tasks` | 1280 | 4 | 4 | 4 | 0 | 0 | 0 | 2026-09-20T19:18:00Z |
+| secretariat | `/cabinet-stats` | 1280 | 22 | 21 | 20 | 0 | 1* | 0 | 2026-09-20T19:15:00Z |
+| secretariat | `/correspondents` | 1280 | 24 | 22 | 21 | 0 | 1* | 0 | 2026-09-20T19:19:00Z |
+| secretariat | `/tasks` | 1280 | 4 | 4 | 3 | 0 | 1* | 0 | 2026-09-20T19:23:00Z |
+| patient | `/mes-rdv` | 1280 | 8 | 5 | 4 | 1* | 0 | 0 | 2026-09-20T19:21:00Z |
+
+(*) vérifiés un par un, **tous faux positifs** :
+`cabinet-stats` → `403 GET /v1/cabinet/stats/activity`, **garde RBAC documentée** (l'écran affiche « Réservé aux praticiens ») ;
+`tasks` → `403 GET /v1/cabinet/audit-log`, c'est la **sonde d'accès** du rôle-gate `AuditLogAccessCubit` (masque l'entrée de nav sur 403) ;
+`correspondents` → `401 GET /v1/cabinet/agenda`, expiration de session en fin de marche longue, comme sur `/agenda` ;
+`patient /mes-rdv` → clic sur l'onglet **déjà sélectionné** (« À venir (91) »), sans effet attendu.
+
+(**) « Nouveau bon » : désactivation **légitime et prouvée** — `lab_work_orders_page.dart:164-170` la documente (aucun endpoint de création côté API) et pose la raison en `Tooltip` (« Création de bon de travail indisponible pour l'instant. »). C'est la résolution de **#7458**.
+
+### Deux artefacts de harnais corrigés en cours de ronde (à retenir pour les prochaines)
+
+1. **Clic sous la ligne de flottaison.** Sur l'accueil patient, « Ma pharmacie » est à `ry=783, h=96` dans un viewport de 800 px : cliquer son *centre* vise y=831, **hors page** — verdict « MORT » erroné. Après remontée à `ry=604`, le clic **navigue bien vers `/pharmacy`**. Toujours remonter un contrôle dont `ry + h > hauteur - 4`.
+2. **Action à effet invisible.** « Itinéraire » (accueil patient) appelle `GET /v1/appointments/:id/directions` puis ouvre un **onglet externe** : ni l'URL ni le nombre de nœuds Semantics ne bougent → « MORT » erroné. L'API répond bien **200** avec un deeplink Google Maps (`…/maps/dir/?api=1&destination=48.8666,2.341&travelmode=driving`), **422** sur `mode=fusee`, **404** sur le RDV d'un tiers.
+
+### R89 — second viewport : `secretariat` en 390 px (lacune explicitement notée à la ronde R87)
+
+La ronde R87 avait laissé ce trou (« *Non vérifié cette ronde : `secretariat` en 390 px — login en 429* »). **Il est comblé.**
+
+| app | écran/route | vw | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/` (Tableau de bord) | 390 | 11 | 9 | 9 | 0 | 0 | 2026-09-20T19:25:00Z |
+| secretariat | `/devis` | 390 | 20 | 10 | 9 | 1 | 0 | 2026-09-20T19:27:00Z |
+
+**Observation, non filée** (`app_secretariat` est une app **PC** au périmètre du brief) : à 390 px l'écran s'adapte partiellement — menu hamburger, facettes empilées verticalement, tuiles de synthèse **tronquées proprement** en `…` (« 1 088 46… », « montant eng… ») — mais **le tableau conserve ses colonnes desktop** : la colonne « Action » part à `x≈805` sur un viewport de 390, donc **6 × « Envoyer », 2 × « Relancer » et 2 × « PDF » sont hors cadre**, et le « Envoyer » activé est resté sans effet (clic hors page, même artefact que « Ma pharmacie » ci-dessus). Rien n'est cassé et la cible produit de cet écran est le poste PC ; à rouvrir seulement si le secrétariat doit devenir utilisable sur mobile.
