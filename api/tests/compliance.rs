@@ -694,3 +694,36 @@ async fn custom_device_declaration_rejects_blank_fields() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test 8 : recurrence_months hors bornes rejeté à la création (#7486) ──────
+
+#[tokio::test]
+async fn create_compliance_item_rejects_unbounded_recurrence_months() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "secretary");
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/compliance-items",
+        &token,
+        Some(json!({
+            "kind": "training",
+            "label": "x",
+            "due_date": "2026-12-01",
+            "recurrence_months": 2_147_483_647_i32
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un recurrence_months démesuré doit être rejeté à la création, pas rendre l'item inclôturable : {resp}"
+    );
+
+    cleanup(&db, &f).await;
+}
