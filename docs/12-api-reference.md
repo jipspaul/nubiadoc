@@ -505,6 +505,9 @@ Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue →
 | GET | `/v1/cabinet/treatment-plans` | practitioner | Plans du cabinet. |
 | POST | `/v1/cabinet/treatment-plans` | practitioner | Créer un plan (phases). |
 | POST | `/v1/cabinet/treatment-plans/{id}/phases` | practitioner | Ajouter une phase. |
+| POST | `/v1/cabinet/treatment-plans/{id}/sessions/propose` | practitioner | Découpe les actes pas encore planifiés en séances, selon `cabinet_session_rules` (algorithme documenté, #7173). |
+| POST | `/v1/cabinet/treatment-plans/{id}/sessions/{sessionId}/slots` | practitioner | Propose jusqu'à 20 créneaux ouverts compatibles avec la durée de la séance (#7173). |
+| POST | `/v1/cabinet/treatment-plans/{id}/sessions/{sessionId}/schedule` | practitioner | Réserve un créneau proposé et crée le RDV lié à la séance (#7173). |
 | GET | `/v1/cabinet/patients/{id}/orthodontics` | practitioner | Traitements orthodontiques du patient, étapes triées par `step_number` (#4135). |
 | POST | `/v1/cabinet/patients/{id}/orthodontics` | practitioner | Créer un traitement orthodontique. |
 | POST | `/v1/cabinet/orthodontics/{id}/steps` | practitioner | Ajouter une étape (`bague`/`contention`/`gouttiere`). |

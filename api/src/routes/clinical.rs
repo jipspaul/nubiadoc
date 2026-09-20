@@ -13,7 +13,7 @@ use crate::{
     consultation_context, consultations, data_import, dental_chart, implant_passport, letters,
     medical_questionnaire, medical_record, orthodontics, patient_alerts, patient_detail,
     patient_merge, patient_merge_candidates, patient_tags, periodontal_chart, prescription_list,
-    treatment_phases, treatment_plans, AppState,
+    treatment_phases, treatment_plans, treatment_sessions, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -125,6 +125,18 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/treatment-plans/:id/phases/:phase_id",
             patch(treatment_phases::patch_treatment_phase),
+        )
+        .route(
+            "/v1/cabinet/treatment-plans/:id/sessions/propose",
+            post(treatment_sessions::propose_treatment_sessions),
+        )
+        .route(
+            "/v1/cabinet/treatment-plans/:id/sessions/:session_id/slots",
+            post(treatment_sessions::propose_session_slots),
+        )
+        .route(
+            "/v1/cabinet/treatment-plans/:id/sessions/:session_id/schedule",
+            post(treatment_sessions::schedule_treatment_session),
         )
         .route(
             "/v1/cabinet/patients/:id/documents",

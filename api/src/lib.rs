@@ -171,6 +171,7 @@ mod support;
 mod text_validation;
 mod treatment_phases;
 mod treatment_plans;
+mod treatment_sessions;
 mod twilio_sms;
 mod upload_storage;
 mod visit_offer_expiry;
