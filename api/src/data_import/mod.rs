@@ -358,7 +358,18 @@ pub(crate) async fn dry_run_import(
         return Err(AppError::InvalidStatus);
     }
 
-    let summary = pipeline::apply(&state.db, claims.cabinet_id, &lines, true, &key_manager).await?;
+    let created_by_secretariat_id = (claims.role == "secretary")
+        .then_some(claims.secretariat_id)
+        .flatten();
+    let summary = pipeline::apply(
+        &state.db,
+        claims.cabinet_id,
+        &lines,
+        true,
+        &key_manager,
+        created_by_secretariat_id,
+    )
+    .await?;
 
     let mut tx = begin_tenant_tx(&state, claims.cabinet_id).await?;
     sqlx::query(
@@ -406,7 +417,18 @@ pub(crate) async fn run_import(
     }
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let outcome = pipeline::apply(&state.db, claims.cabinet_id, &lines, false, &key_manager).await;
+    let created_by_secretariat_id = (claims.role == "secretary")
+        .then_some(claims.secretariat_id)
+        .flatten();
+    let outcome = pipeline::apply(
+        &state.db,
+        claims.cabinet_id,
+        &lines,
+        false,
+        &key_manager,
+        created_by_secretariat_id,
+    )
+    .await;
 
     let mut tx = begin_tenant_tx(&state, claims.cabinet_id).await?;
     match &outcome {
