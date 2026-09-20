@@ -5935,11 +5935,23 @@ pub async fn post_account_access_requests(
     if !["email", "sms"].contains(&body.channel.as_str()) {
         return Err(AppError::ValidationError);
     }
+    if body.scope.len() > ACCESS_REQUEST_SCOPE_VALUES.len() {
+        return Err(AppError::ValidationError);
+    }
     for right in &body.scope {
         if !ACCESS_REQUEST_SCOPE_VALUES.contains(&right.as_str()) {
             return Err(AppError::ValidationError);
         }
     }
+    // Un même périmètre répété plusieurs fois ne décrit aucun droit
+    // supplémentaire (même traitement que `requested_acts`, #6671).
+    let mut seen_scope = std::collections::HashSet::new();
+    let scope: Vec<String> = body
+        .scope
+        .iter()
+        .filter(|s| seen_scope.insert(s.as_str()))
+        .cloned()
+        .collect();
 
     let email = match body.email.as_deref().map(str::trim) {
         Some(e) if !e.is_empty() => {
@@ -6003,7 +6015,7 @@ pub async fn post_account_access_requests(
     .bind(&body.channel)
     .bind(&email)
     .bind(&phone)
-    .bind(&body.scope)
+    .bind(&scope)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
