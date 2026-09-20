@@ -15,6 +15,14 @@ import 'package:nubia_domain/nubia_domain.dart';
 /// [_GlobalSearchBody]) sur le même terme ; stock/commandes pharmacie
 /// restent hors périmètre (#5581) et sont signalés comme tels plutôt que
 /// silencieusement absents.
+///
+/// La maquette (`design/mockups/v2/lib/spotlight-ui.jsx:44-48`) place
+/// « Demander à Nubia » en première rangée, avant les destinations (#7483).
+/// Aucun endpoint de réponse en langage naturel n'existe côté API : la
+/// rangée est affichée (elle n'est plus silencieusement absente) mais
+/// grisée avec un [Tooltip] expliquant pourquoi, même précédent que
+/// « Connecter Stripe »/« Nouveau bon » (#6702) plutôt qu'un bouton
+/// d'apparence active qui n'aurait fait qu'illusion.
 void openGlobalSearchDialog(
   BuildContext context, {
   List<ProNavDestination> destinations = const [],
@@ -267,8 +275,70 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
           style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 12),
+        _buildAskNubia(context),
+        if (_liveQuery.trim().isEmpty) ...[
+          const SizedBox(height: 4),
+          _buildAskSuggestions(),
+        ],
+        const SizedBox(height: 8),
         if (destinations.isNotEmpty) _buildDestinations(context, destinations),
         _buildResults(context, highlightBase: destinations.length),
+      ],
+    );
+  }
+
+  /// Rangée « Demander à Nubia » (#7483) — toujours affichée en tête, avant
+  /// les destinations, comme prescrit par la maquette. Grisée (`enabled:
+  /// false` + [Tooltip]) plutôt que retirée : aucun endpoint de réponse en
+  /// langage naturel n'existe côté API, cf. précédent #6702 sur
+  /// `cabinet_payouts_page.dart`/`lab_work_orders_page.dart`. N'entre pas
+  /// dans la navigation clavier ↑/↓ ([_handleKey]) : une rangée désactivée
+  /// n'y est pas activable.
+  Widget _buildAskNubia(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final query = _liveQuery.trim();
+    return Tooltip(
+      message: 'Réponse en langage naturel indisponible pour le moment.',
+      child: ListTile(
+        key: const Key('global_search_ask_nubia'),
+        enabled: false,
+        leading: CircleAvatar(
+          backgroundColor: tokens.neutralBg,
+          foregroundColor: tokens.neutralFg,
+          child: const Icon(Icons.auto_awesome),
+        ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Demander à Nubia'),
+            const SizedBox(width: 8),
+            const NubiaBadge.label(label: 'IA'),
+          ],
+        ),
+        subtitle: Text(
+          query.isEmpty
+              ? 'Posez une question — résumé, relances, chiffres du jour'
+              : '« $query »',
+        ),
+      ),
+    );
+  }
+
+  /// Puces de suggestion (#7483, `spotlight-ui.jsx:48`), affichées uniquement
+  /// champ vide comme dans la maquette. Grisées comme [_buildAskNubia] : elles
+  /// n'existent que pour illustrer la fonctionnalité « Demander à Nubia »,
+  /// elle-même désactivée.
+  Widget _buildAskSuggestions() {
+    const suggestions = [
+      'Résume ma journée',
+      'Quels devis relancer ?',
+      'Combien encaissé aujourd’hui ?',
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final suggestion in suggestions) NubiaChip(label: suggestion),
       ],
     );
   }
