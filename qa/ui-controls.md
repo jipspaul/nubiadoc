@@ -3214,3 +3214,15 @@ qui impose `onPressed: null` + `Tooltip` porteur du motif. Captures `praticien/l
 > rempli et 5 résultats typés dont le premier surligné en vert. Un diff de l'arbre Semantics aurait
 > conclu « palette morte » et fait filer un P1 imaginaire sur une fonctionnalité qui marche.
 > **Pour tout overlay : trancher à la capture d'écran, jamais au diff Semantics.**
+
+> **Corollaire du 9ᵉ correctif, démontré une 2ᵉ fois sur `patient /home-care/new`** : les 6 puces
+> d'acte et les 4 champs d'adresse y ressortaient **« MORT » (10 sur 10 activés)**. Elles fonctionnent
+> toutes : cliquer « Pansement » la **coche** et fait passer « Obtenir un devis » de **DÉSACTIVÉ à ACTIF**.
+> L'état de sélection d'une puce Flutter ne vit **qu'au canvas** — ni `aria-checked`, ni nœud ajouté.
+> **Le signal fiable n'est pas le diff de l'arbre, c'est le changement d'état `disabled` d'un contrôle
+> GARDÉ en aval** (ici le bouton que la sélection débloque), ou la capture d'écran.
+>
+> Même écran, 2ᵉ piège : « Obtenir un devis » n'émet **aucune** requête quand le navigateur refuse la
+> géolocalisation (défaut de Chromium headless) — ce qui imite parfaitement un bouton mort. L'app est
+> pourtant irréprochable : elle affiche « **Position indisponible : activez la géolocalisation.** ».
+> **Accorder `permissions:['geolocation']` dans le contexte Playwright** pour auditer cet écran.
