@@ -207,7 +207,11 @@ async fn get_returns_all_categories_enabled_by_default() {
 
     assert_eq!(status, StatusCode::OK);
     let data = json["data"].as_array().expect("data tableau");
-    assert_eq!(data.len(), 12, "12 catégories connues (CHECK migration 0283)");
+    assert_eq!(
+        data.len(),
+        12,
+        "12 catégories connues (CHECK migration 0283)"
+    );
     assert!(
         data.iter().all(|c| c["enabled"] == true),
         "aucun override posé → tout activé par défaut"
