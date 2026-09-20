@@ -316,5 +316,80 @@ void main() {
 
       expect(find.text('GANTS-M · 5 boite'), findsOneWidget);
     });
+
+    testWidgets(
+        'un 409 stock_location_in_use sur la suppression signale l\'erreur '
+        'sans détruire l\'écran (#7466)', (tester) async {
+      final mockListLocations = MockListStockLocationsUseCase();
+      final mockListItems = MockListStockItemsUseCase();
+      final mockListItemLocations = MockListItemLocationsUseCase();
+      final mockCreateLocation = MockCreateStockLocationUseCase();
+      final mockDeleteLocation = MockDeleteStockLocationUseCase();
+      final mockTransfer = MockTransferStockUseCase();
+      final mockSetThreshold = MockSetItemLocationThresholdUseCase();
+
+      when(() => mockListLocations())
+          .thenAnswer((_) async => const Right([_mainLocation, _room1]));
+      when(() => mockListItems())
+          .thenAnswer((_) async => const Right([_item]));
+      when(() => mockListItemLocations('item-1')).thenAnswer((_) async => const Right([
+            StockItemLocation(
+              locationId: 'loc-main',
+              locationName: 'Stock principal',
+              isMain: true,
+              quantity: 10,
+            ),
+            StockItemLocation(
+              locationId: 'loc-1',
+              locationName: 'Salle 1',
+              isMain: false,
+              quantity: 2,
+            ),
+          ]));
+      when(() => mockDeleteLocation('loc-1')).thenAnswer((_) async => const Left(
+            ServerFailure(
+              message:
+                  'Cette localisation contient encore du stock : transférez-le avant de la supprimer.',
+              statusCode: 409,
+              code: 'stock_location_in_use',
+            ),
+          ));
+
+      final bloc = StockLocationsBloc(
+        listLocations: mockListLocations,
+        listItems: mockListItems,
+        listItemLocations: mockListItemLocations,
+        createLocation: mockCreateLocation,
+        deleteLocation: mockDeleteLocation,
+        transfer: mockTransfer,
+        setThreshold: mockSetThreshold,
+      );
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      await tester.tap(find.text('Salle 1'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('stock_location_delete_loc-1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Supprimer'));
+      await tester.pumpAndSettle();
+
+      // Le SnackBar affiche le message métier...
+      expect(
+        find.text(
+          'Cette localisation contient encore du stock : transférez-le avant de la supprimer.',
+        ),
+        findsOneWidget,
+      );
+      // ...mais les onglets et les actions restent utilisables : c'est
+      // justement ce que le message demande de faire.
+      expect(find.byKey(const Key('stock_locations_tab_bar')), findsOneWidget);
+      expect(
+        find.byKey(const Key('stock_location_transfer_loc-1_item-1')),
+        findsOneWidget,
+      );
+      expect(find.byType(NubiaErrorWidget), findsNothing);
+    });
   });
 }

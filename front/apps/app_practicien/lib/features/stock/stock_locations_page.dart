@@ -58,11 +58,18 @@ class _StockLocationsPageState extends State<StockLocationsPage> {
         ],
       ),
       body: BlocConsumer<StockLocationsBloc, StockLocationsState>(
-        listenWhen: (_, s) => s is StockLocationsError,
+        listenWhen: (_, s) =>
+            s is StockLocationsError ||
+            (s is StockLocationsLoaded && s.errorMessage != null),
         listener: (context, state) {
-          if (state is StockLocationsError) {
+          final message = switch (state) {
+            StockLocationsError(:final message) => message,
+            StockLocationsLoaded(:final errorMessage) => errorMessage,
+            _ => null,
+          };
+          if (message != null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
+              SnackBar(content: Text(message)),
             );
           }
         },

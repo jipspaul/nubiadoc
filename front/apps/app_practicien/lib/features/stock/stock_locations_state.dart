@@ -19,6 +19,7 @@ class StockLocationsLoaded extends StockLocationsState {
     required this.itemLocations,
     this.submittingItemId,
     this.deletingLocationId,
+    this.errorMessage,
   });
 
   final List<StockLocation> locations;
@@ -36,9 +37,19 @@ class StockLocationsLoaded extends StockLocationsState {
   /// aucune suppression en cours.
   final String? deletingLocationId;
 
+  /// Erreur ponctuelle (ex: 409 `stock_location_in_use`, #7466) à afficher
+  /// en SnackBar sans perdre l'état déjà chargé (onglets, articles).
+  final String? errorMessage;
+
   @override
-  List<Object?> get props =>
-      [locations, items, itemLocations, submittingItemId, deletingLocationId];
+  List<Object?> get props => [
+        locations,
+        items,
+        itemLocations,
+        submittingItemId,
+        deletingLocationId,
+        errorMessage,
+      ];
 }
 
 class StockLocationsError extends StockLocationsState {
