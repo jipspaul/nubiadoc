@@ -870,7 +870,7 @@ void main() {
       );
       await tester.pumpWidget(wrapCard(summary));
 
-      expect(find.text('3 RDV · 1 restants'), findsOneWidget);
+      expect(find.text('1 RDV · 1 restant'), findsOneWidget);
       expect(find.byKey(const Key('today_schedule_row_confirmed')),
           findsOneWidget);
       expect(

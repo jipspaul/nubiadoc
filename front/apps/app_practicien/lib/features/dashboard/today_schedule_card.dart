@@ -71,8 +71,8 @@ class TodayScheduleCard extends StatelessWidget {
                     const Spacer(),
                     StatusPill(
                       key: const Key('today_schedule_badge'),
-                      label: '${summary.todayAppointments} RDV · '
-                          '$remaining restants',
+                      label: '${today.length} RDV · '
+                          '$remaining restant${remaining > 1 ? 's' : ''}',
                       variant: StatusPillVariant.neutral,
                     ),
                   ],
