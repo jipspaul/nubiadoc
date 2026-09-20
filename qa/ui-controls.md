@@ -3142,3 +3142,50 @@ connues, toutes re-prouvées une par une cette ronde :
 >    et produisait 9 faux « morts » sur les seules cartes d'article de `/stock-inventory`.
 > 5. `semHash` tronqué à 8 000 caractères **compare égal** sur deux arbres différents (les chips d'agenda
 >    passaient « morts » avec semCount 254→109). Comparer **semCount + diff des libellés**, pas un hash tronqué.
+
+#### R87 — bilan FINAL après la seconde vague d'audits : **35 écrans, 784 contrôles inventoriés, 729 activés**
+
+**655 OK · 40 « morts » bruts · 34 « cassés » bruts · 6 désactivés (tous justifiés).**
+Après re-test individuel : **1 seul contrôle réellement mort, 0 réellement cassé.**
+
+| app | écran/route | inventoriés | activés | OK | morts confirmés | cassés confirmés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | /consultation | 34 | 33 | 32 | 0 | 0 | 2026-09-20T07:46:00Z |
+| praticien | /devis | 25 | 24 | 24 | 0 | 0 (8 × `attestation` 404) | 2026-09-20T07:47:00Z |
+| praticien | /patients | 33 | 32 | 31 | 0 | 0 (10 × **#6854 ouverte**) | 2026-09-20T07:48:00Z |
+| praticien | /lab-work-orders | 23 | 20 | 18 | **1 → #7458** | 0 | 2026-09-20T07:54:00Z |
+| praticien | /team-messages | 19 | 18 | 18 | 0 | 0 | 2026-09-20T07:43:00Z |
+| secretariat | /cabinet-stats | 22 | 21 | 21 | 0 | 0 (403 partiel géré) | 2026-09-20T07:50:00Z |
+| secretariat | /cabinet-payouts | 25 | 22 | 22 | 0 | 0 | 2026-09-20T07:51:00Z |
+| secretariat | /admin-membres | 25 | 24 | 24 | 0 | 0 | 2026-09-20T07:52:00Z |
+| secretariat | /appointment-motifs | 22 | 21 | 21 | 0 | 0 | 2026-09-20T07:53:00Z |
+| secretariat | /bookable-slots | 25 | 23 | 23 | 0 | 0 | 2026-09-20T07:53:00Z |
+| secretariat | /liste-attente | 21 | 20 | 20 | 0 | 0 | 2026-09-20T07:49:00Z |
+| secretariat | /correspondents | 28 | 27 | 27 | 0 | 0 | 2026-09-20T07:49:00Z |
+| patient | /notifications | 20 | 19 | 19 | 0 | 0 | 2026-09-20T07:41:00Z |
+| patient | /treatment-plans | 9 | 9 | 9 | 0 | 0 (3 × `attestation` 404) | 2026-09-20T07:42:00Z |
+
+**Le seul vrai défaut de contrôle de la ronde — `praticien /lab-work-orders` → « Nouveau bon » (#7458)** :
+cliqué au centre exact de son rect (1200, 76), il ne produit **ni navigation, ni requête `/v1/`, ni
+repeinture** (semCount 70 → 70), **ni dialogue** — seulement une snackbar « Création de bon de travail
+à venir — bientôt disponible. ». `lab_work_orders_page.dart:164-175` : `onPressed` ne fait qu'afficher
+la snackbar. C'est le patron **explicitement banni par #6702** (cf. `cabinet_payouts_page.dart:383-387`),
+qui impose `onPressed: null` + `Tooltip` porteur du motif. Captures `praticien/labo-nouveau-bon-snackbar.png`.
+
+**Verdicts négatifs re-prouvés comme artefacts (39 morts + 34 cassés) :**
+- *entrée de rail déjà active* (24) et *facette déjà sélectionnée* (12) — no-ops voulus ;
+- *filtre matchant 100 % des lignes chargées* (1, `Alertes 50`) ;
+- *`GET /quotes|cabinet/quotes/:id/attestation` → 404* (19 : `patient /financial` 8, `praticien /devis` 8,
+  `patient /treatment-plans` 3) — sous-ressource optionnelle ; le détail s'ouvre complet et
+  **« Signer le devis » aboutit** (`POST /v1/quotes/:id/sign`, 0 × 4xx, l'écran bascule sur
+  « Télécharger le devis signé ») ;
+- *garde « relation de soin »* sur `praticien /patients` (10) — **#6854, ouverte**, même écran, même
+  symptôme → non re-filée ;
+- *expiration du jeton en ronde longue* (3) — `401` suivi d'un `POST /v1/auth/refresh` réussi ;
+- *`409 correspondent_in_use`* sur « Supprimer ce correspondant » — **garde correcte**, pas un défaut ;
+- *403 de permission partielle* sur `/cabinet-stats` — **géré à l'écran** (« Réservé aux praticiens ») ;
+- *« Envoyer » de la messagerie d'équipe* — no-op **correct** sur composeur vide ; rempli, il émet
+  `POST /v1/cabinet/messages` et le message est **relu persisté** (`sender_role:"Praticien"`).
+
+**6 contrôles désactivés, tous justifiés par le code** : « Exporter (CSV) » (`payouts.isEmpty`),
+« Connecter Stripe » (`Tooltip` + #6702), « Appeler suivant » (file vide, `{"data":[]}`).
