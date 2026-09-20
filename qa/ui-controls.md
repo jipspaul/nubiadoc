@@ -2916,3 +2916,77 @@ sélecteur « Assigné à » des 3 dialogues de tâche, qui n'offre jamais que �
 | secretariat | `/patients` (1280×800) | 30 | 9 | 9 | 0 | 0 | 0 | 2026-09-19T14:30:00Z |
 
 Les 4 « morts » du lot E2 sont des **lignes de fiche patient sous la ligne de flottaison** (y=604 à 799) — même artefact que partout ailleurs. Le « cassé » (« Alertes 50 ») est une **erreur de WebSocket** (`wss://api.doc.nubia-link.com/v1/ws`) survenue pendant la fenêtre d'observation, **sans lien causal avec le clic**.
+
+#### Ronde R86 — 2026-09-20 — 27 écran×viewport, **5/5 apps**
+
+> **Plafond assumé et déclaré** : l'activation est bornée à `--max=22` contrôles par écran (603 inventoriés → **482 activés**). Les 121 non activés sont les lignes de liste au-delà du 22ᵉ rang (cartes patient, lignes de devis, conversations) — jamais un CTA. À reprendre en priorité à la ronde suivante : `secretariat /stock` (50 inventoriés / 21 activés), `pharmacie /devis` (38/21), `praticien /consultation` (34/21), `pharmacie /` (32/21), `secretariat /correspondents` (31/21).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (390×844) | 7 | 6 | 6 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| patient | `/home-care` (390×844) | 17 | 17 | 17 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| patient | `/home-care/new` (390×844) | 12 | 10 | 0 | 10 | 0 | 2 | 2026-09-20T01:05:00Z |
+| patient | `/messaging` (390×844) | 8 | 8 | 8 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| patient | `/pharmacy/orders` (390×844) | 16 | 16 | 16 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| patient | `/profile/dependents` (390×844) | 22 | 22 | 22 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| pharmacie | `/` (1280×800) | 32 | 21 | 19 | 2 | 0 | 0 | 2026-09-20T01:05:00Z |
+| pharmacie | `/devis` (1280×800) | 38 | 21 | 19 | 2 | 0 | 0 | 2026-09-20T01:05:00Z |
+| pharmacie | `/messages` (1280×800) | 15 | 14 | 12 | 2 | 0 | 0 | 2026-09-20T01:05:00Z |
+| pharmacie | `/stock` (1280×800) | 22 | 21 | 19 | 2 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/` (1280×800) | 29 | 21 | 19 | 2 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/agenda` (1280×800) | 24 | 21 | 19 | 1 | 1 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/consent-templates` (1280×800) | 21 | 21 | 21 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/consultation` (1280×800) | 34 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/lab-work-orders` (1280×800) | 19 | 18 | 17 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/ordonnances` (1280×800) | 18 | 17 | 16 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/stock-inventory` (1280×800) | 29 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/waiting-room` (1280×800) | 19 | 17 | 16 | 1 | 0 | 1 | 2026-09-20T01:05:00Z |
+| secretariat | `/admin-membres` (1280×800) | 25 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/appointment-motifs` (1280×800) | 22 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/bookable-slots` (1280×800) | 25 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/cabinet-stats` (1280×800) | 22 | 21 | 19 | 1 | 1 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/correspondents` (1280×800) | 31 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/liste-attente` (1280×800) | 21 | 20 | 19 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/salle-attente` (1280×800) | 22 | 20 | 19 | 1 | 0 | 1 | 2026-09-20T01:05:00Z |
+| secretariat | `/stock` (1280×800) | 50 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+
+**TOTAL R86 — 603 contrôles inventoriés · 482 activés · 446 OK d'emblée · 34 « mort ? » · 2 « cassé » · 4 désactivés · 20 non activés (destructifs : « Se déconnecter »).**
+
+**Les 36 verdicts négatifs bruts ont TOUS été invalidés au re-test — 0 contrôle mort, 0 contrôle cassé publiable.**
+Trois familles, et la méthode de levée de chacune :
+
+1. **Auto-navigation (23 cas).** Cliquer l'entrée de rail de l'écran **où l'on est déjà** (`Agenda` sur
+   `/agenda`, `Stock` sur `/stock`, `Commandes` sur `/`…) ne produit ni navigation ni requête : c'est le
+   comportement attendu de `_selectRow` sur la branche courante. Famille identifiée par le motif
+   `label == écran courant`, constante sur les 4 apps à shell.
+2. **Facette déjà sélectionnée (4 cas).** `pharmacie` « Toutes / 72 », « Tous (127) », « Toutes / 4 »,
+   « À répondre (9) » — la puce active au chargement ; la re-cliquer ne change pas l'état. Le filtrage est
+   **local** (`stock_page.dart:81`, `requests.where((r) => r.status == _facet)`), donc aucune requête non plus.
+3. **Artefacts du harnais (9 cas), tous re-testés un par un sur page neuve :**
+   - `praticien /` → « **Modèles de consentement** » : **OK**. L'écran s'ouvre réellement (« Modèles du
+     cabinet », 7 modèles listés, `GET /v1/cabinet/consent-templates` émis). Le verdict venait de mon
+     contrôle `page.url()` : `practicien_shell.dart:126` utilise `context.push()`, qui n'écrit pas l'URL
+     sur le web (contrairement à `context.go()` employé par l'action voisine « Préférences de
+     notifications »). Le retour navigateur ramène bien au tableau de bord (29 contrôles). Écart de
+     cohérence noté, non filé.
+   - `praticien /agenda` → « Tableau de bord » classé **CASSÉ** sur un `pageerror` : **non reproductible**
+     (re-test : navigation vers `/`, 0 erreur, 0 réponse ≥ 400).
+   - `secretariat /cabinet-stats` → « Actualiser » classé **CASSÉ** : **OK**, émet bien
+     `GET /v1/cabinet/stats/activity` + `/billing`. Le bruit venait d'un token expiré en cours de passage
+     (401 `/me` + 401 `/auth/refresh`).
+   - `patient /home-care/new` → les **10** contrôles (6 puces d'acte + 4 champs) classés morts : **tous OK**.
+     Le clic bascule bien `aria-checked` de `false` à `true` (relevé brut de l'arbre Semantics avant/après),
+     les champs acceptent la saisie, et « **Obtenir un devis** » passe de `aria-disabled` à actif dès qu'un
+     acte est coché. Ces actions ne produisent **aucune requête** (état local) : c'est ce qui avait pris en
+     défaut la détection. Le harnais a été corrigé en cours de ronde — l'empreinte de l'arbre Semantics
+     inclut désormais `aria-checked` / `aria-selected` / `aria-disabled` / `value`, plus seulement la
+     longueur du HTML.
+
+**Les 4 contrôles DÉSACTIVÉS sont prouvés légitimes** : `secretariat /salle-attente` « Appeler suivant »
+(aucun patient en attente, en-tête « 0 en attente » cohérent) · `praticien /waiting-room` idem ·
+`secretariat /cabinet-payouts` « Exporter (CSV) » et « Connecter Stripe » (bandeau « **Aucun compte de
+paiement connecté** » — rien à exporter ni à connecter sans compte Stripe).
+
+**Non activés volontairement (20)** : « Se déconnecter », présent dans le pied de chaque shell pro et sur
+l'accueil infirmière — l'activer coupait la session au milieu de l'audit.
