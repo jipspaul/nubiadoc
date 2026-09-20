@@ -13,6 +13,7 @@
 //!   — ajouté dans la slice suivante.
 //! - `pricing`   : estimation de prix avant demande (`POST .../estimate`, #6117).
 
+mod address_geo;
 pub mod directory;
 pub mod pricing;
 pub mod profile;

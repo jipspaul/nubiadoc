@@ -168,6 +168,13 @@ pub async fn create_visit_request(
     if !(-90.0..=90.0).contains(&body.lat) || !(-180.0..=180.0).contains(&body.lng) {
         return Err(AppError::ValidationError);
     }
+    // #7430 : le fan-out ne matche que sur `lat`/`lng` (GPS de l'appareil) alors
+    // que l'infirmière ne voit que `address` (saisie patient) — un couple
+    // manifestement incohérent (ex. GPS à Lyon, adresse à Paris) enverrait une
+    // infirmière à des centaines de km de la vraie visite.
+    if super::address_geo::is_manifestly_inconsistent(body.lat, body.lng, &body.address) {
+        return Err(AppError::ValidationError);
+    }
     crate::text_validation::reject_nul_byte(&body.patient_display_name)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
