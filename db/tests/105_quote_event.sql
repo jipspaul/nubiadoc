@@ -181,7 +181,7 @@ UPDATE patient SET patient_account_id = '71770000-0000-0000-0000-0000000000b2'
 -- QE10. Patient B ne voit PAS les événements de son PROPRE devis 'draft'.
 -- ===========================================================================
 RESET app.current_cabinet_id;
-SET LOCAL app.patient_account_id = '71770000-0000-0000-0000-000000000b2';
+SET LOCAL app.patient_account_id = '71770000-0000-0000-0000-0000000000b2';
 SELECT is(
   (SELECT count(*)::int FROM quote_event
    WHERE id = '71770000-0000-0000-0000-000000000d02'),
@@ -191,7 +191,7 @@ SELECT is(
 -- ===========================================================================
 -- QE11. Patient A ne voit PAS les événements du devis 'sent' du patient B.
 -- ===========================================================================
-SET LOCAL app.patient_account_id = '71770000-0000-0000-0000-000000000b1';
+SET LOCAL app.patient_account_id = '71770000-0000-0000-0000-0000000000b1';
 SELECT is(
   (SELECT count(*)::int FROM quote_event
    WHERE id = '71770000-0000-0000-0000-000000000d03'),
