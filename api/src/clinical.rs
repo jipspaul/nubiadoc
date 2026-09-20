@@ -645,17 +645,19 @@ pub async fn quick_create_patient(
         .phone
         .as_deref()
         .map(str::trim)
-        .filter(|s| !s.is_empty());
+        .filter(|s| !s.is_empty())
+        .map(crate::text_validation::normalize_phone_format);
 
     // Même format E.164 que PATCH /v1/account (#7079 : `phone` n'était borné nulle part
-    // ici, laissant passer du HTML ou une chaîne quelconque telle quelle en base).
-    if let Some(tel) = phone {
+    // ici, laissant passer du HTML ou une chaîne quelconque telle quelle en base). La
+    // saisie nationale (`0X…`) est tolérée en plus (#7436, cf. `normalize_phone_format`).
+    if let Some(tel) = &phone {
         crate::text_validation::validate_phone_format(tel)?;
     }
 
     // contact JSONB : { tel? } — même clé que le reste du modèle (cf.
     // CabinetPatientDto.fromJson côté front, `contact->>'tel'`).
-    let contact: serde_json::Value = match phone {
+    let contact: serde_json::Value = match phone.as_deref() {
         Some(tel) => serde_json::json!({ "tel": tel }),
         None => serde_json::json!({}),
     };
@@ -737,7 +739,7 @@ pub async fn quick_create_patient(
                 cabinet_id: claims.cabinet_id,
                 first_name,
                 last_name,
-                phone: phone.map(str::to_string),
+                phone: phone.clone(),
                 birth_date: birth_date.map(|d| d.to_string()),
                 referred_by_correspondent_id,
                 created_at: created_at.to_rfc3339(),
@@ -794,7 +796,7 @@ pub async fn quick_create_patient(
             cabinet_id: claims.cabinet_id,
             first_name,
             last_name,
-            phone: phone.map(str::to_string),
+            phone: phone.clone(),
             birth_date: birth_date.map(|d| d.to_string()),
             referred_by_correspondent_id: body.correspondent_id,
             created_at: created_at.to_rfc3339(),

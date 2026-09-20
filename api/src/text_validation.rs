@@ -56,10 +56,32 @@ pub fn validate_max_len(s: &str, max_chars: usize) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Convertit un numéro français saisi au format national (`0X…`, espaces/points/tirets
+/// tolérés — `06 12 34 00 86`) vers l'E.164 (`+33X…`) qu'attend `validate_phone_format`.
+/// Aucun des trois formulaires appelants (tunnel SSR, profil patient, fiche cabinet)
+/// n'indique le format E.164 à l'utilisateur ; en pratique tout visiteur français tape
+/// du `0X…`, systématiquement rejeté avant ce correctif (#7436). La contrainte E.164
+/// elle-même (#7081) n'est pas retirée : seule la saisie nationale est tolérée en plus,
+/// tout le reste (déjà en E.164, ou pas un numéro français) traverse inchangé et sera
+/// validé — ou rejeté — tel quel par `validate_phone_format`.
+pub fn normalize_phone_format(phone: &str) -> String {
+    let stripped: String = phone
+        .chars()
+        .filter(|c| !c.is_whitespace() && *c != '.' && *c != '-')
+        .collect();
+    match stripped.strip_prefix('0') {
+        Some(rest) if !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()) => {
+            format!("+33{rest}")
+        }
+        _ => stripped,
+    }
+}
+
 /// `422 validation_error` si `phone` n'est pas un numéro E.164 valide (`+` suivi de
 /// 7 à 14 chiffres), sinon `Ok(())`. Même borne que `PATCH /v1/account` — extraite
 /// ici pour être partagée avec `POST /v1/cabinet/patients/quick` (#7079 : ce dernier
-/// acceptait n'importe quelle chaîne, y compris du HTML, dans `phone`).
+/// acceptait n'importe quelle chaîne, y compris du HTML, dans `phone`). Les appelants
+/// doivent passer le résultat de `normalize_phone_format` (#7436), pas la saisie brute.
 pub fn validate_phone_format(phone: &str) -> Result<(), AppError> {
     let digits = phone.strip_prefix('+').unwrap_or("");
     if digits.is_empty()
@@ -96,6 +118,18 @@ mod tests {
         assert!(validate_max_len(&"a".repeat(20), 20).is_ok());
         assert!(validate_max_len(&"a".repeat(21), 20).is_err());
         assert!(validate_max_len(&"é".repeat(21), 20).is_err());
+    }
+
+    #[test]
+    fn normalizes_french_national_format_to_e164() {
+        assert_eq!(normalize_phone_format("0612340086"), "+33612340086");
+        assert_eq!(normalize_phone_format("06 12 34 00 86"), "+33612340086");
+        assert_eq!(normalize_phone_format("06.12.34.00.86"), "+33612340086");
+        assert_eq!(normalize_phone_format("06-12-34-00-86"), "+33612340086");
+        assert_eq!(normalize_phone_format("+33612340086"), "+33612340086");
+        assert_eq!(normalize_phone_format("pas-un-telephone"), "pasuntelephone");
+        assert!(validate_phone_format(&normalize_phone_format("0612340086")).is_ok());
+        assert!(validate_phone_format(&normalize_phone_format("06 12 34 00 86")).is_ok());
     }
 
     #[test]

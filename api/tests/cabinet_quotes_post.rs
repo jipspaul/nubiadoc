@@ -624,8 +624,8 @@ async fn cabinet_quotes_post_persists_ccam_fields_and_get_returns_them() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO ccam_act (code, label, tarif_cents, panier_sante, active) \
-         VALUES ($1, 'Acte de test #4060', 1000, 'rac0', true) \
+        "INSERT INTO ccam_act (code, label, tarif_cents, panier_sante, active, category) \
+         VALUES ($1, 'Acte de test #4060', 1000, 'rac0', true, 'soins_conservateurs') \
          ON CONFLICT (code) DO UPDATE SET panier_sante = EXCLUDED.panier_sante, active = true",
     )
     .bind(TEST_CODE)
@@ -799,4 +799,112 @@ async fn cabinet_quotes_post_persists_ccam_fields_and_get_returns_them() {
         .execute(&db)
         .await
         .ok();
+}
+
+// ── Test (#7434) : tooth hors format FDI → 422, jamais 201 ──────────────────
+// Repro exacte de l'issue : "ZZZZ" traversait jusqu'au bon de travail
+// prothétique puis au brief du cabinet comme `tooth_fdi`.
+
+#[tokio::test]
+async fn cabinet_quotes_post_invalid_tooth_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+
+    for tooth in ["ZZZZ", "99", "19", "60", ""] {
+        let state = AppState {
+            db: db.clone(),
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        };
+
+        let body = json!({
+            "patient_id": Uuid::new_v4(),
+            "items": [{
+                "label": "Couronne céramo-métallique",
+                "amount_cents": 50000,
+                "tooth": tooth
+            }]
+        });
+
+        let response = app(state)
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/cabinet/quotes")
+                    .header("Content-Type", "application/json")
+                    .header(
+                        "Authorization",
+                        format!(
+                            "Bearer {}",
+                            make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "practitioner")
+                        ),
+                    )
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "tooth={tooth:?} hors format FDI doit être 422, jamais 201"
+        );
+    }
+}
+
+// ── Test (#7434) : ccam_code absent du référentiel `ccam_act` → 422 ─────────
+// Symétrique de `consultation_acts_post_unknown_ccam_code_returns_422`
+// (#4412) — la ligne de devis porte la cotation conventionnelle jusqu'au
+// laboratoire, elle ne doit pas persister un code CCAM inconnu.
+
+#[tokio::test]
+async fn cabinet_quotes_post_unknown_ccam_code_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": Uuid::new_v4(),
+        "items": [{
+            "label": "Couronne céramo-métallique",
+            "amount_cents": 50000,
+            "ccam_code": "PASUNCODE123"
+        }]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/quotes")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "practitioner")
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "ccam_code absent du référentiel doit être 422, jamais 201"
+    );
 }

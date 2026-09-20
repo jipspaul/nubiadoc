@@ -342,6 +342,11 @@ pub(crate) enum AppError {
     /// bloquée tant que le patient n'a pas signé l'attestation via
     /// `POST /v1/quotes/:id/attestation/sign`.
     AttestationNotSigned,
+    /// `PUT /v1/cabinet/settings/act-categories` (#7186) : une `category`
+    /// soumise n'appartient pas à la liste autorisée (CHECK, migration 0283)
+    /// — `400` explicite plutôt que de laisser la contrainte Postgres (23514)
+    /// remonter en 500, même doctrine que `InvalidQuoteStatusFilter`.
+    InvalidActCategory,
 }
 
 impl IntoResponse for AppError {
@@ -688,6 +693,17 @@ impl IntoResponse for AppError {
             AppError::AttestationNotSigned => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "attestation_not_signed"})),
+            )
+                .into_response(),
+            AppError::InvalidActCategory => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "code": "invalid_act_category",
+                    "message": "`category` doit être l'une des valeurs : \
+                        consultation, soins_conservateurs, endo, paro, prothese, \
+                        ortho, chirurgie, implanto, imagerie, atm, esthetique, \
+                        appareillages."
+                })),
             )
                 .into_response(),
         }
@@ -2986,7 +3002,7 @@ fn contact_delta(address: Option<&PatchAccountAddress>) -> Value {
 pub async fn patch_account(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
-    Json(body): Json<PatchAccountBody>,
+    Json(mut body): Json<PatchAccountBody>,
 ) -> Result<Json<AccountResponse>, AppError> {
     if body.email.is_some() {
         return Err(AppError::ValidationError);
@@ -3020,8 +3036,12 @@ pub async fn patch_account(
         return Err(AppError::ValidationError);
     }
 
-    if let Some(ref phone) = body.phone {
-        crate::text_validation::validate_phone_format(phone)?;
+    if let Some(phone) = body.phone.take() {
+        // Formulaire `profile_page.dart:549` sans indice de format : tolère la saisie
+        // nationale (`0X…`) en plus de l'E.164 attendu par `validate_phone_format` (#7436).
+        let phone = crate::text_validation::normalize_phone_format(&phone);
+        crate::text_validation::validate_phone_format(&phone)?;
+        body.phone = Some(phone);
     }
 
     let delta = contact_delta(body.address.as_ref());

@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
-    cabinet_quotes::{validate_quote_items, QuoteItemInput},
+    cabinet_quotes::{validate_quote_items, validate_quote_items_ccam_codes, QuoteItemInput},
     AppState,
 };
 
@@ -53,7 +53,8 @@ pub struct PatchCabinetQuoteResponse {
 /// - `cabinet_id` extrait du JWT, RLS scopée via `app.current_cabinet_id`.
 /// - `items` remplace intégralement les lignes existantes (validation
 ///   identique à `create_cabinet_quote` : non vide, montants bornés, libellé
-///   non blanc, `amo`/`amc` non négatifs) → 422 sinon.
+///   non blanc, `amo`/`amc` non négatifs, `tooth` au format FDI, `ccam_code`
+///   existant au référentiel — #7434) → 422 sinon.
 /// - `deposit_pct` doit être entre 0 et 100 si fourni → 422 sinon.
 /// - Devis inexistant/hors cabinet → 404.
 /// - Devis `sent` ou `signed` → 409 `quote_locked` (#4432 : figer le montant
@@ -79,6 +80,8 @@ pub async fn patch_cabinet_quote(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    validate_quote_items_ccam_codes(&mut tx, &body.items).await?;
 
     let existing = sqlx::query(
         "SELECT status FROM quote WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",

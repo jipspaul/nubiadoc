@@ -116,6 +116,7 @@ export 'src/repositories/quote_attachments_repository_impl.dart';
 export 'src/repositories/quote_attestation_repository_impl.dart';
 export 'src/repositories/letter_templates_repository_impl.dart';
 export 'src/repositories/letters_repository_impl.dart';
+export 'src/repositories/medication_reference_repository_impl.dart';
 export 'src/repositories/document_repository_impl.dart';
 export 'src/repositories/members_repository_impl.dart';
 export 'src/repositories/message_repository_impl.dart';

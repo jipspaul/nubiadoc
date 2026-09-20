@@ -799,8 +799,8 @@ async fn complete_consultation_estimates_amo_part_from_ccam_tarif() {
     const TEST_CODE: &str = "TEST4062Q";
     // tarif_cents = 10000 (100,00 €) → amo_part attendu = 70% = 7000 (70,00 €).
     sqlx::query(
-        "INSERT INTO ccam_act (code, label, tarif_cents, active) \
-         VALUES ($1, 'Acte de test #4062', 10000, true) \
+        "INSERT INTO ccam_act (code, label, tarif_cents, active, category) \
+         VALUES ($1, 'Acte de test #4062', 10000, true, 'soins_conservateurs') \
          ON CONFLICT (code) DO UPDATE SET tarif_cents = EXCLUDED.tarif_cents, active = true",
     )
     .bind(TEST_CODE)

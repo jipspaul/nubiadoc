@@ -33,6 +33,14 @@
 //! retombait à `false` et les favoris/suggestions par dent ne remontaient
 //! jamais, même root cause que `practitioner_favorite_acts.rs` (RLS
 //! `practitioner` non scopée).
+//!
+//! #7186 : le catalogue est filtré par les catégories d'actes désactivées du
+//! cabinet appelant (`cabinet_act_category_setting`, migration 0283, #7187)
+//! — un cabinet 100% ortho ne doit pas voir remonter les actes de chirurgie
+//! qu'il a désactivés, y compris dans ses favoris/suggestions. `all=true`
+//! (query) désactive ce filtre (ex. réglage `PUT
+//! /v1/cabinet/settings/act-categories`, où le cabinet doit voir tout le
+//! catalogue pour choisir quoi activer).
 
 use axum::{
     extract::{Query, State},
@@ -98,6 +106,10 @@ pub struct CcamActsQuery {
     /// Numéro de dent FDI (#4118) — surface les codes les plus utilisés par
     /// ce praticien sur des dents de même type (voir doc de module).
     pub tooth: Option<String>,
+    /// `true` : ignore le filtre par catégories activées du cabinet (#7186)
+    /// — pour tout voir, ex. l'écran de réglage
+    /// `/v1/cabinet/settings/act-categories`.
+    pub all: Option<bool>,
 }
 
 /// Type de dent déduit du 2e chiffre FDI (position dans le quadrant).
@@ -194,6 +206,27 @@ pub async fn search_ccam_acts(
         .and_then(JsonValue::as_bool)
         .unwrap_or(false);
 
+    // #7186 : catégories désactivées par le cabinet — absence de ligne vaut
+    // catégorie active par défaut (doc migration 0283), donc seules les
+    // catégories explicitement `enabled = false` sont à exclure. `all=true`
+    // saute la requête : tableau vide == filtre neutre (ANY(vide) = false).
+    let disabled_categories: Vec<String> = if query.all.unwrap_or(false) {
+        Vec::new()
+    } else {
+        sqlx::query(
+            "SELECT category FROM cabinet_act_category_setting \
+             WHERE cabinet_id = $1 AND enabled = false",
+        )
+        .bind(claims.cabinet_id)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .into_iter()
+        .map(|r| r.try_get::<String, _>("category"))
+        .collect::<Result<_, _>>()
+        .map_err(|_| AppError::Internal)?
+    };
+
     let mut rows = Vec::new();
     if q.is_none() {
         if let Some(practitioner_id) = practitioner_id {
@@ -202,10 +235,12 @@ pub async fn search_ccam_acts(
                  FROM practitioner_favorite_act f \
                  JOIN ccam_act c ON c.code = f.ccam_code AND c.active = true \
                  WHERE f.practitioner_id = $1 \
+                   AND NOT (c.category = ANY($2)) \
                  ORDER BY f.position \
                  LIMIT 25",
             )
             .bind(practitioner_id)
+            .bind(&disabled_categories)
             .fetch_all(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
@@ -260,9 +295,12 @@ pub async fn search_ccam_acts(
             if !top_codes.is_empty() {
                 let suggestion_rows = sqlx::query(
                     "SELECT code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante \
-                     FROM ccam_act WHERE code = ANY($1) AND active = true",
+                     FROM ccam_act \
+                     WHERE code = ANY($1) AND active = true \
+                       AND NOT (category = ANY($2))",
                 )
                 .bind(&top_codes)
+                .bind(&disabled_categories)
                 .fetch_all(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?;
@@ -294,6 +332,7 @@ pub async fn search_ccam_acts(
              FROM ccam_act \
              WHERE active = true \
                AND NOT (code = ANY($2)) \
+               AND NOT (category = ANY($4)) \
                AND ($1::text IS NULL \
                     OR translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
                          LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
@@ -304,6 +343,7 @@ pub async fn search_ccam_acts(
         .bind(q.as_deref())
         .bind(&favorite_codes)
         .bind(remaining)
+        .bind(&disabled_categories)
         .fetch_all(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;

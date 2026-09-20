@@ -55,7 +55,7 @@ fn parse_base_date(date: Option<&str>) -> Result<chrono::NaiveDate, AppError> {
         Some(s) => {
             chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| AppError::ValidationError)
         }
-        None => Ok(chrono::Utc::now().date_naive()),
+        None => Ok(crate::scheduling::paris_today()),
     }
 }
 

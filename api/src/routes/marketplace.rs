@@ -4,8 +4,8 @@
 use axum::{routing::get, Router};
 
 use crate::{
-    bookings, cabinet_info, ccam_acts, marketplace, ngap_acts, practitioner_favorite_acts, reviews,
-    waiting_list, AppState,
+    bookings, cabinet_act_categories, cabinet_info, ccam_acts, marketplace, ngap_acts,
+    practitioner_favorite_acts, reviews, waiting_list, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -14,6 +14,11 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route("/v1/specialties", get(marketplace::list_specialties))
         .route("/v1/acts", get(marketplace::list_acts))
         .route("/v1/ccam/acts", get(ccam_acts::search_ccam_acts))
+        .route(
+            "/v1/cabinet/settings/act-categories",
+            get(cabinet_act_categories::get_act_categories)
+                .put(cabinet_act_categories::update_act_categories),
+        )
         .route(
             "/v1/cabinet/practitioners/me/favorite-acts",
             get(practitioner_favorite_acts::list_favorite_acts)

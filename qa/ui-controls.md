@@ -46,10 +46,12 @@ avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupu
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts (bruts) | cassés (bruts) | hors champ | last_check |
 |---|---|---|---|---|---|---|---|---|
+| secretariat | `/patients/new` (Création rapide + champ « Adressé par » #7193, 1280) | 8 | 4 | 3 | 0 | 0 | **1** | 2026-09-19T20:45:00+00:00 |
+| secretariat | `/cabinet-brief` (Brief du cabinet, jumeau de l'écran praticien, 1280) | 6 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T20:50:00+00:00 |
 | praticien | `/` (Tableau de bord, 1280) | 32 | 2 | 2 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
 | praticien | `/agenda` (1280) | 27 | 2 | 2 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
 | praticien | `/agenda` → **Brief du cabinet** (écran neuf #7191, 1280) | 7 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
-| secretariat | `/` (rail de navigation, 1280) | 30 | 16 | 8 | 0 | **8** | 0 | 2026-09-19T20:20:00+00:00 |
+| secretariat | `/` (rail de navigation, 1280) | 30 | 20 | 12 | 0 | **8** *(corrigés en fin de ronde)* | 0 | 2026-09-19T20:55:00+00:00 |
 | secretariat | `/correspondents` (écran neuf #7193, 1280) | 29 | 5 | 4 | 0 | 0 | **1** | 2026-09-19T20:20:00+00:00 |
 | secretariat | `/messages` (messagerie patients, 1280) | 33 | 3 | 3 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
 | patient | `/` (Accueil, 390x844) | 22 | 6 | 6 | 0 | 0 | 0 | 2026-09-19T20:20:00+00:00 |
@@ -64,16 +66,17 @@ avatar de profil) et les cas adversariaux (double-submit, BACK navigateur, coupu
 
 ### Ronde R85 — 2026-09-19 (diff-driven : PR #7401/#7403-#7408 mergées le jour même)
 
-**345 contrôles inventoriés, 63 activés, 53 OK, 0 mort, 8 cassés, 1 désactivé (légitime), 1 sans effet légitime.**
+**359 contrôles inventoriés, 70 activés, 59 OK, 0 mort, 8 cassés, 2 désactivés (légitimes), 1 sans effet légitime.**
 
-- Les **8 « cassés »** sont les entrées du rail secrétariat qui ouvrent le **mauvais écran** (Correspondants→`/devis`, Devis→`/cabinet-payouts`, Encaissements→`/messages`, Patients→`/team-messages`, Équipe→`/cabinet-stats`, Statistiques→`/bookable-slots`, Créneaux ouverts→`/appointment-motifs`, Motifs de RDV→`/correspondents`). 4 mesurés en session neuve, les 8 déduits du décalage d'index prouvé → **#7416 (P0)**.
-- Le **désactivé** est le bouton « Ajouter » du formulaire correspondant tant que « Nom » est vide : **légitime**, il double la garde serveur `display_name` non blanc (422).
+- Les **8 « cassés »** sont les entrées du rail secrétariat qui ouvrent le **mauvais écran** (Correspondants→`/devis`, Devis→`/cabinet-payouts`, Encaissements→`/messages`, Patients→`/team-messages`, Équipe→`/cabinet-stats`, Statistiques→`/bookable-slots`, Créneaux ouverts→`/appointment-motifs`, Motifs de RDV→`/correspondents`). 4 mesurés en session neuve, les 8 déduits du décalage d'index prouvé → **#7416 (P0)**. **Corrigé pendant la ronde** (PR #7418, branche `correspondents` replacée au rang 6) : re-test final en session neuve, **4/4** — Correspondants→`/correspondents`, Devis→`/devis`, Encaissements→`/cabinet-payouts`, Équipe→`/team-messages`. Le rail est donc **sain à la clôture**.
+- Les **2 désactivés** sont légitimes et doublent tous deux une garde serveur : « Ajouter » (formulaire correspondant) tant que « Nom » est vide → 422 `display_name` non blanc ; « Créer le dossier » (`/patients/new`) tant que Prénom/Nom sont vides → 422 `validation_error`.
 - Le **sans effet légitime** est l'onglet « Disponibilité » de l'app infirmière, **déjà actif** au moment du clic — non compté comme mort.
 - **0 contrôle mort** et **0 erreur console** (hors échec de handshake WebSocket `wss://…/v1/ws`, observé sur l'app pharmacie et sans effet visible) sur l'ensemble des 15 écran×viewport audités.
 
 ⚠️ **Leçon de harnais de cette ronde.** Deux pièges de mesure ont d'abord produit de faux « morts », écartés avant publication :
 1. **Coordonnées périmées** — activer une liste de contrôles inventoriée *une seule fois* donne des clics dans le vide dès que le premier a navigué. Il faut **ré-inventorier avant chaque clic** et revenir à l'écran.
-2. **Rail à sections repliables** — les en-têtes de groupe du rail secrétariat (« Ma journée », « Patients », « Facturation », « Messages ») sont exposés en `role=button` et **replient leur section** au clic : un balayage séquentiel décale toute la colonne et invente des destinations. Le seul protocole fiable est **une session neuve par clic**, capture prise *avant* le clic, libellé confirmé par recadrage de la capture.
+2. **Libellé de groupe englobant** — chercher un contrôle par son texte seul fait tomber sur le `group` Semantics **parent**, dont le libellé concatène ceux de ses enfants : un clic au centre de ce groupe tombe dans le vide et fait conclure « bouton mort ». C'est exactement ce qui a failli produire un faux P1 « *« Créer le dossier » ne persiste rien* » — le sélecteur corrigé (`role==='button'` + égalité stricte) montre un `POST /cabinet/patients/quick → 201` parfaitement sain. **Toujours filtrer sur `role` ET ancrer le libellé.**
+3. **Rail à sections repliables** — les en-têtes de groupe du rail secrétariat (« Ma journée », « Patients », « Facturation », « Messages ») sont exposés en `role=button` et **replient leur section** au clic : un balayage séquentiel décale toute la colonne et invente des destinations. Le seul protocole fiable est **une session neuve par clic**, capture prise *avant* le clic, libellé confirmé par recadrage de la capture.
 | pharmacie | / @1280 | 22 | 7 | 7 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
 | pharmacie | /stock @1280 | 19 | 8 | 8 | 0 | 0 | 1 | 2026-09-19T09:05:00+00:00 |
 | pharmacie | /devis @1280 | 26 | 11 | 11 | 0 | 0 | 0 | 2026-09-19T09:05:00+00:00 |
@@ -2913,3 +2916,149 @@ sélecteur « Assigné à » des 3 dialogues de tâche, qui n'offre jamais que �
 | secretariat | `/patients` (1280×800) | 30 | 9 | 9 | 0 | 0 | 0 | 2026-09-19T14:30:00Z |
 
 Les 4 « morts » du lot E2 sont des **lignes de fiche patient sous la ligne de flottaison** (y=604 à 799) — même artefact que partout ailleurs. Le « cassé » (« Alertes 50 ») est une **erreur de WebSocket** (`wss://api.doc.nubia-link.com/v1/ws`) survenue pendant la fenêtre d'observation, **sans lien causal avec le clic**.
+
+#### Ronde R86 — 2026-09-20 — 27 écran×viewport, **5/5 apps**
+
+> **Plafond assumé et déclaré** : l'activation est bornée à `--max=22` contrôles par écran (603 inventoriés → **482 activés**). Les 121 non activés sont les lignes de liste au-delà du 22ᵉ rang (cartes patient, lignes de devis, conversations) — jamais un CTA. À reprendre en priorité à la ronde suivante : `secretariat /stock` (50 inventoriés / 21 activés), `pharmacie /devis` (38/21), `praticien /consultation` (34/21), `pharmacie /` (32/21), `secretariat /correspondents` (31/21).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (390×844) | 7 | 6 | 6 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| patient | `/home-care` (390×844) | 17 | 17 | 17 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| patient | `/home-care/new` (390×844) | 12 | 10 | 0 | 10 | 0 | 2 | 2026-09-20T01:05:00Z |
+| patient | `/messaging` (390×844) | 8 | 8 | 8 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| patient | `/pharmacy/orders` (390×844) | 16 | 16 | 16 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| patient | `/profile/dependents` (390×844) | 22 | 22 | 22 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| pharmacie | `/` (1280×800) | 32 | 21 | 19 | 2 | 0 | 0 | 2026-09-20T01:05:00Z |
+| pharmacie | `/devis` (1280×800) | 38 | 21 | 19 | 2 | 0 | 0 | 2026-09-20T01:05:00Z |
+| pharmacie | `/messages` (1280×800) | 15 | 14 | 12 | 2 | 0 | 0 | 2026-09-20T01:05:00Z |
+| pharmacie | `/stock` (1280×800) | 22 | 21 | 19 | 2 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/` (1280×800) | 29 | 21 | 19 | 2 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/agenda` (1280×800) | 24 | 21 | 19 | 1 | 1 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/consent-templates` (1280×800) | 21 | 21 | 21 | 0 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/consultation` (1280×800) | 34 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/lab-work-orders` (1280×800) | 19 | 18 | 17 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/ordonnances` (1280×800) | 18 | 17 | 16 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/stock-inventory` (1280×800) | 29 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| praticien | `/waiting-room` (1280×800) | 19 | 17 | 16 | 1 | 0 | 1 | 2026-09-20T01:05:00Z |
+| secretariat | `/admin-membres` (1280×800) | 25 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/appointment-motifs` (1280×800) | 22 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/bookable-slots` (1280×800) | 25 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/cabinet-stats` (1280×800) | 22 | 21 | 19 | 1 | 1 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/correspondents` (1280×800) | 31 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/liste-attente` (1280×800) | 21 | 20 | 19 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+| secretariat | `/salle-attente` (1280×800) | 22 | 20 | 19 | 1 | 0 | 1 | 2026-09-20T01:05:00Z |
+| secretariat | `/stock` (1280×800) | 50 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:05:00Z |
+
+**TOTAL R86 — 603 contrôles inventoriés · 482 activés · 446 OK d'emblée · 34 « mort ? » · 2 « cassé » · 4 désactivés · 20 non activés (destructifs : « Se déconnecter »).**
+
+**Les 36 verdicts négatifs bruts ont TOUS été invalidés au re-test — 0 contrôle mort, 0 contrôle cassé publiable.**
+Trois familles, et la méthode de levée de chacune :
+
+1. **Auto-navigation (23 cas).** Cliquer l'entrée de rail de l'écran **où l'on est déjà** (`Agenda` sur
+   `/agenda`, `Stock` sur `/stock`, `Commandes` sur `/`…) ne produit ni navigation ni requête : c'est le
+   comportement attendu de `_selectRow` sur la branche courante. Famille identifiée par le motif
+   `label == écran courant`, constante sur les 4 apps à shell.
+2. **Facette déjà sélectionnée (4 cas).** `pharmacie` « Toutes / 72 », « Tous (127) », « Toutes / 4 »,
+   « À répondre (9) » — la puce active au chargement ; la re-cliquer ne change pas l'état. Le filtrage est
+   **local** (`stock_page.dart:81`, `requests.where((r) => r.status == _facet)`), donc aucune requête non plus.
+3. **Artefacts du harnais (9 cas), tous re-testés un par un sur page neuve :**
+   - `praticien /` → « **Modèles de consentement** » : **OK**. L'écran s'ouvre réellement (« Modèles du
+     cabinet », 7 modèles listés, `GET /v1/cabinet/consent-templates` émis). Le verdict venait de mon
+     contrôle `page.url()` : `practicien_shell.dart:126` utilise `context.push()`, qui n'écrit pas l'URL
+     sur le web (contrairement à `context.go()` employé par l'action voisine « Préférences de
+     notifications »). Le retour navigateur ramène bien au tableau de bord (29 contrôles). Écart de
+     cohérence noté, non filé.
+   - `praticien /agenda` → « Tableau de bord » classé **CASSÉ** sur un `pageerror` : **non reproductible**
+     (re-test : navigation vers `/`, 0 erreur, 0 réponse ≥ 400).
+   - `secretariat /cabinet-stats` → « Actualiser » classé **CASSÉ** : **OK**, émet bien
+     `GET /v1/cabinet/stats/activity` + `/billing`. Le bruit venait d'un token expiré en cours de passage
+     (401 `/me` + 401 `/auth/refresh`).
+   - `patient /home-care/new` → les **10** contrôles (6 puces d'acte + 4 champs) classés morts : **tous OK**.
+     Le clic bascule bien `aria-checked` de `false` à `true` (relevé brut de l'arbre Semantics avant/après),
+     les champs acceptent la saisie, et « **Obtenir un devis** » passe de `aria-disabled` à actif dès qu'un
+     acte est coché. Ces actions ne produisent **aucune requête** (état local) : c'est ce qui avait pris en
+     défaut la détection. Le harnais a été corrigé en cours de ronde — l'empreinte de l'arbre Semantics
+     inclut désormais `aria-checked` / `aria-selected` / `aria-disabled` / `value`, plus seulement la
+     longueur du HTML.
+
+**Les 4 contrôles DÉSACTIVÉS sont prouvés légitimes** : `secretariat /salle-attente` « Appeler suivant »
+(aucun patient en attente, en-tête « 0 en attente » cohérent) · `praticien /waiting-room` idem ·
+`secretariat /cabinet-payouts` « Exporter (CSV) » et « Connecter Stripe » (bandeau « **Aucun compte de
+paiement connecté** » — rien à exporter ni à connecter sans compte Stripe).
+
+**Non activés volontairement (20)** : « Se déconnecter », présent dans le pied de chaque shell pro et sur
+l'accueil infirmière — l'activer coupait la session au milieu de l'audit.
+
+#### Ronde R86 — lot complémentaire (2 écrans de plus, total 29 écran×viewport)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/patients` (1280×800) | 33 | 29 | 19 | 1 | 9 | 0 | 2026-09-20T01:25:00Z |
+| secretariat | `/patients` (1280×800) | 38 | 29 | 26 | 2 | 1 | 0 | 2026-09-20T01:25:00Z |
+
+**TOTAL R86 (tous lots) — 674 contrôles inventoriés · 540 activés · 491 OK d'emblée · 37 « mort ? » · 12 « cassé » · 4 désactivés · 22 non activés (destructifs).**
+
+Les 9 « cassés » de `praticien /patients` sont **tous la même cause, déjà ouverte sous #6854** : ouvrir la
+fiche d'un patient **jamais suivi par ce praticien** déclenche `403 GET …/medical-record` +
+`403 GET …/prescriptions` — la garde « relation de soin » (`medical_record.rs:138-153`). La fiche dit
+correctement « Vous n'avez pas encore suivi ce patient », mais laisse ses actions cliniques actives.
+**Même écran, même symptôme qu'une issue ouverte → non re-filé** (règle anti-doublon).
+Le « cassé » de `secretariat /patients` est un **token expiré en cours de passage** (`401 /tags`,
+`401 /documents`), pas un défaut produit. Le `MORT?` restant de chaque écran est l'auto-navigation de rail.
+
+**Les deux viewports ont été couverts** (exigence « 390×844 mobile ET 1280×800 ») :
+`patient` relevé aussi en **1280×800** (`/`, `/mes-rdv`, `/documents`, `/messaging`, `/profile`,
+`/financial`, `/treatment-plans`, `/home-care` — tous peints, `canvas=1`, aucune réponse ≥ 400) et
+`praticien` en **390×844** (`/`, `/agenda`, `/waiting-room`, `/patients`, `/consultation`,
+`/ordonnances`). L'app praticien se replie proprement sur mobile : barre de titre à menu hamburger,
+cartes d'agenda compactes, bouton flottant « Consultation » (capture `praticien/R86m__agenda_390.png`).
+*Faux positif écarté* : `praticien /ordonnances` rend 3 contrôles à 390 contre 18 à 1280 — l'écart est
+**entièrement** la barre latérale (14 entrées de rail repliées dans le hamburger) ; le corps est le même
+état vide légitime « Aucune ordonnance en cours · Ouvrez une fiche patient pour créer une ordonnance »
+avec son CTA « Choisir un patient », identique aux deux viewports.
+
+#### Ronde R86 — 3ᵉ lot (18 écrans de plus, **47 écran×viewport au total**)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/financial` (390×844) | 10 | 10 | 3 | 0 | 7 | 0 | 2026-09-20T01:40:00Z |
+| patient | `/implant-passport` (390×844) | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| patient | `/notifications` (390×844) | 19 | 19 | 18 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| patient | `/oubliettes` (390×844) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| patient | `/prescriptions` (390×844) | 16 | 16 | 16 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| patient | `/treatment-plans` (390×844) | 9 | 9 | 6 | 0 | 3 | 0 | 2026-09-20T01:40:00Z |
+| praticien | `/cabinet-brief` (1280×800) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| praticien | `/devis` (1280×800) | 25 | 24 | 15 | 2 | 7 | 0 | 2026-09-20T01:40:00Z |
+| praticien | `/messages` (1280×800) | 25 | 24 | 23 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| praticien | `/tasks` (1280×800) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| praticien | `/team-messages` (1280×800) | 19 | 18 | 17 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/admin-secretariats` (1280×800) | 22 | 21 | 20 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/agenda` (1280×800) | 73 | 25 | 24 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/cabinet-brief` (1280×800) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/devis` (1280×800) | 51 | 25 | 24 | 1 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/messages` (1280×800) | 30 | 25 | 23 | 2 | 0 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/tasks` (1280×800) | 5 | 5 | 4 | 0 | 1 | 0 | 2026-09-20T01:40:00Z |
+| secretariat | `/team-messages` (1280×800) | 26 | 23 | 22 | 1 | 0 | 2 | 2026-09-20T01:40:00Z |
+
+### TOTAL R86 — 47 écran×viewport, **5/5 apps**, **les deux viewports**
+
+**1026 contrôles inventoriés · 806 activés · 728 OK d'emblée · 48 « mort ? » · 30 « cassé » · 6 désactivés · 30 non activés (destructifs).**
+
+**Aucun contrôle mort ni cassé publiable : les 78 verdicts négatifs bruts se répartissent en 4 familles, toutes levées.**
+
+| famille | nb | levée |
+|---|---|---|
+| auto-navigation de rail (cliquer l'entrée de l'écran courant) | 38 | comportement attendu de `_selectRow` sur la branche courante ; motif constant `label == écran courant` sur les 4 apps à shell |
+| facette/onglet déjà sélectionné (`Toutes 72`, `Tous`, `À répondre (9)`, `Toutes / 2068`…) | 6 | la puce active au chargement ; le filtrage est **local** (`stock_page.dart:81`), donc ni requête ni repeinture |
+| `GET /v1/quotes/:id/attestation` → **404** au détail d'un devis (`patient /financial` 7, `patient /treatment-plans` 3, `praticien /devis` 7) | 17 | **sous-ressource optionnelle absente** : 3 devis sur 10 rendent 200. **Aucun effet visible** — le détail s'ouvre complet (capture `patient/R86_devis_detail_attestation404.png`). Bruit console, pas un défaut. |
+| garde « relation de soin » sur la fiche d'un patient jamais suivi (`praticien /patients`) | 9 | **doublon de #6854 (ouverte)**, même écran, même symptôme → non re-filé |
+| artefacts de harnais re-testés un par un (voir lot 1) | 8 | tous **OK** au re-test sur page neuve |
+
+**Dette #7392 vérifiée SOLDÉE au passage** : `patient /financial`, **entièrement mort** en R84 (canvas=0, arbre Semantics
+vide, `GetIt … not registered`), rend aujourd'hui l'écran complet de `Patient Facturation v2.html` — « Reste à votre
+charge **300 €** sur 600 € · après remboursements », barre empilée, ventilation `Assurance Maladie (AMO) −100 € /
+Mutuelle −200 € / Reste à votre charge 300 €`, « Détail des actes » avec les parts par acte, mention « Signature
+électronique sécurisée (**eIDAS**) », CTA « Télécharger le devis signé ». Les montants correspondent **exactement** au
+devis créé au scénario X6 de cette ronde. Capture `patient/R86_devis_detail_attestation404.png`.

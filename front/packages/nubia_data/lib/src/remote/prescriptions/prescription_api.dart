@@ -110,4 +110,20 @@ class PrescriptionApi {
     );
     return response.data!['prescription_id'] as String;
   }
+
+  /// GET /v1/medication-references?q= (#7433) — référentiel médicament
+  /// (DCI, forme galénique, classe thérapeutique) pour la recherche
+  /// « Médicament (DCI) » de la composition d'ordonnance.
+  Future<List<MedicationReferenceDto>> searchMedicationReferences(
+    String q,
+  ) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/medication-references',
+      queryParameters: {if (q.trim().isNotEmpty) 'q': q.trim()},
+    );
+    final data = response.data?['data'] as List<dynamic>? ?? [];
+    return data
+        .map((e) => MedicationReferenceDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
 }
