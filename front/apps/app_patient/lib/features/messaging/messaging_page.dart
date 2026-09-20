@@ -251,7 +251,8 @@ List<_ConversationListItem> _listItemsFor(List<Conversation> conversations) {
   final previous = conversations.where((conv) => conv.unreadCount == 0);
   return [
     for (final conv in unread) _ConversationRow(conv),
-    if (previous.isNotEmpty) const _PreviousConversationsHeader(),
+    if (unread.isNotEmpty && previous.isNotEmpty)
+      const _PreviousConversationsHeader(),
     for (final conv in previous) _ConversationRow(conv),
   ];
 }
