@@ -91,6 +91,7 @@ mod cabinet_team_messages;
 mod ccam_acts;
 mod ccam_stock_mappings;
 mod clinical;
+mod compliance;
 mod consent_templates;
 mod consultation_act_create;
 mod consultation_act_stock;
@@ -633,6 +634,7 @@ fn build_router(
     let router = routes::webhooks_interop::add(router);
     let router = routes::cabinet_tasks::add(router);
     let router = routes::cabinet_briefs::add(router);
+    let router = routes::compliance::add(router);
     // Route de service du `StorageSigner` self-hébergé (#6425) — sert les
     // objets `ObjectStorage` via les URL générées par `LocalStorageSigner`.
     // Toujours montée (coût nul si `ScalewayStorageSigner` est le signer
