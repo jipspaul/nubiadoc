@@ -1185,11 +1185,9 @@ class _MedicationSearchFieldState extends State<_MedicationSearchField> {
 /// Affordance d'ajout d'une ligne médicament (#4987, maquette design-v2) :
 /// remplace l'ancien bouton plein « Ajouter un médicament » par un champ de
 /// recherche — choisir un résultat de l'autocomplétion est l'unique geste
-/// d'ajout. Le contenu du référentiel (ticket « recherche référentiel DCI »)
-/// n'est pas encore câblé dans le DI : tant que
-/// [SearchMedicationReferencesUseCase] n'y est pas enregistré, le champ reste
-/// un shell fonctionnel sans suggestion, prêt à s'activer sans autre
-/// changement ici.
+/// d'ajout. [SearchMedicationReferencesUseCase] est câblé dans le DI
+/// (`data_registration.dart`, #7433) sur le référentiel médicament `GET
+/// /v1/medication-references`.
 class _AddItemSearchField extends StatefulWidget {
   const _AddItemSearchField({required this.enabled, required this.onSelected});
 
