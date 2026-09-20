@@ -44,7 +44,7 @@ use crate::auth::register::{
 use crate::auth::{is_valid_email_format, PatientAccountClaims};
 use crate::bookings::{create_booking, CreateBookingBody};
 use crate::marketplace::{get_provider, hold_slot, search_slots, SearchProvidersQuery};
-use crate::text_validation::validate_phone_format;
+use crate::text_validation::{normalize_phone_format, validate_phone_format};
 use crate::AppState;
 
 use super::html::{escape, page, PageMeta};
@@ -293,7 +293,11 @@ pub async fn confirm_submit(
 
     let prenom = form.prenom.trim();
     let nom = form.nom.trim();
-    let telephone = form.telephone.trim();
+    // Ni le champ HTML (`telephone`, sans `placeholder`/`pattern`) ni aucun message
+    // n'indique le format E.164 attendu par `validate_phone_format` : la saisie
+    // nationale (`0X…`, espaces tolérés) que tape tout visiteur français est donc
+    // normalisée avant validation plutôt que rejetée (#7436).
+    let telephone = normalize_phone_format(form.telephone.trim());
     let email = form.email.trim();
     let motif = form
         .motif
@@ -305,24 +309,26 @@ pub async fn confirm_submit(
         .consentement
         .as_deref()
         .is_some_and(|c| !c.trim().is_empty());
-    let has_required_fields = !prenom.is_empty()
+    let other_fields_valid = !prenom.is_empty()
         && !nom.is_empty()
-        && !telephone.is_empty()
         && prenom.chars().count() <= PRENOM_MAX_CHARS
         && nom.chars().count() <= NOM_MAX_CHARS
-        && validate_phone_format(telephone).is_ok()
         && is_valid_email_format(email)
         && email.chars().count() <= EMAIL_MAX_CHARS
         && consent_given
         && motif
             .as_deref()
             .is_none_or(|m| m.chars().count() <= MOTIF_MAX_CHARS);
+    let phone_valid = !telephone.is_empty() && validate_phone_format(&telephone).is_ok();
+    let has_required_fields = other_fields_valid && phone_valid;
     let birth_date = NaiveDate::parse_from_str(form.naissance.trim(), "%Y-%m-%d")
         .ok()
         .filter(|_| has_required_fields);
 
     let Some(birth_date) = birth_date else {
-        return invalid_submission_page(provider_id, slot_id);
+        // Le seul champ en cause est le téléphone (#7436) : le dire plutôt que de
+        // renvoyer l'utilisateur chercher un problème qui n'existe pas ailleurs.
+        return invalid_submission_page(provider_id, slot_id, other_fields_valid && !phone_valid);
     };
 
     // Borne symétrique à celle des voies authentifiées (#6653, #7009,
@@ -334,11 +340,11 @@ pub async fn confirm_submit(
     let birth_date_valid =
         birth_date <= today && min_birth_date.is_some_and(|min| birth_date >= min);
     if !birth_date_valid {
-        return invalid_submission_page(provider_id, slot_id);
+        return invalid_submission_page(provider_id, slot_id, false);
     }
 
     if is_rate_limited(email) {
-        return invalid_submission_page(provider_id, slot_id);
+        return invalid_submission_page(provider_id, slot_id, false);
     }
 
     let creation = create_patient_account(
@@ -593,11 +599,20 @@ fn slot_unavailable_page(
 /// `required`, ce repli couvre la requête directe/rejouée). 422, et renvoie
 /// vers le même praticien/créneau plutôt qu'un cul-de-sac, pour que le
 /// visiteur puisse corriger sans tout recommencer. Rien n'a été écrit.
-fn invalid_submission_page(provider_id: Uuid, slot_id: Uuid) -> Response {
+///
+/// `phone_only` : tous les autres champs sont valides, seul le téléphone ne l'est
+/// pas — le message le nomme au lieu d'accuser « tous les champs » et la case CGU,
+/// qui n'y sont pour rien (#7436).
+fn invalid_submission_page(provider_id: Uuid, slot_id: Uuid, phone_only: bool) -> Response {
+    let message = if phone_only {
+        "Le numéro de téléphone mobile saisi n'est pas valide. Merci de le renseigner au format international (ex. +33 6 12 34 56 78)."
+    } else {
+        "Certaines informations sont manquantes ou invalides (tous les champs sont requis, ainsi que l'acceptation des conditions d'utilisation). Merci de vérifier le formulaire."
+    };
     let body = format!(
         r#"<h1>Vos informations</h1>
 <div class="context">
-  <p>Certaines informations sont manquantes ou invalides (tous les champs sont requis, ainsi que l'acceptation des conditions d'utilisation). Merci de vérifier le formulaire.</p>
+  <p>{message}</p>
 </div>
 <p><a href="/reservation/confirmer?providerId={provider_id}&amp;slotId={slot_id}">Revenir au formulaire</a></p>"#
     );
@@ -812,10 +827,25 @@ mod tests {
     async fn invalid_submission_page_is_422_and_links_back_to_the_same_provider_and_slot() {
         let provider_id = Uuid::new_v4();
         let slot_id = Uuid::new_v4();
-        let (status, html) = html_of(invalid_submission_page(provider_id, slot_id)).await;
+        let (status, html) = html_of(invalid_submission_page(provider_id, slot_id, false)).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert!(html.contains(&format!("providerId={provider_id}")));
         assert!(html.contains(&format!("slotId={slot_id}")));
+    }
+
+    #[tokio::test]
+    async fn invalid_submission_page_names_the_phone_when_its_the_only_problem() {
+        // #7436 : un téléphone au format national (`0X…`, refusé avant normalisation)
+        // ne doit plus accuser tous les champs et la case CGU.
+        let (status, html) = html_of(invalid_submission_page(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            true,
+        ))
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(html.contains("téléphone"));
+        assert!(!html.contains("tous les champs sont requis"));
     }
 
     #[tokio::test]
