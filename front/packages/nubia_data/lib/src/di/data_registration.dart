@@ -34,6 +34,7 @@ import '../remote/dental_chart/dental_chart_api.dart';
 import '../remote/periodontal_chart/periodontal_chart_api.dart';
 import '../remote/cabinet_medical_questionnaire/cabinet_medical_questionnaire_api.dart';
 import '../remote/treatment_plans/treatment_plans_api.dart';
+import '../remote/treatment_sessions/treatment_sessions_api.dart';
 import '../remote/cabinet_team_messages/cabinet_team_messages_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
 import '../remote/invoice_reminder/invoice_reminder_api.dart';
@@ -106,6 +107,7 @@ import '../repositories/dental_chart_repository_impl.dart';
 import '../repositories/periodontal_chart_repository_impl.dart';
 import '../repositories/cabinet_medical_questionnaire_repository_impl.dart';
 import '../repositories/treatment_plans_repository_impl.dart';
+import '../repositories/treatment_sessions_repository_impl.dart';
 import '../repositories/cabinet_team_messages_repository_impl.dart';
 import '../repositories/cabinet_quotes_repository_impl.dart';
 import '../repositories/invoice_reminder_repository_impl.dart';
@@ -651,6 +653,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<TreatmentPlansApi>(
       () => TreatmentPlansApi(gi()),
     )
+    ..registerLazySingleton<TreatmentSessionsApi>(
+      () => TreatmentSessionsApi(gi()),
+    )
     ..registerLazySingleton<CabinetTeamMessagesApi>(
       () => CabinetTeamMessagesApi(gi()),
     )
@@ -780,6 +785,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<TreatmentPlansRepository>(
       () => TreatmentPlansRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<TreatmentSessionsRepository>(
+      () => TreatmentSessionsRepositoryImpl(gi()),
     )
     ..registerLazySingleton<CabinetTeamMessagesRepository>(
       () => CabinetTeamMessagesRepositoryImpl(gi()),
@@ -915,6 +923,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListTreatmentPlansUseCase(gi()))
     ..registerFactory(() => CreateTreatmentPlanUseCase(gi()))
     ..registerFactory(() => CreateTreatmentPhaseUseCase(gi()))
+    ..registerFactory(() => ProposeTreatmentSessionsUseCase(gi()))
+    ..registerFactory(() => ProposeSessionSlotsUseCase(gi()))
+    ..registerFactory(() => ScheduleTreatmentSessionUseCase(gi()))
     ..registerFactory(() => ListCabinetTeamMessagesUseCase(gi()))
     ..registerFactory(() => SendCabinetTeamMessageUseCase(gi()))
     ..registerFactory(() => GetCabinetPatientUseCase(gi()))
