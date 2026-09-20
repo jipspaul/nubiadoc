@@ -14,6 +14,8 @@ import 'package:app_practicien/features/devis/devis_page.dart';
 import 'package:app_practicien/features/devis/devis_state.dart';
 import 'package:app_practicien/features/devis/invoice_reminder_cubit.dart';
 import 'package:app_practicien/features/devis/quote_documents_cubit.dart';
+import 'package:app_practicien/features/devis/quote_events_cubit.dart';
+import 'package:app_practicien/features/devis/widgets/quote_timeline.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -48,6 +50,24 @@ class MockLetterTemplatesRepository extends Mock
 
 class MockConsentTemplateRepository extends Mock
     implements ConsentTemplateRepository {}
+
+class MockQuoteEventsCubit extends MockCubit<QuoteEventsState>
+    implements QuoteEventsCubit {}
+
+/// `QuoteTimeline` (#7175, parité secrétariat #7467) exige un
+/// `QuoteEventsCubit` dans son contexte — enregistré dans GetIt (même
+/// découpage que `QuoteDocumentsCubit` ci-dessous). `events` vide par
+/// défaut : dégrade vers le comportement historique (seule « Devis créé »/
+/// « Signature attendue » dérivées de `CabinetQuote`).
+MockQuoteEventsCubit _registerQuoteEventsCubit({
+  List<QuoteEvent> events = const [],
+}) {
+  final cubit = MockQuoteEventsCubit();
+  when(() => cubit.state).thenReturn(QuoteEventsLoaded(events: events));
+  when(() => cubit.load(any())).thenAnswer((_) async {});
+  GetIt.instance.registerFactory<QuoteEventsCubit>(() => cubit);
+  return cubit;
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -176,6 +196,7 @@ void main() {
             RenderConsentTemplateUseCase(consentTemplateRepo),
       ),
     );
+    _registerQuoteEventsCubit();
     addTearDown(GetIt.instance.reset);
   });
 
@@ -697,6 +718,84 @@ void main() {
       expect(find.byKey(const Key('quote_attestation_status_signed')),
           findsOneWidget);
       expect(find.textContaining('Signée le 25/06/2026'), findsOneWidget);
+    });
+  });
+
+  group('QuoteTimeline (#7175)', () {
+    setUp(() async {
+      // Le `setUp` global du fichier a déjà enregistré un `QuoteEventsCubit`
+      // (pour `_DetailView`) — on repart d'un GetIt vierge pour que
+      // `_registerQuoteEventsCubit` (appelé par `buildTimeline`) ne heurte
+      // pas un double enregistrement.
+      await GetIt.instance.reset();
+      addTearDown(GetIt.instance.reset);
+    });
+
+    Widget buildTimeline(
+      CabinetQuote quote, {
+      DateTime? now,
+      List<QuoteEvent> events = const [],
+    }) {
+      final cubit = _registerQuoteEventsCubit(events: events);
+      return MaterialApp(
+        theme: NubiaTheme.light,
+        home: Scaffold(
+          body: BlocProvider<QuoteEventsCubit>.value(
+            value: cubit,
+            child: QuoteTimeline(quote: quote, now: now),
+          ),
+        ),
+      );
+    }
+
+    testWidgets(
+        'devis brouillon sans expiresAt : seule « Devis créé » est affichée',
+        (tester) async {
+      await tester.pumpWidget(buildTimeline(_draftQuote));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Devis créé'), findsOneWidget);
+      expect(find.text('Signature attendue'), findsNothing);
+    });
+
+    testWidgets(
+        'devis envoyé + consulté (journal quote_event) affiche les étapes '
+        'correspondantes', (tester) async {
+      final events = [
+        QuoteEvent(kind: QuoteEventKind.sent, at: DateTime(2026, 6, 21, 9)),
+        QuoteEvent(kind: QuoteEventKind.viewed, at: DateTime(2026, 6, 22, 10)),
+      ];
+      await tester.pumpWidget(buildTimeline(_sentQuote, events: events));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Devis créé'), findsOneWidget);
+      expect(find.text('Envoyé au patient'), findsOneWidget);
+      expect(find.text('Consulté par le patient'), findsOneWidget);
+    });
+
+    testWidgets('devis signé (événement `signed`) affiche « Signé » et plus '
+        '« Signature attendue »', (tester) async {
+      final signedQuote = CabinetQuote(
+        id: 'q4',
+        quoteRef: 'q4',
+        cabinetId: 'cab-1',
+        patientId: 'pat-4',
+        patientName: 'Sophie Signée',
+        totalCents: 60000,
+        patientShareCents: 31600,
+        status: CabinetQuoteStatus.signed,
+        createdAt: DateTime(2026, 6, 20),
+        expiresAt: DateTime(2026, 7, 20),
+      );
+      final events = [
+        QuoteEvent(kind: QuoteEventKind.sent, at: DateTime(2026, 6, 21, 9)),
+        QuoteEvent(kind: QuoteEventKind.signed, at: DateTime(2026, 6, 23, 11)),
+      ];
+      await tester.pumpWidget(buildTimeline(signedQuote, events: events));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Signé'), findsOneWidget);
+      expect(find.text('Signature attendue'), findsNothing);
     });
   });
 }

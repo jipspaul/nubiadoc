@@ -1,9 +1,13 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'devis_bloc.dart';
 import 'devis_event.dart';
@@ -73,6 +77,18 @@ class _DevisPageState extends State<DevisPage> {
     }).toList();
   }
 
+  /// Tri + filtres appliqués, dans cet ordre — partagé entre la liste
+  /// affichée et l'export CSV (#7175) pour qu'ils restent toujours
+  /// identiques.
+  List<CabinetQuote> _visibleQuotes(List<CabinetQuote> quotes) {
+    final sorted = [...quotes]..sort(
+        (a, b) => _sortAsc
+            ? a.createdAt.compareTo(b.createdAt)
+            : b.createdAt.compareTo(a.createdAt),
+      );
+    return _filterQuotes(sorted);
+  }
+
   // Libellé verbatim maquette — énonce l'ordre COURANT (pas l'action
   // suivante), cf. #5085 : le tooltip précédent décrivait l'inverse de
   // l'icône affichée.
@@ -96,6 +112,28 @@ class _DevisPageState extends State<DevisPage> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          // Export CSV (#7175) : mêmes tri/filtres que la liste affichée
+          // (`_visibleQuotes`), même pattern que `cabinet_payouts_page.dart`
+          // (#5104).
+          BlocBuilder<DevisBloc, DevisState>(
+            builder: (context, state) {
+              final quotes = state is DevisLoaded ? state.quotes : null;
+              final visible =
+                  quotes == null ? const <CabinetQuote>[] : _visibleQuotes(quotes);
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: NubiaButton(
+                  key: const Key('devis_export_csv'),
+                  label: 'Exporter (CSV)',
+                  icon: Icons.download,
+                  variant: NubiaButtonVariant.secondary,
+                  size: NubiaButtonSize.sm,
+                  onPressed:
+                      visible.isEmpty ? null : () => _exportDevisCsv(context, visible),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: NubiaL10n.refresh,
             icon: const Icon(Icons.refresh),
@@ -734,4 +772,71 @@ class _DevisSheetConfidentialityNotice extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Export CSV de la liste devis affichée (#7175) — même pattern que
+/// `_exportPayoutsCsv` de `cabinet_payouts_page.dart` (#5104). Aucune donnée
+/// clinique : référence, patient, montants et statut uniquement.
+Future<void> _exportDevisCsv(
+  BuildContext context,
+  List<CabinetQuote> quotes,
+) async {
+  final bytes = Uint8List.fromList(utf8.encode(_devisToCsv(quotes)));
+  try {
+    await Share.shareXFiles(
+      [
+        XFile.fromData(
+          bytes,
+          name: 'suivi_devis.csv',
+          mimeType: 'text/csv',
+        ),
+      ],
+      subject: 'Suivi devis — export CSV',
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    NubiaSnackbar.show(context: context, message: "Échec de l'export CSV.");
+  }
+}
+
+String _devisToCsv(List<CabinetQuote> quotes) {
+  final buffer = StringBuffer()
+    ..writeln(
+      [
+        'N° de devis',
+        'Patient',
+        'Statut',
+        'Montant total (EUR)',
+        'Reste à charge (EUR)',
+        'Émis le',
+        'Signé le',
+        'Échéance',
+      ].map(_csvField).join(','),
+    );
+  for (final quote in quotes) {
+    buffer.writeln(
+      [
+        quote.quoteRef,
+        quote.patientName,
+        _sheetStatusLabel(quote.status),
+        _csvAmount(quote.totalCents),
+        _csvAmount(quote.patientShareCents),
+        _formatSheetDate(quote.createdAt),
+        quote.signedAt != null ? _formatSheetDate(quote.signedAt!) : '',
+        quote.expiresAt != null ? _formatSheetDate(quote.expiresAt!) : '',
+      ].map(_csvField).join(','),
+    );
+  }
+  return buffer.toString();
+}
+
+/// Centimes → décimal point (ex. `12.34`), exploitable tel quel par un
+/// tableur — pas de symbole monétaire ni de virgule française.
+String _csvAmount(int cents) => (cents / 100).toStringAsFixed(2);
+
+String _csvField(String value) {
+  if (value.contains(',') || value.contains('"') || value.contains('\n')) {
+    return '"${value.replaceAll('"', '""')}"';
+  }
+  return value;
 }
