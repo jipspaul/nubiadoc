@@ -267,6 +267,7 @@ void registerPro(GetIt gi) {
       listItems: gi<ListStockItemsUseCase>(),
       listItemLocations: gi<ListItemLocationsUseCase>(),
       createLocation: gi<CreateStockLocationUseCase>(),
+      deleteLocation: gi<DeleteStockLocationUseCase>(),
       transfer: gi<TransferStockUseCase>(),
       setThreshold: gi<SetItemLocationThresholdUseCase>(),
     ),

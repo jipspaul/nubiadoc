@@ -161,6 +161,11 @@ pub async fn list_stock_locations(
     Ok(Json(locations))
 }
 
+/// Borne haute de `name` (#7452 — 5000 caractères acceptés en 201 poussaient
+/// les onglets suivants de `StockLocationsPage` hors écran, sans suppression
+/// possible depuis l'UI).
+const MAX_STOCK_LOCATION_NAME_LEN: usize = 80;
+
 /// Body de `POST /v1/cabinet/stock-locations`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -178,7 +183,8 @@ pub struct CreateStockLocationResponse {
 /// (salle…), jamais principale : la localisation principale est celle créée
 /// par le backfill de la migration 0285 (ou par [`ensure_main_location`]).
 ///
-/// `name` non vide → 422 sinon. `name` déjà utilisé dans ce cabinet → `409
+/// `name` non vide et ≤ [`MAX_STOCK_LOCATION_NAME_LEN`] caractères → 422
+/// sinon. `name` déjà utilisé dans ce cabinet → `409
 /// stock_location_name_already_used` (index unique `(cabinet_id, name)`,
 /// migration 0285).
 pub async fn create_stock_location(
@@ -190,6 +196,7 @@ pub async fn create_stock_location(
         return Err(AppError::ValidationError);
     }
     crate::text_validation::reject_nul_byte(&body.name)?;
+    crate::text_validation::validate_max_len(&body.name, MAX_STOCK_LOCATION_NAME_LEN)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 

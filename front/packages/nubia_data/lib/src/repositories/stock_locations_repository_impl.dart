@@ -53,6 +53,44 @@ class StockLocationsRepositoryImpl implements StockLocationsRepository {
   }
 
   @override
+  Future<Either<Failure, void>> deleteLocation(String locationId) async {
+    try {
+      await _api.deleteLocation(locationId);
+      return const Right(null);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure());
+      }
+      if (e.response?.statusCode == 422 &&
+          e.response?.data is Map &&
+          (e.response?.data as Map)['code'] == 'stock_location_is_main') {
+        return const Left(ServerFailure(
+          message: 'La localisation principale ne peut pas être supprimée.',
+          statusCode: 422,
+          code: 'stock_location_is_main',
+        ));
+      }
+      if (e.response?.statusCode == 409) {
+        return const Left(ServerFailure(
+          message: 'Cette localisation contient encore du stock : '
+              "transférez-le avant de la supprimer.",
+          statusCode: 409,
+          code: 'stock_location_in_use',
+        ));
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de supprimer la localisation.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, List<StockItemLocation>>> listItemLocations(
     String itemId,
   ) async {

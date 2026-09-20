@@ -25,6 +25,10 @@ class StockLocationsApi {
     return response.data!['location_id'] as String;
   }
 
+  /// DELETE /cabinet/stock-locations/:id (#7183/#7452).
+  Future<void> deleteLocation(String locationId) =>
+      _dio.delete<void>('/cabinet/stock-locations/$locationId');
+
   /// GET /cabinet/stock-items/:id/locations (#7183).
   Future<List<StockItemLocationDto>> listItemLocations(String itemId) async {
     final response = await _dio

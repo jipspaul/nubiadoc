@@ -161,6 +161,35 @@ class _LocationTabsViewState extends State<_LocationTabsView>
     }
   }
 
+  /// Supprime une salle créée par erreur (#7452) — seule échappatoire
+  /// disponible depuis l'écran pour un nom mal saisi (l'API refuse déjà la
+  /// suppression de la localisation principale ou encore utilisée).
+  Future<void> _onDelete(BuildContext context, StockLocation location) async {
+    final bloc = context.read<StockLocationsBloc>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer cette salle ?'),
+        content: Text(
+          'La salle « ${location.name} » sera définitivement supprimée.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed ?? false) {
+      bloc.add(StockLocationsDeleteRequested(location.id));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -170,7 +199,17 @@ class _LocationTabsViewState extends State<_LocationTabsView>
           controller: _tabController,
           isScrollable: true,
           tabs: [
-            for (final location in widget.state.locations) Tab(text: location.name),
+            for (final location in widget.state.locations)
+              Tab(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 160),
+                  child: Text(
+                    location.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
           ],
         ),
         Expanded(
@@ -185,6 +224,7 @@ class _LocationTabsViewState extends State<_LocationTabsView>
                   onTransfer: (item) => _onTransfer(context, item, location.id),
                   onThreshold: (item, itemLocation) =>
                       _onThreshold(context, item, itemLocation),
+                  onDelete: () => _onDelete(context, location),
                 ),
             ],
           ),
@@ -201,6 +241,7 @@ class _LocationItemsList extends StatelessWidget {
     required this.state,
     required this.onTransfer,
     required this.onThreshold,
+    required this.onDelete,
   });
 
   final StockLocation location;
@@ -208,9 +249,38 @@ class _LocationItemsList extends StatelessWidget {
   final ValueChanged<StockItem> onTransfer;
   final void Function(StockItem item, StockItemLocation itemLocation)
       onThreshold;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
+    final isDeleting = state.deletingLocationId == location.id;
+    return Column(
+      children: [
+        if (!location.isMain)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: TextButton.icon(
+                key: Key('stock_location_delete_${location.id}'),
+                onPressed: isDeleting ? null : onDelete,
+                icon: isDeleting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline),
+                label: const Text('Supprimer cette salle'),
+              ),
+            ),
+          ),
+        Expanded(child: _buildItems(context)),
+      ],
+    );
+  }
+
+  Widget _buildItems(BuildContext context) {
     if (state.items.isEmpty) {
       return const NubiaEmptyState(
         key: Key('stock_location_items_empty'),

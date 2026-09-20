@@ -874,6 +874,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => AddStockMovementUseCase(gi()))
     ..registerFactory(() => ListStockLocationsUseCase(gi()))
     ..registerFactory(() => CreateStockLocationUseCase(gi()))
+    ..registerFactory(() => DeleteStockLocationUseCase(gi()))
     ..registerFactory(() => ListItemLocationsUseCase(gi()))
     ..registerFactory(() => TransferStockUseCase(gi()))
     ..registerFactory(() => SetItemLocationThresholdUseCase(gi()))
