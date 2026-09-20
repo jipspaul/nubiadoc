@@ -14,6 +14,7 @@ pub mod cabinet_briefs;
 pub mod cabinet_messaging;
 pub mod cabinet_tasks;
 pub mod clinical;
+pub mod compliance;
 pub mod cr_prescriptions;
 pub mod documents_messaging;
 pub mod marketplace;

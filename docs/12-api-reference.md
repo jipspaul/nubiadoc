@@ -281,7 +281,7 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | GET | `/v1/documents/{id}/download` | patient | Redirige vers l'URL signée expirante. |
 | POST | `/v1/documents` | patient | Upload (pièce jointe / justificatif). |
 
-`GET /v1/documents` → liste `{ id, category, filename, mime_type, created_at }`. Catégories : `devis, facture, ordonnance, radio, cbct, photo, cr, consigne, attestation, carte_mutuelle, passeport_implantaire, consentement, courrier`. Accès **audité** (`read_document`), URL **expirante**, intégrité `sha256` (`06` E3.5). Téléchargement → `302` vers Object Storage signé (`410` si lien expiré).
+`GET /v1/documents` → liste `{ id, category, filename, mime_type, created_at }`. Catégories : `devis, facture, ordonnance, radio, cbct, photo, cr, consigne, attestation, carte_mutuelle, passeport_implantaire, consentement, courrier, dmsm`. Accès **audité** (`read_document`), URL **expirante**, intégrité `sha256` (`06` E3.5). Téléchargement → `302` vers Object Storage signé (`410` si lien expiré).
 
 **Stockage des uploads utilisateur** (#7135 / #6894 / #6802) — `POST /v1/documents`, `POST /v1/account/coverage/card` et `POST /v1/cabinet/patients/{id}/documents` passent tous par le même chemin d'écriture (`api/src/upload_storage.rs::store_upload`) : les octets sont écrits dans l'`ObjectStorage` (Postgres `object_storage_blob` — servi par `GET /v1/storage/local/*key` sans `SCW_*`, Scaleway sinon) **avant** le `COMMIT` de la ligne `document`, sous une clé `coffre/<uuid>`, `carte-mutuelle/<uuid>` ou `dossier/<uuid>`. Un `201` garantit donc que `GET <download_url>` sert les octets d'origine (taille et `sha256` du `201`) ; échec d'écriture → `500`, aucune ligne `document` créée.
 
@@ -605,6 +605,26 @@ Cloisonnement : un fil clinique escaladé n'est lisible que par le `practitioner
 `PATCH /v1/cabinet/tasks/{id}` — mêmes champs que la création plus `status` (`open`/`done`/`cancelled`) ; un champ absent laisse la valeur existante inchangée (pas de remise à `null`). Tâche inexistante/hors tenant → `404`. `status` hors énum → `422`. Pas de notification sur réassignation.
 `POST /v1/cabinet/tasks/{id}/complete` — tâche déjà `done`/`cancelled` → `409 invalid_status`.
 `POST /v1/appointments/{id}/tasks` — body : `{ title, description?, assignee_user_id?, due_date? }` ; RDV inexistant/hors tenant → `404`.
+
+---
+
+### 18ter. Back-office — conformité ARS/DMSM (`compliance_item`/`custom_device_declaration`, DP-F17.b #7170)
+> Échéancier réglementaire et déclarations DMSM — tâche administrative du cabinet, pas une décision clinique — `secretary+` (practitioner/admin/manager également autorisés). Tables migration 0289 (#7171), `document.category='dmsm'` migration 0290.
+
+| Méthode | Chemin | Rôle | Description |
+|---|---|---|---|
+| GET | `/v1/cabinet/compliance-items` | secretary+ | Liste l'échéancier, échéance croissante, avec `alert_level` calculé. |
+| POST | `/v1/cabinet/compliance-items` | secretary+ | Ajoute un item (formation/contrôle d'équipement/registre/autre). |
+| PATCH | `/v1/cabinet/compliance-items/{id}` | secretary+ | Édite un item non clôturé (champ absent = inchangé). |
+| DELETE | `/v1/cabinet/compliance-items/{id}` | secretary+ | Supprime un item non clôturé. |
+| POST | `/v1/cabinet/compliance-items/{id}/complete` | secretary+ | Clôture un item (`status: done`) ; recrée automatiquement le suivant si `recurrence_months`. |
+| POST | `/v1/patients/{id}/custom-device-declarations` | secretary+ | Déclare un DMSM et génère le PDF réglementaire (document patient). |
+
+`POST /v1/cabinet/compliance-items` — body : `{ kind, label, subject_user_id?, equipment_label?, due_date, recurrence_months? }` (`kind` ∈ `training`/`equipment_check`/`register`/`other`, `due_date` au format `YYYY-MM-DD`). → `201 { item_id }`. `label` vide, `recurrence_months` ≤ 0 → `422`. `subject_user_id` fourni doit être membre du cabinet → `404` sinon.
+`GET /v1/cabinet/compliance-items` — chaque item porte `alert_level` (`overdue`/`due_j7`/`due_j30`, absent si aucune alerte), calculé à la lecture sur `due_date` — jamais persisté, un item `done` n'alerte jamais.
+`PATCH`/`DELETE /v1/cabinet/compliance-items/{id}` — item déjà `done` → `409 invalid_status` (enregistrement de conformité figé). `PATCH` accepte aussi `evidence_document_id` (justificatif déjà au coffre-fort) → `404` si inexistant dans ce cabinet.
+`POST /v1/cabinet/compliance-items/{id}/complete` — item déjà `done` → `409 invalid_status` (pas idempotent). Si l'item portait `recurrence_months`, un nouvel item `pending` est recréé avec `due_date` = l'échéance clôturée + `recurrence_months` → réponse `{ id, status, next_item_id? }`.
+`POST /v1/patients/{id}/custom-device-declarations` — body : `{ lab_name, device_description, consultation_act_id? }`. → `201 { declaration_id, document_id, filename, size_bytes }`. `lab_name`/`device_description` vides → `422`. `consultation_act_id` fourni doit exister dans ce cabinet ET appartenir à ce patient → `404` sinon. PDF produit par `pdf_text` (même moteur que courriers/devis/ordonnances, DP-F7.a), stocké `document.category='dmsm'`.
 
 ---
 

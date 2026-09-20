@@ -1167,11 +1167,15 @@ const VALID_CATEGORIES: &[&str] = &[
     "passeport_implantaire",
     "consentement",
     "courrier",
+    "dmsm",
 ];
 
 // §14 — catégories administratives, accessibles sans relation de soin (secrétaire/admin).
 // Le reste (ordonnance, radio, cbct, photo, cr, consigne, passeport_implantaire,
 // consentement) est clinique et exige une relation de soin (praticien + appointment).
+//
+// `dmsm` (#7170) : déclaration réglementaire de dispositif médical sur mesure,
+// pas un jugement clinique — même statut administratif que `courrier`.
 //
 // `pub(crate)` : réutilisée par `cabinet_document_download` (#4286) pour appliquer
 // la même garde §14 à la route de téléchargement, symétrique à
@@ -1182,6 +1186,7 @@ pub(crate) const NON_CLINICAL_CATEGORIES: &[&str] = &[
     "attestation",
     "carte_mutuelle",
     "courrier",
+    "dmsm",
 ];
 
 #[derive(Deserialize)]
