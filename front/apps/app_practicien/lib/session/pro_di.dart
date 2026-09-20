@@ -16,6 +16,7 @@ import '../features/courriers/letter_compose_cubit.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/invoice_reminder_cubit.dart';
 import '../features/devis/quote_documents_cubit.dart';
+import '../features/devis/quote_events_cubit.dart';
 import '../features/ordonnances/ordonnances_bloc.dart';
 import '../features/ordonnances/send_to_pharmacy_cubit.dart';
 import '../features/patients/patients_bloc.dart';
@@ -203,6 +204,12 @@ void registerPro(GetIt gi) {
     () => InvoiceReminderCubit(
       listReminders: gi<ListInvoiceRemindersUseCase>(),
       sendReminder: gi<SendInvoiceReminderUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<QuoteEventsCubit>(
+    () => QuoteEventsCubit(
+      listEvents: gi<ListCabinetQuoteEventsUseCase>(),
     ),
   );
 

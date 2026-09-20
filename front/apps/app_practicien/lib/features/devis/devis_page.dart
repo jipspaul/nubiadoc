@@ -9,8 +9,10 @@ import 'devis_event.dart';
 import 'devis_state.dart';
 import 'invoice_reminder_cubit.dart';
 import 'quote_documents_cubit.dart';
+import 'quote_events_cubit.dart';
 import 'widgets/invoice_reminder_section.dart';
 import 'widgets/quote_documents_section.dart';
+import 'widgets/quote_timeline.dart';
 
 /// Plan de traitement / devis — vue praticien.
 ///
@@ -312,6 +314,15 @@ class _DetailView extends StatelessWidget {
                       ),
                   ],
                   total: _formatCents(quote.totalCents),
+                ),
+                // Bloc « Suivi » (#7175) : timeline des événements du
+                // devis, parité avec le volet détail secrétariat (#5090,
+                // #7467).
+                const SizedBox(height: 16),
+                BlocProvider<QuoteEventsCubit>(
+                  key: ValueKey('quote_events_provider_${quote.id}'),
+                  create: (_) => GetIt.instance<QuoteEventsCubit>(),
+                  child: QuoteTimeline(quote: quote),
                 ),
                 // Panneau « documents à joindre » + attestation
                 // d'information (#7202/#7203) : verrouillé une fois le

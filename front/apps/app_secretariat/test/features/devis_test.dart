@@ -1557,6 +1557,80 @@ void main() {
     });
   });
 
+  group('DevisPage — bouton « Exporter (CSV) » en barre d\'outils (#7175)',
+      () {
+    late _MockDevisBloc bloc;
+
+    setUp(() {
+      bloc = _MockDevisBloc();
+    });
+
+    Widget buildPage() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<DevisBloc>.value(
+            value: bloc,
+            child: const DevisPage(),
+          ),
+        );
+
+    final quote = CabinetQuote(
+      id: 'q1',
+      quoteRef: 'q1',
+      cabinetId: 'c1',
+      patientId: 'p1',
+      patientName: 'Marie Curie',
+      totalCents: 60000,
+      patientShareCents: 31600,
+      status: CabinetQuoteStatus.sent,
+      createdAt: DateTime(2026, 1, 1),
+      expiresAt: DateTime.now().add(const Duration(days: 2)),
+    );
+
+    testWidgets('présent avec le libellé exact et l\'icône download',
+        (tester) async {
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('devis_export_csv')), findsOneWidget);
+      expect(find.text('Exporter (CSV)'), findsOneWidget);
+      expect(find.byIcon(Icons.download), findsOneWidget);
+    });
+
+    testWidgets('liste vide → bouton désactivé', (tester) async {
+      when(() => bloc.state).thenReturn(const DevisLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('devis_export_csv')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('hors état DevisLoaded → bouton désactivé', (tester) async {
+      when(() => bloc.state).thenReturn(const DevisInitial());
+      await tester.pumpWidget(buildPage());
+      await tester.pump();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('devis_export_csv')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('devis présents → bouton activé', (tester) async {
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('devis_export_csv')),
+      );
+      expect(button.onPressed, isNotNull);
+    });
+  });
+
   // --- Facettes de statut + recherche (#6243) -----------------------------------
   group('DevisPage — facettes de statut et recherche (#6243)', () {
     late _MockDevisBloc bloc;
