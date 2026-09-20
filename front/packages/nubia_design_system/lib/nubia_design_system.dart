@@ -29,6 +29,7 @@ export 'src/widgets/nubia_inline_error.dart';
 export 'src/widgets/nubia_primitives.dart';
 export 'src/widgets/nubia_radio.dart';
 export 'src/widgets/nubia_search_bar.dart';
+export 'src/widgets/nubia_qr_scanner_view.dart';
 export 'src/widgets/nubia_select.dart';
 export 'src/widgets/nubia_skeleton_loader.dart';
 export 'src/widgets/nubia_snackbar.dart';

@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/sterilization_cycle.dart';
+import 'package:nubia_domain/src/entities/sterilized_pouch_use.dart';
 
 abstract class SterilizationRepository {
   /// GET /v1/cabinet/sterilization-cycles (#4138), du plus récent au plus
@@ -13,5 +14,21 @@ abstract class SterilizationRepository {
     String cycleId, {
     required String code,
     String? consultationActId,
+  });
+
+  /// GET /v1/sterilization/cycles/:id/labels.pdf (#7181/#7180) — octets
+  /// bruts de la planche d'étiquettes du cycle, pour impression/partage.
+  Future<Either<Failure, List<int>>> fetchLabelsPdf(
+    String cycleId, {
+    int? shelfLifeDays,
+  });
+
+  /// POST /v1/sterilization/pouches/:code/use (#7181/#7180) — rattache le
+  /// sachet scanné à [patientId] (et optionnellement à [consultationId]),
+  /// idempotent.
+  Future<Either<Failure, SterilizedPouchUse>> usePouch(
+    String code, {
+    required String patientId,
+    String? consultationId,
   });
 }
