@@ -157,7 +157,18 @@ class StockLocationsBloc extends Bloc<StockLocationsEvent, StockLocationsState>
     );
 
     result.fold(
-      (failure) => safeEmit(StockLocationsError(failure.message)),
+      (failure) {
+        // Refus métier récupérable (ex: 422 insufficient_stock, #7485) :
+        // on garde l'état chargé (onglets, articles) et on ne fait que
+        // signaler l'échec, sinon les contrôles que le message demande
+        // d'utiliser (Transférer, Seuil d'alerte) disparaissent avec lui.
+        safeEmit(StockLocationsLoaded(
+          locations: current.locations,
+          items: current.items,
+          itemLocations: current.itemLocations,
+          errorMessage: failure.message,
+        ));
+      },
       (quantities) {
         final locs = List<StockItemLocation>.from(
           current.itemLocations[event.itemId] ?? const [],
