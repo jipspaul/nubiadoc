@@ -80,10 +80,10 @@ async fn ensure_item_location_row(
 /// Ajuste (`+=`) la quantité d'un article dans une localisation donnée,
 /// planchée à 0 (jamais de quantité négative persistée, même doctrine que
 /// `stock_item.quantity_on_hand`). Utilisée par le décrément automatique
-/// (`consultation_act_stock.rs`) et l'import CSV (`stock_import.rs`) — pas
-/// par le mouvement manuel `stock_items.rs::add_stock_movement`, qui reste
-/// hors périmètre de #7183 (localisation par défaut non demandée côté saisie
-/// manuelle).
+/// (`consultation_act_stock.rs`), l'import CSV (`stock_import.rs`) et le
+/// mouvement manuel (`stock_items.rs::add_stock_movement`, #7451 — appliqué
+/// à la localisation principale, aucune localisation n'étant choisie côté
+/// saisie manuelle).
 pub(crate) async fn adjust_location_quantity(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     cabinet_id: Uuid,
