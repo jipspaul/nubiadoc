@@ -113,7 +113,21 @@ class StockLocationsBloc extends Bloc<StockLocationsEvent, StockLocationsState>
     final result = await _deleteLocation(event.locationId);
     final failure = result.fold((f) => f, (_) => null);
     if (failure != null) {
-      safeEmit(StockLocationsError(failure.message));
+      // Refus métier récupérable (ex: 409 stock_location_in_use, #7466) :
+      // on garde l'état chargé (onglets, articles) et on ne fait que
+      // signaler l'échec, sinon les contrôles que le message demande
+      // d'utiliser (Transférer, Seuil d'alerte) disparaissent avec lui.
+      if (current is StockLocationsLoaded) {
+        safeEmit(StockLocationsLoaded(
+          locations: current.locations,
+          items: current.items,
+          itemLocations: current.itemLocations,
+          submittingItemId: current.submittingItemId,
+          errorMessage: failure.message,
+        ));
+      } else {
+        safeEmit(StockLocationsError(failure.message));
+      }
       return;
     }
     await _onLoad(const StockLocationsLoadRequested(), emit);
