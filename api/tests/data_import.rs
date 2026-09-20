@@ -75,6 +75,25 @@ fn make_pro_jwt(user_id: Uuid, cabinet_id: Uuid, role: &str) -> String {
     .unwrap()
 }
 
+fn make_patient_jwt(user_id: Uuid) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    encode(
+        &Header::default(),
+        &json!({
+            "sub": user_id,
+            "kind": "patient",
+            "account_id": Uuid::new_v4(),
+            "exp": exp
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 struct Fixture {
     cabinet_id: Uuid,
     admin_id: Uuid,
@@ -536,10 +555,13 @@ async fn import_job_is_isolated_per_cabinet() {
     cleanup(&db, &b).await;
 }
 
-/// Cas d'erreur : rôle non admin → 403 ; `kind` inconnu → 422 ; fichier sans
-/// colonne obligatoire → job `failed` (201) dont le run est refusé (409).
+/// Rôle secrétariat+ : `secretary` (#7465, feature livrée dans
+/// app_secretariat) et `practitioner` peuvent importer au même titre que
+/// `admin` ; un token non-pro (patient) reste rejeté. `kind` inconnu → 422 ;
+/// fichier sans colonne obligatoire → job `failed` (201) dont le run est
+/// refusé (409).
 #[tokio::test]
-async fn import_rejects_bad_role_kind_and_unparsable_file() {
+async fn import_allows_secretary_plus_rejects_non_pro_and_unparsable_file() {
     if !db_available() {
         return;
     }
@@ -548,9 +570,20 @@ async fn import_rejects_bad_role_kind_and_unparsable_file() {
     let f = insert_fixture(&db, "errors").await;
     let admin = make_pro_jwt(f.admin_id, f.cabinet_id, "admin");
     let secretary = make_pro_jwt(f.admin_id, f.cabinet_id, "secretary");
+    let practitioner = make_pro_jwt(f.prac_user_id, f.cabinet_id, "practitioner");
+    let patient = make_patient_jwt(Uuid::new_v4());
 
-    let (status, _) = upload(app_pool().await, &secretary, "csv_patients", PATIENTS_CSV).await;
+    let (status, _) = upload(app_pool().await, &patient, "csv_patients", PATIENTS_CSV).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, job) = upload(app_pool().await, &secretary, "csv_patients", PATIENTS_CSV).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(job["status"], "pending");
+
+    let (status, job) =
+        upload(app_pool().await, &practitioner, "csv_patients", PATIENTS_CSV).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(job["status"], "pending");
 
     let (status, body) = upload(app_pool().await, &admin, "dsio", PATIENTS_CSV).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);

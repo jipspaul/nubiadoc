@@ -5,8 +5,9 @@
 //! source chiffré, son `kind` (parseur), et le rapport ligne à ligne.
 //! Pipeline en 3 temps : upload (parse de validation, aucune écriture
 //! métier) → dry-run (rapport à blanc, transaction annulée) → run (écriture
-//! idempotente). Rôle `admin` (opération d'administration du cabinet, même
-//! niveau que la fusion de patients).
+//! idempotente). Rôle secrétariat+ (`secretary`, `practitioner`, `admin` —
+//! #7465 : livré dans app_secretariat, la restriction `admin` strict
+//! rendait la feature inutilisable par son propre public).
 //!
 //! Architecture : `source.rs` (trait `ImportSource` + lignes normalisées),
 //! `csv.rs` (1er parseur), `pipeline.rs` (application tenant + rapport).
@@ -33,7 +34,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, ProAdminClaims},
+    auth::{AppError, ProSecretaryPlusClaims},
     AppState,
 };
 use pipeline::Summary;
@@ -192,7 +193,7 @@ async fn load_lines(
 /// ou `failed` si le fichier est inexploitable, motif dans `report`).
 pub(crate) async fn upload_import(
     State(state): State<AppState>,
-    claims: ProAdminClaims,
+    claims: ProSecretaryPlusClaims,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<ImportJobView>), AppError> {
     let mut kind_raw: Option<String> = None;
@@ -304,10 +305,11 @@ pub(crate) async fn upload_import(
 
     sqlx::query(
         "INSERT INTO audit_log (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
-         VALUES ($1, $2, 'admin', 'data_import_upload', 'data_import_job', $3)",
+         VALUES ($1, $2, $3, 'data_import_upload', 'data_import_job', $4)",
     )
     .bind(claims.cabinet_id)
     .bind(claims.sub)
+    .bind(&claims.role)
     .bind(job_id)
     .execute(&mut *tx)
     .await
@@ -329,7 +331,7 @@ pub(crate) async fn upload_import(
 /// autre cabinet → `404`.
 pub(crate) async fn get_import(
     State(state): State<AppState>,
-    claims: ProAdminClaims,
+    claims: ProSecretaryPlusClaims,
     Path(job_id): Path<Uuid>,
 ) -> Result<Json<ImportJobView>, AppError> {
     let mut tx = begin_tenant_tx(&state, claims.cabinet_id).await?;
@@ -345,7 +347,7 @@ pub(crate) async fn get_import(
 /// inexploitable.
 pub(crate) async fn dry_run_import(
     State(state): State<AppState>,
-    claims: ProAdminClaims,
+    claims: ProSecretaryPlusClaims,
     Path(job_id): Path<Uuid>,
 ) -> Result<Json<ImportJobView>, AppError> {
     let key_manager = key_manager_from_env()?;
@@ -383,7 +385,7 @@ pub(crate) async fn dry_run_import(
 /// technique, rien n'est écrit).
 pub(crate) async fn run_import(
     State(state): State<AppState>,
-    claims: ProAdminClaims,
+    claims: ProSecretaryPlusClaims,
     Path(job_id): Path<Uuid>,
 ) -> Result<Json<ImportJobView>, AppError> {
     let key_manager = key_manager_from_env()?;
@@ -440,10 +442,11 @@ pub(crate) async fn run_import(
     }
     sqlx::query(
         "INSERT INTO audit_log (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
-         VALUES ($1, $2, 'admin', 'data_import_run', 'data_import_job', $3)",
+         VALUES ($1, $2, $3, 'data_import_run', 'data_import_job', $4)",
     )
     .bind(claims.cabinet_id)
     .bind(claims.sub)
+    .bind(&claims.role)
     .bind(job_id)
     .execute(&mut *tx)
     .await
