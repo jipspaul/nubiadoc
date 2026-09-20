@@ -121,12 +121,25 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .execute(&mut *tx)
         .await
         .ok();
+    // #7451 : le mouvement manuel crée désormais aussi une localisation
+    // principale (`stock_location`/`stock_item_location`, migration 0285) —
+    // à nettoyer avant `cabinet`, sinon la FK bloque le DELETE.
+    sqlx::query("DELETE FROM stock_item_location WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM stock_movement WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
         .await
         .ok();
     sqlx::query("DELETE FROM stock_item WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM stock_location WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
         .await
@@ -246,6 +259,86 @@ async fn reception_then_consumption_updates_quantity_on_hand() {
     let items = list.as_array().unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["quantity_on_hand"], 7);
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 1z (#7451) : le mouvement manuel alimente aussi la localisation
+// principale, pas seulement `stock_item.quantity_on_hand` — sinon les deux
+// compteurs divergent dès la première saisie (cf. #7183/#7184).
+
+#[tokio::test]
+async fn manual_movement_updates_main_location_quantity() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let secretary_token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let (status, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/stock-items",
+        &secretary_token,
+        Some(json!({
+            "reference": "GANTS-LOC",
+            "label": "Gants latex loc",
+            "unit": "boite"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let item_id = created["item_id"].as_str().unwrap().to_string();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &secretary_token,
+        Some(json!({"delta": 10, "reason": "reception"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(resp["quantity_on_hand"], 10);
+
+    let (status, locations) = call(
+        state_with(app_pool().await),
+        "GET",
+        &format!("/v1/cabinet/stock-items/{item_id}/locations"),
+        &secretary_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let locations = locations.as_array().unwrap();
+    assert_eq!(locations.len(), 1);
+    assert_eq!(locations[0]["is_main"], true);
+    assert_eq!(locations[0]["quantity"], 10);
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &secretary_token,
+        Some(json!({"delta": -3, "reason": "consumption"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(resp["quantity_on_hand"], 7);
+
+    let (status, locations) = call(
+        state_with(app_pool().await),
+        "GET",
+        &format!("/v1/cabinet/stock-items/{item_id}/locations"),
+        &secretary_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let locations = locations.as_array().unwrap();
+    assert_eq!(locations.len(), 1);
+    assert_eq!(locations[0]["quantity"], 7);
 
     cleanup(&db, &f).await;
 }

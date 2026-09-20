@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProSecretaryPlusClaims},
+    stock_locations::{adjust_location_quantity, ensure_main_location},
     AppState,
 };
 
@@ -185,6 +186,11 @@ pub struct AddStockMovementResponse {
 /// `POST /v1/cabinet/stock-items/:id/movements` — réception, consommation,
 /// ajustement ou péremption manuelle ; met à jour `quantity_on_hand` de
 /// façon atomique dans la même transaction que l'insertion du mouvement.
+/// Répercute aussi le `delta` sur la localisation principale du cabinet
+/// (`stock_locations::adjust_location_quantity`, #7451) — aucune
+/// localisation n'étant choisie côté saisie manuelle — pour garder
+/// `sum(stock_item_location.quantity) == stock_item.quantity_on_hand`, même
+/// invariant que l'import CSV et le décrément automatique.
 ///
 /// Article inexistant/hors tenant → 404. `delta` non nul et `reason` ∈
 /// `VALID_REASONS` → 422 sinon. Signe de `delta` incohérent avec `reason`
@@ -301,6 +307,22 @@ pub async fn add_stock_movement(
     let quantity_on_hand: i32 = updated
         .try_get("quantity_on_hand")
         .map_err(|_| AppError::Internal)?;
+
+    // #7451 : le mouvement manuel doit alimenter le registre par salle comme
+    // les deux autres chemins d'écriture (`stock_import.rs`,
+    // `consultation_act_stock.rs`), sous peine de faire diverger
+    // `quantity_on_hand` de la somme des `stock_item_location.quantity` —
+    // aucune localisation n'étant choisie depuis l'écran Inventaire, la
+    // localisation principale (auto-créée si besoin) reçoit le mouvement.
+    let main_location_id = ensure_main_location(&mut tx, claims.cabinet_id).await?;
+    adjust_location_quantity(
+        &mut tx,
+        claims.cabinet_id,
+        item_id,
+        main_location_id,
+        body.delta,
+    )
+    .await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
