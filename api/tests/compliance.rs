@@ -536,7 +536,10 @@ async fn patch_compliance_item_updates_due_date() {
     assert_eq!(status, StatusCode::OK, "{patched}");
     assert_eq!(patched["due_date"], new_due_date.to_string());
     assert_eq!(patched["alert_level"], "due_j7");
-    assert_eq!(patched["label"], "Registre DASRI", "champ non fourni conservé");
+    assert_eq!(
+        patched["label"], "Registre DASRI",
+        "champ non fourni conservé"
+    );
 
     cleanup(&db, &f).await;
 }
@@ -600,7 +603,9 @@ async fn generate_custom_device_declaration_stores_pdf_document() {
         "Laboratoire Dentaire Occitan"
     );
     assert_eq!(
-        declaration.try_get::<Uuid, _>("consultation_act_id").unwrap(),
+        declaration
+            .try_get::<Uuid, _>("consultation_act_id")
+            .unwrap(),
         f.consultation_act_id
     );
     assert_eq!(
