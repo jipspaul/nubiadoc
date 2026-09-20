@@ -362,6 +362,12 @@ pub(crate) enum AppError {
     /// plutôt que de laisser la violation `23503` remonter en 500, même
     /// doctrine que `CorrespondentInUse`.
     StockLocationInUse,
+    /// `POST /v1/cabinet/treatment-plans/:id/sessions/:sessionId/schedule`
+    /// (#7173) : la séance n'est plus `planned` (déjà `scheduled` ou plus
+    /// avancée) — un RDV lui est déjà lié, un second appel ne doit pas en
+    /// créer un doublon. `409` explicite plutôt que de laisser passer une
+    /// deuxième réservation silencieuse.
+    SessionAlreadyScheduled,
 }
 
 impl IntoResponse for AppError {
@@ -734,6 +740,11 @@ impl IntoResponse for AppError {
             AppError::StockLocationInUse => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "stock_location_in_use"})),
+            )
+                .into_response(),
+            AppError::SessionAlreadyScheduled => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "session_already_scheduled"})),
             )
                 .into_response(),
         }
