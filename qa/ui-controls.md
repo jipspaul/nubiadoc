@@ -2990,3 +2990,31 @@ paiement connecté** » — rien à exporter ni à connecter sans compte Stripe)
 
 **Non activés volontairement (20)** : « Se déconnecter », présent dans le pied de chaque shell pro et sur
 l'accueil infirmière — l'activer coupait la session au milieu de l'audit.
+
+#### Ronde R86 — lot complémentaire (2 écrans de plus, total 29 écran×viewport)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/patients` (1280×800) | 33 | 29 | 19 | 1 | 9 | 0 | 2026-09-20T01:25:00Z |
+| secretariat | `/patients` (1280×800) | 38 | 29 | 26 | 2 | 1 | 0 | 2026-09-20T01:25:00Z |
+
+**TOTAL R86 (tous lots) — 674 contrôles inventoriés · 540 activés · 491 OK d'emblée · 37 « mort ? » · 12 « cassé » · 4 désactivés · 22 non activés (destructifs).**
+
+Les 9 « cassés » de `praticien /patients` sont **tous la même cause, déjà ouverte sous #6854** : ouvrir la
+fiche d'un patient **jamais suivi par ce praticien** déclenche `403 GET …/medical-record` +
+`403 GET …/prescriptions` — la garde « relation de soin » (`medical_record.rs:138-153`). La fiche dit
+correctement « Vous n'avez pas encore suivi ce patient », mais laisse ses actions cliniques actives.
+**Même écran, même symptôme qu'une issue ouverte → non re-filé** (règle anti-doublon).
+Le « cassé » de `secretariat /patients` est un **token expiré en cours de passage** (`401 /tags`,
+`401 /documents`), pas un défaut produit. Le `MORT?` restant de chaque écran est l'auto-navigation de rail.
+
+**Les deux viewports ont été couverts** (exigence « 390×844 mobile ET 1280×800 ») :
+`patient` relevé aussi en **1280×800** (`/`, `/mes-rdv`, `/documents`, `/messaging`, `/profile`,
+`/financial`, `/treatment-plans`, `/home-care` — tous peints, `canvas=1`, aucune réponse ≥ 400) et
+`praticien` en **390×844** (`/`, `/agenda`, `/waiting-room`, `/patients`, `/consultation`,
+`/ordonnances`). L'app praticien se replie proprement sur mobile : barre de titre à menu hamburger,
+cartes d'agenda compactes, bouton flottant « Consultation » (capture `praticien/R86m__agenda_390.png`).
+*Faux positif écarté* : `praticien /ordonnances` rend 3 contrôles à 390 contre 18 à 1280 — l'écart est
+**entièrement** la barre latérale (14 entrées de rail repliées dans le hamburger) ; le corps est le même
+état vide légitime « Aucune ordonnance en cours · Ouvrez une fiche patient pour créer une ordonnance »
+avec son CTA « Choisir un patient », identique aux deux viewports.
