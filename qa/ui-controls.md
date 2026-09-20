@@ -3373,3 +3373,31 @@ Cible : la modale « Proposer des séances » du plan de traitement (DP-F16.c, `
 | **Texte très long** : 240 caractères dans le champ durée | **aucun contrôle hors cadre** après saisie (pas de débordement/overlap), **aucun 4xx**, aucune erreur console | **OK** |
 | **Coupure réseau** (`route.abort('failed')` sur `**/v1/**`) pendant « Proposer » | l'écran **reste intact** : 47 contrôles, blanc 0,632 (ni page blanche ni canvas vide), **aucun spinner infini** | **OK** |
 | **Retour navigateur** au milieu du flux (modale ouverte → `goBack()`) | retour à la racine de l'app avec un **état cohérent** : 24 contrôles, 0 × 4xx, 0 erreur console, blanc 0,761. Le retour ne referme pas seulement la modale mais quitte l'écran — acceptable (`go_router` dépile la route), rien d'incohérent. | **OK** |
+
+### R89 — troisième lot : écrans jamais audités + 390 px praticien
+
+| app | écran/route | vw | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/` | 390 | 11 | 9 | 9 | 0 | 0 | 2026-09-20T19:44:00Z |
+| praticien | `/devis` | 390 | 14 | 5 | 2 | 0 | 3* | 2026-09-20T19:46:00Z |
+| praticien | `/cabinet-brief` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-09-20T19:38:00Z |
+| praticien | `/act-categories` | 1280 | 2 | 2 | 1 | 0 | 1* | 2026-09-20T19:47:00Z |
+| praticien | `/consent-templates` | 1280 | 11 | 2 | 2 | 0 | 0 | 2026-09-20T19:49:00Z |
+| patient | `/prescriptions` | 1280 | 15 | 5 | 1 | 4* | 0 | 2026-09-20T19:48:00Z |
+| patient | `/reviews` | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-09-20T19:50:00Z |
+
+(*) vérifiés, **tous faux positifs** :
+
+- `praticien /act-categories` → `403 GET /v1/cabinet/settings/act-categories`. Le handler exige `ProAdminOrManagerClaims` (`cabinet_act_categories.rs:97-99`) et **l'entrée de nav est bien gardée** : `practicien_shell.dart:130`, `if (session.isAdmin)`. L'écran n'est atteignable qu'en tapant l'URL, ce que seul mon marcheur fait. *À noter au passage* : **#7449 est corrigé** — l'écran émet désormais bien son `GET` (il n'émettait plus rien du tout à cause d'un `GetIt` non enregistré).
+- `patient /prescriptions` → 4 cartes « MORT ». **Elles s'ouvrent en réalité** : `onTap` appelle `PrescriptionsCubit.openDocument(documentId)` (`prescriptions_page.dart:111-115`), qui ouvre le PDF dans un **onglet externe** — effet invisible à un détecteur URL + Semantics. Confirmé par capture : le clic peint bien l'état pressé de la ligne, et la rangée porte son chevron. Même famille que « Itinéraire ».
+- `praticien /devis` (390 et 1280) → 404 d'absence d'attestation, déjà analysé plus haut.
+
+**Mode `NOSHOT`** (audit sans capture, utilisé pour l'app patient qui faisait expirer les captures sous contention CPU) : le verdict ne repose alors que sur l'URL et le nombre de nœuds Semantics, **donc toute action à effet purement pictural ou en onglet externe y ressort « MORT »**. À relire avec cette réserve.
+
+### Bilan contrôles R89
+
+**42 audits d'écran** (5 apps, viewports 390 et 1280), **823 contrôles inventoriés**, **670 activés**.
+Verdicts négatifs bruts : 11 MORT + 26 CASSÉ = **37, tous vérifiés un par un, tous faux positifs.**
+Le **seul chemin réellement cassé de la ronde** (#7485, transfert de stock refusé qui détruit l'écran)
+a été trouvé par **test ciblé**, pas par le marcheur — c'est la limite du balayage automatique :
+il trouve les écrans, il ne provoque pas les refus métier.
