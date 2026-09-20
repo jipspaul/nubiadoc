@@ -248,6 +248,96 @@ void main() {
     });
   });
 
+  group('MessagingPage — séparateur « conversations précédentes » (#7426)', () {
+    testWidgets(
+        'ne rend pas le séparateur quand tout est lu (aucun non-lu)',
+        (tester) async {
+      final conversations = [
+        Conversation(
+          id: 'conv-a',
+          cabinetId: 'cab-a',
+          cabinetName: 'Cabinet Lyon',
+          unreadCount: 0,
+        ),
+        Conversation(
+          id: 'conv-b',
+          cabinetId: 'cab-b',
+          cabinetName: 'Cabinet Paris',
+          unreadCount: 0,
+        ),
+      ];
+      when(() => mockGetConversations())
+          .thenAnswer((_) async => Right(conversations));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(const MessagingConversationsLoadRequested());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('CONVERSATIONS PRÉCÉDENTES'), findsNothing);
+    });
+
+    testWidgets(
+        'rend le séparateur uniquement entre non-lus et lus, après les non-lus',
+        (tester) async {
+      final conversations = [
+        Conversation(
+          id: 'conv-a',
+          cabinetId: 'cab-a',
+          cabinetName: 'Cabinet Lyon',
+          unreadCount: 1,
+        ),
+        Conversation(
+          id: 'conv-b',
+          cabinetId: 'cab-b',
+          cabinetName: 'Cabinet Paris',
+          unreadCount: 0,
+        ),
+      ];
+      when(() => mockGetConversations())
+          .thenAnswer((_) async => Right(conversations));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(const MessagingConversationsLoadRequested());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('CONVERSATIONS PRÉCÉDENTES'), findsOneWidget);
+      final unreadY = tester.getTopLeft(find.text('Cabinet Lyon')).dy;
+      final headerY =
+          tester.getTopLeft(find.text('CONVERSATIONS PRÉCÉDENTES')).dy;
+      final readY = tester.getTopLeft(find.text('Cabinet Paris')).dy;
+      expect(unreadY, lessThan(headerY));
+      expect(headerY, lessThan(readY));
+    });
+  });
+
   group('MessagingBloc', () {
     blocTest<MessagingBloc, MessagingState>(
       'émet [Loading, Loaded(vide)] quand la liste de conversations est vide',
