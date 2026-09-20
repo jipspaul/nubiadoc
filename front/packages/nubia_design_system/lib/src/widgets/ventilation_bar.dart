@@ -56,12 +56,14 @@ class VentilationBar extends StatelessWidget {
           const SizedBox(height: 14),
           _VentilationLegendLine(
             key: const Key('ventilation_legend_amo'),
+            swatchColor: NubiaColors.brand600,
             label: 'Assurance Maladie (AMO)',
             value: formatQuoteCents(-amoCents),
           ),
           Divider(height: 17, thickness: 1, color: tokens.borderSubtle),
           _VentilationLegendLine(
             key: const Key('ventilation_legend_amc'),
+            swatchColor: NubiaColors.brand200,
             label: 'Mutuelle',
             value: formatQuoteCents(-amcCents),
           ),
@@ -77,6 +79,8 @@ class VentilationBar extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 10),
                 child: Row(
                   children: [
+                    const _VentilationSwatch(color: NubiaColors.n900),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         racLabel,
@@ -164,14 +168,18 @@ class _VentilationTrack extends StatelessWidget {
   }
 }
 
-/// Une ligne de légende (libellé + montant soustrait, tabulaire).
+/// Une ligne de légende (pastille de couleur + libellé + montant soustrait,
+/// tabulaire) — la pastille reprend la couleur du segment correspondant de
+/// la [_VentilationTrack], seul lien visuel entre la barre et ses lignes.
 class _VentilationLegendLine extends StatelessWidget {
   const _VentilationLegendLine({
     super.key,
+    required this.swatchColor,
     required this.label,
     required this.value,
   });
 
+  final Color swatchColor;
   final String label;
   final String value;
 
@@ -184,6 +192,8 @@ class _VentilationLegendLine extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
+          _VentilationSwatch(color: swatchColor),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               label,
@@ -200,6 +210,28 @@ class _VentilationLegendLine extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Pastille carrée de couleur reliant une ligne de légende à son segment
+/// dans la [_VentilationTrack].
+class _VentilationSwatch extends StatelessWidget {
+  const _VentilationSwatch({required this.color});
+
+  final Color color;
+
+  static const _size = 10.0;
+  static const _radius = 2.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(_radius),
+      ),
+      child: const SizedBox(width: _size, height: _size),
     );
   }
 }
