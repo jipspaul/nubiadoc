@@ -2,15 +2,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-/// Vue caméra du scan QR — SEUL fichier de l'app qui importe mobile_scanner.
+/// Vue caméra du scan QR/Datamatrix, partagée entre les écrans de scan de
+/// l'app (retrait pharmacie `app_pharmacie/pickup_scan`, sachet stérilisé
+/// `app_practicien/consultation_clinique`, #7180) — SEUL widget du design
+/// system qui importe `mobile_scanner`.
 ///
-/// Monté uniquement sur les plateformes supportées (web, macOS, iOS,
-/// Android) : sur Windows/Linux ou si la caméra est refusée, l'écran ne
-/// montre que la saisie manuelle ([ManualCodeField], toujours visible).
-class QrScannerView extends StatelessWidget {
-  const QrScannerView({super.key, required this.onCode});
+/// Montée uniquement sur les plateformes supportées ; sur Windows/Linux ou
+/// si la caméra est refusée, l'écran appelant doit toujours proposer une
+/// saisie manuelle de secours.
+class NubiaQrScannerView extends StatelessWidget {
+  const NubiaQrScannerView({super.key, required this.onCode, this.height = 280});
 
   final ValueChanged<String> onCode;
+  final double height;
 
   /// mobile_scanner ne supporte pas Windows/Linux.
   static bool get isSupported =>
@@ -24,7 +28,7 @@ class QrScannerView extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
-        height: 280,
+        height: height,
         child: MobileScanner(
           onDetect: (capture) {
             final value = capture.barcodes.firstOrNull?.rawValue;

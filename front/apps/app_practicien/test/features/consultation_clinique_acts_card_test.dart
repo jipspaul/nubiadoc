@@ -58,6 +58,14 @@ const _sessionWithoutActs = ClinicalSession(
   acts: [],
 );
 
+const _sessionWithPatient = ClinicalSession(
+  id: 's3',
+  appointmentId: 'a3',
+  status: 'in_progress',
+  acts: [],
+  patientId: 'pat-1',
+);
+
 void main() {
   late MockConsultationCliniqueBloc bloc;
 
@@ -151,5 +159,32 @@ void main() {
       find.descendant(of: badgeFinder, matching: find.text('0')),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+      'pas de patient résolu → pas de bouton « Rattacher un sachet stérilisé » (#7180)',
+      (tester) async {
+    await tester.pumpWidget(buildBody(_sessionWithoutActs));
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('sterilization_pouch_use_button')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+      'patient résolu → bouton « Rattacher un sachet stérilisé » ouvre le scan (#7180)',
+      (tester) async {
+    await tester.pumpWidget(buildBody(_sessionWithPatient));
+    await tester.pump();
+
+    final button = find.byKey(const Key('sterilization_pouch_use_button'));
+    expect(button, findsOneWidget);
+
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rattacher un sachet stérilisé'), findsOneWidget);
   });
 }

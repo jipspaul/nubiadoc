@@ -7,7 +7,6 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import '../orders/widgets/order_status_pill.dart';
 import 'pickup_scan_cubit.dart';
 import 'widgets/manual_code_field.dart';
-import 'widgets/qr_scanner_view.dart';
 
 /// Scan du QR de retrait du patient (ready → retirée).
 ///
@@ -69,8 +68,8 @@ class PickupScanBody extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (QrScannerView.isSupported)
-                QrScannerView(
+              if (NubiaQrScannerView.isSupported)
+                NubiaQrScannerView(
                   onCode: (code) => context.read<PickupScanCubit>().submit(
                         code,
                         expectedOrderId: orderId,

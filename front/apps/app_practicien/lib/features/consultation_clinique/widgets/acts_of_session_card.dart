@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../sterilization_pouch_use_page.dart';
 import 'act_tile.dart';
 import 'consultation_format_utils.dart';
 
@@ -31,6 +32,7 @@ class ActsOfSessionCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final acts = session.acts;
+    final patientId = session.patientId;
     return NubiaCard(
       key: const Key('consultation_acts_card'),
       padding: EdgeInsets.zero,
@@ -49,6 +51,28 @@ class ActsOfSessionCard extends StatelessWidget {
                       Text('Actes de la séance', style: textTheme.titleSmall),
                 ),
                 _ActsCountBadge(count: acts.length),
+                // #7180 — rattacher un sachet stérilisé (déjà étiqueté) au
+                // patient/à la séance en cours, distinct du scan par acte
+                // de `ActTile`/`SterilizationScanPage` (#4139) qui
+                // enregistre une NOUVELLE pochette. Masqué si la séance
+                // n'a pas encore de patient résolu (jamais de scan sans
+                // patient à rattacher).
+                if (patientId != null) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    key: const Key('sterilization_pouch_use_button'),
+                    tooltip: 'Rattacher un sachet stérilisé',
+                    icon: const Icon(Icons.qr_code_scanner, size: 20),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => SterilizationPouchUsePage(
+                          patientId: patientId,
+                          consultationId: session.id,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
