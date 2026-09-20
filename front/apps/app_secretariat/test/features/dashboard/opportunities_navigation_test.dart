@@ -11,6 +11,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_secretariat/features/dashboard/cash_collection_cubit.dart';
+import 'package:app_secretariat/features/dashboard/compliance_alerts_summary_cubit.dart';
 import 'package:app_secretariat/features/dashboard/dashboard_bloc.dart';
 import 'package:app_secretariat/features/dashboard/dashboard_content.dart';
 import 'package:app_secretariat/features/dashboard/dashboard_event.dart';
@@ -43,6 +44,10 @@ class _MockExpiringQuotesSummaryCubit
 class _MockOpportunitiesCubit extends MockCubit<OpportunitiesState>
     implements OpportunitiesCubit {}
 
+class _MockComplianceAlertsSummaryCubit
+    extends MockCubit<ComplianceAlertsSummaryState>
+    implements ComplianceAlertsSummaryCubit {}
+
 class _MockTasksBloc extends MockBloc<TasksEvent, TasksState>
     implements TasksBloc {}
 
@@ -59,6 +64,7 @@ void main() {
   late _MockPatientMessagesSummaryCubit patientMessagesSummaryCubit;
   late _MockExpiringQuotesSummaryCubit expiringQuotesSummaryCubit;
   late _MockOpportunitiesCubit opportunitiesCubit;
+  late _MockComplianceAlertsSummaryCubit complianceAlertsSummaryCubit;
   late _MockTasksBloc tasksBloc;
 
   setUp(() {
@@ -99,6 +105,10 @@ void main() {
     when(() => expiringQuotesSummaryCubit.state)
         .thenReturn(const ExpiringQuotesSummaryLoaded(quotes: []));
     opportunitiesCubit = _MockOpportunitiesCubit();
+    complianceAlertsSummaryCubit = _MockComplianceAlertsSummaryCubit();
+    when(() => complianceAlertsSummaryCubit.state).thenReturn(
+      const ComplianceAlertsSummaryLoaded(alertingItems: []),
+    );
     // `TasksCard` (#7210) résout son propre `TasksBloc` via GetIt (il ouvre
     // sa propre `BlocProvider`, comme `WorkQueueCard`/`OpportunitiesCard` ne
     // le font pas mais `todayScheduleCard` côté app_practicien le fait déjà).
@@ -120,6 +130,8 @@ void main() {
           BlocProvider<ExpiringQuotesSummaryCubit>.value(
               value: expiringQuotesSummaryCubit),
           BlocProvider<OpportunitiesCubit>.value(value: opportunitiesCubit),
+          BlocProvider<ComplianceAlertsSummaryCubit>.value(
+              value: complianceAlertsSummaryCubit),
         ],
         child:
             MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),

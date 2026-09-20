@@ -991,6 +991,37 @@ class _PatientSheetState extends State<_PatientSheet> {
     });
   }
 
+  /// Déclaration DMSM depuis la fiche patient (#7169/#7170) : ouvre le
+  /// dialogue de saisie, appelle `POST
+  /// /v1/patients/:id/custom-device-declarations`, puis recharge les
+  /// documents pour faire apparaître le PDF généré (`category = 'dmsm'`).
+  Future<void> _declareDmsm(BuildContext context, String patientId) async {
+    final input = await showDialog<({String labName, String deviceDescription})>(
+      context: context,
+      builder: (_) => const _DeclareDmsmDialog(),
+    );
+    if (input == null || !mounted) return;
+
+    final result = await GetIt.instance<DeclareCustomDeviceUseCase>()(
+      patientId: patientId,
+      labName: input.labName,
+      deviceDescription: input.deviceDescription,
+    );
+    if (!mounted) return;
+
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(failure.message)),
+      ),
+      (declaration) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('DMSM déclaré : ${declaration.filename}')),
+        );
+        _load();
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -1122,12 +1153,94 @@ class _PatientSheetState extends State<_PatientSheet> {
                 documents: _documents,
                 error: _documentsError,
               ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  key: const Key('patient_declare_dmsm_button'),
+                  onPressed: () => _declareDmsm(context, patient.id),
+                  icon: const Icon(Icons.medical_information_outlined),
+                  label: const Text('Déclarer un DMSM'),
+                ),
+              ),
             ],
             const SizedBox(height: 16),
             const _PatientSheetConfidentialityNotice(),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Dialogue de saisie d'une déclaration DMSM (#7169/#7170) : laboratoire +
+/// description du dispositif, renvoyés via `Navigator.pop` — l'appel réseau
+/// reste dans `_PatientSheetState._declareDmsm`, ce dialogue ne fait que
+/// collecter la saisie.
+class _DeclareDmsmDialog extends StatefulWidget {
+  const _DeclareDmsmDialog();
+
+  @override
+  State<_DeclareDmsmDialog> createState() => _DeclareDmsmDialogState();
+}
+
+class _DeclareDmsmDialogState extends State<_DeclareDmsmDialog> {
+  final _labNameCtrl = TextEditingController();
+  final _descriptionCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _labNameCtrl.dispose();
+    _descriptionCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canConfirm = _labNameCtrl.text.trim().isNotEmpty &&
+        _descriptionCtrl.text.trim().isNotEmpty;
+    return AlertDialog(
+      title: const Text('Déclarer un dispositif médical sur mesure'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              key: const Key('dmsm_lab_name_field'),
+              controller: _labNameCtrl,
+              decoration: const InputDecoration(labelText: 'Laboratoire *'),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('dmsm_device_description_field'),
+              controller: _descriptionCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Description du dispositif *',
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          key: const Key('dmsm_declare_confirm'),
+          onPressed: canConfirm
+              ? () => Navigator.of(context).pop((
+                    labName: _labNameCtrl.text.trim(),
+                    deviceDescription: _descriptionCtrl.text.trim(),
+                  ))
+              : null,
+          child: const Text('Déclarer'),
+        ),
+      ],
     );
   }
 }
