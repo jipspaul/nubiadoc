@@ -335,6 +335,46 @@ async fn day_brief_lists_appointment_grouped_by_practitioner_with_motif() {
     cleanup(&db, &f).await;
 }
 
+/// Variante de [`insert_appointment`] ancrée sur le début de la journée
+/// locale `Europe/Paris` plutôt que sur `now()` : les tests qui posent
+/// plusieurs RDV "aujourd'hui" avec des offsets de quelques heures peuvent
+/// franchir la frontière de minuit Paris selon l'heure d'exécution de la CI
+/// (`now() + '2 hours'` lancé à 22h16 UTC en heure d'été = 00h16 Paris le
+/// lendemain) — d'où des échecs intermittents non liés au code testé.
+async fn insert_appointment_paris_today(
+    db: &PgPool,
+    f: &Fixture,
+    offset_from_midnight: &str,
+    motif: &str,
+) -> Uuid {
+    let appointment_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, \
+                  (date_trunc('day', now() AT TIME ZONE 'Europe/Paris') AT TIME ZONE 'Europe/Paris') + $5::interval, \
+                  (date_trunc('day', now() AT TIME ZONE 'Europe/Paris') AT TIME ZONE 'Europe/Paris') + $5::interval + interval '30 minutes', \
+                  'confirmed', $6)",
+    )
+    .bind(appointment_id)
+    .bind(f.cabinet_id)
+    .bind(f.patient_id)
+    .bind(f.prac_id)
+    .bind(offset_from_midnight)
+    .bind(motif)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    appointment_id
+}
+
 // ── Test : RDV dans 3 jours absent du brief du jour, présent dans la semaine ─
 
 #[tokio::test]
@@ -393,8 +433,8 @@ async fn day_brief_flags_new_patient_and_aggregates_planned_acts() {
     let f = seed(&db).await;
     let token = make_pro_token(f.user_id, f.cabinet_id, "practitioner");
 
-    insert_appointment(&db, &f, "1 hour", "Détartrage").await;
-    insert_appointment(&db, &f, "2 hours", "Détartrage").await;
+    insert_appointment_paris_today(&db, &f, "10 hours", "Détartrage").await;
+    insert_appointment_paris_today(&db, &f, "11 hours", "Détartrage").await;
 
     let (status, body) = call(
         state_with(app_pool().await),

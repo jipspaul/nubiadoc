@@ -6,6 +6,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
+import '../../router/back_or_home_leading.dart';
 import 'messaging_bloc.dart';
 import 'messaging_event.dart';
 import 'messaging_state.dart';
@@ -48,6 +49,11 @@ class MessagingAppBar extends StatelessWidget implements PreferredSizeWidget {
         final conversations =
             state is MessagingConversationsLoaded ? state.conversations : null;
         return AppBar(
+          // #7419 : route de premier niveau atteignable par lien direct
+          // (notification push, `NotificationRouteResolver`) — sans pile de
+          // navigation à dépiler, l'écran n'offrait aucune sortie (même
+          // pattern que `documents`/`prescriptions`/`oubliettes`, #6457).
+          leading: backOrHomeLeading(context),
           titleSpacing: 0,
           title: Column(
             mainAxisSize: MainAxisSize.min,
