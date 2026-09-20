@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'create_stock_request_dialog.dart';
 import 'stock_bloc.dart';
 import 'stock_event.dart';
+import 'stock_inventory_bloc.dart';
+import 'stock_inventory_page.dart';
 import 'stock_state.dart';
 
 const _statusLabels = {
@@ -107,6 +110,15 @@ class _StockPageState extends State<StockPage> {
     context.read<StockBloc>().add(StockResendRequested(requestId));
   }
 
+  void _onInventory() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => BlocProvider(
+        create: (_) => GetIt.instance<StockInventoryBloc>(),
+        child: const StockInventoryPage(),
+      ),
+    ));
+  }
+
   /// Filtre client (aucun nouvel appel réseau) sur les libellés d'article et
   /// le nom/id de pharmacie des demandes déjà chargées — #5187, combiné à la
   /// facette de statut sélectionnée — #5186.
@@ -177,6 +189,12 @@ class _StockPageState extends State<StockPage> {
         appBar: AppBar(
           title: const Text('Stock'),
           actions: [
+            IconButton(
+              key: const Key('stock_inventory_button'),
+              tooltip: 'Inventaire',
+              icon: const Icon(Icons.warehouse_outlined),
+              onPressed: _onInventory,
+            ),
             IconButton(
               tooltip: 'Actualiser',
               icon: const Icon(Icons.refresh),

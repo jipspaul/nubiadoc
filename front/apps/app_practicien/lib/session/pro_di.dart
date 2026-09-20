@@ -30,6 +30,7 @@ import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/tasks/tasks_bloc.dart';
 import '../features/cabinet_brief/cabinet_brief_bloc.dart';
 import '../features/stock/stock_inventory_bloc.dart';
+import '../features/stock/stock_locations_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
 
@@ -249,6 +250,17 @@ void registerPro(GetIt gi) {
     () => StockInventoryBloc(
       list: gi<ListStockItemsUseCase>(),
       addMovement: gi<AddStockMovementUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<StockLocationsBloc>(
+    () => StockLocationsBloc(
+      listLocations: gi<ListStockLocationsUseCase>(),
+      listItems: gi<ListStockItemsUseCase>(),
+      listItemLocations: gi<ListItemLocationsUseCase>(),
+      createLocation: gi<CreateStockLocationUseCase>(),
+      transfer: gi<TransferStockUseCase>(),
+      setThreshold: gi<SetItemLocationThresholdUseCase>(),
     ),
   );
 
