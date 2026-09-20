@@ -342,6 +342,11 @@ pub(crate) enum AppError {
     /// bloquée tant que le patient n'a pas signé l'attestation via
     /// `POST /v1/quotes/:id/attestation/sign`.
     AttestationNotSigned,
+    /// `PUT /v1/cabinet/settings/act-categories` (#7186) : une `category`
+    /// soumise n'appartient pas à la liste autorisée (CHECK, migration 0283)
+    /// — `400` explicite plutôt que de laisser la contrainte Postgres (23514)
+    /// remonter en 500, même doctrine que `InvalidQuoteStatusFilter`.
+    InvalidActCategory,
 }
 
 impl IntoResponse for AppError {
@@ -688,6 +693,17 @@ impl IntoResponse for AppError {
             AppError::AttestationNotSigned => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "attestation_not_signed"})),
+            )
+                .into_response(),
+            AppError::InvalidActCategory => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "code": "invalid_act_category",
+                    "message": "`category` doit être l'une des valeurs : \
+                        consultation, soins_conservateurs, endo, paro, prothese, \
+                        ortho, chirurgie, implanto, imagerie, atm, esthetique, \
+                        appareillages."
+                })),
             )
                 .into_response(),
         }
