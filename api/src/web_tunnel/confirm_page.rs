@@ -837,8 +837,12 @@ mod tests {
     async fn invalid_submission_page_names_the_phone_when_its_the_only_problem() {
         // #7436 : un téléphone au format national (`0X…`, refusé avant normalisation)
         // ne doit plus accuser tous les champs et la case CGU.
-        let (status, html) =
-            html_of(invalid_submission_page(Uuid::new_v4(), Uuid::new_v4(), true)).await;
+        let (status, html) = html_of(invalid_submission_page(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            true,
+        ))
+        .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert!(html.contains("téléphone"));
         assert!(!html.contains("tous les champs sont requis"));
