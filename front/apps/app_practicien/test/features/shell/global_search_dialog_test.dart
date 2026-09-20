@@ -88,6 +88,47 @@ void main() {
   });
 
   testWidgets(
+    '#7483 : la palette affiche « Demander à Nubia » en première rangée, '
+    'grisée, avec le sous-titre par défaut puis la saisie entre guillemets',
+    (tester) async {
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(find.byKey(const Key('open_global_search')));
+      await tester.pumpAndSettle();
+
+      final askTile = find.byKey(const Key('global_search_ask_nubia'));
+      expect(askTile, findsOneWidget);
+      expect(
+        find.descendant(of: askTile, matching: find.text('Demander à Nubia')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: askTile, matching: find.text('IA')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: askTile,
+          matching: find.text(
+            'Posez une question — résumé, relances, chiffres du jour',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<ListTile>(askTile).enabled, isFalse);
+
+      when(() => listPatients(q: 'Marc')).thenAnswer((_) async => Right([]));
+      await tester.enterText(find.byType(TextField), 'Marc');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(of: askTile, matching: find.text('« Marc »')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
     'un terme qui matche un patient affiche son résultat, étiqueté « Patient »',
     (tester) async {
       when(() => listPatients(q: 'Marc'))
