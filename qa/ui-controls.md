@@ -3166,9 +3166,9 @@ Après re-test individuel : **1 seul contrôle réellement mort, 0 réellement c
 | patient | /treatment-plans | 9 | 9 | 9 | 0 | 0 (3 × `attestation` 404) | 2026-09-20T07:42:00Z |
 | secretariat | `/reprise-donnees` (Reprise de données, **écran neuf #7178**) | 6 | 6 | 4 | 0 | **1** | 2026-09-20T15:20:00Z |
 | praticien | `/stock-inventory` → « Stock par salle » (**delete neuf #7452**) | 12 | 10 | 8 | 0 | **1** | 2026-09-20T15:20:00Z |
-| secretariat | `/devis` (volet détail + bloc Suivi) | 38 | 38 | 37 | 0 | 0 | 2026-09-20T15:20:00Z |
-| secretariat | `/stock` | 41 | 41 | 41 | 0 | 0 | 2026-09-20T15:20:00Z |
-| secretariat | `/agenda` | 28 | 28 | 28 | 0 | 0 | 2026-09-20T15:20:00Z |
+| secretariat | `/devis` (volet détail + bloc Suivi) | 38 | 4 | 4 | 0 | 0 | 2026-09-20T15:20:00Z |
+| secretariat | `/stock` | 41 | 0 (inventorié seulement) | — | — | — | 2026-09-20T15:20:00Z |
+| secretariat | `/agenda` | 28 | 0 (inventorié seulement) | — | — | — | 2026-09-20T15:20:00Z |
 | praticien | `/` (Tableau de bord) | 24 | 24 | 20 | 0* | 0 | 2026-09-20T15:20:00Z |
 | praticien | `/devis` | 24 | 24 | 21 | 0* | 0 | 2026-09-20T15:20:00Z |
 | praticien | `/tasks` | 4 | 4 | 4 | 0 | 0 | 2026-09-20T15:20:00Z |
@@ -3248,7 +3248,12 @@ qui impose `onPressed: null` + `Tooltip` porteur du motif. Captures `praticien/l
 > **Accorder `permissions:['geolocation']` dans le contexte Playwright** pour auditer cet écran.
 
 
-### Ronde R88 (2026-09-20) — 227 contrôles inventoriés, 227 activés
+### Ronde R88 (2026-09-20) — 332 contrôles inventoriés, 228 activés
+
+`secretariat /stock` et `/agenda` ont été **inventoriés et screenshotés pour la comparaison
+design-v2, pas audités bouton par bouton** (budget épuisé) — ils ne comptent donc pas comme
+audités et sont **prioritaires pour la ronde R89**. Idem `secretariat /devis`, dont seules les
+lignes de la liste et la fermeture du volet ont été activées (4 contrôles sur 38).
 
 **`0*` = candidat « MORT » du heuristique non confirmé.** Le walker en vrac a levé 51 verdicts MORT bruts
 (« ni navigation, ni requête, ni repeinture »). La vérification **une par une, page fraîche** en a infirmé
