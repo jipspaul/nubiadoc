@@ -254,6 +254,68 @@ async fn reject_with_note_and_cancel_flow() {
     assert_eq!(request2["status"], "cancelled");
 }
 
+/// #7432 : le motif de refus est obligatoire côté serveur, comme sur
+/// `reject_pharmacy_order` — un corps vide ou un `note` blanc doit 422.
+#[tokio::test]
+async fn reject_requires_non_empty_note() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, pharmacy_id) = seed(&db).await;
+    let pro = pro_jwt(cabinet_id, "practitioner");
+    let pharma = pharma_jwt(pharmacy_id);
+
+    let (_, request) = call(
+        "POST",
+        "/v1/cabinet/stock-requests",
+        &pro,
+        Some(json!({"pharmacy_id": pharmacy_id,
+                    "items": [{"label": "Gants nitrile", "qty": 5}]})),
+    )
+    .await;
+    let id = request["id"].as_str().unwrap().to_string();
+
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/stock-requests/{id}/reject"),
+        &pharma,
+        Some(json!({})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/stock-requests/{id}/reject"),
+        &pharma,
+        Some(json!({"note": "   "})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // La demande doit rester `sent` — le refus invalide n'a pas dû s'appliquer.
+    let (_, request) = call(
+        "GET",
+        &format!("/v1/cabinet/stock-requests/{id}"),
+        &pro,
+        None,
+    )
+    .await;
+    assert_eq!(request["status"], "sent");
+
+    let (status, request) = call(
+        "POST",
+        &format!("/v1/pharmacy/stock-requests/{id}/reject"),
+        &pharma,
+        Some(json!({"note": "Rupture fournisseur"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(request["status"], "rejected");
+    assert_eq!(request["response_note"], "Rupture fournisseur");
+}
+
 #[tokio::test]
 async fn resend_while_sent_then_blocked_after_accept() {
     if !db_available() {
