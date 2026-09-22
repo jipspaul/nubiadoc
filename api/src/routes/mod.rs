@@ -17,6 +17,7 @@ pub mod clinical;
 pub mod compliance;
 pub mod cr_prescriptions;
 pub mod documents_messaging;
+pub mod maintenance;
 pub mod marketplace;
 pub mod misc;
 pub mod notifications_devices;

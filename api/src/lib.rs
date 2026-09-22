@@ -116,6 +116,7 @@ pub mod kms_env;
 mod lab_work_orders;
 mod letters;
 mod local_storage_signer;
+mod maintenance;
 mod marketplace;
 mod medical_questionnaire;
 mod medical_record;
@@ -251,6 +252,20 @@ pub trait Mailer: Send + Sync {
     /// #7206). `balance_due_cents` figure dans l'e-mail (canal direct au
     /// patient, contrairement au push/in-app qui reste zéro PII/montant).
     fn send_invoice_reminder(&self, to: &str, balance_due_cents: i64);
+    /// Prévient le technicien à la création d'un ticket de maintenance
+    /// (`POST /v1/cabinet/maintenance/tickets`, #7167). `to` est soit
+    /// `assigned_to_email` soit, à défaut, `cabinet_equipment.technician_email`
+    /// — texte libre, souvent un prestataire externe sans compte Nubia (donc
+    /// pas de lien vers un espace authentifié, contrairement à
+    /// `send_invoice_reminder`). `photo_filenames` liste les pièces jointes
+    /// déjà rattachées au ticket à la création (peut être vide).
+    fn send_maintenance_ticket_created(
+        &self,
+        to: &str,
+        title: &str,
+        description: Option<&str>,
+        photo_filenames: &[String],
+    );
 }
 
 /// Implémentation no-op pour les tests et le dev local.
@@ -261,6 +276,14 @@ impl Mailer for StubMailer {
     fn send_invite(&self, _to: &str, _token: &str) {}
     fn send_access_request(&self, _to: &str, _requester_name: &str) {}
     fn send_invoice_reminder(&self, _to: &str, _balance_due_cents: i64) {}
+    fn send_maintenance_ticket_created(
+        &self,
+        _to: &str,
+        _title: &str,
+        _description: Option<&str>,
+        _photo_filenames: &[String],
+    ) {
+    }
 }
 
 /// Trait d'envoi de SMS — swappable (stub en test, Twilio en prod). #4036.
@@ -635,6 +658,7 @@ fn build_router(
     let router = routes::cabinet_tasks::add(router);
     let router = routes::cabinet_briefs::add(router);
     let router = routes::compliance::add(router);
+    let router = routes::maintenance::add(router);
     // Route de service du `StorageSigner` self-hébergé (#6425) — sert les
     // objets `ObjectStorage` via les URL générées par `LocalStorageSigner`.
     // Toujours montée (coût nul si `ScalewayStorageSigner` est le signer
