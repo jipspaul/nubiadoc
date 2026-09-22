@@ -730,6 +730,21 @@ pub struct CabinetTreatmentPhaseItem {
     pub acts: Vec<CabinetTreatmentPhaseAct>,
 }
 
+/// Séance imbriquée dans `CabinetTreatmentPlanItem` (`treatment_session`,
+/// migration `0288`, #7174/#7173). Rendue au même niveau que `phases` — sans
+/// ça, les séances persistées par `POST .../sessions/propose` n'étaient
+/// jamais relisibles (#7477) : cet écran est la seule surface qui recharge
+/// l'état d'un plan.
+#[derive(Serialize)]
+pub struct CabinetTreatmentSessionItem {
+    pub id: Uuid,
+    pub position: i32,
+    pub duration_min: i32,
+    pub status: String,
+    pub appointment_id: Option<Uuid>,
+    pub quote_item_ids: Vec<Uuid>,
+}
+
 /// Plan de traitement d'un patient, avec ses phases (écran praticien #4051).
 #[derive(Serialize)]
 pub struct CabinetTreatmentPlanItem {
@@ -738,6 +753,7 @@ pub struct CabinetTreatmentPlanItem {
     pub status: String,
     pub created_at: String,
     pub phases: Vec<CabinetTreatmentPhaseItem>,
+    pub sessions: Vec<CabinetTreatmentSessionItem>,
 }
 
 /// Réponse de `GET /v1/cabinet/patients/:id/treatment-plans`.
@@ -826,7 +842,78 @@ pub async fn list_cabinet_treatment_plans(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Séances déjà découpées (#7477) : sans cette lecture, `treatment_session`
+    // est écriture seule et les séances persistées par
+    // `treatment_sessions::propose_treatment_sessions` deviennent
+    // irrécupérables dès que l'écran recharge le plan.
+    let session_rows = sqlx::query(
+        "SELECT ts.id, ts.plan_id, ts.position, ts.duration_min, ts.status, ts.appointment_id \
+         FROM treatment_session ts \
+         JOIN treatment_plan tp ON tp.id = ts.plan_id \
+         WHERE tp.patient_id = $1 AND tp.cabinet_id = $2 AND tp.deleted_at IS NULL \
+         ORDER BY ts.position ASC",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let session_act_rows = sqlx::query(
+        "SELECT tsa.session_id, tsa.quote_item_id \
+         FROM treatment_session_act tsa \
+         JOIN treatment_session ts ON ts.id = tsa.session_id \
+         JOIN treatment_plan tp ON tp.id = ts.plan_id \
+         WHERE tp.patient_id = $1 AND tp.cabinet_id = $2 AND tp.deleted_at IS NULL \
+           AND tsa.quote_item_id IS NOT NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut quote_item_ids_by_session: std::collections::HashMap<Uuid, Vec<Uuid>> =
+        std::collections::HashMap::new();
+    for row in &session_act_rows {
+        let session_id: Uuid = row.try_get("session_id").map_err(|_| AppError::Internal)?;
+        let quote_item_id: Uuid = row
+            .try_get("quote_item_id")
+            .map_err(|_| AppError::Internal)?;
+        quote_item_ids_by_session
+            .entry(session_id)
+            .or_default()
+            .push(quote_item_id);
+    }
+
+    let mut sessions_by_plan: std::collections::HashMap<Uuid, Vec<CabinetTreatmentSessionItem>> =
+        std::collections::HashMap::new();
+    for row in &session_rows {
+        let plan_id: Uuid = row.try_get("plan_id").map_err(|_| AppError::Internal)?;
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let position: i32 = row.try_get("position").map_err(|_| AppError::Internal)?;
+        let duration_min: i32 = row
+            .try_get("duration_min")
+            .map_err(|_| AppError::Internal)?;
+        let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+        let appointment_id: Option<Uuid> = row
+            .try_get("appointment_id")
+            .map_err(|_| AppError::Internal)?;
+        let quote_item_ids = quote_item_ids_by_session.remove(&id).unwrap_or_default();
+        sessions_by_plan
+            .entry(plan_id)
+            .or_default()
+            .push(CabinetTreatmentSessionItem {
+                id,
+                position,
+                duration_min,
+                status,
+                appointment_id,
+                quote_item_ids,
+            });
+    }
 
     let mut acts_by_phase: std::collections::HashMap<Uuid, Vec<CabinetTreatmentPhaseAct>> =
         std::collections::HashMap::new();
@@ -881,6 +968,7 @@ pub async fn list_cabinet_treatment_plans(
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
         data.push(CabinetTreatmentPlanItem {
             phases: phases_by_plan.remove(&id).unwrap_or_default(),
+            sessions: sessions_by_plan.remove(&id).unwrap_or_default(),
             id,
             title,
             status,

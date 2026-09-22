@@ -704,6 +704,7 @@ class _PlanCardState extends State<_PlanCard> {
               key: ValueKey('plan_sessions_${plan.id}'),
               create: (_) => TreatmentSessionsCubit(
                 planId: plan.id,
+                initialSessions: plan.sessions,
                 proposeSessions:
                     GetIt.instance<ProposeTreatmentSessionsUseCase>(),
                 proposeSlots: GetIt.instance<ProposeSessionSlotsUseCase>(),
