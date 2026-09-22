@@ -47,6 +47,31 @@ void main() {
         scheduleSession: ScheduleTreatmentSessionUseCase(repository),
       );
 
+  group('initialSessions (#7477)', () {
+    test('non vide → état initial Loaded, sans qu\'aucune action soit émise',
+        () {
+      final cubit = TreatmentSessionsCubit(
+        planId: 'plan-1',
+        initialSessions: const [_sessionA, _sessionB],
+        proposeSessions: ProposeTreatmentSessionsUseCase(repository),
+        proposeSlots: ProposeSessionSlotsUseCase(repository),
+        scheduleSession: ScheduleTreatmentSessionUseCase(repository),
+      );
+      expect(
+        cubit.state,
+        const TreatmentSessionsLoaded(sessions: [_sessionA, _sessionB]),
+      );
+      cubit.close();
+    });
+
+    test('vide → état initial Initial, même comportement qu\'avant #7477',
+        () {
+      final cubit = buildCubit();
+      expect(cubit.state, const TreatmentSessionsInitial());
+      cubit.close();
+    });
+  });
+
   group('propose', () {
     blocTest<TreatmentSessionsCubit, TreatmentSessionsState>(
       'succès → séances proposées ajoutées à la liste',

@@ -1,4 +1,5 @@
 import 'package:nubia_domain/src/entities/treatment_plan.dart';
+import 'package:nubia_domain/src/entities/treatment_session.dart';
 
 /// Parsing tolérant : `quote_number`/`number` absent → référence ignorée
 /// (la phase est traitée comme non couverte par `TreatmentPhaseDto`).
@@ -112,12 +113,57 @@ class TreatmentPhaseDto {
       );
 }
 
+/// Séance imbriquée dans `TreatmentPlanDto` (`GET .../treatment-plans`,
+/// #7477) — mêmes séances que celles persistées par `POST
+/// .../sessions/propose`, mais rendues avec `id`/`status`/`appointment_id`
+/// (clés distinctes de `TreatmentSessionDto`, qui parse la réponse de
+/// `propose` sous `session_id` sans `status`/`appointment_id`).
+class TreatmentPlanSessionDto {
+  final String id;
+  final int position;
+  final int durationMin;
+  final String status;
+  final String? appointmentId;
+  final List<String> quoteItemIds;
+
+  const TreatmentPlanSessionDto({
+    required this.id,
+    required this.position,
+    required this.durationMin,
+    required this.status,
+    this.appointmentId,
+    required this.quoteItemIds,
+  });
+
+  factory TreatmentPlanSessionDto.fromJson(Map<String, dynamic> json) =>
+      TreatmentPlanSessionDto(
+        id: json['id'] as String,
+        position: json['position'] as int,
+        durationMin: json['duration_min'] as int,
+        status: json['status'] as String,
+        appointmentId: json['appointment_id'] as String?,
+        quoteItemIds: (json['quote_item_ids'] as List<dynamic>? ?? const [])
+            .map((id) => id as String)
+            .toList(),
+      );
+
+  TreatmentSession toDomain() => TreatmentSession(
+        id: id,
+        position: position,
+        durationMin: durationMin,
+        quoteItemIds: quoteItemIds,
+        status: status,
+        appointmentId: appointmentId,
+      );
+}
+
 class TreatmentPlanDto {
   final String id;
   final String title;
   final String status;
   final String createdAt;
   final List<TreatmentPhaseDto> phases;
+  final List<TreatmentPlanSessionDto> sessions;
 
   const TreatmentPlanDto({
     required this.id,
@@ -125,6 +171,7 @@ class TreatmentPlanDto {
     required this.status,
     required this.createdAt,
     required this.phases,
+    this.sessions = const [],
   });
 
   factory TreatmentPlanDto.fromJson(Map<String, dynamic> json) =>
@@ -136,6 +183,10 @@ class TreatmentPlanDto {
         phases: (json['phases'] as List<dynamic>? ?? const [])
             .map((p) => TreatmentPhaseDto.fromJson(p as Map<String, dynamic>))
             .toList(),
+        sessions: (json['sessions'] as List<dynamic>? ?? const [])
+            .map((s) =>
+                TreatmentPlanSessionDto.fromJson(s as Map<String, dynamic>))
+            .toList(),
       );
 
   TreatmentPlan toDomain() => TreatmentPlan(
@@ -144,5 +195,6 @@ class TreatmentPlanDto {
         status: status,
         createdAt: DateTime.parse(createdAt),
         phases: phases.map((p) => p.toDomain()).toList(),
+        sessions: sessions.map((s) => s.toDomain()).toList(),
       );
 }

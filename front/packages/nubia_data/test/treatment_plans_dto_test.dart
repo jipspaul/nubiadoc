@@ -48,4 +48,74 @@ void main() {
       expect(dto.toDomain().acts, isEmpty);
     });
   });
+
+  group('TreatmentPlanSessionDto — séances persistées relisibles (#7477)',
+      () {
+    test('fromJson lit id, position, duration_min, status, appointment_id, '
+        'quote_item_ids', () {
+      final dto = TreatmentPlanSessionDto.fromJson(const {
+        'id': 'sess-1',
+        'position': 1,
+        'duration_min': 30,
+        'status': 'scheduled',
+        'appointment_id': 'appt-1',
+        'quote_item_ids': ['qi-1', 'qi-2'],
+      });
+
+      final session = dto.toDomain();
+      expect(session.id, 'sess-1');
+      expect(session.position, 1);
+      expect(session.durationMin, 30);
+      expect(session.status, 'scheduled');
+      expect(session.appointmentId, 'appt-1');
+      expect(session.quoteItemIds, ['qi-1', 'qi-2']);
+    });
+
+    test('appointment_id absent → null (séance pas encore programmée)', () {
+      final dto = TreatmentPlanSessionDto.fromJson(const {
+        'id': 'sess-2',
+        'position': 1,
+        'duration_min': 30,
+        'status': 'planned',
+        'quote_item_ids': ['qi-1'],
+      });
+
+      expect(dto.toDomain().appointmentId, isNull);
+    });
+  });
+
+  group('TreatmentPlanDto — sessions absent du JSON (#7477)', () {
+    test('plan sans champ sessions → liste vide, pas de crash', () {
+      final dto = TreatmentPlanDto.fromJson(const {
+        'id': 'plan-1',
+        'title': 'Plan implant',
+        'status': 'in_progress',
+        'created_at': '2026-09-20T00:00:00Z',
+      });
+
+      expect(dto.toDomain().sessions, isEmpty);
+    });
+
+    test('plan avec sessions → relayées vers le domaine', () {
+      final dto = TreatmentPlanDto.fromJson(const {
+        'id': 'plan-1',
+        'title': 'Plan implant',
+        'status': 'in_progress',
+        'created_at': '2026-09-20T00:00:00Z',
+        'sessions': [
+          {
+            'id': 'sess-1',
+            'position': 1,
+            'duration_min': 30,
+            'status': 'planned',
+            'quote_item_ids': ['qi-1'],
+          },
+        ],
+      });
+
+      final sessions = dto.toDomain().sessions;
+      expect(sessions, hasLength(1));
+      expect(sessions.single.id, 'sess-1');
+    });
+  });
 }

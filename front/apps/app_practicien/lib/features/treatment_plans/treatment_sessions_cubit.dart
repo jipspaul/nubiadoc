@@ -9,10 +9,13 @@
 //! les créneaux proposés pour une séance (`loadSlots`) et réserve un
 //! créneau (`schedule`, crée le RDV lié).
 //!
-//! État : [TreatmentSessionsInitial] tant qu'aucune séance n'a été
-//! proposée ; [TreatmentSessionsLoaded] ensuite, y compris en cas d'échec
-//! d'une action (`actionError` porté par l'état, séances déjà affichées
-//! conservées — même convention que `TreatmentPlansCubit`).
+//! État : [TreatmentSessionsInitial] tant qu'aucune séance n'a été proposée
+//! NI relue ; [TreatmentSessionsLoaded] ensuite — y compris dès la création
+//! du cubit si `initialSessions` (séances déjà persistées, portées par
+//! `TreatmentPlan.sessions`, #7477) n'est pas vide, sans quoi les séances
+//! d'un plan rechargé devenaient irrécupérables. `actionError` porté par
+//! l'état en cas d'échec d'une action, séances déjà affichées conservées —
+//! même convention que `TreatmentPlansCubit`.
 
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
@@ -76,13 +79,18 @@ class TreatmentSessionsLoaded extends TreatmentSessionsState {
 class TreatmentSessionsCubit extends Cubit<TreatmentSessionsState> {
   TreatmentSessionsCubit({
     required this.planId,
+    List<TreatmentSession> initialSessions = const [],
     required ProposeTreatmentSessionsUseCase proposeSessions,
     required ProposeSessionSlotsUseCase proposeSlots,
     required ScheduleTreatmentSessionUseCase scheduleSession,
   })  : _propose = proposeSessions,
         _slots = proposeSlots,
         _schedule = scheduleSession,
-        super(const TreatmentSessionsInitial());
+        super(
+          initialSessions.isEmpty
+              ? const TreatmentSessionsInitial()
+              : TreatmentSessionsLoaded(sessions: initialSessions),
+        );
 
   final String planId;
   final ProposeTreatmentSessionsUseCase _propose;

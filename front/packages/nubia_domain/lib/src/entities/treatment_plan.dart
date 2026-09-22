@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'treatment_session.dart';
+
 /// Référence du devis (`devis`, feature séparée) auquel une [TreatmentPhase]
 /// est rattachée — lien entre `treatment_plans` et `devis` à l'écran.
 class TreatmentPhaseQuoteRef extends Equatable {
@@ -89,12 +91,18 @@ class TreatmentPlan extends Equatable {
   final DateTime createdAt;
   final List<TreatmentPhase> phases;
 
+  /// Séances déjà découpées pour ce plan (#7172/#7173, `treatment_session`),
+  /// relues depuis cette même route — sans elles, l'écran perdait les
+  /// séances persistées dès qu'il rechargeait le plan (#7477).
+  final List<TreatmentSession> sessions;
+
   const TreatmentPlan({
     required this.id,
     required this.title,
     required this.status,
     required this.createdAt,
     required this.phases,
+    this.sessions = const [],
   });
 
   /// Total du plan — somme du [TreatmentPhase.totalCents] de chaque phase
@@ -120,5 +128,5 @@ class TreatmentPlan extends Equatable {
   int get remainingToQuoteCents => totalCents - engagedCents;
 
   @override
-  List<Object?> get props => [id, title, status, createdAt, phases];
+  List<Object?> get props => [id, title, status, createdAt, phases, sessions];
 }
