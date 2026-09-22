@@ -77,6 +77,12 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/cabinet/stats/billing",
             get(cabinet_stats::get_cabinet_billing_stats),
         )
+        // Grille labo — coût labo/CA patient/marge par acte/praticien/labo
+        // (#7164, DP-F19.b).
+        .route(
+            "/v1/cabinet/lab-stats",
+            get(cabinet_stats::get_cabinet_lab_stats),
+        )
         .route(
             "/v1/cabinet/quotes/:id",
             get(cabinet_quotes::get_cabinet_quote).patch(cabinet_quotes_patch::patch_cabinet_quote),

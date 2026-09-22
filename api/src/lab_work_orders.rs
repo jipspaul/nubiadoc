@@ -211,6 +211,14 @@ pub struct CreateLabWorkOrderBody {
     pub appointment_id: Option<Uuid>,
     pub lab_name: String,
     pub purchase_price_cents: i32,
+    /// Ligne de `lab_price_list` (#7165) utilisée pour pré-remplir
+    /// `purchase_price_cents` côté client (#7164, DP-F19.b) — le prix reste
+    /// saisi explicitement dans `purchase_price_cents` (modifiable avant
+    /// envoi, ex. tarif négocié ponctuel), ce champ ne sert qu'à tracer la
+    /// ligne de grille utilisée pour la valorisation auto/marge
+    /// (`cabinet_stats::get_cabinet_lab_stats`).
+    #[serde(default)]
+    pub price_list_item_id: Option<Uuid>,
 }
 
 /// Réponse de `POST /v1/cabinet/lab-work-orders`.
@@ -302,10 +310,27 @@ pub async fn create_lab_work_order(
         }
     }
 
+    // #7164 : `price_list_item_id` (grille tarifaire, #7165) doit appartenir
+    // à ce cabinet — même garde que `quote_item_id`/`appointment_id`
+    // ci-dessus, sinon un id d'un autre cabinet passerait la FK composite
+    // (id, cabinet_id) en 500 plutôt qu'en 404.
+    if let Some(price_list_item_id) = body.price_list_item_id {
+        let exists = sqlx::query("SELECT 1 FROM lab_price_list WHERE id = $1 AND cabinet_id = $2")
+            .bind(price_list_item_id)
+            .bind(claims.cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        if exists.is_none() {
+            return Err(AppError::NotFound);
+        }
+    }
+
     let row = sqlx::query(
         "INSERT INTO lab_work_order \
-         (cabinet_id, patient_id, quote_item_id, appointment_id, lab_name, purchase_price_cents) \
-         VALUES ($1, $2, $3, $4, $5, $6) \
+         (cabinet_id, patient_id, quote_item_id, appointment_id, lab_name, \
+          purchase_price_cents, price_list_item_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) \
          RETURNING id",
     )
     .bind(claims.cabinet_id)
@@ -314,6 +339,7 @@ pub async fn create_lab_work_order(
     .bind(body.appointment_id)
     .bind(body.lab_name.trim())
     .bind(body.purchase_price_cents)
+    .bind(body.price_list_item_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

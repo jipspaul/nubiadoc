@@ -10,12 +10,14 @@
 
 use axum::extract::{Query, State};
 use axum::Json;
+use chrono::{Datelike, NaiveDate};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims, ProSecretaryPlusClaims},
+    scheduling::{cabinet_local_days_utc_range, paris_today},
     AppState,
 };
 
@@ -316,5 +318,285 @@ pub async fn get_cabinet_billing_stats(
         conversion_rate,
         signed_count,
         sent_total,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// GET /v1/cabinet/lab-stats (#7164, DP-F19.b)
+// ---------------------------------------------------------------------------
+
+/// Parse `"YYYY-MM"` en premier jour du mois. Même contrat que
+/// `cabinet_quotes_overview::parse_month`/`practitioner_kpis::parse_month`
+/// (dupliqué faute de fonction partagée pour une conversion aussi courte).
+fn parse_lab_stats_month(s: &str) -> Result<NaiveDate, AppError> {
+    NaiveDate::parse_from_str(&format!("{s}-01"), "%Y-%m-%d").map_err(|_| AppError::ValidationError)
+}
+
+/// Premier jour du mois suivant `month_start`. Même contrat que
+/// `cabinet_quotes_overview::next_month_start`.
+fn next_lab_stats_month(month_start: NaiveDate) -> NaiveDate {
+    let (year, month) = if month_start.month() == 12 {
+        (month_start.year() + 1, 1)
+    } else {
+        (month_start.year(), month_start.month() + 1)
+    };
+    NaiveDate::from_ymd_opt(year, month, 1).expect("mois valide")
+}
+
+/// Query de `GET /v1/cabinet/lab-stats`.
+#[derive(Deserialize)]
+pub struct LabStatsQuery {
+    /// Mois ciblé, format `YYYY-MM` (défaut : mois courant, calendrier local
+    /// `Europe/Paris`). Filtre sur `lab_work_order.sent_at`.
+    pub period: Option<String>,
+}
+
+/// Un bon de travail sur la période, valorisé (coût labo vs CA patient).
+#[derive(Serialize)]
+pub struct LabStatActItem {
+    pub lab_work_order_id: Uuid,
+    pub lab_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub practitioner_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub practitioner_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tooth_fdi: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub work_nature: Option<String>,
+    /// `lab_work_order.purchase_price_cents`.
+    pub lab_cost_cents: i64,
+    /// Montant facturé au patient sur la ligne de devis liée
+    /// (`quote_item.qty * quote_item.unit_amount`) — `0` si le bon n'est
+    /// rattaché à aucune ligne de devis (pas de CA patient identifiable).
+    pub patient_revenue_cents: i64,
+    /// `patient_revenue_cents - lab_cost_cents`.
+    pub margin_cents: i64,
+}
+
+/// Agrégat pour un laboratoire.
+#[derive(Serialize)]
+pub struct LabStatByLab {
+    pub lab_name: String,
+    pub order_count: i64,
+    pub lab_cost_cents: i64,
+    pub patient_revenue_cents: i64,
+    pub margin_cents: i64,
+}
+
+/// Agrégat pour un praticien (bons rattachés à un devis avec `practitioner_id`).
+#[derive(Serialize)]
+pub struct LabStatByPractitioner {
+    pub practitioner_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub practitioner_name: Option<String>,
+    pub order_count: i64,
+    pub lab_cost_cents: i64,
+    pub patient_revenue_cents: i64,
+    pub margin_cents: i64,
+}
+
+/// Réponse de `GET /v1/cabinet/lab-stats`.
+#[derive(Serialize)]
+pub struct LabStatsResponse {
+    /// Premier jour du mois couvert (`YYYY-MM-DD`).
+    pub period_month: String,
+    pub total_lab_cost_cents: i64,
+    pub total_patient_revenue_cents: i64,
+    pub total_margin_cents: i64,
+    pub by_act: Vec<LabStatActItem>,
+    pub by_practitioner: Vec<LabStatByPractitioner>,
+    pub by_lab: Vec<LabStatByLab>,
+}
+
+/// `GET /v1/cabinet/lab-stats?period=YYYY-MM` — coût labo, CA patient et
+/// marge par acte / par praticien / par laboratoire (#7164, DP-F19.b).
+///
+/// Token pro requis (secretary/practitioner/admin) — patient → 403.
+/// `?period=` → `422 validation_error` si non `YYYY-MM`, défaut le mois
+/// courant (calendrier `Europe/Paris`, même contrat que
+/// `cabinet_quotes_overview::get_cabinet_quotes_overview`). Filtre sur
+/// `lab_work_order.sent_at` (date de création du bon, borne de la fenêtre
+/// mensuelle en UTC via `cabinet_local_days_utc_range`).
+///
+/// `patient_revenue_cents` = `quote_item.qty * quote_item.unit_amount` de la
+/// ligne de devis liée au bon (`lab_work_order.quote_item_id`) — `0` si le
+/// bon n'est rattaché à aucune ligne (coût labo compté quand même dans les
+/// totaux/`by_lab`, mais absent de `by_practitioner` faute de praticien
+/// identifiable via `quote.practitioner_id`). `margin_cents` peut être
+/// négatif (coût labo supérieur au prix facturé, alerte visuelle côté
+/// client).
+pub async fn get_cabinet_lab_stats(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Query(params): Query<LabStatsQuery>,
+) -> Result<Json<LabStatsResponse>, AppError> {
+    let month_start = match params.period.as_deref() {
+        Some(p) => parse_lab_stats_month(p)?,
+        None => {
+            let today = paris_today();
+            NaiveDate::from_ymd_opt(today.year(), today.month(), 1).expect("mois valide")
+        }
+    };
+    let (period_start, period_end) = cabinet_local_days_utc_range(
+        month_start,
+        (next_lab_stats_month(month_start) - month_start).num_days(),
+    )?;
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let act_rows = sqlx::query(
+        "SELECT lwo.id AS lab_work_order_id, lwo.lab_name, \
+                q.practitioner_id, practitioner_display_name(q.practitioner_id) AS practitioner_name, \
+                qi.tooth AS tooth_fdi, qi.label AS work_nature, \
+                lwo.purchase_price_cents::bigint AS lab_cost_cents, \
+                (COALESCE(qi.qty * qi.unit_amount, 0) * 100)::bigint AS patient_revenue_cents \
+         FROM lab_work_order lwo \
+         LEFT JOIN quote_item qi ON qi.id = lwo.quote_item_id \
+         LEFT JOIN quote q ON q.id = qi.quote_id \
+         WHERE lwo.cabinet_id = $1 \
+           AND lwo.sent_at >= $2 AND lwo.sent_at < $3 \
+         ORDER BY lwo.sent_at DESC",
+    )
+    .bind(claims.cabinet_id)
+    .bind(period_start)
+    .bind(period_end)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let by_lab_rows = sqlx::query(
+        "SELECT lwo.lab_name, COUNT(*)::bigint AS order_count, \
+                SUM(lwo.purchase_price_cents)::bigint AS lab_cost_cents, \
+                (COALESCE(SUM(qi.qty * qi.unit_amount), 0) * 100)::bigint AS patient_revenue_cents \
+         FROM lab_work_order lwo \
+         LEFT JOIN quote_item qi ON qi.id = lwo.quote_item_id \
+         WHERE lwo.cabinet_id = $1 \
+           AND lwo.sent_at >= $2 AND lwo.sent_at < $3 \
+         GROUP BY lwo.lab_name \
+         ORDER BY lwo.lab_name",
+    )
+    .bind(claims.cabinet_id)
+    .bind(period_start)
+    .bind(period_end)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let by_practitioner_rows = sqlx::query(
+        "SELECT q.practitioner_id, practitioner_display_name(q.practitioner_id) AS practitioner_name, \
+                COUNT(*)::bigint AS order_count, \
+                SUM(lwo.purchase_price_cents)::bigint AS lab_cost_cents, \
+                (COALESCE(SUM(qi.qty * qi.unit_amount), 0) * 100)::bigint AS patient_revenue_cents \
+         FROM lab_work_order lwo \
+         JOIN quote_item qi ON qi.id = lwo.quote_item_id \
+         JOIN quote q ON q.id = qi.quote_id AND q.practitioner_id IS NOT NULL \
+         WHERE lwo.cabinet_id = $1 \
+           AND lwo.sent_at >= $2 AND lwo.sent_at < $3 \
+         GROUP BY q.practitioner_id \
+         ORDER BY order_count DESC",
+    )
+    .bind(claims.cabinet_id)
+    .bind(period_start)
+    .bind(period_end)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut by_act = Vec::with_capacity(act_rows.len());
+    let mut total_lab_cost_cents: i64 = 0;
+    let mut total_patient_revenue_cents: i64 = 0;
+    for row in &act_rows {
+        let lab_cost_cents: i64 = row
+            .try_get("lab_cost_cents")
+            .map_err(|_| AppError::Internal)?;
+        let patient_revenue_cents: i64 = row
+            .try_get("patient_revenue_cents")
+            .map_err(|_| AppError::Internal)?;
+        total_lab_cost_cents += lab_cost_cents;
+        total_patient_revenue_cents += patient_revenue_cents;
+        by_act.push(LabStatActItem {
+            lab_work_order_id: row
+                .try_get("lab_work_order_id")
+                .map_err(|_| AppError::Internal)?,
+            lab_name: row.try_get("lab_name").map_err(|_| AppError::Internal)?,
+            practitioner_id: row
+                .try_get("practitioner_id")
+                .map_err(|_| AppError::Internal)?,
+            practitioner_name: row
+                .try_get("practitioner_name")
+                .map_err(|_| AppError::Internal)?,
+            tooth_fdi: row.try_get("tooth_fdi").map_err(|_| AppError::Internal)?,
+            work_nature: row.try_get("work_nature").map_err(|_| AppError::Internal)?,
+            lab_cost_cents,
+            patient_revenue_cents,
+            margin_cents: patient_revenue_cents - lab_cost_cents,
+        });
+    }
+
+    let mut by_lab = Vec::with_capacity(by_lab_rows.len());
+    for row in &by_lab_rows {
+        let lab_cost_cents: i64 = row
+            .try_get("lab_cost_cents")
+            .map_err(|_| AppError::Internal)?;
+        let patient_revenue_cents: i64 = row
+            .try_get("patient_revenue_cents")
+            .map_err(|_| AppError::Internal)?;
+        by_lab.push(LabStatByLab {
+            lab_name: row.try_get("lab_name").map_err(|_| AppError::Internal)?,
+            order_count: row.try_get("order_count").map_err(|_| AppError::Internal)?,
+            lab_cost_cents,
+            patient_revenue_cents,
+            margin_cents: patient_revenue_cents - lab_cost_cents,
+        });
+    }
+
+    let mut by_practitioner = Vec::with_capacity(by_practitioner_rows.len());
+    for row in &by_practitioner_rows {
+        let lab_cost_cents: i64 = row
+            .try_get("lab_cost_cents")
+            .map_err(|_| AppError::Internal)?;
+        let patient_revenue_cents: i64 = row
+            .try_get("patient_revenue_cents")
+            .map_err(|_| AppError::Internal)?;
+        by_practitioner.push(LabStatByPractitioner {
+            practitioner_id: row
+                .try_get("practitioner_id")
+                .map_err(|_| AppError::Internal)?,
+            practitioner_name: row
+                .try_get("practitioner_name")
+                .map_err(|_| AppError::Internal)?,
+            order_count: row.try_get("order_count").map_err(|_| AppError::Internal)?,
+            lab_cost_cents,
+            patient_revenue_cents,
+            margin_cents: patient_revenue_cents - lab_cost_cents,
+        });
+    }
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        period_month = %month_start,
+        orders = by_act.len(),
+        total_lab_cost_cents,
+        total_patient_revenue_cents,
+        "cabinet lab stats fetched"
+    );
+
+    Ok(Json(LabStatsResponse {
+        period_month: month_start.to_string(),
+        total_lab_cost_cents,
+        total_patient_revenue_cents,
+        total_margin_cents: total_patient_revenue_cents - total_lab_cost_cents,
+        by_act,
+        by_practitioner,
+        by_lab,
     }))
 }

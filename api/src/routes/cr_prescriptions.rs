@@ -4,9 +4,10 @@
 use axum::{routing::get, Router};
 
 use crate::{
-    ccam_stock_mappings, consent_templates, cr_templates, lab_work_orders, medication_references,
-    prescription_renew, prescription_send, prescription_templates, prescriptions, sterilization,
-    sterilization_labels, stock_import, stock_items, stock_locations, AppState,
+    ccam_stock_mappings, consent_templates, cr_templates, lab_price_list, lab_work_orders,
+    medication_references, prescription_renew, prescription_send, prescription_templates,
+    prescriptions, sterilization, sterilization_labels, stock_import, stock_items, stock_locations,
+    AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -123,6 +124,14 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/consent-templates/:id/render",
             axum::routing::post(consent_templates::render_consent_template),
+        )
+        .route(
+            "/v1/cabinet/lab-price-list",
+            get(lab_price_list::list_lab_price_list),
+        )
+        .route(
+            "/v1/cabinet/lab-price-list/import",
+            axum::routing::post(lab_price_list::import_lab_price_list_csv),
         )
         .route(
             "/v1/cabinet/lab-work-orders",
