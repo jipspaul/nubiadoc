@@ -113,6 +113,7 @@ mod implant_passport;
 mod interop;
 mod invoice_reminder;
 pub mod kms_env;
+mod lab_price_list;
 mod lab_work_orders;
 mod letters;
 mod local_storage_signer;
