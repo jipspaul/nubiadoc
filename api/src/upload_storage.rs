@@ -40,6 +40,9 @@ pub const PREFIX_COVERAGE_CARD: &str = "carte-mutuelle";
 /// Préfixe de clé des documents versés au dossier par le cabinet
 /// (`POST /v1/cabinet/patients/:id/documents`).
 pub const PREFIX_CABINET_DOCUMENT: &str = "dossier";
+/// Préfixe de clé des photos jointes à un ticket de maintenance
+/// (`POST /v1/cabinet/maintenance/photos`, #7167).
+pub const PREFIX_MAINTENANCE_PHOTO: &str = "maintenance";
 
 /// Écrit `bytes` dans l'`ObjectStorage` sous une clé fraîche `<prefix>/<uuid>`
 /// et retourne cette clé. Échec d'écriture → `AppError::Internal` (journalisé,

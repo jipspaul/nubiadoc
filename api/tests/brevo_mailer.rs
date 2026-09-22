@@ -84,6 +84,80 @@ async fn send_password_reset_posts_to_brevo_transactional_api() {
     assert!(html.contains("reset-token-456"));
 }
 
+#[tokio::test]
+async fn send_maintenance_ticket_created_posts_description_and_photos() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/v3/smtp/email"))
+        .respond_with(ResponseTemplate::new(201))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let mailer = BrevoMailer::with_base_url(
+        "test-brevo-key",
+        "no-reply@nubia.test",
+        "Nubia Test",
+        "https://app.nubia.test",
+        mock_server.uri(),
+    );
+
+    mailer.send_maintenance_ticket_created(
+        "technicien@prestataire.test",
+        "Autoclave en panne",
+        Some("Ne chauffe plus, écran d'erreur E4"),
+        &["radio1.jpg".to_string(), "radio2.jpg".to_string()],
+    );
+    wait_for_request().await;
+
+    let requests = mock_server.received_requests().await.unwrap();
+    assert_eq!(requests.len(), 1);
+
+    let body: Value = serde_json::from_slice(&requests[0].body).unwrap();
+    assert_eq!(body["to"][0]["email"], "technicien@prestataire.test");
+    let html = body["htmlContent"].as_str().unwrap();
+    assert!(html.contains("Autoclave en panne"));
+    assert!(html.contains("Ne chauffe plus"));
+    assert!(html.contains("radio1.jpg"));
+    assert!(html.contains("radio2.jpg"));
+}
+
+#[tokio::test]
+async fn send_maintenance_ticket_created_without_photos_says_so() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/v3/smtp/email"))
+        .respond_with(ResponseTemplate::new(201))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let mailer = BrevoMailer::with_base_url(
+        "test-brevo-key",
+        "no-reply@nubia.test",
+        "Nubia Test",
+        "https://app.nubia.test",
+        mock_server.uri(),
+    );
+
+    mailer.send_maintenance_ticket_created(
+        "technicien@prestataire.test",
+        "Fuite compresseur",
+        None,
+        &[],
+    );
+    wait_for_request().await;
+
+    let requests = mock_server.received_requests().await.unwrap();
+    assert_eq!(requests.len(), 1);
+
+    let body: Value = serde_json::from_slice(&requests[0].body).unwrap();
+    let html = body["htmlContent"].as_str().unwrap();
+    assert!(html.contains("Aucune photo jointe"));
+}
+
 /// Un échec HTTP (provider indisponible) ne doit jamais faire paniquer
 /// l'appelant : `send_invite` est synchrone et ne peut pas propager d'erreur.
 #[tokio::test]

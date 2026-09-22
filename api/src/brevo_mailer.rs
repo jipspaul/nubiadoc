@@ -165,6 +165,36 @@ impl Mailer for BrevoMailer {
             ),
         );
     }
+
+    fn send_maintenance_ticket_created(
+        &self,
+        to: &str,
+        title: &str,
+        description: Option<&str>,
+        photo_filenames: &[String],
+    ) {
+        let title_esc = html_escape(title);
+        let mut body = format!(
+            "<p>Un nouveau ticket de maintenance a été créé : <strong>{title_esc}</strong>.</p>"
+        );
+        if let Some(description) = description.filter(|d| !d.trim().is_empty()) {
+            body.push_str(&format!("<p>{}</p>", html_escape(description)));
+        }
+        if photo_filenames.is_empty() {
+            body.push_str("<p>Aucune photo jointe.</p>");
+        } else {
+            let items: String = photo_filenames
+                .iter()
+                .map(|f| format!("<li>{}</li>", html_escape(f)))
+                .collect();
+            body.push_str(&format!("<p>Photos jointes :</p><ul>{items}</ul>"));
+        }
+        self.send(
+            to,
+            &format!("Nouveau ticket de maintenance : {title}"),
+            body,
+        );
+    }
 }
 
 /// Échappement minimal d'un texte injecté dans le corps HTML — le nom du

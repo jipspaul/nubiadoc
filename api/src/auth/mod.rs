@@ -368,6 +368,12 @@ pub(crate) enum AppError {
     /// créer un doublon. `409` explicite plutôt que de laisser passer une
     /// deuxième réservation silencieuse.
     SessionAlreadyScheduled,
+    /// `DELETE /v1/cabinet/equipment/:id` (#7167) : au moins un
+    /// `maintenance_ticket` référence encore cet équipement (FK composite
+    /// `(equipment_id, cabinet_id)`, migration 0291) — pré-vérifié plutôt que
+    /// de laisser la violation `23503` remonter en 500, même doctrine que
+    /// `CorrespondentInUse`/`StockLocationInUse`.
+    EquipmentInUse,
 }
 
 impl IntoResponse for AppError {
@@ -745,6 +751,11 @@ impl IntoResponse for AppError {
             AppError::SessionAlreadyScheduled => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "session_already_scheduled"})),
+            )
+                .into_response(),
+            AppError::EquipmentInUse => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "equipment_in_use"})),
             )
                 .into_response(),
         }
