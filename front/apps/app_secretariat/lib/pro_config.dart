@@ -187,6 +187,12 @@ class ProConfig {
         group: settingsGroup,
       ),
       shell.ProNavDestination(
+        label: 'Maintenance',
+        icon: Icons.build,
+        route: '/maintenance',
+        group: settingsGroup,
+      ),
+      shell.ProNavDestination(
         label: 'Membres',
         icon: Icons.group_outlined,
         route: membersRoute,

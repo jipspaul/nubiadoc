@@ -29,6 +29,7 @@ import '../features/dashboard/waiting_room_summary_cubit.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/invoice_reminder_cubit.dart';
 import '../features/devis/quote_events_cubit.dart';
+import '../features/maintenance/maintenance_bloc.dart';
 import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/stock/stock_bloc.dart';
@@ -252,6 +253,15 @@ void registerPro(GetIt gi) {
         listTasks: gi<ListCabinetTasksUseCase>(),
         createTask: gi<CreateCabinetTaskUseCase>(),
         completeTask: gi<CompleteCabinetTaskUseCase>(),
+      ),
+    )
+    ..registerFactory<MaintenanceBloc>(
+      () => MaintenanceBloc(
+        getStats: gi<GetMaintenanceStatsUseCase>(),
+        listEquipment: gi<ListEquipmentUseCase>(),
+        listTickets: gi<ListMaintenanceTicketsUseCase>(),
+        createTicket: gi<CreateMaintenanceTicketUseCase>(),
+        uploadPhoto: gi<UploadMaintenancePhotoUseCase>(),
       ),
     )
     ..registerFactory<ComplianceBloc>(

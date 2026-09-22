@@ -38,6 +38,9 @@ import '../features/onboarding/onboarding_page.dart';
 import '../features/patients/patient_quick_create_page.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/patients/patients_page.dart';
+import '../features/maintenance/maintenance_bloc.dart';
+import '../features/maintenance/maintenance_event.dart';
+import '../features/maintenance/maintenance_page.dart';
 import '../features/stock/stock_bloc.dart';
 import '../features/stock/stock_page.dart';
 import '../features/tasks/tasks_page.dart';
@@ -79,6 +82,7 @@ class AppRouter {
   static const devis = '/devis';
   static const devisDetail = '/devis/:id';
   static const stock = '/stock';
+  static const maintenance = '/maintenance';
   static const messages = '/messages';
   static const teamMessages = '/team-messages';
   static const adminMembres = '/admin-membres';
@@ -340,6 +344,16 @@ class AppRouter {
                 builder: (_, __) => BlocProvider(
                   create: (_) => GetIt.instance<StockBloc>(),
                   child: const StockPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: maintenance,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<MaintenanceBloc>()
+                    ..add(const MaintenanceLoadRequested()),
+                  child: const MaintenancePage(),
                 ),
               ),
             ]),

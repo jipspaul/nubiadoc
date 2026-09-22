@@ -29,6 +29,7 @@ import '../remote/stock_import/stock_import_api.dart';
 import '../remote/data_import/data_import_api.dart';
 import '../remote/lab_work_orders/lab_work_orders_api.dart';
 import '../remote/cabinet_tasks/cabinet_tasks_api.dart';
+import '../remote/maintenance/maintenance_api.dart';
 import '../remote/cabinet_briefs/cabinet_briefs_api.dart';
 import '../remote/dental_chart/dental_chart_api.dart';
 import '../remote/periodontal_chart/periodontal_chart_api.dart';
@@ -103,6 +104,7 @@ import '../repositories/stock_import_repository_impl.dart';
 import '../repositories/data_import_repository_impl.dart';
 import '../repositories/lab_work_orders_repository_impl.dart';
 import '../repositories/cabinet_tasks_repository_impl.dart';
+import '../repositories/maintenance_repository_impl.dart';
 import '../repositories/cabinet_briefs_repository_impl.dart';
 import '../repositories/dental_chart_repository_impl.dart';
 import '../repositories/periodontal_chart_repository_impl.dart';
@@ -643,6 +645,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetTasksApi>(
       () => CabinetTasksApi(gi()),
     )
+    ..registerLazySingleton<MaintenanceApi>(
+      () => MaintenanceApi(gi()),
+    )
     ..registerLazySingleton<DentalChartApi>(
       () => DentalChartApi(gi()),
     )
@@ -778,6 +783,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<CabinetTasksRepository>(
       () => CabinetTasksRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<MaintenanceRepository>(
+      () => MaintenanceRepositoryImpl(gi()),
     )
     ..registerLazySingleton<DentalChartRepository>(
       () => DentalChartRepositoryImpl(gi()),
@@ -922,6 +930,11 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => CreateCabinetTaskUseCase(gi()))
     ..registerFactory(() => CreateAppointmentTaskUseCase(gi()))
     ..registerFactory(() => CompleteCabinetTaskUseCase(gi()))
+    ..registerFactory(() => GetMaintenanceStatsUseCase(gi()))
+    ..registerFactory(() => ListEquipmentUseCase(gi()))
+    ..registerFactory(() => ListMaintenanceTicketsUseCase(gi()))
+    ..registerFactory(() => CreateMaintenanceTicketUseCase(gi()))
+    ..registerFactory(() => UploadMaintenancePhotoUseCase(gi()))
     ..registerFactory(() => GetDentalChartUseCase(gi()))
     ..registerFactory(() => PutDentalChartUseCase(gi()))
     ..registerFactory(() => GetPeriodontalChartUseCase(gi()))
