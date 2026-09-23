@@ -3485,3 +3485,109 @@ il trouve les écrans, il ne provoque pas les refus métier.
 - **patient — `/financial` + détail « Plan de soins » (390×844)** : Liste de devis avec prescripteur, pastille de statut, « Reste à charge », montant et date. Le clic ouvre le détail : barre de ventilation **avec pastilles de légende** (#7481 corrigé), « Détail des actes », mention eIDAS, et **une seule action primaire** « Télécharger le devis signé » — conforme à la note 2 de la maquette.
 
 - **pharmacie — `/stock` (1280×800)** : Rail + facettes. 1 CASSÉ brut **infirmé** : les `401`/`403` provenaient de l'expiration du `storageState` sauvegardé en cours d'audit, pas du clic (le rejeu avec session fraîche est propre).
+
+#### Ronde R91 — 2026-09-23 (après-midi) — parcours des 5 apps, harnais durci (défilement H+V, sélecteur de fichier)
+
+> **Correctif de harnais de cette ronde** — trois nouvelles sources de faux « mort » identifiées et corrigées,
+> dans la continuité de R83 : (1) **défilement HORIZONTAL** — les puces de filtre (`SingleChildScrollView(Axis.horizontal)`,
+> `documents_page.dart:267`) et les arcades dentaires vivent hors du viewport en x ; `bringIntoView` défile désormais
+> sur les deux axes. (2) **Sélecteur de fichier natif** — un contrôle qui ouvre un `filechooser` ne produit ni requête,
+> ni navigation, ni repeinture : `page.waitForEvent('filechooser')` est maintenant un signal d'activité (cas de
+> « Modifier la photo de profil », `profile_page.dart:740`). (3) **Sondes de rôle légitimes** — `403 GET /cabinet/audit-log`,
+> `403 GET /cabinet/stats/activity` (secrétariat) et `404 GET /quotes/:id/attestation` sont des absences *attendues*,
+> documentées dans le code (`quote_attestation_repository_impl.dart:19-20`), pas des erreurs : elles ne valent plus « CASSÉ ».
+
+**Bilan brut : 1 178 contrôles inventoriés, 423 activés (+708 déjà jugés sur un autre écran de la même app), 307 OK, 84 « mort » bruts, 18 « cassé » bruts, 13 désactivés, 34 non activés (destructifs), 14 hors d'atteinte.**
+
+> 🟢 **AUCUN bouton mort ni cassé CONFIRMÉ cette ronde.** 20 candidats « mort » — choisis pour couvrir chaque
+> famille observée (puces de filtre, lignes de liste, icônes de rail, boutons de volet, actions de tableau) —
+> ont été **re-testés un par un sur page neuve** avec vérification `document.elementFromPoint` : **20/20 se sont
+> révélés fonctionnels**. Les 18 « cassé » sont tous imputables aux trois sondes légitimes ci-dessus. Les 64 candidats
+> « mort » non re-testés individuellement relèvent des mêmes familles (clics absorbés par un volet déjà ouvert,
+> contrôle hors viewport) — ils sont laissés **en attente** pour la ronde suivante plutôt que déclarés sains.
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | non activés | déjà jugés | hors d'atteinte | blanc | last_check |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 390 | 7 | 6 | 6 | 0 | 0 | 0 | 1 | 0 | 0 | 0.9163 | 2026-09-23T15:00:00+00:00 |
+| infirmiere | `/notification-preferences` | 390 | 3 | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0.9747 | 2026-09-23T15:00:00+00:00 |
+| patient | `/` | 390 | 17 | 17 | 17 | 0 | 0 | 0 | 0 | 0 | 0 | 0.5407 | 2026-09-23T15:00:00+00:00 |
+| patient | `/mes-rdv` | 390 | 7 | 4 | 4 | 0 | 0 | 0 | 0 | 3 | 0 | 0.8287 | 2026-09-23T15:00:00+00:00 |
+| patient | `/documents` | 390 | 28 | 16 | 9 | 7 | 0 | 0 | 0 | 12 | 0 | 0.8073 | 2026-09-23T15:00:00+00:00 |
+| patient | `/prescriptions` | 390 | 16 | 5 | 5 | 0 | 0 | 0 | 0 | 11 | 0 | 0.9309 | 2026-09-23T15:00:00+00:00 |
+| patient | `/financial` | 390 | 10 | 9 | 1 | 0 | 8 | 0 | 0 | 1 | 0 | 0.9226 | 2026-09-23T15:00:00+00:00 |
+| patient | `/treatment-plans` | 390 | 10 | 9 | 6 | 0 | 3 | 0 | 0 | 1 | 0 | 0.7867 | 2026-09-23T15:00:00+00:00 |
+| patient | `/profile` | 390 | 13 | 12 | 11 | 1 | 0 | 1 | 0 | 0 | 0 | 0.9272 | 2026-09-23T15:00:00+00:00 |
+| patient | `/profile/dependents` | 390 | 22 | 4 | 4 | 0 | 0 | 0 | 0 | 18 | 0 | 0.8866 | 2026-09-23T15:00:00+00:00 |
+| patient | `/profile/notifications` | 390 | 12 | 7 | 7 | 0 | 0 | 5 | 0 | 0 | 0 | 0.897 | 2026-09-23T15:00:00+00:00 |
+| patient | `/profile/referring-doctor` | 390 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0.9825 | 2026-09-23T15:00:00+00:00 |
+| patient | `/implant-passport` | 390 | 6 | 5 | 5 | 0 | 0 | 0 | 0 | 1 | 0 | 0.8885 | 2026-09-23T15:00:00+00:00 |
+| patient | `/messaging` | 390 | 9 | 8 | 7 | 1 | 0 | 0 | 0 | 1 | 0 | 0.8929 | 2026-09-23T15:00:00+00:00 |
+| patient | `/notifications` | 390 | 20 | 17 | 17 | 0 | 0 | 0 | 0 | 3 | 0 | 0.8708 | 2026-09-23T15:00:00+00:00 |
+| patient | `/reviews` | 390 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0.991 | 2026-09-23T15:00:00+00:00 |
+| patient | `/home-care` | 390 | 17 | 13 | 12 | 1 | 0 | 0 | 0 | 4 | 0 | 0.7963 | 2026-09-23T15:00:00+00:00 |
+| patient | `/pharmacy` | 390 | 7 | 5 | 5 | 0 | 0 | 0 | 0 | 2 | 0 | 0.9179 | 2026-09-23T15:00:00+00:00 |
+| patient | `/pharmacy/orders` | 390 | 16 | 8 | 8 | 0 | 0 | 0 | 0 | 8 | 0 | 0.8767 | 2026-09-23T15:00:00+00:00 |
+| patient | `/oubliettes` | 390 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0.9364 | 2026-09-23T15:00:00+00:00 |
+| pharmacie | `/` | 1280 | 22 | 12 | 12 | 0 | 0 | 0 | 1 | 9 | 0 | 0.7476 | 2026-09-23T15:00:00+00:00 |
+| pharmacie | `/stock` | 1280 | 13 | 6 | 6 | 0 | 0 | 0 | 1 | 6 | 0 | 0.6935 | 2026-09-23T15:00:00+00:00 |
+| pharmacie | `/devis` | 1280 | 26 | 9 | 9 | 0 | 0 | 0 | 1 | 16 | 0 | 0.7338 | 2026-09-23T15:00:00+00:00 |
+| pharmacie | `/messages` | 1280 | 15 | 6 | 5 | 1 | 0 | 0 | 1 | 8 | 0 | 0.7776 | 2026-09-23T15:00:00+00:00 |
+| pharmacie | `/notification-preferences` | 1280 | 9 | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0.9576 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/` | 1280 | 31 | 26 | 14 | 6 | 0 | 0 | 1 | 4 | 6 | 0.7583 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/agenda` | 1280 | 27 | 7 | 4 | 3 | 0 | 0 | 1 | 19 | 0 | 0.7584 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/waiting-room` | 1280 | 20 | 1 | 1 | 0 | 0 | 1 | 1 | 17 | 0 | 0.7741 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/patients` | 1280 | 34 | 16 | 1 | 10 | 1 | 0 | 1 | 17 | 4 | 0.7503 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/consultation` | 1280 | 34 | 17 | 4 | 10 | 0 | 0 | 1 | 16 | 3 | 0.7419 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/ordonnances` | 1280 | 19 | 1 | 1 | 0 | 0 | 0 | 1 | 17 | 0 | 0.7883 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/devis` | 1280 | 26 | 5 | 0 | 3 | 1 | 0 | 1 | 20 | 1 | 0.7688 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/stock` | 1280 | 20 | 1 | 1 | 0 | 0 | 0 | 1 | 18 | 0 | 0.7546 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/stock-inventory` | 1280 | 32 | 3 | 3 | 0 | 0 | 0 | 1 | 28 | 0 | 0.7451 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/lab-work-orders` | 1280 | 21 | 1 | 1 | 0 | 0 | 1 | 1 | 18 | 0 | 0.7369 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/lab-stats` | 1280 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0.9613 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/messages` | 1280 | 26 | 8 | 1 | 7 | 0 | 0 | 1 | 17 | 0 | 0.7669 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/team-messages` | 1280 | 20 | 2 | 2 | 0 | 0 | 0 | 1 | 17 | 0 | 0.7263 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/tasks` | 1280 | 5 | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0.9838 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/cabinet-brief` | 1280 | 5 | 4 | 4 | 0 | 0 | 0 | 0 | 1 | 0 | 0.9691 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/consent-templates` | 1280 | 11 | 2 | 2 | 0 | 0 | 0 | 0 | 9 | 0 | 0.9693 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/questionnaire-templates` | 1280 | 2 | 2 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0.9885 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/act-categories` | 1280 | 2 | 1 | 0 | 0 | 1 | 0 | 0 | 1 | 0 | 0.9927 | 2026-09-23T15:00:00+00:00 |
+| praticien | `/notification-preferences` | 1280 | 12 | 11 | 11 | 0 | 0 | 0 | 0 | 1 | 0 | 0.9571 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/` | 1280 | 38 | 27 | 20 | 5 | 2 | 0 | 1 | 10 | 0 | 0.6754 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/agenda` | 1280 | 46 | 19 | 7 | 12 | 0 | 0 | 1 | 26 | 0 | 0.6117 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/salle-attente` | 1280 | 22 | 1 | 1 | 0 | 0 | 1 | 1 | 19 | 0 | 0.745 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/devis` | 1280 | 40 | 10 | 8 | 2 | 0 | 0 | 1 | 29 | 0 | 0.7005 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/stock` | 1280 | 40 | 11 | 4 | 7 | 0 | 0 | 1 | 28 | 0 | 0.6917 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/maintenance` | 1280 | 26 | 5 | 5 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7235 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/messages` | 1280 | 30 | 9 | 3 | 6 | 0 | 0 | 1 | 20 | 0 | 0.7329 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/team-messages` | 1280 | 26 | 3 | 3 | 0 | 0 | 2 | 1 | 20 | 0 | 0.6775 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/correspondents` | 1280 | 24 | 3 | 2 | 0 | 1 | 0 | 1 | 20 | 0 | 0.7425 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/liste-attente` | 1280 | 21 | 0 | 0 | 0 | 0 | 0 | 1 | 20 | 0 | 0.757 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/bookable-slots` | 1280 | 25 | 4 | 4 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7145 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/cabinet-stats` | 1280 | 22 | 1 | 1 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7398 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/cabinet-payouts` | 1280 | 25 | 2 | 2 | 0 | 0 | 1 | 1 | 21 | 0 | 0.6933 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/tasks` | 1280 | 6 | 6 | 5 | 0 | 1 | 0 | 0 | 0 | 0 | 0.9834 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/conformite` | 1280 | 32 | 4 | 3 | 1 | 0 | 0 | 0 | 28 | 0 | 0.9477 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/cabinet-brief` | 1280 | 5 | 4 | 4 | 0 | 0 | 0 | 0 | 1 | 0 | 0.971 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/reprise-donnees` | 1280 | 25 | 4 | 4 | 0 | 0 | 1 | 1 | 19 | 0 | 0.7281 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/appointment-motifs` | 1280 | 22 | 1 | 1 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7588 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/admin-membres` | 1280 | 25 | 4 | 4 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7026 | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/admin-secretariats` | 1280 | 22 | 1 | 1 | 0 | 0 | 0 | 1 | 20 | 0 | 0.75 | 2026-09-23T15:00:00+00:00 |
+
+**Écrans audités en profondeur hors tableau (parcours métier dédiés) :**
+
+| app | écran | contrôles | verdict | last_check |
+|---|---|---|---|---|
+| praticien | `/patients/:id/courrier` (1280) — **écran neuf DP-F22.b** | 36 inventoriés, 35 activés | Tous OK. Le dialogue « Importer un modèle Word » expose ses **5 contrôles** (Nom du modèle, Type, Choisir un fichier .docx, Annuler, Importer), refuse proprement un envoi à vide (« Renseignez un nom et choisissez un fichier .docx. »), et l'import complet passe : `POST /v1/letter-templates/import` puis `GET /v1/letter-templates`, snackbar « Modèle « QA-R91 import UI » importé — 6 placeholder(s) détecté(s). », puce sélectionnée et champs du courrier affichés. L'encart d'aperçu affiche bien « Aperçu indisponible pour un modèle Word — utilisez « Générer et ajouter aux documents » pour tester le rendu. » **Double-clic rapide sur « Générer » → 1 seul `POST /v1/patients/:id/letters`.** | 2026-09-23T15:00:00+00:00 |
+| secretariat | `/agenda` — volet de détail (1280/1440/1920) | 52 contrôles volet ouvert | « Confirmer » → `POST /v1/cabinet/appointments/:id/confirm` ; « Déplacer » → ouvre le sélecteur date/heure ; « Appeler » → OK ; « Marquer arrivé » désactivé à bon droit (RDV encore « À confirmer »). Divergence de placement rapportée séparément (**#7527**). | 2026-09-23T15:00:00+00:00 |
+| infirmiere | `/` — les 3 onglets (Disponibilité / Offres / Ma visite), 390 **et** 1280 | 7 / 6 / 6 | Tous OK aux deux viewports. États vides dignes et explicites : « Aucune offre — Les demandes de visite proches apparaîtront ici. », « Aucune visite en cours — Acceptez une offre pour démarrer une visite. ». Séquence de connexion tracée et **correcte** : `login` → `GET /nurse/memberships` → `POST /auth/select-nurse-context` → `GET /nurse/profile` + `/nurse/offers` + `/nurse/visits`, tous 200 en 373 ms. Écart d'état en coupure réseau rapporté séparément (**#7530**). | 2026-09-23T15:00:00+00:00 |
+| patient | `/book` → `/appointments/slots` (390) | 23 contrôles | Mécanique design-v2 « 3 jours de créneaux » **exécutée** : les puces horaires des cartes praticien sont cliquables et mènent à la réservation — `GET /v1/providers/:id/availability` + **`POST /v1/slots/:id/hold`**, écran de créneaux avec « JEU 24 · 15 dispo », « VEN 25 · 15 dispo ». L'état « **Aucun créneau en ligne pour ce praticien** » s'affiche bien pour Dr Annuaire Test. | 2026-09-23T15:00:00+00:00 |
+
+**Cas adversariaux joués cette ronde :**
+
+| cas | périmètre | résultat |
+|---|---|---|
+| Double-clic / double-submit | praticien « Générer et ajouter aux documents » ; secrétariat « Créer le dossier » | **1 seule requête** dans les deux cas — aucun doublon, aucun crash. |
+| Requis vide | secrétariat `/patients/new` | « Créer le dossier » **désactivé** tant que les requis manquent — garde côté client en place, aucune requête émise. |
+| Saisie invalide + texte très long (250 car.) | secrétariat `/patients/new` (Prénom/Nom à 250 « Z », téléphone « 00 ») | `422 validation_error`, **aucun 500**, message digne à l'écran : « Certaines informations sont manquantes ou invalides. Merci de vérifier le formulaire. » Pas de débordement : le texte reste dans son champ. |
+| Retour navigateur au milieu du flux | secrétariat `/patients/new` → retour | Revient sur `/patients` avec **38 contrôles** et la liste intacte — pas d'écran blanc, pas d'état incohérent. |
+| Coupure réseau (`route.abort()` sur `**/v1/**`) | **les 5 apps** | Toutes **dignes** : patient / praticien / secrétariat → « Erreur réseau. Vérifiez votre connexion. » + « Réessayer » ; pharmacie → « Impossible de charger vos accès pharmacie. » + « Réessayer » ; infirmière → snackbar « Erreur réseau (hors ligne). ». Aucun spinner infini, aucun canvas vide. *Réserve infirmière rapportée en #7530.* |
