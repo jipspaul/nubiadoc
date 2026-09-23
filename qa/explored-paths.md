@@ -3229,7 +3229,9 @@ L'agent correcteur a repris 5 des 8 findings dans la foulée ; chacun a été **
 | **#7530** | `94e0575a` — disponibilité inconnue plutôt qu'affirmée hors ligne | Serveur forcé à `is_online: true`, puis coupure réseau : l'écran affiche maintenant « **Disponibilité indisponible — impossible de joindre le serveur.** » et l'interrupteur « En ligne » est **`aria-disabled: true`** — exactement le comportement ternaire demandé. Le bandeau « Erreur réseau (hors ligne). » reste affiché à côté. | ✅ **corrigé** |
 | **#7533** | `4f1dd42a` — nom accessible sur la case « préparée » | Les deux cases de la commande à 2 lignes portent désormais `aria-label="Préparée — QA-R91 A11Y AMOXICILLINE 500mg"` et `aria-label="Préparée — QA-R91 A11Y IBUPROFENE 400mg"`. | ✅ **corrigé** |
 
-**Restent ouverts à la clôture : #7523 (P1, placeholder Word scindé), #7527 (P2, volet d'agenda superposé), #7535 (P1, liste patients non paginée — secrétariat ET praticien).**
+| **#7527** | `a400b3a0` — le volet d'agenda ne recouvre plus la barre d'outils | **Partiel à l'heure de la clôture.** À **1920×1080** c'est corrigé : « Nouveau RDV » répond de nouveau (`elementFromPoint` → le bouton) et `SAM 26` finit à 1594 quand le volet démarre à 1641. À **1280×800 et 1440×900** le recouvrement persiste à l'identique. Impossible de trancher d'ici entre **latence de déploiement** et **seuil de bascule intentionnel** ; les deux mesures sont consignées en commentaire de l'issue, à re-vérifier à la ronde suivante — 1280×800 étant le viewport cible déclaré de l'app secrétariat. | ⚠️ **partiel** |
+
+**Restent ouverts à la clôture : #7523 (P1, placeholder Word scindé) et #7535 (P1, liste patients non paginée — secrétariat ET praticien). #7527 est fermé mais n'est vérifié qu'à 1920 (voir ci-dessus).**
 
 #### R91 — note de clôture : le défaut de pagination n'est pas systémique
 
