@@ -3677,3 +3677,16 @@ Le verdict ne change pas : **aucun bouton mort ni cassé confirmé** — les 20 
 >
 > Le seul défaut de contrôle rapporté cette ronde est d'une autre nature : des cases à cocher
 > **sans nom accessible** sur l'écran de délivrance pharmacie (**#7533**).
+
+#### R91 — TOTAUX DE CLÔTURE (tous parcours confondus, recomptés depuis les journaux)
+
+**2 220 contrôles inventoriés · 920 activés · 689 OK · 154 « mort » bruts · 50 « cassé » bruts ·
+30 désactivés · 55 non activés (destructifs) · 27 hors d'atteinte · 1 215 déjà jugés ailleurs dans
+la même app — sur 114 couples écran×viewport, les 5 apps, aux deux viewports pertinents de chacune
+(patient 390 + 1280, praticien 1280 + 390, secrétariat 1280 + 1440, pharmacie 1280 + 1440 + 390,
+infirmière 390 + 1280).**
+
+> 🟢 **0 bouton mort confirmé, 0 bouton cassé confirmé.** **29 candidats re-testés un par un**
+> sur page neuve avec vérification `document.elementFromPoint` : **29/29 fonctionnels**.
+> Les 50 « cassé » restent intégralement imputables aux trois sondes de rôle légitimes.
+> 223 captures d'écran produites (`qa/screenshots/`), dont une par écran parcouru.
