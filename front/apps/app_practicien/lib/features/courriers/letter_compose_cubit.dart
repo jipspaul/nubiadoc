@@ -1,3 +1,4 @@
+import 'package:dartz/dartz.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -6,20 +7,24 @@ import 'letter_compose_state.dart';
 /// Composition d'un courrier depuis la fiche patient (#7196) : choix du
 /// modèle (#7197), champs libres pour les placeholders non résolus côté
 /// serveur (ex. `correspondant.nom`, aucune entité correspondant côté
-/// cabinet), génération PDF + ajout aux documents du patient.
+/// cabinet), génération PDF + ajout aux documents du patient. Importe aussi
+/// un modèle `.docx` propre au cabinet (#7157/#7156).
 class LetterComposeCubit extends Cubit<LetterComposeState> {
   LetterComposeCubit({
     required ListLetterTemplatesUseCase listTemplates,
     required GetCabinetPatientUseCase getPatient,
     required GenerateLetterUseCase generateLetter,
+    required ImportLetterTemplateUseCase importTemplate,
   })  : _listTemplates = listTemplates,
         _getPatient = getPatient,
         _generateLetter = generateLetter,
+        _importTemplate = importTemplate,
         super(const LetterComposeLoading());
 
   final ListLetterTemplatesUseCase _listTemplates;
   final GetCabinetPatientUseCase _getPatient;
   final GenerateLetterUseCase _generateLetter;
+  final ImportLetterTemplateUseCase _importTemplate;
 
   Future<void> load(String patientId) async {
     emit(const LetterComposeLoading());
@@ -60,5 +65,41 @@ class LetterComposeCubit extends Cubit<LetterComposeState> {
       )),
       (letter) => emit(LetterComposeGenerated(letter)),
     );
+  }
+
+  /// Import d'un modèle `.docx` (#7157/#7156) — recharge la liste des
+  /// modèles sur succès pour que le nouveau modèle apparaisse aussitôt dans
+  /// [_TemplatePicker]. La réponse est renvoyée à l'appelant (dialog) pour
+  /// son propre affichage d'erreur ; le rechargement est le seul effet
+  /// observable côté état du cubit.
+  Future<Either<Failure, LetterTemplateImportResult>> importTemplate({
+    required String name,
+    required String kind,
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final current = state;
+    final result = await _importTemplate(
+      name: name,
+      kind: kind,
+      bytes: bytes,
+      filename: filename,
+    );
+    if (current is LetterComposeReady) {
+      await result.fold(
+        (_) async {},
+        (_) async {
+          final refreshed = await _listTemplates();
+          refreshed.fold(
+            (_) {},
+            (templates) => emit(LetterComposeReady(
+              templates: templates,
+              patient: current.patient,
+            )),
+          );
+        },
+      );
+    }
+    return result;
   }
 }

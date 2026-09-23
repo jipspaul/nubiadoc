@@ -7,6 +7,7 @@ class LetterTemplateDto {
   final String bodyTemplate;
   final bool isGlobal;
   final List<String> placeholders;
+  final String sourceFormat;
 
   const LetterTemplateDto({
     required this.id,
@@ -15,6 +16,7 @@ class LetterTemplateDto {
     this.bodyTemplate = '',
     this.isGlobal = false,
     this.placeholders = const [],
+    this.sourceFormat = 'text',
   });
 
   factory LetterTemplateDto.fromJson(Map<String, dynamic> json) =>
@@ -28,6 +30,7 @@ class LetterTemplateDto {
                 ?.map((p) => p as String)
                 .toList() ??
             const [],
+        sourceFormat: json['source_format'] as String? ?? 'text',
       );
 
   LetterTemplate toDomain() => LetterTemplate(
@@ -37,5 +40,6 @@ class LetterTemplateDto {
         bodyTemplate: bodyTemplate,
         isGlobal: isGlobal,
         placeholders: placeholders,
+        sourceFormat: sourceFormat,
       );
 }

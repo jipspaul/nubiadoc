@@ -7,6 +7,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'letter_compose_cubit.dart';
 import 'letter_compose_state.dart';
+import 'widgets/import_letter_template_dialog.dart';
 import 'widgets/letter_preview_card.dart';
 
 /// Libellés français des placeholders connus (`KNOWN_PLACEHOLDERS`,
@@ -125,13 +126,18 @@ class _ComposeFormState extends State<_ComposeForm> {
   String? _selectedTemplateId;
   final Map<String, TextEditingController> _overrideControllers = {};
 
+  /// Modèle importé (#7156) affiché avant même le rechargement de
+  /// `widget.templates` par le cubit — évite un aller-retour visible entre
+  /// « import réussi » et « champs libres affichés ».
+  LetterTemplate? _importedTemplate;
+
   LetterTemplate? get _selectedTemplate {
     final id = _selectedTemplateId;
     if (id == null) return null;
     for (final template in widget.templates) {
       if (template.id == id) return template;
     }
-    return null;
+    return _importedTemplate?.id == id ? _importedTemplate : null;
   }
 
   void _selectTemplate(LetterTemplate template) {
@@ -145,6 +151,27 @@ class _ComposeFormState extends State<_ComposeForm> {
         _overrideControllers[placeholder] = TextEditingController();
       }
     });
+  }
+
+  /// Sélectionne aussitôt le modèle importé (#7156) : le practicien peut
+  /// directement remplir les champs libres et générer un courrier pour
+  /// tester le rendu, sans rechercher le modèle dans la liste.
+  void _handleImported(ImportLetterTemplateResult result) {
+    final template = LetterTemplate(
+      id: result.imported.templateId,
+      name: result.name,
+      kind: '',
+      placeholders: result.imported.placeholders,
+      sourceFormat: 'docx',
+    );
+    _importedTemplate = template;
+    _selectTemplate(template);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(result.imported.placeholders.isEmpty
+          ? 'Modèle « ${result.name} » importé.'
+          : 'Modèle « ${result.name} » importé — '
+              '${result.imported.placeholders.length} placeholder(s) détecté(s).'),
+    ));
   }
 
   Map<String, String> _knownValues() {
@@ -209,6 +236,7 @@ class _ComposeFormState extends State<_ComposeForm> {
             templates: widget.templates,
             selectedTemplateId: _selectedTemplateId,
             onSelected: _selectTemplate,
+            onImported: _handleImported,
           ),
           if (template != null) ...[
             const SizedBox(height: 20),
@@ -222,6 +250,7 @@ class _ComposeFormState extends State<_ComposeForm> {
               templateName: template.name,
               renderedBody:
                   _renderPreview(template.bodyTemplate, _knownValues()),
+              isDocxSource: template.sourceFormat == 'docx',
             ),
           ],
           const SizedBox(height: 24),
@@ -244,42 +273,63 @@ class _TemplatePicker extends StatelessWidget {
     required this.templates,
     required this.selectedTemplateId,
     required this.onSelected,
+    required this.onImported,
   });
 
   final List<LetterTemplate> templates;
   final String? selectedTemplateId;
   final ValueChanged<LetterTemplate> onSelected;
+  final ValueChanged<ImportLetterTemplateResult> onImported;
+
+  Future<void> _import(BuildContext context) async {
+    final result = await showImportLetterTemplateDialog(context);
+    if (result != null) onImported(result);
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (templates.isEmpty) {
-      return const NubiaEmptyState(
-        key: Key('courrier_templates_empty'),
-        icon: Icons.mail_outlined,
-        title: 'Aucun modèle de courrier',
-        subtitle: 'Créez un modèle de courrier pour pouvoir en rédiger un.',
-      );
-    }
     return NubiaCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Modèle', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          Row(
             children: [
-              for (final template in templates)
-                NubiaChip(
-                  key: Key('courrier_template_${template.id}'),
-                  label: template.name,
-                  variant: NubiaChipVariant.choice,
-                  selected: template.id == selectedTemplateId,
-                  onTap: () => onSelected(template),
-                ),
+              Expanded(
+                child: Text('Modèle',
+                    style: Theme.of(context).textTheme.titleSmall),
+              ),
+              TextButton.icon(
+                key: const Key('import_letter_template_button'),
+                onPressed: () => _import(context),
+                icon: const Icon(Icons.upload_file_outlined, size: 18),
+                label: const Text('Importer un modèle Word'),
+              ),
             ],
           ),
+          const SizedBox(height: 12),
+          if (templates.isEmpty)
+            const NubiaEmptyState(
+              key: Key('courrier_templates_empty'),
+              icon: Icons.mail_outlined,
+              title: 'Aucun modèle de courrier',
+              subtitle: 'Importez un modèle Word ou créez-en un pour '
+                  'pouvoir rédiger un courrier.',
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final template in templates)
+                  NubiaChip(
+                    key: Key('courrier_template_${template.id}'),
+                    label: template.name,
+                    variant: NubiaChipVariant.choice,
+                    selected: template.id == selectedTemplateId,
+                    onTap: () => onSelected(template),
+                  ),
+              ],
+            ),
         ],
       ),
     );

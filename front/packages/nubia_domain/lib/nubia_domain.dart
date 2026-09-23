@@ -52,6 +52,7 @@ export 'src/entities/invoice_reminder.dart';
 export 'src/entities/quote_attachment.dart';
 export 'src/entities/quote_attestation.dart';
 export 'src/entities/letter_template.dart';
+export 'src/entities/letter_template_import_result.dart';
 export 'src/entities/generated_letter.dart';
 export 'src/entities/opportunity_category.dart';
 export 'src/entities/consultation_context.dart';
@@ -422,6 +423,7 @@ export 'src/usecases/quote_documents/get_patient_quote_attachments_use_case.dart
 export 'src/usecases/quote_documents/get_patient_quote_attestation_use_case.dart';
 export 'src/usecases/quote_documents/sign_patient_quote_attestation_use_case.dart';
 export 'src/usecases/letter_templates/list_letter_templates_use_case.dart';
+export 'src/usecases/letter_templates/import_letter_template_use_case.dart';
 export 'src/usecases/letters/generate_letter_use_case.dart';
 // cabinet appointments pro — use cases are in agenda/ (create + reschedule)
 // cabinet messaging pro
