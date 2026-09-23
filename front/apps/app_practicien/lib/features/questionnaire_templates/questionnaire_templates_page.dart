@@ -79,12 +79,16 @@ class _QuestionnaireTemplatesPageState
 
   Future<void> _onCreate(BuildContext context) async {
     final bloc = context.read<QuestionnaireTemplatesBloc>();
-    final result = await showQuestionnaireTemplateEditor(context);
-    if (result == null) return;
-    bloc.add(QuestionnaireTemplatesCreateRequested(
-      title: result.title,
-      schema: result.schema,
-    ));
+    await showQuestionnaireTemplateEditor(
+      context,
+      onSubmit: (result) => _submit(
+        bloc,
+        () => bloc.add(QuestionnaireTemplatesCreateRequested(
+          title: result.title,
+          schema: result.schema,
+        )),
+      ),
+    );
   }
 
   Future<void> _onEdit(
@@ -92,13 +96,32 @@ class _QuestionnaireTemplatesPageState
     QuestionnaireTemplate template,
   ) async {
     final bloc = context.read<QuestionnaireTemplatesBloc>();
-    final result =
-        await showQuestionnaireTemplateEditor(context, initial: template);
-    if (result == null) return;
-    bloc.add(QuestionnaireTemplatesUpdateRequested(
-      id: template.id,
-      title: result.title,
-      schema: result.schema,
-    ));
+    await showQuestionnaireTemplateEditor(
+      context,
+      initial: template,
+      onSubmit: (result) => _submit(
+        bloc,
+        () => bloc.add(QuestionnaireTemplatesUpdateRequested(
+          id: template.id,
+          title: result.title,
+          schema: result.schema,
+        )),
+      ),
+    );
+  }
+
+  /// Déclenche [dispatch] puis attend l'issue de l'action sur le bloc
+  /// (`actionInProgress` revenu à `false`) avant de répondre à l'éditeur —
+  /// tant que ce n'est pas connu, il doit rester ouvert avec la saisie
+  /// intacte (#7507).
+  Future<String?> _submit(
+    QuestionnaireTemplatesBloc bloc,
+    void Function() dispatch,
+  ) async {
+    dispatch();
+    final result = await bloc.stream.firstWhere(
+      (s) => s is QuestionnaireTemplatesLoaded && !s.actionInProgress,
+    );
+    return (result as QuestionnaireTemplatesLoaded).actionError;
   }
 }

@@ -11,26 +11,46 @@ typedef QuestionnaireTemplateFormResult = ({
   List<QuestionnaireQuestion> schema,
 });
 
+/// Effectue l'appel réel d'enregistrement et renvoie `null` en cas de
+/// succès, ou le message d'erreur à afficher sinon.
+typedef QuestionnaireTemplateSubmit = Future<String?> Function(
+  QuestionnaireTemplateFormResult result,
+);
+
 /// Édition du schéma d'un modèle de questionnaire du cabinet (#7158) :
 /// ajout/suppression de questions, type, options, condition « afficher si »,
 /// aperçu en direct. `initial` fourni = édition (questions pré-remplies) ;
 /// `null` = création. Poussé en pleine page (pas un dialog) : la liste de
 /// questions + l'aperçu demandent trop de place pour un `AlertDialog`.
-Future<QuestionnaireTemplateFormResult?> showQuestionnaireTemplateEditor(
+///
+/// `onSubmit` porte l'appel réel : l'éditeur reste ouvert (bouton en cours
+/// de chargement) tant qu'il n'a pas répondu et ne se ferme qu'en cas de
+/// succès. En cas d'échec, la saisie est conservée et l'erreur affichée sur
+/// place pour permettre de corriger ou réessayer (#7507).
+Future<void> showQuestionnaireTemplateEditor(
   BuildContext context, {
+  required QuestionnaireTemplateSubmit onSubmit,
   QuestionnaireTemplate? initial,
 }) {
-  return Navigator.of(context).push<QuestionnaireTemplateFormResult>(
+  return Navigator.of(context).push<void>(
     MaterialPageRoute(
-      builder: (_) => QuestionnaireTemplateEditorPage(initial: initial),
+      builder: (_) => QuestionnaireTemplateEditorPage(
+        initial: initial,
+        onSubmit: onSubmit,
+      ),
     ),
   );
 }
 
 class QuestionnaireTemplateEditorPage extends StatefulWidget {
-  const QuestionnaireTemplateEditorPage({super.key, this.initial});
+  const QuestionnaireTemplateEditorPage({
+    super.key,
+    required this.onSubmit,
+    this.initial,
+  });
 
   final QuestionnaireTemplate? initial;
+  final QuestionnaireTemplateSubmit onSubmit;
 
   @override
   State<QuestionnaireTemplateEditorPage> createState() =>
@@ -46,6 +66,7 @@ class _QuestionnaireTemplateEditorPageState
   ];
   int _nextId = 0;
   final Map<String, dynamic> _previewValues = {};
+  bool _saving = false;
 
   @override
   void dispose() {
@@ -125,11 +146,27 @@ class _QuestionnaireTemplateEditorPageState
   void _removeQuestion(QuestionDraft draft) =>
       setState(() => _questions.remove(draft));
 
-  void _onSave() {
-    Navigator.of(context).pop((
+  /// Attend l'issue de [QuestionnaireTemplateSubmit] avant de fermer
+  /// l'éditeur : un `pop` inconditionnel avant réponse détruirait la saisie
+  /// dès qu'un enregistrement échoue (#7507).
+  Future<void> _onSave() async {
+    setState(() => _saving = true);
+    final error = await widget.onSubmit((
       title: _title.text.trim(),
       schema: _resolvedQuestions,
     ));
+    if (!mounted) return;
+    if (error == null) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        key: const Key('questionnaire_template_editor_error_snackbar'),
+        content: Text(error),
+      ));
   }
 
   @override
@@ -142,8 +179,14 @@ class _QuestionnaireTemplateEditorPageState
         actions: [
           TextButton(
             key: const Key('questionnaire_template_editor_save'),
-            onPressed: _valid ? _onSave : null,
-            child: const Text('Enregistrer'),
+            onPressed: _valid && !_saving ? _onSave : null,
+            child: _saving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Enregistrer'),
           ),
         ],
       ),
