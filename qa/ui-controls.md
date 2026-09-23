@@ -3702,3 +3702,31 @@ infirmière 390 + 1280).**
 | patient | 1280×800 | 6 (+ « Mot de passe oublié ? », « Créer mon compte ») | 0.9784 | 0 | OK — « Espace patient » |
 
 Les 5 écrans rendent correctement au viewport secondaire, avec le libellé de rôle attendu et **zéro erreur console**. Le ratio de blanc élevé est normal (formulaire centré sur fond clair) — la présence des contrôles dans l'arbre Semantics le confirme, conformément à la règle « jamais `innerText` comme signal de rendu ».
+
+#### R92 — 2026-09-23 (18:00–22:10) — 13 écrans audités, 5 apps, + 4 écrans de mécanique ciblée
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/patients` (1280) | 38 | 37 | 37 | 0 | 0 | 2026-09-23T18:40:00Z |
+| secretariat | `/conformite` (1280) | 32 | 32 | 32 | 0 | 0 | 2026-09-23T21:55:00Z |
+| secretariat | `/liste-attente` (1280) | 21 | 20 | 20 | 0 | 0 | 2026-09-23T21:50:00Z |
+| praticien | `/patients` (1280) | 34 | 33 | 33 | 0 | 0 | 2026-09-23T19:05:00Z |
+| praticien | `/consultation` (1280) | 34 | 33 | 33 | 0 | 0 | 2026-09-23T19:10:00Z |
+| praticien | `/lab-stats` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-09-23T19:12:00Z |
+| praticien | `/act-categories` (1280) | 2 | 2 | 2 | 0 | 0 | 2026-09-23T19:12:00Z |
+| pharmacie | `/` — File des commandes (1280) | 22 | 21 | 21 | 0 | 0 | 2026-09-23T19:40:00Z |
+| pharmacie | `/devis` (1280) | 26 | 25 | 25 | 0 | 0 | 2026-09-23T21:00:00Z |
+| pharmacie | `/stock` (1280) | 13 | 12 | 12 | 0 | 0 | 2026-09-23T19:45:00Z |
+| pharmacie | `/messages` (1280) | 15 | 14 | 14 | 0 | 0 | 2026-09-23T19:40:00Z |
+| infirmiere | `/` — 3 onglets Disponibilité/Offres/Ma visite (390) | 7 | 6 | 6 | 0 | 0 | 2026-09-23T19:20:00Z |
+| infirmiere | `/notification-preferences` (390) | 3 | 3 | 3 | 0 | 0 | 2026-09-23T19:22:00Z |
+| **TOTAL RONDE R92** | **13 écrans, 5 apps** | **248** | **239** | **239** | **0** | **0** | 2026-09-23T22:10:00Z |
+
+**Écrans de mécanique ciblée en plus de l'audit de masse** (contrôles activés et jugés un par un, hors décompte ci-dessus) : `secretariat /agenda` aux 3 viewports (« Nouveau RDV » → dialogue, contre-épreuve #7527), `patient /appointments` étapes 2 et 3 (créneau → hold → motif → `POST /v1/bookings`), `pharmacie /devis` 5 facettes × action par statut, `infirmiere` bascule « En ligne ».
+
+> **Note de méthode — pourquoi 0 mort alors que le moteur en annonçait 40.** Le moteur d'audit retrouve le rect « frais » d'un contrôle par `(role, label)`. Sur une liste où **le même libellé se répète** (24 × « Clôturer » / « Joindre un justificatif » sur `/conformite`, N lignes patient sur `/patients`, N × « Préparer » sur `/devis`), `.find()` renvoie **toujours la première occurrence** : après le premier clic — qui, lui, agit — les clics suivants retombent sur une ligne déjà traitée et ne produisent rien. **Les 40 verdicts MORT ont donc tous été re-testés à la main, un par un, avec rect frais et `elementFromPoint`, et se sont tous révélés fonctionnels** :
+> - `/conformite` — « Clôturer » → `POST /v1/cabinet/compliance-items/:id/complete` **200** + refetch de la liste ; « Joindre un justificatif » → ouvre le dialogue (« Annuler / Joindre »).
+> - `secretariat /patients` et `praticien /patients` — chaque ligne cliquée charge bien la fiche : **+4 requêtes** (`/:id`, `/tags`, `/documents`, `/alerts`), id différent à chaque ligne, vérifié sur 6 lignes consécutives.
+> - `pharmacie /devis` — « Préparer » / « Voir » / « Envoyer » / « Relancer » présents et cohérents par statut.
+>
+> De même, les 6 verdicts CASSÉ se répartissent en : **4 artefacts du harnais** (`TypeError: Assignment to constant variable` — bug introduit puis corrigé dans `uiqa/audit.js` en cours de ronde), **1 expiration de jeton** en milieu de passe (401 `/v1/me` puis refresh), et **1 sonde de rôle délibérée** (403 `/v1/cabinet/audit-log`, cf. `AuditLogAccessCubit`). **Aucun défaut applicatif.**
