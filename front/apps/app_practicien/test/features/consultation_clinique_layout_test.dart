@@ -53,14 +53,14 @@ void main() {
 
   // La largeur *disponible* du corps (pas la fenêtre) pilote le LayoutBuilder
   // : on la fixe via un SizedBox ancêtre plutôt que via MediaQuery/physicalSize.
-  Widget buildBodyAtWidth(double width) => MaterialApp(
+  Widget buildBodyAtWidth(double width, {double height = 900}) => MaterialApp(
         theme: NubiaTheme.light,
         home: Scaffold(
           body: BlocProvider<ConsultationCliniqueBloc>.value(
             value: bloc,
             child: SizedBox(
               width: width,
-              height: 900,
+              height: height,
               child: const ConsultationCliniqueBody(consultationId: 's1'),
             ),
           ),
@@ -106,5 +106,42 @@ void main() {
     expect(find.byKey(const Key('consultation_single_column')), findsOneWidget);
     expect(find.byKey(const Key('consultation_center_panel')), findsOneWidget);
     expect(find.byKey(const Key('consultation_side_panel')), findsOneWidget);
+  });
+
+  testWidgets(
+      '≥ 1280 px, hauteur très réduite : le champ « Note de séance » garde '
+      'un plancher lisible au lieu d\'être écrasé sous une ligne (#7529)',
+      (tester) async {
+    await _setSurface(tester);
+    await tester.pumpWidget(buildBodyAtWidth(1400, height: 300));
+    await tester.pump();
+
+    final noteFieldHeight =
+        tester.getSize(find.byKey(const Key('consultation_note_field'))).height;
+    // Avant #7529, un partage figé 3:1 avec « Ajouter un acte » donnait à la
+    // note exactement 1/4 de la hauteur disponible, quel que soit le besoin
+    // réel du panneau d'ajout (~23 px observés à 1280×800) : moins qu'une
+    // seule ligne de texte. La note doit maintenant primer sur ce panneau.
+    expect(noteFieldHeight, greaterThanOrEqualTo(40));
+    // « Ajouter un acte » reste dans l'arbre (défile/se réduit au besoin) —
+    // il ne doit pas planter ni disparaître.
+    expect(find.byKey(const Key('ccam_picker')), findsOneWidget);
+  });
+
+  testWidgets(
+      '≥ 1280 px, hauteur confortable : « Ajouter un acte » ne monopolise '
+      'plus un partage figé quand son contenu est modeste (#7529)',
+      (tester) async {
+    await _setSurface(tester);
+    await tester.pumpWidget(buildBodyAtWidth(1400, height: 500));
+    await tester.pump();
+
+    final noteFieldHeight =
+        tester.getSize(find.byKey(const Key('consultation_note_field'))).height;
+    // Avant #7529 (partage figé 3:1), la note aurait été plafonnée à ~1/4 de
+    // la hauteur disponible même avec un panneau d'ajout au contenu minime
+    // (aucun favori ici). Elle doit désormais absorber l'essentiel de
+    // l'espace que « Ajouter un acte » n'utilise pas.
+    expect(noteFieldHeight, greaterThanOrEqualTo(150));
   });
 }
