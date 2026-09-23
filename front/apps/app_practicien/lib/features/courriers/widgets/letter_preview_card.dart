@@ -12,11 +12,18 @@ class LetterPreviewCard extends StatelessWidget {
     super.key,
     required this.templateName,
     required this.renderedBody,
+    this.isDocxSource = false,
   });
 
   /// `null` tant qu'aucun modèle n'est choisi.
   final String? templateName;
   final String? renderedBody;
+
+  /// `true` pour un modèle importé `.docx` (#7157/#7156) : `renderedBody`
+  /// vaut alors toujours `''` (aucun `bodyTemplate` exploitable côté
+  /// client), donc ce panneau signale de tester le rendu via « Générer »
+  /// plutôt que d'afficher un encart vide trompeur.
+  final bool isDocxSource;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +50,15 @@ class LetterPreviewCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          if (renderedBody == null || templateName == null)
+          if (isDocxSource)
+            Text(
+              'Aperçu indisponible pour un modèle Word — utilisez '
+              '« Générer et ajouter aux documents » pour tester le rendu.',
+              key: const Key('letter_preview_docx_notice'),
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            )
+          else if (renderedBody == null || templateName == null)
             Text(
               'Choisissez un modèle pour voir l\'aperçu.',
               key: const Key('letter_preview_empty'),

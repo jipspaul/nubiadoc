@@ -89,6 +89,7 @@ export 'src/remote/quote_attestation/quote_attestation_api.dart';
 export 'src/remote/quote_attestation/quote_attestation_dto.dart';
 export 'src/remote/letter_templates/letter_templates_api.dart';
 export 'src/remote/letter_templates/letter_template_dto.dart';
+export 'src/remote/letter_templates/letter_template_import_result_dto.dart';
 export 'src/remote/letters/letters_api.dart';
 export 'src/remote/letters/generated_letter_dto.dart';
 export 'src/remote/members/members_api.dart';

@@ -1001,6 +1001,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => GetQuoteAttestationUseCase(gi()))
     ..registerFactory(() => CreateQuoteAttestationUseCase(gi()))
     ..registerFactory(() => ListLetterTemplatesUseCase(gi()))
+    ..registerFactory(() => ImportLetterTemplateUseCase(gi()))
     ..registerFactory(() => GenerateLetterUseCase(gi()))
     ..registerFactory(() => ListBookableSlotsUseCase(gi()))
     ..registerFactory(() => CreateSlotUseCase(gi()))

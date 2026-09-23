@@ -200,6 +200,7 @@ void registerPro(GetIt gi) {
       listTemplates: gi<ListLetterTemplatesUseCase>(),
       getPatient: gi<GetCabinetPatientUseCase>(),
       generateLetter: gi<GenerateLetterUseCase>(),
+      importTemplate: gi<ImportLetterTemplateUseCase>(),
     ),
   );
 

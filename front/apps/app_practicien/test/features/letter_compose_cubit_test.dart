@@ -47,6 +47,7 @@ void main() {
         listTemplates: ListLetterTemplatesUseCase(templates),
         getPatient: GetCabinetPatientUseCase(patients),
         generateLetter: GenerateLetterUseCase(letters),
+        importTemplate: ImportLetterTemplateUseCase(templates),
       );
 
   group('LetterComposeCubit', () {
@@ -122,6 +123,71 @@ void main() {
       verify: (_) => verify(() => letters.generate('pat1',
           templateId: 'tmpl1',
           overrides: {'rdv.date': '12/10/2026'})).called(1),
+    );
+
+    blocTest<LetterComposeCubit, LetterComposeState>(
+      'importe un modèle docx et recharge la liste des modèles',
+      build: () {
+        when(() => templates.importDocx(
+              name: any(named: 'name'),
+              kind: any(named: 'kind'),
+              bytes: any(named: 'bytes'),
+              filename: any(named: 'filename'),
+            )).thenAnswer((_) async => const Right(LetterTemplateImportResult(
+              templateId: 'tmpl2',
+              placeholders: ['patient.nom'],
+            )));
+        when(() => templates.list()).thenAnswer((_) async => const Right([
+              template,
+              LetterTemplate(
+                id: 'tmpl2',
+                name: 'Relance',
+                kind: 'relance',
+                placeholders: ['patient.nom'],
+                sourceFormat: 'docx',
+              ),
+            ]));
+        return buildCubit();
+      },
+      seed: () =>
+          LetterComposeReady(templates: const [template], patient: patient()),
+      act: (cubit) => cubit.importTemplate(
+        name: 'Relance',
+        kind: 'relance',
+        bytes: const [1, 2, 3],
+        filename: 'modele.docx',
+      ),
+      expect: () => [
+        isA<LetterComposeReady>()
+            .having((s) => s.templates.length, 'templates.length', 2),
+      ],
+      verify: (_) => verify(() => templates.list()).called(1),
+    );
+
+    blocTest<LetterComposeCubit, LetterComposeState>(
+      "échec de l'import docx (placeholder inconnu) → liste inchangée",
+      build: () {
+        when(() => templates.importDocx(
+              name: any(named: 'name'),
+              kind: any(named: 'kind'),
+              bytes: any(named: 'bytes'),
+              filename: any(named: 'filename'),
+            )).thenAnswer((_) async => const Left(ValidationFailure(
+              message: 'Placeholder(s) inconnu(s) : foo.bar',
+              fieldErrors: {'foo.bar': 'Placeholder(s) inconnu(s)'},
+            )));
+        return buildCubit();
+      },
+      seed: () =>
+          LetterComposeReady(templates: const [template], patient: patient()),
+      act: (cubit) => cubit.importTemplate(
+        name: 'Relance',
+        kind: 'relance',
+        bytes: const [1, 2, 3],
+        filename: 'modele.docx',
+      ),
+      expect: () => [],
+      verify: (_) => verifyNever(() => templates.list()),
     );
 
     blocTest<LetterComposeCubit, LetterComposeState>(

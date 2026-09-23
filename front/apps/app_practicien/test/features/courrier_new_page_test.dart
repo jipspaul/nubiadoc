@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:bloc_test/bloc_test.dart';
+import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
@@ -12,6 +17,8 @@ import 'package:app_practicien/features/courriers/letter_compose_state.dart';
 
 class MockLetterComposeCubit extends MockCubit<LetterComposeState>
     implements LetterComposeCubit {}
+
+class MockFilePickerService extends Mock implements FilePickerService {}
 
 const template = LetterTemplate(
   id: 'tmpl1',
@@ -31,6 +38,7 @@ CabinetPatient patient() => CabinetPatient(
 
 void main() {
   late MockLetterComposeCubit cubit;
+  late MockFilePickerService filePicker;
 
   setUpAll(() {
     registerFallbackValue(<String, String>{});
@@ -38,6 +46,9 @@ void main() {
 
   setUp(() {
     cubit = MockLetterComposeCubit();
+    filePicker = MockFilePickerService();
+    GetIt.instance.registerFactory<FilePickerService>(() => filePicker);
+    addTearDown(GetIt.instance.reset);
     when(() => cubit.load(any())).thenAnswer((_) async {});
     when(() => cubit.generate(any(),
         templateId: any(named: 'templateId'),
@@ -137,6 +148,102 @@ void main() {
           findsOneWidget);
       expect(
           find.textContaining('courrier-convocation-doc1.pdf'), findsOneWidget);
+    });
+
+    testWidgets(
+        'import docx réussi → sélectionne le modèle et affiche les placeholders',
+        (tester) async {
+      when(() => cubit.state).thenReturn(
+          LetterComposeReady(templates: const [], patient: patient()));
+      when(() => filePicker.pickFile(
+              allowedExtensions: any(named: 'allowedExtensions')))
+          .thenAnswer((_) async => PickedFile(
+                path: null,
+                name: 'relance.docx',
+                mimeType: 'application/vnd.openxmlformats-officedocument'
+                    '.wordprocessingml.document',
+                bytes: Uint8List.fromList([1, 2, 3]),
+              ));
+      when(() => cubit.importTemplate(
+            name: any(named: 'name'),
+            kind: any(named: 'kind'),
+            bytes: any(named: 'bytes'),
+            filename: any(named: 'filename'),
+          )).thenAnswer((_) async => const Right(LetterTemplateImportResult(
+            templateId: 'tmpl2',
+            placeholders: ['patient.nom'],
+          )));
+
+      await pump(tester);
+
+      await tester.tap(find.byKey(const Key('import_letter_template_button')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('import_letter_template_name')),
+        'Relance impayé',
+      );
+      await tester
+          .tap(find.byKey(const Key('import_letter_template_pick_file')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('import_letter_template_confirm')));
+      await tester.pumpAndSettle();
+
+      verify(() => cubit.importTemplate(
+            name: 'Relance impayé',
+            kind: 'autre',
+            bytes: any(named: 'bytes', that: equals([1, 2, 3])),
+            filename: 'relance.docx',
+          )).called(1);
+      expect(
+          find.byKey(const Key('import_letter_template_dialog')), findsNothing);
+      expect(
+          find.byKey(const Key('courrier_field_patient.nom')), findsOneWidget);
+      expect(find.textContaining('1 placeholder(s) détecté'), findsOneWidget);
+    });
+
+    testWidgets('import docx en échec → message d\'erreur, dialog conservé',
+        (tester) async {
+      when(() => cubit.state).thenReturn(
+          LetterComposeReady(templates: const [], patient: patient()));
+      when(() => filePicker.pickFile(
+              allowedExtensions: any(named: 'allowedExtensions')))
+          .thenAnswer((_) async => PickedFile(
+                path: null,
+                name: 'relance.docx',
+                mimeType: 'application/vnd.openxmlformats-officedocument'
+                    '.wordprocessingml.document',
+                bytes: Uint8List.fromList([1, 2, 3]),
+              ));
+      when(() => cubit.importTemplate(
+            name: any(named: 'name'),
+            kind: any(named: 'kind'),
+            bytes: any(named: 'bytes'),
+            filename: any(named: 'filename'),
+          )).thenAnswer((_) async => const Left(ValidationFailure(
+            message: 'Placeholder(s) inconnu(s) : foo.bar',
+            fieldErrors: {'foo.bar': 'Placeholder(s) inconnu(s)'},
+          )));
+
+      await pump(tester);
+
+      await tester.tap(find.byKey(const Key('import_letter_template_button')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('import_letter_template_name')),
+        'Relance impayé',
+      );
+      await tester
+          .tap(find.byKey(const Key('import_letter_template_pick_file')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('import_letter_template_confirm')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('import_letter_template_dialog')),
+          findsOneWidget);
+      expect(find.textContaining('Placeholder(s) inconnu(s) : foo.bar'),
+          findsOneWidget);
     });
   });
 }

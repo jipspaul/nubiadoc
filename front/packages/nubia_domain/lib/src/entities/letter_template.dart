@@ -19,6 +19,11 @@ class LetterTemplate extends Equatable {
   /// pilote les champs libres proposés à l'écran courrier (#7196).
   final List<String> placeholders;
 
+  /// `"text"` (`bodyTemplate` saisi) ou `"docx"` (importé, #7157/#7156) —
+  /// un modèle `docx` n'a pas de `bodyTemplate` exploitable pour l'aperçu
+  /// local (rendu authoritaire uniquement côté serveur).
+  final String sourceFormat;
+
   const LetterTemplate({
     required this.id,
     required this.name,
@@ -26,6 +31,7 @@ class LetterTemplate extends Equatable {
     this.bodyTemplate = '',
     this.isGlobal = false,
     this.placeholders = const [],
+    this.sourceFormat = 'text',
   });
 
   @override
