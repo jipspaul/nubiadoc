@@ -3432,3 +3432,31 @@ il trouve les écrans, il ne provoque pas les refus métier.
 - **praticien — `/` (Tableau de bord + panneau « Personnaliser », 1280/1440)** : « Personnaliser » ouvre le panneau (« Glissez pour réordonner, décochez pour masquer ») ; décocher un widget **émet réellement** `PUT /v1/me/dashboard-layout` sans le widget et **persiste après rechargement** ; « Terminé » referme. *Réserve a11y* : les 8 cases à cocher de widgets sont exposées **sans libellé accessible** (`aria-label` vide) — le libellé visible est un nœud frère.
 
 - **secretariat — `/maintenance` → dialogue « Nouveau ticket » (1280×800)** : **Cas adversariaux tous PASSÉS** : double-clic rapide sur « Créer le ticket » → **1 seul POST**, **1 seul ticket** créé (anti-double-submit OK) ; formulaire vide → refus propre, aucun ticket créé ; titre de 250 caractères → **0 contrôle hors cadre** (aucun débordement).
+
+#### Ronde R90 — second segment (écrans supplémentaires + cas adversariaux)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/patients` + volet latéral (1280/1440/1920) | 40 | 6 | 6 | 0 | 0 | 2026-09-23T07:19:02+00:00 |
+| secretariat | `/maintenance` → dialogue « Nouveau ticket » (adversarial) | 10 | 5 | 5 | 0 | 0 | 2026-09-23T07:19:02+00:00 |
+| secretariat | `/salle-attente` (1280×800) | 22 | 0 | 0 | 0 | 0 | 2026-09-23T07:19:02+00:00 |
+| secretariat | `/cabinet-payouts` (1280×800) | 26 | 0 | 0 | 0 | 0 | 2026-09-23T07:19:02+00:00 |
+| patient | `/questionnaire-medical/:cabinetId` (390×844, écran **neuf** #7158) | 10 | 0 | 0 | 0 | 0 | 2026-09-23T07:19:02+00:00 |
+| praticien | `/lab-stats` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-09-23T07:19:02+00:00 |
+| praticien | `/lab-work-orders` (1280×800) | 22 | 2 | 2 | 0 | 0 | 2026-09-23T07:19:02+00:00 |
+
+**Bilan R90 consolidé** — **255 contrôles inventoriés, 94 activés, 0 mort, 0 cassé** sur les 5 apps et 15 écrans. Tous les verdicts « MORT » bruts du harnais (8) ont été infirmés un par un en test isolé. **Leçon de harnais de cette ronde** : l'arbre Semantics est nécessaire pour *localiser et activer* les contrôles, mais il ne suffit pas à *juger le rendu* — le nœud de ligne agrège ses enfants, si bien qu'une colonne écrasée à 0 px continue d'exposer son libellé (cas #7513). Toute conclusion sur un défaut de mise en page doit s'appuyer sur la capture.
+
+- **secretariat — `/patients` + volet latéral (1280/1440/1920)** : Recherche, 3 facettes chiffrées, « Nouveau patient ⌘N », « Actualiser », ligne patient (ouvre le volet), « Fermer ». Le volet expose « Ajouter une étiquette » et « Déclarer un DMSM ». **Défaut de rendu invisible aux Semantics** (le nœud de ligne agrège ses enfants) → détecté à la capture uniquement : **#7513**.
+
+- **secretariat — `/maintenance` → dialogue « Nouveau ticket » (adversarial)** : Double-clic rapide sur « Créer le ticket » → **1 seul POST, 1 seul ticket** ; formulaire vide → refus propre sans création ; titre de 250 caractères → **0 contrôle hors cadre**. Coupure réseau sur l'écran : « Réessayer » présent, reprise complète (23 → 26 contrôles).
+
+- **secretariat — `/salle-attente` (1280×800)** : Écran **parcouru et comparé** (état vide légitime) ; contrôles non activés faute de file à appeler — « Appeler suivant » DÉSACTIVÉ à juste titre. Non compté dans les activations.
+
+- **secretariat — `/cabinet-payouts` (1280×800)** : Écran parcouru et comparé (état vide honnête, bandeau « données de démonstration »). « Exporter (CSV) » et « Connecter Stripe » DÉSACTIVÉS à juste titre. Non compté dans les activations.
+
+- **patient — `/questionnaire-medical/:cabinetId` (390×844, écran **neuf** #7158)** : Écran parcouru : les 10 questions du standard rendues avec **le bon widget par type** (texte / `switch` booléen / sélecteur) et la mention « Attention » sur les questions `safety_flag`. **Tous les contrôles DISABLED — légitime** : la soumission est déjà `reviewed`, et le bandeau vert l'explique (« Déjà transmis à votre cabinet le 23/09/2026. »). Corrobore #7505 : la bascule « traitement anticoagulant » s'affiche bien **activée** côté patient alors que le dossier reste à `false`. Coupure réseau → **#7514**.
+
+- **praticien — `/lab-stats` (1280×800)** : « Actualiser » actif. Écran de lecture : les lignes par laboratoire / par praticien ne sont pas des contrôles (pas de navigation prescrite). Chiffres recoupés avec `GET /cabinet/lab-stats`.
+
+- **praticien — `/lab-work-orders` (1280×800)** : « Stats labos » et « Actualiser » actifs. « **Nouveau bon** » est **DÉSACTIVÉ avec sa raison exposée en infobulle** (« Création de bon de travail indisponible pour l'instant. ») — c'est le patron correct et la confirmation que **#7458 est corrigée** (ce n'est plus un bouton actif qui n'ouvre rien).
