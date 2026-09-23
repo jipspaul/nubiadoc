@@ -718,6 +718,39 @@ void main() {
       });
 
       testWidgets(
+          '#7513 : à 1280px (poste secrétariat), la colonne Patient reste '
+          "lisible — pas d'en-tête vertical ni de nom disparu — une fois "
+          'le volet ouvert', (tester) async {
+        tester.view.physicalSize = const Size(1280, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('patient_sheet_p1')), findsOneWidget);
+        // Avant #7513 : la colonne Patient (Expanded) tombait à 0/négatif
+        // à cette largeur une fois le volet ouvert, faisant rendre
+        // l'en-tête verticalement (une lettre par ligne, ~130px de haut
+        // au lieu de ~24px) et disparaître tous les noms de la liste.
+        final headerHeight =
+            tester.getSize(find.byType(PatientsTableHeader)).height;
+        expect(headerHeight, lessThan(60));
+        expect(
+          find.descendant(
+            of: find.byType(PatientTableRow),
+            matching: find.text(alice.fullName),
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets(
           'sélectionner un autre patient met à jour le volet sans le fermer',
           (tester) async {
         tester.view.physicalSize = const Size(1360, 900);
