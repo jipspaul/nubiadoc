@@ -13,8 +13,11 @@ import '../tasks/tasks_bloc.dart';
 import '../tasks/tasks_card.dart';
 import '../tasks/tasks_event.dart';
 import 'dashboard_bloc.dart';
+import 'dashboard_customize_panel.dart';
 import 'dashboard_event.dart';
+import 'dashboard_layout_cubit.dart';
 import 'dashboard_state.dart';
+import 'dashboard_widget_catalog.dart';
 import 'kpi_tiles_cubit.dart';
 import 'kpi_tiles_row.dart';
 import 'next_patient_hero.dart';
@@ -61,7 +64,10 @@ class DashboardBody extends StatelessWidget {
           GetIt.instance<DashboardBloc>()..add(const DashboardLoadRequested()),
       child: BlocProvider<OpportunitiesCubit>(
         create: (_) => GetIt.instance<OpportunitiesCubit>()..load(),
-        child: const _DashboardContent(),
+        child: BlocProvider<DashboardLayoutCubit>(
+          create: (_) => GetIt.instance<DashboardLayoutCubit>()..load(),
+          child: const _DashboardContent(),
+        ),
       ),
     );
   }
@@ -121,12 +127,6 @@ class _DashboardLoadedView extends StatelessWidget {
 
   final ProDashboardSummary summary;
 
-  // Seuil au-delà duquel la colonne droite (430 px fixe) + la gouttière
-  // (16 px) laissent assez de place à gauche pour rester lisible.
-  static const _wideBreakpoint = 1100.0;
-  static const _rightColumnWidth = 430.0;
-  static const _gutter = 16.0;
-
   @override
   Widget build(BuildContext context) {
     final kpiTilesRow = BlocProvider(
@@ -147,13 +147,6 @@ class _DashboardLoadedView extends StatelessWidget {
       child: TodayScheduleCard(summary: summary),
     );
     final pendingActionsCard = PendingActionsCard(summary: summary);
-    // Cabinet entier (pas de filtre assigné) : le filtre « Assignées à moi »
-    // vit dans `TasksPage` (#7210) — cette carte n'est qu'un aperçu.
-    final tasksCard = BlocProvider(
-      create: (_) => GetIt.instance<TasksBloc>()
-        ..add(const TasksLoadRequested(status: 'open')),
-      child: const TasksCard(),
-    );
     final notesCard = BlocProvider(
       create: (_) => GetIt.instance<TodayNotesBloc>()
         ..add(const TodayNotesLoadRequested()),
@@ -173,112 +166,108 @@ class _DashboardLoadedView extends StatelessWidget {
           )
         : null;
 
+    final widgetsById = <String, Widget>{
+      'kpi_tiles': kpiTilesRow,
+      'next_patient': NextPatientHero(summary: summary),
+      'today_schedule': todayScheduleCard,
+      'pending_actions': pendingActionsCard,
+      'prostheses_today': prosthesesTodayCard,
+      'today_notes': notesCard,
+      'week_summary': weekSummaryCard,
+      if (opportunitiesCard != null) 'opportunities': opportunitiesCard,
+    };
+
+    final layoutState = context.watch<DashboardLayoutCubit>().state;
+    final visibleOrder = layoutState is DashboardLayoutLoaded
+        ? layoutState.visibleOrder
+        : kProDashboardWidgetCatalog;
+
     return SingleChildScrollView(
       key: const Key('dashboard_loaded'),
       padding: const EdgeInsets.all(16),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth >= _wideBreakpoint) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _DashboardHeader(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _DashboardHeader(
+            editing:
+                layoutState is DashboardLayoutLoaded && layoutState.editing,
+            onCustomizeTap: () =>
+                context.read<DashboardLayoutCubit>().toggleEditing(),
+          ),
+          const SizedBox(height: 16),
+          // Cabinet entier (pas de filtre assigné) : le filtre « Assignées à
+          // moi » vit dans `TasksPage` (#7210) — cette carte n'est qu'un
+          // aperçu, hors du registre personnalisable (#7161).
+          BlocProvider(
+            create: (_) => GetIt.instance<TasksBloc>()
+              ..add(const TasksLoadRequested(status: 'open')),
+            child: const TasksCard(),
+          ),
+          const SizedBox(height: 16),
+          if (layoutState is DashboardLayoutLoaded && layoutState.editing)
+            DashboardCustomizePanel(
+              order: layoutState.order,
+              hiddenIds: layoutState.hiddenIds,
+              labels: kProDashboardWidgetLabels,
+              onReorder: (oldIndex, newIndex) => context
+                  .read<DashboardLayoutCubit>()
+                  .reorder(oldIndex, newIndex),
+              onToggle: (widgetId) => context
+                  .read<DashboardLayoutCubit>()
+                  .toggleVisibility(widgetId),
+            )
+          else
+            for (final widgetId in visibleOrder)
+              if (widgetsById[widgetId] != null) ...[
+                widgetsById[widgetId]!,
                 const SizedBox(height: 16),
-                kpiTilesRow,
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          NextPatientHero(summary: summary),
-                          const SizedBox(height: 16),
-                          todayScheduleCard,
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: _gutter),
-                    SizedBox(
-                      width: _rightColumnWidth,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          pendingActionsCard,
-                          const SizedBox(height: 16),
-                          tasksCard,
-                          if (opportunitiesCard != null) ...[
-                            const SizedBox(height: 16),
-                            opportunitiesCard,
-                          ],
-                          const SizedBox(height: 16),
-                          notesCard,
-                          const SizedBox(height: 16),
-                          prosthesesTodayCard,
-                          const SizedBox(height: 16),
-                          weekSummaryCard,
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
               ],
-            );
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _DashboardHeader(),
-              const SizedBox(height: 16),
-              kpiTilesRow,
-              const SizedBox(height: 16),
-              NextPatientHero(summary: summary),
-              const SizedBox(height: 16),
-              todayScheduleCard,
-              const SizedBox(height: 24),
-              pendingActionsCard,
-              const SizedBox(height: 16),
-              tasksCard,
-              if (opportunitiesCard != null) ...[
-                const SizedBox(height: 16),
-                opportunitiesCard,
-              ],
-              const SizedBox(height: 16),
-              notesCard,
-              const SizedBox(height: 16),
-              prosthesesTodayCard,
-              const SizedBox(height: 16),
-              weekSummaryCard,
-            ],
-          );
-        },
+        ],
       ),
     );
   }
 }
 
-/// Bandeau de titre du tableau de bord (hiérarchie `h2` + sous-titre `caption`).
+/// Bandeau de titre du tableau de bord (hiérarchie `h2` + sous-titre
+/// `caption`) + bouton « Personnaliser » (#7161) qui bascule le mode édition
+/// du registre de widgets.
 class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader();
+  const _DashboardHeader({required this.editing, required this.onCustomizeTap});
+
+  final bool editing;
+  final VoidCallback onCustomizeTap;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          'Ma journée',
-          style: textTheme.headlineSmall?.copyWith(color: cs.onSurface),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Ma journée',
+                style: textTheme.headlineSmall?.copyWith(color: cs.onSurface),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Aperçu de votre activité clinique du jour',
+                style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Aperçu de votre activité clinique du jour',
-          style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+        NubiaButton(
+          key: const Key('dashboard_customize_button'),
+          label: editing ? 'Terminé' : 'Personnaliser',
+          variant: NubiaButtonVariant.secondary,
+          size: NubiaButtonSize.sm,
+          icon: editing ? Icons.check : Icons.tune,
+          onPressed: onCustomizeTap,
         ),
       ],
     );

@@ -56,6 +56,7 @@ import '../remote/consultation/consultation_api.dart';
 import '../remote/consent_templates/consent_template_api.dart';
 import '../remote/cr_templates/cr_template_api.dart';
 import '../remote/dashboard/dashboard_api.dart';
+import '../remote/dashboard_layout/dashboard_layout_api.dart';
 import '../remote/documents/document_api.dart';
 import '../remote/patient_treatment_plans/patient_treatment_plans_api.dart';
 import '../remote/implant_passport/implant_passport_api.dart';
@@ -133,6 +134,7 @@ import '../repositories/consultation_repository_impl.dart';
 import '../repositories/consent_template_repository_impl.dart';
 import '../repositories/cr_template_repository_impl.dart';
 import '../repositories/dashboard_repository_impl.dart';
+import '../repositories/dashboard_layout_repository_impl.dart';
 import '../repositories/document_repository_impl.dart';
 import '../repositories/patient_treatment_plans_repository_impl.dart';
 import '../repositories/members_repository_impl.dart';
@@ -199,6 +201,7 @@ void registerData(
     ..registerLazySingleton<AuthApi>(() => AuthApi(gi()))
     ..registerLazySingleton<BillingApi>(() => BillingApi(gi()))
     ..registerLazySingleton<DashboardApi>(() => DashboardApi(gi()))
+    ..registerLazySingleton<DashboardLayoutApi>(() => DashboardLayoutApi(gi()))
     ..registerLazySingleton<DocumentApi>(() => DocumentApi(gi()))
     ..registerLazySingleton<PatientTreatmentPlansApi>(
       () => PatientTreatmentPlansApi(gi()),
@@ -245,6 +248,9 @@ void registerData(
     )
     ..registerLazySingleton<DashboardRepository>(
       () => DashboardRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<DashboardLayoutRepository>(
+      () => DashboardLayoutRepositoryImpl(gi()),
     )
     ..registerLazySingleton<DocumentRepository>(
       () => DocumentRepositoryImpl(gi()),
@@ -504,6 +510,8 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => SignPatientQuoteAttestationUseCase(gi()))
     // dashboard
     ..registerFactory(() => GetDashboardSummaryUseCase(gi()))
+    ..registerFactory(() => GetDashboardLayoutUseCase(gi()))
+    ..registerFactory(() => UpdateDashboardLayoutUseCase(gi()))
     // documents
     ..registerFactory(() => GetDocumentSignedUrlUseCase(gi()))
     ..registerFactory(() => GetDocumentsUseCase(gi()))
