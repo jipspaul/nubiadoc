@@ -27,6 +27,12 @@ const MAX_LAB_NAME_LEN: usize = 200;
 const MAX_ITEM_LABEL_LEN: usize = 300;
 const MAX_ITEM_CODE_LEN: usize = 100;
 
+/// Borne haute de plausibilité métier pour un tarif labo, même doctrine que
+/// `stock_import::MAX_IMPORT_QUANTITY` (#7453) : au-delà, `price * 100.0` ne
+/// tient plus dans un `i32` et le cast `as i32` *sature* silencieusement
+/// (au lieu de déborder) au lieu de renvoyer une erreur.
+const MAX_ITEM_PRICE_CENTS: i32 = 100_000_000;
+
 /// Body de `POST /v1/cabinet/lab-price-list/import`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -70,8 +76,9 @@ struct ParsedLine {
 
 /// Découpe une ligne `lab_name;item_label;item_code;price` — mêmes bornes de
 /// longueur que le reste des libellés de la grille (`lab_price_list`,
-/// migration 0292), `price` décimal positif (`.` ou `,`), converti en
-/// centimes (même conversion que `stock_import::parse_line`).
+/// migration 0292), `price` décimal positif borné par
+/// `MAX_ITEM_PRICE_CENTS` (`.` ou `,`), converti en centimes (même
+/// conversion que `stock_import::parse_line`).
 fn parse_line(line: &str) -> Result<ParsedLine, &'static str> {
     let fields: Vec<&str> = line.split(';').collect();
     if fields.len() != 4 {
@@ -107,7 +114,7 @@ fn parse_line(line: &str) -> Result<ParsedLine, &'static str> {
         .replace(',', ".")
         .parse()
         .map_err(|_| "prix_invalide")?;
-    if price < 0.0 {
+    if !price.is_finite() || price < 0.0 || price > MAX_ITEM_PRICE_CENTS as f64 / 100.0 {
         return Err("prix_invalide");
     }
 

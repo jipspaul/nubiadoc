@@ -189,7 +189,8 @@ async fn import_csv_creates_items_and_reimport_updates_price() {
     let csv = "lab_name;item_label;item_code;price\n\
                Dentalis;Couronne céramique;CR-CER;250.00\n\
                Dentalis;Bridge 3 éléments;BR-3;600,50\n\
-               ;Colonne décalée;BAD;10\n";
+               ;Colonne décalée;BAD;10\n\
+               Dentalis;Prix aberrant;OVF;88888888888\n";
 
     let response = app(state.clone())
         .oneshot(
@@ -213,11 +214,24 @@ async fn import_csv_creates_items_and_reimport_updates_price() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(v["imported"].as_array().unwrap().len(), 2);
-    assert_eq!(v["errors"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        v["errors"].as_array().unwrap().len(),
+        2,
+        "colonne décalée ET prix aberrant (hors borne, ex-débordement i32) rejetés"
+    );
     assert_eq!(v["imported"][0]["price_cents"], 25000);
     assert_eq!(
         v["imported"][1]["price_cents"], 60050,
         "virgule décimale tolérée comme séparateur"
+    );
+    assert!(
+        v["errors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["raw"].as_str().unwrap().contains("88888888888")
+                && e["error"] == "prix_invalide"),
+        "un prix hors de toute plausibilité métier doit être rejeté, pas saturé silencieusement à i32::MAX"
     );
 
     // Liste : les 2 lignes importées apparaissent.
