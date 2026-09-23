@@ -82,6 +82,7 @@ struct Fixture {
     prac_user_id: Uuid,
     patient_user_id: Uuid,
     account_id: Uuid,
+    patient_id: Uuid,
 }
 
 async fn seed(db: &PgPool) -> Fixture {
@@ -90,6 +91,7 @@ async fn seed(db: &PgPool) -> Fixture {
     let prac_id = Uuid::new_v4();
     let patient_user_id = Uuid::new_v4();
     let account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
@@ -141,6 +143,23 @@ async fn seed(db: &PgPool) -> Fixture {
         .await
         .unwrap();
 
+    // Dossier clinique reliant le compte patient au cabinet — nécessaire à la
+    // policy RLS `cabinet_patient_read` (migration 0035) : les endpoints
+    // patient de `medical_questionnaire.rs` vérifient l'existence du cabinet
+    // AVANT de positionner `app.current_cabinet_id` (garde #4343), donc sans
+    // cette ligne `patient` la lecture de `cabinet` est invisible (RLS
+    // fail-closed) et renvoie à tort 404.
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Alex', 'QuestionnaireTemplate', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     Fixture {
@@ -148,6 +167,7 @@ async fn seed(db: &PgPool) -> Fixture {
         prac_user_id,
         patient_user_id,
         account_id,
+        patient_id,
     }
 }
 
@@ -170,6 +190,11 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .ok();
     sqlx::query("DELETE FROM questionnaire_template WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(f.patient_id)
         .execute(&mut *tx)
         .await
         .ok();
