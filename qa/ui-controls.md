@@ -3460,3 +3460,28 @@ il trouve les écrans, il ne provoque pas les refus métier.
 - **praticien — `/lab-stats` (1280×800)** : « Actualiser » actif. Écran de lecture : les lignes par laboratoire / par praticien ne sont pas des contrôles (pas de navigation prescrite). Chiffres recoupés avec `GET /cabinet/lab-stats`.
 
 - **praticien — `/lab-work-orders` (1280×800)** : « Stats labos » et « Actualiser » actifs. « **Nouveau bon** » est **DÉSACTIVÉ avec sa raison exposée en infobulle** (« Création de bon de travail indisponible pour l'instant. ») — c'est le patron correct et la confirmation que **#7458 est corrigée** (ce n'est plus un bouton actif qui n'ouvre rien).
+
+#### Ronde R90 — troisième segment (audit de commandes élargi)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| praticien | `/ordonnances` (1280×800) | 19 | 18 | 18 | 0 | 0 | 2026-09-23T07:41:27+00:00 |
+| praticien | `/devis` (1280×800) | 26 | 25 | 25 | 0 | 0 | 2026-09-23T07:41:27+00:00 |
+| patient | `/mes-rdv` (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-09-23T07:41:27+00:00 |
+| patient | `/documents` (390×844) | 28 | 28 | 28 | 0 | 0 | 2026-09-23T07:41:27+00:00 |
+| patient | `/financial` + détail « Plan de soins » (390×844) | 12 | 3 | 3 | 0 | 0 | 2026-09-23T07:41:27+00:00 |
+| pharmacie | `/stock` (1280×800) | 8 | 7 | 7 | 0 | 0 | 2026-09-23T07:41:27+00:00 |
+
+**Bilan R90 FINAL — 355 contrôles inventoriés, 172 activés, 0 mort, 0 cassé** sur 21 écrans et les 5 apps. **29 verdicts « MORT »/« CASSÉ » bruts ont été produits par le harnais et les 29 ont été infirmés un par un** en test isolé. Les quatre causes récurrentes, à corriger dans le harnais : (1) contrôle **hors fenêtre** (cliquer sans défiler d'abord) ; (2) contrôle précédent ayant poussé une route **sans changer l'URL** (la boucle ne réinitialise pas) ; (3) **overlay** d'un menu contextuel déjà ouvert qui intercepte les clics suivants ; (4) effet **invisible au diff DOM/pixel** — sélecteur de fichier natif, téléchargement. Un cinquième piège, inverse, a coûté un vrai bug : l'arbre Semantics **ne révèle pas** un défaut de mise en page (le nœud de ligne agrège ses enfants), cf. #7513.
+
+- **praticien — `/ordonnances` (1280×800)** : Rail de navigation **intégralement vivant** (13 entrées, chacune navigue et déclenche ses requêtes), « Choisir un patient », 4 actions de pied de rail. 0 mort, 0 cassé.
+
+- **praticien — `/devis` (1280×800)** : Facettes, recherche, lignes de devis. Le clic sur une ligne **ouvre bien le détail** (« Retour à la liste » apparaît, 26 → 19 contrôles) — dont le devis créé dans cette ronde (« Marc Dubois / Signé / 500 € / 23/09/2026 »), ce qui reboucle X6 dans l'UI. 1 MORT et 1 CASSÉ bruts **infirmés** (ligne cliquée alors qu'un détail était déjà ouvert ; `502 GET /favicon.png` transitoire sans rapport avec le clic).
+
+- **patient — `/mes-rdv` (390×844)** : Onglets chiffrés « À venir (81) » / « Historique », tri « Plus proche d'abord », « Prendre un rendez-vous » (43 requêtes, navigue). Les **3** boutons « Plus d'actions » ouvrent chacun leur menu contextuel (« Ajouter au calendrier », « Annuler ») — 2 verdicts MORT bruts **infirmés** (le menu du premier recouvrait les suivants).
+
+- **patient — `/documents` (390×844)** : **18 verdicts MORT bruts, tous infirmés.** « Télécharger » **télécharge réellement** (`GET /documents/:id/download` + fichier PDF reçu — en l'occurrence l'ordonnance signée dans cette ronde) : un téléchargement ne modifie ni le DOM ni les Semantics, d'où le faux négatif. Les 8 facettes de catégorie vivent dans une **rangée à défilement horizontal** (x jusqu'à 1443 sur un viewport de 390) : après défilement, « Carte mutuelle » clique et filtre correctement.
+
+- **patient — `/financial` + détail « Plan de soins » (390×844)** : Liste de devis avec prescripteur, pastille de statut, « Reste à charge », montant et date. Le clic ouvre le détail : barre de ventilation **avec pastilles de légende** (#7481 corrigé), « Détail des actes », mention eIDAS, et **une seule action primaire** « Télécharger le devis signé » — conforme à la note 2 de la maquette.
+
+- **pharmacie — `/stock` (1280×800)** : Rail + facettes. 1 CASSÉ brut **infirmé** : les `401`/`403` provenaient de l'expiration du `storageState` sauvegardé en cours d'audit, pas du clic (le rejeu avec session fraîche est propre).
