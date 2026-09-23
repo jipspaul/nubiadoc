@@ -107,6 +107,10 @@ class MedicalQuestionnaireCubit extends Cubit<MedicalQuestionnaireState>
     );
   }
 
+  /// Relance le chargement initial (#7514) — utilisé par le bouton
+  /// « Réessayer » de la bannière d'erreur en cas d'échec réseau.
+  Future<void> retry() => _load();
+
   Future<void> saveDraft(Map<String, dynamic> payload) async {
     emit(const MedicalQuestionnaireSaving());
     final result = await _create(cabinetId: cabinetId, payload: payload);
