@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
+import 'package:nubia_data/src/remote/lab_work_orders/lab_price_list_item_dto.dart';
 import 'package:nubia_data/src/remote/lab_work_orders/lab_work_order_dto.dart';
 import 'package:nubia_data/src/remote/lab_work_orders/today_lab_work_order_dto.dart';
 
@@ -33,5 +34,15 @@ class LabWorkOrdersApi {
       data: {'status': status},
     );
     return response.data!['status'] as String;
+  }
+
+  /// GET /cabinet/lab-price-list (#7163, DP-F19.c) : grille tarifaire du
+  /// cabinet, pour la sélection d'un produit à la commande (prix pré-rempli).
+  Future<List<LabPriceListItemDto>> listPriceList() async {
+    final response =
+        await _dio.get<List<dynamic>>('/cabinet/lab-price-list');
+    return (response.data ?? [])
+        .map((e) => LabPriceListItemDto.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }

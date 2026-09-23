@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/error/failure.dart';
+import 'package:nubia_domain/src/entities/lab_price_list_item.dart';
 import 'package:nubia_domain/src/entities/lab_work_order.dart';
 import 'package:nubia_domain/src/entities/today_lab_work_order.dart';
 
@@ -13,4 +14,9 @@ abstract class LabWorkOrdersRepository {
 
   /// PATCH /v1/cabinet/lab-work-orders/:id (#4149). Renvoie le nouveau statut.
   Future<Either<Failure, String>> updateStatus(String orderId, String status);
+
+  /// GET /v1/cabinet/lab-price-list (#7163, DP-F19.c) : grille tarifaire du
+  /// cabinet, triée par labo puis libellé — pour la sélection d'un produit à
+  /// la commande (prix pré-rempli).
+  Future<Either<Failure, List<LabPriceListItem>>> listPriceList();
 }

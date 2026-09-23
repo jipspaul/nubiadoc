@@ -26,6 +26,8 @@ import '../features/register/pro_register_cubit.dart';
 import '../features/consultation_clinique/ccam_picker.dart';
 import '../features/consultation_clinique/api_get_acts_use_case.dart';
 import '../features/stock/stock_bloc.dart';
+import '../features/lab_work/lab_margin_cubit.dart';
+import '../features/lab_work/lab_stats_cubit.dart';
 import '../features/lab_work/lab_work_orders_bloc.dart';
 import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/tasks/tasks_bloc.dart';
@@ -285,6 +287,14 @@ void registerPro(GetIt gi) {
       list: gi<ListLabWorkOrdersUseCase>(),
       updateStatus: gi<UpdateLabWorkOrderStatusUseCase>(),
     ),
+  );
+
+  gi.registerFactory<LabMarginCubit>(
+    () => LabMarginCubit(getLabStats: gi<GetCabinetLabStatsUseCase>()),
+  );
+
+  gi.registerFactory<LabStatsCubit>(
+    () => LabStatsCubit(getLabStats: gi<GetCabinetLabStatsUseCase>()),
   );
 
   gi.registerFactory<TasksBloc>(

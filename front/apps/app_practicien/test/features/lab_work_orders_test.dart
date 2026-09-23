@@ -19,6 +19,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'package:app_practicien/features/lab_work/lab_margin_cubit.dart';
 import 'package:app_practicien/features/lab_work/lab_work_orders_bloc.dart';
 import 'package:app_practicien/features/lab_work/lab_work_orders_event.dart';
 import 'package:app_practicien/features/lab_work/lab_work_orders_page.dart';
@@ -37,6 +38,9 @@ class MockUpdateLabWorkOrderStatusUseCase extends Mock
 class MockLabWorkOrdersBloc
     extends MockBloc<LabWorkOrdersEvent, LabWorkOrdersState>
     implements LabWorkOrdersBloc {}
+
+class MockLabMarginCubit extends MockCubit<LabMarginState>
+    implements LabMarginCubit {}
 
 class _FakeLabWorkOrdersEvent extends Fake implements LabWorkOrdersEvent {}
 
@@ -116,13 +120,24 @@ Future<void> _setSurface(WidgetTester tester) async {
   addTearDown(tester.view.reset);
 }
 
-Widget _wrap(LabWorkOrdersBloc bloc) => MaterialApp(
-      theme: NubiaTheme.light,
-      home: BlocProvider<LabWorkOrdersBloc>.value(
-        value: bloc,
-        child: const LabWorkOrdersPage(),
-      ),
-    );
+Widget _wrap(
+  LabWorkOrdersBloc bloc, {
+  LabMarginState marginState = const LabMarginLoaded({}),
+}) {
+  final marginCubit = MockLabMarginCubit();
+  when(() => marginCubit.state).thenReturn(marginState);
+  when(() => marginCubit.load()).thenAnswer((_) async {});
+  return MaterialApp(
+    theme: NubiaTheme.light,
+    home: MultiBlocProvider(
+      providers: [
+        BlocProvider<LabWorkOrdersBloc>.value(value: bloc),
+        BlocProvider<LabMarginCubit>.value(value: marginCubit),
+      ],
+      child: const LabWorkOrdersPage(),
+    ),
+  );
+}
 
 void main() {
   setUpAll(() {
@@ -587,6 +602,56 @@ void main() {
       // Une seule surface d'erreur : la snackbar.
       expect(find.byType(SnackBar), findsOneWidget);
       expect(find.text('forbidden'), findsOneWidget);
+    });
+  });
+
+  group('LabWorkOrdersPage — marge (#7163, DP-F19.c)', () {
+    testWidgets(
+        'un bon présent dans les stats labo du mois affiche coût/CA/marge',
+        (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(const LabWorkOrdersLoaded([_sentOrder]));
+
+      const margin = LabStatActItem(
+        labWorkOrderId: 'order-1',
+        labName: 'Labo Dentaire Alpha',
+        labCostCents: 15000,
+        patientRevenueCents: 25000,
+        marginCents: 10000,
+      );
+      await tester.pumpWidget(_wrap(
+        bloc,
+        marginState: const LabMarginLoaded({'order-1': margin}),
+      ));
+
+      expect(
+        find.byKey(const Key('lab_work_order_margin_order-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_order_margin_order-1')),
+          matching: find.textContaining(NubiaMoney.formatCents(10000)),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'un bon absent des stats labo du mois n\'affiche pas de marge',
+        (tester) async {
+      await _setSurface(tester);
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(const LabWorkOrdersLoaded([_sentOrder]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(
+        find.byKey(const Key('lab_work_order_margin_order-1')),
+        findsNothing,
+      );
     });
   });
 }

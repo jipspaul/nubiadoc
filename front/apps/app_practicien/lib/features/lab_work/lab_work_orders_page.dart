@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
+import 'lab_margin_cubit.dart';
 import 'lab_work_order_due.dart';
 import 'lab_work_order_metrics.dart';
 import 'lab_work_order_status_style.dart';
@@ -105,6 +108,7 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
   void initState() {
     super.initState();
     context.read<LabWorkOrdersBloc>().add(const LabWorkOrdersLoadRequested());
+    context.read<LabMarginCubit>().load();
   }
 
   void _advance(LabWorkOrder order) {
@@ -152,6 +156,12 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
       appBar: AppBar(
         title: const Text('Travaux de laboratoire'),
         actions: [
+          IconButton(
+            key: const Key('lab_work_orders_stats_button'),
+            tooltip: 'Stats labos',
+            icon: const Icon(Icons.bar_chart_outlined),
+            onPressed: () => context.push(AppRouter.labStats),
+          ),
           IconButton(
             tooltip: 'Actualiser',
             icon: const Icon(Icons.refresh),
@@ -233,6 +243,10 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                 );
               }
               final now = DateTime.now();
+              final marginByOrderId = switch (context.watch<LabMarginCubit>().state) {
+                LabMarginLoaded(:final byOrderId) => byOrderId,
+                _ => const <String, LabStatActItem>{},
+              };
               return Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -260,6 +274,7 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                                 onAdvance: _advance,
                                 onSelectStatus: _selectStatus,
                                 onRelaunchLab: _relaunchLab,
+                                marginByOrderId: marginByOrderId,
                               ),
                             ),
                           ],
@@ -347,6 +362,7 @@ class _LabWorkStatusColumn extends StatelessWidget {
     required this.onAdvance,
     required this.onSelectStatus,
     required this.onRelaunchLab,
+    required this.marginByOrderId,
   });
 
   final String status;
@@ -357,6 +373,10 @@ class _LabWorkStatusColumn extends StatelessWidget {
   final void Function(LabWorkOrder order) onAdvance;
   final void Function(LabWorkOrder order, String status) onSelectStatus;
   final void Function(LabWorkOrder order) onRelaunchLab;
+
+  /// Coût/CA/marge du mois courant par bon (#7163, DP-F19.c), `null` pour un
+  /// bon absent de la période affichée par `GET /v1/cabinet/lab-stats`.
+  final Map<String, LabStatActItem> marginByOrderId;
 
   @override
   Widget build(BuildContext context) {
@@ -419,7 +439,11 @@ class _LabWorkStatusColumn extends StatelessWidget {
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _LabWorkOrderInfo(order: order, now: now),
+                              _LabWorkOrderInfo(
+                                order: order,
+                                now: now,
+                                margin: marginByOrderId[order.id],
+                              ),
                               const SizedBox(height: 12),
                               NubiaButton(
                                 key: Key(
@@ -436,7 +460,11 @@ class _LabWorkStatusColumn extends StatelessWidget {
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _LabWorkOrderInfo(order: order, now: now),
+                              _LabWorkOrderInfo(
+                                order: order,
+                                now: now,
+                                margin: marginByOrderId[order.id],
+                              ),
                               if (_remainingExpeditionStatuses(order.status)
                                   .isNotEmpty) ...[
                                 const SizedBox(height: 12),
@@ -560,7 +588,11 @@ class _ExpeditionStatusChips extends StatelessWidget {
 /// Bloc labo + statut + pied de carte (date d'envoi, prix), commun aux deux
 /// rendus de carte (bon en retard ou non, #5062).
 class _LabWorkOrderInfo extends StatelessWidget {
-  const _LabWorkOrderInfo({required this.order, required this.now});
+  const _LabWorkOrderInfo({
+    required this.order,
+    required this.now,
+    required this.margin,
+  });
 
   final LabWorkOrder order;
 
@@ -568,6 +600,11 @@ class _LabWorkOrderInfo extends StatelessWidget {
   /// par la page plutôt que `DateTime.now()` ici, pour rester cohérente
   /// avec `isOverdue` déjà calculé une seule fois par rendu.
   final DateTime now;
+
+  /// Coût labo / CA patient / marge du bon pour le mois courant (#7163,
+  /// DP-F19.c) — `null` si le bon est hors de la période affichée par
+  /// `GET /v1/cabinet/lab-stats` (pas une erreur, cf. [LabMarginLoaded]).
+  final LabStatActItem? margin;
 
   @override
   Widget build(BuildContext context) {
@@ -677,6 +714,51 @@ class _LabWorkOrderInfo extends StatelessWidget {
                   ),
             ),
           ],
+        ),
+        if (margin != null) ...[
+          const SizedBox(height: 4),
+          _LabOrderMarginRow(margin: margin!),
+        ],
+      ],
+    );
+  }
+}
+
+/// Coût labo / CA patient / marge d'un bon (#7163, DP-F19.c) — marge en
+/// rouge si négative (coût labo supérieur au CA facturé au patient, cf.
+/// doc `api/src/cabinet_stats.rs::LabStatActItem`), vert sinon.
+class _LabOrderMarginRow extends StatelessWidget {
+  const _LabOrderMarginRow({required this.margin});
+
+  final LabStatActItem margin;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final marginColor =
+        margin.marginCents < 0 ? tokens.dangerFg : tokens.successFg;
+    return Row(
+      key: Key('lab_work_order_margin_${margin.labWorkOrderId}'),
+      children: [
+        Expanded(
+          child: Text(
+            'Coût ${NubiaMoney.formatCents(margin.labCostCents)} · '
+            'CA ${NubiaMoney.formatCents(margin.patientRevenueCents)}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontFeatures: tabularFigures,
+                ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Marge ${NubiaMoney.formatCents(margin.marginCents)}',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: marginColor,
+                fontWeight: FontWeight.w600,
+                fontFeatures: tabularFigures,
+              ),
         ),
       ],
     );

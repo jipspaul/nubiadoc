@@ -4,6 +4,7 @@ import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/cabinet_stats/cabinet_stats_api.dart';
 import 'package:nubia_domain/src/entities/cabinet_activity_stat.dart';
 import 'package:nubia_domain/src/entities/cabinet_billing_stats.dart';
+import 'package:nubia_domain/src/entities/lab_stats.dart';
 import 'package:nubia_domain/src/repositories/cabinet_stats_repository.dart';
 
 class CabinetStatsRepositoryImpl implements CabinetStatsRepository {
@@ -40,6 +41,24 @@ class CabinetStatsRepositoryImpl implements CabinetStatsRepository {
       }
       return Left(ServerFailure(
         message: 'Impossible de charger la facturation du cabinet.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, LabStats>> getLabStats({String? period}) async {
+    try {
+      final dto = await _api.getLabStats(period: period);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de charger les statistiques labo.',
         statusCode: e.response?.statusCode,
       ));
     } catch (e) {
