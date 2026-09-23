@@ -113,4 +113,28 @@ void main() {
 
     expect(find.byKey(const Key('interaction_warning_banner')), findsNothing);
   });
+
+  testWidgets(
+      'la case préparée porte un nom accessible identifiant le médicament',
+      (tester) async {
+    await tester.pumpApp(
+      Scaffold(
+        body: PrescriptionLineTile(
+          item: const PrescriptionItem(
+            label: 'Amoxicilline 1 g',
+            form: 'comprimé dispersible',
+            posology: '1 comprimé matin et soir',
+            duration: '7 jours',
+            quantity: '14 comprimés',
+          ),
+          onPreparedChanged: (_) {},
+        ),
+      ),
+    );
+
+    final checkbox = find.byKey(const Key('prescription_line_prepared'));
+    expect(checkbox, findsOneWidget);
+    final semantics = tester.getSemantics(checkbox);
+    expect(semantics.label, 'Préparée — Amoxicilline 1 g — comprimé dispersible');
+  });
 }
