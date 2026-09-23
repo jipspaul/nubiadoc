@@ -346,24 +346,48 @@ class _PatientsPageState extends State<PatientsPage> {
                     )
                   else
                     Expanded(
-                      child: Column(
-                        children: [
-                          const PatientsTableHeader(),
-                          Expanded(
-                            child: ListView.builder(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              itemCount: filteredPatients.length,
-                              itemBuilder: (_, i) {
-                                final rowPatient = filteredPatients[i];
-                                return PatientTableRow(
-                                  patient: rowPatient,
-                                  selected: rowPatient.id == _selectedPatientId,
-                                  onTap: () => _selectPatient(rowPatient.id),
-                                );
-                              },
+                      child: LayoutBuilder(
+                        // Le volet latéral fixe (396px, [_PatientSheet]) peut
+                        // laisser moins que `minTotalWidth` à cette table
+                        // (1280/1440px) : on fait alors défiler la table
+                        // horizontalement plutôt que d'écraser la colonne
+                        // Patient jusqu'à 0 (#7513, même correctif que
+                        // #6579 sur `devis_table.dart`).
+                        builder: (context, constraints) {
+                          final width =
+                              constraints.maxWidth < _PatientColumns.minTotalWidth
+                                  ? _PatientColumns.minTotalWidth
+                                  : constraints.maxWidth;
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SizedBox(
+                              width: width,
+                              height: constraints.maxHeight,
+                              child: Column(
+                                children: [
+                                  const PatientsTableHeader(),
+                                  Expanded(
+                                    child: ListView.builder(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 16),
+                                      itemCount: filteredPatients.length,
+                                      itemBuilder: (_, i) {
+                                        final rowPatient = filteredPatients[i];
+                                        return PatientTableRow(
+                                          patient: rowPatient,
+                                          selected: rowPatient.id ==
+                                              _selectedPatientId,
+                                          onTap: () =>
+                                              _selectPatient(rowPatient.id),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
                     ),
                 ],
@@ -515,11 +539,38 @@ class _PatientColumns {
   const _PatientColumns._();
 
   static const double gap = 16;
+  static const double avatarGutter = 40 + 12; // aligné sous l'avatar
   static const double contact = 214;
   static const double lastVisit = 116;
   static const double balance = 108;
   static const double alerts = 176;
   static const double chevron = 20;
+
+  /// Largeur minimale de la colonne Patient (#7513) — sous ce seuil,
+  /// l'`Expanded` tombe à 0/négatif : l'en-tête se rend verticalement (une
+  /// lettre par ligne) et les noms disparaissent de toutes les lignes. Se
+  /// produit quand le volet latéral (396px, [_PatientSheet]) s'ouvre entre
+  /// 1280 et ~1520px de largeur de fenêtre — même défaut que celui corrigé
+  /// sur le tableau devis (#6579, `devis_table.dart`).
+  static const double patientMin = 180;
+
+  /// Largeur minimale de la table entière (colonnes + espaces + padding
+  /// horizontal + gouttière avatar, #7513) : en dessous, [PatientsPage]
+  /// fait défiler le tableau horizontalement plutôt que d'écraser la
+  /// colonne Patient.
+  static const double minTotalWidth = avatarGutter +
+      patientMin +
+      gap +
+      contact +
+      gap +
+      lastVisit +
+      gap +
+      balance +
+      gap +
+      alerts +
+      gap +
+      chevron +
+      32;
 }
 
 /// En-tête de colonnes du tableau patients (design-v2, note #5).
@@ -539,7 +590,7 @@ class PatientsTableHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Row(
         children: [
-          const SizedBox(width: 40 + 12), // aligné sous l'avatar de la ligne
+          const SizedBox(width: _PatientColumns.avatarGutter),
           Expanded(child: Text('Patient', style: style)),
           const SizedBox(width: _PatientColumns.gap),
           SizedBox(
