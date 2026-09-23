@@ -374,6 +374,18 @@ pub(crate) enum AppError {
     /// de laisser la violation `23503` remonter en 500, même doctrine que
     /// `CorrespondentInUse`/`StockLocationInUse`.
     EquipmentInUse,
+    /// `POST /v1/cabinet/questionnaire-templates` (#7159, DP-F21.b) : le
+    /// cabinet a déjà un modèle de questionnaire actif — il doit faire
+    /// évoluer celui-ci via `PATCH` (nouvelle version) plutôt que d'en créer
+    /// un second, ce qui rendrait ambigu le modèle actif servi au patient
+    /// (`resolve_active_questionnaire_template` ne saurait lequel choisir).
+    QuestionnaireTemplateAlreadyExists,
+    /// `POST`/`PATCH /v1/account/medical-questionnaire` (#7159, DP-F21.b) :
+    /// le `payload` soumis ne respecte pas le schéma du modèle de
+    /// questionnaire référencé (type de réponse invalide, ou réponse requise
+    /// manquante à la soumission finale). `422`, le `String` porte le détail
+    /// (clé de question fautive) pour que le client cible le champ en cause.
+    QuestionnaireSchemaViolation(String),
 }
 
 impl IntoResponse for AppError {
@@ -756,6 +768,16 @@ impl IntoResponse for AppError {
             AppError::EquipmentInUse => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "equipment_in_use"})),
+            )
+                .into_response(),
+            AppError::QuestionnaireTemplateAlreadyExists => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "questionnaire_template_already_exists"})),
+            )
+                .into_response(),
+            AppError::QuestionnaireSchemaViolation(message) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "questionnaire_schema_violation", "message": message})),
             )
                 .into_response(),
         }

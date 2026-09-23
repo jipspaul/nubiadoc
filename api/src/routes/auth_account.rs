@@ -79,6 +79,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
                 .patch(medical_questionnaire::patch_medical_questionnaire),
         )
         .route(
+            "/v1/account/medical-questionnaire/active-template",
+            get(medical_questionnaire::get_active_medical_questionnaire_template),
+        )
+        .route(
             "/v1/account/referring-doctor",
             get(auth::get_account_referring_doctor)
                 .put(auth::put_account_referring_doctor)

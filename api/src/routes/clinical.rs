@@ -13,7 +13,7 @@ use crate::{
     consultation_context, consultations, data_import, dental_chart, implant_passport, letters,
     medical_questionnaire, medical_record, orthodontics, patient_alerts, patient_detail,
     patient_merge, patient_merge_candidates, patient_tags, periodontal_chart, prescription_list,
-    treatment_phases, treatment_plans, treatment_sessions, AppState,
+    questionnaire_templates, treatment_phases, treatment_plans, treatment_sessions, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -109,6 +109,16 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/patients/:id/medical-questionnaire/review",
             post(medical_questionnaire::review_medical_questionnaire),
+        )
+        .route(
+            "/v1/cabinet/questionnaire-templates",
+            get(questionnaire_templates::list_questionnaire_templates)
+                .post(questionnaire_templates::create_questionnaire_template),
+        )
+        .route(
+            "/v1/cabinet/questionnaire-templates/:id",
+            patch(questionnaire_templates::patch_questionnaire_template)
+                .delete(questionnaire_templates::delete_questionnaire_template),
         )
         .route(
             "/v1/cabinet/treatment-plans",
