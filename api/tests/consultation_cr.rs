@@ -619,7 +619,11 @@ async fn save_consultation_cr_with_implant_section_feeds_implant_passport_idempo
     .fetch_all(&db)
     .await
     .unwrap();
-    assert_eq!(implants.len(), 1, "un seul implant créé après la 1ʳᵉ frappe");
+    assert_eq!(
+        implants.len(),
+        1,
+        "un seul implant créé après la 1ʳᵉ frappe"
+    );
     let brand: String = implants[0].try_get("brand").unwrap();
     let lot_number: String = implants[0].try_get("lot_number").unwrap();
     assert_eq!(brand, "Nobel Biocare");
@@ -643,13 +647,11 @@ async fn save_consultation_cr_with_implant_section_feeds_implant_passport_idempo
     .await;
     assert_eq!(status, StatusCode::OK);
 
-    let implants = sqlx::query(
-        "SELECT lot_number FROM implant_passport WHERE patient_id = $1",
-    )
-    .bind(patient_id)
-    .fetch_all(&db)
-    .await
-    .unwrap();
+    let implants = sqlx::query("SELECT lot_number FROM implant_passport WHERE patient_id = $1")
+        .bind(patient_id)
+        .fetch_all(&db)
+        .await
+        .unwrap();
     assert_eq!(
         implants.len(),
         1,
