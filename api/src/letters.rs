@@ -681,7 +681,17 @@ pub async fn generate_patient_letter(
         // migration 0296).
         let docx_bytes = docx_bytes.ok_or(AppError::Internal)?;
         let rendered_docx = letter_docx::render(&docx_bytes, &values)?;
+        // #7524 : `extract_text` n'a pas de plafond propre (elle ne fait que
+        // relire le `.docx` déjà rendu, déjà borné par `MAX_DOCUMENT_XML_SIZE`
+        // côté `letter_docx`) — on applique quand même `MAX_BODY_CHARS` ici,
+        // en défense en profondeur, pour que l'aperçu renvoyé au client
+        // (`GenerateLetterResponse.body`) reste dans le même ordre de
+        // grandeur que celui du chemin texte libre (ligne ~327).
         let preview = letter_docx::extract_text(&rendered_docx);
+        let preview = match preview.char_indices().nth(MAX_BODY_CHARS) {
+            Some((byte_idx, _)) => preview[..byte_idx].to_string(),
+            None => preview,
+        };
         match letter_docx::try_convert_to_pdf(&rendered_docx) {
             Some(pdf_bytes) => (pdf_bytes, "application/pdf", "pdf", preview),
             None => (rendered_docx, letter_docx::DOCX_MIME, "docx", preview),
