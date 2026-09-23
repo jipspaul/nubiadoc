@@ -710,7 +710,9 @@ fn merge_questionnaire_into_record(existing: &Value, payload: &Value) -> Value {
     medico_legal.grossesse =
         medico_legal.grossesse || payload["grossesse"].as_bool().unwrap_or(false);
     medico_legal.maladie_cardiovasculaire = medico_legal.maladie_cardiovasculaire
-        || payload["maladie_cardiovasculaire"].as_bool().unwrap_or(false);
+        || payload["maladie_cardiovasculaire"]
+            .as_bool()
+            .unwrap_or(false);
 
     serde_json::json!({
         "allergies": allergies,
