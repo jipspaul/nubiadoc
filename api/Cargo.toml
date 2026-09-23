@@ -69,6 +69,11 @@ csv              = "1"
 # les features `image`/`svg` : on ne consomme que la matrice de modules
 # (`to_colors()`), dessinée en rectangles vectoriels dans le PDF.
 qrcode = { version = "0.14", default-features = false }
+# DP-F22.a (#7157) : lecture/écriture de l'archive zip d'un modèle `.docx`
+# importé (`letter_docx`). Seul le codec Deflate est nécessaire (compression
+# standard des `.docx` produits par Word/LibreOffice) — pas besoin de
+# bzip2/zstd/aes.
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tokio-tungstenite = "0.24"

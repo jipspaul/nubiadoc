@@ -116,6 +116,7 @@ mod invoice_reminder;
 pub mod kms_env;
 mod lab_price_list;
 mod lab_work_orders;
+mod letter_docx;
 mod letters;
 mod local_storage_signer;
 mod maintenance;

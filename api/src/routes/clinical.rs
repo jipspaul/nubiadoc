@@ -169,6 +169,12 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             get(letters::list_letter_templates).post(letters::create_letter_template),
         )
         .route(
+            "/v1/letter-templates/import",
+            post(letters::import_letter_template).route_layer(DefaultBodyLimit::max(
+                letters::MAX_DOCX_UPLOAD_SIZE + 64 * 1024,
+            )),
+        )
+        .route(
             "/v1/patients/:id/letters",
             post(letters::generate_patient_letter),
         )
