@@ -3401,3 +3401,34 @@ Verdicts négatifs bruts : 11 MORT + 26 CASSÉ = **37, tous vérifiés un par un
 Le **seul chemin réellement cassé de la ronde** (#7485, transfert de stock refusé qui détruit l'écran)
 a été trouvé par **test ciblé**, pas par le marcheur — c'est la limite du balayage automatique :
 il trouve les écrans, il ne provoque pas les refus métier.
+
+#### Ronde R90 — 2026-09-23 — cible diff-driven : écrans livrés par DP-F18/F20/F21 (questionnaires, dashboard à widgets, maintenance)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (Disponibilité/Offres/Ma visite, 390×844) | 8 | 7 | 7 | 0 | 0 | 2026-09-23T06:49:57+00:00 |
+| secretariat | `/maintenance` (écran **neuf** #7166, 1280×800) | 25 | 24 | 24 | 0 | 0 | 2026-09-23T06:49:57+00:00 |
+| praticien | `/questionnaire-templates` (écran **neuf** #7158, 1280×800) | 2 | 2 | 2 | 0 | 0 | 2026-09-23T06:49:57+00:00 |
+| praticien | `/questionnaire-templates` → éditeur (1280×800) | 11 | 5 | 5 | 0 | 0 | 2026-09-23T06:49:57+00:00 |
+| pharmacie | `/` (File des commandes, 1280×800) | 22 | 21 | 21 | 0 | 0 | 2026-09-23T06:49:57+00:00 |
+| patient | `/profile` (390×844) | 13 | 12 | 12 | 0 | 0 | 2026-09-23T06:49:57+00:00 |
+| praticien | `/` (Tableau de bord + panneau « Personnaliser », 1280/1440) | 33 | 3 | 3 | 0 | 0 | 2026-09-23T06:49:57+00:00 |
+| secretariat | `/maintenance` → dialogue « Nouveau ticket » (1280×800) | 10 | 6 | 6 | 0 | 0 | 2026-09-23T06:49:57+00:00 |
+
+**Notes de ronde R90** — total : **124 contrôles inventoriés, 80 activés, 0 mort, 0 cassé.** Huit verdicts « MORT » bruts ont été produits par le harnais puis **infirmés un par un** en test isolé (contrôle hors fenêtre, route poussée sans changement d'URL, ou sélecteur de fichier natif) : aucun n'est rapporté comme bug. Leçon de harnais à reporter : re-viser après défilement, et réinitialiser la route quand l'arbre Semantics change massivement sans que l'URL bouge.
+
+- **infirmiere — `/` (Disponibilité/Offres/Ma visite, 390×844)** : 3 onglets + bascule « En ligne » (1 requête PATCH observée) + 3 actions d'en-tête. « Se déconnecter » non activé (destructif).
+
+- **secretariat — `/maintenance` (écran **neuf** #7166, 1280×800)** : FAB « Nouveau ticket » → dialogue à 10 contrôles (Titre, Description, sélecteur d'équipement, Priorité, e-mail technicien, photo, Annuler, Créer). Sélecteur d'équipement **vérifié vivant** : il liste bien « QA R90 Autoclave Salle 2 » + « Ignorer ». 1 verdict MORT initial (FAB) **infirmé** en test isolé — artefact de harnais (le contrôle précédent pousse une route sans changer l'URL).
+
+- **praticien — `/questionnaire-templates` (écran **neuf** #7158, 1280×800)** : « Créer mon propre modèle » → éditeur ; la tuile du modèle standard se déplie en aperçu **lecture seule** (9 champs tous DISABLED — légitime : modèle global). 1 MORT initial **infirmé** (même artefact de harnais).
+
+- **praticien — `/questionnaire-templates` → éditeur (1280×800)** : Titre, « Ajouter une question », Clé, Libellé, « Enregistrer ». « Enregistrer » **légitimement DISABLED** tant que titre+clé+libellé ne sont pas remplis, puis ACTIF. Le tuile-question expose Type de réponse, Afficher si, Réponse obligatoire, Signaler à l'attention — tous libellés. Échec d'enregistrement → **#7507**.
+
+- **pharmacie — `/` (File des commandes, 1280×800)** : Rail (4 entrées), facettes chiffrées, recherche, actions de ligne contextuelles au statut. 0 mort, 0 cassé.
+
+- **patient — `/profile` (390×844)** : **6 verdicts MORT initiaux, tous infirmés un par un** : 5 (Médecin traitant, Mes proches, Consentements, Passeport implantaire, Ma pharmacie) étaient **hors fenêtre** — après défilement ils naviguent bien vers /profile/referring-doctor, /profile/dependents, /profile/consents, /implant-passport, /pharmacy ; le 6e (« Modifier la photo de profil ») ouvre un **sélecteur de fichier natif** (`filechooser=true` capté par Playwright), invisible au diff DOM/pixel. « Authentification biométrique » DISABLED (non supportée sur web — légitime).
+
+- **praticien — `/` (Tableau de bord + panneau « Personnaliser », 1280/1440)** : « Personnaliser » ouvre le panneau (« Glissez pour réordonner, décochez pour masquer ») ; décocher un widget **émet réellement** `PUT /v1/me/dashboard-layout` sans le widget et **persiste après rechargement** ; « Terminé » referme. *Réserve a11y* : les 8 cases à cocher de widgets sont exposées **sans libellé accessible** (`aria-label` vide) — le libellé visible est un nœud frère.
+
+- **secretariat — `/maintenance` → dialogue « Nouveau ticket » (1280×800)** : **Cas adversariaux tous PASSÉS** : double-clic rapide sur « Créer le ticket » → **1 seul POST**, **1 seul ticket** créé (anti-double-submit OK) ; formulaire vide → refus propre, aucun ticket créé ; titre de 250 caractères → **0 contrôle hors cadre** (aucun débordement).
