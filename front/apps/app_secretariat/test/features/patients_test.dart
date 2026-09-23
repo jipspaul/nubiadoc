@@ -974,6 +974,28 @@ void main() {
 
           expect(searchField.focusNode!.hasFocus, isTrue);
         });
+
+        testWidgets(
+            'le pied de liste affiche le bandeau des quatre raccourcis '
+            '(#7539)', (tester) async {
+          tester.view.physicalSize = const Size(1360, 900);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+          await tester.pumpWidget(buildPage());
+          await tester.pumpAndSettle();
+
+          expect(
+            find.byKey(const Key('patients_keyboard_shortcuts')),
+            findsOneWidget,
+          );
+          expect(find.text('naviguer'), findsOneWidget);
+          expect(find.text('ouvrir la fiche'), findsOneWidget);
+          expect(find.text('rechercher'), findsOneWidget);
+          expect(find.text('nouveau'), findsOneWidget);
+        });
       });
     });
 
