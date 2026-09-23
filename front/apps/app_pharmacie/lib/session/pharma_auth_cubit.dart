@@ -51,6 +51,7 @@ class PharmaAuthCubit extends Cubit<AuthState> {
     required DeviceRegistrationService deviceRegistration,
     required GetPharmacyMembershipsUseCase memberships,
     required SelectPharmacyContextUseCase selectContext,
+    required PharmacySessionRepository sessionRepository,
     required String app,
   })  : _login = login,
         _logout = logout,
@@ -58,6 +59,7 @@ class PharmaAuthCubit extends Cubit<AuthState> {
         _deviceRegistration = deviceRegistration,
         _memberships = memberships,
         _selectContext = selectContext,
+        _sessionRepository = sessionRepository,
         _app = app,
         super(const AuthUnknown());
 
@@ -67,6 +69,7 @@ class PharmaAuthCubit extends Cubit<AuthState> {
   final DeviceRegistrationService _deviceRegistration;
   final GetPharmacyMembershipsUseCase _memberships;
   final SelectPharmacyContextUseCase _selectContext;
+  final PharmacySessionRepository _sessionRepository;
   final String _app;
 
   static const String _noMembershipMessage =
@@ -88,6 +91,15 @@ class PharmaAuthCubit extends Cubit<AuthState> {
       // ce cas (/v1/me redérive pharmacy_memberships depuis les claims du
       // token pharma lui-même, cf. #3853 — pas besoin de re-sélectionner).
       if (_tokenKind(token) == 'pharma') {
+        // #7542 : sans ce hydrate, `reselectContext` (hook post-refresh, cf.
+        // PharmacySessionRepositoryImpl) reste un no-op silencieux — son état
+        // `_selectedPharmacyId` n'est sinon jamais peuplé quand la session est
+        // restaurée depuis un token déjà pharma (donc sans repasser par
+        // selectContext), et l'app entière tombe en 403 au refresh suivant.
+        final pharmacyId = _tokenClaim(token, 'pharmacy_id');
+        if (pharmacyId != null) {
+          _sessionRepository.hydrateSelectedPharmacyId(pharmacyId);
+        }
         final membershipsResult = await _memberships();
         membershipsResult.fold(
           // Seul un vrai rejet du token (401) prouve que la session n'est
@@ -128,14 +140,18 @@ class PharmaAuthCubit extends Cubit<AuthState> {
   /// Lit `kind` dans le payload du JWT sans vérifier la signature — sert
   /// uniquement à choisir la branche de restauration locale, jamais une
   /// décision de sécurité (le back authentifie réellement chaque appel).
-  String? _tokenKind(String token) {
+  String? _tokenKind(String token) => _tokenClaim(token, 'kind');
+
+  /// Lit un claim quelconque du payload JWT sans vérifier la signature —
+  /// même limite que [_tokenKind] : jamais une décision de sécurité.
+  String? _tokenClaim(String token, String claim) {
     final parts = token.split('.');
     if (parts.length != 3) return null;
     try {
       final payload = jsonDecode(
         utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
       ) as Map<String, dynamic>;
-      return payload['kind'] as String?;
+      return payload[claim] as String?;
     } catch (_) {
       return null;
     }

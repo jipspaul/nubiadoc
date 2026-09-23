@@ -32,6 +32,9 @@ class MockGetPharmacyMembershipsUseCase extends Mock
 class MockSelectPharmacyContextUseCase extends Mock
     implements SelectPharmacyContextUseCase {}
 
+class MockPharmacySessionRepository extends Mock
+    implements PharmacySessionRepository {}
+
 void main() {
   late MockLoginUseCase login;
   late MockLogoutUseCase logout;
@@ -39,6 +42,7 @@ void main() {
   late MockDeviceRegistrationService deviceRegistration;
   late MockGetPharmacyMembershipsUseCase memberships;
   late MockSelectPharmacyContextUseCase selectContext;
+  late MockPharmacySessionRepository sessionRepository;
 
   const membership = PharmacyMembership(
     pharmacyId: 'f0000000-0000-0000-0000-0000000000f1',
@@ -60,6 +64,7 @@ void main() {
         deviceRegistration: deviceRegistration,
         memberships: memberships,
         selectContext: selectContext,
+        sessionRepository: sessionRepository,
         app: 'pharmacie',
       );
 
@@ -70,6 +75,7 @@ void main() {
     deviceRegistration = MockDeviceRegistrationService();
     memberships = MockGetPharmacyMembershipsUseCase();
     selectContext = MockSelectPharmacyContextUseCase();
+    sessionRepository = MockPharmacySessionRepository();
 
     when(() =>
             login(email: any(named: 'email'), password: any(named: 'password')))
@@ -221,7 +227,12 @@ void main() {
       build: buildCubit,
       setUp: () {
         when(() => tokenStorage.getAccessToken()).thenAnswer(
-          (_) async => _fakeJwt({'sub': 'u1', 'kind': 'pharma', 'exp': 0}),
+          (_) async => _fakeJwt({
+            'sub': 'u1',
+            'kind': 'pharma',
+            'pharmacy_id': membership.pharmacyId,
+            'exp': 0,
+          }),
         );
       },
       act: (cubit) => cubit.restore(),
@@ -235,6 +246,11 @@ void main() {
       verify: (_) {
         verify(() => memberships()).called(1);
         verifyNever(() => selectContext(any()));
+        // #7542 : sans cette hydratation, reselectContext (hook post-refresh)
+        // reste un no-op après une réouverture d'app et l'app entière tombe
+        // en 403 au refresh suivant.
+        verify(() => sessionRepository
+            .hydrateSelectedPharmacyId(membership.pharmacyId)).called(1);
       },
     );
 

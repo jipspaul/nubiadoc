@@ -74,6 +74,12 @@ class PharmacySessionRepositoryImpl implements PharmacySessionRepository {
     }
   }
 
+  @override
+  void hydrateSelectedPharmacyId(String pharmacyId) {
+    if (pharmacyId.isEmpty) return;
+    _selectedPharmacyId = pharmacyId;
+  }
+
   /// Re-scope le token courant sur la pharmacie sélectionnée après un refresh.
   ///
   /// Branché sur `AuthInterceptor.onTokensRefreshed` (app pharmacie) : le

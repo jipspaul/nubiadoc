@@ -182,6 +182,36 @@ void main() {
       expect(storage.access, 'jwt-pro-neuf');
     });
 
+    // #7542 : après une réouverture d'app, selectContext() n'est jamais
+    // rappelé (le token stocké est déjà kind:"pharma") — hydrateSelectedPharmacyId
+    // est le seul moyen de peupler _selectedPharmacyId dans ce cas, pour que
+    // ce hook reste opérant au refresh suivant.
+    test('re-scope le token via le Dio nu après une hydratation (sans appel API)',
+        () async {
+      repo.hydrateSelectedPharmacyId('f1');
+
+      when(() => plainDio.post<Map<String, dynamic>>(
+            '/auth/select-pharmacy-context',
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenAnswer(
+        (_) async => Response(
+          requestOptions: RequestOptions(path: '/auth/select-pharmacy-context'),
+          statusCode: 200,
+          data: const {
+            'access_token': 'jwt-pharma-2',
+            'context': {'pharmacy_id': 'f1', 'role': 'pharmacist'},
+          },
+        ),
+      );
+
+      await repo.reselectContext(plainDio);
+
+      expect(storage.access, 'jwt-pharma-2');
+      expect(storage.refresh, 'refresh-2');
+      verifyNever(() => api.selectContext(any()));
+    });
+
     test('re-scope le token via le Dio nu après une sélection', () async {
       when(() => api.selectContext('f1')).thenAnswer(
         (_) async => const SelectPharmacyContextDto(
