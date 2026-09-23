@@ -3230,3 +3230,16 @@ L'agent correcteur a repris 5 des 8 findings dans la foulée ; chacun a été **
 | **#7533** | `4f1dd42a` — nom accessible sur la case « préparée » | Les deux cases de la commande à 2 lignes portent désormais `aria-label="Préparée — QA-R91 A11Y AMOXICILLINE 500mg"` et `aria-label="Préparée — QA-R91 A11Y IBUPROFENE 400mg"`. | ✅ **corrigé** |
 
 **Restent ouverts à la clôture : #7523 (P1, placeholder Word scindé), #7527 (P2, volet d'agenda superposé), #7535 (P1, liste patients non paginée — secrétariat ET praticien).**
+
+#### R91 — note de clôture : le défaut de pagination n'est pas systémique
+
+Contrepoint utile à **#7535**, mesuré avant clôture : `/devis` côté pharmacie **charge bien tout**.
+`GET /v1/pharmacy/quotes` rend **131** devis (idem avec `limit=500` — c'est le total), répartis en
+`accepted 93 · refused 16 · expired 5 · sent 2 · draft 15` ; l'écran affiche « **131 devis affichés
+sur 131** » et ses quatre facettes somment **exactement** à 131 (Brouillons 15 · Envoyés 2 ·
+Acceptés 93 · Refusés/expirés 21). Le patron correct existe donc ailleurs dans le produit : #7535
+vise bien la liste des **dossiers patients**, pas une limite générale d'architecture.
+
+**X9 refermée à l'écran au passage** : le devis `DEV-P-0131` créé pendant la ronde apparaît en tête
+de cette liste avec « Marc D. · **Accepté le 23/09** · QA-R91 Orthese nocturne · 1 article · 89,00 € »
+et son action de suite « Préparer » — la décision du patient remonte bien jusqu'à l'officine.
