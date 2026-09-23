@@ -412,7 +412,8 @@ mod tests {
         let mut buf = Vec::new();
         {
             let mut writer = ZipWriter::new(Cursor::new(&mut buf));
-            let deflated = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            let deflated =
+                FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
             writer.start_file("word/document.xml", deflated).unwrap();
             writer.write_all(xml.as_bytes()).unwrap();
             writer.finish().unwrap();
