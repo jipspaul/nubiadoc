@@ -3591,3 +3591,25 @@ il trouve les écrans, il ne provoque pas les refus métier.
 | Saisie invalide + texte très long (250 car.) | secrétariat `/patients/new` (Prénom/Nom à 250 « Z », téléphone « 00 ») | `422 validation_error`, **aucun 500**, message digne à l'écran : « Certaines informations sont manquantes ou invalides. Merci de vérifier le formulaire. » Pas de débordement : le texte reste dans son champ. |
 | Retour navigateur au milieu du flux | secrétariat `/patients/new` → retour | Revient sur `/patients` avec **38 contrôles** et la liste intacte — pas d'écran blanc, pas d'état incohérent. |
 | Coupure réseau (`route.abort()` sur `**/v1/**`) | **les 5 apps** | Toutes **dignes** : patient / praticien / secrétariat → « Erreur réseau. Vérifiez votre connexion. » + « Réessayer » ; pharmacie → « Impossible de charger vos accès pharmacie. » + « Réessayer » ; infirmière → snackbar « Erreur réseau (hors ligne). ». Aucun spinner infini, aucun canvas vide. *Réserve infirmière rapportée en #7530.* |
+
+#### R91 — second segment : viewports complémentaires (praticien 390, pharmacie 1440, patient 1280)
+
+Même harnais durci. Ces lignes complètent le tableau ci-dessus : **le total consolidé de la ronde R91 est de
+1421 contrôles inventoriés, 573 activés (+796 déjà jugés), 411 OK, 102 « mort » bruts, 40 « cassé » bruts, 14 désactivés, 38 non activés (destructifs), 20 hors d'atteinte, sur 81 couples écran×viewport et les 5 apps.**
+Le verdict ne change pas : **aucun bouton mort ni cassé confirmé** — les 20 candidats re-testés individuellement sont tous fonctionnels, et les « cassé » restent imputables aux trois sondes de rôle légitimes (403 `audit-log`, 403 `stats/activity` côté secrétariat, 404 `quotes/:id/attestation`).
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | non activés | déjà jugés | hors d'atteinte | blanc | last_check |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| patient | `/` | 1280 | 17 | 17 | 17 | 0 | 0 | 0 | 0 | 0 | 0 | 0.6042 | 2026-09-23T14:50:00+00:00 |
+| patient | `/documents` | 1280 | 27 | 16 | 16 | 0 | 0 | 0 | 0 | 11 | 0 | 0.9188 | 2026-09-23T14:50:00+00:00 |
+| patient | `/financial` | 1280 | 9 | 8 | 1 | 0 | 7 | 0 | 0 | 1 | 0 | 0.9665 | 2026-09-23T14:50:00+00:00 |
+| patient | `/home-care` | 1280 | 17 | 13 | 13 | 0 | 0 | 0 | 0 | 4 | 0 | 0.9257 | 2026-09-23T14:50:00+00:00 |
+| pharmacie | `/` | 1440 | 23 | 12 | 12 | 0 | 0 | 0 | 1 | 10 | 0 | 0.774 | 2026-09-23T14:50:00+00:00 |
+| pharmacie | `/stock` | 1440 | 13 | 7 | 7 | 0 | 0 | 0 | 1 | 5 | 0 | 0.706 | 2026-09-23T14:50:00+00:00 |
+| pharmacie | `/devis` | 1440 | 28 | 9 | 9 | 0 | 0 | 0 | 1 | 18 | 0 | 0.7607 | 2026-09-23T14:50:00+00:00 |
+| pharmacie | `/messages` | 1440 | 15 | 6 | 5 | 1 | 0 | 0 | 1 | 8 | 0 | 0.8047 | 2026-09-23T14:50:00+00:00 |
+| praticien | `/agenda` | 390 | 11 | 9 | 5 | 4 | 0 | 0 | 0 | 2 | 0 | 0.8827 | 2026-09-23T14:50:00+00:00 |
+| praticien | `/waiting-room` | 390 | 4 | 1 | 1 | 0 | 0 | 1 | 0 | 2 | 0 | 0.9666 | 2026-09-23T14:50:00+00:00 |
+| praticien | `/patients` | 390 | 19 | 17 | 3 | 0 | 14 | 0 | 0 | 2 | 0 | 0.8758 | 2026-09-23T14:50:00+00:00 |
+| praticien | `/ordonnances` | 390 | 3 | 2 | 2 | 0 | 0 | 0 | 0 | 1 | 0 | 0.9599 | 2026-09-23T14:50:00+00:00 |
+| praticien | `/messages` | 390 | 10 | 8 | 1 | 7 | 0 | 0 | 0 | 2 | 0 | 0.9096 | 2026-09-23T14:50:00+00:00 |
