@@ -33,6 +33,9 @@ import '../features/consent_templates/consent_templates_page.dart';
 import '../features/register/pro_register_cubit.dart';
 import '../features/register/pro_register_page.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
+import '../features/lab_work/lab_margin_cubit.dart';
+import '../features/lab_work/lab_stats_cubit.dart';
+import '../features/lab_work/lab_stats_page.dart';
 import '../features/lab_work/lab_work_orders_bloc.dart';
 import '../features/lab_work/lab_work_orders_page.dart';
 import '../features/shell/practicien_shell.dart';
@@ -63,6 +66,7 @@ class AppRouter {
   static const stock = '/stock';
   static const stockInventory = '/stock-inventory';
   static const labWorkOrders = '/lab-work-orders';
+  static const labStats = '/lab-stats';
   static const a2uiDemo = '/a2ui-demo';
   static const registerPro = '/register-pro';
   static const cabinetSetup = '/cabinet-setup';
@@ -163,6 +167,13 @@ class AppRouter {
         GoRoute(
           path: tasks,
           builder: (_, __) => const TasksPage(),
+        ),
+        GoRoute(
+          path: labStats,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<LabStatsCubit>()..load(),
+            child: const LabStatsPage(),
+          ),
         ),
         GoRoute(
           path: cabinetBrief,
@@ -311,8 +322,15 @@ class AppRouter {
             StatefulShellBranch(routes: [
               GoRoute(
                 path: labWorkOrders,
-                builder: (_, __) => BlocProvider(
-                  create: (_) => GetIt.instance<LabWorkOrdersBloc>(),
+                builder: (_, __) => MultiBlocProvider(
+                  providers: [
+                    BlocProvider(
+                      create: (_) => GetIt.instance<LabWorkOrdersBloc>(),
+                    ),
+                    BlocProvider(
+                      create: (_) => GetIt.instance<LabMarginCubit>(),
+                    ),
+                  ],
                   child: const LabWorkOrdersPage(),
                 ),
               ),

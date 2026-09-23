@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/cabinet_stats/cabinet_activity_stat_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_stats/cabinet_billing_stats_dto.dart';
+import 'package:nubia_data/src/remote/cabinet_stats/lab_stats_dto.dart';
 
 class CabinetStatsApi {
   final Dio _dio;
@@ -23,5 +24,16 @@ class CabinetStatsApi {
     final response =
         await _dio.get<Map<String, dynamic>>('/cabinet/stats/billing');
     return CabinetBillingStatsDto.fromJson(response.data!);
+  }
+
+  /// GET /cabinet/lab-stats?period=YYYY-MM (#7163, DP-F19.c) : coût labo /
+  /// CA patient / marge par acte, par praticien, par laboratoire. Réponse un
+  /// objet plat (pas de wrapper). `period` par défaut : mois courant.
+  Future<LabStatsDto> getLabStats({String? period}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/cabinet/lab-stats',
+      queryParameters: period == null ? null : {'period': period},
+    );
+    return LabStatsDto.fromJson(response.data!);
   }
 }

@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/lab_work_orders/lab_work_orders_api.dart';
+import 'package:nubia_domain/src/entities/lab_price_list_item.dart';
 import 'package:nubia_domain/src/entities/lab_work_order.dart';
 import 'package:nubia_domain/src/entities/today_lab_work_order.dart';
 import 'package:nubia_domain/src/repositories/lab_work_orders_repository.dart';
@@ -69,6 +70,24 @@ class LabWorkOrdersRepositoryImpl implements LabWorkOrdersRepository {
       }
       return Left(ServerFailure(
         message: "Impossible de mettre à jour le statut.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<LabPriceListItem>>> listPriceList() async {
+    try {
+      final dtos = await _api.listPriceList();
+      return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de charger la grille tarifaire.',
         statusCode: e.response?.statusCode,
       ));
     } catch (e) {
