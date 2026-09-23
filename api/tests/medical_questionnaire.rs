@@ -760,6 +760,112 @@ async fn review_medical_questionnaire_imports_and_marks_reviewed() {
     cleanup_fixtures(&db, &f).await;
 }
 
+// ── Test 8b : review importe grossesse/maladie_cardiovasculaire (#7525) ─────
+// Les deux clés du standard seedé par la migration 0294 marquées
+// safety_flag: true, encore muettes après #7505 (qui n'avait réaligné que
+// antecedents_chirurgicaux/traitement_en_cours/anticoagulants).
+
+#[tokio::test]
+async fn review_medical_questionnaire_imports_grossesse_and_maladie_cardiovasculaire() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, true).await;
+    let patient_token = make_patient_token(f.patient_user_id, f.account_id);
+    let prac_token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+    let state = make_state(app_pool().await);
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/medical-questionnaire")
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "cabinet_id": f.cabinet_id,
+                        "payload": {
+                            "grossesse": true,
+                            "maladie_cardiovasculaire": true
+                        }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/medical-questionnaire")
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({"cabinet_id": f.cabinet_id, "submit": true}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let review_resp = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-questionnaire/review",
+                    f.patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", prac_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(review_resp.status(), StatusCode::OK);
+
+    let record_resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    f.patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", prac_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(record_resp.status(), StatusCode::OK);
+    let record_bytes = axum::body::to_bytes(record_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let record: serde_json::Value = serde_json::from_slice(&record_bytes).unwrap();
+    assert_eq!(record["medico_legal"]["grossesse"], true);
+    assert_eq!(record["medico_legal"]["maladie_cardiovasculaire"], true);
+
+    let alert_labels: Vec<&str> = record["medical_alerts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["label"].as_str().unwrap())
+        .collect();
+    assert!(alert_labels.contains(&"Grossesse"), "{record}");
+    assert!(
+        alert_labels.contains(&"Maladie cardiovasculaire"),
+        "{record}"
+    );
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 // ── Test 9 : review d'une soumission déjà reviewed → 409 ────────────────────
 
 #[tokio::test]

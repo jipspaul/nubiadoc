@@ -381,7 +381,9 @@ async fn get_medical_record_no_record_defaults_medico_legal_false() {
             "ald": false,
             "anticoagulants": false,
             "bisphosphonates": false,
-            "risque_endocardite": false
+            "risque_endocardite": false,
+            "grossesse": false,
+            "maladie_cardiovasculaire": false
         }),
         "aucun dossier existant : tous les flags médico-légaux à false"
     );
@@ -462,7 +464,9 @@ async fn patch_medical_record_medico_legal_persists() {
             "ald": true,
             "anticoagulants": true,
             "bisphosphonates": false,
-            "risque_endocardite": false
+            "risque_endocardite": false,
+            "grossesse": false,
+            "maladie_cardiovasculaire": false
         }),
         "les flags médico-légaux doivent persister entre PATCH et GET"
     );

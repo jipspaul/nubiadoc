@@ -45,6 +45,16 @@ pub struct MedicoLegalFlags {
     /// antibioprophylaxie requise avant certains actes invasifs).
     #[serde(default)]
     pub risque_endocardite: bool,
+    /// Grossesse déclarée (questionnaire patient, clé `grossesse`, `safety_flag:
+    /// true` dans le standard seedé par la migration 0294) — affichage
+    /// renforcé uniquement, aucune logique décisionnelle automatique (#7525).
+    #[serde(default)]
+    pub grossesse: bool,
+    /// Maladie cardiovasculaire déclarée (questionnaire patient, clé
+    /// `maladie_cardiovasculaire`, `safety_flag: true`) — affichage renforcé
+    /// uniquement, aucune logique décisionnelle automatique (#7525).
+    #[serde(default)]
+    pub maladie_cardiovasculaire: bool,
 }
 
 /// Réponse de `GET /v1/cabinet/patients/:id/medical-record`.

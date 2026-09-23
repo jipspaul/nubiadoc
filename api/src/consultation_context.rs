@@ -497,6 +497,20 @@ pub(crate) fn medico_legal_alerts(flags: &MedicoLegalFlags) -> Vec<MedicalAlertI
             severity: None,
         });
     }
+    if flags.grossesse {
+        alerts.push(MedicalAlertItem {
+            kind: "medico_legal".to_string(),
+            label: "Grossesse".to_string(),
+            severity: None,
+        });
+    }
+    if flags.maladie_cardiovasculaire {
+        alerts.push(MedicalAlertItem {
+            kind: "medico_legal".to_string(),
+            label: "Maladie cardiovasculaire".to_string(),
+            severity: None,
+        });
+    }
     alerts
 }
 
@@ -596,6 +610,31 @@ mod tests {
                 ("allergie", "Nickel", None),
                 ("medico_legal", "Anticoagulant (AVK)", None),
                 ("medico_legal", "ALD", None),
+            ]
+        );
+    }
+
+    #[test]
+    fn record_medical_alerts_surfaces_grossesse_and_maladie_cardiovasculaire() {
+        // #7525 : ces deux flags (safety_flag: true dans le standard seedé,
+        // migration 0294) doivent produire une pastille au même titre que
+        // anticoagulants/ald.
+        let data = json!({
+            "allergies": [],
+            "treatments": [],
+            "history": null,
+            "medico_legal": { "grossesse": true, "maladie_cardiovasculaire": true }
+        });
+        let alerts = record_medical_alerts(&data);
+        let view: Vec<(&str, &str)> = alerts
+            .iter()
+            .map(|a| (a.kind.as_str(), a.label.as_str()))
+            .collect();
+        assert_eq!(
+            view,
+            vec![
+                ("medico_legal", "Grossesse"),
+                ("medico_legal", "Maladie cardiovasculaire"),
             ]
         );
     }
