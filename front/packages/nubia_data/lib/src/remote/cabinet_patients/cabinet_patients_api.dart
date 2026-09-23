@@ -8,18 +8,32 @@ class CabinetPatientsApi {
 
   CabinetPatientsApi(ApiClient client) : _dio = client.dio;
 
-  Future<List<CabinetPatientDto>> list({int page = 1, String? q}) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/cabinet/patients',
-      queryParameters: {
-        'page': page,
-        if (q != null && q.isNotEmpty) 'q': q,
-      },
-    );
-    final data = (response.data!['data'] as List<dynamic>?) ?? [];
-    return data
-        .map((e) => CabinetPatientDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+  // Pagination par cursor côté API (`api/src/clinical.rs` `list_cabinet_patients`) :
+  // pas de pagination `page` côté serveur — on suit `page.next_cursor` jusqu'à
+  // épuisement pour ramener le cabinet complet plutôt que les 50 premiers
+  // dossiers (#7535). `limit: 200` (le max accepté par le serveur) réduit le
+  // nombre d'allers-retours par rapport au défaut serveur (50). Même pattern
+  // que `DocumentApi._getAllPages`.
+  Future<List<CabinetPatientDto>> list({String? q}) async {
+    final result = <CabinetPatientDto>[];
+    String? cursor;
+    do {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/cabinet/patients',
+        queryParameters: {
+          'limit': 200,
+          if (cursor != null) 'cursor': cursor,
+          if (q != null && q.isNotEmpty) 'q': q,
+        },
+      );
+      final data = (response.data!['data'] as List<dynamic>?) ?? [];
+      result.addAll(
+        data.map((e) => CabinetPatientDto.fromJson(e as Map<String, dynamic>)),
+      );
+      cursor = (response.data!['page'] as Map<String, dynamic>?)?['next_cursor']
+          as String?;
+    } while (cursor != null);
+    return result;
   }
 
   Future<CabinetPatientDto> getById(String id) async {
