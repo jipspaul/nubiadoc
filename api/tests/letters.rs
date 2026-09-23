@@ -1,6 +1,8 @@
 //! Tests d'intégration : moteur de courriers types (#7197)
 //! - `GET`/`POST /v1/letter-templates`
 //! - `POST /v1/patients/:id/letters`
+//! - `POST /v1/letter-templates/import` (#7157, modèle `.docx`) — fixtures
+//!   dans `tests/fixtures/letters/`.
 
 use axum::{
     body::Body,
@@ -265,6 +267,82 @@ async fn call(
         }
     };
     let response = app(state).oneshot(request).await.unwrap();
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    (status, value)
+}
+
+// ── Fixtures + helpers pour POST /v1/letter-templates/import (#7157) ─────────
+
+const DOCX_MIME: &str =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+/// Placeholders : patient.prenom, patient.nom, rdv.date, rdv.heure,
+/// cabinet.nom, praticien.nom (tous connus, un seul run chacun).
+const SAMPLE_DOCX: &[u8] = include_bytes!("fixtures/letters/sample_template.docx");
+/// Mêmes placeholders patient + `devis.date`/`devis.montant` (inconnus).
+const UNKNOWN_PLACEHOLDER_DOCX: &[u8] =
+    include_bytes!("fixtures/letters/unknown_placeholder.docx");
+
+/// Construit un corps multipart pour `POST /v1/letter-templates/import`.
+fn make_import_multipart(
+    boundary: &str,
+    name: &str,
+    kind: &str,
+    file_bytes: &[u8],
+    file_name: &str,
+    mime: &str,
+) -> Vec<u8> {
+    let mut body: Vec<u8> = Vec::new();
+
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(b"Content-Disposition: form-data; name=\"name\"\r\n\r\n");
+    body.extend_from_slice(name.as_bytes());
+    body.extend_from_slice(b"\r\n");
+
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(b"Content-Disposition: form-data; name=\"kind\"\r\n\r\n");
+    body.extend_from_slice(kind.as_bytes());
+    body.extend_from_slice(b"\r\n");
+
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(
+        format!("Content-Disposition: form-data; name=\"file\"; filename=\"{file_name}\"\r\n")
+            .as_bytes(),
+    );
+    body.extend_from_slice(format!("Content-Type: {mime}\r\n").as_bytes());
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(file_bytes);
+    body.extend_from_slice(b"\r\n");
+
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    body
+}
+
+async fn call_multipart(
+    state: AppState,
+    uri: &str,
+    token: &str,
+    boundary: &str,
+    body: Vec<u8>,
+) -> (StatusCode, serde_json::Value) {
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header("Authorization", format!("Bearer {token}"))
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let status = response.status();
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
@@ -823,4 +901,215 @@ async fn cabinet_adresse_falls_back_to_establishment_directory() {
         .execute(&db)
         .await
         .ok();
+}
+
+// ── Test : import .docx — placeholders listés, rendu produit (#7157) ─────────
+
+#[tokio::test]
+async fn import_docx_template_lists_placeholders_and_generates_a_letter() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "secretary");
+
+    let boundary = "testboundaryimport001";
+    let body = make_import_multipart(
+        boundary,
+        "Convocation maison",
+        "convocation",
+        SAMPLE_DOCX,
+        "convocation.docx",
+        DOCX_MIME,
+    );
+    let (status, resp) = call_multipart(
+        state_with(app_pool().await),
+        "/v1/letter-templates/import",
+        &token,
+        boundary,
+        body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{resp}");
+    assert_eq!(
+        resp["placeholders"],
+        json!([
+            "patient.prenom",
+            "patient.nom",
+            "rdv.date",
+            "rdv.heure",
+            "cabinet.nom",
+            "praticien.nom"
+        ])
+    );
+    let template_id = resp["template_id"].as_str().unwrap().to_string();
+
+    // Le modèle importé apparaît dans le listing, avec source_format = docx
+    // et les placeholders mis en cache à l'import.
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/letter-templates",
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{resp}");
+    let imported = resp
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == template_id)
+        .unwrap();
+    assert_eq!(imported["source_format"], "docx");
+    assert_eq!(imported["is_global"], false);
+    assert!(imported["placeholders"].as_array().unwrap().contains(&json!("cabinet.nom")));
+
+    // Rendu pour le patient : pas de convertisseur PDF en CI -> repli .docx.
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/patients/{}/letters", f.patient_id),
+        &make_pro_jwt(f.user_id, f.cabinet_id, "practitioner"),
+        Some(json!({ "template_id": template_id, "overrides": {} })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{resp}");
+    let preview = resp["body"].as_str().unwrap();
+    assert!(
+        preview.starts_with("Bonjour Léa Dupont (test),\nNous vous confirmons votre rendez-vous du "),
+        "{preview}"
+    );
+    assert!(preview.contains(&format!("au cabinet Cabinet Letters {}.", f.cabinet_id)));
+    assert!(preview.ends_with("Cordialement,\nMartin Durand"));
+    assert!(resp["filename"].as_str().unwrap().ends_with(".docx"));
+
+    let document_id: Uuid = serde_json::from_value(resp["document_id"].clone()).unwrap();
+    let doc = sqlx::query(
+        "SELECT mime_type, storage_key FROM document WHERE id = $1 AND cabinet_id = $2",
+    )
+    .bind(document_id)
+    .bind(f.cabinet_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(doc.try_get::<String, _>("mime_type").unwrap(), DOCX_MIME);
+    let storage_key: String = doc.try_get("storage_key").unwrap();
+    assert!(storage_key.ends_with(".docx"));
+
+    let blob = sqlx::query("SELECT bytes FROM object_storage_blob WHERE key = $1")
+        .bind(&storage_key)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let bytes: Vec<u8> = blob.try_get("bytes").unwrap();
+    // Signature locale zip (`PK`) : le .docx rendu est une archive valide.
+    assert!(bytes.starts_with(&[0x50, 0x4B]));
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test : import .docx — placeholder inconnu refusé (422 + liste) ───────────
+
+#[tokio::test]
+async fn import_docx_template_rejects_unknown_placeholders() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "secretary");
+
+    let boundary = "testboundaryimport002";
+    let body = make_import_multipart(
+        boundary,
+        "Relance devis",
+        "relance",
+        UNKNOWN_PLACEHOLDER_DOCX,
+        "relance.docx",
+        DOCX_MIME,
+    );
+    let (status, resp) = call_multipart(
+        state_with(app_pool().await),
+        "/v1/letter-templates/import",
+        &token,
+        boundary,
+        body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{resp}");
+    assert_eq!(resp["code"], "unknown_placeholders");
+    assert_eq!(resp["placeholders"], json!(["devis.date", "devis.montant"]));
+
+    // Rien n'a été inséré (le rejet est bien avant l'écriture en base).
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/letter-templates",
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{resp}");
+    assert!(!resp.as_array().unwrap().iter().any(|t| t["name"] == "Relance devis"));
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test : import .docx — fichier non-docx / MIME menteur refusés (422) ──────
+
+#[tokio::test]
+async fn import_docx_template_rejects_a_non_docx_file() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "secretary");
+
+    // Contenu texte brut déclaré comme un .docx : le MIME sniffing structurel
+    // (ouverture zip + présence de word/document.xml) le rejette.
+    let boundary = "testboundaryimport003";
+    let body = make_import_multipart(
+        boundary,
+        "Faux modèle",
+        "autre",
+        b"ceci n'est pas un docx",
+        "faux.docx",
+        DOCX_MIME,
+    );
+    let (status, resp) = call_multipart(
+        state_with(app_pool().await),
+        "/v1/letter-templates/import",
+        &token,
+        boundary,
+        body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{resp}");
+    assert_eq!(resp["code"], "validation_error");
+
+    // Vrai .docx mais Content-Type menteur (#7302, même défense pour l'import).
+    let boundary = "testboundaryimport004";
+    let body = make_import_multipart(
+        boundary,
+        "Faux MIME",
+        "autre",
+        SAMPLE_DOCX,
+        "modele.docx",
+        "application/pdf",
+    );
+    let (status, resp) = call_multipart(
+        state_with(app_pool().await),
+        "/v1/letter-templates/import",
+        &token,
+        boundary,
+        body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{resp}");
+    assert_eq!(resp["code"], "validation_error");
+
+    cleanup(&db, &f).await;
 }

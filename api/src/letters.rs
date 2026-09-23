@@ -17,11 +17,18 @@
 //! `pdf_text::build_text_pdf` (même mécanique sans crate que les devis et
 //! ordonnances) et stocké comme document patient (`document.category =
 //! 'courrier'`, Object Storage) — pas de stockage dédié.
+//!
+//! `POST /v1/letter-templates/import` (#7157) permet en plus d'importer un
+//! modèle `.docx` (cabinet avec sa propre mise en forme/logo) : le fichier
+//! est stocké tel quel (`letter_template.docx_bytes`, `source_format =
+//! 'docx'`, migration 0296) et substitué à la demande dans
+//! `word/document.xml` par [`letter_docx`] — PDF si un convertisseur
+//! (`soffice`) est disponible, sinon `.docx` rendu.
 
 use std::collections::BTreeMap;
 
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Multipart, Path, State},
     http::StatusCode,
     Json,
 };
@@ -31,6 +38,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProSecretaryPlusClaims},
+    letter_docx,
     patient_tags::ensure_secretary_scope,
     pdf_text, AppState,
 };
@@ -73,6 +81,10 @@ const MAX_NAME_CHARS: usize = 200;
 /// auparavant — la valeur part telle quelle dans le corps rendu puis le
 /// PDF, seule la clé était contrôlée via `KNOWN_PLACEHOLDERS`).
 const MAX_OVERRIDE_VALUE_CHARS: usize = 500;
+
+/// Taille maximale d'un modèle `.docx` importé (#7157) — garde-fou mémoire,
+/// un modèle de courrier n'a pas vocation à embarquer des médias volumineux.
+pub(crate) const MAX_DOCX_UPLOAD_SIZE: usize = 5 * 1024 * 1024;
 
 // ── Moteur de substitution (pur) ─────────────────────────────────────────────
 
@@ -200,6 +212,9 @@ pub struct LetterTemplateDto {
     pub body_template: String,
     /// `true` : modèle global seedé (`cabinet_id IS NULL`), lecture seule.
     pub is_global: bool,
+    /// `"text"` (`body_template`) ou `"docx"` (importé, #7157) — cf.
+    /// migration 0296.
+    pub source_format: String,
     /// Placeholders utilisés par le modèle (aide à la saisie des `overrides`).
     pub placeholders: Vec<String>,
     pub created_at: String,
@@ -223,7 +238,8 @@ pub async fn list_letter_templates(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(
-        "SELECT id, name, kind, body_template, (cabinet_id IS NULL) AS is_global, created_at \
+        "SELECT id, name, kind, body_template, source_format, docx_placeholders, \
+                (cabinet_id IS NULL) AS is_global, created_at \
          FROM letter_template \
          ORDER BY (cabinet_id IS NULL) DESC, name",
     )
@@ -238,10 +254,20 @@ pub async fn list_letter_templates(
         let body_template: String = row
             .try_get("body_template")
             .map_err(|_| AppError::Internal)?;
-        // Un modèle inséré hors API (seed, SQL direct) peut référencer un
-        // placeholder inconnu : on le liste quand même, avec la liste vide —
-        // le rendu, lui, le refusera en 422.
-        let placeholders = placeholders(&body_template).unwrap_or_default();
+        let source_format: String = row
+            .try_get("source_format")
+            .map_err(|_| AppError::Internal)?;
+        let placeholders = if source_format == "docx" {
+            // Mis en cache à l'import (`docx_placeholders`, migration 0296)
+            // — évite de dézipper/scanner le fichier à chaque listing.
+            row.try_get("docx_placeholders")
+                .map_err(|_| AppError::Internal)?
+        } else {
+            // Un modèle inséré hors API (seed, SQL direct) peut référencer
+            // un placeholder inconnu : on le liste quand même, avec la
+            // liste vide — le rendu, lui, le refusera en 422.
+            placeholders(&body_template).unwrap_or_default()
+        };
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
         templates.push(LetterTemplateDto {
@@ -250,6 +276,7 @@ pub async fn list_letter_templates(
             kind: row.try_get("kind").map_err(|_| AppError::Internal)?,
             body_template,
             is_global: row.try_get("is_global").map_err(|_| AppError::Internal)?,
+            source_format,
             placeholders,
             created_at: created_at.to_rfc3339(),
         });
@@ -350,6 +377,128 @@ pub async fn create_letter_template(
     ))
 }
 
+// ── POST /v1/letter-templates/import ─────────────────────────────────────────
+
+/// `POST /v1/letter-templates/import` — importe un modèle `.docx` (#7157) :
+/// même contrat/réponse que `create_letter_template`, mais le corps vient
+/// d'un fichier Word plutôt que d'un texte saisi à la main.
+///
+/// Champs multipart :
+/// - `name` : requis, ≤ `MAX_NAME_CHARS`.
+/// - `kind` : requis, dans `VALID_KINDS`.
+/// - `file` : `.docx` requis (≤ `MAX_DOCX_UPLOAD_SIZE`) — MIME OOXML déclaré
+///   (`letter_docx::DOCX_MIME`) ET zip valide contenant `word/document.xml`
+///   → `422 validation_error` sinon.
+///
+/// Placeholders extraits de `word/document.xml` par [`letter_docx::placeholders`] :
+/// hors `KNOWN_PLACEHOLDERS` → `422 unknown_placeholders`. Le fichier
+/// original est stocké tel quel (`letter_template.docx_bytes`, migration
+/// 0296) — substitué à la demande par `generate_patient_letter`, jamais
+/// réécrit à l'import. Retourne `201 { template_id, placeholders }`.
+pub async fn import_letter_template(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    mut multipart: Multipart,
+) -> Result<(StatusCode, Json<CreateLetterTemplateResponse>), AppError> {
+    let mut name_field: Option<String> = None;
+    let mut kind_field: Option<String> = None;
+    let mut file_mime: Option<String> = None;
+    let mut file_bytes: Option<Vec<u8>> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppError::ValidationError)?
+    {
+        let field_name = field.name().unwrap_or("").to_string();
+        match field_name.as_str() {
+            "name" => {
+                name_field = Some(field.text().await.map_err(|_| AppError::ValidationError)?);
+            }
+            "kind" => {
+                kind_field = Some(field.text().await.map_err(|_| AppError::ValidationError)?);
+            }
+            "file" => {
+                file_mime = field
+                    .content_type()
+                    .map(|s| s.split(';').next().unwrap_or("").trim().to_string());
+                let bytes = field.bytes().await.map_err(|_| AppError::ValidationError)?;
+                if bytes.len() > MAX_DOCX_UPLOAD_SIZE {
+                    return Err(AppError::ValidationError);
+                }
+                file_bytes = Some(bytes.to_vec());
+            }
+            _ => {}
+        }
+    }
+
+    let name = name_field.ok_or(AppError::ValidationError)?;
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > MAX_NAME_CHARS {
+        return Err(AppError::ValidationError);
+    }
+    crate::text_validation::reject_nul_byte(name)?;
+
+    let kind = kind_field.ok_or(AppError::ValidationError)?;
+    if !VALID_KINDS.contains(&kind.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
+    let file_bytes = file_bytes.ok_or(AppError::ValidationError)?;
+    if file_bytes.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    crate::file_scan::reject_eicar(&file_bytes)?;
+    if file_mime.as_deref() != Some(letter_docx::DOCX_MIME) {
+        return Err(AppError::ValidationError);
+    }
+    // Structure zip + présence de `word/document.xml` : équivalent, pour un
+    // `.docx`, à la vérification par nombre magique de `file_scan` (#7302)
+    // — plus fort qu'un simple en-tête, car ça valide le contenu attendu.
+    let placeholders = letter_docx::placeholders(&file_bytes)?;
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "INSERT INTO letter_template \
+         (cabinet_id, name, kind, body_template, source_format, docx_bytes, docx_placeholders) \
+         VALUES ($1, $2, $3, '', 'docx', $4, $5) RETURNING id",
+    )
+    .bind(claims.cabinet_id)
+    .bind(name)
+    .bind(&kind)
+    .bind(&file_bytes)
+    .bind(placeholders.clone())
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let template_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        template_id = %template_id,
+        kind = %kind,
+        "letter template imported from docx"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateLetterTemplateResponse {
+            template_id,
+            placeholders,
+        }),
+    ))
+}
+
 // ── POST /v1/patients/:id/letters ────────────────────────────────────────────
 
 /// Body de `POST /v1/patients/:id/letters`.
@@ -420,10 +569,14 @@ fn insert_opt(values: &mut BTreeMap<String, String>, key: &str, value: Option<St
 ///   `cabinet.raison_sociale` / `settings.address` / `settings.contact.phone`,
 ///   `cabinet.adresse` retombant sur l'annuaire (`establishment`, #3557/#7242)
 ///   quand `settings` n'a pas d'adresse.
-/// - PDF : en-tête (cabinet, adresse, téléphone, praticien + RPPS, date),
-///   corps replié, pied (cabinet + RPPS, numéro de page). Uploadé dans
-///   l'Object Storage, `document.category = 'courrier'`, audit
-///   `generate_letter`. Retourne `201 { document_id, filename, size_bytes, body }`.
+/// - Modèle texte : PDF en-tête (cabinet, adresse, téléphone, praticien +
+///   RPPS, date), corps replié, pied (cabinet + RPPS, numéro de page).
+/// - Modèle `.docx` (#7157) : substitution dans `word/document.xml`
+///   (`letter_docx::render`), converti en PDF si `soffice` est disponible,
+///   sinon stocké tel quel (`.docx`, `document.mime_type` = MIME OOXML).
+/// - Dans les deux cas : uploadé dans l'Object Storage, `document.category =
+///   'courrier'`, audit `generate_letter`. Retourne `201 { document_id,
+///   filename, size_bytes, body }` (`body` = texte brut de prévisualisation).
 pub async fn generate_patient_letter(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -469,19 +622,31 @@ pub async fn generate_patient_letter(
 
     // RLS (tenant_isolation OR global_template_read) : un modèle privé d'un
     // autre cabinet est invisible → même 404 que « n'existe pas ».
-    let tmpl_row = sqlx::query("SELECT kind, body_template FROM letter_template WHERE id = $1")
-        .bind(body.template_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?
-        .ok_or(AppError::NotFound)?;
+    let tmpl_row = sqlx::query(
+        "SELECT kind, body_template, source_format, docx_bytes \
+         FROM letter_template WHERE id = $1",
+    )
+    .bind(body.template_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
     let kind: String = tmpl_row.try_get("kind").map_err(|_| AppError::Internal)?;
     let body_template: String = tmpl_row
         .try_get("body_template")
         .map_err(|_| AppError::Internal)?;
-    // Placeholder inconnu dans un modèle inséré hors API → 422 explicite
-    // avant toute lecture supplémentaire.
-    placeholders(&body_template)?;
+    let source_format: String = tmpl_row
+        .try_get("source_format")
+        .map_err(|_| AppError::Internal)?;
+    let docx_bytes: Option<Vec<u8>> = tmpl_row
+        .try_get("docx_bytes")
+        .map_err(|_| AppError::Internal)?;
+    // Placeholder inconnu dans un modèle texte inséré hors API → 422
+    // explicite avant toute lecture supplémentaire (un modèle `.docx` est
+    // déjà validé à l'import, cf. `import_letter_template`).
+    if source_format != "docx" {
+        placeholders(&body_template)?;
+    }
 
     // RLS (tenant_isolation, migration 0280) : un correspondant d'un autre
     // cabinet est invisible → même 404 que « n'existe pas ».
@@ -507,19 +672,38 @@ pub async fn generate_patient_letter(
     for (key, value) in &body.overrides {
         values.insert(key.clone(), value.trim().to_string());
     }
-    let rendered = render(&body_template, &values)?;
-
-    let body_lines = pdf_text::wrap_lines(&rendered, pdf_text::WRAP_COLUMNS);
-    let pdf_bytes = pdf_text::build_text_pdf(&ctx.header, &body_lines, &ctx.footer);
-    let size_bytes = pdf_bytes.len() as i64;
+    // `.docx` (#7157) : substitution dans `word/document.xml`, PDF si un
+    // convertisseur est disponible (`soffice`), sinon `.docx` rendu tel
+    // quel — jamais d'erreur pour cette conversion, cf. `letter_docx`.
+    // Texte libre : même moteur qu'avant (`render` + PDF sans crate).
+    let (output_bytes, mime_type, extension, rendered_preview) = if source_format == "docx" {
+        // Toujours posé pour ce format (CHECK `letter_template_docx_bytes_present`,
+        // migration 0296).
+        let docx_bytes = docx_bytes.ok_or(AppError::Internal)?;
+        let rendered_docx = letter_docx::render(&docx_bytes, &values)?;
+        let preview = letter_docx::extract_text(&rendered_docx);
+        match letter_docx::try_convert_to_pdf(&rendered_docx) {
+            Some(pdf_bytes) => (pdf_bytes, "application/pdf", "pdf", preview),
+            None => (rendered_docx, letter_docx::DOCX_MIME, "docx", preview),
+        }
+    } else {
+        let rendered = render(&body_template, &values)?;
+        let body_lines = pdf_text::wrap_lines(&rendered, pdf_text::WRAP_COLUMNS);
+        let pdf_bytes = pdf_text::build_text_pdf(&ctx.header, &body_lines, &ctx.footer);
+        (pdf_bytes, "application/pdf", "pdf", rendered)
+    };
+    let size_bytes = output_bytes.len() as i64;
     let document_id = Uuid::new_v4();
-    let storage_key = format!("courriers/{}/{}.pdf", claims.cabinet_id, document_id);
-    let filename = format!("courrier-{}-{}.pdf", ctx.kind, document_id);
+    let storage_key = format!(
+        "courriers/{}/{}.{}",
+        claims.cabinet_id, document_id, extension
+    );
+    let filename = format!("courrier-{}-{}.{}", ctx.kind, document_id, extension);
 
     // Même pattern que `billing::generate_quote_document` : la clé doit
     // référencer un objet effectivement écrit.
     object_storage
-        .upload(&storage_key, "application/pdf", pdf_bytes.clone())
+        .upload(&storage_key, mime_type, output_bytes.clone())
         .await
         .map_err(|_| AppError::Internal)?;
 
@@ -527,15 +711,16 @@ pub async fn generate_patient_letter(
         "INSERT INTO document \
          (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, \
           sha256, scan_status, uploaded_by, size_bytes, correspondent_id) \
-         VALUES ($1, $2, $3, 'courrier', $4, $5, 'application/pdf', \
-                 encode(digest($6, 'sha256'), 'hex'), 'clean', $7, $8, $9)",
+         VALUES ($1, $2, $3, 'courrier', $4, $5, $6, \
+                 encode(digest($7, 'sha256'), 'hex'), 'clean', $8, $9, $10)",
     )
     .bind(document_id)
     .bind(claims.cabinet_id)
     .bind(patient_id)
     .bind(&storage_key)
     .bind(&filename)
-    .bind(&pdf_bytes)
+    .bind(mime_type)
+    .bind(&output_bytes)
     .bind(claims.sub)
     .bind(size_bytes)
     .bind(body.correspondent_id)
@@ -574,7 +759,7 @@ pub async fn generate_patient_letter(
             document_id,
             filename,
             size_bytes,
-            body: rendered,
+            body: rendered_preview,
         }),
     ))
 }
