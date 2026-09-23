@@ -609,12 +609,14 @@ pub async fn get_cabinet_medical_questionnaire(
 /// "severity"?}` — chaque entrée importée porte `text` + `source =
 /// "questionnaire_patient"` (+ `severity` si déclarée), forme lue par
 /// `consultation_context::allergy_alert` pour les pastilles `medical_alerts`.
-/// `ald`/`anticoagulants` → OR logique avec le flag existant (ne redescend
-/// jamais un flag déjà à `true` à `false` sur la foi d'une case non cochée
-/// côté patient). Clés alignées sur le standard seedé par la migration 0294
-/// (#7160) — `antecedents_chirurgicaux`/`traitement_en_cours`/
-/// `anticoagulants`, pas les anciennes clés du questionnaire fixe
-/// pré-#7159 (#7505).
+/// `ald`/`anticoagulants`/`grossesse`/`maladie_cardiovasculaire` → OR logique
+/// avec le flag existant (ne redescend jamais un flag déjà à `true` à
+/// `false` sur la foi d'une case non cochée côté patient). Clés alignées sur
+/// le standard seedé par la migration 0294 (#7160) —
+/// `antecedents_chirurgicaux`/`traitement_en_cours`/`anticoagulants`, pas les
+/// anciennes clés du questionnaire fixe pré-#7159 (#7505). `grossesse`/
+/// `maladie_cardiovasculaire` (`safety_flag: true`) importés au même titre
+/// (#7525).
 /// Normalise un champ libre du questionnaire (`allergies`,
 /// `traitements_en_cours`) en entrées de dossier `{"text": …, "source":
 /// "questionnaire_patient"}` (+ `"severity"` quand l'objet en porte une).
@@ -705,6 +707,12 @@ fn merge_questionnaire_into_record(existing: &Value, payload: &Value) -> Value {
     medico_legal.ald = medico_legal.ald || payload["ald"].as_bool().unwrap_or(false);
     medico_legal.anticoagulants =
         medico_legal.anticoagulants || payload["anticoagulants"].as_bool().unwrap_or(false);
+    medico_legal.grossesse =
+        medico_legal.grossesse || payload["grossesse"].as_bool().unwrap_or(false);
+    medico_legal.maladie_cardiovasculaire = medico_legal.maladie_cardiovasculaire
+        || payload["maladie_cardiovasculaire"]
+            .as_bool()
+            .unwrap_or(false);
 
     serde_json::json!({
         "allergies": allergies,
@@ -948,5 +956,39 @@ mod tests {
         );
         assert_eq!(merged["treatments"][0]["text"], "Kardegic 75mg");
         assert_eq!(merged["medico_legal"]["anticoagulants"], true);
+    }
+
+    #[test]
+    fn merge_questionnaire_imports_grossesse_and_maladie_cardiovasculaire() {
+        // #7525 : ces deux clés du standard seedé (migration 0294) portent
+        // safety_flag: true mais étaient encore silencieusement jetées après
+        // #7505 (qui n'avait réaligné que antecedents/traitement/anticoagulants).
+        let existing = json!({
+            "allergies": [],
+            "treatments": [],
+            "history": "",
+            "medico_legal": {"ald": false, "anticoagulants": false}
+        });
+        let payload = json!({
+            "grossesse": true,
+            "maladie_cardiovasculaire": true
+        });
+        let merged = merge_questionnaire_into_record(&existing, &payload);
+        assert_eq!(merged["medico_legal"]["grossesse"], true);
+        assert_eq!(merged["medico_legal"]["maladie_cardiovasculaire"], true);
+    }
+
+    #[test]
+    fn merge_questionnaire_never_downgrades_grossesse_or_cardio_flag() {
+        let existing = json!({
+            "allergies": [],
+            "treatments": [],
+            "history": "",
+            "medico_legal": {"grossesse": true, "maladie_cardiovasculaire": true}
+        });
+        let payload = json!({});
+        let merged = merge_questionnaire_into_record(&existing, &payload);
+        assert_eq!(merged["medico_legal"]["grossesse"], true);
+        assert_eq!(merged["medico_legal"]["maladie_cardiovasculaire"], true);
     }
 }
