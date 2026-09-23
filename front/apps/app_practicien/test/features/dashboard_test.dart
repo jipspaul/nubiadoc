@@ -1680,4 +1680,114 @@ void main() {
           .called(1);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // DashboardBody — disposition responsive à 1440 px (#7508 — régression
+  // introduite par le registre de widgets #7161 : la pile pleine largeur
+  // était revenue à tous les viewports, sans LayoutBuilder ni colonnes)
+  // ---------------------------------------------------------------------------
+
+  group('DashboardBody — disposition responsive (#7508)', () {
+    late MockDashboardLayoutCubit dashboardLayoutCubit;
+
+    setUp(() {
+      final mockUc = MockGetProDashboardSummaryUseCase();
+      when(() => mockUc()).thenAnswer((_) async => Right(_summary));
+      GetIt.instance.registerFactory<DashboardBloc>(
+        () => DashboardBloc(
+          getSummary: mockUc,
+          startConsultation: MockStartConsultationUseCase(),
+        ),
+      );
+      final agendaBloc = MockAgendaBloc();
+      when(() => agendaBloc.state).thenReturn(
+        AgendaLoaded(entries: const [], weekStart: DateTime.now()),
+      );
+      GetIt.instance.registerFactory<AgendaBloc>(() => agendaBloc);
+      final notesBloc = MockTodayNotesBloc();
+      when(() => notesBloc.state).thenReturn(const TodayNotesLoaded([]));
+      GetIt.instance.registerFactory<TodayNotesBloc>(() => notesBloc);
+      final prosthesesTodayBloc = MockProsthesesTodayBloc();
+      when(() => prosthesesTodayBloc.state)
+          .thenReturn(const ProsthesesTodayLoaded([]));
+      GetIt.instance
+          .registerFactory<ProsthesesTodayBloc>(() => prosthesesTodayBloc);
+      final opportunitiesCubit = MockOpportunitiesCubit();
+      when(() => opportunitiesCubit.state)
+          .thenReturn(const OpportunitiesLoaded(categories: []));
+      when(() => opportunitiesCubit.load()).thenAnswer((_) async {});
+      GetIt.instance
+          .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
+      final tasksBloc = MockTasksBloc();
+      when(() => tasksBloc.state).thenReturn(const TasksLoaded(tasks: []));
+      GetIt.instance.registerFactory<TasksBloc>(() => tasksBloc);
+      final kpiTilesCubit = MockKpiTilesCubit();
+      when(() => kpiTilesCubit.state)
+          .thenReturn(const KpiTilesLoaded(kpis: _kpis));
+      when(() => kpiTilesCubit.load()).thenAnswer((_) async {});
+      GetIt.instance.registerFactory<KpiTilesCubit>(() => kpiTilesCubit);
+
+      dashboardLayoutCubit = MockDashboardLayoutCubit();
+      when(() => dashboardLayoutCubit.load()).thenAnswer((_) async {});
+      when(() => dashboardLayoutCubit.state).thenReturn(
+        const DashboardLayoutLoaded(
+          order: kProDashboardWidgetCatalog,
+          hiddenIds: {},
+        ),
+      );
+      GetIt.instance
+          .registerFactory<DashboardLayoutCubit>(() => dashboardLayoutCubit);
+      addTearDown(GetIt.instance.reset);
+    });
+
+    testWidgets(
+        'à 1440x900, "À traiter" est à droite de "Journée" et visible sans '
+        'défiler (note 6 de la maquette design-v2)', (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: DashboardBody()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scheduleTopLeft =
+          tester.getTopLeft(find.byKey(const Key('today_schedule_card')));
+      final pendingTopLeft =
+          tester.getTopLeft(find.byKey(const Key('pending_actions_card')));
+
+      // Deux colonnes côte à côte, pas empilées : la colonne de droite
+      // démarre après la fin de la colonne de gauche...
+      expect(pendingTopLeft.dx, greaterThan(scheduleTopLeft.dx));
+      // ...et reste au-dessus de la ligne de flottaison (900 px de haut).
+      expect(pendingTopLeft.dy, lessThan(900));
+    });
+
+    testWidgets('sous le seuil de 1100 px, les widgets restent en pile',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: DashboardBody()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scheduleTopLeft =
+          tester.getTopLeft(find.byKey(const Key('today_schedule_card')));
+      final pendingTopLeft =
+          tester.getTopLeft(find.byKey(const Key('pending_actions_card')));
+
+      expect(pendingTopLeft.dx, scheduleTopLeft.dx);
+      expect(pendingTopLeft.dy, greaterThan(scheduleTopLeft.dy));
+    });
+  });
 }

@@ -127,6 +127,25 @@ class _DashboardLoadedView extends StatelessWidget {
 
   final ProDashboardSummary summary;
 
+  // Seuil au-delà duquel la colonne droite (430 px fixe) + la gouttière
+  // (16 px) laissent assez de place à gauche pour rester lisible.
+  static const _wideBreakpoint = 1100.0;
+  static const _rightColumnWidth = 430.0;
+  static const _gutter = 16.0;
+
+  // Répartition des widgets du registre (#7161) entre les deux colonnes à
+  // 1100 px+ — note 6 de la maquette design-v2 : héros + « Journée » à
+  // gauche, file de travail à droite. Tout widget qui n'appartient à aucun
+  // des deux (ex. `kpi_tiles`) reste pleine largeur au-dessus de la Row.
+  static const _leftColumnIds = {'next_patient', 'today_schedule'};
+  static const _rightColumnIds = {
+    'pending_actions',
+    'prostheses_today',
+    'today_notes',
+    'week_summary',
+    'opportunities',
+  };
+
   @override
   Widget build(BuildContext context) {
     final kpiTilesRow = BlocProvider(
@@ -217,11 +236,80 @@ class _DashboardLoadedView extends StatelessWidget {
                   .toggleVisibility(widgetId),
             )
           else
-            for (final widgetId in visibleOrder)
-              if (widgetsById[widgetId] != null) ...[
-                widgetsById[widgetId]!,
-                const SizedBox(height: 16),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth >= _wideBreakpoint) {
+                  final topWidgets = [
+                    for (final widgetId in visibleOrder)
+                      if (!_leftColumnIds.contains(widgetId) &&
+                          !_rightColumnIds.contains(widgetId) &&
+                          widgetsById[widgetId] != null)
+                        widgetsById[widgetId]!,
+                  ];
+                  final leftWidgets = [
+                    for (final widgetId in visibleOrder)
+                      if (_leftColumnIds.contains(widgetId) &&
+                          widgetsById[widgetId] != null)
+                        widgetsById[widgetId]!,
+                  ];
+                  final rightWidgets = [
+                    for (final widgetId in visibleOrder)
+                      if (_rightColumnIds.contains(widgetId) &&
+                          widgetsById[widgetId] != null)
+                        widgetsById[widgetId]!,
+                  ];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final widget in topWidgets) ...[
+                        widget,
+                        const SizedBox(height: 16),
+                      ],
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (final widget in leftWidgets) ...[
+                                  widget,
+                                  const SizedBox(height: 16),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: _gutter),
+                          SizedBox(
+                            width: _rightColumnWidth,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (final widget in rightWidgets) ...[
+                                  widget,
+                                  const SizedBox(height: 16),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final widgetId in visibleOrder)
+                      if (widgetsById[widgetId] != null) ...[
+                        widgetsById[widgetId]!,
+                        const SizedBox(height: 16),
+                      ],
+                  ],
+                );
+              },
+            ),
         ],
       ),
     );
