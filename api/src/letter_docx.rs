@@ -110,9 +110,12 @@ fn parse(xml: &str) -> Result<Vec<Segment<'_>>, DocxError> {
 /// Lit `word/document.xml` d'un `.docx` (archive zip OOXML).
 fn read_document_xml(bytes: &[u8]) -> Result<String, DocxError> {
     let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(|_| DocxError::NotADocx)?;
-    let mut file = archive.by_name(DOCUMENT_XML_PATH).map_err(|_| DocxError::NotADocx)?;
+    let mut file = archive
+        .by_name(DOCUMENT_XML_PATH)
+        .map_err(|_| DocxError::NotADocx)?;
     let mut xml = String::new();
-    file.read_to_string(&mut xml).map_err(|_| DocxError::NotADocx)?;
+    file.read_to_string(&mut xml)
+        .map_err(|_| DocxError::NotADocx)?;
     Ok(xml)
 }
 
@@ -204,10 +207,16 @@ fn rewrite_document_xml(original: &[u8], new_xml: &str) -> Result<Vec<u8>, DocxE
             if name == DOCUMENT_XML_PATH {
                 let options = FileOptions::default().compression_method(file.compression());
                 drop(file);
-                writer.start_file(name, options).map_err(|_| DocxError::NotADocx)?;
-                writer.write_all(new_xml.as_bytes()).map_err(|_| DocxError::NotADocx)?;
+                writer
+                    .start_file(name, options)
+                    .map_err(|_| DocxError::NotADocx)?;
+                writer
+                    .write_all(new_xml.as_bytes())
+                    .map_err(|_| DocxError::NotADocx)?;
             } else {
-                writer.raw_copy_file(file).map_err(|_| DocxError::NotADocx)?;
+                writer
+                    .raw_copy_file(file)
+                    .map_err(|_| DocxError::NotADocx)?;
             }
         }
         writer.finish().map_err(|_| DocxError::NotADocx)?;
@@ -307,9 +316,13 @@ mod tests {
         let mut buf = Vec::new();
         {
             let mut writer = ZipWriter::new(Cursor::new(&mut buf));
-            writer.start_file("word/document.xml", stored_options()).unwrap();
+            writer
+                .start_file("word/document.xml", stored_options())
+                .unwrap();
             writer.write_all(document_xml.as_bytes()).unwrap();
-            writer.start_file("word/styles.xml", stored_options()).unwrap();
+            writer
+                .start_file("word/styles.xml", stored_options())
+                .unwrap();
             writer.write_all(b"<w:styles/>").unwrap();
             writer.finish().unwrap();
         }
@@ -425,9 +438,8 @@ mod tests {
     fn try_convert_to_pdf_never_panics() {
         // CI/dev n'ont pas LibreOffice installé : le chemin de repli (`None`)
         // est l'issue attendue, mais on ne fige pas cette hypothèse d'environnement.
-        match try_convert_to_pdf(&build_docx("<w:body/>")) {
-            Some(pdf) => assert!(pdf.starts_with(b"%PDF")),
-            None => {}
+        if let Some(pdf) = try_convert_to_pdf(&build_docx("<w:body/>")) {
+            assert!(pdf.starts_with(b"%PDF"));
         }
     }
 }

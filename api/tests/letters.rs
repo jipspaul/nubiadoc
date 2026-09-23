@@ -277,14 +277,12 @@ async fn call(
 
 // ── Fixtures + helpers pour POST /v1/letter-templates/import (#7157) ─────────
 
-const DOCX_MIME: &str =
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const DOCX_MIME: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 /// Placeholders : patient.prenom, patient.nom, rdv.date, rdv.heure,
 /// cabinet.nom, praticien.nom (tous connus, un seul run chacun).
 const SAMPLE_DOCX: &[u8] = include_bytes!("fixtures/letters/sample_template.docx");
 /// Mêmes placeholders patient + `devis.date`/`devis.montant` (inconnus).
-const UNKNOWN_PLACEHOLDER_DOCX: &[u8] =
-    include_bytes!("fixtures/letters/unknown_placeholder.docx");
+const UNKNOWN_PLACEHOLDER_DOCX: &[u8] = include_bytes!("fixtures/letters/unknown_placeholder.docx");
 
 /// Construit un corps multipart pour `POST /v1/letter-templates/import`.
 fn make_import_multipart(
@@ -964,7 +962,10 @@ async fn import_docx_template_lists_placeholders_and_generates_a_letter() {
         .unwrap();
     assert_eq!(imported["source_format"], "docx");
     assert_eq!(imported["is_global"], false);
-    assert!(imported["placeholders"].as_array().unwrap().contains(&json!("cabinet.nom")));
+    assert!(imported["placeholders"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("cabinet.nom")));
 
     // Rendu pour le patient : pas de convertisseur PDF en CI -> repli .docx.
     let (status, resp) = call(
@@ -978,7 +979,8 @@ async fn import_docx_template_lists_placeholders_and_generates_a_letter() {
     assert_eq!(status, StatusCode::CREATED, "{resp}");
     let preview = resp["body"].as_str().unwrap();
     assert!(
-        preview.starts_with("Bonjour Léa Dupont (test),\nNous vous confirmons votre rendez-vous du "),
+        preview
+            .starts_with("Bonjour Léa Dupont (test),\nNous vous confirmons votre rendez-vous du "),
         "{preview}"
     );
     assert!(preview.contains(&format!("au cabinet Cabinet Letters {}.", f.cabinet_id)));
@@ -1052,7 +1054,11 @@ async fn import_docx_template_rejects_unknown_placeholders() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{resp}");
-    assert!(!resp.as_array().unwrap().iter().any(|t| t["name"] == "Relance devis"));
+    assert!(!resp
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|t| t["name"] == "Relance devis"));
 
     cleanup(&db, &f).await;
 }
