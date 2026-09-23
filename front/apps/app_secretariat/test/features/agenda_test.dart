@@ -742,6 +742,7 @@ void main() {
         findsOneWidget,
       );
 
+      await tester.ensureVisible(find.byKey(const Key('confirm_p-2')));
       await tester.tap(find.byKey(const Key('confirm_p-2')));
       await tester.pump();
 
