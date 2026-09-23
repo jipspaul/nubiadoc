@@ -151,6 +151,7 @@ mod prescription_templates;
 mod prescriptions;
 mod provider_secretariat;
 mod provider_unavailability;
+mod questionnaire_templates;
 mod quote_attachments;
 mod quote_attestation;
 mod quote_events;

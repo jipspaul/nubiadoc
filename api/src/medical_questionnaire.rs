@@ -1,14 +1,25 @@
 //! Handlers du questionnaire médical patient pré-consultation (#4108, table
 //! `medical_questionnaire_submission`, migration 0180).
 //!
-//! Cinq routes :
-//! - `POST /v1/account/medical-questionnaire` (patient) : crée un brouillon.
+//! Six routes :
+//! - `GET /v1/account/medical-questionnaire/active-template?cabinet_id=…`
+//!   (patient, #7159) : sert le schéma actif du cabinet donné (son propre
+//!   modèle s'il en a un, sinon le standard global) — `resolve_
+//!   active_questionnaire_template`, même résolution qu'à la création.
+//! - `POST /v1/account/medical-questionnaire` (patient) : crée un brouillon,
+//!   contre le modèle actif résolu au moment de la création (`template_id`/
+//!   `version` figés sur la ligne, #7159 — un modèle qui évolue ensuite ne
+//!   change jamais rétroactivement le schéma d'une soumission en cours).
 //! - `GET /v1/account/medical-questionnaire?cabinet_id=…` (patient) : relit
 //!   sa dernière soumission pour ce cabinet, quel que soit son statut
 //!   (brouillon/soumise/revue) — le patient est auteur ET sujet de la
 //!   donnée (RGPD art. 15), contrairement à la lecture cabinet ci-dessous.
 //! - `PATCH /v1/account/medical-questionnaire` (patient) : modifie le
-//!   brouillon existant, et/ou le soumet (`submit: true`).
+//!   brouillon existant, et/ou le soumet (`submit: true`). Validation contre
+//!   le schéma du modèle de la soumission (#7159, voir `questionnaire_
+//!   templates::validate_submission_against_schema`) : types toujours
+//!   vérifiés, complétude (`required` + logique conditionnelle) uniquement
+//!   à la soumission finale.
 //! - `GET /v1/cabinet/patients/:id/medical-questionnaire` (praticien) : lit
 //!   la dernière soumission — RLS (`medical_questionnaire_submission_cabinet_read`,
 //!   migration 0180) masque déjà les brouillons, non soumis au cabinet.
@@ -17,6 +28,10 @@
 //!   passe `status` à `reviewed` dans la même transaction. Revue humaine
 //!   obligatoire : cette route n'est déclenchée que par un clic explicite
 //!   côté praticien (bouton "Valider et importer"), jamais automatiquement.
+//!
+//! CRUD des modèles eux-mêmes (`questionnaire_template`, migration 0294,
+//! #7160) : voir `questionnaire_templates.rs` (`/v1/cabinet/questionnaire-
+//! templates`), pas ce module.
 //!
 //! Un seul brouillon actif par (patient_account_id, cabinet_id) — appliqué
 //! par l'index unique partiel `medical_questionnaire_submission_one_draft_uidx`
@@ -30,6 +45,11 @@
 //! (R.4127-72) : un `appointment` (passé ou à venir) avec ce patient est
 //! requis — un rendez-vous réservé suffit à autoriser la lecture du
 //! questionnaire avant la consultation, cas d'usage central de cette issue.
+//!
+//! Garde clinique anticoagulants (#4057, `consultation_act_create.rs`) :
+//! INCHANGÉE par #7159 — elle lit `medical_record.treatments`/`medico_legal`
+//! après import (`review_medical_questionnaire`/`merge_questionnaire_into_record`
+//! ci-dessous, non modifiés), pas le `payload` brut ni le schéma du modèle.
 
 use axum::{
     extract::{Path, Query, State},
@@ -43,12 +63,13 @@ use uuid::Uuid;
 use crate::{
     auth::{AppError, PatientAccountClaims, ProPractitionerClaims},
     medical_record::{decrypt_stub, encrypt_stub, MedicoLegalFlags},
+    questionnaire_templates::{parse_questionnaire_schema, validate_submission_against_schema},
     AppState,
 };
 
 // ── Structures ────────────────────────────────────────────────────────────
 
-/// Réponse commune aux trois routes.
+/// Réponse commune aux routes de soumission.
 #[derive(Serialize)]
 pub struct MedicalQuestionnaireResponse {
     pub id: Uuid,
@@ -56,6 +77,21 @@ pub struct MedicalQuestionnaireResponse {
     pub payload: Value,
     pub status: String,
     pub submitted_at: Option<String>,
+    /// Modèle contre lequel cette soumission a été validée (#7159). `None`
+    /// uniquement pour d'anciennes lignes antérieures à la migration 0294 —
+    /// en pratique toujours `Some` : cette dernière a backfillé le standard
+    /// v1 sur toutes les lignes existantes.
+    pub template_id: Option<Uuid>,
+    pub template_version: Option<i32>,
+}
+
+/// Réponse de `GET /v1/account/medical-questionnaire/active-template` (#7159).
+#[derive(Serialize)]
+pub struct ActiveQuestionnaireTemplateResponse {
+    pub template_id: Uuid,
+    pub version: i32,
+    pub title: String,
+    pub schema: Value,
 }
 
 /// Corps de `POST /v1/account/medical-questionnaire`.
@@ -97,6 +133,8 @@ fn row_to_response(row: sqlx::postgres::PgRow) -> Result<MedicalQuestionnaireRes
     let submitted_at: Option<chrono::DateTime<chrono::Utc>> = row
         .try_get("submitted_at")
         .map_err(|_| AppError::Internal)?;
+    let template_id: Option<Uuid> = row.try_get("template_id").map_err(|_| AppError::Internal)?;
+    let template_version: Option<i32> = row.try_get("version").map_err(|_| AppError::Internal)?;
 
     Ok(MedicalQuestionnaireResponse {
         id,
@@ -104,16 +142,73 @@ fn row_to_response(row: sqlx::postgres::PgRow) -> Result<MedicalQuestionnaireRes
         payload,
         status,
         submitted_at: submitted_at.map(|d| d.to_rfc3339()),
+        template_id,
+        template_version,
     })
+}
+
+/// Résout le modèle actif pour un cabinet dont `app.current_cabinet_id` est
+/// déjà positionné dans `tx` : sa propre variante active si elle existe
+/// (`tenant_isolation`), sinon le standard global (`global_template_read`,
+/// `cabinet_id IS NULL`) — toujours présent (seedé par la migration 0294).
+/// `Internal` si ni l'un ni l'autre n'est trouvé (base incohérente).
+async fn resolve_active_questionnaire_template(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+) -> Result<(Uuid, i32, String, Value), AppError> {
+    let row = sqlx::query(
+        "SELECT id, version, title, schema FROM questionnaire_template \
+         WHERE is_active = true \
+         ORDER BY (cabinet_id IS NULL) ASC \
+         LIMIT 1",
+    )
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::Internal)?;
+
+    Ok((
+        row.try_get("id").map_err(|_| AppError::Internal)?,
+        row.try_get("version").map_err(|_| AppError::Internal)?,
+        row.try_get("title").map_err(|_| AppError::Internal)?,
+        row.try_get("schema").map_err(|_| AppError::Internal)?,
+    ))
+}
+
+/// Lit le schéma d'une version FIGÉE d'un modèle (celle référencée par une
+/// soumission existante) — pas forcément la version active si le modèle a
+/// évolué depuis (#7159 : une soumission garde le schéma tel qu'il était à
+/// sa création, cf. doc de module). `Internal` si absent : la FK
+/// `medical_questionnaire_submission.template_id` garantit son existence.
+async fn fetch_template_schema_by_version(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    template_id: Uuid,
+    version: i32,
+) -> Result<Value, AppError> {
+    let row =
+        sqlx::query("SELECT schema FROM questionnaire_template WHERE id = $1 AND version = $2")
+            .bind(template_id)
+            .bind(version)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::Internal)?;
+
+    row.try_get("schema").map_err(|_| AppError::Internal)
 }
 
 // ── POST /v1/account/medical-questionnaire ──────────────────────────────
 
 /// `POST /v1/account/medical-questionnaire` — crée un brouillon pour le
-/// cabinet donné. `cabinet_id` inexistant → `404` (#4343 — pré-vérifié
-/// plutôt que de laisser remonter la FK `medical_questionnaire_submission
-/// (cabinet_id)` en `23503`/500, même pattern que `lab_work_orders.rs`).
-/// `409` si un brouillon existe déjà pour ce cabinet.
+/// cabinet donné, contre le modèle actif de ce cabinet (`resolve_
+/// active_questionnaire_template`, #7159 — le patient n'a rien à préciser,
+/// même contrat de body qu'avant l'ajout des modèles). `cabinet_id`
+/// inexistant → `404` (#4343 — pré-vérifié plutôt que de laisser remonter la
+/// FK `medical_questionnaire_submission(cabinet_id)` en `23503`/500, même
+/// pattern que `lab_work_orders.rs`). `409` si un brouillon existe déjà pour
+/// ce cabinet. `422 questionnaire_schema_violation` si un type de réponse ne
+/// correspond pas au schéma du modèle résolu — seuls les TYPES sont
+/// vérifiés à la création (brouillon), la complétude (`required`) est
+/// vérifiée à la soumission finale (`PATCH … submit: true`).
 pub async fn create_medical_questionnaire(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -138,6 +233,15 @@ pub async fn create_medical_questionnaire(
         return Err(AppError::NotFound);
     }
 
+    // Scope cabinet pour la RLS tenant_isolation de questionnaire_template
+    // (la variante privée du cabinet, s'il en a une, n'est visible qu'avec
+    // ce GUC positionné — cf. doc de module).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(body.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let existing_draft = sqlx::query(
         "SELECT 1 FROM medical_questionnaire_submission \
          WHERE patient_account_id = $1 AND cabinet_id = $2 AND status = 'draft'",
@@ -152,15 +256,22 @@ pub async fn create_medical_questionnaire(
         return Err(AppError::MedicalQuestionnaireDraftExists);
     }
 
+    let (template_id, template_version, _title, schema) =
+        resolve_active_questionnaire_template(&mut tx).await?;
+    let questions = parse_questionnaire_schema(&schema).map_err(|_| AppError::Internal)?;
+    validate_submission_against_schema(&questions, &body.payload, false)?;
+
     let row = sqlx::query(
         "INSERT INTO medical_questionnaire_submission \
-           (cabinet_id, patient_account_id, payload) \
-         VALUES ($1, $2, $3) \
-         RETURNING id, cabinet_id, payload, status, submitted_at",
+           (cabinet_id, patient_account_id, payload, template_id, version) \
+         VALUES ($1, $2, $3, $4, $5) \
+         RETURNING id, cabinet_id, payload, status, submitted_at, template_id, version",
     )
     .bind(body.cabinet_id)
     .bind(claims.account_id)
     .bind(&body.payload)
+    .bind(template_id)
+    .bind(template_version)
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| match &e {
@@ -215,7 +326,7 @@ pub async fn get_medical_questionnaire(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, cabinet_id, payload, status, submitted_at \
+        "SELECT id, cabinet_id, payload, status, submitted_at, template_id, version \
          FROM medical_questionnaire_submission \
          WHERE patient_account_id = $1 AND cabinet_id = $2 \
          ORDER BY updated_at DESC LIMIT 1",
@@ -235,11 +346,64 @@ pub async fn get_medical_questionnaire(
     Ok(Json(row_to_response(row)?))
 }
 
+// ── GET /v1/account/medical-questionnaire/active-template ──────────────
+
+/// `GET /v1/account/medical-questionnaire/active-template?cabinet_id=…`
+/// (#7159) — sert au patient le schéma actif du cabinet donné, avant qu'il
+/// ne remplisse le questionnaire (`resolve_active_questionnaire_template`,
+/// même résolution que `create_medical_questionnaire`). `cabinet_id`
+/// inexistant → `404`, même garde que `create_medical_questionnaire`.
+pub async fn get_active_medical_questionnaire_template(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Query(query): Query<GetMedicalQuestionnaireQuery>,
+) -> Result<Json<ActiveQuestionnaireTemplateResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let cabinet_exists = sqlx::query("SELECT 1 FROM cabinet WHERE id = $1")
+        .bind(query.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    if cabinet_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(query.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let (template_id, version, title, schema) =
+        resolve_active_questionnaire_template(&mut tx).await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok(Json(ActiveQuestionnaireTemplateResponse {
+        template_id,
+        version,
+        title,
+        schema,
+    }))
+}
+
 // ── PATCH /v1/account/medical-questionnaire ─────────────────────────────
 
 /// `PATCH /v1/account/medical-questionnaire` — modifie le brouillon existant
 /// et/ou le soumet (`submit: true`). `404` si aucun brouillon n'existe pour
-/// ce cabinet.
+/// ce cabinet. Validation contre le schéma FIGÉ de la soumission (#7159,
+/// `fetch_template_schema_by_version`) : si `payload` est fourni, ses types
+/// sont vérifiés ; à la soumission (`submit: true`), le payload final
+/// (`payload` fourni sinon celui déjà en base) doit satisfaire toutes les
+/// questions `required` dont la `condition` est remplie —
+/// `422 questionnaire_schema_violation` sinon, avant toute écriture.
 pub async fn patch_medical_questionnaire(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -256,6 +420,46 @@ pub async fn patch_medical_questionnaire(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(body.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let current = sqlx::query(
+        "SELECT payload, template_id, version FROM medical_questionnaire_submission \
+         WHERE patient_account_id = $1 AND cabinet_id = $2 AND status = 'draft'",
+    )
+    .bind(claims.account_id)
+    .bind(body.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let current_payload: Value = current.try_get("payload").map_err(|_| AppError::Internal)?;
+    let template_id: Option<Uuid> = current
+        .try_get("template_id")
+        .map_err(|_| AppError::Internal)?;
+    let template_version: Option<i32> =
+        current.try_get("version").map_err(|_| AppError::Internal)?;
+
+    // `template_id`/`version` sont toujours renseignés depuis la migration
+    // 0294 (backfill + POST les fixe désormais systématiquement) — absents
+    // uniquement sur une ligne pré-#7160 jamais backfillée, cas défensif où
+    // la validation de schéma est simplement sautée (rien à valider contre).
+    if let (Some(template_id), Some(template_version)) = (template_id, template_version) {
+        let schema =
+            fetch_template_schema_by_version(&mut tx, template_id, template_version).await?;
+        let questions = parse_questionnaire_schema(&schema).map_err(|_| AppError::Internal)?;
+
+        if body.submit {
+            let final_payload = body.payload.clone().unwrap_or(current_payload);
+            validate_submission_against_schema(&questions, &final_payload, true)?;
+        } else if let Some(ref payload) = body.payload {
+            validate_submission_against_schema(&questions, payload, false)?;
+        }
+    }
 
     let row = sqlx::query(
         "UPDATE medical_questionnaire_submission \
@@ -264,7 +468,7 @@ pub async fn patch_medical_questionnaire(
              submitted_at = CASE WHEN $4 THEN now() ELSE submitted_at END, \
              updated_at = now() \
          WHERE patient_account_id = $1 AND cabinet_id = $2 AND status = 'draft' \
-         RETURNING id, cabinet_id, payload, status, submitted_at",
+         RETURNING id, cabinet_id, payload, status, submitted_at, template_id, version",
     )
     .bind(claims.account_id)
     .bind(body.cabinet_id)
@@ -365,7 +569,7 @@ pub async fn get_cabinet_medical_questionnaire(
             .await?;
 
     let row = sqlx::query(
-        "SELECT id, cabinet_id, payload, status, submitted_at \
+        "SELECT id, cabinet_id, payload, status, submitted_at, template_id, version \
          FROM medical_questionnaire_submission \
          WHERE patient_account_id = $1 AND cabinet_id = $2 \
          ORDER BY submitted_at DESC LIMIT 1",
@@ -607,7 +811,7 @@ pub async fn review_medical_questionnaire(
         "UPDATE medical_questionnaire_submission \
          SET status = 'reviewed', updated_at = now() \
          WHERE id = $1 \
-         RETURNING id, cabinet_id, payload, status, submitted_at",
+         RETURNING id, cabinet_id, payload, status, submitted_at, template_id, version",
     )
     .bind(submission_id)
     .fetch_one(&mut *tx)
