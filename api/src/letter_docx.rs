@@ -40,12 +40,25 @@ pub(crate) const DOCX_MIME: &str =
 
 const DOCUMENT_XML_PATH: &str = "word/document.xml";
 
+/// Taille maximale du `word/document.xml` **décompressé** (#7524) —
+/// `letters::MAX_DOCX_UPLOAD_SIZE` ne borne que l'archive `.docx` reçue
+/// (compressée) ; un contenu très répétitif (paragraphes dupliqués) peut
+/// décompresser à un multiple de cette taille sans jamais dépasser le
+/// plafond d'upload. Même ordre de grandeur que `MAX_DOCX_UPLOAD_SIZE` :
+/// c'est le même garde-fou mémoire, appliqué à ce qui est réellement chargé
+/// en mémoire (le flux inflaté, lu par `read_document_xml`).
+const MAX_DOCUMENT_XML_SIZE: usize = 5 * 1024 * 1024;
+
 /// Erreur du moteur `.docx`, convertie en `AppError` par les handlers
 /// (même mapping que `letters::RenderError`).
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum DocxError {
     /// Zip invalide ou `word/document.xml` absent : ce n'est pas un `.docx`.
     NotADocx,
+    /// `word/document.xml` décompressé dépasse `MAX_DOCUMENT_XML_SIZE`
+    /// (#7524) — rejeté avant que la substitution/l'aperçu n'en fassent
+    /// chacun une copie complète en mémoire.
+    TooLarge,
     /// `{{` sans `}}` fermant dans `word/document.xml`.
     Malformed,
     /// Placeholders hors `KNOWN_PLACEHOLDERS` (dédoublonnés, ordre d'apparition).
@@ -57,7 +70,9 @@ pub(crate) enum DocxError {
 impl From<DocxError> for AppError {
     fn from(err: DocxError) -> Self {
         match err {
-            DocxError::NotADocx | DocxError::Malformed => AppError::ValidationError,
+            DocxError::NotADocx | DocxError::TooLarge | DocxError::Malformed => {
+                AppError::ValidationError
+            }
             DocxError::Unknown(list) => AppError::UnknownPlaceholders(list),
             DocxError::Missing(list) => AppError::MissingPlaceholderValues(list),
         }
@@ -110,12 +125,21 @@ fn parse(xml: &str) -> Result<Vec<Segment<'_>>, DocxError> {
 /// Lit `word/document.xml` d'un `.docx` (archive zip OOXML).
 fn read_document_xml(bytes: &[u8]) -> Result<String, DocxError> {
     let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(|_| DocxError::NotADocx)?;
-    let mut file = archive
+    let file = archive
         .by_name(DOCUMENT_XML_PATH)
         .map_err(|_| DocxError::NotADocx)?;
+    // `take(N + 1)` borne l'inflation réelle (le flux n'est décompressé
+    // qu'au fil de la lecture) : un document.xml plus grand que la limite
+    // s'arrête après N+1 octets lus plutôt que d'être entièrement
+    // décompressé en mémoire avant d'être rejeté (#7524).
+    let mut limited = file.take(MAX_DOCUMENT_XML_SIZE as u64 + 1);
     let mut xml = String::new();
-    file.read_to_string(&mut xml)
+    limited
+        .read_to_string(&mut xml)
         .map_err(|_| DocxError::NotADocx)?;
+    if xml.len() > MAX_DOCUMENT_XML_SIZE {
+        return Err(DocxError::TooLarge);
+    }
     Ok(xml)
 }
 
@@ -371,6 +395,33 @@ mod tests {
     #[test]
     fn placeholders_rejects_a_non_docx_file() {
         assert_eq!(placeholders(b"not a zip").unwrap_err(), DocxError::NotADocx);
+    }
+
+    #[test]
+    fn placeholders_rejects_a_document_xml_that_decompresses_past_the_limit() {
+        // #7524 : un `document.xml` très répétitif (donc très compressible)
+        // doit être rejeté sur sa taille *décompressée*, pas sur la taille
+        // de l'archive reçue — ici quelques dizaines de Ko compressés pour
+        // plusieurs Mo une fois inflatés.
+        let mut xml = String::from("<w:body>");
+        while xml.len() <= MAX_DOCUMENT_XML_SIZE {
+            xml.push_str("<w:p><w:r><w:t>AAAAAAAAAA</w:t></w:r></w:p>");
+        }
+        xml.push_str("</w:body>");
+
+        let mut buf = Vec::new();
+        {
+            let mut writer = ZipWriter::new(Cursor::new(&mut buf));
+            let deflated =
+                FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            writer.start_file("word/document.xml", deflated).unwrap();
+            writer.write_all(xml.as_bytes()).unwrap();
+            writer.finish().unwrap();
+        }
+        // Le fichier compressé est très petit devant `document.xml` en clair.
+        assert!(buf.len() < MAX_DOCUMENT_XML_SIZE / 10);
+
+        assert_eq!(placeholders(&buf).unwrap_err(), DocxError::TooLarge);
     }
 
     #[test]
