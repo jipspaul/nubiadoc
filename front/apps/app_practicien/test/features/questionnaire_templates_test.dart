@@ -2,6 +2,8 @@
 //! — chargement catalogue + modèle du cabinet (au plus un), création/édition
 //! (recharge la liste), éditeur de questions + aperçu en direct.
 
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -282,11 +284,14 @@ void main() {
 
     testWidgets(
         'créer un modèle : ajouter une question puis enregistrer dispatch '
-        'QuestionnaireTemplatesCreateRequested', (tester) async {
+        'QuestionnaireTemplatesCreateRequested puis ferme l\'éditeur '
+        'seulement une fois le succès connu (#7507)', (tester) async {
       final bloc = MockQuestionnaireTemplatesBloc();
-      when(() => bloc.state).thenReturn(
-        const QuestionnaireTemplatesLoaded(templates: []),
-      );
+      const initial = QuestionnaireTemplatesLoaded(templates: []);
+      final controller = StreamController<QuestionnaireTemplatesState>.broadcast();
+      addTearDown(controller.close);
+      when(() => bloc.state).thenReturn(initial);
+      whenListen(bloc, controller.stream, initialState: initial);
       await tester.pumpApp(
         BlocProvider<QuestionnaireTemplatesBloc>.value(
           value: bloc,
@@ -330,7 +335,7 @@ void main() {
           find.byKey(const Key('questionnaire_template_editor_save'));
       await tester.ensureVisible(saveButton);
       await tester.tap(saveButton);
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       verify(() => bloc.add(const QuestionnaireTemplatesCreateRequested(
             title: 'Mon questionnaire',
@@ -342,6 +347,92 @@ void main() {
               ),
             ],
           ))).called(1);
+
+      // Tant que la requête est en cours, l'éditeur reste ouvert.
+      controller.add(initial.copyWith(
+        actionInProgress: true,
+        clearActionError: true,
+      ));
+      await tester.pump();
+      expect(
+        find.byKey(const Key('questionnaire_template_editor_scaffold')),
+        findsOneWidget,
+      );
+
+      controller.add(QuestionnaireTemplatesLoaded(templates: [_cabinetTemplate]));
+      await tester.pumpAndSettle();
+
+      // L'éditeur ne se ferme qu'une fois le succès connu (#7507).
+      expect(
+        find.byKey(const Key('questionnaire_template_editor_scaffold')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'créer un modèle : un échec laisse l\'éditeur ouvert avec la '
+        'saisie intacte et affiche l\'erreur (#7507)', (tester) async {
+      final bloc = MockQuestionnaireTemplatesBloc();
+      const initial = QuestionnaireTemplatesLoaded(templates: []);
+      final controller = StreamController<QuestionnaireTemplatesState>.broadcast();
+      addTearDown(controller.close);
+      when(() => bloc.state).thenReturn(initial);
+      whenListen(bloc, controller.stream, initialState: initial);
+      await tester.pumpApp(
+        BlocProvider<QuestionnaireTemplatesBloc>.value(
+          value: bloc,
+          child: const QuestionnaireTemplatesPage(),
+        ),
+      );
+
+      await tester
+          .tap(find.byKey(const Key('questionnaire_templates_create_button')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('questionnaire_template_editor_title')),
+        'Mon questionnaire',
+      );
+      await tester.tap(
+          find.byKey(const Key('questionnaire_template_editor_add_question')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('question_editor_key_0')),
+        'antecedents',
+      );
+      await tester.enterText(
+        find.byKey(const Key('question_editor_label_0')),
+        'Antécédents médicaux',
+      );
+      await tester.pumpAndSettle();
+
+      final saveButton =
+          find.byKey(const Key('questionnaire_template_editor_save'));
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pump();
+
+      controller.add(initial.copyWith(
+        actionInProgress: true,
+        clearActionError: true,
+      ));
+      await tester.pump();
+      controller.add(initial.copyWith(
+        actionInProgress: false,
+        actionError: 'Impossible de créer le modèle de questionnaire.',
+      ));
+      await tester.pumpAndSettle();
+
+      // L'éditeur reste ouvert, la saisie n'a pas disparu.
+      expect(
+        find.byKey(const Key('questionnaire_template_editor_scaffold')),
+        findsOneWidget,
+      );
+      expect(find.text('Mon questionnaire'), findsOneWidget);
+      expect(
+        find.byKey(const Key('questionnaire_template_editor_error_snackbar')),
+        findsOneWidget,
+      );
     });
   });
 }
