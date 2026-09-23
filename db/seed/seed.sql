@@ -537,6 +537,50 @@ INSERT INTO nurse_membership (id, nurse_id, user_id, role) VALUES
    'a0000000-0000-0000-0000-0000000000c1', 'nurse')
 ON CONFLICT (id) DO NOTHING;
 
+-- =====================================================================
+-- Modèles de CR structurés (issue #7155) — chirurgie implantaire, endo, paro.
+-- `sections` est un tableau ordonné {key,label,fields[]} ; chaque modèle
+-- n'active que le sous-ensemble de sections pertinent à son acte.
+-- =====================================================================
+INSERT INTO cr_template (id, cabinet_id, ccam_code, title, body_template, sections) VALUES
+  ('cd000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'HBLD001', 'CR chirurgie implantaire',
+   'Compte rendu structuré — pose d''implant : voir sections ci-dessous.',
+   '[
+      {"key": "patient_intervention", "label": "Patient & intervention", "fields": ["acte_ccam", "dent_site", "date_intervention"]},
+      {"key": "anesthesie",           "label": "Anesthésie",             "fields": ["type", "produit", "dose"]},
+      {"key": "guide_chirurgical",    "label": "Guide chirurgical",      "fields": ["type_guide", "reference"]},
+      {"key": "lambeau",              "label": "Lambeau",                "fields": ["type_lambeau", "localisation"]},
+      {"key": "implants",             "label": "Implants",               "fields": ["reference", "lot", "marque", "diametre", "longueur", "position"]},
+      {"key": "greffes",              "label": "Greffes",                "fields": ["type_greffe", "origine", "materiau"]},
+      {"key": "materiaux",            "label": "Matériaux",              "fields": ["produit", "reference", "lot"]},
+      {"key": "post_operatoire",      "label": "Post-opératoire",        "fields": ["consignes", "prescription", "controle_prevu"]},
+      {"key": "documents",            "label": "Documents",              "fields": ["radiographie", "photo", "consentement"]}
+    ]'::jsonb),
+  ('cd000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
+   'HBED003', 'CR endodontie',
+   'Compte rendu structuré — traitement endodontique : voir sections ci-dessous.',
+   '[
+      {"key": "patient_intervention", "label": "Patient & intervention", "fields": ["acte_ccam", "dent_site", "date_intervention"]},
+      {"key": "anesthesie",           "label": "Anesthésie",             "fields": ["type", "produit", "dose"]},
+      {"key": "materiaux",            "label": "Matériaux",              "fields": ["irrigant", "obturation", "lot"]},
+      {"key": "post_operatoire",      "label": "Post-opératoire",        "fields": ["consignes", "prescription", "controle_prevu"]},
+      {"key": "documents",            "label": "Documents",              "fields": ["radiographie", "photo"]}
+    ]'::jsonb),
+  ('cd000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111',
+   'HBFD002', 'CR parodontie',
+   'Compte rendu structuré — chirurgie parodontale : voir sections ci-dessous.',
+   '[
+      {"key": "patient_intervention", "label": "Patient & intervention", "fields": ["acte_ccam", "dent_site", "date_intervention"]},
+      {"key": "anesthesie",           "label": "Anesthésie",             "fields": ["type", "produit", "dose"]},
+      {"key": "lambeau",              "label": "Lambeau",                "fields": ["type_lambeau", "localisation"]},
+      {"key": "greffes",              "label": "Greffes",                "fields": ["type_greffe", "origine", "materiau"]},
+      {"key": "materiaux",            "label": "Matériaux",              "fields": ["produit", "reference", "lot"]},
+      {"key": "post_operatoire",      "label": "Post-opératoire",        "fields": ["consignes", "prescription", "controle_prevu"]},
+      {"key": "documents",            "label": "Documents",              "fields": ["radiographie", "photo", "consentement"]}
+    ]'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
 COMMIT;
 
 \echo '✓ seed démo chargé (Cabinet Lyon, données fictives, idempotent)'
