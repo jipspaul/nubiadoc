@@ -30,6 +30,8 @@ import '../features/cabinet/cabinet_info_cubit.dart';
 import '../features/cabinet/cabinet_info_page.dart';
 import '../features/consent_templates/consent_templates_bloc.dart';
 import '../features/consent_templates/consent_templates_page.dart';
+import '../features/questionnaire_templates/questionnaire_templates_bloc.dart';
+import '../features/questionnaire_templates/questionnaire_templates_page.dart';
 import '../features/register/pro_register_cubit.dart';
 import '../features/register/pro_register_page.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
@@ -75,6 +77,7 @@ class AppRouter {
   static const tasks = '/tasks';
   static const cabinetBrief = '/cabinet-brief';
   static const consentTemplates = '/consent-templates';
+  static const questionnaireTemplates = '/questionnaire-templates';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -189,6 +192,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<ConsentTemplatesBloc>(),
             child: const ConsentTemplatesPage(),
+          ),
+        ),
+        GoRoute(
+          path: questionnaireTemplates,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<QuestionnaireTemplatesBloc>(),
+            child: const QuestionnaireTemplatesPage(),
           ),
         ),
         // #6286 — le `ProShell` enveloppe désormais TOUTES les autres

@@ -13,6 +13,7 @@ import '../features/dashboard/prostheses_today_bloc.dart';
 import '../features/dashboard/today_notes_bloc.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/consent_templates/consent_templates_bloc.dart';
+import '../features/questionnaire_templates/questionnaire_templates_bloc.dart';
 import '../features/courriers/letter_compose_cubit.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/invoice_reminder_cubit.dart';
@@ -242,6 +243,14 @@ void registerPro(GetIt gi) {
       listTemplates: gi<ListConsentTemplatesUseCase>(),
       createTemplate: gi<CreateConsentTemplateUseCase>(),
       patchTemplate: gi<PatchConsentTemplateUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<QuestionnaireTemplatesBloc>(
+    () => QuestionnaireTemplatesBloc(
+      listTemplates: gi<ListQuestionnaireTemplatesUseCase>(),
+      createTemplate: gi<CreateQuestionnaireTemplateUseCase>(),
+      patchTemplate: gi<PatchQuestionnaireTemplateUseCase>(),
     ),
   );
 

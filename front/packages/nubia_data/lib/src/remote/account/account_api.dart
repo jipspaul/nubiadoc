@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/account/account_dto.dart';
+import 'package:nubia_data/src/remote/questionnaire_templates/questionnaire_template_dto.dart';
 
 class AccountApi {
   final Dio _dio;
@@ -214,5 +215,17 @@ class AccountApi {
       data: body,
     );
     return MedicalQuestionnaireDto.fromJson(response.data!);
+  }
+
+  /// `GET /v1/account/medical-questionnaire/active-template` — schéma du
+  /// modèle actif pour [cabinetId] (#7158).
+  Future<ActiveQuestionnaireTemplateDto> getActiveMedicalQuestionnaireTemplate(
+    String cabinetId,
+  ) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/account/medical-questionnaire/active-template',
+      queryParameters: {'cabinet_id': cabinetId},
+    );
+    return ActiveQuestionnaireTemplateDto.fromJson(response.data!);
   }
 }

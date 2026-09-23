@@ -1,6 +1,7 @@
-//! Écran de saisie du questionnaire médical patient (#4109) — antécédents,
-//! allergies, traitements en cours, ALD. Proposé avant le prochain RDV
-//! (accessible depuis `mes_rdv_page.dart`, qui fournit le `cabinetId`).
+//! Écran de saisie du questionnaire médical patient (#4109) — rendu
+//! dynamique piloté par le schéma actif du cabinet (#7158), types de
+//! questions, options, condition « afficher si ». Proposé avant le prochain
+//! RDV (accessible depuis `mes_rdv_page.dart`, qui fournit le `cabinetId`).
 //! Précharge la soumission existante (#4459) ; en lecture seule si elle a
 //! déjà été transmise au cabinet (le `PATCH` n'accepte que les brouillons).
 
@@ -26,6 +27,8 @@ class MedicalQuestionnairePage extends StatelessWidget {
         create: GetIt.instance<CreateMedicalQuestionnaireUseCase>(),
         patch: GetIt.instance<PatchMedicalQuestionnaireUseCase>(),
         get: GetIt.instance<GetMedicalQuestionnaireUseCase>(),
+        getActiveTemplate:
+            GetIt.instance<GetActiveMedicalQuestionnaireTemplateUseCase>(),
       ),
       child: const _MedicalQuestionnaireBody(),
     );
@@ -41,10 +44,8 @@ class _MedicalQuestionnaireBody extends StatefulWidget {
 }
 
 class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
-  final _antecedents = TextEditingController();
-  final _allergies = TextEditingController();
-  final _traitements = TextEditingController();
-  bool _ald = false;
+  QuestionnaireTemplate? _template;
+  Map<String, dynamic> _values = {};
 
   /// `true` tant que le chargement initial (#4459) n'a pas rendu son
   /// premier résultat — évite d'afficher brièvement un formulaire vierge
@@ -57,21 +58,6 @@ class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
   DateTime? _submittedAt;
 
   @override
-  void dispose() {
-    _antecedents.dispose();
-    _allergies.dispose();
-    _traitements.dispose();
-    super.dispose();
-  }
-
-  Map<String, dynamic> get _payload => {
-        'antecedents': _antecedents.text.trim(),
-        'allergies': _allergies.text.trim(),
-        'traitements_en_cours': _traitements.text.trim(),
-        'ald': _ald,
-      };
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Questionnaire médical')),
@@ -82,21 +68,14 @@ class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
               MedicalQuestionnaireState>(
             listener: (context, state) {
               if (state is MedicalQuestionnaireLoaded) {
-                final questionnaire = state.questionnaire;
-                if (questionnaire != null) {
-                  _antecedents.text =
-                      questionnaire.payload['antecedents'] as String? ?? '';
-                  _allergies.text =
-                      questionnaire.payload['allergies'] as String? ?? '';
-                  _traitements.text = questionnaire
-                          .payload['traitements_en_cours'] as String? ??
-                      '';
-                }
                 setState(() {
-                  _ald = questionnaire?.payload['ald'] as bool? ?? false;
-                  _readOnly =
-                      questionnaire != null && questionnaire.status != 'draft';
-                  _submittedAt = questionnaire?.submittedAt;
+                  _template = state.template;
+                  _values = Map<String, dynamic>.from(
+                    state.questionnaire?.payload ?? const {},
+                  );
+                  _readOnly = state.questionnaire != null &&
+                      state.questionnaire!.status != 'draft';
+                  _submittedAt = state.questionnaire?.submittedAt;
                   _initialLoading = false;
                 });
               }
@@ -108,13 +87,43 @@ class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
               if (state is MedicalQuestionnaireSubmitted) {
                 context.pop();
               }
+              // Le chargement initial du schéma actif a échoué (cabinet
+              // introuvable, erreur réseau…) : il n'y a rien à construire,
+              // sortir de l'état « chargement » pour laisser le builder
+              // afficher la bannière d'erreur plutôt qu'un spinner infini.
+              if (state is MedicalQuestionnaireError && _initialLoading) {
+                setState(() => _initialLoading = false);
+              }
             },
             builder: (context, state) {
               if (_initialLoading) {
                 return const Center(child: CircularProgressIndicator());
               }
+              final template = _template;
+              if (template == null) {
+                final message = state is MedicalQuestionnaireError
+                    ? state.message
+                    : 'Impossible de charger le questionnaire.';
+                return Container(
+                  key: const Key('medical_questionnaire_error_banner'),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    message,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                  ),
+                );
+              }
               final loading = state is MedicalQuestionnaireSaving;
               final fieldsEnabled = !loading && !_readOnly;
+              final visibleQuestions = template.schema
+                  .where((question) => question.isVisible(_values))
+                  .toList();
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -122,7 +131,7 @@ class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Avant votre rendez-vous',
+                      template.title,
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 4),
@@ -175,44 +184,18 @@ class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
                       ),
                     ],
                     const SizedBox(height: 24),
-                    NubiaTextField(
-                      key: const Key('medical_questionnaire_antecedents'),
-                      variant: NubiaTextFieldVariant.multiline,
-                      controller: _antecedents,
-                      label: 'Antécédents médicaux',
-                      hint: 'Maladies, opérations, hospitalisations…',
-                      enabled: fieldsEnabled,
-                    ),
-                    const SizedBox(height: 12),
-                    NubiaTextField(
-                      key: const Key('medical_questionnaire_allergies'),
-                      variant: NubiaTextFieldVariant.multiline,
-                      controller: _allergies,
-                      label: 'Allergies',
-                      hint: 'Médicaments, latex, anesthésiques…',
-                      enabled: fieldsEnabled,
-                    ),
-                    const SizedBox(height: 12),
-                    NubiaTextField(
-                      key: const Key('medical_questionnaire_traitements'),
-                      variant: NubiaTextFieldVariant.multiline,
-                      controller: _traitements,
-                      label: 'Traitements en cours',
-                      hint: 'Médicaments pris actuellement…',
-                      enabled: fieldsEnabled,
-                    ),
-                    const SizedBox(height: 12),
-                    SwitchListTile(
-                      key: const Key('medical_questionnaire_ald'),
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Affection de longue durée (ALD)'),
-                      value: _ald,
+                    NubiaDynamicQuestionnaireForm(
+                      key: const Key('medical_questionnaire_form'),
+                      fields: visibleQuestions.map(_toFieldSpec).toList(),
+                      values: _values,
+                      readOnly: !fieldsEnabled,
                       onChanged: fieldsEnabled
-                          ? (v) => setState(() => _ald = v)
+                          ? (key, value) =>
+                              setState(() => _values[key] = value)
                           : null,
                     ),
                     if (!_readOnly) ...[
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 8),
                       NubiaButton(
                         key: const Key('medical_questionnaire_submit_button'),
                         label: 'Envoyer au cabinet',
@@ -221,7 +204,7 @@ class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
                             ? null
                             : () => context
                                 .read<MedicalQuestionnaireCubit>()
-                                .submit(_payload),
+                                .submit(_values),
                       ),
                       const SizedBox(height: 12),
                       NubiaButton(
@@ -233,7 +216,7 @@ class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
                             ? null
                             : () => context
                                 .read<MedicalQuestionnaireCubit>()
-                                .saveDraft(_payload),
+                                .saveDraft(_values),
                       ),
                     ],
                   ],
@@ -245,4 +228,20 @@ class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
       ),
     );
   }
+
+  NubiaQuestionnaireFieldSpec _toFieldSpec(QuestionnaireQuestion question) =>
+      NubiaQuestionnaireFieldSpec(
+        key: question.key,
+        type: switch (question.type) {
+          QuestionnaireQuestionType.text => NubiaQuestionnaireFieldType.text,
+          QuestionnaireQuestionType.boolean =>
+            NubiaQuestionnaireFieldType.boolean,
+          QuestionnaireQuestionType.select =>
+            NubiaQuestionnaireFieldType.select,
+        },
+        label: question.label,
+        options: question.options,
+        required: question.required,
+        highlighted: question.safetyFlag,
+      );
 }

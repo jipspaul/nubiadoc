@@ -5,6 +5,7 @@ import 'package:nubia_data/src/remote/account/account_api.dart';
 import 'package:nubia_domain/src/entities/consent.dart';
 import 'package:nubia_domain/src/entities/medical_questionnaire.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
+import 'package:nubia_domain/src/entities/questionnaire_template.dart';
 import 'package:nubia_domain/src/entities/referring_doctor.dart';
 import 'package:nubia_domain/src/repositories/account_repository.dart';
 
@@ -374,6 +375,21 @@ class AccountRepositoryImpl implements AccountRepository {
         if (payload != null) 'payload': payload,
         'submit': submit,
       });
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapMedicalQuestionnaireError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, QuestionnaireTemplate>>
+      getActiveMedicalQuestionnaireTemplate({
+    required String cabinetId,
+  }) async {
+    try {
+      final dto = await _api.getActiveMedicalQuestionnaireTemplate(cabinetId);
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapMedicalQuestionnaireError(e));

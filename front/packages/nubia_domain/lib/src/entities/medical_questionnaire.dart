@@ -10,14 +10,29 @@ class MedicalQuestionnaire extends Equatable {
   final String status;
   final DateTime? submittedAt;
 
+  /// Modèle et version sur lesquels cette soumission a été figée (#7158).
+  /// `null` pour les soumissions historiques antérieures au versionnage.
+  final String? templateId;
+  final int? templateVersion;
+
   const MedicalQuestionnaire({
     required this.id,
     required this.cabinetId,
     required this.payload,
     required this.status,
     this.submittedAt,
+    this.templateId,
+    this.templateVersion,
   });
 
   @override
-  List<Object?> get props => [id, cabinetId, payload, status, submittedAt];
+  List<Object?> get props => [
+        id,
+        cabinetId,
+        payload,
+        status,
+        submittedAt,
+        templateId,
+        templateVersion,
+      ];
 }
