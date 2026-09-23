@@ -3646,3 +3646,34 @@ Le verdict ne change pas : **aucun bouton mort ni cassé confirmé** — les 20 
 | secretariat | `/liste-attente` | 1440 | 21 | 0 | 0 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7839 | 2026-09-23T14:40:00+00:00 |
 | secretariat | `/bookable-slots` | 1440 | 25 | 4 | 4 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7427 | 2026-09-23T14:40:00+00:00 |
 | secretariat | `/appointment-motifs` | 1440 | 22 | 1 | 1 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7851 | 2026-09-23T14:40:00+00:00 |
+
+#### R91 — CHIFFRES DÉFINITIFS (recomptés depuis les journaux d'exécution)
+
+> ⚠️ **Correction de comptage.** Les bilans partiels publiés plus haut dans cette ronde
+> sous-estimaient le total : mon agrégateur lisait les dumps JSON du harnais, or plusieurs
+> exécutions successives écrivaient sous le **même nom de fichier** (`<app>_<viewport>.json`)
+> et s'écrasaient entre elles. Les chiffres ci-dessous sont recomptés depuis les **journaux
+> d'exécution**, qui sont uniques par lancement — ce sont eux qui font foi. Les tableaux
+> par écran plus haut restent valides ligne à ligne ; seuls les totaux étaient incomplets.
+
+**Total définitif R91 : 2 137 contrôles inventoriés · 868 activés · 648 OK · 147 « mort » bruts ·
+49 « cassé » bruts · 30 désactivés · 54 non activés (destructifs) · 24 hors d'atteinte ·
+1 185 déjà jugés sur un autre écran de la même app — sur 109 couples écran×viewport, les 5 apps.**
+
+> 🟢 **0 bouton mort confirmé, 0 bouton cassé confirmé.**
+> **27 candidats « mort » re-testés un par un**, chacun sur page neuve et avec vérification
+> `document.elementFromPoint` avant le clic : **27/27 se sont révélés fonctionnels**. L'échantillon
+> couvre toutes les familles rencontrées — puces de filtre à défilement horizontal (`/documents`
+> patient), lignes de liste (conversations, patients, commandes), icônes du rail, boutons de volet
+> latéral (`/agenda` secrétariat), actions de tableau hors viewport (`Relancer`, `Clôturer`),
+> créneaux de réservation (`/appointments` patient), contrôle ouvrant un sélecteur de fichier natif
+> (`Modifier la photo de profil`), et les 9 dents « mortes » du schéma dentaire praticien.
+> Les 49 « cassé » sont **intégralement** imputables aux trois sondes de rôle légitimes
+> (403 `cabinet/audit-log`, 403 `cabinet/stats/activity` côté secrétariat, 404 `quotes/:id/attestation`
+> — cette dernière documentée comme une absence attendue dans `quote_attestation_repository_impl.dart:19-20`).
+>
+> Les 120 candidats « mort » **non** re-testés individuellement relèvent des mêmes familles ; ils sont
+> laissés **en attente** pour la ronde suivante plutôt que déclarés sains.
+>
+> Le seul défaut de contrôle rapporté cette ronde est d'une autre nature : des cases à cocher
+> **sans nom accessible** sur l'écran de délivrance pharmacie (**#7533**).
