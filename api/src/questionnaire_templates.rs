@@ -81,6 +81,9 @@ pub struct QuestionnaireQuestion {
     pub options: Option<Vec<String>>,
     #[serde(default)]
     pub condition: Option<QuestionnaireCondition>,
+    /// Accepté et validé (type bool) à l'écriture du modèle — pas encore
+    /// consommé côté logique métier dans cette version (#7159 v1).
+    #[allow(dead_code)]
     #[serde(default)]
     pub safety_flag: bool,
     #[serde(default)]

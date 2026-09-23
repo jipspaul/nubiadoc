@@ -215,7 +215,10 @@ async fn call(
         }
         None => Body::empty(),
     };
-    let response = app(state).oneshot(builder.body(body).unwrap()).await.unwrap();
+    let response = app(state)
+        .oneshot(builder.body(body).unwrap())
+        .await
+        .unwrap();
     let status = response.status();
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
@@ -456,7 +459,10 @@ async fn delete_deactivates_and_falls_back_to_global_standard() {
     let (status, active) = call(
         state_with(app_pool().await),
         "GET",
-        &format!("/v1/account/medical-questionnaire/active-template?cabinet_id={}", f.cabinet_id),
+        &format!(
+            "/v1/account/medical-questionnaire/active-template?cabinet_id={}",
+            f.cabinet_id
+        ),
         &patient_token,
         None,
     )
@@ -477,7 +483,10 @@ async fn delete_deactivates_and_falls_back_to_global_standard() {
     let (status, active_after) = call(
         state_with(app_pool().await),
         "GET",
-        &format!("/v1/account/medical-questionnaire/active-template?cabinet_id={}", f.cabinet_id),
+        &format!(
+            "/v1/account/medical-questionnaire/active-template?cabinet_id={}",
+            f.cabinet_id
+        ),
         &patient_token,
         None,
     )

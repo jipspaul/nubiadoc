@@ -184,15 +184,14 @@ async fn fetch_template_schema_by_version(
     template_id: Uuid,
     version: i32,
 ) -> Result<Value, AppError> {
-    let row = sqlx::query(
-        "SELECT schema FROM questionnaire_template WHERE id = $1 AND version = $2",
-    )
-    .bind(template_id)
-    .bind(version)
-    .fetch_optional(&mut **tx)
-    .await
-    .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::Internal)?;
+    let row =
+        sqlx::query("SELECT schema FROM questionnaire_template WHERE id = $1 AND version = $2")
+            .bind(template_id)
+            .bind(version)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::Internal)?;
 
     row.try_get("schema").map_err(|_| AppError::Internal)
 }
@@ -439,8 +438,11 @@ pub async fn patch_medical_questionnaire(
     .ok_or(AppError::NotFound)?;
 
     let current_payload: Value = current.try_get("payload").map_err(|_| AppError::Internal)?;
-    let template_id: Option<Uuid> = current.try_get("template_id").map_err(|_| AppError::Internal)?;
-    let template_version: Option<i32> = current.try_get("version").map_err(|_| AppError::Internal)?;
+    let template_id: Option<Uuid> = current
+        .try_get("template_id")
+        .map_err(|_| AppError::Internal)?;
+    let template_version: Option<i32> =
+        current.try_get("version").map_err(|_| AppError::Internal)?;
 
     // `template_id`/`version` sont toujours renseignés depuis la migration
     // 0294 (backfill + POST les fixe désormais systématiquement) — absents
