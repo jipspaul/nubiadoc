@@ -3690,3 +3690,15 @@ infirmière 390 + 1280).**
 > sur page neuve avec vérification `document.elementFromPoint` : **29/29 fonctionnels**.
 > Les 50 « cassé » restent intégralement imputables aux trois sondes de rôle légitimes.
 > 223 captures d'écran produites (`qa/screenshots/`), dont une par écran parcouru.
+
+#### R91 — écrans de connexion, viewport alternatif de chaque app (complément de couverture)
+
+| app | vp | contrôles | blanc | console | verdict |
+|---|---|---|---|---|---|
+| pharmacie | 390×844 | 4 (E-mail professionnel, Mot de passe, Afficher le mot de passe, Se connecter) | 0.9353 | 0 | OK — « Espace pharmacie » + « Accès réservé aux pharmacies partenaires — compte créé par votre administrateur. » |
+| infirmiere | 1280×800 | 4 | 0.9783 | 0 | OK — « Espace infirmier — soins à domicile » + « Accès réservé aux infirmier·ères partenaires. » |
+| secretariat | 390×844 | 4 | 0.9263 | 0 | OK — « Espace secrétariat » |
+| praticien | 390×844 | 5 (+ « Créer mon compte praticien ») | 0.9343 | 0 | OK — « Nouveau praticien sur Nubia ? » + « RPPS ou ADELI requis » |
+| patient | 1280×800 | 6 (+ « Mot de passe oublié ? », « Créer mon compte ») | 0.9784 | 0 | OK — « Espace patient » |
+
+Les 5 écrans rendent correctement au viewport secondaire, avec le libellé de rôle attendu et **zéro erreur console**. Le ratio de blanc élevé est normal (formulaire centré sur fond clair) — la présence des contrôles dans l'arbre Semantics le confirme, conformément à la règle « jamais `innerText` comme signal de rendu ».
