@@ -3138,6 +3138,36 @@ class _BookingPanelState extends State<_BookingPanel> {
                   .read<AppointmentsBloc>()
                   .add(AppointmentsMotifChanged(v)),
             ),
+            const SizedBox(height: 8),
+            // #7540 : indication verbatim maquette (`.hint`), placée entre
+            // le champ Motif et le CTA — explique pourquoi « Confirmer »
+            // reste grisé tant que le motif est vide (renforcée en
+            // `warningFg` dans ce cas).
+            Row(
+              key: const Key('booking_motif_hint'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: motifValid
+                      ? (tokens?.infoFg ?? NubiaColors.infoFg)
+                      : (tokens?.warningFg ?? NubiaColors.warningFg),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Un motif clair permet au cabinet de réserver la bonne '
+                    'durée et le bon fauteuil.',
+                    style: subdued?.copyWith(
+                      color: motifValid
+                          ? null
+                          : (tokens?.warningFg ?? NubiaColors.warningFg),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             NubiaTextField(
               key: const Key('booking_precisions'),
