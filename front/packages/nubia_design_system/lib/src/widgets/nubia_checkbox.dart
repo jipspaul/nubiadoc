@@ -11,6 +11,9 @@ import 'package:nubia_design_system/src/theme/nubia_tokens.dart';
 ///   [tristate] pour être atteignable par l'utilisateur).
 /// - [onChanged] : callback de bascule — si `null`, la case est désactivée.
 /// - [label] : libellé cliquable optionnel affiché à droite.
+/// - [semanticLabel] : nom accessible, sans rendu visuel — à utiliser quand la
+///   case est adjacente à un libellé déjà affiché ailleurs à l'écran (évite
+///   de le dupliquer visuellement). Ignoré si [label] est fourni.
 /// - [tristate] : autorise l'état `null` (mixed) dans le cycle de bascule.
 ///
 /// Cible tactile ≥ 44px, focus ring visible (rôle `primary`). Couleurs via
@@ -21,12 +24,14 @@ class NubiaCheckbox extends StatefulWidget {
     required this.value,
     this.onChanged,
     this.label,
+    this.semanticLabel,
     this.tristate = false,
   });
 
   final bool? value;
   final ValueChanged<bool>? onChanged;
   final String? label;
+  final String? semanticLabel;
   final bool tristate;
 
   @override
@@ -98,7 +103,7 @@ class _NubiaCheckboxState extends State<NubiaCheckbox> {
       checked: checked,
       mixed: mixed,
       enabled: _enabled,
-      label: widget.label,
+      label: widget.label ?? widget.semanticLabel,
       child: InkWell(
         onTap: _enabled ? _handleTap : null,
         onFocusChange: (v) => setState(() => _focused = v),

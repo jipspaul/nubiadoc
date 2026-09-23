@@ -57,6 +57,7 @@ class PrescriptionLineTile extends StatelessWidget {
                   key: const Key('prescription_line_prepared'),
                   value: prepared,
                   onChanged: onPreparedChanged,
+                  semanticLabel: 'Préparée — $name',
                 ),
               ),
             ),
