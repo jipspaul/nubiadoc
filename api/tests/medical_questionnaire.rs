@@ -680,9 +680,9 @@ async fn review_medical_questionnaire_imports_and_marks_reviewed() {
                     json!({
                         "cabinet_id": f.cabinet_id,
                         "payload": {
-                            "antecedents": "Diabète type 2",
+                            "antecedents_chirurgicaux": "Diabète type 2",
                             "allergies": "Pénicilline",
-                            "traitements_en_cours": "Metformine",
+                            "traitement_en_cours": "Metformine",
                             "ald": true
                         }
                     })
