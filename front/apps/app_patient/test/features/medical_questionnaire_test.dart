@@ -359,4 +359,31 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets(
+      'échec du chargement du schéma actif → bouton Réessayer relance le '
+      'chargement (#7514)', (tester) async {
+    when(() => getActiveTemplate(cabinetId: any(named: 'cabinetId')))
+        .thenAnswer(
+      (_) async => const Left(NotFoundFailure('Cabinet introuvable.')),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    final retryButton = find.text('Réessayer');
+    expect(retryButton, findsOneWidget);
+
+    when(() => getActiveTemplate(cabinetId: any(named: 'cabinetId')))
+        .thenAnswer((_) async => const Right(_template));
+    await tester.tap(retryButton);
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('medical_questionnaire_error_banner')),
+      findsNothing,
+    );
+    expect(find.text(_template.title), findsOneWidget);
+  });
 }

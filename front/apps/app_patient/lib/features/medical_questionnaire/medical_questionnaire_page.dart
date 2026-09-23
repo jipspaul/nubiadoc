@@ -104,19 +104,13 @@ class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
                 final message = state is MedicalQuestionnaireError
                     ? state.message
                     : 'Impossible de charger le questionnaire.';
-                return Container(
+                return NubiaErrorWidget(
                   key: const Key('medical_questionnaire_error_banner'),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    message,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onErrorContainer,
-                    ),
-                  ),
+                  message: message,
+                  onRetry: () {
+                    setState(() => _initialLoading = true);
+                    context.read<MedicalQuestionnaireCubit>().retry();
+                  },
                 );
               }
               final loading = state is MedicalQuestionnaireSaving;
