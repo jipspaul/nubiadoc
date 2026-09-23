@@ -85,6 +85,25 @@ class ScriptedNurseOffersAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// Simule une coupure réseau : tous les appels `/v1/*` échouent, comme
+/// `page.route('**/v1/**', r => r.abort())` dans le repro Playwright (#7530).
+class NetworkDownAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) {
+    throw DioException.connectionError(
+      requestOptions: options,
+      reason: 'network is unreachable',
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   setUp(() async {
     await GetIt.instance.reset();
@@ -130,5 +149,45 @@ void main() {
     expect(find.text('Statut : Acceptée'), findsOneWidget);
     expect(find.text('Offre acceptée — direction « Ma visite ».'),
         findsOneWidget);
+  });
+
+  testWidgets(
+      'coupure réseau : la disponibilité est présentée comme inconnue, '
+      'jamais comme "hors ligne" affirmé (#7530)', (tester) async {
+    // Ré-enregistre le NurseCubit sur un client qui échoue systématiquement,
+    // pour reproduire la coupure réseau du repro (page.route(...).abort()).
+    await GetIt.instance.reset();
+    final authInterceptor = AuthInterceptor(FakeTokenStorage());
+    final api = ApiClient(authInterceptor)
+      ..dio.httpClientAdapter = NetworkDownAdapter();
+    final notificationRepository = MockNotificationRepository();
+    when(() => notificationRepository.getNotifications())
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance
+      ..registerFactory<NurseCubit>(() => NurseCubit(api))
+      ..registerFactory<NotificationsBloc>(
+        () => NotificationsBloc(repository: notificationRepository),
+      );
+
+    await tester.pumpWidget(
+      const MaterialApp(home: InfirmiereHomePage()),
+    );
+    await tester.pumpAndSettle();
+
+    // Jamais l'affirmation d'un "hors ligne" métier non lu depuis le serveur.
+    expect(
+      find.text('Vous êtes hors ligne. Passez en ligne pour recevoir des demandes.'),
+      findsNothing,
+    );
+    expect(
+      find.text(
+          'Disponibilité indisponible — impossible de joindre le serveur.'),
+      findsOneWidget,
+    );
+
+    final switchTile = tester
+        .widget<SwitchListTile>(find.byKey(const Key('availability_switch')));
+    expect(switchTile.value, isFalse);
+    expect(switchTile.onChanged, isNull);
   });
 }
