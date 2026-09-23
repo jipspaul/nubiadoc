@@ -3216,3 +3216,17 @@ Cible prioritaire de la ronde (Étape 1bis) : les 14 merges depuis le dernier co
 | **Endpoints de catalogue restants** | 2026-09-23T14:58:00Z | OK | `GET` en 200 avec des données cohérentes sur `/cabinet/stock-items` (28), `/cabinet/lab-work-orders` (30), `/cabinet/lab-stats`, `/cabinet/correspondents`, `/cabinet/appointment-motifs`, `/cabinet/compliance-items` (25), `/cabinet/maintenance/stats`, `/cabinet/cr-templates` (3), `/cabinet/prescription-templates` (19), `/specialties`, `/professions`, `/pharmacies`, `/acts`, `/reminders`. |
 
 **Notification Matrix : ÉCHEC** — `maubot.maubot.svc.cluster.local` n'est pas résolu depuis cet environnement (DNS KO, `curl` rend HTTP 000 sur trois tentatives espacées). Conformément à la consigne, l'échec est journalisé ici et la ronde se poursuit ; le résumé exécutif est porté par l'issue de registre **#6179**.
+
+#### R91 — CONTRE-ÉPREUVE DES CORRECTIFS ÉMIS PENDANT LA RONDE (5 sur 8, tous vérifiés EN LIGNE)
+
+L'agent correcteur a repris 5 des 8 findings dans la foulée ; chacun a été **re-testé sur l'environnement live avant la clôture de la ronde**, avec la séquence exacte qui avait servi à le rapporter.
+
+| # | correctif mergé | contre-épreuve live | verdict |
+|---|---|---|---|
+| **#7524** | `68f0f8f2` — borne la taille décompressée des `.docx` importés | Le même fichier de 119 989 octets (51 650 017 décompressés) re-téléversé → **`422 validation_error`** (il rendait `201` trois heures plus tôt). | ✅ **corrigé** |
+| **#7525** | — import complet du questionnaire | Nouveau cycle patient → soumission → `review` praticien : `medico_legal` porte désormais **`"grossesse": true`** et **`"maladie_cardiovasculaire": true`**, et `medical_alerts` a gagné les pastilles **« Grossesse »** et **« Maladie cardiovasculaire »** en plus des allergies, « Anticoagulant (AVK) » et « ALD ». | ✅ **corrigé** |
+| **#7529** | `5029aec5` — plancher lisible pour la note de séance | Hauteur rendue du `TEXTAREA` de note : **284 px à 1280×800** (contre ~23 px), 384 px à 1440×900, 484 px à 1280×1000, 620 px à 1920×1080. Capture recadrée : la phrase saisie est **entièrement lisible**, plus aucun glyphe coupé. | ✅ **corrigé** |
+| **#7530** | `94e0575a` — disponibilité inconnue plutôt qu'affirmée hors ligne | Serveur forcé à `is_online: true`, puis coupure réseau : l'écran affiche maintenant « **Disponibilité indisponible — impossible de joindre le serveur.** » et l'interrupteur « En ligne » est **`aria-disabled: true`** — exactement le comportement ternaire demandé. Le bandeau « Erreur réseau (hors ligne). » reste affiché à côté. | ✅ **corrigé** |
+| **#7533** | `4f1dd42a` — nom accessible sur la case « préparée » | Les deux cases de la commande à 2 lignes portent désormais `aria-label="Préparée — QA-R91 A11Y AMOXICILLINE 500mg"` et `aria-label="Préparée — QA-R91 A11Y IBUPROFENE 400mg"`. | ✅ **corrigé** |
+
+**Restent ouverts à la clôture : #7523 (P1, placeholder Word scindé), #7527 (P2, volet d'agenda superposé), #7535 (P1, liste patients non paginée — secrétariat ET praticien).**
