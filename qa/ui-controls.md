@@ -3613,3 +3613,36 @@ Le verdict ne change pas : **aucun bouton mort ni cassé confirmé** — les 20 
 | praticien | `/patients` | 390 | 19 | 17 | 3 | 0 | 14 | 0 | 0 | 2 | 0 | 0.8758 | 2026-09-23T14:50:00+00:00 |
 | praticien | `/ordonnances` | 390 | 3 | 2 | 2 | 0 | 0 | 0 | 0 | 1 | 0 | 0.9599 | 2026-09-23T14:50:00+00:00 |
 | praticien | `/messages` | 390 | 10 | 8 | 1 | 7 | 0 | 0 | 0 | 2 | 0 | 0.9096 | 2026-09-23T14:50:00+00:00 |
+
+#### R91 — troisième segment : derniers écrans et viewports (total consolidé)
+
+**Total consolidé de la ronde R91 : 1676 contrôles inventoriés, 651 activés (+965 déjà jugés), 466 OK, 125 « mort » bruts, 40 « cassé » bruts, 14 désactivés, 46 non activés (destructifs), 20 hors d'atteinte — sur 89 couples écran×viewport et les 5 apps.**
+
+> **Verdict final : 0 bouton mort confirmé, 0 bouton cassé confirmé.** **25** candidats « mort » ont été re-testés
+> un par un sur page neuve avec vérification `document.elementFromPoint` — **25/25 fonctionnels**. Ils couvrent
+> toutes les familles rencontrées : puces de filtre à défilement horizontal, lignes de liste, icônes de rail,
+> boutons de volet latéral, actions de tableau hors viewport, créneaux de réservation, et un contrôle ouvrant un
+> sélecteur de fichier natif. Les « cassé » restent intégralement imputables aux trois sondes de rôle légitimes
+> (403 `cabinet/audit-log`, 403 `cabinet/stats/activity` côté secrétariat, 404 `quotes/:id/attestation`).
+> Le seul défaut de contrôle rapporté cette ronde est d'une autre nature : des cases à cocher **sans nom accessible** (#7533).
+
+**Parcours métier complets joués dans l'UI — un par app, comme l'exige la clôture :**
+
+| app | parcours | preuve |
+|---|---|---|
+| patient | Réserver un RDV | `/book` → clic sur la puce « 09:00 » d'une carte praticien → `/appointments/slots?providerId=…&slotId=…` + **`POST /v1/slots/:id/hold`** |
+| praticien | Importer un modèle Word puis générer un courrier | dialogue d'import → **`POST /v1/letter-templates/import`** → puce sélectionnée → **`POST /v1/patients/:id/letters`** (1 seul POST malgré un double-clic) |
+| secretariat | Confirmer un RDV depuis l'agenda | clic sur un bloc de la grille → volet → « Confirmer » → **`POST /v1/cabinet/appointments/:id/confirm`** + rechargement de l'agenda |
+| pharmacie | Préparer et rendre une commande disponible | `/orders/:id` → « Commencer la préparation » → **`POST …/accept`** → coche de la ligne d'ordonnance → « Marquer prête » (désactivé avant la coche) → **`POST …/ready`** → « Scanner le retrait » |
+| infirmiere | Basculer sa disponibilité | onglet Disponibilité → interrupteur « En ligne » → **`PATCH /v1/nurse/availability`**, et l'annuaire patient suit (`online_only=true` → 0 puis 1) |
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | non activés | déjà jugés | hors d'atteinte | blanc | last_check |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/` | 1440 | 35 | 27 | 25 | 2 | 0 | 0 | 1 | 7 | 0 | 0.7093 | 2026-09-23T14:40:00+00:00 |
+| secretariat | `/agenda` | 1440 | 45 | 19 | 6 | 13 | 0 | 0 | 1 | 25 | 0 | 0.6199 | 2026-09-23T14:40:00+00:00 |
+| secretariat | `/devis` | 1440 | 42 | 13 | 11 | 2 | 0 | 0 | 1 | 28 | 0 | 0.7296 | 2026-09-23T14:40:00+00:00 |
+| secretariat | `/stock` | 1440 | 41 | 11 | 5 | 6 | 0 | 0 | 1 | 29 | 0 | 0.7242 | 2026-09-23T14:40:00+00:00 |
+| secretariat | `/correspondents` | 1440 | 24 | 3 | 3 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7722 | 2026-09-23T14:40:00+00:00 |
+| secretariat | `/liste-attente` | 1440 | 21 | 0 | 0 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7839 | 2026-09-23T14:40:00+00:00 |
+| secretariat | `/bookable-slots` | 1440 | 25 | 4 | 4 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7427 | 2026-09-23T14:40:00+00:00 |
+| secretariat | `/appointment-motifs` | 1440 | 22 | 1 | 1 | 0 | 0 | 0 | 1 | 20 | 0 | 0.7851 | 2026-09-23T14:40:00+00:00 |
