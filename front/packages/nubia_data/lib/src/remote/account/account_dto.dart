@@ -9,6 +9,8 @@ class MedicalQuestionnaireDto {
   final Map<String, dynamic> payload;
   final String status;
   final String? submittedAt;
+  final String? templateId;
+  final int? templateVersion;
 
   const MedicalQuestionnaireDto({
     required this.id,
@@ -16,6 +18,8 @@ class MedicalQuestionnaireDto {
     required this.payload,
     required this.status,
     this.submittedAt,
+    this.templateId,
+    this.templateVersion,
   });
 
   factory MedicalQuestionnaireDto.fromJson(Map<String, dynamic> json) =>
@@ -25,6 +29,8 @@ class MedicalQuestionnaireDto {
         payload: (json['payload'] as Map<String, dynamic>?) ?? const {},
         status: json['status'] as String,
         submittedAt: json['submitted_at'] as String?,
+        templateId: json['template_id'] as String?,
+        templateVersion: json['template_version'] as int?,
       );
 
   MedicalQuestionnaire toDomain() => MedicalQuestionnaire(
@@ -33,6 +39,8 @@ class MedicalQuestionnaireDto {
         payload: payload,
         status: status,
         submittedAt: submittedAt != null ? DateTime.parse(submittedAt!) : null,
+        templateId: templateId,
+        templateVersion: templateVersion,
       );
 }
 

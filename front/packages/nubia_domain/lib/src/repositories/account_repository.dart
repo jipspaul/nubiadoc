@@ -3,6 +3,7 @@ import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/consent.dart';
 import 'package:nubia_domain/src/entities/medical_questionnaire.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
+import 'package:nubia_domain/src/entities/questionnaire_template.dart';
 import 'package:nubia_domain/src/entities/referring_doctor.dart';
 
 /// PORT — account boundary (profil patient, couverture, proches, consentements).
@@ -140,6 +141,13 @@ abstract class AccountRepository {
     Map<String, dynamic>? payload,
     bool submit = false,
   });
+
+  /// GET /v1/account/medical-questionnaire/active-template — schéma du
+  /// modèle de questionnaire actuellement actif pour [cabinetId] (modèle
+  /// propre au cabinet s'il existe, sinon le standard global), à utiliser
+  /// pour le rendu dynamique du formulaire patient (#7158).
+  Future<Either<Failure, QuestionnaireTemplate>>
+      getActiveMedicalQuestionnaireTemplate({required String cabinetId});
 }
 
 /// Photo de profil : octets + type MIME.

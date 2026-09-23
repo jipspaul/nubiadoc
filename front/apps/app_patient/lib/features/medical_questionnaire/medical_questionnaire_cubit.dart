@@ -15,13 +15,18 @@ final class MedicalQuestionnaireIdle extends MedicalQuestionnaireState {
 }
 
 /// Chargement initial terminé — [questionnaire] est `null` si le patient n'a
-/// encore rien soumis pour ce cabinet.
+/// encore rien soumis pour ce cabinet. [template] : schéma actif du cabinet
+/// (#7158), utilisé pour le rendu dynamique du formulaire.
 final class MedicalQuestionnaireLoaded extends MedicalQuestionnaireState {
+  final QuestionnaireTemplate template;
   final MedicalQuestionnaire? questionnaire;
-  const MedicalQuestionnaireLoaded(this.questionnaire);
+  const MedicalQuestionnaireLoaded({
+    required this.template,
+    this.questionnaire,
+  });
 
   @override
-  List<Object?> get props => [questionnaire];
+  List<Object?> get props => [template, questionnaire];
 }
 
 final class MedicalQuestionnaireSaving extends MedicalQuestionnaireState {
@@ -67,9 +72,11 @@ class MedicalQuestionnaireCubit extends Cubit<MedicalQuestionnaireState>
     required CreateMedicalQuestionnaireUseCase create,
     required PatchMedicalQuestionnaireUseCase patch,
     required GetMedicalQuestionnaireUseCase get,
+    required GetActiveMedicalQuestionnaireTemplateUseCase getActiveTemplate,
   })  : _create = create,
         _patch = patch,
         _get = get,
+        _getActiveTemplate = getActiveTemplate,
         super(const MedicalQuestionnaireIdle()) {
     _load();
   }
@@ -78,12 +85,25 @@ class MedicalQuestionnaireCubit extends Cubit<MedicalQuestionnaireState>
   final CreateMedicalQuestionnaireUseCase _create;
   final PatchMedicalQuestionnaireUseCase _patch;
   final GetMedicalQuestionnaireUseCase _get;
+  final GetActiveMedicalQuestionnaireTemplateUseCase _getActiveTemplate;
 
+  /// Charge le schéma actif du cabinet ET la soumission existante (#7158).
+  /// Le schéma est requis pour rendre le formulaire — son échec est fatal
+  /// (`MedicalQuestionnaireError`) ; l'absence de soumission existante ne
+  /// l'est pas (`Right(null)`, formulaire vierge).
   Future<void> _load() async {
-    final result = await _get(cabinetId: cabinetId);
-    result.fold(
-      (_) => safeEmit(const MedicalQuestionnaireLoaded(null)),
-      (questionnaire) => safeEmit(MedicalQuestionnaireLoaded(questionnaire)),
+    final templateResult = await _getActiveTemplate(cabinetId: cabinetId);
+    await templateResult.fold(
+      (failure) async =>
+          safeEmit(MedicalQuestionnaireError(failure.message)),
+      (template) async {
+        final questionnaireResult = await _get(cabinetId: cabinetId);
+        final questionnaire = questionnaireResult.fold((_) => null, (q) => q);
+        safeEmit(MedicalQuestionnaireLoaded(
+          template: template,
+          questionnaire: questionnaire,
+        ));
+      },
     );
   }
 

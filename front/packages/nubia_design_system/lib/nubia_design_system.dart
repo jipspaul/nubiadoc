@@ -23,6 +23,7 @@ export 'src/widgets/nubia_button.dart';
 export 'src/widgets/nubia_card.dart';
 export 'src/widgets/nubia_checkbox.dart';
 export 'src/widgets/nubia_chip.dart';
+export 'src/widgets/nubia_dynamic_questionnaire_form.dart';
 export 'src/widgets/nubia_empty_state.dart';
 export 'src/widgets/nubia_error_widget.dart';
 export 'src/widgets/nubia_inline_error.dart';

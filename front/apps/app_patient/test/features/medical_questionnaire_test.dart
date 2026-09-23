@@ -1,5 +1,7 @@
-//! Tests widget : `MedicalQuestionnairePage` (#4109) — saisie, enregistrement
-//! de brouillon (avec bascule 409→PATCH), soumission (avec bascule 404→POST).
+//! Tests widget : `MedicalQuestionnairePage` (#4109, #7158) — rendu
+//! dynamique piloté par le schéma actif, condition « afficher si »,
+//! enregistrement de brouillon (avec bascule 409→PATCH), soumission (avec
+//! bascule 404→POST).
 
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +19,34 @@ class _MockCreate extends Mock implements CreateMedicalQuestionnaireUseCase {}
 class _MockPatch extends Mock implements PatchMedicalQuestionnaireUseCase {}
 
 class _MockGet extends Mock implements GetMedicalQuestionnaireUseCase {}
+
+class _MockGetActiveTemplate extends Mock
+    implements GetActiveMedicalQuestionnaireTemplateUseCase {}
+
+const _template = QuestionnaireTemplate(
+  id: 'tpl-1',
+  title: 'Questionnaire médical standard',
+  version: 1,
+  schema: [
+    QuestionnaireQuestion(
+      key: 'diabete',
+      type: QuestionnaireQuestionType.boolean,
+      label: 'Diabète ?',
+    ),
+    QuestionnaireQuestion(
+      key: 'diabete_type',
+      type: QuestionnaireQuestionType.select,
+      label: 'Type de diabète',
+      options: ['Type 1', 'Type 2'],
+      condition: QuestionnaireCondition(key: 'diabete', equals: true),
+    ),
+    QuestionnaireQuestion(
+      key: 'allergies',
+      type: QuestionnaireQuestionType.text,
+      label: 'Allergies',
+    ),
+  ],
+);
 
 const _draft = MedicalQuestionnaire(
   id: 'q-1',
@@ -36,18 +66,24 @@ void main() {
   late _MockCreate create;
   late _MockPatch patch;
   late _MockGet get_;
+  late _MockGetActiveTemplate getActiveTemplate;
 
   setUp(() {
     create = _MockCreate();
     patch = _MockPatch();
     get_ = _MockGet();
+    getActiveTemplate = _MockGetActiveTemplate();
     when(() => get_(cabinetId: any(named: 'cabinetId')))
         .thenAnswer((_) async => const Right(null));
+    when(() => getActiveTemplate(cabinetId: any(named: 'cabinetId')))
+        .thenAnswer((_) async => const Right(_template));
     GetIt.instance
         .registerFactory<CreateMedicalQuestionnaireUseCase>(() => create);
     GetIt.instance
         .registerFactory<PatchMedicalQuestionnaireUseCase>(() => patch);
     GetIt.instance.registerFactory<GetMedicalQuestionnaireUseCase>(() => get_);
+    GetIt.instance.registerFactory<GetActiveMedicalQuestionnaireTemplateUseCase>(
+        () => getActiveTemplate);
     addTearDown(GetIt.instance.reset);
   });
 
@@ -65,23 +101,43 @@ void main() {
     return MaterialApp.router(theme: NubiaTheme.light, routerConfig: router);
   }
 
-  testWidgets('affiche les 4 champs du questionnaire', (tester) async {
+  testWidgets('affiche les champs visibles du schéma actif', (tester) async {
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
+    expect(find.text(_template.title), findsOneWidget);
     expect(
-      find.byKey(const Key('medical_questionnaire_antecedents')),
+      find.byKey(const Key('questionnaire_field_diabete')),
       findsOneWidget,
     );
     expect(
-      find.byKey(const Key('medical_questionnaire_allergies')),
+      find.byKey(const Key('questionnaire_field_allergies')),
       findsOneWidget,
     );
+    // La condition « afficher si diabete == true » n'est pas encore
+    // satisfaite : la question dépendante reste masquée.
     expect(
-      find.byKey(const Key('medical_questionnaire_traitements')),
+      find.byKey(const Key('questionnaire_field_diabete_type')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+      'condition « afficher si » : activer diabète révèle la question dépendante',
+      (tester) async {
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    final diabeteSwitch =
+        find.byKey(const Key('questionnaire_field_diabete'));
+    await tester.ensureVisible(diabeteSwitch);
+    await tester.tap(diabeteSwitch);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('questionnaire_field_diabete_type')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('medical_questionnaire_ald')), findsOneWidget);
   });
 
   testWidgets('saisie + enregistrer brouillon → snackbar de confirmation',
@@ -94,7 +150,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.byKey(const Key('medical_questionnaire_allergies')),
+      find.byKey(const Key('questionnaire_field_allergies')),
       'Pénicilline',
     );
     final saveDraftButton =
@@ -281,5 +337,26 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Erreur serveur.'), findsOneWidget);
+  });
+
+  testWidgets(
+      'échec du chargement du schéma actif → bannière d\'erreur, pas de formulaire',
+      (tester) async {
+    when(() => getActiveTemplate(cabinetId: any(named: 'cabinetId')))
+        .thenAnswer(
+      (_) async => const Left(NotFoundFailure('Cabinet introuvable.')),
+    );
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('medical_questionnaire_error_banner')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('medical_questionnaire_form')),
+      findsNothing,
+    );
   });
 }

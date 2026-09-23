@@ -34,6 +34,7 @@ import '../remote/cabinet_briefs/cabinet_briefs_api.dart';
 import '../remote/dental_chart/dental_chart_api.dart';
 import '../remote/periodontal_chart/periodontal_chart_api.dart';
 import '../remote/cabinet_medical_questionnaire/cabinet_medical_questionnaire_api.dart';
+import '../remote/questionnaire_templates/questionnaire_template_api.dart';
 import '../remote/treatment_plans/treatment_plans_api.dart';
 import '../remote/treatment_sessions/treatment_sessions_api.dart';
 import '../remote/cabinet_team_messages/cabinet_team_messages_api.dart';
@@ -110,6 +111,7 @@ import '../repositories/cabinet_briefs_repository_impl.dart';
 import '../repositories/dental_chart_repository_impl.dart';
 import '../repositories/periodontal_chart_repository_impl.dart';
 import '../repositories/cabinet_medical_questionnaire_repository_impl.dart';
+import '../repositories/questionnaire_template_repository_impl.dart';
 import '../repositories/treatment_plans_repository_impl.dart';
 import '../repositories/treatment_sessions_repository_impl.dart';
 import '../repositories/cabinet_team_messages_repository_impl.dart';
@@ -475,6 +477,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => CreateMedicalQuestionnaireUseCase(gi()))
     ..registerFactory(() => GetMedicalQuestionnaireUseCase(gi()))
     ..registerFactory(() => PatchMedicalQuestionnaireUseCase(gi()))
+    ..registerFactory(() => GetActiveMedicalQuestionnaireTemplateUseCase(gi()))
     ..registerFactory(() => GetNotificationPreferencesUseCase(gi()))
     ..registerFactory(() => GetProNotificationPreferencesUseCase(gi()))
     ..registerFactory(() => UpdateProNotificationPreferencesUseCase(gi()))
@@ -665,6 +668,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetMedicalQuestionnaireApi>(
       () => CabinetMedicalQuestionnaireApi(gi()),
     )
+    ..registerLazySingleton<QuestionnaireTemplateApi>(
+      () => QuestionnaireTemplateApi(gi()),
+    )
     ..registerLazySingleton<TreatmentPlansApi>(
       () => TreatmentPlansApi(gi()),
     )
@@ -803,6 +809,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<CabinetMedicalQuestionnaireRepository>(
       () => CabinetMedicalQuestionnaireRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<QuestionnaireTemplateRepository>(
+      () => QuestionnaireTemplateRepositoryImpl(gi()),
     )
     ..registerLazySingleton<TreatmentPlansRepository>(
       () => TreatmentPlansRepositoryImpl(gi()),
@@ -950,6 +959,10 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => PutPeriodontalChartUseCase(gi()))
     ..registerFactory(() => GetCabinetMedicalQuestionnaireUseCase(gi()))
     ..registerFactory(() => ReviewMedicalQuestionnaireUseCase(gi()))
+    ..registerFactory(() => ListQuestionnaireTemplatesUseCase(gi()))
+    ..registerFactory(() => CreateQuestionnaireTemplateUseCase(gi()))
+    ..registerFactory(() => PatchQuestionnaireTemplateUseCase(gi()))
+    ..registerFactory(() => DeleteQuestionnaireTemplateUseCase(gi()))
     ..registerFactory(() => ListTreatmentPlansUseCase(gi()))
     ..registerFactory(() => CreateTreatmentPlanUseCase(gi()))
     ..registerFactory(() => CreateTreatmentPhaseUseCase(gi()))

@@ -4,8 +4,10 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 
+import 'package:nubia_domain/src/entities/questionnaire_question.dart';
 import 'package:nubia_data/src/remote/account/account_api.dart';
 import 'package:nubia_data/src/remote/account/account_dto.dart';
+import 'package:nubia_data/src/remote/questionnaire_templates/questionnaire_template_dto.dart';
 import 'package:nubia_data/src/repositories/account_repository_impl.dart';
 
 class MockAccountApi extends Mock implements AccountApi {}
@@ -321,6 +323,82 @@ void main() {
         'free_address': '1 rue de la Paix, Lyon',
       });
       expect(body.containsKey('email'), isFalse);
+    });
+  });
+
+  group('medical questionnaire — schéma actif (#7158)', () {
+    test(
+        'getActiveMedicalQuestionnaireTemplate mappe le schéma, condition '
+        'incluse', () async {
+      when(() => api.getActiveMedicalQuestionnaireTemplate('cab-1'))
+          .thenAnswer((_) async => ActiveQuestionnaireTemplateDto.fromJson({
+                'template_id': 'tpl-1',
+                'version': 2,
+                'title': 'Questionnaire médical standard',
+                'schema': [
+                  {
+                    'key': 'diabete',
+                    'type': 'boolean',
+                    'label': 'Diabète ?',
+                    'safety_flag': false,
+                    'required': false,
+                  },
+                  {
+                    'key': 'diabete_type',
+                    'type': 'select',
+                    'label': 'Type de diabète',
+                    'options': ['Type 1', 'Type 2'],
+                    'condition': {'key': 'diabete', 'equals': true},
+                    'safety_flag': true,
+                    'required': true,
+                  },
+                ],
+              }));
+
+      final result = await repo.getActiveMedicalQuestionnaireTemplate(
+        cabinetId: 'cab-1',
+      );
+
+      final template = result.fold((_) => null, (t) => t);
+      expect(template, isNotNull);
+      expect(template!.id, 'tpl-1');
+      expect(template.version, 2);
+      expect(template.schema, hasLength(2));
+      final conditional = template.schema[1];
+      expect(conditional.type, QuestionnaireQuestionType.select);
+      expect(conditional.options, ['Type 1', 'Type 2']);
+      expect(conditional.condition?.key, 'diabete');
+      expect(conditional.condition?.equals, true);
+      expect(conditional.required, isTrue);
+      expect(conditional.safetyFlag, isTrue);
+    });
+
+    test('getActiveMedicalQuestionnaireTemplate — 404 → NotFoundFailure',
+        () async {
+      when(() => api.getActiveMedicalQuestionnaireTemplate('cab-1'))
+          .thenThrow(_dioError(404));
+
+      final result = await repo.getActiveMedicalQuestionnaireTemplate(
+        cabinetId: 'cab-1',
+      );
+
+      expect(result.fold((f) => f, (_) => null), isA<NotFoundFailure>());
+    });
+
+    test('MedicalQuestionnaireDto porte template_id/template_version', () {
+      final dto = MedicalQuestionnaireDto.fromJson({
+        'id': 'q-1',
+        'cabinet_id': 'cab-1',
+        'payload': {'diabete': true},
+        'status': 'draft',
+        'template_id': 'tpl-1',
+        'template_version': 2,
+      });
+
+      final domain = dto.toDomain();
+
+      expect(domain.templateId, 'tpl-1');
+      expect(domain.templateVersion, 2);
     });
   });
 }
