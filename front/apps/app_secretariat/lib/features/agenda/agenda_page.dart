@@ -342,48 +342,7 @@ class _LoadedViewState extends State<_LoadedView> {
       child: Focus(
         focusNode: _listFocusNode,
         onKeyEvent: _handleKey,
-        // Stack (plutôt qu'un Row poussant le contenu principal) : le volet
-        // (296px fixe) se superpose au lieu de rétrécir la grille — évite un
-        // overflow des Row existants (barre d'outils, nav semaine…) non
-        // conçus pour un viewport déjà étroit (mobile, cf. test #3896).
-        child: Stack(
-          children: [
-            _buildBody(context, practitioners, filteredEntries),
-            // Volet latéral détail du RDV sélectionné (maquette design-v2,
-            // #5079) : seulement pour un RDV réel (pas un créneau libre, qui
-            // n'a ni identité ni statut à détailler).
-            if (_selectedEntry != null && !_selectedEntry!.isFree)
-              Positioned(
-                top: 0,
-                right: 0,
-                bottom: 0,
-                child: _AgendaDetailPanel(
-                  entry: _selectedEntry!,
-                  practitionerNames: practitioners,
-                  actionInProgress: widget.state.actionInProgress,
-                  onClose: () => setState(() => _selectedEntryId = null),
-                  onConfirm: () => context.read<AgendaBloc>().add(
-                        AgendaAppointmentConfirmRequested(
-                            appointmentId: _selectedEntry!.id),
-                      ),
-                  onCheckin: () => context.read<AgendaBloc>().add(
-                        AgendaAppointmentCheckinRequested(
-                            appointmentId: _selectedEntry!.id),
-                      ),
-                  onCancel: () => context.read<AgendaBloc>().add(
-                        AgendaAppointmentCancelRequested(
-                            appointmentId: _selectedEntry!.id),
-                      ),
-                  onReschedule: (newStartsAt) => context.read<AgendaBloc>().add(
-                        AgendaAppointmentRescheduleRequested(
-                          appointmentId: _selectedEntry!.id,
-                          newStartsAt: newStartsAt,
-                        ),
-                      ),
-                ),
-              ),
-          ],
-        ),
+        child: _buildBody(context, practitioners, filteredEntries),
       ),
     );
   }
@@ -484,35 +443,79 @@ class _LoadedViewState extends State<_LoadedView> {
         ),
         const Divider(height: 1),
         Expanded(
-          child: filteredEntries.isEmpty
-              ? const NubiaEmptyState(
-                  key: Key('agenda_empty'),
-                  icon: Icons.calendar_month_outlined,
-                  title: 'Aucun rendez-vous cette semaine',
-                )
-              : RefreshIndicator(
-                  key: const Key('agenda_refresh_indicator'),
-                  onRefresh: widget.onRefresh,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                    child: _AgendaWeekGrid(
-                      weekStart: widget.state.weekStart,
-                      entries: filteredEntries,
-                      freeSlots: _filteredFreeSlots,
-                      practitionerNames: practitioners,
-                      selectedEntryId: _selectedEntryId,
-                      onEntryTap: _selectEntry,
-                      onSlotTap: (slot) => _showNewAppointmentDialog(
-                        context,
-                        widget.state,
-                        practitioners,
-                        initialSlot: slot,
+          // Row (plutôt que le volet en Positioned plein-hauteur d'avant,
+          // #7527) : le volet (296px fixe) rétrécit la grille au lieu de se
+          // superposer à la page. Row scopé à cette seule zone (sous la
+          // barre d'outils, la nav semaine et les filtres, qui restent hors
+          // de ce Row) : la maquette design-v2 (note 1, grille 6 colonnes +
+          // note 5, volet à côté) tient sans réintroduire l'overflow mobile
+          // du test #3896, puisque seule la grille se compresse — jamais la
+          // barre d'outils.
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: filteredEntries.isEmpty
+                    ? const NubiaEmptyState(
+                        key: Key('agenda_empty'),
+                        icon: Icons.calendar_month_outlined,
+                        title: 'Aucun rendez-vous cette semaine',
+                      )
+                    : RefreshIndicator(
+                        key: const Key('agenda_refresh_indicator'),
+                        onRefresh: widget.onRefresh,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8, horizontal: 16),
+                          child: _AgendaWeekGrid(
+                            weekStart: widget.state.weekStart,
+                            entries: filteredEntries,
+                            freeSlots: _filteredFreeSlots,
+                            practitionerNames: practitioners,
+                            selectedEntryId: _selectedEntryId,
+                            onEntryTap: _selectEntry,
+                            onSlotTap: (slot) => _showNewAppointmentDialog(
+                              context,
+                              widget.state,
+                              practitioners,
+                              initialSlot: slot,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+              ),
+              // Volet latéral détail du RDV sélectionné (maquette design-v2,
+              // #5079) : seulement pour un RDV réel (pas un créneau libre,
+              // qui n'a ni identité ni statut à détailler).
+              if (_selectedEntry != null && !_selectedEntry!.isFree)
+                _AgendaDetailPanel(
+                  entry: _selectedEntry!,
+                  practitionerNames: practitioners,
+                  actionInProgress: widget.state.actionInProgress,
+                  onClose: () => setState(() => _selectedEntryId = null),
+                  onConfirm: () => context.read<AgendaBloc>().add(
+                        AgendaAppointmentConfirmRequested(
+                            appointmentId: _selectedEntry!.id),
+                      ),
+                  onCheckin: () => context.read<AgendaBloc>().add(
+                        AgendaAppointmentCheckinRequested(
+                            appointmentId: _selectedEntry!.id),
+                      ),
+                  onCancel: () => context.read<AgendaBloc>().add(
+                        AgendaAppointmentCancelRequested(
+                            appointmentId: _selectedEntry!.id),
+                      ),
+                  onReschedule: (newStartsAt) =>
+                      context.read<AgendaBloc>().add(
+                            AgendaAppointmentRescheduleRequested(
+                              appointmentId: _selectedEntry!.id,
+                              newStartsAt: newStartsAt,
+                            ),
+                          ),
                 ),
+            ],
+          ),
         ),
         const _AgendaConfidentialityNotice(),
         if (practitioners.isNotEmpty || _filteredFreeSlots.isNotEmpty)
@@ -1454,13 +1457,6 @@ class _AgendaDetailPanelState extends State<_AgendaDetailPanel> {
       decoration: BoxDecoration(
         color: cs.surface,
         border: Border(left: BorderSide(color: tokens.borderDefault)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(-2, 0),
-          ),
-        ],
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
