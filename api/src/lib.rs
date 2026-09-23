@@ -101,6 +101,7 @@ mod consultation_context;
 mod consultations;
 mod cr_templates;
 mod dashboard;
+mod dashboard_layout;
 pub mod data_import;
 mod dental_chart;
 mod devices;
