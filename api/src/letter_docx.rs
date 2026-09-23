@@ -10,13 +10,18 @@
 //! puisqu'on ne modifie jamais la structure des balises, seulement le
 //! contenu textuel.
 //!
-//! Limite connue et volontaire : un placeholder que Word scinde entre deux
-//! runs de formatage différents (l'utilisateur a mis en gras la moitié du
-//! texte, l'autocorrection a inséré une balise au milieu de `{{...}}`…)
-//! contient alors une balise XML entre les accolades — il n'est ni détecté
-//! au listing, ni substitué au rendu (laissé tel quel, littéral). Seul le
-//! cas usuel (placeholder saisi d'un seul tenant dans un même run) est
-//! supporté.
+//! #7523 : Word scinde couramment un `{{ns.champ}}` entre plusieurs runs
+//! dès que le correcteur orthographique souligne un mot (`<w:proofErr
+//! w:type="spellStart"/>` inséré au milieu de `{{...}}`, entre les balises
+//! de fermeture/ouverture de run) — c'est la sortie *normale* de Word pour
+//! n'importe quel nom de placeholder, pas un cas limite. La zone entre
+//! `{{` et `}}` est alors nettoyée (les balises XML et les espaces qu'elle
+//! contient sont retirés) pour reconstituer le nom du placeholder ; la
+//! substitution remplace tout le `{{...}}` scindé — balises intermédiaires
+//! comprises — par la valeur, ce qui recolle les runs en un seul. Un nom
+//! ainsi reconstitué qui ne correspond à aucun placeholder connu suit le
+//! même chemin d'erreur que le cas non scindé (`DocxError::Unknown`) : on
+//! ne rend jamais un courrier avec un `{{...}}` resté littéral.
 //!
 //! Conversion PDF : [`try_convert_to_pdf`] est *best-effort* via `soffice`
 //! (LibreOffice) s'il est présent sur le système d'exécution — absent en
@@ -90,13 +95,29 @@ fn push_unique(list: &mut Vec<String>, name: &str) {
 enum Segment<'a> {
     Text(&'a str),
     Placeholder(String),
-    /// `{{...}}` scindé par une balise (run coupé) — texte littéral, jamais
-    /// substitué (cf. limite documentée en tête de module).
-    Verbatim(&'a str),
 }
 
-/// Découpe `xml` en segments texte / placeholder / verbatim. Un `{{` non
-/// fermé → [`DocxError::Malformed`].
+/// Retire les balises XML (`<...>`) et les espaces de `raw` — reconstitue
+/// le nom d'un placeholder que Word a scindé entre plusieurs runs (#7523),
+/// ex. `</w:t></w:r><w:proofErr .../><w:r><w:t>patient.prenom` -> `patient.
+/// prenom`. Sans effet sur un placeholder saisi d'un seul tenant (pas de
+/// `<`/`>` dans son contenu).
+fn strip_markup(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut in_tag = false;
+    for ch in raw.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            c if !in_tag && !c.is_whitespace() => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Découpe `xml` en segments texte / placeholder. Un `{{` non fermé →
+/// [`DocxError::Malformed`].
 fn parse(xml: &str) -> Result<Vec<Segment<'_>>, DocxError> {
     let mut segments = Vec::new();
     let mut rest = xml;
@@ -109,11 +130,12 @@ fn parse(xml: &str) -> Result<Vec<Segment<'_>>, DocxError> {
             return Err(DocxError::Malformed);
         };
         let raw = &after[..end];
-        if raw.contains('<') || raw.contains('>') {
-            segments.push(Segment::Verbatim(&rest[start..start + 2 + end + 2]));
+        let name = if raw.contains('<') || raw.contains('>') {
+            strip_markup(raw)
         } else {
-            segments.push(Segment::Placeholder(raw.trim().to_string()));
-        }
+            raw.trim().to_string()
+        };
+        segments.push(Segment::Placeholder(name));
         rest = &after[end + 2..];
     }
     if !rest.is_empty() {
@@ -196,7 +218,6 @@ fn substitute(xml: &str, values: &BTreeMap<String, String>) -> Result<String, Do
     for segment in &segments {
         match segment {
             Segment::Text(text) => out.push_str(text),
-            Segment::Verbatim(raw) => out.push_str(raw),
             Segment::Placeholder(name) => {
                 if !KNOWN_PLACEHOLDERS.contains(&name.as_str()) {
                     push_unique(&mut unknown, name);
@@ -465,16 +486,55 @@ mod tests {
     }
 
     #[test]
-    fn split_placeholder_across_runs_is_left_verbatim() {
+    fn split_placeholder_across_runs_is_detected_and_substituted() {
         // Run coupé (mise en forme partielle) : le `{{...}}` contient une
-        // balise -> jamais détecté ni substitué, cf. limite documentée en
-        // tête de module.
+        // balise -> le nom est reconstitué en retirant les balises (#7523).
         let docx = build_docx(
             "<w:body><w:p><w:r><w:t>{{patient.</w:t></w:r><w:r><w:t>prenom}}</w:t></w:r></w:p></w:body>",
         );
-        assert_eq!(placeholders(&docx).unwrap(), Vec::<String>::new());
-        let out = render(&docx, &ctx(&[])).unwrap();
-        assert!(document_xml_of(&out).contains("{{patient.</w:t></w:r><w:r><w:t>prenom}}"));
+        assert_eq!(
+            placeholders(&docx).unwrap(),
+            vec!["patient.prenom".to_string()]
+        );
+        let out = render(&docx, &ctx(&[("patient.prenom", "Léa")])).unwrap();
+        assert!(document_xml_of(&out).contains("Léa"));
+        assert!(!document_xml_of(&out).contains("{{"));
+    }
+
+    #[test]
+    fn split_placeholder_across_runs_interrupted_by_proof_err_is_detected() {
+        // Reproduction exacte de #7523 : Word insère `<w:proofErr/>` au
+        // milieu de `{{ns.champ}}` dès que le correcteur souligne le mot.
+        let docx = build_docx(
+            "<w:body><w:p><w:r><w:t xml:space=\"preserve\">Bonjour {{</w:t></w:r>\
+             <w:proofErr w:type=\"spellStart\"/>\
+             <w:r><w:t>patient.prenom</w:t></w:r>\
+             <w:proofErr w:type=\"spellEnd\"/>\
+             <w:r><w:t xml:space=\"preserve\">}} {{patient.nom}},</w:t></w:r></w:p></w:body>",
+        );
+        assert_eq!(
+            placeholders(&docx).unwrap(),
+            vec!["patient.prenom".to_string(), "patient.nom".to_string()]
+        );
+        let out = render(
+            &docx,
+            &ctx(&[("patient.prenom", "Léa"), ("patient.nom", "Martin")]),
+        )
+        .unwrap();
+        let rendered = document_xml_of(&out);
+        assert!(rendered.contains("Bonjour Léa Martin,"));
+        assert!(!rendered.contains("{{"));
+    }
+
+    #[test]
+    fn split_placeholder_that_reconstructs_to_an_unknown_name_is_rejected() {
+        let docx = build_docx(
+            "<w:body><w:p><w:r><w:t>{{devis.</w:t></w:r><w:r><w:t>montant}}</w:t></w:r></w:p></w:body>",
+        );
+        assert_eq!(
+            placeholders(&docx).unwrap_err(),
+            DocxError::Unknown(vec!["devis.montant".to_string()])
+        );
     }
 
     #[test]
