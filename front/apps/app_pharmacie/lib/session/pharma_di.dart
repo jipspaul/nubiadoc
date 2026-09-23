@@ -22,6 +22,7 @@ void registerPharma(GetIt gi) {
       deviceRegistration: gi<DeviceRegistrationService>(),
       memberships: gi<GetPharmacyMembershipsUseCase>(),
       selectContext: gi<SelectPharmacyContextUseCase>(),
+      sessionRepository: gi<PharmacySessionRepository>(),
       app: 'pharmacie',
     ),
   );

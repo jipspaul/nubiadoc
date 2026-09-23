@@ -15,4 +15,12 @@ abstract class PharmacySessionRepository {
   /// (`POST /v1/auth/select-pharmacy-context`). L'implémentation persiste le
   /// nouveau token d'accès (le refresh token du login commun est conservé).
   Future<Either<Failure, PharmacyContext>> selectContext(String pharmacyId);
+
+  /// Hydrate le contexte sélectionné sans appel réseau — à utiliser quand un
+  /// token déjà scopé `kind:"pharma"` est retrouvé en storage (app rouverte
+  /// avec une session encore valide, cf. #7542) sans repasser par
+  /// [selectContext]. Sans cet appel, le re-scope post-refresh (implémentation
+  /// interne, branché sur `AuthInterceptor.onTokensRefreshed`) reste un no-op
+  /// silencieux et toute l'app tombe en 403 après le refresh suivant.
+  void hydrateSelectedPharmacyId(String pharmacyId);
 }
