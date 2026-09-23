@@ -15,8 +15,10 @@ import 'package:app_practicien/features/agenda/agenda_event.dart';
 import 'package:app_practicien/features/agenda/agenda_state.dart';
 import 'package:app_practicien/features/dashboard/dashboard_bloc.dart';
 import 'package:app_practicien/features/dashboard/dashboard_event.dart';
+import 'package:app_practicien/features/dashboard/dashboard_layout_cubit.dart';
 import 'package:app_practicien/features/dashboard/dashboard_page.dart';
 import 'package:app_practicien/features/dashboard/dashboard_state.dart';
+import 'package:app_practicien/features/dashboard/dashboard_widget_catalog.dart';
 import 'package:app_practicien/features/dashboard/kpi_tiles_cubit.dart';
 import 'package:app_practicien/features/dashboard/next_patient_hero.dart';
 import 'package:app_practicien/features/dashboard/pending_actions_card.dart';
@@ -64,6 +66,15 @@ class MockTasksBloc extends MockBloc<TasksEvent, TasksState>
 
 class MockKpiTilesCubit extends MockCubit<KpiTilesState>
     implements KpiTilesCubit {}
+
+class MockDashboardLayoutCubit extends MockCubit<DashboardLayoutState>
+    implements DashboardLayoutCubit {}
+
+class MockGetDashboardLayoutUseCase extends Mock
+    implements GetDashboardLayoutUseCase {}
+
+class MockUpdateDashboardLayoutUseCase extends Mock
+    implements UpdateDashboardLayoutUseCase {}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -176,6 +187,10 @@ class _DashboardBody extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(<String>[]);
+  });
+
   group('DashboardBloc', () {
     late MockGetProDashboardSummaryUseCase mockUc;
 
@@ -1167,6 +1182,18 @@ void main() {
       when(() => kpiTilesCubit.state).thenReturn(const KpiTilesLoaded(kpis: _kpis));
       when(() => kpiTilesCubit.load()).thenAnswer((_) async {});
       GetIt.instance.registerFactory<KpiTilesCubit>(() => kpiTilesCubit);
+      // DashboardBody rend aussi le registre de widgets (#7161) via son
+      // propre cubit résolu par GetIt.
+      final dashboardLayoutCubit = MockDashboardLayoutCubit();
+      when(() => dashboardLayoutCubit.state).thenReturn(
+        const DashboardLayoutLoaded(
+          order: kProDashboardWidgetCatalog,
+          hiddenIds: {},
+        ),
+      );
+      when(() => dashboardLayoutCubit.load()).thenAnswer((_) async {});
+      GetIt.instance
+          .registerFactory<DashboardLayoutCubit>(() => dashboardLayoutCubit);
       addTearDown(GetIt.instance.reset);
     });
 
@@ -1248,6 +1275,18 @@ void main() {
       when(() => kpiTilesCubit.state).thenReturn(const KpiTilesLoaded(kpis: _kpis));
       when(() => kpiTilesCubit.load()).thenAnswer((_) async {});
       GetIt.instance.registerFactory<KpiTilesCubit>(() => kpiTilesCubit);
+      // DashboardBody rend aussi le registre de widgets (#7161) via son
+      // propre cubit résolu par GetIt.
+      final dashboardLayoutCubit = MockDashboardLayoutCubit();
+      when(() => dashboardLayoutCubit.state).thenReturn(
+        const DashboardLayoutLoaded(
+          order: kProDashboardWidgetCatalog,
+          hiddenIds: {},
+        ),
+      );
+      when(() => dashboardLayoutCubit.load()).thenAnswer((_) async {});
+      GetIt.instance
+          .registerFactory<DashboardLayoutCubit>(() => dashboardLayoutCubit);
       addTearDown(GetIt.instance.reset);
     });
 
@@ -1360,5 +1399,285 @@ void main() {
         expect(find.text('patient id=pat-7'), findsOneWidget);
       },
     );
+  });
+
+  // ---------------------------------------------------------------------------
+  // DashboardLayoutCubit — registre de widgets + persistance (#7161)
+  // ---------------------------------------------------------------------------
+
+  group('DashboardLayoutCubit', () {
+    late MockGetDashboardLayoutUseCase mockGet;
+    late MockUpdateDashboardLayoutUseCase mockUpdate;
+
+    setUp(() {
+      mockGet = MockGetDashboardLayoutUseCase();
+      mockUpdate = MockUpdateDashboardLayoutUseCase();
+    });
+
+    DashboardLayoutCubit makeCubit() =>
+        DashboardLayoutCubit(get: mockGet, update: mockUpdate);
+
+    blocTest<DashboardLayoutCubit, DashboardLayoutState>(
+      'charge le layout visible et complète avec les widgets masqués du '
+      'catalogue',
+      build: () {
+        when(() => mockGet())
+            .thenAnswer((_) async => const Right(['today_notes', 'kpi_tiles']));
+        return makeCubit();
+      },
+      act: (cubit) => cubit.load(),
+      expect: () => [
+        const DashboardLayoutLoading(),
+        const DashboardLayoutLoaded(
+          order: [
+            'today_notes',
+            'kpi_tiles',
+            'next_patient',
+            'today_schedule',
+            'pending_actions',
+            'prostheses_today',
+            'week_summary',
+            'opportunities',
+          ],
+          hiddenIds: {
+            'next_patient',
+            'today_schedule',
+            'pending_actions',
+            'prostheses_today',
+            'week_summary',
+            'opportunities',
+          },
+        ),
+      ],
+    );
+
+    blocTest<DashboardLayoutCubit, DashboardLayoutState>(
+      'émet Error si le chargement échoue',
+      build: () {
+        when(() => mockGet()).thenAnswer(
+          (_) async => const Left(ServerFailure(message: 'Erreur réseau')),
+        );
+        return makeCubit();
+      },
+      act: (cubit) => cubit.load(),
+      expect: () => [
+        const DashboardLayoutLoading(),
+        const DashboardLayoutError('Erreur réseau'),
+      ],
+    );
+
+    blocTest<DashboardLayoutCubit, DashboardLayoutState>(
+      'toggleEditing bascule le mode édition sans appeler la persistance',
+      build: () => makeCubit(),
+      seed: () => const DashboardLayoutLoaded(
+        order: ['kpi_tiles', 'next_patient'],
+        hiddenIds: {},
+      ),
+      act: (cubit) => cubit.toggleEditing(),
+      expect: () => [
+        const DashboardLayoutLoaded(
+          order: ['kpi_tiles', 'next_patient'],
+          hiddenIds: {},
+          editing: true,
+        ),
+      ],
+      verify: (_) => verifyNever(() => mockUpdate(any())),
+    );
+
+    blocTest<DashboardLayoutCubit, DashboardLayoutState>(
+      'reorder applique le changement de façon optimiste puis persiste',
+      build: () {
+        when(() => mockUpdate(any()))
+            .thenAnswer((_) async => const Right(['next_patient', 'kpi_tiles']));
+        return makeCubit();
+      },
+      seed: () => const DashboardLayoutLoaded(
+        order: ['kpi_tiles', 'next_patient'],
+        hiddenIds: {},
+      ),
+      act: (cubit) => cubit.reorder(0, 2),
+      expect: () => [
+        const DashboardLayoutLoaded(
+          order: ['next_patient', 'kpi_tiles'],
+          hiddenIds: {},
+        ),
+        const DashboardLayoutLoaded(
+          order: [
+            'next_patient',
+            'kpi_tiles',
+            'today_schedule',
+            'pending_actions',
+            'prostheses_today',
+            'today_notes',
+            'week_summary',
+            'opportunities',
+          ],
+          hiddenIds: {
+            'today_schedule',
+            'pending_actions',
+            'prostheses_today',
+            'today_notes',
+            'week_summary',
+            'opportunities',
+          },
+        ),
+      ],
+      verify: (_) => verify(
+        () => mockUpdate(any(that: equals(['next_patient', 'kpi_tiles']))),
+      ).called(1),
+    );
+
+    blocTest<DashboardLayoutCubit, DashboardLayoutState>(
+      'toggleVisibility masque un widget visible et persiste la liste réduite',
+      build: () {
+        when(() => mockUpdate(any()))
+            .thenAnswer((_) async => const Right(['next_patient']));
+        return makeCubit();
+      },
+      seed: () => const DashboardLayoutLoaded(
+        order: ['kpi_tiles', 'next_patient'],
+        hiddenIds: {},
+      ),
+      act: (cubit) => cubit.toggleVisibility('kpi_tiles'),
+      verify: (_) => verify(
+        () => mockUpdate(any(that: equals(['next_patient']))),
+      ).called(1),
+    );
+
+    blocTest<DashboardLayoutCubit, DashboardLayoutState>(
+      'revient à l\'état précédent si la persistance échoue',
+      build: () {
+        when(() => mockUpdate(any())).thenAnswer(
+          (_) async => const Left(ServerFailure(message: 'Erreur réseau')),
+        );
+        return makeCubit();
+      },
+      seed: () => const DashboardLayoutLoaded(
+        order: ['kpi_tiles', 'next_patient'],
+        hiddenIds: {},
+      ),
+      act: (cubit) => cubit.toggleVisibility('kpi_tiles'),
+      expect: () => [
+        const DashboardLayoutLoaded(
+          order: ['kpi_tiles', 'next_patient'],
+          hiddenIds: {'kpi_tiles'},
+        ),
+        const DashboardLayoutLoaded(
+          order: ['kpi_tiles', 'next_patient'],
+          hiddenIds: {},
+        ),
+      ],
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // DashboardBody — personnalisation du dashboard (#7161)
+  // ---------------------------------------------------------------------------
+
+  group('DashboardBody — personnalisation du dashboard (#7161)', () {
+    late MockDashboardLayoutCubit dashboardLayoutCubit;
+
+    setUp(() {
+      final mockUc = MockGetProDashboardSummaryUseCase();
+      when(() => mockUc()).thenAnswer((_) async => Right(_summary));
+      GetIt.instance.registerFactory<DashboardBloc>(
+        () => DashboardBloc(
+          getSummary: mockUc,
+          startConsultation: MockStartConsultationUseCase(),
+        ),
+      );
+      final agendaBloc = MockAgendaBloc();
+      when(() => agendaBloc.state).thenReturn(
+        AgendaLoaded(entries: const [], weekStart: DateTime.now()),
+      );
+      GetIt.instance.registerFactory<AgendaBloc>(() => agendaBloc);
+      final notesBloc = MockTodayNotesBloc();
+      when(() => notesBloc.state).thenReturn(const TodayNotesLoaded([]));
+      GetIt.instance.registerFactory<TodayNotesBloc>(() => notesBloc);
+      final prosthesesTodayBloc = MockProsthesesTodayBloc();
+      when(() => prosthesesTodayBloc.state)
+          .thenReturn(const ProsthesesTodayLoaded([]));
+      GetIt.instance
+          .registerFactory<ProsthesesTodayBloc>(() => prosthesesTodayBloc);
+      final opportunitiesCubit = MockOpportunitiesCubit();
+      when(() => opportunitiesCubit.state)
+          .thenReturn(const OpportunitiesLoaded(categories: []));
+      when(() => opportunitiesCubit.load()).thenAnswer((_) async {});
+      GetIt.instance
+          .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
+      final tasksBloc = MockTasksBloc();
+      when(() => tasksBloc.state).thenReturn(const TasksLoaded(tasks: []));
+      GetIt.instance.registerFactory<TasksBloc>(() => tasksBloc);
+      final kpiTilesCubit = MockKpiTilesCubit();
+      when(() => kpiTilesCubit.state)
+          .thenReturn(const KpiTilesLoaded(kpis: _kpis));
+      when(() => kpiTilesCubit.load()).thenAnswer((_) async {});
+      GetIt.instance.registerFactory<KpiTilesCubit>(() => kpiTilesCubit);
+
+      dashboardLayoutCubit = MockDashboardLayoutCubit();
+      when(() => dashboardLayoutCubit.load()).thenAnswer((_) async {});
+      GetIt.instance
+          .registerFactory<DashboardLayoutCubit>(() => dashboardLayoutCubit);
+      addTearDown(GetIt.instance.reset);
+    });
+
+    testWidgets('le bouton Personnaliser bascule le mode édition',
+        (tester) async {
+      when(() => dashboardLayoutCubit.state).thenReturn(
+        const DashboardLayoutLoaded(
+          order: kProDashboardWidgetCatalog,
+          hiddenIds: {},
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: DashboardBody()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('dashboard_customize_panel')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('dashboard_customize_button')));
+
+      verify(() => dashboardLayoutCubit.toggleEditing()).called(1);
+    });
+
+    testWidgets(
+        'en mode édition, décocher un widget appelle toggleVisibility',
+        (tester) async {
+      when(() => dashboardLayoutCubit.state).thenReturn(
+        const DashboardLayoutLoaded(
+          order: kProDashboardWidgetCatalog,
+          hiddenIds: {},
+          editing: true,
+        ),
+      );
+      when(() => dashboardLayoutCubit.toggleVisibility(any()))
+          .thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: DashboardBody()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('dashboard_customize_panel')),
+        findsOneWidget,
+      );
+
+      final checkbox =
+          find.byKey(const Key('dashboard_customize_toggle_kpi_tiles'));
+      await tester.ensureVisible(checkbox);
+      await tester.tap(checkbox);
+
+      verify(() => dashboardLayoutCubit.toggleVisibility('kpi_tiles'))
+          .called(1);
+    });
   });
 }
