@@ -22,6 +22,16 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import '../ccam_picker.dart';
 import 'consultation_format_utils.dart';
 
+/// #7529 — hauteur plancher du panneau « Note de séance » en mode co-visible
+/// (≥ 2 colonnes) : garantit un `TextField` lisible (plusieurs lignes) une
+/// fois retranché le chrome de `NubiaCard` (en-tête + `TextButton`, paddings,
+/// pied d'auto-save). Avant #7529, le partage figé 3:1 avec « Ajouter un
+/// acte » (#7118) pouvait laisser moins d'une ligne de hauteur au champ à
+/// 1280×800 — la maquette (`.rsec` sans `flex` + `.note{flex:1}`) dimensionne
+/// au contraire « Ajouter un acte » à son contenu et laisse la note absorber
+/// le reste.
+const _kNoteMinHeight = 240.0;
+
 /// Colonne « Saisie + note » (452 px, bordure gauche `--n200`, fond blanc) —
 /// recherche/ajout d'acte CCAM en haut, note de séance extensible en bas.
 /// `scrollable` suit la même logique que `CenterColumn`.
@@ -171,30 +181,45 @@ class SideColumn extends StatelessWidget {
 
     final Widget body;
     if (noteCoVisible) {
-      body = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // #7118 — l'ancien partage 1:2 (favori à la note) plafonnait le
-          // panneau « Ajouter un acte » à ~1/3 de la hauteur dès le layout 2
-          // colonnes (1280×800) : son `SingleChildScrollView` rognait alors
-          // une pastille de favori en plein milieu plutôt que de la montrer
-          // entière. Le panneau d'ajout (recherche + favoris) prime sur la
-          // note, dont le champ texte s'accommode sans dégât d'un espace
-          // réduit.
-          Flexible(
-            flex: 3,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: addActPanel,
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: noteCard(expandField: true),
-            ),
-          ),
-        ],
+      // #7118 — l'ancien partage 1:2 (favori à la note) plafonnait le
+      // panneau « Ajouter un acte » à ~1/3 de la hauteur dès le layout 2
+      // colonnes (1280×800) : son `SingleChildScrollView` rognait alors une
+      // pastille de favori en plein milieu plutôt que de la montrer entière.
+      // Le correctif (flex 3:1 pour le panneau d'ajout) réglait ce
+      // débordement mais, à son tour, écrasait la note sous une hauteur de
+      // ligne dès que la colonne manquait de hauteur (#7529, 1280×800). La
+      // maquette dimensionne « Ajouter un acte » à son contenu et laisse la
+      // note absorber tout le reste : `LayoutBuilder` calcule donc un
+      // plafond pour le panneau d'ajout (`_kNoteMinHeight` retranché de la
+      // hauteur disponible) au lieu d'un ratio figé — il garde son
+      // `SingleChildScrollView` pour ne jamais déborder même favoris et
+      // suggestions au maximum, et cède le pas à la note quand la colonne
+      // manque de hauteur.
+      body = LayoutBuilder(
+        builder: (context, constraints) {
+          final maxHeight = constraints.maxHeight;
+          final addActMaxHeight = maxHeight.isFinite
+              ? (maxHeight - _kNoteMinHeight).clamp(0.0, maxHeight)
+              : double.infinity;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: addActMaxHeight),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: addActPanel,
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: noteCard(expandField: true),
+                ),
+              ),
+            ],
+          );
+        },
       );
     } else {
       body = SingleChildScrollView(
