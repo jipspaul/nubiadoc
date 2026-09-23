@@ -4,7 +4,8 @@
 use axum::{routing::get, Router};
 
 use crate::{
-    auth, devices, implant_passport, notifications, recall_campaigns, reminders, AppState,
+    auth, dashboard_layout, devices, implant_passport, notifications, recall_campaigns, reminders,
+    AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -41,6 +42,11 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/me/notification-preferences",
             get(notifications::get_me_notification_preferences)
                 .patch(notifications::patch_me_notification_preferences),
+        )
+        .route(
+            "/v1/me/dashboard-layout",
+            get(dashboard_layout::get_me_dashboard_layout)
+                .put(dashboard_layout::put_me_dashboard_layout),
         )
         .route(
             "/v1/notifications/read-all",
