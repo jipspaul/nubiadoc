@@ -598,9 +598,10 @@ pub async fn get_cabinet_medical_questionnaire(
 
 // ── POST /v1/cabinet/patients/:id/medical-questionnaire/review ──────────
 
-/// `antecedents` → ajouté à `history` (préfixé, jamais un remplacement — le
-/// texte saisi par le praticien ne doit jamais être écrasé silencieusement).
-/// `allergies`/`traitements_en_cours` → ajoutés comme nouvelles entrées aux
+/// `antecedents_chirurgicaux` → ajouté à `history` (préfixé, jamais un
+/// remplacement — le texte saisi par le praticien ne doit jamais être écrasé
+/// silencieusement).
+/// `allergies`/`traitement_en_cours` → ajoutés comme nouvelles entrées aux
 /// tableaux `allergies[]`/`treatments[]` (mêmes tableaux libres que
 /// `medical_record.rs`, une entrée de plus n'efface rien d'existant). Toutes
 /// les formes de saisie sont acceptées (#6917, cf. [questionnaire_entries]) :
@@ -608,8 +609,12 @@ pub async fn get_cabinet_medical_questionnaire(
 /// "severity"?}` — chaque entrée importée porte `text` + `source =
 /// "questionnaire_patient"` (+ `severity` si déclarée), forme lue par
 /// `consultation_context::allergy_alert` pour les pastilles `medical_alerts`.
-/// `ald` → OR logique avec le flag existant (ne redescend jamais un flag
-/// déjà à `true` à `false` sur la foi d'une case non cochée côté patient).
+/// `ald`/`anticoagulants` → OR logique avec le flag existant (ne redescend
+/// jamais un flag déjà à `true` à `false` sur la foi d'une case non cochée
+/// côté patient). Clés alignées sur le standard seedé par la migration 0294
+/// (#7160) — `antecedents_chirurgicaux`/`traitement_en_cours`/
+/// `anticoagulants`, pas les anciennes clés du questionnaire fixe
+/// pré-#7159 (#7505).
 /// Normalise un champ libre du questionnaire (`allergies`,
 /// `traitements_en_cours`) en entrées de dossier `{"text": …, "source":
 /// "questionnaire_patient"}` (+ `"severity"` quand l'objet en porte une).
@@ -662,7 +667,10 @@ fn questionnaire_entries(value: &Value) -> Vec<Value> {
 
 fn merge_questionnaire_into_record(existing: &Value, payload: &Value) -> Value {
     let existing_history = existing["history"].as_str().unwrap_or("").to_string();
-    let antecedents = payload["antecedents"].as_str().unwrap_or("").trim();
+    let antecedents = payload["antecedents_chirurgicaux"]
+        .as_str()
+        .unwrap_or("")
+        .trim();
     let merged_history = if antecedents.is_empty() {
         if existing_history.is_empty() {
             None
@@ -688,13 +696,15 @@ fn merge_questionnaire_into_record(existing: &Value, payload: &Value) -> Value {
         .as_array()
         .cloned()
         .unwrap_or_default();
-    treatments.extend(questionnaire_entries(&payload["traitements_en_cours"]));
+    treatments.extend(questionnaire_entries(&payload["traitement_en_cours"]));
 
     let mut medico_legal: MedicoLegalFlags = existing
         .get("medico_legal")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default();
     medico_legal.ald = medico_legal.ald || payload["ald"].as_bool().unwrap_or(false);
+    medico_legal.anticoagulants =
+        medico_legal.anticoagulants || payload["anticoagulants"].as_bool().unwrap_or(false);
 
     serde_json::json!({
         "allergies": allergies,
@@ -895,13 +905,14 @@ mod tests {
             "allergies": [{"severity": "high", "substance": "pénicilline"}],
             "treatments": [],
             "history": "Diabète",
-            "medico_legal": {"ald": false}
+            "medico_legal": {"ald": false, "anticoagulants": false}
         });
         let payload = json!({
-            "antecedents": "",
+            "antecedents_chirurgicaux": "",
             "allergies": ["latex"],
-            "traitements_en_cours": "Metformine",
-            "ald": true
+            "traitement_en_cours": "Metformine",
+            "ald": true,
+            "anticoagulants": true
         });
         let merged = merge_questionnaire_into_record(&existing, &payload);
         assert_eq!(merged["allergies"].as_array().map(Vec::len), Some(2));
@@ -910,5 +921,32 @@ mod tests {
         assert_eq!(merged["treatments"][0]["text"], "Metformine");
         assert_eq!(merged["history"], "Diabète");
         assert_eq!(merged["medico_legal"]["ald"], true);
+        assert_eq!(merged["medico_legal"]["anticoagulants"], true);
+    }
+
+    #[test]
+    fn merge_questionnaire_imports_surgical_history_and_anticoagulants() {
+        // Clés du standard seedé par la migration 0294 (#7160) — #7505 :
+        // avant ce fix, ces trois clés étaient silencieusement jetées car
+        // merge_questionnaire_into_record lisait encore les clés de l'ancien
+        // questionnaire fixe pré-#7159 (antecedents/traitements_en_cours/ald).
+        let existing = json!({
+            "allergies": [],
+            "treatments": [],
+            "history": "",
+            "medico_legal": {"ald": true, "anticoagulants": false}
+        });
+        let payload = json!({
+            "antecedents_chirurgicaux": "Pose de stent 2019",
+            "traitement_en_cours": "Kardegic 75mg",
+            "anticoagulants": true
+        });
+        let merged = merge_questionnaire_into_record(&existing, &payload);
+        assert_eq!(
+            merged["history"],
+            "[Questionnaire patient] Pose de stent 2019"
+        );
+        assert_eq!(merged["treatments"][0]["text"], "Kardegic 75mg");
+        assert_eq!(merged["medico_legal"]["anticoagulants"], true);
     }
 }
