@@ -98,6 +98,7 @@ mod consultation_act_stock;
 mod consultation_acts;
 mod consultation_clinique_read;
 mod consultation_context;
+mod consultation_cr;
 mod consultations;
 mod cr_templates;
 mod dashboard;

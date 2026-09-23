@@ -10,10 +10,11 @@ use axum::{
 
 use crate::{
     cabinet_document_download, clinical, consultation_act_create, consultation_acts,
-    consultation_context, consultations, data_import, dental_chart, implant_passport, letters,
-    medical_questionnaire, medical_record, orthodontics, patient_alerts, patient_detail,
-    patient_merge, patient_merge_candidates, patient_tags, periodontal_chart, prescription_list,
-    questionnaire_templates, treatment_phases, treatment_plans, treatment_sessions, AppState,
+    consultation_context, consultation_cr, consultations, data_import, dental_chart,
+    implant_passport, letters, medical_questionnaire, medical_record, orthodontics, patient_alerts,
+    patient_detail, patient_merge, patient_merge_candidates, patient_tags, periodontal_chart,
+    prescription_list, questionnaire_templates, treatment_phases, treatment_plans,
+    treatment_sessions, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -203,5 +204,17 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/consultations/:id/note",
             put(consultations::set_consultation_note),
+        )
+        .route(
+            "/v1/cabinet/consultations/:id/cr",
+            put(consultation_cr::save_consultation_cr).get(consultation_cr::get_consultation_cr),
+        )
+        .route(
+            "/v1/cabinet/consultations/:id/cr/finalize",
+            post(consultation_cr::finalize_consultation_cr),
+        )
+        .route(
+            "/v1/cabinet/consultations/:id/cr/render",
+            get(consultation_cr::render_consultation_cr),
         )
 }
