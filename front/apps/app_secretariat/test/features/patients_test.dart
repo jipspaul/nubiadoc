@@ -109,7 +109,7 @@ void main() {
     blocTest<PatientsBloc, PatientsState>(
       'émet Loading puis Loaded sur succès',
       build: () {
-        when(() => repo.list(page: any(named: 'page'), q: any(named: 'q')))
+        when(() => repo.list(q: any(named: 'q')))
             .thenAnswer((_) async => Right(patients));
         return PatientsBloc(
             listPatients: listUseCase, createPatient: createUseCase);
@@ -124,7 +124,7 @@ void main() {
     blocTest<PatientsBloc, PatientsState>(
       'émet Loading puis Error sur échec',
       build: () {
-        when(() => repo.list(page: any(named: 'page'), q: any(named: 'q')))
+        when(() => repo.list(q: any(named: 'q')))
             .thenAnswer(
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
@@ -143,7 +143,7 @@ void main() {
     blocTest<PatientsBloc, PatientsState>(
       'PatientsSearchChanged appelle le repository avec q=<texte>',
       build: () {
-        when(() => repo.list(page: any(named: 'page'), q: any(named: 'q')))
+        when(() => repo.list(q: any(named: 'q')))
             .thenAnswer((_) async => Right(patients));
         return PatientsBloc(
             listPatients: listUseCase, createPatient: createUseCase);
@@ -154,14 +154,14 @@ void main() {
         PatientsLoaded(patients),
       ],
       verify: (_) {
-        verify(() => repo.list(page: 1, q: 'mar')).called(1);
+        verify(() => repo.list(q: 'mar')).called(1);
       },
     );
 
     blocTest<PatientsBloc, PatientsState>(
       'les patients chargés n\'exposent aucun champ clinique',
       build: () {
-        when(() => repo.list(page: any(named: 'page'), q: any(named: 'q')))
+        when(() => repo.list(q: any(named: 'q')))
             .thenAnswer((_) async => Right(patients));
         return PatientsBloc(
             listPatients: listUseCase, createPatient: createUseCase);

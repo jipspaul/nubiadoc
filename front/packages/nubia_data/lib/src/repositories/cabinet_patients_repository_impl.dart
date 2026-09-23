@@ -11,12 +11,9 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
   const CabinetPatientsRepositoryImpl(this._api);
 
   @override
-  Future<Either<Failure, List<CabinetPatient>>> list({
-    int page = 1,
-    String? q,
-  }) async {
+  Future<Either<Failure, List<CabinetPatient>>> list({String? q}) async {
     try {
-      final dtos = await _api.list(page: page, q: q);
+      final dtos = await _api.list(q: q);
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {

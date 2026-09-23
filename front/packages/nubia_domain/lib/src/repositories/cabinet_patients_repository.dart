@@ -8,10 +8,11 @@ abstract class CabinetPatientsRepository {
   /// Remplace le filtrage en mémoire (ne scale plus au-delà de quelques
   /// centaines de dossiers). Téléphone/n° dossier : hors scope ici, la
   /// requête SQL de `q` ne les couvre pas encore côté API.
-  Future<Either<Failure, List<CabinetPatient>>> list({
-    int page = 1,
-    String? q,
-  });
+  ///
+  /// Ramène le cabinet complet (pagination par cursor suivie jusqu'à
+  /// épuisement côté `CabinetPatientsApi`, #7535) — pas de paramètre `page`,
+  /// que le serveur ignorait silencieusement.
+  Future<Either<Failure, List<CabinetPatient>>> list({String? q});
   Future<Either<Failure, CabinetPatient>> getById(String id);
 
   /// Création rapide d'un dossier patient (sans compte plateforme requis) —

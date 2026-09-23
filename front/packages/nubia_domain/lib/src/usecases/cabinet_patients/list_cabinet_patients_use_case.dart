@@ -8,9 +8,6 @@ class ListCabinetPatientsUseCase {
 
   const ListCabinetPatientsUseCase(this._repository);
 
-  Future<Either<Failure, List<CabinetPatient>>> call({
-    int page = 1,
-    String? q,
-  }) =>
-      _repository.list(page: page, q: q);
+  Future<Either<Failure, List<CabinetPatient>>> call({String? q}) =>
+      _repository.list(q: q);
 }
