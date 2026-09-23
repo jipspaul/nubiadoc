@@ -390,6 +390,7 @@ class _PatientsPageState extends State<PatientsPage> {
                         },
                       ),
                     ),
+                  const _PatientsKeyboardShortcuts(),
                 ],
               );
               return Focus(
@@ -521,6 +522,80 @@ class _QuickFilterChip extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Rappel des raccourcis clavier en pied de liste (maquette design-v2,
+/// `.foot .kb` — #7539) : les raccourcis ↑/↓/⏎/⌘N existent déjà
+/// (`_handleKey`, `CallbackShortcuts`), seul leur affichage manquait,
+/// laissant un poste de secrétariat sans moyen de les découvrir. Même
+/// pattern que `_AgendaKeyboardShortcuts` (agenda_page.dart, #6417).
+class _PatientsKeyboardShortcuts extends StatelessWidget {
+  const _PatientsKeyboardShortcuts();
+
+  static const _entries = [
+    ('↑ ↓', 'naviguer'),
+    ('⏎', 'ouvrir la fiche'),
+    ('/', 'rechercher'),
+    ('⌘N', 'nouveau'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const Key('patients_keyboard_shortcuts'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        spacing: 12,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          for (final entry in _entries)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _PatientsKbdBadge(entry.$1),
+                const SizedBox(width: 4),
+                Text(
+                  entry.$2,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: NubiaColors.n500,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pastille façon touche clavier (`.foot .kb b` de la maquette).
+class _PatientsKbdBadge extends StatelessWidget {
+  const _PatientsKbdBadge(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: NubiaColors.n600,
         ),
       ),
     );
