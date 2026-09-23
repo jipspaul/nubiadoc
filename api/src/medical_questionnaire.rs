@@ -942,7 +942,10 @@ mod tests {
             "anticoagulants": true
         });
         let merged = merge_questionnaire_into_record(&existing, &payload);
-        assert_eq!(merged["history"], "[Questionnaire patient] Pose de stent 2019");
+        assert_eq!(
+            merged["history"],
+            "[Questionnaire patient] Pose de stent 2019"
+        );
         assert_eq!(merged["treatments"][0]["text"], "Kardegic 75mg");
         assert_eq!(merged["medico_legal"]["anticoagulants"], true);
     }
