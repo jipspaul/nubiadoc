@@ -47,14 +47,17 @@ class NurseOffer extends Equatable {
 /// État de l'app infirmière (disponibilité + offres + visite en cours).
 class NurseState extends Equatable {
   const NurseState({
-    this.online = false,
+    this.online,
     this.loading = false,
     this.offers = const [],
     this.activeVisit,
     this.error,
   });
 
-  final bool online;
+  /// `null` tant que [NurseCubit.loadProfile] n'a pas abouti (ou a échoué) :
+  /// la disponibilité est alors **inconnue**, à ne jamais confondre avec un
+  /// `false` réellement lu depuis le serveur (#7530).
+  final bool? online;
   final bool loading;
   final List<NurseOffer> offers;
   final NurseOffer? activeVisit;
@@ -93,10 +96,10 @@ class NurseCubit extends Cubit<NurseState> {
   Dio get _dio => _api.dio;
 
   /// Charge l'état réel de disponibilité depuis le serveur (`GET
-  /// /nurse/profile`). À appeler au montage de l'écran : `online` vaut
-  /// `false` par défaut dans [NurseState] tant que ce chargement n'a pas
-  /// abouti, ce qui ne reflète pas forcément `nurse.is_online` en base
-  /// (mise à jour lors d'une session précédente, autre appareil, etc.).
+  /// /nurse/profile`). À appeler au montage de l'écran : `online` reste
+  /// `null` (inconnu) dans [NurseState] tant que ce chargement n'a pas
+  /// abouti avec succès — un échec (réseau, etc.) ne doit jamais être
+  /// présenté comme un `false` réellement lu depuis le serveur (#7530).
   Future<void> loadProfile() async {
     try {
       final res = await _dio.get<Map<String, dynamic>>('/nurse/profile');

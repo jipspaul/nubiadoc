@@ -166,18 +166,25 @@ class _AvailabilityTab extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(
-            state.online
-                ? 'Vous êtes EN LIGNE — vous recevez les demandes de visite proches.'
-                : 'Vous êtes hors ligne. Passez en ligne pour recevoir des demandes.',
+            switch (state.online) {
+              true =>
+                'Vous êtes EN LIGNE — vous recevez les demandes de visite proches.',
+              false =>
+                'Vous êtes hors ligne. Passez en ligne pour recevoir des demandes.',
+              null =>
+                'Disponibilité indisponible — impossible de joindre le serveur.',
+            },
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
           SwitchListTile(
             key: const Key('availability_switch'),
             title: const Text('En ligne'),
-            value: state.online,
+            value: state.online ?? false,
             // TODO(nubia): pousser la position réelle (geolocator) au passage en ligne.
-            onChanged: (v) => context.read<NurseCubit>().setOnline(v),
+            onChanged: state.online == null
+                ? null
+                : (v) => context.read<NurseCubit>().setOnline(v),
           ),
         ],
       ),
