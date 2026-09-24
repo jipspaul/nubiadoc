@@ -415,6 +415,44 @@ void main() {
       expect(dto.patientId, 'pat-2');
       expect(dto.unreadCount, 0);
     });
+
+    test(
+        'fromJson lit la qualification cabinet (#7151) — status/priority/'
+        'origin/summary/assignee_user_id', () {
+      final json = {
+        'id': 'conv-3',
+        'patient_first_name': 'Marc',
+        'patient_last_name': 'Dubois',
+        'unread_count': 0,
+        'status': 'in_progress',
+        'priority': 'urgent',
+        'origin': 'phone',
+        'summary': 'Demande de renouvellement.',
+        'assignee_user_id': 'user-1',
+      };
+      final domain = CabinetConversationDto.fromJson(json).toDomain();
+      expect(domain.status, 'in_progress');
+      expect(domain.priority, 'urgent');
+      expect(domain.origin, 'phone');
+      expect(domain.summary, 'Demande de renouvellement.');
+      expect(domain.assigneeUserId, 'user-1');
+    });
+
+    test(
+        'fromJson retombe sur status=open et les autres champs à null quand '
+        'la qualification est absente (réponses /pharmacy, #7151)', () {
+      final domain = CabinetConversationDto.fromJson({
+        'id': 'conv-4',
+        'patient_id': 'pat-4',
+        'patient_name': 'Camille Rousseau',
+        'unread_count': 0,
+      }).toDomain();
+      expect(domain.status, 'open');
+      expect(domain.priority, isNull);
+      expect(domain.origin, isNull);
+      expect(domain.summary, isNull);
+      expect(domain.assigneeUserId, isNull);
+    });
   });
 
   group('CabinetDashboardDto (agrégation /v1/cabinet/dashboard)', () {

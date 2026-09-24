@@ -90,6 +90,27 @@ class CabinetMessageRepositoryImpl implements CabinetMessageRepository {
     }
   }
 
+  @override
+  Future<Either<Failure, void>> assignConversation({
+    required String conversationId,
+    required String assigneeUserId,
+  }) async {
+    try {
+      await _api.assignConversation(
+        conversationId: conversationId,
+        assigneeUserId: assigneeUserId,
+      );
+      return const Right(null);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure());
+      }
+      return Left(_mapDioError(e, 'Erreur lors de l\'assignation.'));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
   Failure _mapDioError(DioException e, String defaultMessage) {
     if (e.type == DioExceptionType.connectionError ||
         e.type == DioExceptionType.connectionTimeout) {

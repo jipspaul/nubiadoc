@@ -19,10 +19,37 @@ final class CabinetMessagingConversationsLoading extends CabinetMessagingState {
 final class CabinetMessagingConversationsLoaded extends CabinetMessagingState {
   final List<CabinetConversation> conversations;
 
-  const CabinetMessagingConversationsLoaded(this.conversations);
+  /// Roster réel du cabinet (#7151/#7150 — colonne « Praticien » de la vue
+  /// Secrétariat), même source que l'agenda secrétariat
+  /// (`ListCabinetPractitionersUseCase`) — sert à résoudre `assigneeUserId`
+  /// en nom affichable et à peupler le sélecteur d'assignation.
+  final List<CabinetPractitioner> practitioners;
+
+  /// Message d'erreur de la dernière tentative d'assignation (#7151/#7150),
+  /// `null` sinon — même sémantique que `conversionError` du fil.
+  final String? assignError;
+
+  const CabinetMessagingConversationsLoaded(
+    this.conversations, {
+    this.practitioners = const [],
+    this.assignError,
+  });
+
+  CabinetMessagingConversationsLoaded copyWith({
+    List<CabinetConversation>? conversations,
+    List<CabinetPractitioner>? practitioners,
+    String? assignError,
+    bool clearAssignError = false,
+  }) =>
+      CabinetMessagingConversationsLoaded(
+        conversations ?? this.conversations,
+        practitioners: practitioners ?? this.practitioners,
+        assignError:
+            clearAssignError ? null : (assignError ?? this.assignError),
+      );
 
   @override
-  List<Object?> get props => [conversations];
+  List<Object?> get props => [conversations, practitioners, assignError];
 }
 
 final class CabinetMessagingConversationsError extends CabinetMessagingState {

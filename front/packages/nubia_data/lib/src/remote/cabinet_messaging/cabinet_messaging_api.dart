@@ -59,4 +59,19 @@ class CabinetMessagingApi {
     );
     return ConversationAppointmentConversionDto.fromJson(response.data!);
   }
+
+  /// `PATCH $basePath/conversations/{id}` — assigne la conversation à un
+  /// membre du cabinet (#7151/#7150). Réponse ignorée : la forme du corps
+  /// (`{ id, origin, motif, priority, assignee_user_id, status, summary }`)
+  /// ne correspond pas à celle de la liste (pas de nom patient) — l'appelant
+  /// met déjà à jour son état local avec l'`assigneeUserId` envoyé.
+  Future<void> assignConversation({
+    required String conversationId,
+    required String assigneeUserId,
+  }) async {
+    await _dio.patch<Map<String, dynamic>>(
+      '$basePath/conversations/$conversationId',
+      data: {'assignee_user_id': assigneeUserId},
+    );
+  }
 }

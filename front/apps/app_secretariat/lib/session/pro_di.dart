@@ -191,6 +191,8 @@ void registerPro(GetIt gi) {
         getMessages: gi<GetCabinetConversationUseCase>(),
         sendMessage: gi<SendMessageCabinetUseCase>(),
         convertToAppointment: gi<ConvertConversationToAppointmentUseCase>(),
+        assignConversation: gi<AssignCabinetConversationUseCase>(),
+        listPractitioners: gi<ListCabinetPractitionersUseCase>(),
       ),
     )
     ..registerFactory<StockBloc>(
