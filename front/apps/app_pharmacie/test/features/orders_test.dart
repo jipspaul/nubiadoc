@@ -12,6 +12,8 @@ import 'package:nubia_test_harness/nubia_test_harness.dart';
 import 'package:app_pharmacie/features/order_detail/order_detail_bloc.dart';
 import 'package:app_pharmacie/features/order_detail/order_detail_event.dart';
 import 'package:app_pharmacie/features/order_detail/order_detail_state.dart';
+import 'package:app_pharmacie/features/pickup_scan/pickup_scan_cubit.dart';
+import 'package:app_pharmacie/features/pickup_scan/widgets/manual_code_field.dart';
 import 'package:app_pharmacie/features/orders/orders_bloc.dart';
 import 'package:app_pharmacie/features/orders/orders_event.dart';
 import 'package:app_pharmacie/features/orders/orders_page.dart';
@@ -981,8 +983,20 @@ void main() {
       );
       GetIt.instance.registerFactory<OrderDetailBloc>(() => detailBloc);
       addTearDown(() => GetIt.instance.unregister<OrderDetailBloc>());
+      // #7556 — à cette largeur, la 3ᵉ colonne (maquette « Écrans PC ») est
+      // financée : le scan de retrait s'affiche d'emblée à côté de
+      // l'encaissement, plus besoin de cliquer « Scanner le retrait ».
+      GetIt.instance.registerFactory<PickupScanCubit>(
+        () => PickupScanCubit(
+          confirmPickup: ConfirmPharmacyPickupUseCase(repo),
+        ),
+      );
+      addTearDown(() => GetIt.instance.unregister<PickupScanCubit>());
 
-      tester.view.physicalSize = const Size(1440, 900);
+      // 1920×900 (poste fixe) — au-delà de `_wideDetailBreakpoint`, cf.
+      // #7556 : la file se fige et l'espace en trop va au détail au lieu de
+      // continuer à l'étirer.
+      tester.view.physicalSize = const Size(1920, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -997,9 +1011,12 @@ void main() {
 
       // La file (OrdersView) reste visible…
       expect(find.byKey(const Key('order_row_o1')), findsOneWidget);
-      // … en même temps que le détail de la commande sélectionnée.
+      // … en même temps que le détail de la commande sélectionnée…
       expect(find.byKey(const Key('order_detail_back')), findsOneWidget);
-      expect(find.byKey(const Key('order_action_scan')), findsOneWidget);
+      // … et le scan de retrait est déjà visible, côte à côte avec
+      // l'ordonnance (mécanique ② de la maquette), sans clic intermédiaire.
+      expect(find.byKey(const Key('order_action_scan')), findsNothing);
+      expect(find.byType(ManualCodeField), findsOneWidget);
     });
   });
 
