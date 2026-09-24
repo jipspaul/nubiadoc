@@ -347,6 +347,26 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
 
   bool get _formValid => _items.isNotEmpty && _items.every((i) => i.isValid);
 
+  /// Message d'aide sous le bouton « Créer l'ordonnance » quand il est
+  /// désactivé (#7592) : le bouton grisé n'expliquait jusqu'ici jamais ce
+  /// qui manque, y compris quand un modèle appliqué laisse une ligne
+  /// structurellement incomplète (posologie non mappable en dose/fréquence).
+  String? get _missingFieldsHint {
+    if (_formValid) return null;
+    final missing = <String>{};
+    for (final item in _items) {
+      if (item.label.text.trim().isEmpty) missing.add('médicament');
+      if (item.dose == null) missing.add('dose');
+      if (item.frequency == null) missing.add('fréquence');
+      if (item.duration == null) missing.add('durée');
+      if (!(item.effectiveQuantity?.isNotEmpty ?? false)) {
+        missing.add('quantité');
+      }
+    }
+    if (missing.isEmpty) return null;
+    return 'Complétez pour créer l\'ordonnance : ${missing.join(', ')}.';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -368,11 +388,14 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
 
   /// Applique un modèle à la composition en cours : remplace les lignes
   /// saisies par celles du modèle. La durée n'est reprise que lorsqu'elle
-  /// correspond exactement à une valeur de [_durationOptions] (#7557) — la
-  /// posologie du modèle est un texte libre qu'il faudrait découper en dose
-  /// + fréquence pour la reprendre sans ambiguïté, ce qui reste à faire ;
-  /// dose et fréquence restent donc à choisir dans les listes déroulantes,
-  /// comme pour un ajout via `_AddItemSearchField`.
+  /// correspond exactement à une valeur de [_durationOptions] (#7557). Dose
+  /// et fréquence sont extraites du texte libre de posologie quand il suit
+  /// un format reconnu (#7592, [_matchDoseOption]/[_matchFrequencyOption]) ;
+  /// sinon elles restent à choisir dans les listes déroulantes, comme pour
+  /// un ajout via `_AddItemSearchField`. La quantité du modèle est toujours
+  /// reportée en surcharge (#7592) : c'est la valeur que le praticien a
+  /// validée dans le modèle, à préférer au calcul dose×fréquence×durée même
+  /// quand celui-ci devient possible.
   void _applyTemplate(PrescriptionTemplate template) {
     setState(() {
       _selectedTemplateId = template.id;
@@ -385,7 +408,11 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
             ? [_ItemDraft()]
             : template.items.map((i) => _ItemDraft()
               ..label.text = i.label
-              ..duration = _matchDurationOption(i.duration)));
+              ..dose = _matchDoseOption(i.posology)
+              ..frequency = _matchFrequencyOption(i.posology)
+              ..duration = _matchDurationOption(i.duration)
+              ..quantityOverride.text = i.quantity
+              ..overridingQuantity = i.quantity.trim().isNotEmpty));
     });
   }
 
@@ -529,6 +556,17 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
                     ? null
                     : _submit,
           ),
+          if (_missingFieldsHint case final hint?) ...[
+            const SizedBox(height: 8),
+            Text(
+              hint,
+              key: const Key('submit_ordonnance_missing_hint'),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: NubiaColors.warningFg),
+            ),
+          ],
         ],
       ),
     );
@@ -988,6 +1026,68 @@ String? _matchDurationOption(String templateDuration) {
   final trimmed = templateDuration.trim().toLowerCase();
   for (final option in _durationOptions) {
     if (option.value.toLowerCase() == trimmed) return option.value;
+  }
+  return null;
+}
+
+/// Abréviations usuelles de forme galénique (#7592) vers le nom singulier
+/// employé par [_doseOptions] — la posologie d'un modèle écrit « cp » là où
+/// la liste déroulante affiche « comprimé ».
+const _doseUnitAliases = <String, String>{
+  'cp': 'comprimé',
+  'cpr': 'comprimé',
+  'comprime': 'comprimé',
+  'comprimé': 'comprimé',
+  'comprimés': 'comprimé',
+  'sachet': 'sachet',
+  'sachets': 'sachet',
+  'ampoule': 'ampoule',
+  'ampoules': 'ampoule',
+  'dose': 'dose',
+  'doses': 'dose',
+  'application': 'application',
+  'applications': 'application',
+  'ml': 'ml',
+};
+
+final _leadingDoseUnit = RegExp(r'^(\d+)\s*([a-zà-ÿ]+)', caseSensitive: false);
+
+/// Reprend la dose d'un modèle (#7592) quand sa posologie commence par un
+/// nombre suivi d'une forme galénique reconnue (« 1 cp… », « 2 sachets… »)
+/// — `null` sinon, pour ne pas présélectionner une valeur absente de la
+/// liste déroulante « Dose ».
+String? _matchDoseOption(String templatePosology) {
+  final match = _leadingDoseUnit.firstMatch(templatePosology.trim());
+  if (match == null) return null;
+  final count = int.parse(match.group(1)!);
+  final canonicalUnit = _doseUnitAliases[match.group(2)!.toLowerCase()];
+  if (canonicalUnit == null) return null;
+  final candidate = canonicalUnit == 'ml'
+      ? '$count ml'
+      : '$count $canonicalUnit${count > 1 ? 's' : ''}';
+  for (final option in _doseOptions) {
+    if (option.value.toLowerCase() == candidate) return option.value;
+  }
+  return null;
+}
+
+/// Fréquence quotidienne écrite « N/jour » précédée de « x » (« 1 cp x
+/// 3/jour ») — variante des modèles, dose puis fréquence, non couverte par
+/// [_explicitFrequency] (dose puis « fois »/« x » puis fréquence, dans cet
+/// ordre).
+final _templateFrequency =
+    RegExp(r'x\s*(\d+)\s*(?:/|par)\s*jour', caseSensitive: false);
+
+/// Reprend la fréquence d'un modèle (#7592) quand sa posologie contient un
+/// nombre de prises par jour reconnu — `null` sinon, pour ne pas
+/// présélectionner une valeur absente de la liste déroulante « Fréquence ».
+String? _matchFrequencyOption(String templatePosology) {
+  final match = _explicitFrequency.firstMatch(templatePosology) ??
+      _templateFrequency.firstMatch(templatePosology);
+  if (match == null) return null;
+  final candidate = '${int.parse(match.group(1)!)} fois / jour';
+  for (final option in _frequencyOptions) {
+    if (option.value.toLowerCase() == candidate) return option.value;
   }
   return null;
 }

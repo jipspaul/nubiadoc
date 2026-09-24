@@ -1089,9 +1089,9 @@ void main() {
     });
 
     testWidgets(
-        'OrdonnancesInitial → sélectionner une carte modèle reprend la durée '
-        'quand elle correspond exactement à une option de la liste (#7557)',
-        (tester) async {
+        'OrdonnancesInitial → sélectionner une carte modèle reprend durée, '
+        'dose et fréquence quand la posologie suit un format reconnu '
+        '(#7557, #7592)', (tester) async {
       when(() => bloc.loadTemplates())
           .thenAnswer((_) async => const [_template, _cabinetTemplate]);
 
@@ -1119,8 +1119,65 @@ void main() {
         findsOneWidget,
       );
 
-      // Dose et fréquence restent à choisir : le modèle ne fournit qu'un
-      // texte libre de posologie, non mappable sans ambiguïté.
+      // Les deux lignes ont pour posologie « 1 cp x 3/jour[…] » : format
+      // reconnu (#7592), dose et fréquence sont donc reprises elles aussi.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_0_posology')),
+          matching: find.text('1 comprimé'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_0_frequency')),
+          matching: find.text('3 fois / jour'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_1_posology')),
+          matching: find.text('1 comprimé'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_1_frequency')),
+          matching: find.text('3 fois / jour'),
+        ),
+        findsOneWidget,
+      );
+
+      // Ligne complète (label, dose, fréquence, durée, quantité du modèle
+      // reportée) : le bouton de création n'est plus grisé et aucune aide
+      // ne s'affiche.
+      expect(
+        tester
+            .widget<NubiaButton>(find.byKey(const Key('submit_ordonnance_button')))
+            .onPressed,
+        isNotNull,
+      );
+      expect(find.byKey(const Key('submit_ordonnance_missing_hint')),
+          findsNothing);
+    });
+
+    testWidgets(
+        'OrdonnancesInitial → sélectionner une carte modèle en prise unique '
+        'laisse dose/fréquence à choisir et affiche ce qui manque (#7592)',
+        (tester) async {
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_singleDoseTemplate]);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('template_card_tmpl-3')));
+      await tester.pumpAndSettle();
+
+      // Posologie « Prise unique 1h avant le geste » : aucun format
+      // reconnu, dose et fréquence restent à choisir manuellement.
       expect(
         find.descendant(
           of: find.byKey(const Key('item_0_posology')),
@@ -1134,6 +1191,20 @@ void main() {
           matching: find.text('Sélectionner'),
         ),
         findsOneWidget,
+      );
+
+      expect(
+        tester
+            .widget<NubiaButton>(find.byKey(const Key('submit_ordonnance_button')))
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<Text>(
+                find.byKey(const Key('submit_ordonnance_missing_hint')))
+            .data,
+        contains('dose'),
       );
     });
 
