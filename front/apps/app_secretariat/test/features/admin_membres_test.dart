@@ -224,6 +224,39 @@ void main() {
     );
 
     blocTest<AdminMembresBloc, AdminMembresState>(
+      'émet Loading puis InviteForbidden (403) sans détruire la liste déjà chargée',
+      build: () {
+        when(() => membersRepo.invite(any(), any(), any(), any())).thenAnswer(
+          (_) async => const Left(ServerFailure(
+            message: 'Accès réservé aux administrateurs du cabinet.',
+            statusCode: 403,
+          )),
+        );
+        return AdminMembresBloc(
+          listMembers: listMembers,
+          listSecretariats: listSecretariats,
+          inviteMember: inviteMember,
+        );
+      },
+      seed: () =>
+          AdminMembresLoaded(members: members, secretariats: secretariats),
+      act: (bloc) => bloc.add(
+        const AdminMembresInviteRequested(
+          email: 'nouveau@cabinet.fr',
+          role: MemberRole.secretary,
+          firstName: 'Camille',
+          lastName: 'Durand',
+        ),
+      ),
+      expect: () => [
+        const AdminMembresLoading(),
+        const AdminMembresInviteForbidden(
+            'Accès réservé aux administrateurs du cabinet.'),
+        AdminMembresLoaded(members: members, secretariats: secretariats),
+      ],
+    );
+
+    blocTest<AdminMembresBloc, AdminMembresState>(
       'émet Loading puis InviteSuccess et recharge la liste si l\'invitation réussit',
       build: () {
         when(() => membersRepo.invite(any(), any(), any(), any())).thenAnswer(
@@ -521,6 +554,52 @@ void main() {
 
       expect(find.text('Invitation envoyée.'), findsOneWidget);
       expect(find.text('Sophie Martin'), findsOneWidget);
+    });
+
+    testWidgets(
+        'échec de l\'invitation par 403 (réel) : SnackBar explicite, liste préservée, pas de Réessayer',
+        (tester) async {
+      final currentMembers = [
+        Member(
+          id: 'm1',
+          cabinetId: 'c1',
+          firstName: 'Sophie',
+          lastName: 'Martin',
+          email: 'sophie@example.com',
+          role: MemberRole.secretary,
+          isActive: true,
+          joinedAt: DateTime(2026, 1, 1),
+        ),
+      ];
+
+      whenListen(
+        bloc,
+        Stream.fromIterable([
+          const AdminMembresLoading(),
+          const AdminMembresInviteForbidden(
+              'Accès réservé aux administrateurs du cabinet.'),
+          AdminMembresLoaded(members: currentMembers, secretariats: const []),
+        ]),
+        initialState: AdminMembresLoaded(
+            members: currentMembers, secretariats: const []),
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await submitInviteViaFab(tester);
+      await tester.pumpAndSettle();
+
+      // Le message explique pourquoi, sans proposer de réessayer une action
+      // qui échouera de toute façon en 403.
+      expect(
+        find.text('Accès réservé aux administrateurs du cabinet.'),
+        findsOneWidget,
+      );
+      expect(find.text('Réessayer'), findsNothing);
+      // La liste des membres, déjà chargée, ne doit pas disparaître.
+      expect(find.text('Sophie Martin'), findsOneWidget);
+      expect(find.byKey(const Key('add_member_fab')), findsOneWidget);
     });
   });
 }

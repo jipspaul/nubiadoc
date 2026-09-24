@@ -109,6 +109,15 @@ class MembersRepositoryImpl implements MembersRepository {
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
       }
+      if (e.response?.statusCode == 403) {
+        // Écriture réservée aux admins/managers (cf. list()) : la lecture a pu
+        // réussir pour ce même compte, d'où un message dédié plutôt que
+        // l'échec générique d'invitation.
+        return const Left(ServerFailure(
+          message: 'Accès réservé aux administrateurs du cabinet.',
+          statusCode: 403,
+        ));
+      }
       return Left(ServerFailure(
         message: 'Impossible d\'inviter le membre.',
         statusCode: e.response?.statusCode,
