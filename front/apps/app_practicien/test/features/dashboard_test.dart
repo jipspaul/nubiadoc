@@ -1767,8 +1767,7 @@ void main() {
       expect(pendingTopLeft.dy, lessThan(900));
     });
 
-    testWidgets('sous le seuil de 1100 px, les widgets restent en pile',
-        (tester) async {
+    testWidgets('sous le seuil, les widgets restent en pile', (tester) async {
       tester.view.physicalSize = const Size(800, 3000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -1788,6 +1787,37 @@ void main() {
 
       expect(pendingTopLeft.dx, scheduleTopLeft.dx);
       expect(pendingTopLeft.dy, greaterThan(scheduleTopLeft.dy));
+    });
+
+    testWidgets(
+        'à la fenêtre cible design-v2 (1280x800, INDEX.md), "À traiter" est '
+        'déjà à droite de "Journée" (#7551 — le seuil oubliait le chrome '
+        '`ProShell`)', (tester) async {
+      // Même convention que `ordonnance_new_page_test.dart` : ce test ne
+      // monte pas `ProShell`, donc `physicalSize` équivaut à la largeur de
+      // fenêtre moins le chrome `ProShell` (251, #5138) — 1280 − 251 =
+      // 1029. Le `SingleChildScrollView` (padding 16 de chaque côté) retire
+      // encore 32 px avant `LayoutBuilder`, donc `constraints.maxWidth` vaut
+      // 997 — exactement le seuil recalé par #7551.
+      tester.view.physicalSize = const Size(1029, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: DashboardBody()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scheduleTopLeft =
+          tester.getTopLeft(find.byKey(const Key('today_schedule_card')));
+      final pendingTopLeft =
+          tester.getTopLeft(find.byKey(const Key('pending_actions_card')));
+
+      expect(pendingTopLeft.dx, greaterThan(scheduleTopLeft.dx));
+      expect(pendingTopLeft.dy, lessThan(800));
     });
   });
 }
