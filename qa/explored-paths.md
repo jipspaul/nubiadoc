@@ -3477,3 +3477,12 @@ même capture (3 colonnes + lignes d'ordonnance toujours là). Boucle finding �
 | **Tunnel de réservation SSR** | 2026-09-24T18:52Z | **OK** | Les 3 écrans répondent en 200 avec le bon `<title>` et le bon `<h1>`. La fiche praticien sert **165 liens de créneau** cliquables vers `/reservation/confirmer?providerId=…&slotId=…`. L'écran ③ rend le **formulaire complet** : 8 champs (`providerId`, `slotId`, `prenom`, `nom`, `naissance`, `telephone`, `email`, `consentement`) + CTA « Confirmer le rendez-vous ». **Gardes exactes** : `slotId` inexistant → **410 (Gone)**, `providerId` inexistant → 404, sans paramètres → 404, slug praticien inconnu → 404, ville inconnue → 404 — toutes avec une page digne (« Praticien introuvable »). *Réservation non rejouée de bout en bout : déjà prouvée en R94 et le plafond de re-vérification de la ronde était déjà consommé.* |
 
 **Matrice cross-app R96 : 12/12** — X1 X2 X3 X4 X5 X6 X7 X8 X9 X10 X11 X12.
+
+**Complément B10 — rotation du `refresh_token` (reprise hors fenêtre de rate-limit) :** chaîne de
+**3 rotations successives**, toutes **200**, chacune servant un `refresh_token` **différent** du précédent
+et un nouvel `access_token`. Un jeton **déjà consommé** rejoué → **401**. Un jeton **bidon** → **401**.
+Le jeton courant **survit** à la tentative de rejeu d'un ancien (**200**). *Nuance observée, non filée :
+rejouer un jeton consommé peut invalider son descendant direct encore valide — comportement de
+**détection de réutilisation**, conservateur et défendable, pas un défaut.* Le test initial de la ronde
+avait été faussé par **mon propre rate-limit** (12 mauvais mots de passe juste avant) : c'est le compte
+secrétariat, non limité, qui a servi à la reprise.
