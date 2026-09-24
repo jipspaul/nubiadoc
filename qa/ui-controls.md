@@ -4175,3 +4175,30 @@ consécutives (R94 puis R96), le taux de faux positifs du premier passage est de
 sont les plus anciens jamais audités.*
 
 **CUMUL R96 CONSOLIDÉ : 21 écran×route, 415 contrôles inventoriés, 294 activés, `0` MORT, `0` CASSÉ.**
+
+#### Addendum R96 — quatrième segment
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/notifications` (390) | 19 | 19 | 19 | 0 | 0 | 2026-09-24T19:16:00Z |
+| patient | `/messaging` (390) | 9 | 9 | 9 | 0 | 0 | 2026-09-24T19:17:00Z |
+| patient | `/home-care` (390) | 17 | 17 | 17 | 0 | 0 | 2026-09-24T19:18:00Z |
+| secretariat | rail de navigation — **18 entrées, page rechargée avant CHAQUE clic** (1280) | 18 | 17 | 17 | 0 | 0 | 2026-09-24T20:20:00Z |
+
+*Le 50ᵉ et dernier « MORT » du premier passage — « Toutes 2253 » sur `patient/notifications` — est le
+**même faux positif n°2** (facette déjà sélectionnée). Vérifié : re-cliquer la facette active ne doit rien
+faire.*
+
+*Segment arrêté sur `praticien/devis` par un `ERR_HTTP_RESPONSE_CODE_FAILURE` — le front praticien était
+**en cours de redéploiement** (build passé de 18:51:45 à 19:14:01 pendant le balayage, livraison du
+correctif #7596). Transitoire d'assets, **pas un défaut produit** : l'écran répond normalement après.
+`praticien/devis`, `praticien/messages`, `secretariat/salle-attente` et `secretariat/liste-attente`
+**restent à auditer** — à prendre en tête de la prochaine ronde.*
+
+### CUMUL R96 DÉFINITIF
+
+**25 écran×route audités · 397 contrôles inventoriés · 370 activés · `0` MORT confirmé · `0` CASSÉ.**
+
+Sur les **50 verdicts MORT** rendus par les balayages automatiques, **50 ont été réfutés** par re-test
+individuel. Les 6 causes sont documentées plus haut. **Deux rondes consécutives (R94, R96) : 100 % de
+faux positifs au premier passage.** Aucun verdict MORT ne doit être publié sans re-test page rechargée.
