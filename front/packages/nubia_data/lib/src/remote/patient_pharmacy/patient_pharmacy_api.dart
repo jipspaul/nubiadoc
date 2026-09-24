@@ -75,16 +75,36 @@ class PatientPharmacyApi {
     );
   }
 
-  /// GET /v1/account/prescriptions — ordonnances du compte.
-  Future<List<PatientPrescriptionDto>> listPrescriptions() async {
-    final response = await _dio.get<dynamic>('/account/prescriptions');
-    final raw = response.data;
-    final data = raw is List
-        ? raw
-        : ((raw as Map<String, dynamic>?)?['data'] as List<dynamic>? ??
-            const []);
-    return data
-        .map((e) => PatientPrescriptionDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+  // GET /v1/account/prescriptions — pagination par cursor côté API (limit
+  // défaut 100, cf. api/src/prescriptions.rs `list_account_prescriptions`,
+  // #6381) : sans [limit], on suit `page.next_cursor` jusqu'à épuisement
+  // pour ramener toutes les ordonnances plutôt que les 100 plus récentes.
+  Future<List<PatientPrescriptionDto>> listPrescriptions({int? limit}) async {
+    final result = <PatientPrescriptionDto>[];
+    String? cursor;
+    do {
+      final response = await _dio.get<dynamic>(
+        '/account/prescriptions',
+        queryParameters: {
+          if (limit != null) 'limit': limit,
+          if (cursor != null) 'cursor': cursor,
+        },
+      );
+      final raw = response.data;
+      final data = raw is List
+          ? raw
+          : ((raw as Map<String, dynamic>?)?['data'] as List<dynamic>? ??
+              const []);
+      result.addAll(
+        data.map(
+          (e) => PatientPrescriptionDto.fromJson(e as Map<String, dynamic>),
+        ),
+      );
+      if (limit != null) break;
+      cursor = (raw is Map<String, dynamic>
+          ? raw['page'] as Map<String, dynamic>?
+          : null)?['next_cursor'] as String?;
+    } while (cursor != null);
+    return result;
   }
 }

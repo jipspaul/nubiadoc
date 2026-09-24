@@ -70,9 +70,11 @@ class PatientPharmacyRepositoryImpl implements PatientPharmacyRepository {
       );
 
   @override
-  Future<Either<Failure, List<PatientPrescription>>> listPrescriptions() =>
+  Future<Either<Failure, List<PatientPrescription>>> listPrescriptions({
+    int? limit,
+  }) =>
       guardPharmacyCall(
-        () async => (await _api.listPrescriptions())
+        () async => (await _api.listPrescriptions(limit: limit))
             .map((dto) => dto.toDomain())
             .toList(),
         errorMessage: 'Impossible de charger vos ordonnances.',
