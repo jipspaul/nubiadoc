@@ -20,23 +20,36 @@ import 'widgets/prescription_lines_panel.dart';
 /// transition contextuelle (pilotée par [PharmacyOrderStatus.canTransitionTo] —
 /// le serveur reste l'autorité, 409 remonté en erreur).
 class OrderDetailPage extends StatelessWidget {
-  const OrderDetailPage({super.key, required this.orderId});
+  const OrderDetailPage({super.key, required this.orderId, this.isWide = false});
 
   final String orderId;
+
+  /// Cible « Écrans PC » (maquette `Ecrans PC - Praticien et Pharmacie.html`,
+  /// écran ③) — passé par `OrdersScreen` quand la largeur disponible du corps
+  /// finance la 3ᵉ colonne (file fixe + ordonnance qui grandit + volet
+  /// retrait/encaissement toujours visible). Voir [OrderDetailBody.isWide].
+  final bool isWide;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<OrderDetailBloc>(
       create: (_) => GetIt.instance<OrderDetailBloc>()
         ..add(OrderDetailLoadRequested(orderId)),
-      child: const OrderDetailBody(),
+      child: OrderDetailBody(isWide: isWide),
     );
   }
 }
 
 /// Corps de l'écran détail — public pour les tests widget.
 class OrderDetailBody extends StatelessWidget {
-  const OrderDetailBody({super.key});
+  const OrderDetailBody({super.key, this.isWide = false});
+
+  /// Voir [OrderDetailPage.isWide]. `false` par défaut (comportement
+  /// tablette/mobile inchangé) — c'est `OrdersScreen` qui décide, sur la
+  /// largeur *disponible* du corps (jamais `MediaQuery`, cf. #6386), si ce
+  /// volet a reçu assez de place pour afficher le scan de retrait et
+  /// l'encaissement d'emblée plutôt que derrière un clic.
+  final bool isWide;
 
   @override
   Widget build(BuildContext context) {
@@ -97,7 +110,12 @@ class OrderDetailBody extends StatelessWidget {
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isTwoPane = constraints.maxWidth >= _twoPaneBreakpoint;
+        // `isWide` (imposé par `OrdersScreen`, cf. #7556) force ce volet en
+        // Row même si sa largeur locale — déjà amputée de la colonne file
+        // fixe posée à côté — n'atteint pas [_twoPaneBreakpoint] : c'est
+        // `OrdersScreen` qui a l'autorité sur la largeur *disponible* réelle
+        // du corps, ce volet ne voit que ce qu'on lui laisse.
+        final isTwoPane = isWide || constraints.maxWidth >= _twoPaneBreakpoint;
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -129,8 +147,14 @@ class OrderDetailBody extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            child: _buildExecutionPane(context, order, items,
-                                actionInProgress, preparedLineIndices),
+                            child: _buildExecutionPane(
+                              context,
+                              order,
+                              items,
+                              actionInProgress,
+                              preparedLineIndices,
+                              alwaysShowScan: isWide,
+                            ),
                           ),
                         ],
                       ),
@@ -141,8 +165,14 @@ class OrderDetailBody extends StatelessWidget {
                         _buildReadPane(
                             context, order, items, preparedLineIndices),
                         const SizedBox(height: 24),
-                        _buildExecutionPane(context, order, items,
-                            actionInProgress, preparedLineIndices),
+                        _buildExecutionPane(
+                          context,
+                          order,
+                          items,
+                          actionInProgress,
+                          preparedLineIndices,
+                          alwaysShowScan: false,
+                        ),
                       ],
                     ),
             ],
@@ -187,13 +217,19 @@ class OrderDetailBody extends StatelessWidget {
   }
 
   /// Volet droit — ce qui s'exécute (préparation, scan, encaissement).
+  ///
+  /// [alwaysShowScan] : sur cible large (maquette « Écrans PC »), le scan de
+  /// retrait et l'encaissement doivent être visibles côte à côte sans clic
+  /// intermédiaire — les deux gestes du comptoir s'enchaînent sans changer
+  /// d'écran ni d'état.
   Widget _buildExecutionPane(
     BuildContext context,
     PharmacyOrder order,
     List<PrescriptionItem> items,
     bool actionInProgress,
-    Set<int> preparedLineIndices,
-  ) {
+    Set<int> preparedLineIndices, {
+    required bool alwaysShowScan,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -209,6 +245,7 @@ class OrderDetailBody extends StatelessWidget {
           inProgress: actionInProgress,
           totalLines: items.length,
           preparedLines: preparedLineIndices.length,
+          alwaysShowScan: alwaysShowScan,
         ),
         if (order.hasBillingSummary) ...[
           const SizedBox(height: 24),
@@ -320,6 +357,7 @@ class _ContextualAction extends StatefulWidget {
     required this.inProgress,
     this.totalLines = 0,
     this.preparedLines = 0,
+    this.alwaysShowScan = false,
   });
 
   final PharmacyOrder order;
@@ -331,6 +369,11 @@ class _ContextualAction extends StatefulWidget {
 
   /// Nombre de lignes cochées « préparée ».
   final int preparedLines;
+
+  /// Sur cible large, le panneau de scan (viseur QR + code de retrait) est
+  /// affiché d'emblée au-dessus du bloc d'encaissement — pas de clic
+  /// supplémentaire pour faire apparaître le second geste du comptoir.
+  final bool alwaysShowScan;
 
   @override
   State<_ContextualAction> createState() => _ContextualActionState();
@@ -408,7 +451,7 @@ class _ContextualActionState extends State<_ContextualAction> {
           ],
         );
       case PharmacyOrderStatus.ready:
-        if (_scanning) {
+        if (_scanning || widget.alwaysShowScan) {
           return BlocProvider<PickupScanCubit>(
             create: (_) => GetIt.instance<PickupScanCubit>(),
             child: PickupScanBody(orderId: order.id, orderRef: order.orderRef),

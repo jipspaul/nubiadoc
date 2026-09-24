@@ -31,6 +31,27 @@ class OrdersScreen extends StatelessWidget {
 
   static const _asideBreakpoint = 900.0;
 
+  /// Largeur figée de la file une fois la 3ᵉ colonne financée — assez pour
+  /// que la barre de recherche et la ligne de filtres (recherche 280 px,
+  /// puce de filtre la plus large + son compteur, indicateur de fraîcheur)
+  /// ne débordent pas, mais plus question de la laisser continuer à
+  /// s'étirer avec la fenêtre (c'était l'anti-pattern nommé par la
+  /// maquette).
+  static const _wideQueueColumnWidth = 620.0;
+
+  /// Seuil (largeur *disponible* du corps, jamais `MediaQuery` — cf. #6386)
+  /// à partir duquel le détail finance sa 3ᵉ colonne « Écrans PC » (maquette
+  /// `Ecrans PC - Praticien et Pharmacie.html`, écran ③). Recalé comme
+  /// `kThreeColumnBreakpoint` (`consultation_layout_breakpoints.dart`, même
+  /// bug #6386) — mais sur le coût réel de *cette* file, pas sur la largeur
+  /// de fenêtre de la maquette : sous ce seuil, figer la file à
+  /// [_wideQueueColumnWidth] laisserait moins de place à l'ordonnance que le
+  /// gabarit tablette actuel (448 px), un recul. Seuil = coût fixe de la
+  /// 3ᵉ colonne (file [_wideQueueColumnWidth] + volet retrait 436 px +
+  /// marges/écart 48 px = 1104) + 448 px pour que l'ordonnance ne soit
+  /// jamais plus étroite qu'aujourd'hui.
+  static const _wideDetailBreakpoint = 1552.0;
+
   @override
   Widget build(BuildContext context) {
     final orderId = selectedOrderId;
@@ -40,6 +61,17 @@ class OrdersScreen extends StatelessWidget {
           return orderId == null
               ? const OrdersView()
               : OrderDetailPage(orderId: orderId);
+        }
+        final isWide =
+            orderId != null && constraints.maxWidth >= _wideDetailBreakpoint;
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(width: _wideQueueColumnWidth, child: OrdersView()),
+              Expanded(child: OrderDetailPage(orderId: orderId, isWide: true)),
+            ],
+          );
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
