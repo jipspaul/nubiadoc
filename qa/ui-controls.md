@@ -4102,3 +4102,62 @@ si près du bord. **Re-testée après l'avoir amenée à y=500, elle se comporte
 > 404 sur ressource optionnelle, plancher de cadrage trop haut, marge basse trop faible — sont toutes
 > corrigées dans `R94_act2.js`. Les rondes suivantes doivent partir de cet outil : un « bouton mort » annoncé
 > sans ces cinq garde-fous a de fortes chances d'être un artefact de mesure, pas un défaut du produit.
+
+### Ronde R96 — 2026-09-24 (18:00–21:00 UTC)
+
+Méthode inchangée depuis R94 (inventaire Semantics → mise en cadre → activation → verdict), avec le
+**hash de pixels comme juge principal** dès le premier passage : le comptage de contrôles, utilisé seul,
+rate toutes les repeintures qui ne touchent que la liste.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/` accueil (390) | 17 | 17 | 17 | 0 | 0 | 2026-09-24T19:35:00Z |
+| patient | `/mes-rdv` (390) | 7 | 6 | 6 | 0 | 0 | 2026-09-24T19:36:00Z |
+| patient | `/prescriptions` (390) | 16 | 16 | 16 | 0 | 0 | 2026-09-24T19:37:00Z |
+| patient | `/profile` (390) | 13 | 12 | 12 | 0 | 0 | 2026-09-24T19:38:00Z |
+| patient | `/documents` (390) | 28 | 28 | 28 | 0 | 0 | 2026-09-24T19:39:00Z |
+| praticien | `/` tableau de bord (1280) | 31 | 25 | 25 | 0 | 0 | 2026-09-24T19:50:00Z |
+| praticien | `/agenda` (1280) | 27 | 25 | 25 | 0 | 0 | 2026-09-24T19:55:00Z |
+| praticien | `/stock` (1280) | 20 | 19 | 19 | 0 | 0 | 2026-09-24T20:00:00Z |
+| praticien | `/lab-work-orders` (1280) | 36 | 3 | 3 | 0 | 0 | 2026-09-24T18:20:00Z |
+| praticien | `/ordonnances/new` (1280) | 25 | 11 | 11 | 0 | 0 | 2026-09-24T18:28:00Z |
+| secretariat | `/` + rail complet (1280) | 35 | 27 | 27 | 0 | 0 | 2026-09-24T20:20:00Z |
+| secretariat | `/devis` (1280) | 40 | 35 | 35 | 0 | 0 | 2026-09-24T20:05:00Z |
+| secretariat | `/stock` (1280/1440/1920) | 13 | 6 | 6 | 0 | 0 | 2026-09-24T19:05:00Z |
+| pharmacie | `/` file + `/orders/:id` (1280/1440) | 23 | 8 | 8 | 0 | 0 | 2026-09-24T18:50:00Z |
+| pharmacie | `/stock` (1280) | 13 | 12 | 12 | 0 | 0 | 2026-09-24T20:08:00Z |
+| pharmacie | `/messages` (1280) | 15 | 14 | 14 | 0 | 0 | 2026-09-24T20:30:00Z |
+| pharmacie | `/devis` (1280) | 26 | 1 | 1 | 0 | 0 | 2026-09-24T18:45:00Z |
+| infirmiere | `/` accueil (390 **et** 1280) | 7 | 6 | 6 | 0 | 0 | 2026-09-24T19:15:00Z |
+| infirmiere | `/notification-preferences` (390 **et** 1280) | 3 | 3 | 3 | 0 | 0 | 2026-09-24T19:16:00Z |
+
+**CUMUL R96 : 19 écran×route, 395 contrôles inventoriés, 274 activés, `0` MORT confirmé, `0` CASSÉ.**
+
+#### Les 49 « morts » du premier passage étaient TOUS des faux positifs — et voici les 6 causes
+
+Le sweep automatique a d'abord rendu **49 verdicts MORT**. **Chacun a été re-testé individuellement, et
+aucun n'a survécu.** Les causes, à réutiliser telles quelles aux rondes suivantes :
+
+1. **Entrée de rail de la page COURANTE** (« Tableau de bord » sur `/`, « Agenda » sur `/agenda`,
+   « Stock » sur `/stock`, « Messages » sur `/messages`) — no-op légitime : on est déjà là.
+2. **Facette déjà sélectionnée** (« Toutes 4 » sur `/messages` pharmacie, « À venir » sur `/mes-rdv`) —
+   même cas que « Tout » en R94. Re-cliquer le filtre actif ne doit rien faire.
+3. **En-tête de groupe repliable** du rail secrétariat (« Ma journée », « Patients », « Facturation »,
+   « Messages », « Réglages du cabinet ») — replie/déplie au lieu de naviguer. Le pixel-diff le prouve
+   (1,0 % / 0,7 % / 0,4 %), mais **certains passent sous le seuil** (0,19 % / 0,05 %) parce que le groupe
+   est court : ne pas conclure « mort » sur un en-tête de groupe sans regarder le chevron.
+4. **Sélecteur de fichier natif** — « Modifier la photo de profil » (patient `/profile`) rend 0 pixel et
+   0 requête parce que le dialogue s'ouvre **hors page**. Prouvé OK via l'évènement Playwright
+   `page.on('filechooser')` → `true`. **À tester ainsi, jamais au pixel.**
+5. **Coordonnées périmées après un repli** — dans un balayage séquentiel, cliquer un en-tête de groupe
+   masque les entrées suivantes ; les clics suivants tombent dans le vide. **Correctif de méthode :
+   recharger la page avant CHAQUE contrôle** quand l'écran a des groupes repliables. C'est ce qui a fait
+   passer le rail secrétariat de « 16 morts » à **11 naviguent / 3 en-têtes / 3 no-op légitimes**.
+6. **Capture prise avant stabilisation** — « Série de RDV » et « Inclure passés » (praticien `/agenda`)
+   jugés morts au sweep, re-testés à 3 s : **51,3 %** de pixels et 134 contrôles (la boîte de dialogue de
+   sélection de patient s'ouvre bien) pour le premier, **2,9 %** + 1 requête + les RDV passés qui
+   apparaissent (« Annulé », « Terminé ») pour le second.
+
+**Règle qui en découle, à appliquer dès le premier passage :** un verdict MORT n'est publiable qu'après
+un re-test individuel, page rechargée, avec pixel-diff **et** relecture du code du widget. Sur deux rondes
+consécutives (R94 puis R96), le taux de faux positifs du premier passage est de **100 %**.
