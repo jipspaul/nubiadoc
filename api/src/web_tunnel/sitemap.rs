@@ -180,6 +180,7 @@ mod tests {
             tiers_payant: None,
             pmr: None,
             accepts_new_patients: None,
+            teleconsult: None,
         }];
         let urls = provider_urls(&providers, "https://reservation.doc.nubia-link.com");
         assert_eq!(

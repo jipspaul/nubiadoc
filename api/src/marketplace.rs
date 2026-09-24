@@ -295,6 +295,7 @@ pub struct ProviderItem {
     pub tiers_payant: Option<bool>,
     pub pmr: Option<bool>,
     pub accepts_new_patients: Option<bool>,
+    pub teleconsult: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -972,7 +973,8 @@ pub async fn search_providers(
              p.is_listed, \
              p.tiers_payant, \
              p.pmr, \
-             p.accepts_new_patients \
+             p.accepts_new_patients, \
+             p.teleconsult \
          {from_where_clause} \
          ORDER BY {sort_clause} \
          LIMIT $16 OFFSET $17"
@@ -1051,6 +1053,7 @@ pub async fn search_providers(
             tiers_payant: row.try_get("tiers_payant").unwrap_or(None),
             pmr: row.try_get("pmr").unwrap_or(None),
             accepts_new_patients: row.try_get("accepts_new_patients").unwrap_or(None),
+            teleconsult: row.try_get("teleconsult").unwrap_or(None),
         });
     }
 
