@@ -53,14 +53,15 @@ class OrdersScreen extends StatelessWidget {
   /// consomme déjà 250 à lui seul (1440 − 250 = 1190 < 1552) : #7571.
   ///
   /// Corrigé pour être atteignable exactement à ce viewport : seuil = corps
-  /// disponible à 1440 px de fenêtre (1440 − 250 = 1190) = file
-  /// [_wideQueueColumnWidth] (360) + volet retrait 436 px + marges/écart de
-  /// la page détail 48 px (padding 16 × 2 + écart 16 entre volets) + 346 px
+  /// disponible à 1440 px de fenêtre (1440 − 250 de rail − 1 de
+  /// [VerticalDivider] entre rail et corps dans `pro_shell.dart` = 1189) =
+  /// file [_wideQueueColumnWidth] (360) + volet retrait 436 px + marges/écart
+  /// de la page détail 48 px (padding 16 × 2 + écart 16 entre volets) + 345 px
   /// pour l'ordonnance. Ce dernier chiffre est en retrait des 448 px visés
   /// par #7556 (gabarit tablette) — arbitrage nécessaire tant que le rail
   /// ProShell reste à 250 px labellisé (#5138) plutôt que le rail à icônes
   /// de 58 px que montre la maquette pour cet écran.
-  static const _wideDetailBreakpoint = 1190.0;
+  static const _wideDetailBreakpoint = 1189.0;
 
   @override
   Widget build(BuildContext context) {

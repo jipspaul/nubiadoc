@@ -1043,11 +1043,12 @@ void main() {
 
       // `OrdersScreen` n'a pas de Scaffold propre (posé dans le body du
       // ProShell), donc `pumpApp` (MaterialApp sans Scaffold) donne au
-      // LayoutBuilder toute la largeur de `physicalSize` — 1190 px = les
+      // LayoutBuilder toute la largeur de `physicalSize` — 1189 px = les
       // 1440 px de fenêtre que la maquette déclare, moins les 250 px du
-      // rail ProShell labellisé (`_sidebarWidth`, pro_shell.dart) qui les
-      // précède toujours dans l'app réelle.
-      tester.view.physicalSize = const Size(1190, 900);
+      // rail ProShell labellisé (`_sidebarWidth`, pro_shell.dart) et le
+      // 1 px du `VerticalDivider` qui les précèdent toujours dans l'app
+      // réelle (#7579).
+      tester.view.physicalSize = const Size(1189, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
