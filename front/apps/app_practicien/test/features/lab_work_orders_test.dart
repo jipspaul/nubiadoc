@@ -449,8 +449,9 @@ void main() {
     });
 
     testWidgets(
-        'un bon "shipped" affiche les chips mais pas le bouton "Avancer" '
-        '(hors de portée de _kStatusOrder)', (tester) async {
+        'un bon "shipped" affiche les chips et le bouton "Passer à '
+        'l\'essayage" (#7550 : la colonne "sent" garde une action même hors '
+        'de _kStatusOrder)', (tester) async {
       await _setSurface(tester);
       final shippedOrder = _sentOrder.copyWith(status: 'shipped');
       final bloc = MockLabWorkOrdersBloc();
@@ -467,10 +468,6 @@ void main() {
         findsNothing,
       );
       expect(
-        find.byKey(const Key('lab_work_order_advance_order-1')),
-        findsNothing,
-      );
-      expect(
         find.byKey(const Key('lab_work_order_status_chip_order-1_sent')),
         findsNothing,
       );
@@ -483,12 +480,19 @@ void main() {
         find.byKey(const Key('lab_work_order_status_chip_order-1_received')),
         findsOneWidget,
       );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_order_advance_order-1')),
+          matching: find.text("Passer à l'essayage"),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets(
         'un bon "received" (dernier statut d\'expédition) n\'affiche aucune '
-        'chip — tous les statuts d\'expédition sont déjà franchis (#7349)',
-        (tester) async {
+        'chip mais garde le bouton "Passer à l\'essayage" (#7550, cul-de-sac '
+        'sinon)', (tester) async {
       await _setSurface(tester);
       final receivedOrder = _sentOrder.copyWith(status: 'received');
       final bloc = MockLabWorkOrdersBloc();
@@ -499,6 +503,13 @@ void main() {
       expect(
         find.byKey(const Key('lab_work_order_expedition_chips_order-1')),
         findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_order_advance_order-1')),
+          matching: find.text("Passer à l'essayage"),
+        ),
+        findsOneWidget,
       );
     });
   });
@@ -527,6 +538,39 @@ void main() {
         ),
         findsOneWidget,
       );
+
+      await tester.tap(find.byKey(const Key('lab_work_order_advance_order-1')));
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_order_order-1')),
+          matching: find.text('Essayage'),
+        ),
+        findsOneWidget,
+      );
+      verify(() => mockUpdateStatus('order-1', 'try_in')).called(1);
+    });
+
+    testWidgets(
+        'un bon "received" avance vers "try_in" via le bouton "Passer à '
+        'l\'essayage" (#7550 : le serveur autorise received → try_in, le '
+        'front doit le proposer)', (tester) async {
+      await _setSurface(tester);
+      final receivedOrder = _sentOrder.copyWith(status: 'received');
+      final mockList = MockListLabWorkOrdersUseCase();
+      final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
+      when(() => mockList())
+          .thenAnswer((_) async => Right([receivedOrder]));
+      when(() => mockUpdateStatus('order-1', 'try_in'))
+          .thenAnswer((_) async => const Right('try_in'));
+
+      final bloc = LabWorkOrdersBloc(
+        list: mockList,
+        updateStatus: mockUpdateStatus,
+      );
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
 
       await tester.tap(find.byKey(const Key('lab_work_order_advance_order-1')));
       await tester.pump();

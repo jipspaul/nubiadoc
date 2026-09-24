@@ -112,7 +112,12 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
   }
 
   void _advance(LabWorkOrder order) {
-    final index = _kStatusOrder.indexOf(order.status);
+    // Indexé sur la colonne ([_columnOf]), pas le statut brut : un bon
+    // `in_progress`/`shipped`/`received` (#7209) est groupé dans la colonne
+    // "sent" et doit avancer vers `try_in` comme un bon `sent`, sinon
+    // `received` — dernier statut d'expédition — n'a plus aucun rang dans
+    // `_kStatusOrder` et reste bloqué sans bouton (#7550).
+    final index = _kStatusOrder.indexOf(_columnOf(order.status));
     if (index < 0 || index >= _kStatusOrder.length - 1) return;
     context.read<LabWorkOrdersBloc>().add(LabWorkOrdersStatusChangeRequested(
           orderId: order.id,
@@ -474,8 +479,8 @@ class _LabWorkStatusColumn extends StatelessWidget {
                                   onSelect: onSelectStatus,
                                 ),
                               ],
-                              if (_kStatusOrder.contains(order.status) &&
-                                  order.status != _kStatusOrder.last) ...[
+                              if (_columnOf(order.status) !=
+                                  _kStatusOrder.last) ...[
                                 const SizedBox(height: 12),
                                 FilledButton.tonal(
                                   key: Key(
@@ -492,7 +497,7 @@ class _LabWorkStatusColumn extends StatelessWidget {
                                         )
                                       : Text(
                                           _kStatusTransitionLabels[
-                                                  order.status] ??
+                                                  _columnOf(order.status)] ??
                                               'Avancer',
                                           overflow: TextOverflow.ellipsis,
                                         ),
