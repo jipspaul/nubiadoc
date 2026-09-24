@@ -1009,3 +1009,14 @@ comparaison à LEUR maquette, et vérification que la **mécanique** prescrite f
 **Bilan R96 : 5 écrans comparés — 3 conformes, 2 divergents (1 mécanique P1, 1 mise en page P2).**
 **Corrections design-v2 confirmées au passage : #7549, #7550, #7551, #7556, #7566, #7571, #7578, #7579.**
 **Corrections seulement PARTIELLES : #7557 (durée oui, posologie/quantité non → #7592).**
+
+#### Addendum R96 — le correctif de #7594 est arrivé AVANT la clôture de la ronde, et il est vérifié
+
+PR **#7595** mergée à 18:32Z, front pharmacie redéployé à 18:53Z — soit pendant la ronde. Re-test immédiat
+au viewport du défaut (**1440×900, détail ouvert**) :
+
+| app | écran/route | maquette | verdict | divergences | last_check |
+|---|---|---|---|---|---|
+| pharmacie | `/orders/:id` — bandeau de compteurs (1440×900) | `Pharmacie File des commandes v2.html` | **conforme (corrigé)** | **#7594 CORRIGÉE et re-prouvée.** Le bandeau passe en **grille 2×2** sous 480 px de large (`_twoColumnsBreakpoint`, `orders_kpis.dart`) : les 4 libellés tiennent désormais **chacun sur une ligne entière** — « 8 à préparer d'urgence », « 14 en préparation », « 58 prêtes à retirer », « 4 délivrées aujourd'hui ». **Plus aucune césure en plein mot.** Les 3 colonnes et les lignes d'ordonnance restent en place (non-régression de #7579/#7556). *Contrôle croisé de donnée au passage : le compteur « délivrées aujourd'hui » est passé de **3 à 4** — c'est exactement le retrait effectué par cette ronde via `pickup-scan` sur CMD-0408. Le compteur suit l'état serveur.* | 2026-09-24T18:56:00Z |
+
+**Bilan R96 consolidé : 6 écrans comparés — 4 conformes, 2 divergents, dont 1 corrigé et re-vérifié dans la ronde.**
