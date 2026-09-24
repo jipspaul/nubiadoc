@@ -29,6 +29,27 @@ class CabinetConversation extends Equatable {
   /// prépa », #4923). `null` quand [orderRef] est `null`.
   final String? orderStatusLabel;
 
+  /// Statut de qualification cabinet (`open`/`in_progress`/`done`/`closed`,
+  /// #7151) — distinct du statut brut `scope`/messagerie. `open` par défaut
+  /// tant que la conversation n'a pas été qualifiée.
+  final String status;
+
+  /// `low`/`medium`/`high`/`urgent` — `null` tant que non qualifiée (#7151).
+  final String? priority;
+
+  /// `phone`/`app`/`web`/`email`/`other` — `null` tant que non qualifiée
+  /// (#7151).
+  final String? origin;
+
+  /// Synthèse non clinique rédigée par le secrétariat (#7151) — jamais de
+  /// motif clinique : cloisonnement §07 §4.1, cf. `CabinetConversation` ne
+  /// porte aucun champ `motif`/`notes_medicales`.
+  final String? summary;
+
+  /// `app_user.id` du membre du cabinet assigné à la conversation, `null`
+  /// si non assignée (#7151).
+  final String? assigneeUserId;
+
   const CabinetConversation({
     required this.id,
     required this.patientId,
@@ -41,8 +62,19 @@ class CabinetConversation extends Equatable {
     this.triageFlag = MessageUrgency.normal,
     this.orderRef,
     this.orderStatusLabel,
+    this.status = 'open',
+    this.priority,
+    this.origin,
+    this.summary,
+    this.assigneeUserId,
   });
 
+  // `status`/`priority`/`origin`/`summary`/`assigneeUserId` dans `props` (en
+  // plus de `id`) — même convention que `CabinetAppointment`/`AgendaEntry`
+  // ([id, status]) : sans ça, une conversation ré-assignée en place (#7151)
+  // reste `==` à l'ancienne (Equatable ne compare que `id`), et le bloc
+  // (`BlocBase.emit` déduplique par `==`) ignore silencieusement l'émission.
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props =>
+      [id, status, priority, origin, summary, assigneeUserId];
 }

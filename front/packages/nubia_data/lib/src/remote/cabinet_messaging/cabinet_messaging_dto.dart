@@ -16,6 +16,14 @@ class CabinetConversationDto {
   final String? orderRef;
   final String? orderStatusLabel;
 
+  /// Qualification cabinet (#7151) — absente des réponses `/pharmacy` :
+  /// `status` retombe sur `'open'`, les autres champs restent `null`.
+  final String status;
+  final String? priority;
+  final String? origin;
+  final String? summary;
+  final String? assigneeUserId;
+
   const CabinetConversationDto({
     required this.id,
     required this.patientId,
@@ -28,6 +36,11 @@ class CabinetConversationDto {
     this.triageFlag = 'normal',
     this.orderRef,
     this.orderStatusLabel,
+    this.status = 'open',
+    this.priority,
+    this.origin,
+    this.summary,
+    this.assigneeUserId,
   });
 
   factory CabinetConversationDto.fromJson(Map<String, dynamic> json) {
@@ -57,6 +70,11 @@ class CabinetConversationDto {
       triageFlag: json['triage_flag'] as String? ?? 'normal',
       orderRef: json['order_ref'] as String?,
       orderStatusLabel: json['order_status_label'] as String?,
+      status: json['status'] as String? ?? 'open',
+      priority: json['priority'] as String?,
+      origin: json['origin'] as String?,
+      summary: json['summary'] as String?,
+      assigneeUserId: json['assignee_user_id'] as String?,
     );
   }
 
@@ -75,6 +93,11 @@ class CabinetConversationDto {
             : MessageUrgency.normal,
         orderRef: orderRef,
         orderStatusLabel: orderStatusLabel,
+        status: status,
+        priority: priority,
+        origin: origin,
+        summary: summary,
+        assigneeUserId: assigneeUserId,
       );
 }
 

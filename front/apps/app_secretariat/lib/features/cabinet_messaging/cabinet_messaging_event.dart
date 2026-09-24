@@ -54,3 +54,18 @@ final class CabinetMessagingConvertToAppointmentRequested
   @override
   List<Object?> get props => [conversationId, slotId];
 }
+
+/// Assigne une conversation à un membre du cabinet (#7151/#7150 — vue
+/// « Secrétariat »).
+final class CabinetMessagingAssigneeChanged extends CabinetMessagingEvent {
+  final String conversationId;
+  final String assigneeUserId;
+
+  const CabinetMessagingAssigneeChanged({
+    required this.conversationId,
+    required this.assigneeUserId,
+  });
+
+  @override
+  List<Object?> get props => [conversationId, assigneeUserId];
+}

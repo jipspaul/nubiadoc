@@ -7,8 +7,62 @@ import 'cabinet_messaging_bloc.dart';
 import 'cabinet_messaging_event.dart';
 import 'cabinet_messaging_state.dart';
 import 'widgets/appointment_slot_picker.dart';
+import 'widgets/assignee_picker.dart';
 
-/// Écran "Messages" côté secrétariat — liste des conversations patient + thread.
+const _statusLabels = {
+  'open': 'Ouvert',
+  'in_progress': 'En cours',
+  'done': 'Traité',
+  'closed': 'Fermé',
+};
+
+const _statusVariants = {
+  'open': StatusPillVariant.warning,
+  'in_progress': StatusPillVariant.progress,
+  'done': StatusPillVariant.success,
+  'closed': StatusPillVariant.neutral,
+};
+
+const _priorityLabels = {
+  'low': 'Basse',
+  'medium': 'Moyenne',
+  'high': 'Haute',
+  'urgent': 'Urgente',
+};
+
+const _priorityVariants = {
+  'low': StatusPillVariant.neutral,
+  'medium': StatusPillVariant.info,
+  'high': StatusPillVariant.warning,
+  'urgent': StatusPillVariant.error,
+};
+
+const _originLabels = {
+  'phone': 'Téléphone',
+  'app': 'Application',
+  'web': 'Web',
+  'email': 'E-mail',
+  'other': 'Autre',
+};
+
+/// Résout le nom du praticien assigné à [conv] à partir du roster cabinet —
+/// `assigneeUserId` peut aussi désigner un membre non-praticien (secrétaire),
+/// d'où le libellé générique de repli plutôt qu'un blanc.
+String _assigneeLabel(
+  CabinetConversation conv,
+  List<CabinetPractitioner> practitioners,
+) {
+  final id = conv.assigneeUserId;
+  if (id == null) return 'Non assigné';
+  for (final practitioner in practitioners) {
+    if (practitioner.id == id) return practitioner.displayName;
+  }
+  return 'Assigné';
+}
+
+/// Écran "Messages" côté secrétariat — vue « Secrétariat » : tableau des
+/// conversations qualifiées (statut, origine, synthèse, praticien, priorité,
+/// date), filtres rapides, assignation, thread + passage en RDV (#7150).
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
 class CabinetMessagingPage extends StatefulWidget {
   const CabinetMessagingPage({super.key, this.openConversationId});
@@ -31,12 +85,13 @@ class _CabinetMessagingPageState extends State<CabinetMessagingPage> {
       appBar: AppBar(title: const Text('Messages')),
       body: BlocConsumer<CabinetMessagingBloc, CabinetMessagingState>(
         listener: (context, state) {
-          final targetId = widget.openConversationId;
-          if (targetId == null ||
-              _openConversationHandled ||
-              state is! CabinetMessagingConversationsLoaded) {
-            return;
+          if (state is! CabinetMessagingConversationsLoaded) return;
+          if (state.assignError != null) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(state.assignError!)));
           }
+          final targetId = widget.openConversationId;
+          if (targetId == null || _openConversationHandled) return;
           _openConversationHandled = true;
           final matches =
               state.conversations.where((c) => c.id == targetId);
@@ -61,7 +116,10 @@ class _CabinetMessagingPageState extends State<CabinetMessagingPage> {
                     const CabinetMessagingConversationsLoadRequested(),
                   ),
             ),
-          CabinetMessagingConversationsLoaded(:final conversations) =>
+          CabinetMessagingConversationsLoaded(
+            :final conversations,
+            :final practitioners,
+          ) =>
             conversations.isEmpty
                 ? const NubiaEmptyState(
                     key: Key('cabinet_messaging_empty'),
@@ -70,6 +128,7 @@ class _CabinetMessagingPageState extends State<CabinetMessagingPage> {
                   )
                 : _ConversationsList(
                     conversations: conversations,
+                    practitioners: practitioners,
                     onRefresh: () async {
                       context.read<CabinetMessagingBloc>().add(
                             const CabinetMessagingConversationsLoadRequested(),
@@ -99,10 +158,12 @@ class _CabinetMessagingPageState extends State<CabinetMessagingPage> {
 class _ConversationsList extends StatefulWidget {
   const _ConversationsList({
     required this.conversations,
+    required this.practitioners,
     required this.onRefresh,
   });
 
   final List<CabinetConversation> conversations;
+  final List<CabinetPractitioner> practitioners;
   final Future<void> Function() onRefresh;
 
   @override
@@ -112,6 +173,24 @@ class _ConversationsList extends StatefulWidget {
 class _ConversationsListState extends State<_ConversationsList> {
   String _query = '';
   bool _showUnreadOnly = false;
+  String? _statusFilter;
+  String? _priorityFilter;
+  String? _originFilter;
+
+  Future<void> _assign(BuildContext context, CabinetConversation conv) async {
+    final bloc = context.read<CabinetMessagingBloc>();
+    final picked = await AssigneePicker.show(
+      context,
+      practitioners: widget.practitioners,
+    );
+    if (picked == null || !mounted) return;
+    bloc.add(
+      CabinetMessagingAssigneeChanged(
+        conversationId: conv.id,
+        assigneeUserId: picked.id,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,6 +199,10 @@ class _ConversationsListState extends State<_ConversationsList> {
           (c) => c.patientName.toLowerCase().contains(_query.toLowerCase()),
         )
         .where((c) => !_showUnreadOnly || c.unreadCount > 0)
+        .where((c) => _statusFilter == null || c.status == _statusFilter)
+        .where(
+            (c) => _priorityFilter == null || c.priority == _priorityFilter)
+        .where((c) => _originFilter == null || c.origin == _originFilter)
         .toList();
 
     return Column(
@@ -148,6 +231,45 @@ class _ConversationsListState extends State<_ConversationsList> {
                 setState(() => _showUnreadOnly = s.first),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _FacetChipBar(
+                keyPrefix: 'cabinet_messaging_status_facet',
+                values: widget.conversations.map((c) => c.status),
+                labels: _statusLabels,
+                selected: _statusFilter,
+                onSelected: (v) => setState(
+                  () => _statusFilter = _statusFilter == v ? null : v,
+                ),
+              ),
+              _FacetChipBar(
+                keyPrefix: 'cabinet_messaging_priority_facet',
+                values: widget.conversations
+                    .map((c) => c.priority)
+                    .whereType<String>(),
+                labels: _priorityLabels,
+                selected: _priorityFilter,
+                onSelected: (v) => setState(
+                  () => _priorityFilter = _priorityFilter == v ? null : v,
+                ),
+              ),
+              _FacetChipBar(
+                keyPrefix: 'cabinet_messaging_origin_facet',
+                values: widget.conversations
+                    .map((c) => c.origin)
+                    .whereType<String>(),
+                labels: _originLabels,
+                selected: _originFilter,
+                onSelected: (v) => setState(
+                  () => _originFilter = _originFilter == v ? null : v,
+                ),
+              ),
+            ],
+          ),
+        ),
         Expanded(
           child: RefreshIndicator(
             key: const Key('cabinet_messaging_refresh'),
@@ -162,7 +284,13 @@ class _ConversationsListState extends State<_ConversationsList> {
                   key: Key('conv_${conv.id}'),
                   leading: NubiaAvatar(initials: _initials(conv.patientName)),
                   title: conv.patientName,
-                  subtitle: last?.text,
+                  subtitleWidget: _ConversationQualificationInfo(
+                    conversation: conv,
+                    lastMessageText: last?.text,
+                    assigneeLabel:
+                        _assigneeLabel(conv, widget.practitioners),
+                    onAssign: () => _assign(context, conv),
+                  ),
                   unread: conv.unreadCount > 0,
                   trailing: _ConversationTrailing(
                     timestamp: _formatTimestamp(
@@ -178,6 +306,152 @@ class _ConversationsListState extends State<_ConversationsList> {
               },
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Facettes de filtrage rapide (statut / priorité / origine) au-dessus de la
+/// liste — même convention que `_StatusFacetBar` de l'écran Maintenance :
+/// n'affiche que les valeurs réellement présentes dans [values], tap
+/// bascule le filtre.
+class _FacetChipBar extends StatelessWidget {
+  const _FacetChipBar({
+    required this.keyPrefix,
+    required this.values,
+    required this.labels,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String keyPrefix;
+  final Iterable<String> values;
+  final Map<String, String> labels;
+  final String? selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final present =
+        labels.keys.where((key) => values.contains(key)).toList();
+    if (present.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final value in present) ...[
+              ChoiceChip(
+                key: Key('${keyPrefix}_$value'),
+                label: Text(labels[value]!),
+                selected: selected == value,
+                onSelected: (_) => onSelected(value),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Qualification d'une conversation (#7151/#7150) : dernier message, statut /
+/// priorité / origine, synthèse et assignation — sous le titre de la ligne.
+class _ConversationQualificationInfo extends StatelessWidget {
+  const _ConversationQualificationInfo({
+    required this.conversation,
+    required this.lastMessageText,
+    required this.assigneeLabel,
+    required this.onAssign,
+  });
+
+  final CabinetConversation conversation;
+  final String? lastMessageText;
+  final String assigneeLabel;
+  final VoidCallback onAssign;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final priority = conversation.priority;
+    final origin = conversation.origin;
+    final summary = conversation.summary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (lastMessageText != null) ...[
+          Text(
+            lastMessageText!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: tokens.textTertiary),
+          ),
+          const SizedBox(height: 4),
+        ],
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            StatusPill(
+              label: _statusLabels[conversation.status] ?? conversation.status,
+              variant:
+                  _statusVariants[conversation.status] ??
+                      StatusPillVariant.neutral,
+            ),
+            if (priority != null)
+              StatusPill(
+                label: _priorityLabels[priority] ?? priority,
+                variant:
+                    _priorityVariants[priority] ?? StatusPillVariant.neutral,
+              ),
+            if (origin != null)
+              StatusPill(
+                label: _originLabels[origin] ?? origin,
+                variant: StatusPillVariant.info,
+              ),
+          ],
+        ),
+        if (summary != null && summary.trim().isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            summary,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                assigneeLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context)
+                    .textTheme
+                    .labelSmall
+                    ?.copyWith(color: tokens.textTertiary),
+              ),
+            ),
+            TextButton(
+              key: Key('assign_conversation_${conversation.id}'),
+              onPressed: onAssign,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Assigner'),
+            ),
+          ],
         ),
       ],
     );

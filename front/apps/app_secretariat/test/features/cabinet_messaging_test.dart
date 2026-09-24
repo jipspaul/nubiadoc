@@ -24,6 +24,12 @@ class _MockCabinetMessagingBloc
 class _MockListBookableSlotsUseCase extends Mock
     implements ListBookableSlotsUseCase {}
 
+class _MockListCabinetPractitionersUseCase extends Mock
+    implements ListCabinetPractitionersUseCase {}
+
+class _MockAssignCabinetConversationUseCase extends Mock
+    implements AssignCabinetConversationUseCase {}
+
 final _slot = Slot(
   id: 'slot-1',
   cabinetId: 'cab-1',
@@ -89,6 +95,8 @@ void main() {
     late ListCabinetConversationsUseCase listConversations;
     late GetCabinetConversationUseCase getMessages;
     late SendMessageCabinetUseCase sendMessage;
+    late _MockListCabinetPractitionersUseCase listPractitioners;
+    late _MockAssignCabinetConversationUseCase assignConversation;
 
     final conversations = [
       const CabinetConversation(
@@ -115,6 +123,10 @@ void main() {
       listConversations = ListCabinetConversationsUseCase(repo);
       getMessages = GetCabinetConversationUseCase(repo);
       sendMessage = SendMessageCabinetUseCase(repo);
+      listPractitioners = _MockListCabinetPractitionersUseCase();
+      when(() => listPractitioners())
+          .thenAnswer((_) async => const Right(<CabinetPractitioner>[]));
+      assignConversation = _MockAssignCabinetConversationUseCase();
     });
 
     blocTest<CabinetMessagingBloc, CabinetMessagingState>(
@@ -128,6 +140,8 @@ void main() {
           getMessages: getMessages,
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+          assignConversation: assignConversation,
+          listPractitioners: listPractitioners,
         );
       },
       act: (bloc) =>
@@ -149,6 +163,8 @@ void main() {
           getMessages: getMessages,
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+          assignConversation: assignConversation,
+          listPractitioners: listPractitioners,
         );
       },
       act: (bloc) =>
@@ -170,6 +186,8 @@ void main() {
           getMessages: getMessages,
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+          assignConversation: assignConversation,
+          listPractitioners: listPractitioners,
         );
       },
       act: (bloc) => bloc.add(
@@ -207,6 +225,8 @@ void main() {
           getMessages: getMessages,
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+          assignConversation: assignConversation,
+          listPractitioners: listPractitioners,
         );
       },
       act: (bloc) =>
@@ -240,6 +260,8 @@ void main() {
           getMessages: getMessages,
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+          assignConversation: assignConversation,
+          listPractitioners: listPractitioners,
         );
       },
       seed: () => const CabinetMessagingThreadLoaded(
@@ -275,6 +297,103 @@ void main() {
             unreadCount: 0,
           ),
           messages: [],
+        ),
+      ],
+    );
+
+    blocTest<CabinetMessagingBloc, CabinetMessagingState>(
+      'charge le roster praticiens avec les conversations (#7151/#7150)',
+      build: () {
+        when(
+          () => repo.getConversations(),
+        ).thenAnswer((_) async => Right(conversations));
+        when(() => listPractitioners()).thenAnswer(
+          (_) async => const Right([
+            CabinetPractitioner(id: 'prac-1', displayName: 'Dr Martin'),
+          ]),
+        );
+        return CabinetMessagingBloc(
+          listConversations: listConversations,
+          getMessages: getMessages,
+          sendMessage: sendMessage,
+          convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+          assignConversation: assignConversation,
+          listPractitioners: listPractitioners,
+        );
+      },
+      act: (bloc) =>
+          bloc.add(const CabinetMessagingConversationsLoadRequested()),
+      expect: () => [
+        const CabinetMessagingConversationsLoading(),
+        CabinetMessagingConversationsLoaded(
+          conversations,
+          practitioners: const [
+            CabinetPractitioner(id: 'prac-1', displayName: 'Dr Martin'),
+          ],
+        ),
+      ],
+    );
+
+    blocTest<CabinetMessagingBloc, CabinetMessagingState>(
+      'assigne une conversation — met à jour assigneeUserId (#7151/#7150)',
+      build: () {
+        when(() => assignConversation(
+              conversationId: 'conv1',
+              assigneeUserId: 'prac-1',
+            )).thenAnswer((_) async => const Right(null));
+        return CabinetMessagingBloc(
+          listConversations: listConversations,
+          getMessages: getMessages,
+          sendMessage: sendMessage,
+          convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+          assignConversation: assignConversation,
+          listPractitioners: listPractitioners,
+        );
+      },
+      seed: () => CabinetMessagingConversationsLoaded(conversations),
+      act: (bloc) => bloc.add(const CabinetMessagingAssigneeChanged(
+        conversationId: 'conv1',
+        assigneeUserId: 'prac-1',
+      )),
+      // `CabinetConversation` n'est égale que par `id` (Equatable) : `expect`
+      // ne suffit pas à vérifier `assigneeUserId`, d'où le `verify` explicite.
+      verify: (bloc) {
+        final loaded = bloc.state;
+        expect(loaded, isA<CabinetMessagingConversationsLoaded>());
+        final updated =
+            (loaded as CabinetMessagingConversationsLoaded).conversations;
+        expect(updated.single.assigneeUserId, 'prac-1');
+        expect(loaded.assignError, isNull);
+      },
+    );
+
+    blocTest<CabinetMessagingBloc, CabinetMessagingState>(
+      'assignation en échec — expose assignError sans modifier la liste',
+      build: () {
+        when(() => assignConversation(
+              conversationId: 'conv1',
+              assigneeUserId: 'prac-1',
+            )).thenAnswer(
+          (_) async => const Left(NetworkFailure('Erreur réseau')),
+        );
+        return CabinetMessagingBloc(
+          listConversations: listConversations,
+          getMessages: getMessages,
+          sendMessage: sendMessage,
+          convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+          assignConversation: assignConversation,
+          listPractitioners: listPractitioners,
+        );
+      },
+      seed: () => CabinetMessagingConversationsLoaded(conversations),
+      act: (bloc) => bloc.add(const CabinetMessagingAssigneeChanged(
+        conversationId: 'conv1',
+        assigneeUserId: 'prac-1',
+      )),
+      expect: () => [
+        CabinetMessagingConversationsLoaded(
+          conversations,
+          assignError: 'Erreur réseau',
         ),
       ],
     );
@@ -483,6 +602,136 @@ void main() {
       expect(find.text('Albert Einstein'), findsNothing);
       expect(find.text('Isaac Newton'), findsNothing);
     });
+
+    group(
+      'Vue Secrétariat — qualification/filtres/assignation (#7151/#7150)',
+      () {
+        const conv1 = CabinetConversation(
+          id: 'conv1',
+          patientId: 'p1',
+          patientName: 'Marie Curie',
+          unreadCount: 0,
+          status: 'open',
+          priority: 'urgent',
+          origin: 'phone',
+          summary: 'Renouvellement ordonnance.',
+        );
+        const conv2 = CabinetConversation(
+          id: 'conv2',
+          patientId: 'p2',
+          patientName: 'Albert Einstein',
+          unreadCount: 0,
+          status: 'done',
+          priority: 'low',
+          origin: 'web',
+        );
+        const practitioners = [
+          CabinetPractitioner(id: 'prac-1', displayName: 'Dr Martin'),
+        ];
+
+        testWidgets(
+          'affiche statut, priorité, origine, synthèse et assignation',
+          (tester) async {
+            when(() => bloc.state).thenReturn(
+              const CabinetMessagingConversationsLoaded(
+                [conv1, conv2],
+                practitioners: practitioners,
+              ),
+            );
+            await tester.pumpWidget(buildPage());
+            await tester.pumpAndSettle();
+
+            expect(find.text('Urgente'), findsWidgets);
+            expect(find.text('Téléphone'), findsWidgets);
+            expect(
+              find.text('Renouvellement ordonnance.'),
+              findsOneWidget,
+            );
+            expect(find.text('Non assigné'), findsNWidgets(2));
+          },
+        );
+
+        testWidgets('filtre rapide par statut masque les autres statuts',
+            (tester) async {
+          when(() => bloc.state).thenReturn(
+            const CabinetMessagingConversationsLoaded(
+              [conv1, conv2],
+              practitioners: practitioners,
+            ),
+          );
+          await tester.pumpWidget(buildPage());
+          await tester.pumpAndSettle();
+
+          expect(find.text('Marie Curie'), findsOneWidget);
+          expect(find.text('Albert Einstein'), findsOneWidget);
+
+          await tester.tap(
+            find.byKey(const Key('cabinet_messaging_status_facet_done')),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.text('Marie Curie'), findsNothing);
+          expect(find.text('Albert Einstein'), findsOneWidget);
+        });
+
+        testWidgets(
+          'assigner une conversation ouvre le sélecteur et dispatch '
+          'CabinetMessagingAssigneeChanged',
+          (tester) async {
+            when(() => bloc.state).thenReturn(
+              const CabinetMessagingConversationsLoaded(
+                [conv1],
+                practitioners: practitioners,
+              ),
+            );
+            await tester.pumpWidget(buildPage());
+            await tester.pumpAndSettle();
+
+            final assignButton =
+                find.byKey(const Key('assign_conversation_conv1'));
+            await tester.ensureVisible(assignButton);
+            await tester.tap(assignButton);
+            await tester.pumpAndSettle();
+
+            expect(
+              find.byKey(const Key('assignee_picker')),
+              findsOneWidget,
+            );
+            await tester.tap(
+              find.byKey(const Key('assignee_option_prac-1')),
+            );
+            await tester.pumpAndSettle();
+
+            verify(() => bloc.add(const CabinetMessagingAssigneeChanged(
+                  conversationId: 'conv1',
+                  assigneeUserId: 'prac-1',
+                ))).called(1);
+          },
+        );
+
+        testWidgets('assignError affiche un message d\'erreur (snackbar)',
+            (tester) async {
+          whenListen(
+            bloc,
+            Stream<CabinetMessagingState>.fromIterable([
+              const CabinetMessagingConversationsLoaded([conv1]),
+              const CabinetMessagingConversationsLoaded(
+                [conv1],
+                assignError: 'Erreur lors de l\'assignation.',
+              ),
+            ]),
+            initialState: const CabinetMessagingConversationsLoaded([conv1]),
+          );
+          await tester.pumpWidget(buildPage());
+          await tester.pumpAndSettle();
+
+          expect(
+            find.text('Erreur lors de l\'assignation.'),
+            findsOneWidget,
+          );
+        });
+      },
+    );
 
     testWidgets('affiche le message d\'erreur', (tester) async {
       when(() => bloc.state).thenReturn(

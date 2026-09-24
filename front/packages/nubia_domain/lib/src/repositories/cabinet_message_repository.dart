@@ -19,4 +19,12 @@ abstract class CabinetMessageRepository {
     required String conversationId,
     required String slotId,
   });
+
+  /// PATCH /v1/cabinet/conversations/{id} — assigne la conversation à un
+  /// membre du cabinet (#7151/#7150). Pas de moyen de désassigner par ce
+  /// biais : même limite documentée côté API.
+  Future<Either<Failure, void>> assignConversation({
+    required String conversationId,
+    required String assigneeUserId,
+  });
 }
