@@ -14,6 +14,9 @@ use crate::{
     AppState,
 };
 
+/// Borne haute du motif de RDV, alignée sur `waiting_list.rs::MAX_MOTIF_LEN` (#7548).
+const MAX_MOTIF_LEN: usize = 2_000;
+
 /// Corps de la requête `POST /v1/bookings`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -55,6 +58,10 @@ pub async fn create_booking(
     headers: HeaderMap,
     Json(body): Json<CreateBookingBody>,
 ) -> Result<(StatusCode, Json<CreateBookingResponse>), AppError> {
+    if let Some(motif) = body.motif.as_deref() {
+        crate::text_validation::validate_max_len(motif, MAX_MOTIF_LEN)?;
+    }
+
     // Le front envoie la clé via l'en-tête `Idempotency-Key` (comme
     // create_appointment), jamais dans le corps — `body.idempotency_key`
     // restait donc toujours None en pratique (#3835). Priorité à l'en-tête,

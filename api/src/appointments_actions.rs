@@ -31,6 +31,9 @@ use crate::{
 
 // ── Patch ────────────────────────────────────────────────────────────────────
 
+/// Borne haute du motif de RDV, alignée sur `waiting_list.rs::MAX_MOTIF_LEN` (#7548).
+const MAX_MOTIF_LEN: usize = 2_000;
+
 /// Corps de la requête `PATCH /v1/appointments/:id`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -64,6 +67,7 @@ pub async fn patch_appointment(
 
     if let Some(motif) = body.motif.as_deref() {
         crate::text_validation::reject_nul_byte(motif)?;
+        crate::text_validation::validate_max_len(motif, MAX_MOTIF_LEN)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;

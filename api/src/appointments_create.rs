@@ -32,6 +32,9 @@ use crate::{
 /// réel pour une simple demande, il consulte son agenda.
 const APPOINTMENT_REQUESTED_NOTIFY_ROLES: [&str; 1] = ["secretary"];
 
+/// Borne haute du motif de RDV, alignée sur `waiting_list.rs::MAX_MOTIF_LEN` (#7548).
+const MAX_MOTIF_LEN: usize = 2_000;
+
 /// Corps de la requête `POST /v1/appointments`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -71,6 +74,10 @@ pub async fn create_appointment(
 ) -> Result<(StatusCode, Json<AppointmentDetail>), AppError> {
     if body.slot_id.is_none() && body.starts_at.is_none() {
         return Err(AppError::ValidationError);
+    }
+
+    if let Some(motif) = body.motif.as_deref() {
+        crate::text_validation::validate_max_len(motif, MAX_MOTIF_LEN)?;
     }
 
     // Validate starts_at when provided directly (not via slot_id).
