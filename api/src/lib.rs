@@ -72,6 +72,7 @@ mod cabinet_briefs;
 mod cabinet_cash_collection;
 mod cabinet_cash_register;
 mod cabinet_conversation_convert;
+mod cabinet_conversation_patch;
 mod cabinet_correspondents;
 mod cabinet_document_download;
 mod cabinet_info;

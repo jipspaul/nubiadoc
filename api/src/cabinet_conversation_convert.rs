@@ -58,9 +58,10 @@ fn is_exclusion_violation(e: &sqlx::Error) -> bool {
 /// `slot_id` résolu depuis `availability_slot` (doit être `open`, du cabinet)
 /// → `404` sinon ; contrainte d'exclusion DB (double-booking praticien) →
 /// `409 slot_taken`.
-/// Statut initial `requested`. Insère une entrée `audit_log` (`entity =
-/// 'conversation'`, `entity_id = conversation_id`, `metadata.appointment_id`)
-/// pour tracer la conversion depuis le fil d'origine.
+/// Statut initial `requested`. La conversation passe `done` (#7151). Insère
+/// une entrée `audit_log` (`entity = 'conversation'`, `entity_id =
+/// conversation_id`, `metadata.appointment_id`) pour tracer la conversion
+/// depuis le fil d'origine.
 pub async fn convert_conversation_to_appointment(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<crate::realtime::WsHub>>,
@@ -189,6 +190,17 @@ pub async fn convert_conversation_to_appointment(
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    // #7151 : la conversion clôt le triage cabinet — la conversation passe
+    // `done` (même énumération élargie que `cabinet_messaging`, migration
+    // 0298), sinon elle reste indéfiniment visible dans la file priorisée
+    // malgré le RDV déjà pris.
+    sqlx::query("UPDATE conversation SET status = 'done' WHERE id = $1 AND cabinet_id = $2")
+        .bind(conversation_id)
+        .bind(claims.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     // audit_log lié au conversation_id (traçabilité de la conversion depuis
     // le fil d'origine), appointment_id en metadata.

@@ -523,3 +523,240 @@ async fn cabinet_list_exposes_last_message_preview() {
 
     cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
 }
+
+// ── Filtres de qualification GET /v1/cabinet/conversations (#7151) ──────────
+
+/// Pose directement les colonnes de qualification (migration 0298, #7152) —
+/// pas d'endpoint de seed dédié, ces tests visent le filtre en lecture, pas
+/// l'écriture (couverte par `cabinet_conversation_patch.rs`).
+async fn set_qualification(
+    db: &PgPool,
+    cabinet_id: Uuid,
+    conversation_id: Uuid,
+    status: &str,
+    priority: Option<&str>,
+    origin: Option<&str>,
+    assignee_user_id: Option<Uuid>,
+) {
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE conversation SET status = $1, priority = $2, origin = $3, assignee_user_id = $4 \
+         WHERE id = $5",
+    )
+    .bind(status)
+    .bind(priority)
+    .bind(origin)
+    .bind(assignee_user_id)
+    .bind(conversation_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+}
+
+#[tokio::test]
+async fn filter_by_status_matches_and_excludes() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id, secretariat_id) = insert_fixture(&db).await;
+    set_qualification(
+        &db,
+        cabinet_id,
+        conversation_id,
+        "in_progress",
+        None,
+        None,
+        None,
+    )
+    .await;
+
+    let token = make_pro_token(cabinet_id, "secretary", Some(secretariat_id));
+
+    let (status, json) = get(
+        &token,
+        "/v1/cabinet/conversations?status=in_progress".to_string(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        json["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["id"] == conversation_id.to_string()),
+        "status=in_progress doit inclure la conversation qualifiée in_progress"
+    );
+
+    let (status, json) = get(&token, "/v1/cabinet/conversations?status=open".to_string()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        !json["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["id"] == conversation_id.to_string()),
+        "status=open ne doit pas inclure une conversation in_progress"
+    );
+
+    cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
+}
+
+#[tokio::test]
+async fn filter_by_invalid_status_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id, secretariat_id) = insert_fixture(&db).await;
+
+    let token = make_pro_token(cabinet_id, "secretary", Some(secretariat_id));
+    let (status, _) = get(&token, "/v1/cabinet/conversations?status=bogus".to_string()).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
+}
+
+#[tokio::test]
+async fn filter_by_priority_matches_and_excludes() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id, secretariat_id) = insert_fixture(&db).await;
+    set_qualification(
+        &db,
+        cabinet_id,
+        conversation_id,
+        "open",
+        Some("urgent"),
+        None,
+        None,
+    )
+    .await;
+
+    let token = make_pro_token(cabinet_id, "secretary", Some(secretariat_id));
+
+    let (status, json) = get(
+        &token,
+        "/v1/cabinet/conversations?priority=urgent".to_string(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(json["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["id"] == conversation_id.to_string()));
+
+    let (status, json) = get(&token, "/v1/cabinet/conversations?priority=low".to_string()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!json["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["id"] == conversation_id.to_string()));
+
+    cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
+}
+
+#[tokio::test]
+async fn filter_by_origin_matches_and_excludes() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id, secretariat_id) = insert_fixture(&db).await;
+    set_qualification(
+        &db,
+        cabinet_id,
+        conversation_id,
+        "open",
+        None,
+        Some("phone"),
+        None,
+    )
+    .await;
+
+    let token = make_pro_token(cabinet_id, "secretary", Some(secretariat_id));
+
+    let (status, json) = get(&token, "/v1/cabinet/conversations?origin=phone".to_string()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(json["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["id"] == conversation_id.to_string()));
+
+    let (status, json) = get(&token, "/v1/cabinet/conversations?origin=web".to_string()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!json["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["id"] == conversation_id.to_string()));
+
+    cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
+}
+
+#[tokio::test]
+async fn filter_by_assignee_matches_and_excludes() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id, secretariat_id) = insert_fixture(&db).await;
+    let assignee_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(assignee_id)
+    .bind(format!("convfilter-assignee+{}@nubia.test", assignee_id))
+    .execute(&db)
+    .await
+    .unwrap();
+    set_qualification(
+        &db,
+        cabinet_id,
+        conversation_id,
+        "open",
+        None,
+        None,
+        Some(assignee_id),
+    )
+    .await;
+
+    let token = make_pro_token(cabinet_id, "secretary", Some(secretariat_id));
+
+    let (status, json) = get(
+        &token,
+        format!("/v1/cabinet/conversations?assignee={assignee_id}"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(json["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["id"] == conversation_id.to_string()));
+
+    let (status, json) = get(
+        &token,
+        format!("/v1/cabinet/conversations?assignee={}", Uuid::new_v4()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!json["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["id"] == conversation_id.to_string()));
+
+    cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
+}

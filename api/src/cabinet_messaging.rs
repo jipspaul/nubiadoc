@@ -14,12 +14,27 @@ use crate::{
     notify, AppState,
 };
 
+/// `status` de qualification cabinet — élargi par la migration 0298 (#7152),
+/// distinct du `status` historique `open`/`closed` de la messagerie brute.
+pub const VALID_CONVERSATION_STATUSES: [&str; 4] = ["open", "in_progress", "done", "closed"];
+/// Même énumération que `maintenance_ticket.priority` (migration 0291).
+pub const VALID_CONVERSATION_PRIORITIES: [&str; 4] = ["low", "medium", "high", "urgent"];
+pub const VALID_CONVERSATION_ORIGINS: [&str; 5] = ["phone", "app", "web", "email", "other"];
+
 #[derive(Deserialize)]
 pub struct ListCabinetConversationsQuery {
     /// Filtre optionnel : `clinical` (praticien+admin uniquement) ou autre valeur = non-clinique.
     pub scope: Option<String>,
     pub limit: Option<i64>,
     pub cursor: Option<String>,
+    /// Filtre de qualification (#7151). Hors énum `VALID_CONVERSATION_STATUSES` → 422.
+    pub status: Option<String>,
+    /// Hors énum `VALID_CONVERSATION_PRIORITIES` → 422.
+    pub priority: Option<String>,
+    /// `app_user.id` assigné à la conversation.
+    pub assignee: Option<Uuid>,
+    /// Hors énum `VALID_CONVERSATION_ORIGINS` → 422.
+    pub origin: Option<String>,
 }
 
 /// Un fil de messagerie dans la file priorisée du cabinet.
@@ -38,6 +53,11 @@ pub struct CabinetConversationItem {
     pub unread_count: i64,
     pub scope: String,
     pub status: String,
+    /// Qualification cabinet (#7152/#7151) — `null` si non encore qualifiée.
+    pub priority: Option<String>,
+    pub origin: Option<String>,
+    pub assignee_user_id: Option<Uuid>,
+    pub summary: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -109,6 +129,25 @@ pub async fn list_cabinet_conversations(
         }));
     }
 
+    // #7151 : `status`/`priority`/`origin` hors énum → 422 (même doctrine que
+    // `InvalidAppointmentStatusFilter`/`InvalidQuoteStatusFilter`, plutôt
+    // qu'une liste vide silencieuse).
+    if let Some(ref status) = params.status {
+        if !VALID_CONVERSATION_STATUSES.contains(&status.as_str()) {
+            return Err(AppError::ValidationError);
+        }
+    }
+    if let Some(ref priority) = params.priority {
+        if !VALID_CONVERSATION_PRIORITIES.contains(&priority.as_str()) {
+            return Err(AppError::ValidationError);
+        }
+    }
+    if let Some(ref origin) = params.origin {
+        if !VALID_CONVERSATION_ORIGINS.contains(&origin.as_str()) {
+            return Err(AppError::ValidationError);
+        }
+    }
+
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
     let fetch_limit = limit + 1;
     let cursor = match params.cursor.as_deref() {
@@ -172,6 +211,30 @@ pub async fn list_cabinet_conversations(
         String::new()
     };
 
+    // Filtres de qualification (#7151) : placeholders toujours posés (liés à
+    // `None` quand le filtre n'est pas fourni) plutôt que du texte SQL
+    // conditionnel supplémentaire — évite d'ajouter aux ~36 combinaisons déjà
+    // générées par `scope_filter`/`cursor_clause`/`sec_filter` (cf. commentaire
+    // #5551 ci-dessous). `$n::type IS NULL` laisse passer toutes les lignes
+    // quand le filtre est absent.
+    // Numéro de départ : juste après `sec_filter` s'il a consommé un
+    // placeholder (secrétaire), sinon juste après le curseur.
+    let qual_param_base = if claims.role == "secretary" {
+        sec_param_n + 1
+    } else {
+        sec_param_n
+    };
+    let status_n = qual_param_base;
+    let priority_n = qual_param_base + 1;
+    let origin_n = qual_param_base + 2;
+    let assignee_n = qual_param_base + 3;
+    let qualification_filter = format!(
+        " AND (${status_n}::text IS NULL OR c.status = ${status_n}) \
+           AND (${priority_n}::text IS NULL OR c.priority = ${priority_n}) \
+           AND (${origin_n}::text IS NULL OR c.origin = ${origin_n}) \
+           AND (${assignee_n}::uuid IS NULL OR c.assignee_user_id = ${assignee_n})"
+    );
+
     // `scope_filter`/`cursor_clause`/`sec_filter` multiplient les variantes de texte
     // SQL générées ici (jusqu'à ~36 combinaisons). Exécuté en `persistent(false)`
     // plus bas : évite de saturer/faire tourner le cache de plans préparés par
@@ -185,6 +248,10 @@ pub async fn list_cabinet_conversations(
                  COALESCE(p.last_name,  pa.last_name,  '') AS patient_last_name, \
                  c.scope, \
                  c.status, \
+                 c.priority, \
+                 c.origin, \
+                 c.assignee_user_id, \
+                 c.summary, \
                  (SELECT MAX(m.created_at) \
                   FROM message m WHERE m.conversation_id = c.id) AS last_message_at, \
                  (SELECT m.body_ciphertext FROM message m \
@@ -211,10 +278,11 @@ pub async fn list_cabinet_conversations(
              FROM conversation c \
              LEFT JOIN patient p  ON p.id  = c.patient_id \
              LEFT JOIN patient_account pa ON pa.id = c.patient_account_id \
-             WHERE true{scope_filter}{sec_filter} \
+             WHERE true{scope_filter}{sec_filter}{qualification_filter} \
          ) \
          SELECT id, patient_first_name, patient_last_name, last_message_at, \
-                last_body, triage_flag, urgency_int, unread_count, scope, status \
+                last_body, triage_flag, urgency_int, unread_count, scope, status, \
+                priority, origin, assignee_user_id, summary \
          FROM conv \
          WHERE true{cursor_clause} \
          ORDER BY urgency_int ASC, last_message_at DESC NULLS LAST, id DESC \
@@ -230,12 +298,17 @@ pub async fn list_cabinet_conversations(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Lie les paramètres : $1=fetch_limit, puis curseur ($2...), puis secretariat_id si secretary.
+    // Lie les paramètres : $1=fetch_limit, puis curseur ($2...), puis secretariat_id si secretary,
+    // puis les 4 filtres de qualification (#7151, toujours liés — cf. `qualification_filter`).
     let sid = claims.secretariat_id;
     let rows = match &cursor {
         None => {
             let q = sqlx::query(&sql).persistent(false).bind(fetch_limit);
-            if let Some(s) = sid { q.bind(s) } else { q }
+            let q = if let Some(s) = sid { q.bind(s) } else { q };
+            q.bind(params.status.clone())
+                .bind(params.priority.clone())
+                .bind(params.origin.clone())
+                .bind(params.assignee)
                 .fetch_all(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?
@@ -247,7 +320,11 @@ pub async fn list_cabinet_conversations(
                 .bind(urgency_c)
                 .bind(ts_c)
                 .bind(id_c);
-            if let Some(s) = sid { q.bind(s) } else { q }
+            let q = if let Some(s) = sid { q.bind(s) } else { q };
+            q.bind(params.status.clone())
+                .bind(params.priority.clone())
+                .bind(params.origin.clone())
+                .bind(params.assignee)
                 .fetch_all(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?
@@ -258,7 +335,11 @@ pub async fn list_cabinet_conversations(
                 .bind(fetch_limit)
                 .bind(urgency_c)
                 .bind(id_c);
-            if let Some(s) = sid { q.bind(s) } else { q }
+            let q = if let Some(s) = sid { q.bind(s) } else { q };
+            q.bind(params.status.clone())
+                .bind(params.priority.clone())
+                .bind(params.origin.clone())
+                .bind(params.assignee)
                 .fetch_all(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?
@@ -297,6 +378,12 @@ pub async fn list_cabinet_conversations(
             .map_err(|_| AppError::Internal)?;
         let scope: String = row.try_get("scope").map_err(|_| AppError::Internal)?;
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+        let priority: Option<String> = row.try_get("priority").map_err(|_| AppError::Internal)?;
+        let origin: Option<String> = row.try_get("origin").map_err(|_| AppError::Internal)?;
+        let assignee_user_id: Option<Uuid> = row
+            .try_get("assignee_user_id")
+            .map_err(|_| AppError::Internal)?;
+        let summary: Option<String> = row.try_get("summary").map_err(|_| AppError::Internal)?;
         // POC chiffrement : UTF-8 brut, aperçu tronqué à 120 caractères.
         let last_body: Option<Vec<u8>> =
             row.try_get("last_body").map_err(|_| AppError::Internal)?;
@@ -318,6 +405,10 @@ pub async fn list_cabinet_conversations(
             unread_count,
             scope,
             status,
+            priority,
+            origin,
+            assignee_user_id,
+            summary,
         });
     }
 

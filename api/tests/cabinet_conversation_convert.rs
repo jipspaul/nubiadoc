@@ -462,6 +462,25 @@ async fn convert_conversation_creates_requested_appointment_and_audit_log() {
     let slot_status: String = slot_row.try_get("status").unwrap();
     assert_eq!(slot_status, "booked");
 
+    // #7151 : la conversion clôt le triage cabinet — la conversation passe 'done'.
+    let mut tx3 = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx3)
+        .await
+        .unwrap();
+    let conv_row = sqlx::query("SELECT status FROM conversation WHERE id = $1")
+        .bind(f.conversation_id)
+        .fetch_one(&mut *tx3)
+        .await
+        .unwrap();
+    tx3.commit().await.unwrap();
+    let conv_status: String = conv_row.try_get("status").unwrap();
+    assert_eq!(
+        conv_status, "done",
+        "la conversion doit faire passer la conversation en 'done' (#7151)"
+    );
+
     teardown(&db, &f).await;
 }
 
