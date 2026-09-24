@@ -367,9 +367,12 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
   }
 
   /// Applique un modèle à la composition en cours : remplace les lignes
-  /// saisies par celles du modèle (libellé seul — dose/fréquence/durée
-  /// restent à choisir dans les listes déroulantes, comme pour un ajout via
-  /// `_AddItemSearchField`).
+  /// saisies par celles du modèle. La durée n'est reprise que lorsqu'elle
+  /// correspond exactement à une valeur de [_durationOptions] (#7557) — la
+  /// posologie du modèle est un texte libre qu'il faudrait découper en dose
+  /// + fréquence pour la reprendre sans ambiguïté, ce qui reste à faire ;
+  /// dose et fréquence restent donc à choisir dans les listes déroulantes,
+  /// comme pour un ajout via `_AddItemSearchField`.
   void _applyTemplate(PrescriptionTemplate template) {
     setState(() {
       _selectedTemplateId = template.id;
@@ -380,7 +383,9 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
         ..clear()
         ..addAll(template.items.isEmpty
             ? [_ItemDraft()]
-            : template.items.map((i) => _ItemDraft()..label.text = i.label));
+            : template.items.map((i) => _ItemDraft()
+              ..label.text = i.label
+              ..duration = _matchDurationOption(i.duration)));
     });
   }
 
@@ -967,6 +972,18 @@ const _durationOptions = <NubiaSelectItem<String>>[
   NubiaSelectItem(value: '14 jours', label: '14 jours'),
   NubiaSelectItem(value: '1 mois', label: '1 mois'),
 ];
+
+/// Reprend la durée d'un modèle (#7557) quand elle correspond exactement
+/// (au recadrage/casse près) à une valeur de [_durationOptions] — `null`
+/// sinon, pour ne pas présélectionner une valeur absente de la liste
+/// déroulante « Durée ».
+String? _matchDurationOption(String templateDuration) {
+  final trimmed = templateDuration.trim().toLowerCase();
+  for (final option in _durationOptions) {
+    if (option.value.toLowerCase() == trimmed) return option.value;
+  }
+  return null;
+}
 
 class _ItemCard extends StatelessWidget {
   const _ItemCard({

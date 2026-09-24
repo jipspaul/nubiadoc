@@ -1069,5 +1069,54 @@ void main() {
       );
       expect(card.color, NubiaColors.brand50);
     });
+
+    testWidgets(
+        'OrdonnancesInitial → sélectionner une carte modèle reprend la durée '
+        'quand elle correspond exactement à une option de la liste (#7557)',
+        (tester) async {
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_template, _cabinetTemplate]);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.byKey(const Key('template_card_tmpl-2')));
+      await tester.tap(find.byKey(const Key('template_card_tmpl-2')));
+      await tester.pumpAndSettle();
+
+      // _templateItem.duration == '5 jours' et _cabinetTemplateItem.duration
+      // == '3 jours' : deux valeurs exactes de `_durationOptions`.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_0_duration')),
+          matching: find.text('5 jours'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_1_duration')),
+          matching: find.text('3 jours'),
+        ),
+        findsOneWidget,
+      );
+
+      // Dose et fréquence restent à choisir : le modèle ne fournit qu'un
+      // texte libre de posologie, non mappable sans ambiguïté.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_0_posology')),
+          matching: find.text('Sélectionner'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_0_frequency')),
+          matching: find.text('Sélectionner'),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }
