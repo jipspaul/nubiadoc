@@ -3529,3 +3529,11 @@ correspond à aucune valeur des listes structurées. **Non re-filé.** *Reste so
 indiquer sous le bouton grisé quel champ manque — c'était le second volet de #7592.*
 
 **Boucle finding → correctif → vérification bouclée DANS LA RONDE pour les DEUX findings (#7592, #7594).**
+
+**Quatrième segment R96 — B2, B4 (clinique) et un troisième finding**
+
+| scénario | last_check | last_status | brief |
+|---|---|---|---|
+| **B2 — devis pharmacie : intent de paiement patient** | 2026-09-24T19:22Z | **OK** | `POST /v1/payments/pharmacy-quote-intent` sur le devis accepté en X9 → **201** + `payment_id` + `client_secret`. **Idempotence réelle** : même `Idempotency-Key` → **même `client_secret`**. `method` inconnue → **422**, devis d'autrui → **404**, **jeton pharma sur la route patient → 403**. |
+| **B4 — consultation, actes, plans, et CLOISONNEMENT CLINIQUE** | 2026-09-24T19:20Z | **OK** | Séance créée par `appointments/:id/start`, **2 actes CCAM ajoutés** (201 chacun), `complete` → **200 + `invoice_id` généré** (`next_step: sign_quote`) : la chaîne acte → facture se ferme pour de vrai. **Le cloisonnement clinique est parfait** — le **secrétariat reçoit 403** sur `/cabinet/patients/:id/medical-record`, `/dental-chart`, `/notes` **et** `/treatment-plans`, là où le praticien lit les quatre en 200 (allergies « pénicilline », antécédent « Hypertension artérielle traitée », dents 11 saine / 21 cariée, plan « in_progress » avec ses phases). `/ccam/acts` : praticien 200, **patient 403**. *`/v1/treatment-plans` est la route **patient** (praticien → 403) ; la route pro est `/v1/cabinet/patients/:id/treatment-plans` — pas un défaut.* |
+| **B12 — agenda cabinet : validation du paramètre `view`** | 2026-09-24T19:23Z | **bug** | `view` n'est **jamais validé** : seule l'égalité stricte avec `"week"` donne 7 jours ; **`WEEK`**, `month`, `decennie` ou vide retombent **silencieusement sur 1 jour**, en **200** — **17 créneaux au lieu de 69**. La **date**, elle, est bien validée (`date=pas-une-date` → **422**) : l'asymétrie entre les deux paramètres du même handler est le cœur du défaut (`scheduling.rs:158-168`). Aucun client livré n'est affecté (le front envoie bien `week` en minuscules) → **#7598 (P3)**. |
