@@ -184,6 +184,62 @@ void main() {
       expect(cubit.state, isA<PickupScanIdle>());
       expect(find.byKey(const Key('pickup_error_retry')), findsNothing);
     });
+
+    testWidgets(
+        'encart d\'identification (#7549) : patient, CMD et lignes avant '
+        'tout scan', (tester) async {
+      final cubit = buildCubit();
+
+      await tester.pumpApp(
+        BlocProvider<PickupScanCubit>.value(
+          value: cubit,
+          child: const Scaffold(
+            body: PickupScanBody(
+              orderId: 'o1',
+              orderRef: 'CMD-4821',
+              patientDisplayName: 'Julie Martin',
+              lineCount: 3,
+            ),
+          ),
+        ),
+      );
+
+      final card = find.byKey(const Key('pickup_identity_card'));
+      expect(card, findsOneWidget);
+      expect(
+        find.descendant(of: card, matching: find.text('Julie Martin')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+            of: card, matching: find.text('Commande CMD-4821 · 3 lignes')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'encart d\'identification : accès direct sans donnée → replis sur '
+        'orderId, pas de "null"', (tester) async {
+      final cubit = buildCubit();
+
+      await tester.pumpApp(
+        BlocProvider<PickupScanCubit>.value(
+          value: cubit,
+          child: const Scaffold(body: PickupScanBody(orderId: 'o1')),
+        ),
+      );
+
+      final card = find.byKey(const Key('pickup_identity_card'));
+      expect(card, findsOneWidget);
+      expect(
+        find.descendant(of: card, matching: find.text('Patient')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: card, matching: find.text('Commande o1')),
+        findsOneWidget,
+      );
+    });
   });
 
   group('ManualCodeField (widget)', () {

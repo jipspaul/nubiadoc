@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/home/pharma_home_page.dart';
 import '../features/login/login_page.dart';
@@ -81,14 +82,19 @@ class AppRouter {
         ),
         GoRoute(
           path: '/orders/:id/pickup',
-          // `extra` porte le numéro CMD-… de la commande en main quand la
-          // navigation vient de la file (#6350) — absent en accès direct
-          // par lien, auquel cas l'encart de non-correspondance se replie
-          // sur l'UUID du path.
-          builder: (_, state) => PickupScanPage(
-            orderId: state.pathParameters['id']!,
-            orderRef: state.extra as String?,
-          ),
+          // `extra` porte la commande en main quand la navigation vient de
+          // la file (#6350, #7549) — absent en accès direct par lien,
+          // auquel cas l'écran se replie sur l'UUID du path (encart
+          // d'identification et non-correspondance).
+          builder: (_, state) {
+            final order = state.extra as PharmacyOrder?;
+            return PickupScanPage(
+              orderId: state.pathParameters['id']!,
+              orderRef: order?.orderRef,
+              patientDisplayName: order?.patientDisplayName,
+              lineCount: order?.lineCount,
+            );
+          },
         ),
         GoRoute(
           path: notificationPreferences,
