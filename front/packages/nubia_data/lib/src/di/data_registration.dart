@@ -56,6 +56,7 @@ import '../remote/clinical/clinical_session_api.dart';
 import '../remote/consultation/consultation_api.dart';
 import '../remote/consent_templates/consent_template_api.dart';
 import '../remote/cr_templates/cr_template_api.dart';
+import '../remote/consultation_cr/consultation_cr_api.dart';
 import '../remote/dashboard/dashboard_api.dart';
 import '../remote/dashboard_layout/dashboard_layout_api.dart';
 import '../remote/documents/document_api.dart';
@@ -135,6 +136,7 @@ import '../repositories/clinical_session_repository_impl.dart';
 import '../repositories/consultation_repository_impl.dart';
 import '../repositories/consent_template_repository_impl.dart';
 import '../repositories/cr_template_repository_impl.dart';
+import '../repositories/consultation_cr_repository_impl.dart';
 import '../repositories/dashboard_repository_impl.dart';
 import '../repositories/dashboard_layout_repository_impl.dart';
 import '../repositories/document_repository_impl.dart';
@@ -550,6 +552,7 @@ void _registerClinical(GetIt gi) {
     ..registerLazySingleton<ClinicalSessionApi>(() => ClinicalSessionApi(gi()))
     ..registerLazySingleton<PrescriptionApi>(() => PrescriptionApi(gi()))
     ..registerLazySingleton<CrTemplateApi>(() => CrTemplateApi(gi()))
+    ..registerLazySingleton<ConsultationCrApi>(() => ConsultationCrApi(gi()))
     ..registerLazySingleton<ConsentTemplateApi>(
       () => ConsentTemplateApi(gi()),
     )
@@ -565,6 +568,9 @@ void _registerClinical(GetIt gi) {
     ..registerLazySingleton<CrTemplateRepository>(
       () => CrTemplateRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<ConsultationCrRepository>(
+      () => ConsultationCrRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<ConsentTemplateRepository>(
       () => ConsentTemplateRepositoryImpl(gi()),
     )
@@ -577,6 +583,9 @@ void _registerClinical(GetIt gi) {
     ..registerFactory(() => SaveNoteUseCase(gi()))
     ..registerFactory(() => StartSessionUseCase(gi()))
     ..registerFactory(() => ListCrTemplatesUseCase(gi()))
+    ..registerFactory(() => GetConsultationCrUseCase(gi()))
+    ..registerFactory(() => SaveConsultationCrUseCase(gi()))
+    ..registerFactory(() => FinalizeConsultationCrUseCase(gi()))
     ..registerFactory(() => ListConsentTemplatesUseCase(gi()))
     ..registerFactory(() => CreateConsentTemplateUseCase(gi()))
     ..registerFactory(() => PatchConsentTemplateUseCase(gi()))

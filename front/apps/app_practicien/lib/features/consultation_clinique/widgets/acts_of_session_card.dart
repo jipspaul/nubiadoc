@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../cr_operatoire_form_page.dart';
 import '../sterilization_pouch_use_page.dart';
 import 'act_tile.dart';
 import 'consultation_format_utils.dart';
@@ -51,6 +52,23 @@ class ActsOfSessionCard extends StatelessWidget {
                       Text('Actes de la séance', style: textTheme.titleSmall),
                 ),
                 _ActsCountBadge(count: acts.length),
+                // #7153 — formulaire de CR opératoire par sections
+                // (chirurgie, endodontie, parodontologie), distinct de la
+                // note libre de `SideColumn` : brouillon structuré autosavé
+                // et finalisable séparément.
+                const SizedBox(width: 4),
+                IconButton(
+                  key: const Key('cr_operatoire_button'),
+                  tooltip: 'CR opératoire',
+                  icon: const Icon(Icons.description_outlined, size: 20),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => CrOperatoireFormPage(
+                        consultationId: session.id,
+                      ),
+                    ),
+                  ),
+                ),
                 // #7180 — rattacher un sachet stérilisé (déjà étiqueté) au
                 // patient/à la séance en cours, distinct du scan par acte
                 // de `ActTile`/`SterilizationScanPage` (#4139) qui
