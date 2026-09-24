@@ -3853,3 +3853,62 @@ Le brief exige qu'un contrôle grisé **prouve** sa légitimité. Les cinq renco
 
 - **`Entrée` dans la palette ⌘K** : deux mesures successives concluaient « inerte ». Le test décisif — ouvrir la palette **sans rien saisir**, `↓↓` puis `Entrée` — **navigue vers `/salle-attente`**. C'était la saisie au clavier qui perturbait le rendu débattu, pas le raccourci.
 - **Lignes de `patient /prescriptions`** : le clic ne change ni l'URL, ni le rendu, ni l'inventaire — parce qu'il **déclenche un téléchargement**. Prouvé en écoutant l'événement Playwright : `download: d4cf3189-….pdf`, précédé de `GET /v1/documents/:id/download`. Conforme à `prescriptions_page.dart:111` (`onTap → openDocument`).
+
+---
+
+### Ronde R94 — 2026-09-24 (06:00–09:00 UTC)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/conformite` (1280) | 47 | 32 | 23 | 0 | 0 | 2026-09-24T06:14:00Z |
+| secretariat | `/maintenance` (1280) | 30 | 0 (inventaire) | — | 0 | 0 | 2026-09-24T06:10:00Z |
+| secretariat | `/tasks` (1280) | 7 | 0 (inventaire) | — | 0 | 0 | 2026-09-24T06:11:00Z |
+| secretariat | `/reprise-donnees` (1280) | 28 | 0 (inventaire) | — | 0 | 0 | 2026-09-24T06:12:00Z |
+| secretariat | `/` — rail + tableau de bord (1280) | 40 | 35 | 35 | 0 | 0 | 2026-09-24T06:19:00Z |
+| secretariat | `/salle-attente` — **file NON vide** (1280) | 28 | 22 | 22 | 0 | 0 | 2026-09-24T07:26:00Z |
+| secretariat | `/team-messages` — texte long 247 car. (1280) | 33 | 1 | 1 | 0 | 0 | 2026-09-24T07:12:00Z |
+| patient | `/profile/dependents` (390) | 24 | 22 | 22 | 0 | 0 | 2026-09-24T06:23:00Z |
+| patient | feuille « Ajouter un proche » — 3 régimes (390) | 12 | 12 | 12 | 0 | 0 | 2026-09-24T06:26:00Z |
+| patient | `/prescriptions` — sonde de pagination (390) | 100+ | 1 | 1 | 0 | 0 | 2026-09-24T07:02:00Z |
+| patient | `/home-care/new` — géoloc refusée PUIS accordée (390) | 13 | 9 | 9 | 0 | 0 | 2026-09-24T07:18:00Z |
+| patient | `/appointments` — BACK adversarial (390) | 22 | 2 | 2 | 0 | 0 | 2026-09-24T07:09:00Z |
+| praticien | `/ordonnances/new?patientId=` (1280) | 50 | 12 | 12 | 0 | 0 | 2026-09-24T06:58:00Z |
+| praticien | `/cabinet-setup` (1280) | 6 | 0 (inventaire) | — | 0 | 0 | 2026-09-24T06:46:00Z |
+| praticien | `/act-categories` (1280) | 2 | 0 (inventaire) | — | 0 | 0 | 2026-09-24T06:46:00Z |
+| praticien | `/lab-stats` (1280) | 2 | 0 (inventaire) | — | 0 | 0 | 2026-09-24T06:47:00Z |
+| pharmacie | `/` — file des commandes (**1440**) | 37 | 22 | 22 | 0 | 0 | 2026-09-24T06:50:00Z |
+| pharmacie | `/` — facettes + `/orders/:id` (1280/1440/1920) | 37 | 4 | 4 | 0 | 0 | 2026-09-24T06:53:00Z |
+| pharmacie | `/` — coupure réseau adversariale (1280) | 9 | 1 | 1 | 0 | 0 | 2026-09-24T07:13:00Z |
+| infirmiere | `/` onglets Disponibilité / Offres / Ma visite (390) | 11 | 11 | 11 | 0 | 0 | 2026-09-24T06:36:00Z |
+| infirmiere | `/` — parcours visite accept→en-route→arrivée→terminée (390) | 9 | 4 | 4 | 0 | 0 | 2026-09-24T06:36:00Z |
+| infirmiere | `/notification-preferences` (390) | 5 | 0 (inventaire) | — | 0 | 0 | 2026-09-24T06:09:00Z |
+
+**Cumul R94 : 22 écran×viewport, 462 contrôles inventoriés, 189 activés, 0 MORT et 0 CASSÉ après re-vérification, 1 DÉSACTIVÉ légitime, 2 non activés (destructifs).**
+
+#### Le piège méthodologique de la ronde : le faux « bouton mort » par clic hors viewport
+
+**16 contrôles ont d'abord été jugés MORT ; les 16 se sont révélés sains.** Deux causes, toutes deux
+mesurables — et aucune n'est un bug de l'app :
+
+1. **Clic hors cadre.** Flutter web ne fait pas défiler le document : `document.documentElement.scrollHeight`
+   vaut **exactement la hauteur du viewport** (800 px mesurés sur le tableau de bord secrétariat) alors que
+   l'arbre Semantics expose des rects jusqu'à **y = 1598**. Un clic aux coordonnées du rect n'atteint donc
+   jamais la cible. Après molette (`page.mouse.wheel`) pour faire entrer le rect dans le cadre, **9/9** des
+   contrôles suspects du tableau de bord se sont avérés **OK**, requête réseau à l'appui.
+   *Le cas le plus instructif* : « Obtenir un devis » (patient `/home-care/new`, y=784) semblait inerte —
+   il ne l'était pas ; et le second test, mené à 390×**1200**, a montré que l'inertie venait d'ailleurs
+   (géolocalisation refusée, cf. #7558), pas du clic.
+2. **Onglet/facette déjà sélectionné.** « Tableau de bord » depuis `/`, « Commandes » depuis la file
+   pharmacie, « Toutes » quand elle est déjà active : un no-op **légitime**, pas un contrôle mort.
+
+**Règle à appliquer aux rondes suivantes** : ne jamais conclure « MORT » sans (a) avoir fait entrer le rect
+dans le viewport et relu ses coordonnées juste avant le clic, et (b) avoir vérifié que la destination n'est
+pas déjà l'état courant.
+
+#### Contrôles DÉSACTIVÉS rencontrés — légitimité prouvée
+
+| contrôle | écran | justification vérifiée |
+|---|---|---|
+| « Enregistrer » | praticien `/cabinet-setup` | formulaire d'onboarding vide ; `CabinetInfoCubit` n'a **que** `submit`, aucun `load` — l'écran n'est pas un éditeur de cabinet existant |
+| « Confirmer la demande » | patient `/home-care/new` | exige `state is HomeCareRequestEstimated` (`home_care_request_page.dart:163`) — un devis doit être obtenu d'abord ; se débloque bien une fois la géolocalisation accordée |
+| « Créer l'ordonnance » | praticien `/ordonnances/new` | dose/fréquence/durée non renseignées ; se débloque après complétion manuelle des 3 listes (cf. #7557) |
