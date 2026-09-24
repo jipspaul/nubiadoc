@@ -3486,3 +3486,16 @@ rejouer un jeton consommé peut invalider son descendant direct encore valide �
 **détection de réutilisation**, conservateur et défendable, pas un défaut.* Le test initial de la ronde
 avait été faussé par **mon propre rate-limit** (12 mauvais mots de passe juste avant) : c'est le compte
 secrétariat, non limité, qui a servi à la reprise.
+
+**Complément B4 — consultation et actes (observation consignée, non filée) :** `POST /v1/cabinet/consultations`
+rend **405** : une séance ne se crée **que** par `POST /v1/cabinet/appointments/:id/start` (route PATCH/POST
+dédiée) — conception, pas défaut. Chaîne vérifiée de bout en bout : RDV → `confirm` → `checkin` → `start`
+(→ `consultation_id`) → **2 actes CCAM ajoutés (201 chacun)** → `acts_count: 2` et les **deux** actes servis
+par le **détail** `/cabinet/consultations/:id`. *Nuance consignée : la **liste** `/cabinet/consultations` sert
+`acts_count` **exact** mais un tableau `acts` volontairement **limité au premier acte** (`consultations.rs:664-672`,
+`LEFT JOIN LATERAL … ORDER BY created_at ASC LIMIT 1`) — 5 séances sur 100 sont dans ce cas. Le seul endroit
+du front qui pourrait en tirer un compte faux est `consultation_historique_view.dart:161`
+(`'Consultation · ${session.acts.length} acte(s)'`, et le DTO ne parse pas `acts_count`) — **mais ce libellé
+est un repli** qui ne s'affiche que si `patient_name` est vide, or **0 séance sur 100 est dans ce cas**.
+**Non filé** : risque latent, non atteignable avec les données actuelles. À re-tester si un patient est
+supprimé ou déplacé de cabinet.*

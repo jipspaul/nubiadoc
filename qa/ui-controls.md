@@ -4161,3 +4161,17 @@ aucun n'a survécu.** Les causes, à réutiliser telles quelles aux rondes suiva
 **Règle qui en découle, à appliquer dès le premier passage :** un verdict MORT n'est publiable qu'après
 un re-test individuel, page rechargée, avec pixel-diff **et** relecture du code du widget. Sur deux rondes
 consécutives (R94 puis R96), le taux de faux positifs du premier passage est de **100 %**.
+
+#### Addendum R96 — troisième segment : écrans jamais audités
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/financial` (390) | 10 | 10 | 10 | 0 | 0 | 2026-09-24T19:15:00Z |
+| patient | `/treatment-plans` (390) | 10 | 10 | 10 | 0 | 0 | 2026-09-24T19:25:00Z |
+
+*Segment interrompu au budget temps sur `patient/notifications` — les écrans restants du plan
+(`/messaging`, `/home-care`, praticien `/devis` `/messages` `/inventaire`, secrétariat `/salle-attente`
+`/liste-attente` `/patients` `/correspondents`) sont **à reprendre en tête de la prochaine ronde** : ce
+sont les plus anciens jamais audités.*
+
+**CUMUL R96 CONSOLIDÉ : 21 écran×route, 415 contrôles inventoriés, 294 activés, `0` MORT, `0` CASSÉ.**
