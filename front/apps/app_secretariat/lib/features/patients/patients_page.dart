@@ -1211,6 +1211,49 @@ class _PatientSheetState extends State<_PatientSheet> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            // Barre d'actions du comptoir (maquette design-v2, .acts) —
+            // reprend un RDV, encaisse, rappelle sans quitter la fiche.
+            // Mêmes destinations que le rail (`pro_config.dart` : « Prendre
+            // un RDV » → [AppRouter.appointments], « Encaissements » →
+            // [AppRouter.cabinetPayouts]).
+            Row(
+              children: [
+                Expanded(
+                  child: NubiaButton(
+                    key: const Key('patient_sheet_new_appointment'),
+                    label: 'Nouveau RDV',
+                    icon: Icons.event_available,
+                    size: NubiaButtonSize.sm,
+                    onPressed: () => context.go(AppRouter.appointments),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: NubiaButton(
+                    key: const Key('patient_sheet_collect_payment'),
+                    label: 'Encaisser',
+                    icon: Icons.payments,
+                    variant: NubiaButtonVariant.secondary,
+                    size: NubiaButtonSize.sm,
+                    onPressed: () => context.go(AppRouter.cabinetPayouts),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: NubiaButton(
+                    key: const Key('patient_sheet_call'),
+                    label: 'Appeler',
+                    icon: Icons.call,
+                    variant: NubiaButtonVariant.secondary,
+                    size: NubiaButtonSize.sm,
+                    onPressed: (patient.phone == null || patient.phone!.isEmpty)
+                        ? null
+                        : () => callPhoneNumber(patient.phone!),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             NubiaCard(
               child: Column(

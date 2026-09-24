@@ -671,6 +671,7 @@ void main() {
           firstName: 'Bob',
           lastName: 'Dupont',
           createdAt: DateTime(2026, 1, 1),
+          phone: '0600000000',
         );
 
         final getPatient = _MockGetCabinetPatient();
@@ -823,6 +824,71 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byKey(const Key('patient_sheet_p1')), findsNothing);
+      });
+
+      // ── Barre d'actions du volet (#7547, maquette .acts) ───────────────
+      testWidgets(
+          '#7547 : le volet propose « Nouveau RDV », « Encaisser » et '
+          '« Appeler » sous le nom du patient', (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('patient_sheet_new_appointment')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('patient_sheet_collect_payment')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('patient_sheet_call')), findsOneWidget);
+        expect(find.text('Nouveau RDV'), findsOneWidget);
+        expect(find.text('Encaisser'), findsOneWidget);
+        expect(find.text('Appeler'), findsOneWidget);
+      });
+
+      testWidgets(
+          '#7547 : le CTA Appeler du volet reste désactivé sans téléphone, '
+          'activé dès que le patient en a un', (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state).thenReturn(PatientsLoaded([alice, bob]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('patient_row_p1')));
+        await tester.pumpAndSettle();
+
+        final disabledCall = tester.widget<OutlinedButton>(
+          find.descendant(
+            of: find.byKey(const Key('patient_sheet_call')),
+            matching: find.byType(OutlinedButton),
+          ),
+        );
+        expect(disabledCall.onPressed, isNull);
+
+        await tester.tap(find.byKey(const Key('patient_row_p2')));
+        await tester.pumpAndSettle();
+
+        final enabledCall = tester.widget<OutlinedButton>(
+          find.descendant(
+            of: find.byKey(const Key('patient_sheet_call')),
+            matching: find.byType(OutlinedButton),
+          ),
+        );
+        expect(enabledCall.onPressed, isNotNull);
       });
 
       // ── Détail des alertes en clair dans la fiche (#5114) ──────────────
