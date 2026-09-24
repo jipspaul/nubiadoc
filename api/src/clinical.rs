@@ -831,6 +831,12 @@ pub struct ListNotesResponse {
     pub page: PageInfo,
 }
 
+/// Texte de repli quand `stub_decrypt` échoue sur une note clinique (#7568).
+/// `add_patient_note` refuse un texte vide à l'écriture : un `text: ""` en
+/// lecture est donc toujours un échec de déchiffrement, jamais une note
+/// réellement vide — indiscernable à l'écran sans ce marquage explicite.
+pub(crate) const UNREADABLE_NOTE_TEXT: &str = "[Contenu illisible — échec de déchiffrement]";
+
 /// Inverse du stub chiffrement : supprime le préfixe `STUB_ENC:` et XOR 0xFF.
 /// Retourne `None` si le ciphertext ne commence pas par le préfixe attendu.
 /// `pub(crate)` : partagé avec `patient_detail::get_cabinet_patient`.
@@ -949,7 +955,7 @@ pub async fn list_patient_notes(
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
 
-        let text = stub_decrypt(&ciphertext).unwrap_or_default();
+        let text = stub_decrypt(&ciphertext).unwrap_or_else(|| UNREADABLE_NOTE_TEXT.to_string());
 
         last_created_at = Some(created_at);
         last_id = Some(note_id);

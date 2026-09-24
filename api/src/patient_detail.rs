@@ -504,8 +504,9 @@ pub async fn get_cabinet_patient(
             .map_err(|_| AppError::Internal)?;
         let note_created_at: chrono::DateTime<chrono::Utc> =
             nr.try_get("created_at").map_err(|_| AppError::Internal)?;
-        // Stub déchiffrement.
-        let text = crate::clinical::stub_decrypt(&ciphertext).unwrap_or_default();
+        // Stub déchiffrement. Échec → marqueur explicite (#7568), jamais "".
+        let text = crate::clinical::stub_decrypt(&ciphertext)
+            .unwrap_or_else(|| crate::clinical::UNREADABLE_NOTE_TEXT.to_string());
         notes.push(ClinicalNoteSummary {
             id: nid,
             note_kind,
