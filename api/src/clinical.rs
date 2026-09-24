@@ -955,8 +955,7 @@ pub async fn list_patient_notes(
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
 
-        let text =
-            stub_decrypt(&ciphertext).unwrap_or_else(|| UNREADABLE_NOTE_TEXT.to_string());
+        let text = stub_decrypt(&ciphertext).unwrap_or_else(|| UNREADABLE_NOTE_TEXT.to_string());
 
         last_created_at = Some(created_at);
         last_id = Some(note_id);
