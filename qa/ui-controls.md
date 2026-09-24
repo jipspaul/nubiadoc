@@ -3730,3 +3730,72 @@ Les 5 écrans rendent correctement au viewport secondaire, avec le libellé de r
 > - `pharmacie /devis` — « Préparer » / « Voir » / « Envoyer » / « Relancer » présents et cohérents par statut.
 >
 > De même, les 6 verdicts CASSÉ se répartissent en : **4 artefacts du harnais** (`TypeError: Assignment to constant variable` — bug introduit puis corrigé dans `uiqa/audit.js` en cours de ronde), **1 expiration de jeton** en milieu de passe (401 `/v1/me` puis refresh), et **1 sonde de rôle délibérée** (403 `/v1/cabinet/audit-log`, cf. `AuditLogAccessCubit`). **Aucun défaut applicatif.**
+
+### R93 — 2026-09-24 (00:00–03:30 UTC) — 25 écrans audités, **0 contrôle mort, 0 cassé** après re-vérification individuelle
+
+Harnais : inventaire Semantics (`flt-semantics[role]`, `aria-label` verbatim) → activation de chaque
+contrôle **du viewport** → verdict par effet observé (navigation / repeinture pixel / Δ inventaire /
+requête réseau). Nouveauté de cette ronde : le harnais **borne les cibles au viewport** et **vérifie la
+restauration de l'écran de base** après chaque activation (signature de 2 contrôles) — les deux
+sources de faux « MORT » des rondes précédentes.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/` — onglet Accueil (390) | 22 | 8 | 8 | 0 | 0 | 2026-09-24T01:40:00Z |
+| patient | onglet Mes RDV (390) | 19 | 8 | 8 | 0 | 0 | 2026-09-24T01:45:00Z |
+| patient | onglet Messages (390) | 17 | 10 | 10 | 0 | 0 | 2026-09-24T01:50:00Z |
+| patient | onglet Documents (390) | 47 | 16 | 16 | 0 | 0 | 2026-09-24T01:55:00Z |
+| patient | onglet Profil (390) | 23 | 9 | 9 | 0 | 0 | 2026-09-24T02:00:00Z |
+| patient | `/appointments` — annuaire + carte praticien (390) | 28 | 6 | 6 | 0 | 0 | 2026-09-24T00:45:00Z |
+| patient | `/appointments/slots` — étape 2 (390) | 34 | 3 | 3 | 0 | 0 | 2026-09-24T00:52:00Z |
+| patient | réservation étape 3 « Vos informations » (390) | 31 | 4 | 4 | 0 | 1 DÉSACTIVÉ légitime | 2026-09-24T00:58:00Z |
+| praticien | `/` — Tableau de bord (1280) | 35 | 10 + 6 re-vérifiés | 16 | 0 | 0 | 2026-09-24T01:35:00Z |
+| praticien | `/waiting-room` (1280) | 22 | 3 | 3 | 0 | 0 | 2026-09-24T01:20:00Z |
+| praticien | `/ordonnances` (1280) | 21 | 3 | 3 | 0 | 0 | 2026-09-24T01:22:00Z |
+| praticien | `/lab-work-orders` (1280) | 28 | 4 | 4 | 0 | 0 | 2026-09-24T01:24:00Z |
+| praticien | `/stock-inventory` (1280) | 46 | 16 | 16 | 0 | 0 | 2026-09-24T01:27:00Z |
+| praticien | `/team-messages` (1280) | 23 | 3 | 3 | 0 | 0 | 2026-09-24T01:30:00Z |
+| secretariat | `/` — Tableau de bord (1280) | 41 | 10 | 10 | 0 | 0 | 2026-09-24T01:55:00Z |
+| secretariat | `/patients` — Fiches patients (1280) | 43 | 4 clavier + volet | 4 | 0 | 0 | 2026-09-24T00:20:00Z |
+| secretariat | `/patients` — volet de fiche ouvert (1280) | 8 (volet) | 3 | 3 | 0 | 0 | 2026-09-24T02:10:00Z |
+| secretariat | `/liste-attente` — Demandes de créneau (1280) | 23 | 3 | 3 | 0 | 0 | 2026-09-24T02:00:00Z |
+| secretariat | `/correspondents` (1280) | 28 | 5 | 5 | 0 | 0 | 2026-09-24T02:03:00Z |
+| secretariat | `/cabinet-payouts` — Encaissements (1280) | 28 | 5 | 5 | 0 | 0 | 2026-09-24T02:06:00Z |
+| secretariat | `/team-messages` — Équipe (1280) | 33 | 4 | 4 | 0 | 0 | 2026-09-24T02:09:00Z |
+| secretariat | `/appointments` — Prendre un RDV (1280) | 28 | 7 | 7 | 0 | 0 | 2026-09-24T02:12:00Z |
+| pharmacie | `/` — File des commandes (1280) | 35 | 15 | 15 | 0 | 0 | 2026-09-24T01:45:00Z |
+| pharmacie | `/devis` (1280) | 41 | 19 | 16 | 0 (3 hors viewport, non activés) | 0 | 2026-09-24T01:48:00Z |
+| pharmacie | `/stock` (1280) | 15 | 6 | 6 | 0 | 0 | 2026-09-24T01:52:00Z |
+| pharmacie | `/messages` (1280) | 17 | 8 | 8 | 0 | 0 | 2026-09-24T01:55:00Z |
+| pharmacie | `/orders/:id` — détail commande (1280) | 31 | 3 | 3 | 0 | 0 | 2026-09-24T03:00:00Z |
+| pharmacie | `/orders/:id/pickup` — scan de retrait (1280) | **4** | 3 | 3 | 0 | 0 | 2026-09-24T02:55:00Z |
+| infirmiere | `/` — onglet Disponibilité (390) | 8 | 6 | 6 | 0 | 0 | 2026-09-24T02:45:00Z |
+| infirmiere | onglet Offres (390) | 11 | 2 | 2 | 0 | 0 | 2026-09-24T02:48:00Z |
+| infirmiere | onglet Ma visite (390) | 9 | 2 | 2 | 0 | 0 | 2026-09-24T02:50:00Z |
+
+**Totaux R93 : 628 contrôles inventoriés, ~190 activés, 0 MORT, 0 CASSÉ, 9 hors viewport (non activés, déclarés).**
+
+#### Les 9 verdicts « MORT » bruts ont TOUS été infirmés en re-vérification individuelle
+
+C'est le point méthodologique de la ronde : un verdict MORT n'est plus rapporté sans re-test isolé.
+
+| contrôle brut « MORT » | re-vérification | verdict réel |
+|---|---|---|
+| praticien `/` — « Confirmations en attente 8 » | remis dans le viewport par `wheel`, clic isolé | **OK** → `nav /agenda` |
+| praticien `/` — « Messages non lus 44 » | idem | **OK** → `nav /messages` |
+| praticien `/` — « Voir le suivi labo » | idem | **OK** (repeinture) |
+| praticien `/` — « Devis envoyés sans réponse 1 023 201,15 € 117 » | idem | **OK** → `nav /devis?patientId=…0d4` |
+| praticien `/` — « Factures impayées 36 330,79 € 108 » | idem | **OK** → `nav /devis?patientId=…0d1` |
+| praticien `/` — « Patients sans prochain RDV 3 » | idem | **OK** → `nav /patients/1b26ccb4-…` |
+| pharmacie `/devis` — « Voir » ×2, « Préparer » ×1 | y = 861 / 924 / 987 pour un viewport de 800 px | **hors viewport**, jamais cliqués (faux MORT du harnais, corrigé) |
+| patient Mes RDV — « Plus d'actions » (2ᵉ carte) | rechargement puis clic isolé de chaque `•••` | **OK** (repeinture, Δctl = −15 : la feuille s'ouvre) — le 1ᵉʳ MORT venait du menu précédent resté ouvert |
+
+#### Cas adversariaux joués (tous conformes)
+
+| cas | écran | observé |
+|---|---|---|
+| **double-submit rapide** | pharmacie `/orders/:id/pickup`, 2 clics consécutifs sur « Valider le code » | **une seule** requête `POST /v1/pharmacy/orders/pickup-scan` — pas de double action |
+| **code invalide** | idem, code `ABCD-1234` | `404 not_found` rendu proprement : message + bouton « Réessayer » apparu dans les Semantics, pas d'écran blanc |
+| **re-soumission après erreur** | idem | 0 requête émise tant que l'état d'erreur n'est pas remis à zéro |
+| **texte très long** | idem, 250 caractères dans « Code de retrait » | champ inchangé (`rect [16,398,1256,56]`), aucun débordement à 1280×800 |
+| **coupure réseau** (`route.abort()` sur `*/v1/*`) | patient, onglet Documents | erreur digne : bouton « **Réessayer** » présent dans les Semantics, pas de spinner infini, canvas non vide |
