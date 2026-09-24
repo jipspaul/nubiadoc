@@ -8,6 +8,8 @@ class ListMyPrescriptionsUseCase {
 
   const ListMyPrescriptionsUseCase(this._repository);
 
-  Future<Either<Failure, List<PatientPrescription>>> call() =>
-      _repository.listPrescriptions();
+  /// [limit] borne le nombre d'ordonnances à une seule page — omis, suit le
+  /// curseur jusqu'à épuisement pour ramener l'historique complet (#7554).
+  Future<Either<Failure, List<PatientPrescription>>> call({int? limit}) =>
+      _repository.listPrescriptions(limit: limit);
 }

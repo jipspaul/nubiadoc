@@ -34,5 +34,9 @@ abstract class PatientPharmacyRepository {
       String id);
 
   /// GET /v1/account/prescriptions — ordonnances du compte (envoi pharmacie).
-  Future<Either<Failure, List<PatientPrescription>>> listPrescriptions();
+  /// [limit] borne le nombre d'ordonnances à une seule page — omis, suit le
+  /// curseur jusqu'à épuisement pour ramener l'historique complet.
+  Future<Either<Failure, List<PatientPrescription>>> listPrescriptions({
+    int? limit,
+  });
 }
