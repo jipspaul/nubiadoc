@@ -3972,3 +3972,27 @@ donné #7560. **À réutiliser tel quel aux rondes suivantes.**
 **Bilan méthodologique de la ronde : sur ~40 contrôles initialement suspects, ZÉRO n'était réellement mort.**
 Les quatre causes — clic hors cadre, troncature des libellés fusionnés, 404 optionnel, plancher de cadrage —
 sont désormais toutes traitées dans `R94_act2.js`, à réutiliser aux rondes suivantes.
+
+#### Addendum R94 — quatrième segment et verdict final sur les « boutons morts »
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| pharmacie | `/devis` (1280) | 41 | 15 | 14 | 0 | 0 | 2026-09-24T08:47:00Z |
+| praticien | `/consultation` — liste + 3 facettes + 14 séances (1280) | 34 | 34 | 33 | 0 | 0 | 2026-09-24T08:52:00Z |
+| secretariat | `/agenda` — grille semaine (1280) | 38 | 38 | 37 | 0 | 0 | 2026-09-24T08:58:00Z |
+
+**CUMUL FINAL R94 : 33 écran×viewport, ~760 contrôles inventoriés, 442 activés, `0` MORT confirmé,
+`1` CASSÉ confirmé (#7560), 3 DÉSACTIVÉS légitimes, 5 non activés (destructifs).**
+
+**5ᵉ et dernière cause de faux positif — la marge basse du cadre.** Sur `secretariat /agenda`, la puce
+« 16:00 » était la seule des 12 créneaux jugée MORTE. Elle était pourtant *dans* le viewport — mais à
+**y=777** pour une hauteur de 28 px (soit 763→791) dans un cadre de 800 px : le clic n'atteint pas la cible
+si près du bord. **Re-testée après l'avoir amenée à y=500, elle se comporte exactement comme « 17:00 »**
+(51 → 9 contrôles, un volet s'ouvre), et ce de façon reproductible sur deux passages. Marge basse portée de
+`H-20` à `H-60` dans `R94_act2.js`.
+
+> **Verdict de la ronde : sur ~45 contrôles initialement rapportés « MORT » par le détecteur naïf, AUCUN ne
+> l'était.** Les cinq causes — clic hors cadre, troncature à 90 caractères des libellés Semantics fusionnés,
+> 404 sur ressource optionnelle, plancher de cadrage trop haut, marge basse trop faible — sont toutes
+> corrigées dans `R94_act2.js`. Les rondes suivantes doivent partir de cet outil : un « bouton mort » annoncé
+> sans ces cinq garde-fous a de fortes chances d'être un artefact de mesure, pas un défaut du produit.
