@@ -102,11 +102,16 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
         );
         return;
       }
-      final notes = await _fetchNotes(event.id);
+      final notesResult = await _fetchNotes(event.id);
       result.fold(
         (_) {},
         (patient) => safeEmit(
-          PatientDetailLoaded(patient, appointments: appointments, notes: notes),
+          PatientDetailLoaded(
+            patient,
+            appointments: appointments,
+            notes: notesResult.notes,
+            notesAccessDenied: notesResult.accessDenied,
+          ),
         ),
       );
     } catch (_) {
@@ -116,15 +121,25 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
 
   /// Best-effort (#7560) : une erreur de chargement des notes laisse la
   /// fiche utilisable, section « Notes » simplement vide — même contrat que
-  /// l'historique des RDV ci-dessus.
-  Future<List<PatientNote>> _fetchNotes(String id) async {
+  /// l'historique des RDV ci-dessus. Un 403 est distingué (#7567) : la même
+  /// garde côté serveur (`api/src/clinical.rs`, absence de relation de soin)
+  /// interdit aussi l'écriture, ce n'est pas une panne transitoire.
+  Future<({List<PatientNote> notes, bool accessDenied})> _fetchNotes(
+    String id,
+  ) async {
     final listNotes = _listNotes;
-    if (listNotes == null) return const [];
+    if (listNotes == null) return (notes: const <PatientNote>[], accessDenied: false);
     try {
       final result = await listNotes(id);
-      return result.fold((_) => const [], (notes) => notes);
+      return result.fold(
+        (failure) => (
+          notes: const <PatientNote>[],
+          accessDenied: failure is ServerFailure && failure.statusCode == 403,
+        ),
+        (notes) => (notes: notes, accessDenied: false),
+      );
     } catch (_) {
-      return const [];
+      return (notes: const <PatientNote>[], accessDenied: false);
     }
   }
 
@@ -139,21 +154,30 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
       final result = await _updateNotes(event.id, event.notes);
       if (result.isLeft()) {
         result.fold(
-          (failure) => safeEmit(current.copyWith(
-            notesUpdating: false,
-            notesError: failure.message,
-          )),
+          (failure) {
+            final accessDenied =
+                failure is ServerFailure && failure.statusCode == 403;
+            safeEmit(current.copyWith(
+              notesUpdating: false,
+              notesAccessDenied: accessDenied,
+              notesError: accessDenied
+                  ? "Vous n'avez pas encore suivi ce patient — "
+                      "l'ajout de notes n'est pas autorisé."
+                  : failure.message,
+            ));
+          },
           (_) {},
         );
         return;
       }
       final updated = result.fold((_) => current.patient, (patient) => patient);
-      final notes = await _fetchNotes(event.id);
+      final notesResult = await _fetchNotes(event.id);
       safeEmit(current.copyWith(
         patient: updated,
         notesUpdating: false,
         clearNotesError: true,
-        notes: notes,
+        notes: notesResult.notes,
+        notesAccessDenied: notesResult.accessDenied,
       ));
     } catch (_) {
       safeEmit(current.copyWith(

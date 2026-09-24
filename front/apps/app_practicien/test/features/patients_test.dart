@@ -329,6 +329,31 @@ void main() {
     );
 
     blocTest<PatientsBloc, PatientsState>(
+      'notesAccessDenied quand la lecture des notes échoue en 403 (#7567)',
+      build: () {
+        final mockListNotes = MockListPatientNotesUseCase();
+        when(() => mockGet('pat-1')).thenAnswer((_) async => Right(_patient));
+        when(() => mockListNotes('pat-1')).thenAnswer(
+          (_) async => Left(ServerFailure(
+            message: 'Impossible de charger les notes.',
+            statusCode: 403,
+          )),
+        );
+        return _makeBloc(
+          list: mockList,
+          get: mockGet,
+          update: mockUpdate,
+          listNotes: mockListNotes,
+        );
+      },
+      act: (b) => b.add(const PatientsDetailLoadRequested('pat-1')),
+      expect: () => [
+        const PatientsLoading(),
+        PatientDetailLoaded(_patient, notesAccessDenied: true),
+      ],
+    );
+
+    blocTest<PatientsBloc, PatientsState>(
       'émet PatientDetailError quand la fiche échoue',
       build: () {
         when(() => mockGet('pat-1')).thenAnswer(
@@ -396,6 +421,30 @@ void main() {
       expect: () => [
         PatientDetailLoaded(_patient, notesUpdating: true),
         PatientDetailLoaded(_patient, notesError: 'Erreur sauvegarde'),
+      ],
+    );
+
+    blocTest<PatientsBloc, PatientsState>(
+      'UpdateNotes passe notesAccessDenied à true sur un 403 (#7567)',
+      build: () {
+        when(() => mockUpdate('pat-1', 'x')).thenAnswer(
+          (_) async => Left(ServerFailure(
+            message: 'Impossible de mettre à jour les notes.',
+            statusCode: 403,
+          )),
+        );
+        return _makeBloc(list: mockList, get: mockGet, update: mockUpdate);
+      },
+      seed: () => PatientDetailLoaded(_patient),
+      act: (b) => b.add(const PatientsNotesUpdateRequested('pat-1', 'x')),
+      expect: () => [
+        PatientDetailLoaded(_patient, notesUpdating: true),
+        PatientDetailLoaded(
+          _patient,
+          notesAccessDenied: true,
+          notesError: "Vous n'avez pas encore suivi ce patient — "
+              "l'ajout de notes n'est pas autorisé.",
+        ),
       ],
     );
   });

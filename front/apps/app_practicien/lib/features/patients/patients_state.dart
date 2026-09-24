@@ -48,12 +48,20 @@ class PatientDetailLoaded extends PatientsState {
   /// rendant la section « Notes » de la fiche en écriture seule.
   final List<PatientNote> notes;
 
+  /// #7567 : `true` quand la lecture des notes a échoué avec un 403 —
+  /// absence de relation de soin (garde `add_patient_note`/`list_patient_notes`,
+  /// `api/src/clinical.rs`). Dans ce cas l'écriture échouera structurellement
+  /// elle aussi (même garde) : la zone de saisie et le bouton « Enregistrer
+  /// les notes » ne doivent pas être proposés.
+  final bool notesAccessDenied;
+
   const PatientDetailLoaded(
     this.patient, {
     this.notesUpdating = false,
     this.notesError,
     this.appointments = const [],
     this.notes = const [],
+    this.notesAccessDenied = false,
   });
 
   PatientDetailLoaded copyWith({
@@ -63,6 +71,7 @@ class PatientDetailLoaded extends PatientsState {
     bool clearNotesError = false,
     List<CabinetAppointment>? appointments,
     List<PatientNote>? notes,
+    bool? notesAccessDenied,
   }) =>
       PatientDetailLoaded(
         patient ?? this.patient,
@@ -70,11 +79,18 @@ class PatientDetailLoaded extends PatientsState {
         notesError: clearNotesError ? null : (notesError ?? this.notesError),
         appointments: appointments ?? this.appointments,
         notes: notes ?? this.notes,
+        notesAccessDenied: notesAccessDenied ?? this.notesAccessDenied,
       );
 
   @override
-  List<Object?> get props =>
-      [patient, notesUpdating, notesError, appointments, notes];
+  List<Object?> get props => [
+        patient,
+        notesUpdating,
+        notesError,
+        appointments,
+        notes,
+        notesAccessDenied,
+      ];
 }
 
 class PatientDetailError extends PatientsState {
