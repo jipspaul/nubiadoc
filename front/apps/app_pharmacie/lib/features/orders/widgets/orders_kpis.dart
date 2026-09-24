@@ -78,50 +78,83 @@ class OrdersKpiBanner extends StatelessWidget {
 
   final List<PharmacyOrder> orders;
 
+  /// Largeur de bandeau sous laquelle 4 tuiles côte à côte n'ont plus assez
+  /// de place pour les libellés les plus longs (« à préparer d'urgence »,
+  /// « délivrées aujourd'hui ») et les cassent en plein mot — atteint par la
+  /// colonne de file resserrée (`_wideQueueColumnWidth`, 360 px) quand le
+  /// détail est ouvert à 1440 (#7594). On passe alors en grille 2×2.
+  static const _twoColumnsBreakpoint = 480.0;
+
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final kpis = OrdersKpis.fromOrders(orders);
+    final stats = [
+      _OrdersKpiStat(
+        key: const Key('orders_kpi_urgent'),
+        value: '${kpis.urgentCount}',
+        label: 'à préparer d\'urgence',
+        valueColor: tokens.dangerFg,
+      ),
+      _OrdersKpiStat(
+        key: const Key('orders_kpi_preparing'),
+        value: '${kpis.preparingCount}',
+        label: 'en préparation',
+        valueColor: tokens.warningFg,
+      ),
+      _OrdersKpiStat(
+        key: const Key('orders_kpi_ready'),
+        value: '${kpis.readyCount}',
+        label: 'prêtes à retirer',
+      ),
+      _OrdersKpiStat(
+        key: const Key('orders_kpi_picked_up_today'),
+        value: '${kpis.pickedUpTodayCount}',
+        label: 'délivrées aujourd\'hui',
+      ),
+    ];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: _OrdersKpiStat(
-              key: const Key('orders_kpi_urgent'),
-              value: '${kpis.urgentCount}',
-              label: 'à préparer d\'urgence',
-              valueColor: tokens.dangerFg,
-            ),
-          ),
-          const SizedBox(width: 24),
-          Expanded(
-            child: _OrdersKpiStat(
-              key: const Key('orders_kpi_preparing'),
-              value: '${kpis.preparingCount}',
-              label: 'en préparation',
-              valueColor: tokens.warningFg,
-            ),
-          ),
-          const SizedBox(width: 24),
-          Expanded(
-            child: _OrdersKpiStat(
-              key: const Key('orders_kpi_ready'),
-              value: '${kpis.readyCount}',
-              label: 'prêtes à retirer',
-            ),
-          ),
-          const SizedBox(width: 24),
-          Expanded(
-            child: _OrdersKpiStat(
-              key: const Key('orders_kpi_picked_up_today'),
-              value: '${kpis.pickedUpTodayCount}',
-              label: 'délivrées aujourd\'hui',
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < _twoColumnsBreakpoint) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: stats[0]),
+                    const SizedBox(width: 24),
+                    Expanded(child: stats[1]),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: stats[2]),
+                    const SizedBox(width: 24),
+                    Expanded(child: stats[3]),
+                  ],
+                ),
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: stats[0]),
+              const SizedBox(width: 24),
+              Expanded(child: stats[1]),
+              const SizedBox(width: 24),
+              Expanded(child: stats[2]),
+              const SizedBox(width: 24),
+              Expanded(child: stats[3]),
+            ],
+          );
+        },
       ),
     );
   }
@@ -159,6 +192,8 @@ class _OrdersKpiStat extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodySmall?.copyWith(
             color: tokens.textTertiary,
           ),
