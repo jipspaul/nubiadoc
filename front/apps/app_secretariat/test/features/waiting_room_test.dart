@@ -765,6 +765,65 @@ void main() {
       );
     });
 
+    testWidgets(
+        'liseré émeraude et bouton primaire sur le premier isWaiting, pas '
+        'sur un in_consultation en tête de liste — #7570', (tester) async {
+      useWideSurface(tester);
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'QA R91Tunnel',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 4, 0),
+            status: 'in_consultation',
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Marc Dubois',
+            appointmentId: 'appt-2',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            status: 'checked_in',
+          ),
+          WaitingRoomEntry(
+            id: 'e3',
+            cabinetId: 'c1',
+            patientId: 'p3',
+            patientName: 'Karim Saïdi',
+            appointmentId: 'appt-3',
+            arrivedAt: DateTime(2026, 6, 19, 9, 5),
+            status: 'checked_in',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      // Un seul liseré « suivant », posé sur e2 (premier isWaiting) — pas
+      // sur e1, qui est en tête de la liste brute mais in_consultation.
+      expect(find.byKey(const Key('waiting_entry_next_stripe')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('waiting_entry_next_stripe')),
+          matching: find.text('Marc Dubois'),
+        ),
+        findsOneWidget,
+      );
+
+      final callButtonE1 = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_entry_call_button_e1')),
+      );
+      final callButtonE2 = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_entry_call_button_e2')),
+      );
+      expect(callButtonE1.variant, NubiaButtonVariant.secondary);
+      expect(callButtonE2.variant, NubiaButtonVariant.primary);
+    });
+
     testWidgets('affiche un message si la salle est vide', (tester) async {
       when(() => bloc.state).thenReturn(WaitingRoomLoaded([]));
       await tester.pumpWidget(buildPage());
@@ -1473,6 +1532,81 @@ void main() {
       ],
       verify: (_) {
         verifyNever(() => repo.callNext());
+      },
+    );
+
+    // #7570 : une entrée `in_consultation` en tête de la liste brute n'est
+    // plus « la tête de file » — le prédicat doit sauter par-dessus elle et
+    // retomber sur le premier `isWaiting`, comme le CTA d'en-tête.
+    final entriesWithInConsultationHead = [
+      WaitingRoomEntry(
+        id: 'e1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'QA R91Tunnel',
+        arrivedAt: DateTime(2026, 6, 19, 4, 0),
+        status: 'in_consultation',
+      ),
+      WaitingRoomEntry(
+        id: 'e2',
+        cabinetId: 'c1',
+        patientId: 'p2',
+        patientName: 'Marc Dubois',
+        arrivedAt: DateTime(2026, 6, 19, 9, 5),
+        status: 'checked_in',
+      ),
+      WaitingRoomEntry(
+        id: 'e3',
+        cabinetId: 'c1',
+        patientId: 'p3',
+        patientName: 'Karim Saïdi',
+        arrivedAt: DateTime(2026, 6, 19, 9, 6),
+        status: 'checked_in',
+      ),
+    ];
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'un patient déjà en consultation en tête de liste ne peut plus être '
+      'appelé (#7570) — refusé même si c\'est entries.first',
+      build: () {
+        when(() => repo.callNext())
+            .thenAnswer((_) async => Right(entriesWithInConsultationHead[1]));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entriesWithInConsultationHead),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('e1')),
+      expect: () => [
+        WaitingRoomLoaded(
+          entriesWithInConsultationHead,
+          actionError:
+              "Seul le patient en tête de file peut être appelé pour l'instant.",
+        ),
+      ],
+      verify: (_) {
+        verifyNever(() => repo.callNext());
+      },
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'appeler le premier `isWaiting` (e2) déclenche bien callNext, même '
+      'quand une entrée `in_consultation` précède dans la liste (#7570)',
+      build: () {
+        when(() => repo.callNext())
+            .thenAnswer((_) async => Right(entriesWithInConsultationHead[1]));
+        when(() => repo.list())
+            .thenAnswer((_) async => Right(entriesWithInConsultationHead));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entriesWithInConsultationHead),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('e2')),
+      verify: (_) {
+        verify(() => repo.callNext()).called(1);
       },
     );
   });
