@@ -3510,3 +3510,22 @@ supprimé ou déplacé de cabinet.*
 | **B11 — onboarding pro, membres, secrétariats** | 2026-09-24T19:16Z | **OK** | **RBAC correct sur la gestion des membres** : la **secrétaire** comme le **praticien** reçoivent **403** en tentant d'ajouter un membre (réservé admin/manager). Lecture autorisée : 40 membres avec leurs rôles (`secretary`/`practitioner`/`admin`/`manager`), secrétariats listés. `/v1/pro/verification` → 200 (`rpps`, `10100000001`, `status: verified`). *`GET /v1/cabinet/provider` rend **405** — route non-GET, pas un défaut.* |
 
 | **B7 — annuaire : les filtres sont-ils RÉELLEMENT appliqués ?** | 2026-09-24T19:17Z | **OK** | **Tous appliqués, vérifiés par partition.** Sur 17 praticiens : `specialty=<UUID>` → **5**, `place=Lyon` → **2** / `place=Marseille` → **0**, `near=45.75,4.85&radius_km=5` (Lyon) → **2** / `near=43.30,5.37` (Marseille) → **0**, `pmr=true` → **13**, `tiers_payant=true` → **12**, `teleconsult=true/false` → **8 / 9** (partition exacte), `q=Marin` → **1** / `q=ZZINEXISTANT` → **0**. `accepts_new_patients=true` → 17 et `=false` → **0** : correct, les 17 portent le drapeau `true` (vérifié dans la réponse) ; **l'alias `accepts_new` de #6700 fonctionne aussi**. Gardes : `near` malformé → **422**, `specialty` non-UUID → **400**. *Piège de lecture consigné : il n'existe **pas** de paramètre `city` — la localisation se filtre par `place`/`near`/`bbox` (`marketplace.rs:246-268`). Un nom de filtre inconnu est **silencieusement ignoré** (`Query<…>` sans `deny_unknown_fields`, limitation déjà documentée en commentaire pour #6700) : `city=Lyon` et `city=Marseille` rendent donc tous deux la liste entière. **Non filé** — c'est la limitation connue d'axum déjà assumée dans le code, et le paramètre n'est pas au contrat ; mais c'est exactement le piège qui fait conclure à tort « filtre ignoré ».* |
+
+**Addendum final R96 — le correctif de #7592 est lui aussi arrivé AVANT la clôture, et il est vérifié.**
+PR **#7596** mergée à 19:09Z, front praticien redéployé à **19:14Z**. Re-test immédiat sur `/ordonnances/new`,
+sur **deux modèles choisis pour leurs posologies opposées** :
+
+| modèle | posologie servie par l'API | Dose | Fréquence | Durée | « Créer l'ordonnance » |
+|---|---|---|---|---|---|
+| Antalgique post-opératoire palier 1 | `1 cp x 3/jour si douleur` (parsable) | **1 comprimé** | **3 fois / jour** | **5 jours** | **ACTIF** |
+| Antibioprophylaxie amoxicilline | `Prise unique 1h avant le geste` (texte libre) | Sélectionner | Sélectionner | **1 jour** | GRISÉ |
+
+**Le défaut central est corrigé** : appliquer un modèle produit désormais une ligne **complète et
+soumettable** — `_applyTemplate` reporte `dose`, `frequency`, `duration` **et** `quantityOverride`
+(`ordonnance_new_page.dart:409-415`). Le cas « texte libre » reste à compléter à la main : c'est la
+**limite explicitement documentée** du correctif (« sinon elles restent à choisir dans les listes
+déroulantes, comme pour un ajout via `_AddItemSearchField` ») et elle se défend — « Prise unique » ne
+correspond à aucune valeur des listes structurées. **Non re-filé.** *Reste souhaitable, sans gravité :
+indiquer sous le bouton grisé quel champ manque — c'était le second volet de #7592.*
+
+**Boucle finding → correctif → vérification bouclée DANS LA RONDE pour les DEUX findings (#7592, #7594).**
