@@ -7,6 +7,74 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+### Ronde R95 — 2026-09-24 (diff-driven : PR #7561→#7565 mergées le matin même)
+
+**Périmètre** : 5 apps sur 5. 12 écrans audités, **~330 contrôles inventoriés, 178 activés**.
+**Verdict global : 0 bouton MORT confirmé, 1 CASSÉ confirmé.**
+
+| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| praticien | `/ordonnances/new?patientId=…` (1280) | 50 | 24 | 23 | 0 | 0 | 2026-09-24T12:30Z |
+| praticien | `/patients/:id` — avec relation de soin (1280) | 54 | 14 | 14 | 0 | 0 | 2026-09-24T12:45Z |
+| praticien | `/patients/:id` — sans relation de soin (1280) | 46 | 6 | 5 | 0 | 1 | 2026-09-24T12:50Z |
+| secretariat | `/salle-attente` — file à 4 entrées (1280) | 34 | 8 | 6 | 0 | **1** | 2026-09-24T12:40Z |
+| pharmacie | `/` (File des commandes, 1280) | 35 | 8 | 8 | 0 | 0 | 2026-09-24T13:00Z |
+| pharmacie | `/orders/:id` (Délivrance, 1920/1680/1440/1280) | 38 | 6 | 6 | 0 | 0 | 2026-09-24T12:55Z |
+| patient | `/` (Accueil, 390×844) | 22 | 21 | 21 | 0 | 0 | 2026-09-24T12:35Z |
+| patient | `/documents` (390×844) | 43 | 26 | 26 | 0 | 0 | 2026-09-24T13:05Z |
+| patient | `/financial` + détail d'un devis (390×844) | 11 | 10 | 10 | 0 | 0 | 2026-09-24T13:00Z |
+| patient | `/messaging`, `/home-care`, `/notifications`, `/profile`, `/mes-rdv` (390×844) | 75 | 46 | 46 | 0 | 0 | 2026-09-24T13:05Z |
+| infirmiere | `/` — 3 onglets Disponibilité / Offres / Ma visite (390×844) | 26 | 13 | 13 | 0 | 0 | 2026-09-24T12:50Z |
+| infirmiere | `/notification-preferences` (390×844) | 5 | 2 | 2 | 0 | 0 | 2026-09-24T12:45Z |
+
+#### Le seul contrôle CASSÉ confirmé
+
+**`/salle-attente` (secrétariat) — bouton « Appeler » de la ligne 1.** Il porte le nom d'un patient et en
+appelle un autre : le clic émet `POST /v1/cabinet/waiting-room/call-next` (aucun identifiant de ligne dans
+la requête) et c'est le patient de la **ligne 2** qui bascule en consultation (KPI « en attente » 3 → 2,
+observé à l'écran). Symétriquement, le bouton du vrai prochain patient est **refusé**
+(« Seul le patient en tête de file peut être appelé pour l'instant. »). Cause : la tête de file est calculée
+sur la liste brute, `in_consultation` compris, alors que `WaitingRoomEntry.isWaiting` existe et est
+correctement utilisé ailleurs dans le même fichier → **#7570**.
+
+*(Le `403` sur `Enregistrer les notes` de la fiche d'un patient sans relation de soin est compté « cassé »
+pour la ligne concernée, mais il **affiche bien** un SnackBar — voir la leçon de méthode ci-dessous. C'est
+un défaut d'ergonomie, #7567, pas un contrôle muet.)*
+
+#### ⚠️ Leçon de méthode confirmée cette ronde : 43 « morts » bruts, 0 confirmé
+
+Le passage en masse a rendu **43 verdicts « MORT »**. **Chacun des candidats re-testé individuellement sur
+page neuve s'est révélé vivant.** Trois causes, toutes imputables au harnais :
+
+1. **Détecteur aveugle à la navigation par branche de shell.** Les 5 onglets de la barre du bas de l'app
+   patient (« Accueil », « Mes RDV », « Messages », « Documents », « Profil ») **ne changent pas
+   `location.pathname`** — ils basculent la branche du `StatefulShellRoute`, l'URL reste `/`. Un détecteur
+   fondé sur l'URL + l'arbre Semantics les déclare morts alors qu'ils repeignent et déclenchent leurs
+   requêtes (`Mes RDV` → `/appointments?filter=upcoming&limit=100`, `Profil` → `/account` + 13 autres).
+   **Correctif appliqué : comparaison de pixels avant/après clic** (le seul signal fiable sur CanvasKit).
+2. **Clic hors viewport sur un défilement horizontal** — la cause la plus productive en faux positifs.
+   Sur `/documents` (390 px de large), les puces de catégorie sont inventoriées à **x = 649, 744, 868,
+   1022, 1163, 1309 et 1440** : elles vivent dans une `ListView` horizontale et leurs rects dépassent
+   largement le viewport. Les 7 ont été déclarées mortes ; après **défilement horizontal** de la rangée
+   (`mouse.wheel(120, 0)` jusqu'à ramener la puce sous 380 px), les 3 re-testées (`CBCT`, `Photo`,
+   `Carte mutuelle`) repeignent toutes. **À retenir : inventorier ne suffit pas, il faut amener le contrôle
+   dans le viewport — y compris horizontalement.**
+3. **Coordonnées périmées après un clic précédent.** Le passage en masse réutilise l'inventaire initial ;
+   dès qu'un clic ouvre un dialogue, navigue ou replie un panneau, les rects suivants ne valent plus rien.
+
+**Conséquence pour la ronde suivante** : ne jamais filer un « bouton mort » sorti d'un passage en masse
+sans l'avoir rejoué **seul, sur page neuve, après mise dans le viewport (horizontale comprise), avec
+comparaison de pixels**. Les 3 rechecks de cette ronde (9 + 11 + 6 candidats) ont donné **0 mort**.
+
+#### Détection de canvas blanc — seuil inadapté au mobile clair
+
+L'app infirmière rend `white = 0.976` sur `/` et `0.972` sur `/notification-preferences`, au-dessus du
+seuil P0 de 0,92. **Ce n'est pas un écran blanc** : la capture montre l'écran « Disponibilité » complet
+(titre, phrase d'état « Vous êtes EN LIGNE — vous recevez les demandes de visite proches. », interrupteur
+« En ligne », barre d'onglets à 3 entrées). Le seuil de 0,92 est calibré pour des écrans denses de poste
+fixe ; une interface mobile sobre sur fond blanc le franchit légitimement. **Non rapporté.** À la ronde
+suivante, croiser le ratio de blanc avec le **nombre de contrôles Semantics** avant de conclure (ici 8).
+
 ### Bilan complet de la ronde R83 — harnais corrigé (54 écran×viewport)
 
 **940 contrôles inventoriés, 404 activés, 334 OK, 60 « morts » bruts, 10 « cassés » bruts, 10 désactivés, 39 hors champ.**
