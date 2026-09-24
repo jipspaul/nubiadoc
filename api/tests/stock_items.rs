@@ -435,6 +435,75 @@ async fn delta_sign_incoherent_with_reason_returns_422() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 1a-bis (#7552) : delta hors plafond → 422, stock inchangé ──────────
+
+#[tokio::test]
+async fn delta_over_max_movement_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let secretary_token = make_secretary_token(f.user_id, f.cabinet_id);
+    let practitioner_token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (status, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/stock-items",
+        &secretary_token,
+        Some(json!({
+            "reference": "GANTS-MAXDELTA",
+            "label": "Gants latex max delta",
+            "unit": "boite"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let item_id = created["item_id"].as_str().unwrap().to_string();
+
+    // Réception au-delà du plafond (même borne que l'import CSV, #7453) → refusée.
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &practitioner_token,
+        Some(json!({"delta": 2_000_000_000, "reason": "reception"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // adjustment négatif hors plafond → refusé aussi (borne symétrique).
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &practitioner_token,
+        Some(json!({"delta": -2_000_000_000, "reason": "adjustment"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Le stock n'a pas bougé.
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/stock-items",
+        &secretary_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let items = list.as_array().unwrap();
+    let item = items
+        .iter()
+        .find(|i| i["id"] == item_id)
+        .expect("item must exist");
+    assert_eq!(item["quantity_on_hand"], 0);
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 1b : consommation > stock disponible → 422 insufficient_stock (#4341) ──
 
 #[tokio::test]
