@@ -10,7 +10,7 @@
 ### Ronde R95 — 2026-09-24 (diff-driven : PR #7561→#7565 mergées le matin même)
 
 **Périmètre** : 5 apps sur 5. **23 écrans** audités au passage en masse + **11 audits pilotés à la main**.
-**901 contrôles inventoriés, 492 activés.**
+**1 009 contrôles inventoriés, 552 activés** (27 écrans×route + 11 audits pilotés à la main).
 **Verdict global : 0 bouton MORT confirmé, 1 CASSÉ confirmé.**
 
 | app | écran/route | inventoriés | activés | OK | morts bruts | cassés bruts | last_check |
@@ -46,7 +46,7 @@
 | infirmiere | `/` — 3 onglets Disponibilité / Offres / Ma visite *(manuel)* | 26 | 13 | 13 | 0 | 0 | 2026-09-24T12:50Z |
 | infirmiere | `/notification-preferences` | 5 | 2 | 2 | 0 | 0 | 2026-09-24T12:45Z |
 
-**Total : 901 inventoriés, 492 activés.** Les colonnes « bruts » sont les verdicts du passage en masse ;
+**Total : 1 009 inventoriés, 552 activés.** Les colonnes « bruts » sont les verdicts du passage en masse ;
 la mention « → 0 confirmé » signale les grappes re-testées une par une sur page neuve (26 re-tests
 individuels cette ronde) et toutes invalidées.
 
