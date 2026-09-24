@@ -15,6 +15,17 @@ import 'widgets/waiting_room_kpis.dart';
 /// Seuil critique d'attente (cf. KPI « au-delà de 30 min », #5170/#5173).
 const int _criticalWaitThresholdMinutes = 30;
 
+/// Prochain patient réellement appelable (#7570) : le premier de la liste
+/// dont `isWaiting` est vrai — jamais le premier de la liste brute, qui peut
+/// être `in_consultation` (déjà au fauteuil, donc pas « suivant »). Même
+/// prédicat que le CTA d'en-tête (`firstWhere((e) => e.isWaiting)`).
+WaitingRoomEntry? _nextToCallEntry(List<WaitingRoomEntry> entries) {
+  for (final entry in entries) {
+    if (entry.isWaiting) return entry;
+  }
+  return null;
+}
+
 /// Entrée la plus en retard au-delà du seuil critique, ou `null` si aucune
 /// n'y est (#5170) — c'est celle que le bandeau nomme.
 WaitingRoomEntry? _mostOverdueEntry(List<WaitingRoomEntry> entries) {
@@ -94,6 +105,7 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
               );
             }
             final mostOverdue = _mostOverdueEntry(entries);
+            final nextToCall = _nextToCallEntry(entries);
             return Column(
               children: [
                 if (mostOverdue != null)
@@ -107,6 +119,7 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
                     itemBuilder: (_, i) => _WaitingEntryTile(
                       entry: entries[i],
                       position: i + 1,
+                      isNext: entries[i].id == nextToCall?.id,
                       actionInProgress: state.actionInProgress,
                     ),
                   ),
@@ -460,11 +473,18 @@ class _WaitingEntryTile extends StatelessWidget {
   const _WaitingEntryTile({
     required this.entry,
     required this.position,
+    required this.isNext,
     required this.actionInProgress,
   });
 
   final WaitingRoomEntry entry;
   final int position;
+
+  /// `true` si cette entrée est le prochain patient réellement appelable
+  /// (#7570) — dérivé de `WaitingRoomEntry.isWaiting`, jamais de [position],
+  /// qui n'est qu'un rang d'affichage sur la liste brute (`in_consultation`
+  /// compris).
+  final bool isNext;
 
   /// Une action (appel suivant/ligne) est déjà en cours côté back — désactive
   /// le bouton « Appeler » de la ligne pour éviter le double-appel (#6637).
@@ -500,8 +520,6 @@ class _WaitingEntryTile extends StatelessWidget {
 
     // Tête de file (#5165) : liseré émeraude à gauche, jamais un fond de
     // ligne — le fond entrerait en concurrence avec la couleur du retard.
-    final bool isNext = position == 1;
-
     final row = ListRow(
       leading: Row(
         mainAxisSize: MainAxisSize.min,
@@ -521,7 +539,7 @@ class _WaitingEntryTile extends StatelessWidget {
           const SizedBox(width: 8),
           _WaitColumn(entry: entry),
           const SizedBox(width: 8),
-          _EstimationColumn(entry: entry, position: position),
+          _EstimationColumn(entry: entry, isNext: isNext),
           const SizedBox(width: 16),
           Column(
             mainAxisSize: MainAxisSize.min,
@@ -773,10 +791,10 @@ class _WaitColumn extends StatelessWidget {
 /// note de bas de page pour devenir sa propre colonne, sans jamais inventer
 /// de valeur quand le champ est nul.
 class _EstimationColumn extends StatelessWidget {
-  const _EstimationColumn({required this.entry, required this.position});
+  const _EstimationColumn({required this.entry, required this.isNext});
 
   final WaitingRoomEntry entry;
-  final int position;
+  final bool isNext;
 
   @override
   Widget build(BuildContext context) {
@@ -789,10 +807,11 @@ class _EstimationColumn extends StatelessWidget {
     final value = minutes != null
         ? '~${_WaitColumn._formatWait(Duration(minutes: minutes))}'
         : '—';
-    // Tête de file (#5169) : la première position n'a pas d'estimation car
-    // elle est sur le point d'être appelée, pas en attente d'un calcul.
+    // Tête de file (#5169 / #7570) : le prochain patient réellement
+    // appelable n'a pas d'estimation car il est sur le point d'être appelé,
+    // pas en attente d'un calcul.
     final nullLabel =
-        minutes != null ? null : (position == 1 ? 'à appeler' : 'à évaluer');
+        minutes != null ? null : (isNext ? 'à appeler' : 'à évaluer');
 
     return Column(
       key: Key('waiting_entry_estimation_${entry.id}'),

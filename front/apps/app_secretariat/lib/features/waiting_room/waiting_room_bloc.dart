@@ -88,13 +88,25 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
   /// mais ne doit plus jamais rester muet : la même bannière que pour un
   /// échec réseau prévient l'utilisateur plutôt que d'ignorer le clic en
   /// silence).
+  ///
+  /// La tête de file est le premier `isWaiting` de la liste, pas
+  /// `entries.first` (#7570) : une entrée `in_consultation` en tête de liste
+  /// n'attend plus, elle ne doit ni être appelable, ni bloquer l'appel du
+  /// vrai suivant.
   Future<void> _onCallRequested(
     WaitingRoomCallRequested event,
     Emitter<WaitingRoomState> emit,
   ) async {
     final current = state;
     if (current is! WaitingRoomLoaded || current.entries.isEmpty) return;
-    if (current.entries.first.id != event.entryId) {
+    WaitingRoomEntry? nextToCall;
+    for (final entry in current.entries) {
+      if (entry.isWaiting) {
+        nextToCall = entry;
+        break;
+      }
+    }
+    if (nextToCall == null || nextToCall.id != event.entryId) {
       safeEmit(current.copyWith(
         actionError:
             "Seul le patient en tête de file peut être appelé pour l'instant.",
