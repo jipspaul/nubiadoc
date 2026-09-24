@@ -180,10 +180,18 @@ const VALID_STATUSES: [&str; 6] = [
     "cancelled",
 ];
 
-/// Réponse liste : `{ data: [...] }`.
+/// Statuts « actionnables » de la file pharmacie : jamais tronqués par la
+/// pagination (#7555 — un `ready` hors des 200 lignes les plus récentes par
+/// `received_at` devenait inatteignable au comptoir).
+const ACTIVE_STATUSES_SQL: &str = "('received', 'preparing', 'ready')";
+
+/// Réponse liste : `{ data: [...], page: { next_cursor } }` (#7555 —
+/// `next_cursor` signale explicitement une troncature au lieu de la
+/// masquer, comme pour `AccountOrdersResponse`).
 #[derive(Serialize)]
 pub struct OrdersResponse {
     pub data: Vec<OrderDto>,
+    pub page: OrdersPage,
 }
 
 /// Paramètres de `GET /v1/account/orders` (pagination cursor-based, comme
@@ -221,16 +229,42 @@ fn decode_order_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)>
 
 // ── Vue pharmacie ─────────────────────────────────────────────────────────────
 
-/// Paramètres de `GET /v1/pharmacy/orders`.
+/// Paramètres de `GET /v1/pharmacy/orders` (pagination cursor-based, même
+/// convention que `list_account_orders` : `?cursor=`, `?limit=` défaut 200,
+/// max 500 — #7555, avant ça un `LIMIT 200` en dur sans curseur ni métadonnée
+/// de troncature).
 #[derive(Deserialize)]
 pub struct ListOrdersQuery {
     pub status: Option<String>,
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+fn encode_pharmacy_order_cursor(
+    sort_priority: i32,
+    received_at: chrono::DateTime<chrono::Utc>,
+    id: Uuid,
+) -> String {
+    format!("{sort_priority}|{}|{id}", received_at.timestamp_micros())
+}
+
+fn decode_pharmacy_order_cursor(s: &str) -> Option<(i32, chrono::DateTime<chrono::Utc>, Uuid)> {
+    let mut parts = s.splitn(3, '|');
+    let sort_priority: i32 = parts.next()?.parse().ok()?;
+    let micros: i64 = parts.next()?.parse().ok()?;
+    let id = Uuid::parse_str(parts.next()?).ok()?;
+    let received_at = chrono::DateTime::from_timestamp_micros(micros)?;
+    Some((sort_priority, received_at, id))
 }
 
 /// `GET /v1/pharmacy/orders?status=` — file des commandes de la pharmacie.
 ///
 /// Token `kind:"pharma"` requis. RLS `pharmacy_order_pharmacy_select`.
 /// Statut inconnu → 422.
+///
+/// Triée avec les statuts actionnables (`received`/`preparing`/`ready`)
+/// toujours avant les statuts terminaux : une file volumineuse ne peut donc
+/// jamais faire sortir une commande `ready` de la page courante (#7555).
 pub async fn list_pharmacy_orders(
     State(state): State<AppState>,
     claims: PharmaMemberClaims,
@@ -241,6 +275,11 @@ pub async fn list_pharmacy_orders(
             return Err(AppError::ValidationError);
         }
     }
+    let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_pharmacy_order_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
@@ -249,24 +288,81 @@ pub async fn list_pharmacy_orders(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(&format!(
-        "SELECT {ORDER_COLUMNS} FROM pharmacy_order \
-         WHERE ($1::text IS NULL OR status = $1) \
-         ORDER BY received_at DESC \
-         LIMIT 200",
-    ))
-    .bind(params.status.as_deref())
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let cursor_clause = if cursor.is_some() {
+        " AND (sort_priority > $3 \
+           OR (sort_priority = $3 AND received_at < $4) \
+           OR (sort_priority = $3 AND received_at = $4 AND id < $5))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
+        "WITH ranked AS ( \
+             SELECT {ORDER_COLUMNS}, \
+                 (CASE WHEN status IN {ACTIVE_STATUSES_SQL} THEN 0 ELSE 1 END) AS sort_priority \
+             FROM pharmacy_order \
+             WHERE ($2::text IS NULL OR status = $2) \
+         ) \
+         SELECT * FROM ranked \
+         WHERE true{cursor_clause} \
+         ORDER BY sort_priority ASC, received_at DESC, id DESC \
+         LIMIT $1",
+    );
+
+    let fetch_limit = limit + 1;
+    let rows = match cursor {
+        Some((sort_priority, received_at, id)) => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(params.status.as_deref())
+            .bind(sort_priority)
+            .bind(received_at)
+            .bind(id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(params.status.as_deref())
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let data = rows
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let data = visible
         .iter()
         .map(order_from_row)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Json(OrdersResponse { data }))
+
+    let next_cursor = if has_more {
+        visible
+            .last()
+            .map(|row| -> Result<String, AppError> {
+                let sort_priority: i32 = row
+                    .try_get("sort_priority")
+                    .map_err(|_| AppError::Internal)?;
+                let received_at: chrono::DateTime<chrono::Utc> =
+                    row.try_get("received_at").map_err(|_| AppError::Internal)?;
+                let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+                Ok(encode_pharmacy_order_cursor(sort_priority, received_at, id))
+            })
+            .transpose()?
+    } else {
+        None
+    };
+
+    Ok(Json(OrdersResponse {
+        data,
+        page: OrdersPage { next_cursor },
+    }))
 }
 
 /// `GET /v1/pharmacy/orders/{id}` — détail d'une commande (404 hors tenant).
