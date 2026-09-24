@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -76,6 +77,11 @@ class _HomeCareRequestBodyState extends State<HomeCareRequestBody> {
       body: BlocConsumer<HomeCareRequestCubit, HomeCareRequestState>(
         listener: (context, state) {
           if (state is HomeCareRequestFailure) {
+            SemanticsService.sendAnnouncement(
+              View.of(context),
+              state.message,
+              Directionality.of(context),
+            );
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.message)),
             );
