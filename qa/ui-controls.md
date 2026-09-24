@@ -3912,3 +3912,31 @@ pas déjà l'état courant.
 | « Enregistrer » | praticien `/cabinet-setup` | formulaire d'onboarding vide ; `CabinetInfoCubit` n'a **que** `submit`, aucun `load` — l'écran n'est pas un éditeur de cabinet existant |
 | « Confirmer la demande » | patient `/home-care/new` | exige `state is HomeCareRequestEstimated` (`home_care_request_page.dart:163`) — un devis doit être obtenu d'abord ; se débloque bien une fois la géolocalisation accordée |
 | « Créer l'ordonnance » | praticien `/ordonnances/new` | dose/fréquence/durée non renseignées ; se débloque après complétion manuelle des 3 listes (cf. #7557) |
+
+#### Addendum R94 — second segment
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/maintenance` — facettes + ticket (1280) | 30 | 28 | 28 | 0 | 0 | 2026-09-24T07:46:00Z |
+| praticien | `/patients/:id` — fiche patient (1280) | 54 | 58 (48 + 10 re-scan) | 57 | 0 | **1** | 2026-09-24T07:56:00Z |
+| praticien | `/patients/:id` — zone « Notes » (1280) | 3 | 3 | 2 | 0 | **1** | 2026-09-24T07:56:00Z |
+| patient | `/messaging/:id` — fil de 304 messages (390) | 9 | 1 | 1 | 0 | 0 | 2026-09-24T07:34:00Z |
+
+**Cumul TOTAL R94 : 26 écran×viewport, ~570 contrôles inventoriés, 288 activés, 0 MORT confirmé, 1 CASSÉ confirmé
+(« Enregistrer les notes » actif à champ vide → `POST …/notes` 422 sans message — consigné dans #7560).**
+
+#### Amélioration d'outillage apportée cette ronde
+
+Le détecteur d'effet reposait sur un diff de l'inventaire Semantics. Deux angles morts ont été identifiés
+**et corrigés** :
+
+1. **Troncature des libellés.** `inventory()` coupe chaque libellé à 90 caractères. Or Flutter fusionne des
+   listes entières dans un seul nœud : sur `secretariat /maintenance`, basculer la facette « Résolu » change
+   réellement la liste (capture à l'appui — 2 tickets résolus rendus), mais le changement tombait **au-delà du
+   90ᵉ caractère** du libellé fusionné, donc le diff concluait « MORT ». Faux positif.
+2. **Clic hors cadre** (cf. section précédente).
+
+Le re-testeur final (`R94_rescan.js`) juge désormais l'effet sur **un hash MD5 des pixels du screenshot**,
+insensible aux deux pièges, en plus de l'URL, du nombre de contrôles et du trafic réseau. Sur les 25 contrôles
+« MORT » de la fiche patient, il a rendu **8 OK, 1 inatteignable, 1 réellement CASSÉ** — c'est ce dernier qui a
+donné #7560. **À réutiliser tel quel aux rondes suivantes.**
