@@ -104,6 +104,8 @@ pub(crate) fn cabinet_local_days_utc_range(
     ))
 }
 
+const VALID_AGENDA_VIEWS: [&str; 2] = ["day", "week"];
+
 #[derive(Deserialize)]
 pub struct AgendaQuery {
     /// "day" (défaut) ou "week".
@@ -161,10 +163,16 @@ pub async fn get_cabinet_agenda(
         None => chrono::Utc::now().date_naive(),
     };
 
-    let days: i64 = if params.view.as_deref() == Some("week") {
-        7
-    } else {
-        1
+    let days: i64 = match params.view.as_deref() {
+        None => 1,
+        Some(v) if VALID_AGENDA_VIEWS.contains(&v.to_lowercase().as_str()) => {
+            if v.eq_ignore_ascii_case("week") {
+                7
+            } else {
+                1
+            }
+        }
+        Some(_) => return Err(AppError::ValidationError),
     };
     let (range_start, range_end) = cabinet_local_days_utc_range(base_date, days)?;
 
