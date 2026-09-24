@@ -281,6 +281,19 @@ void main() {
       expect(find.byType(CreateStockRequestDialog), findsOneWidget);
     });
 
+    testWidgets('Ctrl+N ouvre la création de demande (#7545)', (tester) async {
+      when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CreateStockRequestDialog), findsOneWidget);
+    });
+
     // #5186 — facettes de filtrage par statut.
     final acceptedRequest = StockRequest(
       id: 'req-3',
