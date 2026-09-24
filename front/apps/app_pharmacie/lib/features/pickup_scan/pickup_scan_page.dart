@@ -14,7 +14,13 @@ import 'widgets/manual_code_field.dart';
 /// manuelle du code est TOUJOURS proposée (fallback Windows/Linux, caméra
 /// refusée, QR illisible).
 class PickupScanPage extends StatelessWidget {
-  const PickupScanPage({super.key, required this.orderId, this.orderRef});
+  const PickupScanPage({
+    super.key,
+    required this.orderId,
+    this.orderRef,
+    this.patientDisplayName,
+    this.lineCount,
+  });
 
   /// Commande d'origine (pour le retour) — le scan lui-même est PAR TOKEN.
   final String orderId;
@@ -22,6 +28,12 @@ class PickupScanPage extends StatelessWidget {
   /// Numéro métier (`CMD-…`) de la commande en main, transmis par l'écran
   /// appelant quand il l'a déjà chargée (#6350).
   final String? orderRef;
+
+  /// Identification de la commande en main (#7549) — transmises par la file
+  /// via l'`extra` de route quand elle les a déjà chargées ; `null` en accès
+  /// direct par lien, auquel cas l'encart se replie sur [orderId].
+  final String? patientDisplayName;
+  final int? lineCount;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +45,12 @@ class PickupScanPage extends StatelessWidget {
           leading:
               BackButton(onPressed: () => context.go('/orders/$orderId')),
         ),
-        body: PickupScanBody(orderId: orderId, orderRef: orderRef),
+        body: PickupScanBody(
+          orderId: orderId,
+          orderRef: orderRef,
+          patientDisplayName: patientDisplayName,
+          lineCount: lineCount,
+        ),
       ),
     );
   }
@@ -43,7 +60,13 @@ class PickupScanPage extends StatelessWidget {
 /// panneau du volet droit (voir [OrderDetailBody]) en plus de son usage en
 /// page complète via [PickupScanPage] (accès direct par route).
 class PickupScanBody extends StatelessWidget {
-  const PickupScanBody({super.key, required this.orderId, this.orderRef});
+  const PickupScanBody({
+    super.key,
+    required this.orderId,
+    this.orderRef,
+    this.patientDisplayName,
+    this.lineCount,
+  });
 
   final String orderId;
 
@@ -51,6 +74,12 @@ class PickupScanBody extends StatelessWidget {
   /// l'a déjà chargée (#6350) — sinon l'encart de non-correspondance se
   /// replie sur [orderId].
   final String? orderRef;
+
+  /// Identification de la commande en main (#7549), quand l'écran appelant
+  /// l'a déjà chargée — sinon l'encart d'identification se replie sur
+  /// [orderId] et masque le nombre de lignes.
+  final String? patientDisplayName;
+  final int? lineCount;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +97,14 @@ class PickupScanBody extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _PickupIdentityCard(
+                key: const Key('pickup_identity_card'),
+                orderId: orderId,
+                orderRef: orderRef,
+                patientDisplayName: patientDisplayName,
+                lineCount: lineCount,
+              ),
+              const SizedBox(height: 16),
               if (NubiaQrScannerView.isSupported)
                 NubiaQrScannerView(
                   onCode: (code) => context.read<PickupScanCubit>().submit(
@@ -128,6 +165,60 @@ class PickupScanBody extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Encart d'identification affiché au-dessus du viseur (#7549) : avant même
+/// de scanner, le pharmacien doit savoir quel sachet il tient — patient,
+/// numéro CMD, nombre de lignes. Jusqu'ici cette identification n'existait
+/// que dans `_MismatchColumn`, c.-à-d. APRÈS un scan raté.
+class _PickupIdentityCard extends StatelessWidget {
+  const _PickupIdentityCard({
+    super.key,
+    required this.orderId,
+    this.orderRef,
+    this.patientDisplayName,
+    this.lineCount,
+  });
+
+  final String orderId;
+  final String? orderRef;
+  final String? patientDisplayName;
+  final int? lineCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    final ref = orderRef ?? orderId;
+    final lines = lineCount;
+    final subtitle = lines != null
+        ? 'Commande $ref · $lines ligne${lines > 1 ? 's' : ''}'
+        : 'Commande $ref';
+    return NubiaCard(
+      backgroundColor: NubiaColors.n50,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'RETRAIT ATTENDU POUR',
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: tokens.textTertiary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            patientDisplayName ?? 'Patient',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style:
+                theme.textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+          ),
+        ],
+      ),
     );
   }
 }

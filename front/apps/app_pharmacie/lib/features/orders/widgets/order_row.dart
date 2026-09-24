@@ -266,7 +266,9 @@ class _RowAction extends StatelessWidget {
           size: NubiaButtonSize.sm,
           onPressed: () => context.go(
             '/orders/${order.id}/pickup',
-            extra: order.orderRef,
+            // La commande complète (#7549) : le sous-écran de scan en a
+            // besoin pour identifier ce qu'il délivre AVANT de scanner.
+            extra: order,
           ),
         );
       case PharmacyOrderStatus.pickedUp:
