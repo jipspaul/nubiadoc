@@ -1018,6 +1018,53 @@ void main() {
       expect(find.byKey(const Key('order_action_scan')), findsNothing);
       expect(find.byType(ManualCodeField), findsOneWidget);
     });
+
+    testWidgets(
+        'à 1440 px de fenêtre (viewport déclaré par la maquette), la 3ᵉ '
+        'colonne est financée — #7571 : #7556 la finançait seulement à '
+        'partir de ~1800 px de fenêtre', (tester) async {
+      final ordersBloc = MockOrdersBloc();
+      when(() => ordersBloc.state).thenReturn(
+        OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.ready)]),
+      );
+
+      final detailBloc = MockOrderDetailBloc();
+      when(() => detailBloc.state).thenReturn(
+        OrderDetailLoaded(order('o1', PharmacyOrderStatus.ready)),
+      );
+      GetIt.instance.registerFactory<OrderDetailBloc>(() => detailBloc);
+      addTearDown(() => GetIt.instance.unregister<OrderDetailBloc>());
+      GetIt.instance.registerFactory<PickupScanCubit>(
+        () => PickupScanCubit(
+          confirmPickup: ConfirmPharmacyPickupUseCase(repo),
+        ),
+      );
+      addTearDown(() => GetIt.instance.unregister<PickupScanCubit>());
+
+      // `OrdersScreen` n'a pas de Scaffold propre (posé dans le body du
+      // ProShell), donc `pumpApp` (MaterialApp sans Scaffold) donne au
+      // LayoutBuilder toute la largeur de `physicalSize` — 1190 px = les
+      // 1440 px de fenêtre que la maquette déclare, moins les 250 px du
+      // rail ProShell labellisé (`_sidebarWidth`, pro_shell.dart) qui les
+      // précède toujours dans l'app réelle.
+      tester.view.physicalSize = const Size(1190, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: ordersBloc,
+          child: const OrdersScreen(selectedOrderId: 'o1'),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(find.byKey(const Key('order_row_o1')), findsOneWidget);
+      expect(find.byKey(const Key('order_detail_back')), findsOneWidget);
+      expect(find.byKey(const Key('order_action_scan')), findsNothing);
+      expect(find.byType(ManualCodeField), findsOneWidget);
+    });
   });
 
   group('Mapping statut → pill', () {
