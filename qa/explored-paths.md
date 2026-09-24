@@ -3499,3 +3499,12 @@ du front qui pourrait en tirer un compte faux est `consultation_historique_view.
 est un repli** qui ne s'affiche que si `patient_name` est vide, or **0 séance sur 100 est dans ce cas**.
 **Non filé** : risque latent, non atteignable avec les données actuelles. À re-tester si un patient est
 supprimé ou déplacé de cabinet.*
+
+**Troisième segment R96 — blocs B1/B3/B9/B11 (jamais couverts cette ronde)**
+
+| scénario | last_check | last_status | brief |
+|---|---|---|---|
+| **B1 — paiements / intent Stripe** | 2026-09-24T19:13Z | **OK** | Endpoint **solide**. Acompte valide (devis signé 68 000 c, `kind:"deposit"`, 20 400 c, `card`) → **201** + `payment_id` + `client_secret`. **Idempotence réelle** : même `Idempotency-Key` + même corps → **201 avec le MÊME `payment_id` et le MÊME `client_secret`** ; même clé + corps **différent** → **409 `idempotency_key_conflict`** (l'empreinte `account|quote|kind|amount|method` de #3547 fait son travail). Gardes : `kind` inconnu, `method` inconnue, montant **négatif**, montant **zéro** → **422** ; devis d'autrui → **404** ; **jeton pro → 403**. *Le `Idempotency-Key` est **obligatoire** (`billing_payments.rs:71-77`) — son absence rend 422, ce qui a d'abord faussé mes 7 premiers appels.* |
+| **B3 — documents / coffre-fort** | 2026-09-24T19:14Z | **OK** | **Cloisonnement parfait** sur le téléchargement : propriétaire → **200**, **sans jeton → 401**, **pharmacie → 403**, **infirmière → 403**, document inexistant → **404**. *Contrôle croisé de bout en bout : les PDF générés par les flux de cette ronde sont bien dans le coffre du patient — `devis-661a6056….pdf` (X6) et `ordonnance-5a9646b5….pdf` (X1), avec `mime_type`, `size_bytes` et `sha256` renseignés.* |
+| **B9 — avis** | 2026-09-24T19:15Z | **OK** | Bornes de notation respectées : `rating` **6**, **0** et **−1** → **422**. Provider inexistant → 422. Liste des avis d'un praticien → 200 (enveloppe `data`/`page`). |
+| **B11 — onboarding pro, membres, secrétariats** | 2026-09-24T19:16Z | **OK** | **RBAC correct sur la gestion des membres** : la **secrétaire** comme le **praticien** reçoivent **403** en tentant d'ajouter un membre (réservé admin/manager). Lecture autorisée : 40 membres avec leurs rôles (`secretary`/`practitioner`/`admin`/`manager`), secrétariats listés. `/v1/pro/verification` → 200 (`rpps`, `10100000001`, `status: verified`). *`GET /v1/cabinet/provider` rend **405** — route non-GET, pas un défaut.* |
