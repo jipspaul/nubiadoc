@@ -9,23 +9,61 @@
 
 ### Ronde R95 — 2026-09-24 (diff-driven : PR #7561→#7565 mergées le matin même)
 
-**Périmètre** : 5 apps sur 5. 12 écrans audités, **~330 contrôles inventoriés, 178 activés**.
+**Périmètre** : 5 apps sur 5. **23 écrans** audités au passage en masse + **11 audits pilotés à la main**.
+**901 contrôles inventoriés, 492 activés.**
 **Verdict global : 0 bouton MORT confirmé, 1 CASSÉ confirmé.**
 
-| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check |
+| app | écran/route | inventoriés | activés | OK | morts bruts | cassés bruts | last_check |
 |---|---|---|---|---|---|---|---|
-| praticien | `/ordonnances/new?patientId=…` (1280) | 50 | 24 | 23 | 0 | 0 | 2026-09-24T12:30Z |
-| praticien | `/patients/:id` — avec relation de soin (1280) | 54 | 14 | 14 | 0 | 0 | 2026-09-24T12:45Z |
-| praticien | `/patients/:id` — sans relation de soin (1280) | 46 | 6 | 5 | 0 | 1 | 2026-09-24T12:50Z |
-| secretariat | `/salle-attente` — file à 4 entrées (1280) | 34 | 8 | 6 | 0 | **1** | 2026-09-24T12:40Z |
-| pharmacie | `/` (File des commandes, 1280) | 35 | 8 | 8 | 0 | 0 | 2026-09-24T13:00Z |
-| pharmacie | `/orders/:id` (Délivrance, 1920/1680/1440/1280) | 38 | 6 | 6 | 0 | 0 | 2026-09-24T12:55Z |
-| patient | `/` (Accueil, 390×844) | 22 | 21 | 21 | 0 | 0 | 2026-09-24T12:35Z |
-| patient | `/documents` (390×844) | 43 | 26 | 26 | 0 | 0 | 2026-09-24T13:05Z |
-| patient | `/financial` + détail d'un devis (390×844) | 11 | 10 | 10 | 0 | 0 | 2026-09-24T13:00Z |
-| patient | `/messaging`, `/home-care`, `/notifications`, `/profile`, `/mes-rdv` (390×844) | 75 | 46 | 46 | 0 | 0 | 2026-09-24T13:05Z |
-| infirmiere | `/` — 3 onglets Disponibilité / Offres / Ma visite (390×844) | 26 | 13 | 13 | 0 | 0 | 2026-09-24T12:50Z |
-| infirmiere | `/notification-preferences` (390×844) | 5 | 2 | 2 | 0 | 0 | 2026-09-24T12:45Z |
+| patient | `/` (Accueil, 390×844) | 22 | 12 | 3 | 9 → **0 confirmé** | 0 | 2026-09-24T12:35Z |
+| patient | `/mes-rdv` | 9 | 3 | 2 | 1 → **0 confirmé** | 0 | 2026-09-24T12:35Z |
+| patient | `/home-care` | 18 | 13 | 2 | 11 → **0 confirmé** | 0 | 2026-09-24T12:36Z |
+| patient | `/documents` | 43 | 23 | 12 | 11 → **0 confirmé** | 0 | 2026-09-24T13:05Z |
+| patient | `/notifications` | 21 | 15 | 14 | 1 → **0 confirmé** | 0 | 2026-09-24T12:38Z |
+| patient | `/profile` | 17 | 7 | 6 | 1 | 0 | 2026-09-24T12:38Z |
+| patient | `/financial` + détail d'un devis | 11 | 6 | 1 | 4 → **0 confirmé** | 1 → **0 confirmé** | 2026-09-24T13:00Z |
+| patient | `/messaging` | 10 | 8 | 3 | 5 → **0 confirmé** | 0 | 2026-09-24T13:04Z |
+| praticien | `/` (Tableau de bord, 1280×800) | 37 | 18 | 14 | 4 | 0 | 2026-09-24T13:35Z |
+| praticien | `/agenda` | 31 | 23 | 17 | 6 | 0 | 2026-09-24T13:37Z |
+| praticien | `/devis` | 29 | 15 | 13 | 2 | 0 | 2026-09-24T13:39Z |
+| praticien | `/stock` | 23 | 17 | 15 | 2 | 0 | 2026-09-24T13:41Z |
+| praticien | `/lab-work-orders` | 30 | 19 | 13 | 6 | 0 | 2026-09-24T13:43Z |
+| praticien | `/tasks` | 5 | 3 | 3 | 0 | 0 | 2026-09-24T13:45Z |
+| praticien | `/ordonnances/new?patientId=…` *(audit manuel)* | 50 | 24 | 24 | 0 | 0 | 2026-09-24T12:30Z |
+| praticien | `/patients/:id` — avec relation de soin *(manuel)* | 54 | 14 | 14 | 0 | 0 | 2026-09-24T12:45Z |
+| praticien | `/patients/:id` — sans relation de soin *(manuel)* | 46 | 6 | 5 | 0 | 1 → #7567 | 2026-09-24T12:50Z |
+| secretariat | `/` (Tableau de bord) | 37 | 25 | 18 | 6 | 1 → **sonde d'accès, pas un défaut** | 2026-09-24T13:30Z |
+| secretariat | `/agenda` | 43 | 33 | 14 | 18 → **0 confirmé** | 1 → *idem* | 2026-09-24T13:32Z |
+| secretariat | `/devis` | 56 | 32 | 21 | 10 | 1 → *idem* | 2026-09-24T13:34Z |
+| secretariat | `/stock` | 56 | 33 | 19 | 13 | 1 → *idem* | 2026-09-24T13:36Z |
+| secretariat | `/patients` (Fiches patients) | 43 | 23 | 14 | 8 | 1 → *idem* | 2026-09-24T13:40Z |
+| secretariat | `/team-messages` | 33 | 23 | 14 | 8 | 1 → *idem* | 2026-09-24T13:42Z |
+| secretariat | `/salle-attente` — file à 4 entrées *(manuel)* | 35 | 10 | 8 | 0 | **1 → #7570** | 2026-09-24T12:40Z |
+| secretariat | `/cabinet-payouts`, rail complet 17 entrées *(manuel)* | 17 | 17 | 17 | 0 | 0 | 2026-09-24T13:50Z |
+| secretariat | `/cabinet-stats` (Pilotage du cabinet) *(manuel)* | 12 | 2 | 2 | 0 | 0 | 2026-09-24T13:48Z |
+| pharmacie | `/` (File des commandes) *(manuel)* | 35 | 8 | 8 | 0 | 0 | 2026-09-24T13:00Z |
+| pharmacie | `/orders/:id` (Délivrance, 1920/1680/1440/1280) *(manuel)* | 38 | 6 | 6 | 0 | 0 | 2026-09-24T12:55Z |
+| infirmiere | `/` — 3 onglets Disponibilité / Offres / Ma visite *(manuel)* | 26 | 13 | 13 | 0 | 0 | 2026-09-24T12:50Z |
+| infirmiere | `/notification-preferences` | 5 | 2 | 2 | 0 | 0 | 2026-09-24T12:45Z |
+
+**Total : 901 inventoriés, 492 activés.** Les colonnes « bruts » sont les verdicts du passage en masse ;
+la mention « → 0 confirmé » signale les grappes re-testées une par une sur page neuve (26 re-tests
+individuels cette ronde) et toutes invalidées.
+
+#### Les 8 « cassés » bruts du passage en masse — 7 sont attendus
+
+- **6 sur 7 sont la même sonde d'accès** : l'app secrétariat appelle `GET /v1/cabinet/audit-log` au
+  démarrage et reçoit **403**. C'est **voulu et documenté** — `AuditLogAccessCubit` (`audit_log_access_cubit.dart`) :
+  « *Seul le 403 renvoyé par `GET /v1/cabinet/audit-log` prouve le non-admin/manager. On sonde l'endpoint
+  une fois au démarrage et on masque l'entrée uniquement lorsqu'un 403 le confirme.* » Le 403 est le
+  mécanisme, pas la panne. **Non rapporté.**
+- Le 7ᵉ est `GET /v1/cabinet/stats/activity` → **403** sur `/cabinet-stats` (praticien-only). L'écran le
+  gère proprement : les 4 KPI de facturation s'affichent et le bloc « Activité par praticien » rend un état
+  dédié **« Réservé aux praticiens — Votre rôle ne permet pas d'afficher l'activité par praticien »** avec
+  son icône de cadenas. **Non rapporté.**
+- Côté patient, le `404` sur `GET /v1/quotes/:id/attestation` à chaque ouverture de devis est le signal
+  « pas d'attestation pour ce devis » de l'API (`quote_attestation.rs:227`, `ok_or(AppError::NotFound)`) ;
+  le détail du devis s'affiche complètement, CTA « Signer le devis » compris. **Non rapporté.**
 
 #### Le seul contrôle CASSÉ confirmé
 
