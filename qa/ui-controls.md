@@ -4230,3 +4230,42 @@ désormais `isWaiting` au lieu de proposer d'appeler un patient déjà en consul
 
 **68 verdicts MORT** rendus au total par les balayages automatiques ; **68 réfutés** au re-test.
 Les 6 causes sont documentées plus haut. **R94 et R96 : 100 % de faux positifs au premier passage.**
+
+#### Addendum R96 — sixième segment
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/agenda` (1280) | 38 | 35 | 35 | 0 | 0 | 2026-09-24T19:33:00Z |
+| secretariat | `/appointments` (1280) | 25 | 24 | 24 | 0 | 0 | 2026-09-24T19:36:00Z |
+| secretariat | `/cabinet-payouts` (1280) | 25 | 22 | 22 | 0 | 0 | 2026-09-24T19:39:00Z |
+| praticien | `/team-messages` (1280) | 20 | 19 | 19 | 0 | 0 | 2026-09-24T19:41:00Z |
+| patient | `/oubliettes` (390) | 1 | 1 | 1 | 0 | 0 | 2026-09-24T19:43:00Z |
+| patient | `/reviews` (390) | 1 | 1 | 1 | 0 | 0 | 2026-09-24T19:43:00Z |
+| patient | `/implant-passport` (390) | 6 | 6 | 6 | 0 | 0 | 2026-09-24T19:44:00Z |
+
+**Les 3 suspects NON-rail de ce segment, vérifiés un par un, sont tous légitimes :**
+- `/agenda` — les 2 puces de praticien (« Dr Claire Lefèvre 13 », « Dr Hugo Marin 81 ») et la recherche
+  patient sont des **filtres côté client** : re-testés page rechargée, ils rendent **3,2 %**, **2,0 %** et
+  **1,1 %** de pixels changés et font varier l'inventaire (43 → 40 / 36 / 44). **0 requête** parce que la
+  semaine est déjà chargée — c'est correct, pas mort.
+- `/appointments` — « Tous » est la **facette déjà sélectionnée** (cause n°2).
+- `/cabinet-payouts` — « **Connecter Stripe** » et « **Exporter (CSV)** » sont **grisés à raison et
+  documentés** : `cabinet_payouts_page.dart:379-382` (#6702, aucune intégration Stripe côté API — grisé
+  avec la raison plutôt qu'une snackbar « à venir » trompeuse) et l'export CSV grisé quand il n'y a rien
+  à exporter.
+
+**États vides vérifiés dignes :** `/reviews` rend un vrai état vide (pictogramme + « Aucun avis pour ce
+prestataire. »), pas un canvas blanc malgré un ratio de blanc de 0,99. `/oubliettes` liste bien les
+documents récents — dont **ceux générés par cette ronde** (« Devis du 24 sept. il y a 35 min »,
+« Ordonnance du 24 sept. il y a 1 h »).
+
+*`praticien/inventaire` n'est pas une route : le libellé de rail « Inventaire » pointe sur
+`/stock-inventory` (erreur d'URL de ma part, la page 404 « Retour à l'accueil » est le comportement juste).*
+
+### CUMUL R96 — CHIFFRE DE CLÔTURE DÉFINITIF
+
+**36 écran×route audités · 541 contrôles inventoriés · 499 activés · `0` MORT confirmé · `0` CASSÉ.**
+
+**111 verdicts MORT** rendus au total par les balayages automatiques ; **111 réfutés** au re-test
+individuel, sans une seule exception. Les **6 causes** sont documentées plus haut et suffisent à les
+expliquer toutes. **R94 et R96 : 100 % de faux positifs au premier passage.**
