@@ -127,9 +127,25 @@ class _DashboardLoadedView extends StatelessWidget {
 
   final ProDashboardSummary summary;
 
+  // Largeur du chrome fixe de `ProShell` (rail de navigation 250 px + 1 px de
+  // séparateur, #5138) déduite de la largeur de fenêtre visée par la
+  // maquette pour obtenir la largeur *disponible* — même calcul que
+  // `kThreeColumnBreakpoint` (`consultation_layout_breakpoints.dart`,
+  // #6386).
+  static const _kProShellChromeWidth = 251.0;
+
+  // Padding horizontal du `SingleChildScrollView` (16 px de chaque côté)
+  // qui enveloppe ce `LayoutBuilder` : lui aussi mange de la largeur avant
+  // que `constraints.maxWidth` n'atteigne la comparaison ci-dessous.
+  static const _kContentPadding = 16.0;
+
   // Seuil au-delà duquel la colonne droite (430 px fixe) + la gouttière
-  // (16 px) laissent assez de place à gauche pour rester lisible.
-  static const _wideBreakpoint = 1100.0;
+  // (16 px) laissent assez de place à gauche pour rester lisible — exprimé
+  // dans le même référentiel que la largeur *disponible* qu'il compare
+  // (#7551) : 1280 (fenêtre cible design-v2, INDEX.md) − 251 (chrome
+  // `ProShell`) − 32 (padding du `SingleChildScrollView`) = 997.
+  static const _wideBreakpoint =
+      1280.0 - _kProShellChromeWidth - (2 * _kContentPadding);
   static const _rightColumnWidth = 430.0;
   static const _gutter = 16.0;
 
