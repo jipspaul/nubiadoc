@@ -253,23 +253,63 @@ async fn call_bytes(
     (status, bytes.to_vec(), content_type)
 }
 
-/// 07:00 UTC du jour courant — soit 08 h ou 09 h locales `Europe/Paris`
-/// (UTC+1 en hiver, UTC+2 en été), donc toujours dans la journée locale
-/// correspondant à la date UTC du jour.
+/// Décalage `Europe/Paris` (heures) applicable à minuit local de `date` —
+/// même règle DST que `scheduling::paris_utc_offset_hours` (module privé de
+/// `nubia_api`, donc dupliquée ici : les tests d'intégration compilent comme
+/// crate à part et n'ont pas accès aux items `pub(crate)`).
+fn paris_utc_offset_hours(date: chrono::NaiveDate) -> i64 {
+    use chrono::Datelike;
+    fn last_sunday_of_month(year: i32, month: u32) -> chrono::NaiveDate {
+        let first_of_next = if month == 12 {
+            chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        } else {
+            chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+        }
+        .expect("mois valide");
+        let last_of_month = first_of_next - chrono::Duration::days(1);
+        let days_since_sunday = last_of_month.weekday().num_days_from_sunday();
+        last_of_month - chrono::Duration::days(days_since_sunday as i64)
+    }
+    let year = date.year();
+    let dst_start = last_sunday_of_month(year, 3);
+    let dst_end = last_sunday_of_month(year, 10);
+    if date >= dst_start && date < dst_end {
+        2
+    } else {
+        1
+    }
+}
+
+/// « Aujourd'hui » en jour local `Europe/Paris`, comme `scheduling::paris_today` :
+/// `Utc::now().date_naive()` reste sur la veille jusqu'à 22 h (été) / 23 h
+/// (hiver) UTC, alors que `day_brief`/`week_brief` calculent déjà leur
+/// fenêtre sur le jour local Paris via `cabinet_local_days_utc_range`.
+fn paris_today() -> chrono::NaiveDate {
+    let now = chrono::Utc::now();
+    let offset_hours = paris_utc_offset_hours(now.date_naive());
+    (now + chrono::Duration::hours(offset_hours)).date_naive()
+}
+
+/// 09:00 heure locale `Europe/Paris` du jour local courant.
 ///
 /// Sert d'ancre aux fixtures de RDV. Les briefs découpent la journée en jours
-/// LOCAUX (`scheduling::cabinet_local_days_utc_range`) : ancrées sur `now()`,
-/// les fixtures « +1 h » jouées après 22 h UTC basculaient sur le LENDEMAIN
-/// local et vidaient le brief du jour — deux tests rouges chaque soir sur
-/// `main`, bloquant toute PR Rust (constaté le 2026-09-19 à 21 h 31 UTC).
+/// LOCAUX Paris (`scheduling::cabinet_local_days_utc_range`, base `paris_today`).
+/// Une ancre sur le jour calendaire UTC (l'ancien calcul « 07:00 UTC du jour
+/// UTC courant ») se désynchronise du jour Paris entre 22 h/23 h UTC et
+/// minuit UTC — la fenêtre `day_brief` a déjà basculé sur le lendemain local
+/// alors que l'ancre reste sur l'aujourd'hui UTC, vidant le brief du jour :
+/// deux tests rouges chaque soir sur `main`, bloquant toute PR Rust (constaté
+/// le 2026-09-19 à 21 h 31 UTC, puis à nouveau le 2026-09-24 vers 22 h UTC).
+/// Ancrer sur le jour local Paris avec une marge de 09:00 (loin de minuit
+/// local dans les deux sens) élimine cette fenêtre de flakiness.
 fn brief_day_anchor_utc() -> chrono::DateTime<chrono::Utc> {
-    let today = chrono::Utc::now().date_naive();
-    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
-        today
-            .and_hms_opt(7, 0, 0)
-            .expect("07:00 est une heure valide"),
-        chrono::Utc,
-    )
+    let today = paris_today();
+    let offset_hours = paris_utc_offset_hours(today);
+    let naive = today
+        .and_hms_opt(9, 0, 0)
+        .expect("09:00 est une heure valide");
+    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(naive, chrono::Utc)
+        - chrono::Duration::hours(offset_hours)
 }
 
 async fn insert_appointment(db: &PgPool, f: &Fixture, offset_interval: &str, motif: &str) -> Uuid {
