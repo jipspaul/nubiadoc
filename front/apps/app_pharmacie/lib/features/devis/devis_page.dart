@@ -122,8 +122,17 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
                         // API (order_id obligatoire) : le composeur existant
                         // (quote_composer_sheet.dart) ne s'ouvre que depuis
                         // le détail d'une commande — on y amène l'officine
-                        // pour qu'elle en choisisse une.
-                        onPressed: () => context.go(AppRouter.orders),
+                        // pour qu'elle en choisisse une. #7577 : le dit
+                        // explicitement (SnackBar) pour que la navigation
+                        // ne soit pas silencieuse.
+                        onPressed: () {
+                          NubiaSnackbar.show(
+                            context: context,
+                            message: 'Choisissez la commande pour laquelle '
+                                'créer un devis.',
+                          );
+                          context.go(AppRouter.orders);
+                        },
                       ),
                     ],
                   ),
