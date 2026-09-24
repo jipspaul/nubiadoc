@@ -98,10 +98,11 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
               children: [
                 if (mostOverdue != null)
                   _OverThresholdBanner(entry: mostOverdue),
+                const _WaitingRoomTableHeader(),
                 Expanded(
                   child: ListView.builder(
                     key: const Key('waiting_room_list'),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: EdgeInsets.zero,
                     itemCount: entries.length,
                     itemBuilder: (_, i) => _WaitingEntryTile(
                       entry: entries[i],
@@ -110,6 +111,7 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
                     ),
                   ),
                 ),
+                const _WaitThresholdLegend(),
               ],
             );
           }
@@ -178,6 +180,104 @@ class _OverThresholdBanner extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// En-têtes de colonnes (maquette design-v2, bandeau `.thead`) : la maquette
+/// prescrit un tableau N° / PATIENT / PRATICIEN / ATTENTE / ESTIMATION /
+/// ACTIONS — la liste de cartes n'en affichait aucun (#7559).
+class _WaitingRoomTableHeader extends StatelessWidget {
+  const _WaitingRoomTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final style = Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: tokens.textTertiary,
+          fontWeight: FontWeight.w600,
+          letterSpacing: .5,
+        );
+
+    Widget cell(String label, {int flex = 2, TextAlign? align}) => Expanded(
+          flex: flex,
+          child: Text(
+            label,
+            textAlign: align,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        );
+
+    return Container(
+      key: const Key('waiting_room_table_header'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(bottom: BorderSide(color: tokens.borderSubtle)),
+      ),
+      child: Row(
+        children: [
+          cell('N°', flex: 1),
+          cell('Patient', flex: 5),
+          cell('Praticien', flex: 3),
+          cell('Attente', flex: 2, align: TextAlign.right),
+          cell('Estimation', flex: 2, align: TextAlign.right),
+          cell('Actions', flex: 3, align: TextAlign.right),
+        ],
+      ),
+    );
+  }
+}
+
+/// Légende des seuils de couleur (maquette design-v2, pied de tableau
+/// `.foot`) : documente la mécanique de couleur de [_WaitColumn] (15 / 20 /
+/// 30 min), absente de l'écran (#7559).
+class _WaitThresholdLegend extends StatelessWidget {
+  const _WaitThresholdLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final style =
+        Theme.of(context).textTheme.labelSmall?.copyWith(color: tokens.textTertiary);
+
+    Widget swatch(Color color, String label) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(label, style: style),
+          ],
+        );
+
+    return Container(
+      key: const Key('waiting_room_threshold_legend'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: tokens.borderSubtle)),
+      ),
+      child: Wrap(
+        spacing: 18,
+        runSpacing: 6,
+        children: [
+          swatch(NubiaColors.n900, 'moins de 15 min'),
+          swatch(tokens.infoFg, '15 min'),
+          swatch(tokens.warningFg, '20 min'),
+          swatch(tokens.dangerFg, '30 min et plus'),
         ],
       ),
     );
@@ -403,7 +503,14 @@ class _WaitingEntryTile extends StatelessWidget {
     final bool isNext = position == 1;
 
     final row = ListRow(
-      leading: NubiaAvatar(initials: initialsFrom(entry.patientName)),
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PositionBadge(position: position, isNext: isNext),
+          const SizedBox(width: 10),
+          NubiaAvatar(initials: initialsFrom(entry.patientName)),
+        ],
+      ),
       title: entry.patientName,
       subtitle: subtitle,
       trailing: Row(
@@ -465,6 +572,8 @@ class _WaitingEntryTile extends StatelessWidget {
                       .add(WaitingRoomCallRequested(entry.id)),
             ),
           ],
+          const SizedBox(width: 8),
+          _RowOverflowMenu(entryId: entry.id),
         ],
       ),
     );
@@ -480,6 +589,69 @@ class _WaitingEntryTile extends StatelessWidget {
         ),
       ),
       child: row,
+    );
+  }
+}
+
+/// Numéro de position dans la file (maquette `.pos`) : `position` reste
+/// l'index de la liste renvoyée par le back (+1), purement client — aucune
+/// dépendance API (#7559).
+class _PositionBadge extends StatelessWidget {
+  const _PositionBadge({required this.position, required this.isNext});
+
+  final int position;
+  final bool isNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      key: Key('waiting_entry_position_$position'),
+      width: 24,
+      height: 24,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isNext ? NubiaColors.brand700 : tokens.neutralBg,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        '$position',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: isNext ? NubiaColors.n0 : tokens.neutralFg,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+    );
+  }
+}
+
+/// Menu de dépassement « … » par ligne (maquette `.more`, colonne ACTIONS) :
+/// aucune action secondaire n'a d'endpoint côté API pour l'instant (seuls
+/// `call-next` et l'appel de tête de file existent, cf.
+/// `WaitingRoomCallRequested`) — grisé avec la raison plutôt qu'omis, même
+/// logique que le bouton « Attribuer » (#6702), pour garder le signal visuel
+/// que la colonne existe sans promettre une action qui n'agit pas (#7559).
+class _RowOverflowMenu extends StatelessWidget {
+  const _RowOverflowMenu({required this.entryId});
+
+  final String entryId;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Tooltip(
+      message: 'Actions supplémentaires à venir',
+      child: Container(
+        key: Key('waiting_entry_more_actions_$entryId'),
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border.all(color: tokens.borderSubtle),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(Icons.more_horiz, size: 16, color: tokens.textTertiary),
+      ),
     );
   }
 }

@@ -826,6 +826,7 @@ void main() {
     testWidgets(
         'action call-next désactivée quand toutes les entrées sont '
         'in_consultation — #7320', (tester) async {
+      useWideSurface(tester);
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
           WaitingRoomEntry(
@@ -1062,6 +1063,7 @@ void main() {
     testWidgets(
         'entrées in_consultation exclues des KPI et de l\'alerte — 0 patient '
         'attend réellement — #6708', (tester) async {
+      useWideSurface(tester);
       final now = DateTime.now();
       when(() => bloc.state).thenReturn(
         WaitingRoomLoaded([
