@@ -6,21 +6,54 @@ import 'package:nubia_domain/src/entities/cabinet_quote.dart';
 class CabinetQuotesApi {
   final Dio _dio;
 
+  /// Taille de page utilisée pour paginer le cabinet entier (max serveur,
+  /// `cabinet_quotes.rs` `.clamp(1, 500)`) — voir `list`.
+  static const _cabinetPageSize = 500;
+
   CabinetQuotesApi(ApiClient client) : _dio = client.dio;
 
+  // Le back renvoie un tableau nu `[CabinetQuoteItem]` (pas de wrapper
+  // `{data}`, ni de curseur) et applique un défaut de 200 lignes sans le
+  // signaler (#7553 : la liste cabinet entier était figée aux 200 premiers
+  // devis). L'endpoint ne supporte pas la pagination `page` (rejet 400
+  // `unsupported_pagination_param`) ; `page` n'est donc pas transmis.
+  // `patient_id`/`limit`/`offset` sont eux supportés (#4419/#4519/#3521).
+  //
+  // Quand l'appelant fixe déjà `limit`/`offset` (pagination manuelle, ex.
+  // `ListPatientJournalUseCase._listAllCabinetQuotes` qui pagine par
+  // patient), on ne fait qu'une seule requête. Sinon (cabinet entier, sans
+  // `patient_id` précis de page), on pagine nous-mêmes par `offset` tant
+  // qu'une page pleine est renvoyée, pour ne jamais tronquer silencieusement
+  // à la limite par défaut du serveur.
   Future<List<CabinetQuoteDto>> list({
     int page = 1,
     String? patientId,
     int? limit,
     int? offset,
   }) async {
-    // Le back renvoie un tableau nu `[CabinetQuoteItem]` (pas de wrapper
-    // `{data}`). On tolère les deux formes par robustesse.
-    // Note : l'endpoint ne supporte pas la pagination `page` (rejet 400
-    // `unsupported_pagination_param`) ; `page` n'est donc pas transmis.
-    // `patient_id`/`limit`/`offset` sont eux supportés (#4419/#4519/#3521)
-    // et nécessaires pour paginer par patient sans tronquer son historique
-    // à la limite par défaut du cabinet entier (#5572).
+    if (limit != null || offset != null) {
+      return _fetchPage(patientId: patientId, limit: limit, offset: offset);
+    }
+    final result = <CabinetQuoteDto>[];
+    var currentOffset = 0;
+    while (true) {
+      final pageItems = await _fetchPage(
+        patientId: patientId,
+        limit: _cabinetPageSize,
+        offset: currentOffset,
+      );
+      result.addAll(pageItems);
+      if (pageItems.length < _cabinetPageSize) break;
+      currentOffset += _cabinetPageSize;
+    }
+    return result;
+  }
+
+  Future<List<CabinetQuoteDto>> _fetchPage({
+    String? patientId,
+    int? limit,
+    int? offset,
+  }) async {
     final response = await _dio.get<dynamic>(
       '/cabinet/quotes',
       queryParameters: {
