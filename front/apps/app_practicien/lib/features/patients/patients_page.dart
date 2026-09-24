@@ -226,7 +226,8 @@ class _DetailViewState extends State<_DetailView> {
   @override
   void initState() {
     super.initState();
-    _notesController = TextEditingController();
+    _notesController = TextEditingController()
+      ..addListener(() => setState(() {}));
     _loadMedicalAlerts();
   }
 
@@ -239,6 +240,22 @@ class _DetailViewState extends State<_DetailView> {
       (_) {},
       (record) => setState(() => _medicalAlerts = record.medicalAlerts),
     );
+  }
+
+  @override
+  void didUpdateWidget(covariant _DetailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Sauvegarde réussie (#7560) : vide la zone de saisie, sinon elle
+    // resterait remplie du texte déjà persisté (et visible juste en-dessous
+    // dans l'historique) — un second clic sur « Enregistrer » créerait un
+    // doublon (`POST` est append-only, jamais un remplacement).
+    final wasSaving = oldWidget.state.notesUpdating;
+    final saveSucceeded = wasSaving &&
+        !widget.state.notesUpdating &&
+        widget.state.notesError == null;
+    if (saveSucceeded) {
+      _notesController.clear();
+    }
   }
 
   @override
@@ -386,6 +403,8 @@ class _DetailViewState extends State<_DetailView> {
           const SizedBox(height: 24),
           Text('Notes', style: textTheme.titleMedium),
           const SizedBox(height: 8),
+          _PatientNotesHistory(notes: widget.state.notes),
+          const SizedBox(height: 12),
           NubiaTextField(
             key: const Key('patient_notes_field'),
             variant: NubiaTextFieldVariant.multiline,
@@ -404,9 +423,14 @@ class _DetailViewState extends State<_DetailView> {
               key: const Key('save_notes_button'),
               label: 'Enregistrer les notes',
               icon: Icons.save_outlined,
-              onPressed: () => context.read<PatientsBloc>().add(
-                PatientsNotesUpdateRequested(p.id, _notesController.text),
-              ),
+              onPressed: _notesController.text.trim().isEmpty
+                  ? null
+                  : () => context.read<PatientsBloc>().add(
+                        PatientsNotesUpdateRequested(
+                          p.id,
+                          _notesController.text,
+                        ),
+                      ),
             ),
           const SizedBox(height: 12),
           NubiaButton(
@@ -529,6 +553,55 @@ String _initials(String fullName) {
   if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
   return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
       .toUpperCase();
+}
+
+/// Notes cliniques déjà consignées (#7560), la plus récente en premier —
+/// lecture seule. Le champ juste en-dessous reste une zone de saisie pour
+/// une NOUVELLE note : `POST /cabinet/patients/:id/notes` est append-only,
+/// jamais un remplacement (`clinical_note`, `api/src/clinical.rs`).
+class _PatientNotesHistory extends StatelessWidget {
+  const _PatientNotesHistory({required this.notes});
+
+  final List<PatientNote> notes;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    if (notes.isEmpty) {
+      return Text(
+        'Aucune note enregistrée.',
+        key: const Key('patient_notes_empty'),
+        style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+      );
+    }
+    return NubiaCard(
+      key: const Key('patient_notes_history'),
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (final (i, note) in notes.indexed)
+            ListRow(
+              key: Key('patient_note_${note.id}'),
+              leading: const Icon(Icons.notes_outlined),
+              title: note.text,
+              titleMaxLines: 2,
+              subtitle: _formatDateTime(note.createdAt),
+              showDivider: i != notes.length - 1,
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final d = dt.toLocal();
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final hh = d.hour.toString().padLeft(2, '0');
+    final min = d.minute.toString().padLeft(2, '0');
+    return '$dd/$mm/${d.year} $hh:$min';
+  }
 }
 
 /// Historique des RDV du patient dans le cabinet (#3372).

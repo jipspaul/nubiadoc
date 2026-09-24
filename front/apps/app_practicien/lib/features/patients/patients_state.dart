@@ -43,11 +43,17 @@ class PatientDetailLoaded extends PatientsState {
   /// vide si l'appel agenda échoue (la fiche reste utilisable).
   final List<CabinetAppointment> appointments;
 
+  /// Notes cliniques déjà consignées (le plus récent en premier) — best-
+  /// effort, vide si le chargement échoue (#7560). Auparavant jamais chargé,
+  /// rendant la section « Notes » de la fiche en écriture seule.
+  final List<PatientNote> notes;
+
   const PatientDetailLoaded(
     this.patient, {
     this.notesUpdating = false,
     this.notesError,
     this.appointments = const [],
+    this.notes = const [],
   });
 
   PatientDetailLoaded copyWith({
@@ -56,16 +62,19 @@ class PatientDetailLoaded extends PatientsState {
     String? notesError,
     bool clearNotesError = false,
     List<CabinetAppointment>? appointments,
+    List<PatientNote>? notes,
   }) =>
       PatientDetailLoaded(
         patient ?? this.patient,
         notesUpdating: notesUpdating ?? this.notesUpdating,
         notesError: clearNotesError ? null : (notesError ?? this.notesError),
         appointments: appointments ?? this.appointments,
+        notes: notes ?? this.notes,
       );
 
   @override
-  List<Object?> get props => [patient, notesUpdating, notesError, appointments];
+  List<Object?> get props =>
+      [patient, notesUpdating, notesError, appointments, notes];
 }
 
 class PatientDetailError extends PatientsState {

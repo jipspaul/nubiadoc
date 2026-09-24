@@ -14,16 +14,19 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
   final ListCabinetPatientsUseCase _list;
   final GetCabinetPatientUseCase _getById;
   final UpdatePatientNotesUseCase _updateNotes;
+  final ListPatientNotesUseCase? _listNotes;
   final ListCabinetAppointmentsUseCase? _listAppointments;
 
   PatientsBloc({
     required ListCabinetPatientsUseCase listPatients,
     required GetCabinetPatientUseCase getPatient,
     required UpdatePatientNotesUseCase updateNotes,
+    ListPatientNotesUseCase? listNotes,
     ListCabinetAppointmentsUseCase? listAppointments,
   })  : _list = listPatients,
         _getById = getPatient,
         _updateNotes = updateNotes,
+        _listNotes = listNotes,
         _listAppointments = listAppointments,
         super(const PatientsInitial()) {
     on<PatientsLoadRequested>(_onLoad);
@@ -92,14 +95,36 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
           appointments = const [];
         }
       }
+      if (result.isLeft()) {
+        result.fold(
+          (failure) => safeEmit(PatientDetailError(failure.message)),
+          (_) {},
+        );
+        return;
+      }
+      final notes = await _fetchNotes(event.id);
       result.fold(
-        (failure) => safeEmit(PatientDetailError(failure.message)),
+        (_) {},
         (patient) => safeEmit(
-          PatientDetailLoaded(patient, appointments: appointments),
+          PatientDetailLoaded(patient, appointments: appointments, notes: notes),
         ),
       );
     } catch (_) {
       safeEmit(const PatientDetailError('Erreur de chargement.'));
+    }
+  }
+
+  /// Best-effort (#7560) : une erreur de chargement des notes laisse la
+  /// fiche utilisable, section « Notes » simplement vide — même contrat que
+  /// l'historique des RDV ci-dessus.
+  Future<List<PatientNote>> _fetchNotes(String id) async {
+    final listNotes = _listNotes;
+    if (listNotes == null) return const [];
+    try {
+      final result = await listNotes(id);
+      return result.fold((_) => const [], (notes) => notes);
+    } catch (_) {
+      return const [];
     }
   }
 
@@ -112,13 +137,24 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
     emit(current.copyWith(notesUpdating: true, clearNotesError: true));
     try {
       final result = await _updateNotes(event.id, event.notes);
-      result.fold(
-        (failure) => safeEmit(current.copyWith(
-          notesUpdating: false,
-          notesError: failure.message,
-        )),
-        (updated) => safeEmit(PatientDetailLoaded(updated)),
-      );
+      if (result.isLeft()) {
+        result.fold(
+          (failure) => safeEmit(current.copyWith(
+            notesUpdating: false,
+            notesError: failure.message,
+          )),
+          (_) {},
+        );
+        return;
+      }
+      final updated = result.fold((_) => current.patient, (patient) => patient);
+      final notes = await _fetchNotes(event.id);
+      safeEmit(current.copyWith(
+        patient: updated,
+        notesUpdating: false,
+        clearNotesError: true,
+        notes: notes,
+      ));
     } catch (_) {
       safeEmit(current.copyWith(
           notesUpdating: false, notesError: 'Erreur inattendue.'));

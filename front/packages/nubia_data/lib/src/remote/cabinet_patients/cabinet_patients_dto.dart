@@ -1,4 +1,5 @@
 import 'package:nubia_domain/src/entities/cabinet_patient.dart';
+import 'package:nubia_domain/src/entities/patient_note.dart';
 
 class CabinetPatientDto {
   final String id;
@@ -166,5 +167,40 @@ class CabinetPatientDto {
         createdAt: p.createdAt.toIso8601String(),
         mutuelleAmc: p.mutuelleAmc,
         mutuelleTiersPayant: p.mutuelleTiersPayant,
+      );
+}
+
+/// `GET /v1/cabinet/patients/:id/notes` — un élément de `ClinicalNoteItem`
+/// (`api/src/clinical.rs`). `tooth`/`act_ref` existent côté API mais ne sont
+/// pas encore consommés côté client (#7560, relecture texte uniquement).
+class PatientNoteDto {
+  final String id;
+  final String kind;
+  final String text;
+  final String authorId;
+  final String createdAt;
+
+  const PatientNoteDto({
+    required this.id,
+    required this.kind,
+    required this.text,
+    required this.authorId,
+    required this.createdAt,
+  });
+
+  factory PatientNoteDto.fromJson(Map<String, dynamic> json) => PatientNoteDto(
+        id: json['note_id'] as String,
+        kind: json['note_kind'] as String,
+        text: json['text'] as String,
+        authorId: json['author_id'] as String,
+        createdAt: json['created_at'] as String,
+      );
+
+  PatientNote toDomain() => PatientNote(
+        id: id,
+        kind: kind,
+        text: text,
+        authorId: authorId,
+        createdAt: DateTime.parse(createdAt),
       );
 }

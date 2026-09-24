@@ -42,6 +42,7 @@ export 'src/entities/agenda_entry.dart';
 export 'src/entities/cabinet_appointment.dart';
 export 'src/entities/appointment_series.dart';
 export 'src/entities/cabinet_patient.dart';
+export 'src/entities/patient_note.dart';
 export 'src/entities/cabinet_practitioner.dart';
 export 'src/entities/cabinet_quote.dart';
 export 'src/entities/cabinet_task.dart';
@@ -384,6 +385,7 @@ export 'src/usecases/cabinet_team_messages/send_cabinet_team_message_use_case.da
 export 'src/usecases/cabinet_patients/list_cabinet_patients_use_case.dart';
 export 'src/usecases/cabinet_patients/get_cabinet_patient_use_case.dart';
 export 'src/usecases/cabinet_patients/update_patient_notes_use_case.dart';
+export 'src/usecases/cabinet_patients/list_patient_notes_use_case.dart';
 // consultation pro (gated clinical)
 export 'src/usecases/consultation/get_consultation_context_use_case.dart';
 export 'src/usecases/consultation/add_consultation_act_use_case.dart';

@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/cabinet_patient.dart';
+import 'package:nubia_domain/src/entities/patient_note.dart';
 
 abstract class CabinetPatientsRepository {
   /// `q` : recherche serveur (`GET /v1/cabinet/patients?q=`, #4043) — filtre
@@ -32,4 +33,8 @@ abstract class CabinetPatientsRepository {
 
   Future<Either<Failure, CabinetPatient>> update(CabinetPatient patient);
   Future<Either<Failure, CabinetPatient>> updateNotes(String id, String note);
+
+  /// `GET /v1/cabinet/patients/:id/notes` — historique complet (le plus
+  /// récent en premier), pour relecture des notes déjà consignées (#7560).
+  Future<Either<Failure, List<PatientNote>>> listNotes(String id);
 }

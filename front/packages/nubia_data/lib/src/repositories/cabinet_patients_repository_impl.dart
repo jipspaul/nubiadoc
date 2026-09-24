@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/cabinet_patients/cabinet_patients_api.dart';
 import 'package:nubia_domain/src/entities/cabinet_patient.dart';
+import 'package:nubia_domain/src/entities/patient_note.dart';
 import 'package:nubia_domain/src/repositories/cabinet_patients_repository.dart';
 
 class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
@@ -132,6 +133,27 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
       }
       return Left(ServerFailure(
         message: 'Impossible de mettre à jour les notes.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<PatientNote>>> listNotes(String id) async {
+    try {
+      final dtos = await _api.listNotes(id);
+      return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Patient introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de charger les notes.',
         statusCode: e.response?.statusCode,
       ));
     } catch (e) {
