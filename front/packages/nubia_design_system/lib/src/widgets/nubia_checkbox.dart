@@ -104,6 +104,8 @@ class _NubiaCheckboxState extends State<NubiaCheckbox> {
       mixed: mixed,
       enabled: _enabled,
       label: widget.label ?? widget.semanticLabel,
+      excludeSemantics: true,
+      onTap: _enabled ? _handleTap : null,
       child: InkWell(
         onTap: _enabled ? _handleTap : null,
         onFocusChange: (v) => setState(() => _focused = v),

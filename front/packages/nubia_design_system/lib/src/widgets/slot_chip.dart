@@ -111,6 +111,8 @@ class SlotChip extends StatelessWidget {
       selected: selected,
       enabled: enabled,
       label: label,
+      excludeSemantics: true,
+      onTap: enabled ? onTap : null,
       child: chip,
     );
   }
