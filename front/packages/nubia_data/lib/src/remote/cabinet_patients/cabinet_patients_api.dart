@@ -83,6 +83,30 @@ class CabinetPatientsApi {
         await _dio.get<Map<String, dynamic>>('/cabinet/patients/$id');
     return CabinetPatientDto.fromJson(response.data!);
   }
+
+  /// `GET /v1/cabinet/patients/:id/notes` — historique complet des notes
+  /// cliniques (le plus récent en premier), pagination par cursor suivie
+  /// jusqu'à épuisement, même pattern que [list] (#7560).
+  Future<List<PatientNoteDto>> listNotes(String id) async {
+    final result = <PatientNoteDto>[];
+    String? cursor;
+    do {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/cabinet/patients/$id/notes',
+        queryParameters: {
+          'limit': 100,
+          if (cursor != null) 'cursor': cursor,
+        },
+      );
+      final data = (response.data!['data'] as List<dynamic>?) ?? [];
+      result.addAll(
+        data.map((e) => PatientNoteDto.fromJson(e as Map<String, dynamic>)),
+      );
+      cursor = (response.data!['page'] as Map<String, dynamic>?)?['next_cursor']
+          as String?;
+    } while (cursor != null);
+    return result;
+  }
 }
 
 /// "YYYY-MM-DD" — format attendu par `birth_date` côté API (`chrono::NaiveDate`).

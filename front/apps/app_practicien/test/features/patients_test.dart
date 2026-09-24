@@ -23,6 +23,9 @@ class MockGetCabinetPatientUseCase extends Mock
 class MockUpdatePatientNotesUseCase extends Mock
     implements UpdatePatientNotesUseCase {}
 
+class MockListPatientNotesUseCase extends Mock
+    implements ListPatientNotesUseCase {}
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -37,12 +40,26 @@ final _patient = CabinetPatient(
   createdAt: DateTime(2024, 1, 1),
 );
 
+final _note = PatientNote(
+  id: 'note-1',
+  kind: 'observation',
+  text: 'RAS, contrôle dans 6 mois',
+  authorId: 'user-1',
+  createdAt: DateTime(2024, 3, 1, 10),
+);
+
 PatientsBloc _makeBloc({
   required MockListCabinetPatientsUseCase list,
   required MockGetCabinetPatientUseCase get,
   required MockUpdatePatientNotesUseCase update,
+  MockListPatientNotesUseCase? listNotes,
 }) =>
-    PatientsBloc(listPatients: list, getPatient: get, updateNotes: update);
+    PatientsBloc(
+      listPatients: list,
+      getPatient: get,
+      updateNotes: update,
+      listNotes: listNotes,
+    );
 
 // ---------------------------------------------------------------------------
 // Widget helper — bypasses BlocProvider(create:) / GetIt
@@ -269,6 +286,49 @@ void main() {
     );
 
     blocTest<PatientsBloc, PatientsState>(
+      'émet PatientDetailLoaded avec les notes déjà consignées (#7560)',
+      build: () {
+        final mockListNotes = MockListPatientNotesUseCase();
+        when(() => mockGet('pat-1')).thenAnswer((_) async => Right(_patient));
+        when(() => mockListNotes('pat-1'))
+            .thenAnswer((_) async => Right([_note]));
+        return _makeBloc(
+          list: mockList,
+          get: mockGet,
+          update: mockUpdate,
+          listNotes: mockListNotes,
+        );
+      },
+      act: (b) => b.add(const PatientsDetailLoadRequested('pat-1')),
+      expect: () => [
+        const PatientsLoading(),
+        PatientDetailLoaded(_patient, notes: [_note]),
+      ],
+    );
+
+    blocTest<PatientsBloc, PatientsState>(
+      'notes vides (best-effort) quand le chargement des notes échoue',
+      build: () {
+        final mockListNotes = MockListPatientNotesUseCase();
+        when(() => mockGet('pat-1')).thenAnswer((_) async => Right(_patient));
+        when(() => mockListNotes('pat-1')).thenAnswer(
+          (_) async => Left(NetworkFailure('Erreur réseau')),
+        );
+        return _makeBloc(
+          list: mockList,
+          get: mockGet,
+          update: mockUpdate,
+          listNotes: mockListNotes,
+        );
+      },
+      act: (b) => b.add(const PatientsDetailLoadRequested('pat-1')),
+      expect: () => [
+        const PatientsLoading(),
+        PatientDetailLoaded(_patient),
+      ],
+    );
+
+    blocTest<PatientsBloc, PatientsState>(
       'émet PatientDetailError quand la fiche échoue',
       build: () {
         when(() => mockGet('pat-1')).thenAnswer(
@@ -296,6 +356,30 @@ void main() {
       expect: () => [
         PatientDetailLoaded(_patient, notesUpdating: true),
         PatientDetailLoaded(_patient),
+      ],
+    );
+
+    blocTest<PatientsBloc, PatientsState>(
+      'UpdateNotes recharge l\'historique après sauvegarde (#7560)',
+      build: () {
+        final mockListNotes = MockListPatientNotesUseCase();
+        when(() => mockUpdate('pat-1', 'nouvelles notes'))
+            .thenAnswer((_) async => Right(_patient));
+        when(() => mockListNotes('pat-1'))
+            .thenAnswer((_) async => Right([_note]));
+        return _makeBloc(
+          list: mockList,
+          get: mockGet,
+          update: mockUpdate,
+          listNotes: mockListNotes,
+        );
+      },
+      seed: () => PatientDetailLoaded(_patient),
+      act: (b) =>
+          b.add(const PatientsNotesUpdateRequested('pat-1', 'nouvelles notes')),
+      expect: () => [
+        PatientDetailLoaded(_patient, notesUpdating: true),
+        PatientDetailLoaded(_patient, notes: [_note]),
       ],
     );
 

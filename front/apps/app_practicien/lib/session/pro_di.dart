@@ -270,6 +270,7 @@ void registerPro(GetIt gi) {
       listPatients: gi<ListCabinetPatientsUseCase>(),
       getPatient: gi<GetCabinetPatientUseCase>(),
       updateNotes: gi<UpdatePatientNotesUseCase>(),
+      listNotes: gi<ListPatientNotesUseCase>(),
       listAppointments: gi<ListCabinetAppointmentsUseCase>(),
     ),
   );
