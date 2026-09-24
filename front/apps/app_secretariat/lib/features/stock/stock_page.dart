@@ -184,6 +184,8 @@ class _StockPageState extends State<StockPage> {
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.keyN, meta: true): _onCreate,
+        const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+            _onCreate,
       },
       child: Scaffold(
         appBar: AppBar(

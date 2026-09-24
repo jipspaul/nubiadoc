@@ -178,6 +178,8 @@ class _PatientsPageState extends State<PatientsPage> {
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.keyN, meta: true): _onCreate,
+        const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+            _onCreate,
       },
       child: Scaffold(
         appBar: AppBar(
