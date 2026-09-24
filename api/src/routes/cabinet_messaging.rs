@@ -4,7 +4,8 @@
 use axum::{routing::get, Router};
 
 use crate::{
-    cabinet_conversation_convert, cabinet_messaging, cabinet_team_messages, support, AppState,
+    cabinet_conversation_convert, cabinet_conversation_patch, cabinet_messaging,
+    cabinet_team_messages, support, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -12,6 +13,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/conversations",
             get(cabinet_messaging::list_cabinet_conversations),
+        )
+        .route(
+            "/v1/cabinet/conversations/:id",
+            axum::routing::patch(cabinet_conversation_patch::patch_cabinet_conversation),
         )
         .route(
             "/v1/cabinet/conversations/:id/messages",
