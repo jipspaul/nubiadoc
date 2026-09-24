@@ -9,6 +9,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'patient_fiche.dart' show PatientDocumentsSection, PatientTagsSection;
+import 'patient_access_denied_notice.dart';
 import 'patient_journal_section.dart';
 import 'patients_bloc.dart';
 import 'patients_event.dart';
@@ -403,35 +404,40 @@ class _DetailViewState extends State<_DetailView> {
           const SizedBox(height: 24),
           Text('Notes', style: textTheme.titleMedium),
           const SizedBox(height: 8),
-          _PatientNotesHistory(notes: widget.state.notes),
-          const SizedBox(height: 12),
-          NubiaTextField(
-            key: const Key('patient_notes_field'),
-            variant: NubiaTextFieldVariant.multiline,
-            controller: _notesController,
-            maxLines: 5,
-            hint: 'Notes du praticien...',
+          _PatientNotesHistory(
+            notes: widget.state.notes,
+            accessDenied: widget.state.notesAccessDenied,
           ),
-          const SizedBox(height: 16),
-          if (widget.state.notesUpdating)
-            const Center(
-              key: Key('notes_updating'),
-              child: CircularProgressIndicator(),
-            )
-          else
-            NubiaButton(
-              key: const Key('save_notes_button'),
-              label: 'Enregistrer les notes',
-              icon: Icons.save_outlined,
-              onPressed: _notesController.text.trim().isEmpty
-                  ? null
-                  : () => context.read<PatientsBloc>().add(
-                        PatientsNotesUpdateRequested(
-                          p.id,
-                          _notesController.text,
-                        ),
-                      ),
+          if (!widget.state.notesAccessDenied) ...[
+            const SizedBox(height: 12),
+            NubiaTextField(
+              key: const Key('patient_notes_field'),
+              variant: NubiaTextFieldVariant.multiline,
+              controller: _notesController,
+              maxLines: 5,
+              hint: 'Notes du praticien...',
             ),
+            const SizedBox(height: 16),
+            if (widget.state.notesUpdating)
+              const Center(
+                key: Key('notes_updating'),
+                child: CircularProgressIndicator(),
+              )
+            else
+              NubiaButton(
+                key: const Key('save_notes_button'),
+                label: 'Enregistrer les notes',
+                icon: Icons.save_outlined,
+                onPressed: _notesController.text.trim().isEmpty
+                    ? null
+                    : () => context.read<PatientsBloc>().add(
+                          PatientsNotesUpdateRequested(
+                            p.id,
+                            _notesController.text,
+                          ),
+                        ),
+              ),
+          ],
           const SizedBox(height: 12),
           NubiaButton(
             key: const Key('btn_dental_chart'),
@@ -560,14 +566,25 @@ String _initials(String fullName) {
 /// une NOUVELLE note : `POST /cabinet/patients/:id/notes` est append-only,
 /// jamais un remplacement (`clinical_note`, `api/src/clinical.rs`).
 class _PatientNotesHistory extends StatelessWidget {
-  const _PatientNotesHistory({required this.notes});
+  const _PatientNotesHistory({required this.notes, required this.accessDenied});
 
   final List<PatientNote> notes;
+
+  /// #7567 : la liste n'a pas pu être lue (403, absence de relation de
+  /// soin) — distinct d'une liste vide dont la lecture a réussi.
+  final bool accessDenied;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
+    if (accessDenied) {
+      return const PatientAccessDeniedNotice(
+        key: Key('patient_notes_access_denied'),
+        message: "Vous n'avez pas encore suivi ce patient — "
+            "les notes cliniques ne sont pas accessibles.",
+      );
+    }
     if (notes.isEmpty) {
       return Text(
         'Aucune note enregistrée.',
