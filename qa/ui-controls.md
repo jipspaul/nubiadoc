@@ -3940,3 +3940,35 @@ Le re-testeur final (`R94_rescan.js`) juge désormais l'effet sur **un hash MD5 
 insensible aux deux pièges, en plus de l'URL, du nombre de contrôles et du trafic réseau. Sur les 25 contrôles
 « MORT » de la fiche patient, il a rendu **8 OK, 1 inatteignable, 1 réellement CASSÉ** — c'est ce dernier qui a
 donné #7560. **À réutiliser tel quel aux rondes suivantes.**
+
+#### Addendum R94 — troisième segment (détecteur v2, hash de pixels)
+
+Écrans repassés avec `R94_act2.js` : mise en cadre systématique, rect relu juste avant le clic, verdict sur
+**hash MD5 des pixels** + URL + nombre de contrôles + trafic réseau.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/financial` — liste + détail de devis (390) | 11 | 10 | 10 | 0 | 0 | 2026-09-24T08:26:00Z |
+| patient | `/mes-rdv` — onglets À venir / Historique (390) | 11 | 5 | 5 | 0 | 0 | 2026-09-24T08:34:00Z |
+| secretariat | `/devis` (1280) | 30 | 28 | 27 | 0 | 0 | 2026-09-24T08:30:00Z |
+| praticien | `/agenda` (1280) | 25 | 24 | 24 | 0 | 0 | 2026-09-24T08:38:00Z |
+
+**Cumul FINAL R94 : 30 écran×viewport, ~647 contrôles inventoriés, 355 activés, 0 MORT confirmé,
+1 CASSÉ confirmé (#7560), 3 DÉSACTIVÉS légitimes, 4 non activés (destructifs).**
+
+#### Deux derniers faux positifs éliminés — et les règles qui en découlent
+
+3. **Un 404 n'est pas une casse quand la ressource est OPTIONNELLE.** Sur `patient /financial`, ouvrir
+   n'importe quel devis déclenche `GET /v1/quotes/:id/attestation` → **404** : c'est le signal « aucune
+   attestation déposée », le cas normal (`quote_attestation.rs:1-16` — l'attestation est déposée par le
+   cabinet à la demande). Les 9 devis étaient d'abord comptés CASSÉS ; la capture montre un détail
+   **parfaitement rendu** (ventilation AMO/mutuelle/reste à charge, détail des actes, mention eIDAS,
+   « Télécharger le devis signé »). Le détecteur ne retient désormais que **5xx / 422 / 400**.
+4. **Le plancher de mise en cadre coupait les onglets de tête.** `y > 70` excluait les onglets de
+   `patient /mes-rdv`, posés à **y=39** — déclarés « inatteignables » alors qu'ils fonctionnent
+   (« Historique » bascule sur 994 entrées avec « Reprendre RDV »). Plancher abaissé à `y > 12` ;
+   `praticien /agenda` repasse alors à **24/24 OK, 0 inatteignable**.
+
+**Bilan méthodologique de la ronde : sur ~40 contrôles initialement suspects, ZÉRO n'était réellement mort.**
+Les quatre causes — clic hors cadre, troncature des libellés fusionnés, 404 optionnel, plancher de cadrage —
+sont désormais toutes traitées dans `R94_act2.js`, à réutiliser aux rondes suivantes.
