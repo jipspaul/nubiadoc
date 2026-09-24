@@ -64,6 +64,7 @@ class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState>
     AdminMembresInviteRequested event,
     Emitter<AdminMembresState> emit,
   ) async {
+    final previousState = state;
     emit(const AdminMembresLoading());
     try {
       final result = await _inviteMember(
@@ -73,7 +74,20 @@ class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState>
         event.lastName,
       );
       result.fold(
-        (failure) => safeEmit(AdminMembresError(failure.message)),
+        (failure) {
+          // 403 = compte sans droit d'écriture bien qu'il puisse lire la
+          // liste (cf. _onLoad) : ce n'est pas une panne transitoire, donc
+          // pas de "Réessayer", et la liste déjà chargée ne doit pas
+          // disparaître pour autant.
+          if (failure is ServerFailure && failure.statusCode == 403) {
+            safeEmit(AdminMembresInviteForbidden(failure.message));
+            if (previousState is AdminMembresLoaded) {
+              safeEmit(previousState);
+            }
+          } else {
+            safeEmit(AdminMembresError(failure.message));
+          }
+        },
         (_) {
           safeEmit(const AdminMembresInviteSuccess());
           add(const AdminMembresLoadRequested());

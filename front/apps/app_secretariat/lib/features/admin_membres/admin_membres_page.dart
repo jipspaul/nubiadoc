@@ -93,16 +93,27 @@ class _AdminMembresPageState extends State<AdminMembresPage>
             )
           : null,
       body: BlocListener<AdminMembresBloc, AdminMembresState>(
-        listenWhen: (_, state) => state is AdminMembresInviteSuccess,
-        listener: (context, _) => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invitation envoyée.')),
+        listenWhen: (_, state) =>
+            state is AdminMembresInviteSuccess ||
+            state is AdminMembresInviteForbidden,
+        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              state is AdminMembresInviteForbidden
+                  ? state.message
+                  : 'Invitation envoyée.',
+            ),
+          ),
         ),
         child: BlocBuilder<AdminMembresBloc, AdminMembresState>(
-          buildWhen: (_, state) => state is! AdminMembresInviteSuccess,
+          buildWhen: (_, state) =>
+              state is! AdminMembresInviteSuccess &&
+              state is! AdminMembresInviteForbidden,
           builder: (context, state) => switch (state) {
             AdminMembresInitial() ||
             AdminMembresLoading() ||
-            AdminMembresInviteSuccess() =>
+            AdminMembresInviteSuccess() ||
+            AdminMembresInviteForbidden() =>
               const Center(
                 child: CircularProgressIndicator(),
               ),

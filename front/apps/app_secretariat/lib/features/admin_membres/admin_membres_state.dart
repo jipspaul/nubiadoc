@@ -54,3 +54,17 @@ final class AdminMembresForbidden extends AdminMembresState {
 final class AdminMembresInviteSuccess extends AdminMembresState {
   const AdminMembresInviteSuccess();
 }
+
+/// Invitation refusée (403) : le compte peut lire la liste des membres mais
+/// n'a pas le droit d'écrire (cf. [AdminMembresForbidden] pour le cas où la
+/// lecture elle-même est refusée). Signal transitoire — contrairement à
+/// [AdminMembresForbidden], il ne remplace pas la liste déjà chargée
+/// puisque celle-ci reste valide.
+final class AdminMembresInviteForbidden extends AdminMembresState {
+  const AdminMembresInviteForbidden(this.message);
+
+  final String message;
+
+  @override
+  List<Object?> get props => [message];
+}
