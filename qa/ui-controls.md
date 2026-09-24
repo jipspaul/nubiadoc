@@ -4269,3 +4269,43 @@ documents récents — dont **ceux générés par cette ronde** (« Devis du 24 
 **111 verdicts MORT** rendus au total par les balayages automatiques ; **111 réfutés** au re-test
 individuel, sans une seule exception. Les **6 causes** sont documentées plus haut et suffisent à les
 expliquer toutes. **R94 et R96 : 100 % de faux positifs au premier passage.**
+
+#### Addendum R96 — septième et huitième segments (balayage de la surface restante)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/conformite` (1280) | 28 | 26 | 26 | 0 | 0 | 2026-09-24T19:47:00Z |
+| secretariat | `/admin-membres` (1280) | 25 | 24 | 24 | 0 | 0 | 2026-09-24T19:50:00Z |
+| secretariat | `/correspondents` (1280) | 24 | 22 | 22 | 0 | 0 | 2026-09-24T19:52:00Z |
+| secretariat | `/cabinet-stats` (1280) | 22 | 21 | 21 | 0 | 0 | 2026-09-24T20:00:00Z |
+| secretariat | `/bookable-slots` (1280) | 25 | 24 | 24 | 0 | 0 | 2026-09-24T20:02:00Z |
+| secretariat | `/appointment-motifs` (1280) | 22 | 21 | 21 | 0 | 0 | 2026-09-24T20:04:00Z |
+| secretariat | `/audit-log` (1280) | 25 | 22 | 22 | 0 | 0 | 2026-09-24T20:06:00Z |
+| praticien | `/stock-inventory` (1280) | 32 | 28 | 28 | 0 | 0 | 2026-09-24T19:54:00Z |
+| praticien | `/tasks` (1280) | 5 | 5 | 5 | 0 | 0 | 2026-09-24T19:55:00Z |
+| praticien | `/cabinet-brief` (1280) | 5 | 5 | 5 | 0 | 0 | 2026-09-24T19:56:00Z |
+| praticien | `/act-categories` (1280) | 2 | 2 | 2 | 0 | 0 | 2026-09-24T20:07:00Z |
+| praticien | `/consent-templates` (1280) | 11 | 9 | 9 | 0 | 0 | 2026-09-24T20:08:00Z |
+| patient | `/profile/dependents` (390) | 22 | 18 | 18 | 0 | 0 | 2026-09-24T19:57:00Z |
+| patient | `/profile/consents` (390) | 8 | 5 | 5 | 0 | 0 | 2026-09-24T19:58:00Z |
+| patient | `/profile/notifications` (390) | 12 | 7 | 7 | 0 | 0 | 2026-09-24T20:09:00Z |
+| patient | `/profile/referring-doctor` (390) | 1 | 1 | 1 | 0 | 0 | 2026-09-24T20:10:00Z |
+
+**Suspects NON-rail de ces segments, vérifiés un par un — tous légitimes :**
+`/conformite` « **Clôturer** » → **OK** (`POST /v1/cabinet/compliance-items/:id/complete` + relecture,
+3,1 % de pixels) ; « **Joindre un justificatif** » → **OK** (94,9 % — sélecteur plein cadre) ;
+« À venir / échu » → **no-op légitime**, c'est un `ChoiceChip` `selected: !_showDone` **déjà actif**
+(`compliance_page.dart:85-90`). `/admin-membres` « Ajouter membre » → **OK** (ouvre la boîte) mais
+**mène à un 403** → **#7601**. `/stock-inventory` « Import CSV » (8,6 %) et « Mouvement » (87,8 %) → **OK**.
+`/profile/consents` « Partage avec un confrère » (53,9 %) et « Détails » (68,0 %) → **OK**.
+`/cabinet-stats`, `/bookable-slots`, `/appointment-motifs` : le seul « mort » de chacun est **l'entrée de
+rail de la page courante** (cause n°1).
+
+### CUMUL R96 — CHIFFRE DE CLÔTURE RÉEL
+
+**45 écran×route audités par balayage · 810 contrôles inventoriés · 739 activés · `0` MORT · `0` CASSÉ.**
+(+ une dizaine d'écrans audités par test ciblé : `/lab-work-orders`, `/ordonnances/new`,
+`/consultation?id=` au fauteuil, file et détail pharmacie à 1280/1440, rail secrétariat, etc.)
+
+**166 verdicts MORT** rendus par les balayages automatiques ; **166 réfutés** au re-test individuel.
+**Zéro exception sur deux rondes (R94, R96).** Les 6 causes documentées plus haut les expliquent toutes.
