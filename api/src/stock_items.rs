@@ -24,6 +24,12 @@ use crate::{
 
 const VALID_REASONS: [&str; 4] = ["reception", "consumption", "adjustment", "peremption"];
 
+/// Même borne que l'import CSV (`stock_import::MAX_IMPORT_QUANTITY`, #7453) :
+/// sans plafond, un `delta` aberrant (ex. 2 000 000 000) était accepté et
+/// portait `quantity_on_hand` à une valeur tout aussi aberrante, faussant
+/// durablement les seuils d'alerte et la valorisation du stock (#7552).
+const MAX_STOCK_MOVEMENT_DELTA: i32 = 100_000;
+
 // ── GET/POST /v1/cabinet/stock-items ─────────────────────────────────────────
 
 /// Un article d'inventaire cabinet.
@@ -192,8 +198,9 @@ pub struct AddStockMovementResponse {
 /// `sum(stock_item_location.quantity) == stock_item.quantity_on_hand`, même
 /// invariant que l'import CSV et le décrément automatique.
 ///
-/// Article inexistant/hors tenant → 404. `delta` non nul et `reason` ∈
-/// `VALID_REASONS` → 422 sinon. Signe de `delta` incohérent avec `reason`
+/// Article inexistant/hors tenant → 404. `delta` non nul, `abs(delta) <=
+/// MAX_STOCK_MOVEMENT_DELTA` (même borne que l'import CSV, #7453) et
+/// `reason` ∈ `VALID_REASONS` → 422 sinon. Signe de `delta` incohérent avec `reason`
 /// (`reception` négatif, `consumption`/`peremption` positif) → 422
 /// (#4479 — `adjustment` reste libre dans les deux sens).
 /// `quantity_on_hand + delta < 0` → 422
@@ -209,7 +216,10 @@ pub async fn add_stock_movement(
     Path(item_id): Path<Uuid>,
     Json(body): Json<AddStockMovementBody>,
 ) -> Result<(StatusCode, Json<AddStockMovementResponse>), AppError> {
-    if body.delta == 0 || !VALID_REASONS.contains(&body.reason.as_str()) {
+    if body.delta == 0
+        || !(-MAX_STOCK_MOVEMENT_DELTA..=MAX_STOCK_MOVEMENT_DELTA).contains(&body.delta)
+        || !VALID_REASONS.contains(&body.reason.as_str())
+    {
         return Err(AppError::ValidationError);
     }
     // #4479 : le signe de delta portait le sens réel du mouvement, mais
