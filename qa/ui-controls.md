@@ -4202,3 +4202,31 @@ correctif #7596). Transitoire d'assets, **pas un défaut produit** : l'écran r�
 Sur les **50 verdicts MORT** rendus par les balayages automatiques, **50 ont été réfutés** par re-test
 individuel. Les 6 causes sont documentées plus haut. **Deux rondes consécutives (R94, R96) : 100 % de
 faux positifs au premier passage.** Aucun verdict MORT ne doit être publié sans re-test page rechargée.
+
+#### Addendum R96 — cinquième segment (écrans repris après le redéploiement)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/devis` (1280) | 26 | 23 | 23 | 0 | 0 | 2026-09-24T19:24:00Z |
+| praticien | `/messages` (1280) | 26 | 25 | 25 | 0 | 0 | 2026-09-24T19:26:00Z |
+| secretariat | `/salle-attente` (1280) | 23 | 21 | 21 | 0 | 0 | 2026-09-24T19:28:00Z |
+| secretariat | `/liste-attente` (1280) | 21 | 20 | 20 | 0 | 0 | 2026-09-24T19:29:00Z |
+
+Les **18 verdicts MORT** de ce segment sont **tous** des entrées de **rail de navigation** : 2 relèvent de
+la cause n°1 (entrée de la page courante — « Devis » sur `/devis`, « Messages » sur `/messages`) et 16 de
+la **cause n°5** (coordonnées périmées après le repli d'un en-tête de groupe, dans un balayage séquentiel).
+Ce rail a été **testé proprement à part**, page rechargée avant chaque clic : **11 entrées naviguent,
+3 sont des en-têtes de repli, 3 sont des no-op légitimes — 0 morte**. Aucun re-test individuel
+supplémentaire n'était donc nécessaire.
+
+**Confirmation au passage de #7570 :** sur `/salle-attente`, « **Appeler suivant** » est **grisé à raison** —
+la file ne contient qu'une entrée `in_consultation` (patient du Dr Claire Lefèvre), donc **personne en
+attente à appeler**. C'est exactement le comportement que #7570 a rétabli (la tête de file honore
+désormais `isWaiting` au lieu de proposer d'appeler un patient déjà en consultation).
+
+### CUMUL R96 — CHIFFRE DE CLÔTURE
+
+**29 écran×route audités · 430 contrôles inventoriés · 396 activés · `0` MORT confirmé · `0` CASSÉ.**
+
+**68 verdicts MORT** rendus au total par les balayages automatiques ; **68 réfutés** au re-test.
+Les 6 causes sont documentées plus haut. **R94 et R96 : 100 % de faux positifs au premier passage.**
