@@ -31,26 +31,36 @@ class OrdersScreen extends StatelessWidget {
 
   static const _asideBreakpoint = 900.0;
 
-  /// Largeur figée de la file une fois la 3ᵉ colonne financée — assez pour
-  /// que la barre de recherche et la ligne de filtres (recherche 280 px,
-  /// puce de filtre la plus large + son compteur, indicateur de fraîcheur)
-  /// ne débordent pas, mais plus question de la laisser continuer à
-  /// s'étirer avec la fenêtre (c'était l'anti-pattern nommé par la
-  /// maquette).
-  static const _wideQueueColumnWidth = 620.0;
+  /// Largeur figée de la file une fois la 3ᵉ colonne financée. #7556 la
+  /// figeait à 620 px (gabarit d'une fenêtre très large) ; #7571 corrige :
+  /// à 1440, le viewport que la maquette déclare elle-même, une file aussi
+  /// large ne laisse plus aucune place à l'ordonnance. La maquette montre à
+  /// ce viewport une file compacte (« File du jour », 288 px dans le HTML de
+  /// la maquette). 360 px est le plus proche qu'on puisse en tenir sans
+  /// faire déborder l'indicateur de fraîcheur (« Mise à jour il y a … ») une
+  /// fois la ligne de filtres passée en [Wrap] (cf. plus bas) — en dessous,
+  /// son texte seul dépasse la largeur de colonne.
+  static const _wideQueueColumnWidth = 360.0;
 
   /// Seuil (largeur *disponible* du corps, jamais `MediaQuery` — cf. #6386)
   /// à partir duquel le détail finance sa 3ᵉ colonne « Écrans PC » (maquette
-  /// `Ecrans PC - Praticien et Pharmacie.html`, écran ③). Recalé comme
-  /// `kThreeColumnBreakpoint` (`consultation_layout_breakpoints.dart`, même
-  /// bug #6386) — mais sur le coût réel de *cette* file, pas sur la largeur
-  /// de fenêtre de la maquette : sous ce seuil, figer la file à
-  /// [_wideQueueColumnWidth] laisserait moins de place à l'ordonnance que le
-  /// gabarit tablette actuel (448 px), un recul. Seuil = coût fixe de la
-  /// 3ᵉ colonne (file [_wideQueueColumnWidth] + volet retrait 436 px +
-  /// marges/écart 48 px = 1104) + 448 px pour que l'ordonnance ne soit
-  /// jamais plus étroite qu'aujourd'hui.
-  static const _wideDetailBreakpoint = 1552.0;
+  /// `Ecrans PC - Praticien et Pharmacie.html`, écran ③).
+  ///
+  /// #7556 calculait ce seuil sur le coût de [_wideQueueColumnWidth] à
+  /// 620 px, ce qui le plaçait à 1552 px de corps disponible — inatteignable
+  /// à 1440 px de FENÊTRE, le viewport déclaré par la maquette, puisque le
+  /// rail de navigation ProShell (`_sidebarWidth`, pro_shell.dart) en
+  /// consomme déjà 250 à lui seul (1440 − 250 = 1190 < 1552) : #7571.
+  ///
+  /// Corrigé pour être atteignable exactement à ce viewport : seuil = corps
+  /// disponible à 1440 px de fenêtre (1440 − 250 = 1190) = file
+  /// [_wideQueueColumnWidth] (360) + volet retrait 436 px + marges/écart de
+  /// la page détail 48 px (padding 16 × 2 + écart 16 entre volets) + 346 px
+  /// pour l'ordonnance. Ce dernier chiffre est en retrait des 448 px visés
+  /// par #7556 (gabarit tablette) — arbitrage nécessaire tant que le rail
+  /// ProShell reste à 250 px labellisé (#5138) plutôt que le rail à icônes
+  /// de 58 px que montre la maquette pour cet écran.
+  static const _wideDetailBreakpoint = 1190.0;
 
   @override
   Widget build(BuildContext context) {
@@ -210,41 +220,39 @@ class _OrdersViewState extends State<OrdersView> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
+                  child: Wrap(
+                    // #7571 : Row (avec l'indicateur de fraîcheur hors
+                    // Expanded) débordait dès que la file passait sous
+                    // ~610 px — c'est ce qui bloquait [_wideQueueColumnWidth]
+                    // à cette largeur. Un Wrap laisse l'indicateur retomber
+                    // sur sa propre ligne plutôt que déborder ; à largeur
+                    // normale (file complète pleine largeur, aside…), le
+                    // rendu est identique, tout tient sur une seule ligne.
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Expanded(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final (label, value) in _filters)
-                              NubiaChip(
-                                key: Key(
-                                    'orders_filter_${value?.name ?? 'all'}'),
-                                label: label,
-                                count: allOrders == null
-                                    ? null
-                                    : value == null
-                                        ? allOrders
-                                            .where((order) =>
-                                                !order.status.isTerminal)
-                                            .length
-                                        : allOrders
-                                            .where((order) =>
-                                                order.status == value)
-                                            .length,
-                                selected: value == currentFilter,
-                                onTap: () => context
-                                    .read<OrdersBloc>()
-                                    .add(OrdersFilterChanged(value)),
-                              ),
-                          ],
+                      for (final (label, value) in _filters)
+                        NubiaChip(
+                          key: Key('orders_filter_${value?.name ?? 'all'}'),
+                          label: label,
+                          count: allOrders == null
+                              ? null
+                              : value == null
+                                  ? allOrders
+                                      .where(
+                                          (order) => !order.status.isTerminal)
+                                      .length
+                                  : allOrders
+                                      .where((order) => order.status == value)
+                                      .length,
+                          selected: value == currentFilter,
+                          onTap: () => context
+                              .read<OrdersBloc>()
+                              .add(OrdersFilterChanged(value)),
                         ),
-                      ),
-                      if (state is OrdersLoaded) ...[
-                        const SizedBox(width: 8),
+                      if (state is OrdersLoaded)
                         _FreshnessIndicator(updatedAt: state.updatedAt),
-                      ],
                     ],
                   ),
                 ),
