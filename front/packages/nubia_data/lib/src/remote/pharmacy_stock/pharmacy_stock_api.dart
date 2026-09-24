@@ -11,8 +11,19 @@ class PharmacyStockApi {
   PharmacyStockApi(ApiClient client, {this.basePath = '/pharmacy'})
       : _dio = client.dio;
 
+  /// `limit=500` (#7578) : le back plafonne à 200 par défaut
+  /// (`ListStockRequestsQuery`, `api/src/pharmacy/stock.rs`) alors qu'il
+  /// accepte jusqu'à 500 — sans ce paramètre explicite, l'app se
+  /// contentait du défaut serveur et tronquait silencieusement les
+  /// demandes au-delà des 200 premières (`created_at DESC`), notamment
+  /// celles encore `sent` en attente de réponse pharmacie.
+  static const _maxLimit = 500;
+
   Future<List<StockRequestDto>> list() async {
-    final response = await _dio.get<dynamic>('$basePath/stock-requests');
+    final response = await _dio.get<dynamic>(
+      '$basePath/stock-requests',
+      queryParameters: {'limit': _maxLimit},
+    );
     final raw = response.data;
     final data = raw is List
         ? raw
