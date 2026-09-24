@@ -963,9 +963,16 @@ const _frequencyOptions = <NubiaSelectItem<String>>[
   NubiaSelectItem(value: '4 fois / jour', label: '4 fois / jour'),
 ];
 
-/// Options de durée de traitement (#4991).
+/// Options de durée de traitement (#4991). Inclut `1 jour` et `3 à 5 jours`
+/// (#7566) : 3 des 5 modèles livrés (seed migration 0166) valent l'une de
+/// ces deux durées — sans elles dans la liste, ni la reprise automatique du
+/// modèle (#7557, [_matchDurationOption]) ni la sélection manuelle
+/// n'étaient possibles, rendant l'antibioprophylaxie en prise unique
+/// (`1 jour`) imprescriptible.
 const _durationOptions = <NubiaSelectItem<String>>[
+  NubiaSelectItem(value: '1 jour', label: '1 jour'),
   NubiaSelectItem(value: '3 jours', label: '3 jours'),
+  NubiaSelectItem(value: '3 à 5 jours', label: '3 à 5 jours'),
   NubiaSelectItem(value: '5 jours', label: '5 jours'),
   NubiaSelectItem(value: '7 jours', label: '7 jours'),
   NubiaSelectItem(value: '10 jours', label: '10 jours'),

@@ -211,6 +211,24 @@ const _cabinetTemplate = PrescriptionTemplate(
   isGlobal: false,
 );
 
+/// Modèle d'antibioprophylaxie (#7566) : durée `1 jour`, absente de
+/// `_durationOptions` avant le correctif — reproduit le seed
+/// `db/migrations/0166_create_prescription_template.sql`.
+const _singleDoseTemplateItem = PrescriptionItem(
+  label: 'Amoxicilline 2 g',
+  form: 'comprimé',
+  posology: 'Prise unique 1h avant le geste',
+  duration: '1 jour',
+  quantity: '2 g',
+);
+
+const _singleDoseTemplate = PrescriptionTemplate(
+  id: 'tmpl-3',
+  label: 'Antibioprophylaxie amoxicilline (avulsion à risque)',
+  items: [_singleDoseTemplateItem],
+  isGlobal: true,
+);
+
 /// Devis (ordonnance) tel que renvoyé après application du modèle #4074 :
 /// mêmes lignes que le modèle, `id`/`patientId` inchangés.
 final _prescriptionWithTemplateItems = Prescription(
@@ -1114,6 +1132,27 @@ void main() {
         find.descendant(
           of: find.byKey(const Key('item_0_frequency')),
           matching: find.text('Sélectionner'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'OrdonnancesInitial → sélectionner une carte modèle en prise unique '
+        'reprend la durée « 1 jour » (#7566)', (tester) async {
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_singleDoseTemplate]);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('template_card_tmpl-3')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_0_duration')),
+          matching: find.text('1 jour'),
         ),
         findsOneWidget,
       );
