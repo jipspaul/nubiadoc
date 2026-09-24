@@ -4309,3 +4309,34 @@ rail de la page courante** (cause n°1).
 
 **166 verdicts MORT** rendus par les balayages automatiques ; **166 réfutés** au re-test individuel.
 **Zéro exception sur deux rondes (R94, R96).** Les 6 causes documentées plus haut les expliquent toutes.
+
+#### Addendum R96 — neuvième segment : dernier balayage de la surface
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/admin-secretariats` (1280) | 22 | 20 | 20 | 0 | 0 | 2026-09-24T20:12:00Z |
+| secretariat | `/maintenance` (1280) | 26 | 25 | 25 | 0 | 0 | 2026-09-24T20:14:00Z |
+| secretariat | `/reprise-donnees` (1280) | 25 | 22 | 22 | 0 | 0 | 2026-09-24T20:16:00Z |
+| praticien | `/lab-stats` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-09-24T20:17:00Z |
+| praticien | `/questionnaire-templates` (1280) | 2 | 2 | 2 | 0 | 0 | 2026-09-24T20:18:00Z |
+| patient | `/documents` (390) | 28 | 28 | 28 | 0 | 0 | 2026-09-24T20:19:00Z |
+
+Suspects non-rail vérifiés : « **Nouveau ticket** » (`/maintenance`) → **OK**, ouvre une boîte de dialogue
+(73,1 % de pixels, 30 → 11 contrôles) ; « **Questionnaire médical standard v1 · 10 question(s)** » → **OK**,
+déplie le modèle (9,2 %, 4 → 13 contrôles) ; « Tous 514 » (`patient/documents`) = **facette déjà
+sélectionnée** (cause n°2).
+
+## CUMUL R96 — CHIFFRE DE CLÔTURE DE LA RONDE
+
+**51 écran×route balayés · 914 contrôles inventoriés · 837 activés · `0` MORT · `0` CASSÉ.**
+(+ une dizaine d'écrans audités par test ciblé hors balayage.)
+
+**171 verdicts MORT** rendus par les balayages automatiques ; **171 réfutés** au re-test individuel.
+**Zéro exception sur deux rondes consécutives (R94, R96).**
+
+Les **6 causes** identifiées suffisent à expliquer la totalité des faux positifs :
+entrée de rail de la page courante · facette déjà sélectionnée · en-tête de groupe repliable ·
+sélecteur de fichier natif · coordonnées périmées après un repli · capture avant stabilisation.
+
+**Règle de la maison, à appliquer dès le premier passage :** un verdict MORT n'est publiable qu'après
+re-test individuel **page rechargée**, avec **pixel-diff** ET relecture du code du widget.
