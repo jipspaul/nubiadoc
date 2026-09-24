@@ -3799,3 +3799,57 @@ C'est le point méthodologique de la ronde : un verdict MORT n'est plus rapport�
 | **re-soumission après erreur** | idem | 0 requête émise tant que l'état d'erreur n'est pas remis à zéro |
 | **texte très long** | idem, 250 caractères dans « Code de retrait » | champ inchangé (`rect [16,398,1256,56]`), aucun débordement à 1280×800 |
 | **coupure réseau** (`route.abort()` sur `*/v1/*`) | patient, onglet Documents | erreur digne : bouton « **Réessayer** » présent dans les Semantics, pas de spinner infini, canvas non vide |
+
+### R93 — deuxième segment : 14 écrans de plus audités (39 au total sur la ronde)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/agenda` (1280) | 30 | 8 | 8 | 0 | 0 | 2026-09-24T01:25:00Z |
+| praticien | `/patients` — Fiches patients (1280) | 37 | 13 | 13 | 0 | 0 | 2026-09-24T01:28:00Z |
+| praticien | `/consultation` — liste des séances (1280) | 37 | 16 | 16 | 0 | 0 | 2026-09-24T01:32:00Z |
+| praticien | `/consultation?id=` — au fauteuil (1280) | **64** | 5 | 5 | 0 | 0 | 2026-09-24T01:50:00Z |
+| praticien | `/devis` (1280) | 29 | 8 | 8 | 0 | 0 | 2026-09-24T01:35:00Z |
+| praticien | `/stock` (1280) | 23 | 4 | 4 | 0 | 0 | 2026-09-24T01:37:00Z |
+| praticien | `/messages` (1280) | 29 | 10 | 10 | 0 | 0 | 2026-09-24T01:40:00Z |
+| praticien | fiche patient → composeur d'ordonnance (1280) | 54 | 4 | 4 | 0 | 0 | 2026-09-24T01:55:00Z |
+| secretariat | `/agenda` (1280) | 50 | 23 + 6 re-vérifiés | 29 | 0 | 0 | 2026-09-24T02:00:00Z |
+| secretariat | `/salle-attente` (1280) | 25 | 4 | 4 | 0 | 0 | 2026-09-24T01:57:00Z |
+| secretariat | `/devis` (1280) | 56 | 18 | 18 | 0 | 0 | 2026-09-24T01:59:00Z |
+| secretariat | `⌘K` — palette de recherche globale (1280) | 12 | 6 (⌘K, Ctrl+K, ↑, ↓, ⏎, Échap + clic) | 6 | 0 | 0 | 2026-09-24T01:45:00Z |
+| pharmacie | `/devis` — volet de détail ouvert (1280) | 45 | 6 | 6 | 0 | 0 | 2026-09-24T01:35:00Z |
+| patient | `/notifications` (390) | 22 | 2 | 2 | 0 | 0 | 2026-09-24T01:28:00Z |
+| patient | `/profile/notifications` — préférences (390) | 18 | 5 | 1 OK + **4 DÉSACTIVÉS légitimes** | 0 | 0 | 2026-09-24T01:30:00Z |
+| patient | `/prescriptions` — Mes ordonnances (390) | 17 | 5 | 5 | 0 | 0 | 2026-09-24T02:05:00Z |
+| patient | `/documents` — coffre-fort (390) | 43 | 6 | 6 | 0 | 0 | 2026-09-24T02:08:00Z |
+| patient | `/treatment-plans` (390) | 11 | 6 | 6 | 0 | 0 | 2026-09-24T02:09:00Z |
+| patient | `/profile/dependents` (390) | 24 | 6 | 6 | 0 | 0 | 2026-09-24T02:07:00Z |
+| patient | `/profile/consents` (390) | 12 | 5 | 4 OK + **1 DÉSACTIVÉ légitime** | 0 | 0 | 2026-09-24T02:07:00Z |
+| patient | `/profile/referring-doctor` (390) | 2 | 1 | 1 | 0 | 0 | 2026-09-24T02:06:00Z |
+| patient | `/implant-passport` (390) | 7 | 4 | 4 | 0 | 0 | 2026-09-24T02:10:00Z |
+| patient | `/home-care` (390) | 18 | 6 | 6 | 0 | 0 | 2026-09-24T02:10:00Z |
+| patient | `/messaging` (390) | 10 | 6 | 6 | 0 | 0 | 2026-09-24T02:11:00Z |
+| patient | `/book` — tunnel de recherche (390) | 27 | 6 | 6 | 0 | 0 | 2026-09-24T02:11:00Z |
+| patient | `/oubliettes` — corbeille (390) | 2 | 0 | — | 0 | 0 | 2026-09-24T02:11:00Z |
+| patient | `/reviews` — état vide (390) | 1 | 0 | — | 0 | 0 | 2026-09-24T02:11:00Z |
+
+**Cumul de la ronde R93 : 39 écran×viewport audités, 1 092 contrôles inventoriés, 318 activés, 0 MORT et 0 CASSÉ après re-vérification individuelle, 5 DÉSACTIVÉS tous justifiés à l'écran, 42 hors viewport déclarés non activés.**
+
+#### Les DÉSACTIVÉS de cette ronde sont tous légitimes — et le prouvent à l'écran
+
+Le brief exige qu'un contrôle grisé **prouve** sa légitimité. Les cinq rencontrés portent leur raison dans l'arbre Semantics :
+
+| contrôle | écran | justification lue |
+|---|---|---|
+| « Nouveau bon » | praticien `/lab-work-orders` | `"Création de bon de travail indisponible pour l'instant."` (#7458) |
+| « Terminer la séance » | praticien `/consultation?id=` | séance déjà `Terminée` |
+| « Appeler suivant » | secrétariat `/salle-attente` | 0 patient en file |
+| « Confirmation et modification » | patient `/profile/notifications` | `"Toujours activé — Quand un RDV est créé, déplacé ou annulé"` |
+| « Soins » | patient `/profile/consents` | `"Nécessaire au service — Non modifiable"` |
+| « Rappel 48 h / 2 h », « Suivi de commande pharmacie », « Nouveau devis à signer » | patient `/profile/notifications` | `"Bientôt disponible"` — manque annoncé, pas un contrôle mort |
+| « Modifier le devis » | pharmacie `/devis` (volet) | devis déjà accepté |
+| « Authentification biométrique » | patient `/profile` | `"Indisponible sur ce navigateur."` |
+
+#### Deux faux positifs supplémentaires infirmés par re-test isolé
+
+- **`Entrée` dans la palette ⌘K** : deux mesures successives concluaient « inerte ». Le test décisif — ouvrir la palette **sans rien saisir**, `↓↓` puis `Entrée` — **navigue vers `/salle-attente`**. C'était la saisie au clavier qui perturbait le rendu débattu, pas le raccourci.
+- **Lignes de `patient /prescriptions`** : le clic ne change ni l'URL, ni le rendu, ni l'inventaire — parce qu'il **déclenche un téléchargement**. Prouvé en écoutant l'événement Playwright : `download: d4cf3189-….pdf`, précédé de `GET /v1/documents/:id/download`. Conforme à `prescriptions_page.dart:111` (`onTap → openDocument`).
