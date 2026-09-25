@@ -148,4 +148,117 @@ void main() {
       );
     });
   });
+
+  // Régression #7655 : le filtre anti-409 de send_prescription_cubit croise
+  // les ordonnances contre listOrders(), qui n'appelait ni `limit` ni
+  // `page.next_cursor` et s'arrêtait donc aux 20 commandes les plus
+  // récentes renvoyées par défaut par l'API (`api/src/pharmacy/orders.rs`,
+  // `list_account_orders`). Le client doit suivre next_cursor jusqu'à
+  // épuisement, comme listPrescriptions().
+  group('PatientPharmacyApi.listOrders', () {
+    late MockApiClient apiClient;
+    late MockDio dio;
+
+    setUp(() {
+      apiClient = MockApiClient();
+      dio = MockDio();
+      when(() => apiClient.dio).thenReturn(dio);
+    });
+
+    Response<Map<String, dynamic>> fakeResponse(Map<String, dynamic> data) =>
+        Response(data: data, requestOptions: RequestOptions(path: ''));
+
+    test('suit next_cursor jusqu\'à épuisement et concatène toutes les pages',
+        () async {
+      when(
+        () => dio.get<dynamic>(
+          '/account/orders',
+          queryParameters: <String, dynamic>{'limit': 100},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'order1',
+              'status': 'picked_up',
+              'prescription_id': 'rx1',
+            },
+          ],
+          'page': {'next_cursor': 'CURSOR_1'},
+        }),
+      );
+
+      when(
+        () => dio.get<dynamic>(
+          '/account/orders',
+          queryParameters: <String, dynamic>{
+            'limit': 100,
+            'cursor': 'CURSOR_1',
+          },
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'order2',
+              'status': 'received',
+              'prescription_id': 'rx2',
+            },
+          ],
+          'page': {'next_cursor': null},
+        }),
+      );
+
+      final orders = await PatientPharmacyApi(apiClient).listOrders();
+
+      expect(orders.length, 2, reason: 'les 2 pages doivent être concaténées');
+      expect(orders.map((o) => o.id), containsAll(['order1', 'order2']));
+
+      verify(
+        () => dio.get<dynamic>(
+          '/account/orders',
+          queryParameters: <String, dynamic>{'limit': 100},
+        ),
+      ).called(1);
+      verify(
+        () => dio.get<dynamic>(
+          '/account/orders',
+          queryParameters: <String, dynamic>{
+            'limit': 100,
+            'cursor': 'CURSOR_1',
+          },
+        ),
+      ).called(1);
+    });
+
+    test('un seul appel si next_cursor est absent dès la 1re page', () async {
+      when(
+        () => dio.get<dynamic>(
+          '/account/orders',
+          queryParameters: <String, dynamic>{'limit': 100},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'order1',
+              'status': 'picked_up',
+              'prescription_id': 'rx1',
+            },
+          ],
+          'page': {'next_cursor': null},
+        }),
+      );
+
+      final orders = await PatientPharmacyApi(apiClient).listOrders();
+
+      expect(orders.length, 1);
+      verify(
+        () => dio.get<dynamic>(
+          '/account/orders',
+          queryParameters: <String, dynamic>{'limit': 100},
+        ),
+      ).called(1);
+    });
+  });
 }
