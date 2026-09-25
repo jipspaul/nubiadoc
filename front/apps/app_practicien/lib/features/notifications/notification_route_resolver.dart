@@ -17,6 +17,8 @@ class NotificationRouteResolver {
         return AppRouter.waitingRoom;
       case 'quote_signed':
         return AppRouter.devis;
+      case 'stock_request_answered':
+        return AppRouter.stock;
       case 'lab_work_returned':
         return AppRouter.labWorkOrders;
       case 'message_received':

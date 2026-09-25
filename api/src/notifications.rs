@@ -147,6 +147,7 @@ const PREFERENCE_FILTER_SQL: &str = "(CASE n.kind \
      WHEN 'quote_signed' THEN COALESCE(unp.inapp_devis, true) \
      WHEN 'pharmacy_quote_decided' THEN COALESCE(unp.inapp_devis, true) \
      WHEN 'stock_request_received' THEN COALESCE(unp.inapp_stock, true) \
+     WHEN 'stock_request_answered' THEN COALESCE(unp.inapp_stock, true) \
      WHEN 'appointment_requested' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'callback_requested' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'appointment_confirmed' THEN COALESCE(unp.inapp_rdv, true) \

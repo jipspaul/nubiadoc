@@ -512,8 +512,31 @@ pub struct RespondStockBody {
     pub note: Option<String>,
 }
 
+/// Cabinet notifié de la réponse officine — praticien + secrétariat, même
+/// périmètre que `QUOTE_SIGNED_NOTIFY_ROLES`/`MESSAGE_RECEIVED_NOTIFY_ROLES`
+/// (billing.rs/messaging.rs) : ce sont les rôles qui émettent la demande
+/// initiale (`create_stock_request` requiert `ProSecretaryPlusClaims`).
+const STOCK_REQUEST_ANSWERED_NOTIFY_ROLES: [&str; 2] = ["practitioner", "secretary"];
+
+fn stock_response_title(next: &str) -> &'static str {
+    match next {
+        "accepted" => "Demande de stock acceptée",
+        "rejected" => "Demande de stock refusée",
+        "fulfilled" => "Demande de stock honorée",
+        _ => "Réponse à une demande de stock",
+    }
+}
+
+/// Tronc commun de `accept|reject|fulfill_stock_request`. Notifie le cabinet
+/// de la réponse (#7017 : jusqu'ici seul l'aller cabinet → pharmacie était
+/// notifié via `notify_pharmacy_staff`, le retour officine → cabinet ne
+/// créait aucune notification et le secrétariat n'apprenait un refus qu'en
+/// rouvrant l'écran Stock).
+#[allow(clippy::too_many_arguments)]
 async fn stock_response(
     state: &AppState,
+    hub: &WsHub,
+    dispatcher: &Arc<dyn JobDispatcher>,
     pharmacy_id: Uuid,
     id: Uuid,
     expected: &[&str],
@@ -538,7 +561,7 @@ async fn stock_response(
              fulfilled_at = CASE WHEN $2 = 'fulfilled' THEN now() ELSE fulfilled_at END, \
              updated_at = now() \
          WHERE id = $1 AND status IN ({expected_list}) \
-         RETURNING {STOCK_COLUMNS}",
+         RETURNING {STOCK_COLUMNS}, cabinet_id",
     ))
     .bind(id)
     .bind(next)
@@ -561,20 +584,58 @@ async fn stock_response(
         });
     };
 
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let request = stock_from_row(&row)?;
+
+    let staff = notify::notify_cabinet_staff(
+        &mut tx,
+        cabinet_id,
+        &STOCK_REQUEST_ANSWERED_NOTIFY_ROLES,
+        "stock_request_answered",
+        stock_response_title(next),
+        serde_json::json!({ "stock_request_id": request.id, "status": next }),
+    )
+    .await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
-    stock_from_row(&row)
+
+    for (app_user_id, notification_id) in staff {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    hub.publish_named(
+        &format!("cabinet_stock_requests:{cabinet_id}"),
+        serde_json::json!({
+            "channel": format!("cabinet_stock_requests:{cabinet_id}"),
+            "event": "stock_request_answered",
+            "data": { "stock_request_id": request.id, "status": next }
+        })
+        .to_string(),
+    );
+
+    Ok(request)
 }
 
 /// `POST /v1/pharmacy/stock-requests/{id}/accept` — sent → accepted (note optionnelle).
 pub async fn accept_stock_request(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PharmaMemberClaims,
     Path(id): Path<Uuid>,
     body: Option<Json<RespondStockBody>>,
 ) -> Result<Json<StockRequestDto>, AppError> {
     let note = body.as_ref().and_then(|b| b.note.as_deref());
-    let request =
-        stock_response(&state, claims.pharmacy_id, id, &["sent"], "accepted", note).await?;
+    let request = stock_response(
+        &state,
+        &hub,
+        &dispatcher,
+        claims.pharmacy_id,
+        id,
+        &["sent"],
+        "accepted",
+        note,
+    )
+    .await?;
     Ok(Json(request))
 }
 
@@ -582,6 +643,8 @@ pub async fn accept_stock_request(
 /// Motif obligatoire → 422 si absent/vide (même règle que `reject_pharmacy_order`).
 pub async fn reject_stock_request(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PharmaMemberClaims,
     Path(id): Path<Uuid>,
     Json(body): Json<RespondStockBody>,
@@ -592,6 +655,8 @@ pub async fn reject_stock_request(
     }
     let request = stock_response(
         &state,
+        &hub,
+        &dispatcher,
         claims.pharmacy_id,
         id,
         &["sent"],
@@ -605,11 +670,15 @@ pub async fn reject_stock_request(
 /// `POST /v1/pharmacy/stock-requests/{id}/fulfill` — accepted → fulfilled.
 pub async fn fulfill_stock_request(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PharmaMemberClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<StockRequestDto>, AppError> {
     let request = stock_response(
         &state,
+        &hub,
+        &dispatcher,
         claims.pharmacy_id,
         id,
         &["accepted"],

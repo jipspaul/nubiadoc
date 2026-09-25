@@ -17,6 +17,7 @@ class NotificationRouteResolver {
       case 'callback_requested':
         return AppRouter.agenda;
       case 'stock_request_received':
+      case 'stock_request_answered':
         return AppRouter.stock;
       case 'message_received':
         return AppRouter.messages;

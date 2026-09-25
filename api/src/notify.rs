@@ -30,7 +30,7 @@ fn preference_category(kind: &str) -> Option<&'static str> {
         | "waiting_list_slot_offered"
         | "patient_checked_in" => Some("rdv"),
         "quote_signed" | "pharmacy_quote_decided" => Some("devis"),
-        "stock_request_received" => Some("stock"),
+        "stock_request_received" | "stock_request_answered" => Some("stock"),
         "message_received" => Some("messagerie"),
         "lab_work_returned" => Some("labo"),
         "visit_offer" | "visit_cancelled" => Some("visites"),

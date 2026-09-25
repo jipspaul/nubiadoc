@@ -19,6 +19,13 @@ void main() {
       );
     });
 
+    test('stock_request_answered -> stock', () {
+      expect(
+        NotificationRouteResolver.resolve(kind: 'stock_request_answered'),
+        AppRouter.stock,
+      );
+    });
+
     test('lab_work_returned -> bons (lab work orders)', () {
       expect(
         NotificationRouteResolver.resolve(kind: 'lab_work_returned'),

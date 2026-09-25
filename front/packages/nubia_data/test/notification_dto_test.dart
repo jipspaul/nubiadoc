@@ -127,6 +127,31 @@ void main() {
       expect(dto.toDomain().status, 'picked_up');
     });
 
+    // #7017 : la réponse officine à une demande de stock (accept/reject/
+    // fulfill) doit produire un corps distinct par statut, comme
+    // visit_status_changed ci-dessus.
+    test('body absent + kind=stock_request_answered -> dérive du data.status, '
+        'distingue accepted/rejected/fulfilled', () {
+      final bodies = {
+        'accepted',
+        'rejected',
+        'fulfilled',
+      }.map((status) {
+        final dto = NotificationDto.fromJson({
+          'id': '1',
+          'kind': 'stock_request_answered',
+          'title': 'Demande de stock',
+          'data': {'stock_request_id': 's1', 'status': status},
+          'is_read': false,
+          'created_at': '2026-01-01T00:00:00Z',
+        });
+        return dto.toDomain().body;
+      }).toSet();
+
+      expect(bodies, hasLength(3));
+      expect(bodies, everyElement(isNotEmpty));
+    });
+
     test('body absent + status inconnu -> corps générique non vide', () {
       final dto = NotificationDto.fromJson({
         'id': '1',
