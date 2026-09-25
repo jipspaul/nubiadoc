@@ -101,14 +101,12 @@ async fn seed(db: &PgPool, status: &str) -> Fixture {
         .await
         .unwrap();
 
-    sqlx::query(
-        "INSERT INTO pharmacy (id, raison_sociale, is_listed) VALUES ($1, $2, true)",
-    )
-    .bind(pharmacy_id)
-    .bind(format!("Pharmacie Stock Answered {pharmacy_id}"))
-    .execute(db)
-    .await
-    .unwrap();
+    sqlx::query("INSERT INTO pharmacy (id, raison_sociale, is_listed) VALUES ($1, $2, true)")
+        .bind(pharmacy_id)
+        .bind(format!("Pharmacie Stock Answered {pharmacy_id}"))
+        .execute(db)
+        .await
+        .unwrap();
 
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")

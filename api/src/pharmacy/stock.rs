@@ -532,6 +532,7 @@ fn stock_response_title(next: &str) -> &'static str {
 /// notifié via `notify_pharmacy_staff`, le retour officine → cabinet ne
 /// créait aucune notification et le secrétariat n'apprenait un refus qu'en
 /// rouvrant l'écran Stock).
+#[allow(clippy::too_many_arguments)]
 async fn stock_response(
     state: &AppState,
     hub: &WsHub,
