@@ -12,6 +12,7 @@ import '../agenda/agenda_event.dart';
 import '../tasks/tasks_bloc.dart';
 import '../tasks/tasks_card.dart';
 import '../tasks/tasks_event.dart';
+import 'cabinet_vcard_button.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_customize_panel.dart';
 import 'dashboard_event.dart';
@@ -365,6 +366,8 @@ class _DashboardHeader extends StatelessWidget {
             ],
           ),
         ),
+        const CabinetVcardButton(),
+        const SizedBox(width: 8),
         NubiaButton(
           key: const Key('dashboard_customize_button'),
           label: editing ? 'Terminé' : 'Personnaliser',

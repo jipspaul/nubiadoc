@@ -91,6 +91,7 @@ mod cabinet_secretariats;
 mod cabinet_stats;
 mod cabinet_tasks;
 mod cabinet_team_messages;
+mod cabinet_vcard;
 mod ccam_acts;
 mod ccam_stock_mappings;
 mod clinical;
