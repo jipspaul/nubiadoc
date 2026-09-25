@@ -46,6 +46,7 @@ import '../features/stock/stock_inventory_bloc.dart';
 import '../features/stock/stock_inventory_page.dart';
 import '../features/stock/stock_page.dart';
 import '../features/tasks/tasks_page.dart';
+import '../features/mes_conges/mes_conges_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 import '../pro_config.dart';
@@ -78,6 +79,7 @@ class AppRouter {
   static const cabinetBrief = '/cabinet-brief';
   static const consentTemplates = '/consent-templates';
   static const questionnaireTemplates = '/questionnaire-templates';
+  static const mesConges = '/mes-conges';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -356,6 +358,12 @@ class AppRouter {
               GoRoute(
                 path: teamMessages,
                 builder: (_, __) => const CabinetTeamMessagesPage(),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: mesConges,
+                builder: (_, __) => const MesCongesPage(),
               ),
             ]),
           ],

@@ -57,6 +57,9 @@ import '../features/compliance/compliance_page.dart';
 import '../features/audit_log/audit_log_bloc.dart';
 import '../features/audit_log/audit_log_event.dart';
 import '../features/audit_log/audit_log_page.dart';
+import '../features/conges/conges_bloc.dart';
+import '../features/conges/conges_event.dart';
+import '../features/conges/conges_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 import '../session/pro_auth_cubit.dart';
@@ -75,6 +78,7 @@ class AppRouter {
   static const cabinetStats = '/cabinet-stats';
   static const cabinetPayouts = '/cabinet-payouts';
   static const auditLog = '/audit-log';
+  static const conges = '/conges';
 
   static const patients = '/patients';
   static const patientNew = '/patients/new';
@@ -396,6 +400,16 @@ class AppRouter {
                   create: (_) => GetIt.instance<AuditLogBloc>()
                     ..add(const AuditLogLoadRequested()),
                   child: const AuditLogPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: conges,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<CongesBloc>()
+                    ..add(const CongesLoadRequested(status: 'pending')),
+                  child: const CongesPage(),
                 ),
               ),
             ]),

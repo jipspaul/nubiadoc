@@ -17,6 +17,10 @@ class ProConfig {
 
   static const String dashboardRoute = '/';
 
+  /// Route de l'entrée « Congés » (#7143/#7144) : demande de congé
+  /// depuis le téléphone, suivi de statut, annulation.
+  static const String mesCongesRoute = '/mes-conges';
+
   static const shell.ProConfig shellConfig = shell.ProConfig(
     appTitle: appTitle,
     spaceLabel: spaceLabel,
@@ -86,6 +90,11 @@ class ProConfig {
         label: 'Messagerie interne',
         icon: Icons.forum_outlined,
         route: '/team-messages',
+      ),
+      shell.ProNavDestination(
+        label: 'Congés',
+        icon: Icons.beach_access_outlined,
+        route: mesCongesRoute,
       ),
     ],
   );

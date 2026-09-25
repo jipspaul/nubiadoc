@@ -47,6 +47,14 @@ class ProConfig {
   /// `GET /v1/cabinet/audit-log`, #4155) via [shellConfigFor].
   static const String auditLogRoute = '/audit-log';
 
+  /// Route de l'entrée « Congés » (#7143/#7144) : file de validation
+  /// manager des demandes de congé du cabinet. Consultable par tout rôle
+  /// pro (`ProSecretaryPlusClaims`) ; l'approbation/le refus restent
+  /// réservés admin/manager côté back (403 géré en snackbar, pas de garde
+  /// nav — contrairement à [auditLogRoute], aucun appel de la page elle-même
+  /// ne renvoie 403 puisque la liste est ouverte à tous).
+  static const String congesRoute = '/conges';
+
   /// Route de l'entrée « Secrétariats ». `GET /v1/cabinet/secretariats`
   /// (listing) est ouvert à tout membre pro (`ProMemberClaims`), mais sa
   /// création/administration (`POST`/`PATCH`/`DELETE /v1/cabinet/secretariats`)
@@ -73,6 +81,9 @@ class ProConfig {
   static const String patientsGroup = 'Patients';
   static const String billingGroup = 'Facturation';
   static const String messagesGroup = 'Messages';
+
+  /// Groupe « Équipe » (#7143/#7144) : planning/congés du cabinet.
+  static const String equipeGroup = 'Équipe';
 
   static const shell.ProConfig shellConfig = shell.ProConfig(
     appTitle: appTitle,
@@ -160,6 +171,13 @@ class ProConfig {
         icon: Icons.forum,
         route: '/team-messages',
         group: messagesGroup,
+      ),
+      // Groupe « Équipe ».
+      shell.ProNavDestination(
+        label: 'Congés',
+        icon: Icons.beach_access,
+        route: congesRoute,
+        group: equipeGroup,
       ),
       // Groupe « Réglages du cabinet » (repliable, replié par défaut — #5139).
       shell.ProNavDestination(
