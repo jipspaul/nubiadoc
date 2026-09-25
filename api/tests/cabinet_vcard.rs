@@ -166,6 +166,94 @@ async fn get_cabinet_vcard_happy_path_returns_valid_vcard() {
     cleanup_cabinet(&db, cabinet_id).await;
 }
 
+/// Régression #7627 : `PATCH /v1/cabinet` (seul endpoint d'écriture de
+/// `address`/`phone`) suivi de `GET /v1/cabinet/vcard` doit produire une
+/// vCard portant TEL et ADR — pas seulement FN/ORG.
+#[tokio::test]
+async fn get_cabinet_vcard_after_patch_cabinet_contains_phone_and_address() {
+    if !db_available() {
+        return;
+    }
+    let db = app_pool().await;
+    let email = format!("vcard_patch_{}@test.local", Uuid::new_v4());
+
+    let register_body = json!({
+        "email": email,
+        "password": "password1",
+        "cabinet": { "raison_sociale": "Cabinet Lyon Patch", "siret": null, "specialite": "dentaire" },
+        "practitioner": { "first_name": "Jean", "last_name": "Dupont", "rpps": null, "adeli": null }
+    });
+    let register_resp = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/pro/register")
+                .header("content-type", "application/json")
+                .body(Body::from(register_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(register_resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(register_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let registered: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let token = registered["access_token"].as_str().unwrap().to_string();
+
+    let patch_resp = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/cabinet")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({
+                        "address": "12 rue de la Republique, 69002 Lyon",
+                        "phone": "+33478920011",
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(patch_resp.status(), StatusCode::OK);
+
+    let vcard_resp = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/vcard")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(vcard_resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(vcard_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let vcard = String::from_utf8(body.to_vec()).unwrap();
+
+    assert!(
+        vcard.contains("TEL;TYPE=work,voice:+33478920011\r\n"),
+        "{vcard}"
+    );
+    assert!(
+        vcard.contains("ADR;TYPE=work:;;12 rue de la Republique\\, 69002 Lyon;;;;\r\n"),
+        "{vcard}"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
 #[tokio::test]
 async fn get_cabinet_vcard_without_jwt_returns_401() {
     if !db_available() {

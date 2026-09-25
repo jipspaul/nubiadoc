@@ -1489,8 +1489,9 @@ pub struct PatchCabinetBody {
 
 /// `PATCH /v1/cabinet` — édite les réglages/infos pratiques du cabinet (admin uniquement).
 ///
-/// Merge patch : les champs absents du body restent inchangés. `address` et `phone`
-/// sont fusionnés dans le JSONB `settings`. Toute modification est auditée dans `audit_log`.
+/// Merge patch : les champs absents du body restent inchangés. `address` est fusionné à
+/// plat dans le JSONB `settings` (`settings.address`), `phone` sous `settings.contact.phone`
+/// (shape lue par `cabinet_vcard`/`cabinet_info`). Toute modification est auditée dans `audit_log`.
 pub async fn patch_cabinet(
     State(state): State<AppState>,
     claims: ProAdminClaims,
@@ -1541,7 +1542,16 @@ pub async fn patch_cabinet(
         settings_delta.insert("address".to_string(), Value::String(addr.clone()));
     }
     if let Some(phone) = &body.phone {
-        settings_delta.insert("phone".to_string(), Value::String(phone.clone()));
+        // `settings.contact.phone` (pas un champ `phone` à plat) : c'est la shape lue par
+        // `cabinet_vcard::build_vcard` et `cabinet_info::get_cabinet_info`. Fusion manuelle
+        // pour préserver les autres champs de `contact` (ex: email) déjà présents.
+        let mut contact = old_settings
+            .get("contact")
+            .and_then(|c| c.as_object())
+            .cloned()
+            .unwrap_or_default();
+        contact.insert("phone".to_string(), Value::String(phone.clone()));
+        settings_delta.insert("contact".to_string(), Value::Object(contact));
     }
     if let Some(s) = &body.settings {
         if let Some(obj) = s.as_object() {
