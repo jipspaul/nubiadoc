@@ -32,6 +32,12 @@ const DEFAULT_EXPIRES_IN_DAYS: i64 = 30;
 /// cohérent avec l'intention "URL à usage multiple" documentée en migration
 /// 0299 (le défaut de la colonne, 1, est pensé pour un usage nominatif).
 const DEFAULT_MAX_USES: i32 = 20;
+/// Durée de validité maximale d'un lien, en jours (~1 an) — un lien
+/// d'invitation est un secret d'accès au cabinet, sa durée de vie est un
+/// paramètre de sécurité borné, pas un nombre libre (#7629).
+const MAX_EXPIRES_IN_DAYS: i64 = 365;
+/// Nombre d'utilisations maximal d'un lien (#7629).
+const MAX_MAX_USES: i32 = 1000;
 
 /// Corps de `POST /v1/cabinet/invite-links`.
 #[derive(Deserialize)]
@@ -40,10 +46,10 @@ pub struct CreateInviteLinkBody {
     /// `practitioner` | `secretary` | `admin` | `manager` | `doctor`.
     pub role: String,
     /// Nombre d'acceptations autorisées avant épuisement du lien (défaut
-    /// [`DEFAULT_MAX_USES`]) — doit être strictement positif.
+    /// [`DEFAULT_MAX_USES`]) — doit être dans `1..=`[`MAX_MAX_USES`].
     pub max_uses: Option<i32>,
     /// Durée de validité en jours (défaut [`DEFAULT_EXPIRES_IN_DAYS`]) —
-    /// doit être strictement positive.
+    /// doit être dans `1..=`[`MAX_EXPIRES_IN_DAYS`].
     pub expires_in_days: Option<i64>,
 }
 
@@ -65,7 +71,8 @@ pub struct InviteLinkResponse {
 /// pour un rôle donné.
 ///
 /// Rôle `admin` requis. `role` hors énumération, ou `max_uses`/
-/// `expires_in_days` fournis mais `<= 0` → `422 validation_error`.
+/// `expires_in_days` fournis mais hors bornes (`<= 0` ou au-delà de
+/// [`MAX_MAX_USES`]/[`MAX_EXPIRES_IN_DAYS`]) → `422 validation_error`.
 /// `cabinet_id` toujours extrait du JWT. Retourne
 /// `201 { id, role, token, url, max_uses, expires_at }`.
 pub async fn create_invite_link(
@@ -77,11 +84,11 @@ pub async fn create_invite_link(
         return Err(AppError::ValidationError);
     }
     let max_uses = body.max_uses.unwrap_or(DEFAULT_MAX_USES);
-    if max_uses <= 0 {
+    if max_uses <= 0 || max_uses > MAX_MAX_USES {
         return Err(AppError::ValidationError);
     }
     let expires_in_days = body.expires_in_days.unwrap_or(DEFAULT_EXPIRES_IN_DAYS);
-    if expires_in_days <= 0 {
+    if expires_in_days <= 0 || expires_in_days > MAX_EXPIRES_IN_DAYS {
         return Err(AppError::ValidationError);
     }
 
