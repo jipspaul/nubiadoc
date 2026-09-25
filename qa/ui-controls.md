@@ -176,6 +176,82 @@ sur `/agenda`, `/patients`, `/messages` **et** `/cabinet-payouts` — ce qui con
 > attendue. **Ce n'était pas un défaut de l'application** — et c'est exactement le genre d'artefact
 > qui, non vérifié, produit un faux P1 « connexion cassée ».
 
+### Ronde R100 — segment final : les écrans « Réglages » rendus injoignables par #7692
+
+Audit des écrans que **#7692** empêche d'atteindre au clic — **tous atteints par URL directe et
+pleinement fonctionnels**, ce qui confirme que le défaut est bien de **navigation**, pas de rendu :
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/cabinet-stats` | 1280×800 | 24 | 23 | 22 | **1** | 0 | 2026-09-25T20:40Z |
+| secretariat | `/appointment-motifs` | 1280×800 | 24 | 23 | 22 | **1** | 0 | 2026-09-25T20:44Z |
+| secretariat | `/maintenance` | 1280×800 | 28 | 26 | 25 | **1** | 0 | 2026-09-25T20:48Z |
+
+- Le **mort** de chaque écran est, encore, « **Réglages du cabinet** » (**#7692**) — désormais constaté
+  sur **9 écrans** du secrétariat. *Les seconds « morts » bruts (« Statistiques », « Motifs de RDV »)
+  sont le clic sur la destination **courante** du rail : un no-op légitime, requalifié.*
+- `/cabinet-stats` : le `403 GET /v1/cabinet/stats/activity` (secrétariat) est **traité de façon
+  exemplaire** — cadenas + « **Réservé aux praticiens — Votre rôle ne permet pas d'afficher l'activité
+  par praticien.** », **les 4 cartes de KPI restant affichées** (CA encaissé, reste à encaisser, taux de
+  transformation, devis signés). Requalifié en faux positif.
+
+**Re-vérification (unique de la ronde) — B4, cloisonnement clinique : toujours parfait.**
+Sur `medical-record`, `dental-chart`, `notes`, `treatment-plans` et `periodontal-chart` du même
+patient : **praticien 200 / secrétariat 403 / patient 403** sur les cinq. Idem `/ccam/acts`
+(praticien 200, secrétariat 403, patient 403). RBAC membres re-contrôlé : lecture ouverte
+(secrétaire **et** praticien 200), écriture **403 pour les deux** (réservée admin/manager).
+Patient d'un autre tenant → **404**.
+
+### Ronde R100 — app infirmière : audit ONGLET PAR ONGLET (le domaine le plus récent)
+
+`app_infirmiere` ne déclare que **2 routes** (`/` et `/notification-preferences`) : tout son contenu vit
+dans les **3 onglets** de l'accueil, qui ne sont donc pas atteignables par URL. Ils ont été audités
+comme des écrans à part entière. *Piège de repérage : la barre d'onglets est en **bas** d'écran
+(`y=764`), pas en haut — un filtre sur `y < 300` ne la trouve jamais ; c'est `role="tab"` qui la désigne.*
+
+| app | écran | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` onglet **Disponibilité** | 390×844 | 8 | 4 | 4 | 0 | 0 | 1 | 2026-09-25T20:55Z |
+| infirmiere | `/` onglet **Offres** | 390×844 | 7 | 3 | 2 | 1* | 0 | 1 | 2026-09-25T20:57Z |
+| infirmiere | `/` onglet **Ma visite** | 390×844 | 7 | 3 | 3 | 0 | 0 | 1 | 2026-09-25T20:59Z |
+
+*\* le « mort » est le conteneur `tablist` (libellé vide), requalifié.*
+
+- **Onglet Disponibilité** : porte l'interrupteur « **En ligne** », qui bascule réellement — vérifié
+  **par l'API** : après activation, `GET /v1/nurse/profile` rend `is_online: false`, puis `true` après
+  restauration. La bascule UI et `PATCH /v1/nurse/availability` sont bien le même état.
+- **Onglet Offres** : **état vide digne** — icône + « **Aucune offre** » + « Les demandes de visite
+  proches apparaîtront ici. » (capture jointe). Cohérent avec l'API : 0 offre en attente à cet instant.
+- **Onglet Ma visite** : idem, aucune visite en cours (les 3 demandes créées dans la ronde sont `done`
+  ou `cancelled`).
+- **Conformité tokens** (l'app n'a pas de maquette v2 dédiée — manque connu, non rapporté) : palette et
+  typographie conformes au design system, shell mobile aligné sur les patterns de `Patient Accueil v2`.
+
+**Hygiène des données de test** : l'interrupteur « En ligne » basculé par l'audit a été **remis à
+`true`**, et il ne reste **aucune demande de visite active** en fin de ronde (23 `done`, 20 `cancelled`,
+7 `expired`).
+
+### Ronde R100 — cas adversariaux `app_practicien` (3ᵉ app couverte dans cette catégorie)
+
+| cas | verdict | preuve |
+|---|---|---|
+| **Enregistrement d'une note clinique** (`/patients/:id`) | **OK, bout en bout** | Champ « Notes du praticien… » rempli → le bouton « **Enregistrer les notes** » **s'active** (il était, à raison, `DÉSACTIVÉ` tant que le champ était vide) → **1 seul** `POST /v1/cabinet/patients/:id/notes`, 0 requête ≥ 400 → et la note **a bien persisté** (re-`GET` : marqueur `QA-R100-note-1790368058` présent, horodaté 20:28:06). |
+| **Double-submit** sur « Enregistrer les notes » | **OK** | Un clic = une écriture ; aucune écriture en double. |
+| **Texte très long** (342 car.) dans les notes | **OK** | **0 débordement HORIZONTAL** (`x < 0` ou `x+w > 1282`). |
+| **BACK navigateur** au milieu du flux fiche patient → schéma dentaire | **OK** | Retour sur un écran **repeint et utilisable** (34 contrôles, `nearWhite` 0.751, 155 nœuds Semantics). |
+| **Coupure réseau** (`route.abort` sur `*/v1/*`) sur `/agenda` | **OK** | 24 contrôles toujours présents (navigation complète utilisable), `nearWhite` 0.783, **erreur digne** proposée — ni page blanche ni spinner infini. |
+
+> **Deuxième correction de méthode — le corollaire de la première.** Ce parcours a d'abord produit
+> deux « défauts » spectaculaires, tous deux **faux** :
+> 1. « **25 contrôles qui débordent** » → mon critère comptait le débordement **vertical**, or la fiche
+>    patient est une page **longue et défilante** (le champ de notes est à **y = 6170**). Mesuré
+>    **horizontalement**, le seul axe qui signale une vraie casse de mise en page : **0**.
+> 2. « **« Enregistrer les notes » ne déclenche aucune écriture** » → Playwright clique aux coordonnées
+>    du **viewport** ; un clic à `y = 6250` ne touche rien. Aucun texte n'était saisi, donc le bouton
+>    restait **légitimement désactivé**. Après défilement jusqu'au champ (`y` ramené à 234), tout
+>    fonctionne. **Il faut faire défiler jusqu'au contrôle avant de l'activer** — le marqueur
+>    `offscreen` de l'inventaire est là pour ça et doit être respecté, pas contourné.
+
 ### Ronde R99 — 2026-09-25 (12:00–14:20 UTC) — 5/5 apps + tunnel SSR ; **69 écrans**, 1 515 contrôles inventoriés, 534 activés, 416 OK
 
 > **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire
