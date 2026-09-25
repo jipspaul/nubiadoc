@@ -7,6 +7,51 @@ entre rôles testés directement contre l'API live (preuve = requête/réponse H
 root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à une route
 front pour le détail.
 
+#### Ronde R100 — 2026-09-25 (18:00–21:00 UTC) — diff-driven sur les 9 merges de l'après-midi (tous correctifs de R99), puis rotation B5/B13 + matrice cross-app
+
+**Contre-épreuve des 9 correctifs mergés depuis le dernier commit de registre** (`a592b6f..1dc52d4`) — les 9 sont des correctifs des findings de R99, tous re-testés contre l'API live :
+
+| correctif | finding d'origine | verdict | preuve |
+|---|---|---|---|
+| **#7677** — borne `comment` sur `POST /v1/reviews` | #7669 | **CORRIGÉ** | Borne **exacte** à 4 000 : `comment` de 4 000 car. → **409 `review_already_exists`** (donc la validation est passée), 4 001 → **422**, 1 000 000 → **422**. *Piège de repro : le corps exige `appointment_id` (pas `provider_id`) **et** un `Idempotency-Key` — sans quoi tout rend 422 et l'on conclut à tort.* |
+| **#7679** — bornes `POST /v1/account/visit-requests` | #7663 | **CORRIGÉ (côté `create`)** | `patient_display_name` 100 → 409 (passe), **101 → 422** ; `notes` 2 000 → 409 (passe), **2 001 → 422** ; 6 actes (= catalogue) → 409 (passe), **7 (doublon) → 422**, **200 → 422**. *Mais son **jumeau** `estimate` n'a pas reçu la borne → **#7687**.* |
+| **#7683** — barre de recherche + adresse/distance (tunnel SSR) | #7658 | **CORRIGÉ, mécanique exécutée** | La barre existe (`<select name=specialty>` + `<input name=place>` + submit) et **fonctionne** : `/recherche?specialty=dentiste&place=Lyon` → **303** → `/dentiste/lyon` ; `place=Paris` → `/dentiste/paris` ; spécialité inconnue → repli `dentiste` ; sans paramètre → `/`. Les cartes portent désormais **adresse + distance** : « 12 rue de la République, 69002 Lyon · **503 m** ». |
+| **#7682** — phrase tiers payant/secteur 1 dérivée du réel | #7659 | **CORRIGÉ** | Sur `/dentiste/lyon` (2 praticiens : 1 secteur 1, 1 secteur 2), la phrase « La majorité pratique… » est désormais **absente** — aucune majorité, donc le back se tait au lieu d'affirmer. Paragraphe servi : « 2 praticiens acceptent des rendez-vous en ligne à Lyon, dont 0 avec une disponibilité sous 48 heures. » |
+| **#7685** — téléphone non numérique sur `/reservation/confirmer` | #7133 | **CORRIGÉ** | Avec un **créneau frais par essai** (sinon la garde 410 masque tout) : `abcdefghij`, `06abc34086`, `tel:0612340086`, `<script>x</script>`, vide, `0612340086'` → **422** + page digne « Vos informations ». Formats légitimes acceptés : `06 12 34 00 86` et `+33612340087` → **200 « Rendez-vous confirmé »**. |
+| **#7680** — Stock pharmacie : action compacte + volet de détail | #7662 | **CORRIGÉ** | La ligne de demande est redevenue un **contrôle activable** (`button:"Cabinet Lyon / Attend 11 j / Reçue / 500 lignes · 500 un"`) et son activation ouvre bien le volet (verdict `OK(count+labels+pixels)`). « Accepter » est compact et fonctionne. |
+| **#7678** — rail secrétariat, branches ⟷ destinations (Congés) | #7666 | **CORRIGÉ** | `/conges` charge son propre écran (24 contrôles, 23 activés, **23 OK, 0 mort, 0 cassé**) — plus de renvoi sur « Statistiques ». |
+| **#7684** — borne `due_date` (conformité) | #7656 | non re-testé cette ronde (budget) | — |
+| **#7681** — SnackBar d'erreur via `NubiaSnackbar` | #7660 | non re-testé cette ronde (budget) | — |
+
+**PRIORITÉ 2 — ordonnance praticien → patient → pharmacie, prouvée maillon par maillon (X1/X2/X3) :**
+
+| étape | verdict | preuve |
+|---|---|---|
+| **2a création** `POST /v1/cabinet/prescriptions` | **OK** | **201** + `prescription_id`, et le **RE-GET confirme la persistance** : statut `draft`, **les 2 items** rendus intégralement. *`patient_id` est l'id **patient de cabinet** (`d0000000-…-d1`), pas l'`account_id` — un `account_id` rend 404, ce qui fait conclure à tort à une création cassée.* |
+| **2c-avant visibilité** | **OK** | Le brouillon **n'apparaît PAS** dans `GET /v1/account/prescriptions` (100 servies, aucune en `draft` : 92 `sent` + 8 `signed`). |
+| **2b signature** | **OK** | **200** + `signed_at` + `document_id` ; re-GET : statut **`signed`**. |
+| **2c-après visibilité** | **OK** | L'ordonnance signée apparaît **en position 0** côté patient, avec le bon statut. Détail patient : `prescriber_name`, `prescriber_practice` et les **2 items** avec posologie/durée. |
+| **2d transfert PATIENT→pharmacie** | **OK** | `POST /v1/account/prescriptions/:id/order` → **201**, `order_ref` **CMD-0420**, statut `received`, `line_count: 2`, **PII minimisée** (`patient_display_name: "Marc D."`). Gardes : double commande → **409 `already_ordered`** ; ordonnance **non signée** → **409 `invalid_status`** ; ordonnance inexistante → **404**. |
+| **2e réception + délivrance** | **OK** | La commande arrive dans `GET /v1/pharmacy/orders` (jeton pharma). Transitions `accept` → `ready` → **409** sur un `accept` rejoué. `GET /v1/pharmacy/orders/:id/items` sert bien **les 2 lignes** de l'ordonnance (exigence maquette Délivrance). QR : `GET /v1/account/orders/:id/pickup-token` → token + `short_code` + `expires_at`. **Garde #6349 vérifiée** : `expected_order_id` non concordant → **409 `pickup_order_mismatch`** sans écriture ; token bidon → **404** ; token + `expected_order_id` concordants → **200**, et la **timeline patient atteint `picked_up`** (`received_at`/`ready_at`/`picked_up_at` tous renseignés). |
+| **cloisonnement X2** | **OK** | Une commande passée chez la pharmacie **f2** est **404** pour le pharmacien **f1**, en lecture **comme** en `accept`. `select-pharmacy-context` sur une pharmacie sans adhésion → **403 `no_membership`**. Jetons patient et praticien sur `/v1/pharmacy/orders` → **403**. |
+
+**Confirmation bout-en-bout côté UI** : le PDF de l'ordonnance signée à l'étape 2b est bien **téléchargeable depuis le coffre-fort patient** — clic sur « Télécharger » dans `/documents` → fichier `4b02c545-….pdf` effectivement reçu.
+
+**Rotation B5 / X7 — réassort cabinet → officine :** chaîne complète `sent → accepted → fulfilled`, le secrétariat voyant l'état final (`fulfilled` + `fulfilled_at`). Transitions illégales correctement refusées : `fulfill` **avant** `accept` → **409**, double `fulfill` → **409**, `cancel` d'une demande honorée → **409**, pharmacie inexistante → **404**. Bornes #7019/#7138 tenues : 201 items → 422, libellé 501 car. → 422, note 2 001 car. → 422, `qty` négatif → 422. **Un défaut trouvé sur `accept` → #7688.**
+
+**Rotation B13 / X10 / X11 — soins à domicile (domaine le plus récent) :**
+- **X10 complet** : demande patient → **`offered`** → l'infirmière la voit dans `GET /v1/nurse/offers` → `accept` → `en-route` → `arrived` → `done`, **chaque étape constatée côté patient** avec son horodatage et `nurse_display_name: "Camille Infirmière"`.
+- **Estimation = tarif appliqué** : `estimate(['prise_de_sang','pansement'])` → **6 000 c**, et la demande réellement créée porte `estimated_price_cents` = **6 000**. Barème cohérent (1 acte 4 000–4 300, 2 actes 5 800, catalogue entier 14 500).
+- **X11** : `is_online=false` → l'infirmière **sort** de `GET /v1/search/nurses?online_only=true` (0 résultat) tout en restant listée sans filtre avec `is_online:false` (drapeau honnête) ; remise en ligne → elle revient. **Rayon de service appliqué** : recherche à Marseille (43.30, 5.37) → **0 résultat** (rayon 20 km, cabinet à Lyon). **Hors ligne, aucun fan-out** : une demande créée reste en **`requested`** avec `offered_at: null` et `GET /v1/nurse/offers` → **0 offre**.
+- **Machine à états sans cul-de-sac** : une demande passée à **`expired`** (TTL d'offre écoulé, `visit_offer_expiry.rs`) **libère** le verrou « une demande active » — la création suivante rend **201** ; `cancel` sur une demande `expired` → **409** (pas de 500).
+- **Cloisonnement infirmier** : jeton **`kind:"pro"` non scopé** sur `/v1/nurse/*` → **403** ; jeton **`nurse`** sur `/v1/pharmacy/*` et `/v1/cabinet/*` → **403** ; jeton patient sur `/v1/nurse/offers` → **403** ; visite inexistante → **404** ; `accept` sur une visite `done` → **409**.
+
+**Vérifications qui se sont révélées CONFORMES après lecture du code (aucun finding — consigné pour ne pas les re-suspecter) :**
+- `GET /v1/cabinet/audit-log` → **403** répété sur chaque écran secrétariat : c'est un **sondage de rôle assumé** (`audit_log_access_cubit.dart:12-15` — « seul le 403 prouve le non-admin/manager »), re-joué à chaque rechargement de page. Pas un défaut.
+- `GET /v1/quotes/:id/attestation` → **404** à l'ouverture de chaque devis (patient **et** praticien) : sous-ressource **optionnelle**, le bloc la replie sur `null` (`financial_bloc.dart:189`, #7201) et l'écran s'affiche parfaitement (capture à l'appui). Pas un défaut.
+- `GET /v1/cabinet/patients/:id/{notes,medical-record,prescriptions}` → **403** pour le **praticien** sur un patient **sans relation de soin** (200 sur Marc Dubois, qui en a une) : garde délibérée, et l'UI affiche bien un message digne — « **Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible.** ». Pas un défaut. *Ce message est un nœud de TEXTE : il faut lire les feuilles de l'arbre Semantics, pas seulement les contrôles, sous peine de conclure à tort à un panneau vide.*
+- Numéro de téléphone à **9 chiffres** (`061234008`) accepté par le tunnel SSR : `validate_phone_format` (`text_validation.rs:85-95`) est une garde **E.164 générique** (7 à 14 chiffres), volontairement non spécifique à la France. Conforme au contrat écrit, non filé.
+
 #### Ronde R99 — 2026-09-25 (12:00–14:00 UTC) — diff-driven sur les 13 merges du matin, + 1re comparaison design-v2 du tunnel SSR
 
 **Étape 1bis.** Registre précédent `7ea1363` (2026-09-25T07:06Z). **13 merges** depuis — pour l'essentiel

@@ -7,6 +7,86 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+### Ronde R100 — 2026-09-25 (18:00–21:00 UTC) — **5/5 apps**, 28 écrans audités, **600 contrôles inventoriés, 538 activés**
+
+> **Méthode.** Flutter web rend **tout dans le shadow root de `<flt-glass-pane>`** : `document.querySelectorAll`
+> ne le traverse pas et rapporte `canvas: 0`, `flt-semantics: 0` — d'où l'illusion d'un écran vide. Tout
+> l'inventaire de cette ronde passe donc par une descente **récursive des shadow roots**. Deux autres
+> pièges corrigés en cours de ronde, à retenir pour la suivante :
+> 1. **Les champs de saisie ne sont pas des `flt-semantics`** mais de vrais `<input>`/`<textarea>`
+>    (dans `flt-text-editing-host`), porteurs d'un `aria-label` mais **sans `role`** : il faut les
+>    inventorier explicitement, sinon tout écran de connexion paraît n'avoir que des boutons.
+> 2. **`role=group` est un CONTENEUR**, pas une commande : son libellé est la concaténation de ses
+>    enfants (« NubiaEspace secrétariatAfficher le mot de passeSe connecter… ») et son centre
+>    géométrique est du vide. Le viser fabrique de faux « morts » — et, au moment de cliquer
+>    « Se connecter », fait rater la connexion en cliquant le conteneur au lieu du bouton.
+> 3. **Désambiguïser par la POSITION** : sur une liste de cartes au libellé identique, un appariement
+>    par libellé re-clique toujours la première et fait passer les 6 suivantes pour mortes.
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | `/` | 390×844 | 18 | 15 | 15 | 0 | 0 | 0 | 2026-09-25T18:47Z |
+| patient | `/mes-rdv` | 390×844 | 7 | 7 | 7 | 0 | 0 | 0 | 2026-09-25T18:48Z |
+| patient | `/prescriptions` | 390×844 | 16 | 15 | 15 | 0 | 0 | 0 | 2026-09-25T18:50Z |
+| patient | `/reviews` | 390×844 | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-25T18:51Z |
+| patient | `/documents` | 390×844 | 28 | 20 | 20 | 0 | 0 | 0 | 2026-09-25T18:53Z |
+| patient | `/notifications` | 390×844 | 20 | 16 | 16 | 0 | 0 | 0 | 2026-09-25T18:55Z |
+| patient | `/messaging` | 390×844 | 9 | 9 | 9 | 0 | 0 | 0 | 2026-09-25T18:56Z |
+| patient | `/financial` | 390×844 | 10 | 9 | 9 | 0 | 0 | 0 | 2026-09-25T18:58Z |
+| patient | `/treatment-plans` | 390×844 | 10 | 8 | 8 | 0 | 0 | 0 | 2026-09-25T19:00Z |
+| patient | `/home-care` | 390×844 | 17 | 15 | 15 | 0 | 0 | 0 | 2026-09-25T19:02Z |
+| praticien | `/` | 1280×800 | 34 | 28 | 28 | 0 | 0 | 0 | 2026-09-25T18:41Z |
+| praticien | `/agenda` | 1280×800 | 26 | 25 | 25 | 0 | 0 | 0 | 2026-09-25T18:44Z |
+| praticien | `/waiting-room` | 1280×800 | 21 | 19 | 19 | 0 | 0 | 1 | 2026-09-25T18:47Z |
+| praticien | `/ordonnances` | 1280×800 | 20 | 19 | 19 | 0 | 0 | 0 | 2026-09-25T18:50Z |
+| praticien | `/patients` | 1280×800 | 35 | 30 | 30 | 0 | 0 | 0 | 2026-09-25T18:55Z |
+| praticien | `/devis` | 1280×800 | 27 | 26 | 26 | 0 | 0 | 0 | 2026-09-25T18:58Z |
+| praticien | `/lab-work-orders` | 1280×800 | 26 | 24 | 24 | 0 | 0 | 1 | 2026-09-25T19:01Z |
+| praticien | `/mes-conges` | 1280×800 | 21 | 20 | 20 | 0 | 0 | 0 | 2026-09-25T19:03Z |
+| secretariat | `/conges` | 1280×800 | 24 | 23 | 23 | 0 | 0 | 0 | 2026-09-25T18:32Z |
+| secretariat | `/salle-attente` | 1280×800 | 24 | 22 | 22 | 0 | 0 | 1 | 2026-09-25T18:35Z |
+| secretariat | `/stock` | 1280×800 | 42 | 41 | 40 | **1** | 0 | 0 | 2026-09-25T18:38Z |
+| secretariat | `/devis` | 1280×800 | 54 | 47 | 46 | **1** | 0 | 0 | 2026-09-25T18:42Z |
+| pharmacie | `/` (file des commandes) | 1280×800 | 32 | 29 | 29 | 0 | 0 | 0 | 2026-09-25T18:26Z |
+| pharmacie | `/stock` | 1280×800 | 18 | 16 | 16 | 0 | 0 | 0 | 2026-09-25T18:28Z |
+| pharmacie | `/devis` | 1280×800 | 33 | 29 | 29 | 0 | 0 | 0 | 2026-09-25T18:30Z |
+| pharmacie | `/messages` | 1280×800 | 16 | 15 | 15 | 0 | 0 | 0 | 2026-09-25T18:32Z |
+| infirmiere | `/` (accueil / offres) | 390×844 | 8 | 7 | 7 | 0 | 0 | 0 | 2026-09-25T19:05Z |
+| infirmiere | `/notification-preferences` | 390×844 | 3 | 3 | 3 | 0 | 0 | 0 | 2026-09-25T19:06Z |
+| **TOTAL** | **28 écrans** | — | **600** | **538** | **536** | **2** | **0** | **3** | — |
+
+**Les 2 seuls contrôles MORTS de la ronde** sont le **même** : l'en-tête de groupe « **Réglages du cabinet** »
+du rail secrétariat, inerte sur `/stock` comme sur `/devis` → **#7692 (P1)**. Vérifié à cinq modalités
+d'activation, avec contre-épreuve positive (« Facturation » bascule correctement) et différentiel de
+viewport (fonctionne à 1280×**1000**, mort à 1280×**800**).
+
+**Les 3 contrôles DÉSACTIVÉS sont tous légitimes, et prouvés tels :**
+- secrétariat `/salle-attente` → « **Appeler suivant** » : `GET /v1/cabinet/waiting-room` rend **0 entrée** — rien à appeler.
+- praticien `/waiting-room` → idem, file vide.
+- praticien `/lab-work-orders` → « **Nouveau bon** », accompagné à l'écran du motif explicite « Création de bon de travail indisponible pour … ».
+
+**35 verdicts « cassé » et 19 « morts » bruts ont été REQUALIFIÉS en faux positifs après vérification** —
+chacun re-testé individuellement plutôt que filé :
+
+| symptôme brut | occurrences | pourquoi ce n'est PAS un défaut |
+|---|---|---|
+| `/financial`, `/devis` : 404 sur `…/attestation` au clic d'un devis | 18 | Sous-ressource **optionnelle** ; le bloc la replie sur `null` (#7201) et l'écran s'affiche intégralement — **capture à l'appui** (montant, répartition AMO/mutuelle, « Signer le devis »). |
+| `/patients` : 403 sur `…/notes`, `…/medical-record` | 11 | Garde « relation de soin » **délibérée** (200 sur un patient suivi, 403 sinon) et l'UI affiche « **Vous n'avez pas encore suivi ce patient…** ». |
+| « Questionnaire médical » → `canvas quasi vide ratio=0.987` | 6 | **Heuristique near-white trop naïve** : l'écran est simplement **sobre** (peu de contenu, beaucoup de blanc) et rend parfaitement. Seuil resserré depuis : blanc ⇔ `ratio > 0.985` **ET** ≤ 3 nœuds Semantics. |
+| `/prescriptions` : 12 cartes « mortes » | 12 | **Libellés identiques** → l'appariement re-cliquait la première carte. Corrigé par désambiguïsation positionnelle. *A tout de même révélé un vrai défaut d'usage → **#7690**.* |
+| pharmacie : `group:"CommandesStockMessagesDevis"` | 3 | **Conteneur** de la barre de navigation, pas une commande ; son centre est du vide entre deux entrées. |
+| patient `/documents` : « **Télécharger** » | 1 | Le téléchargement **marche** : `acceptDownloads` activé → fichier `4b02c545-….pdf` reçu (l'ordonnance signée plus tôt dans la ronde). Un téléchargement ne change ni l'URL ni la peinture. |
+| praticien : `progressbar:"0"`, `semantics:"Création de bon…"` | 2 | Rôles **non activables** (jauge, nœud de texte) — désormais exclus de l'inventaire. |
+
+**Cas adversariaux joués (app_patient, 390×844) :**
+
+| cas | verdict | preuve |
+|---|---|---|
+| **Double-submit** sur « Envoyer le message » | **OK** | Deux clics immédiats → **exactement 1** `POST /v1/conversations/:id/messages`, 0 requête ≥ 400. |
+| **Texte très long** (320 car.) dans un champ libre | **OK** | Aucun débordement : **0 contrôle** hors du viewport 390×844, `nearWhite` stable (0.637 → 0.633), inventaire inchangé (7 → 7). |
+| **BACK navigateur** au milieu du tunnel de réservation | **OK** | Retour sur un écran **repeint et utilisable** (7 contrôles, `nearWhite` 0.637, 24 nœuds Semantics) — aucun écran blanc ni état figé. |
+| **Coupure réseau** (`route.abort` sur `*/v1/*`) sur `/documents` | **OK** | **Erreur digne** : l'écran se réduit à « Retour » + « **Réessayer** » — ni spinner infini, ni page blanche. |
+
 ### Ronde R99 — 2026-09-25 (12:00–14:20 UTC) — 5/5 apps + tunnel SSR ; **69 écrans**, 1 515 contrôles inventoriés, 534 activés, 416 OK
 
 > **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire
