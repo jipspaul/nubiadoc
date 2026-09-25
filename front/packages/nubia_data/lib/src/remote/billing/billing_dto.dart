@@ -1,4 +1,5 @@
 import 'package:nubia_domain/src/entities/quote.dart';
+import 'package:nubia_domain/src/entities/payment_schedule.dart';
 
 class QuoteLineItemDto {
   final String id;
@@ -182,6 +183,76 @@ class QuoteSignedDto {
   factory QuoteSignedDto.fromJson(Map<String, dynamic> json) => QuoteSignedDto(
         signed: json['signed'] as bool,
         signedAt: json['signed_at'] as String,
+      );
+}
+
+/// Un jalon tel que renvoyé par `GET /v1/payment-schedules`
+/// (`payment_schedule.installments[]`, cf. `api/src/payment_schedules.rs`) :
+/// `{date, amount_cents, status}`.
+class PaymentScheduleInstallmentDto {
+  final String date;
+  final int amountCents;
+  final String status;
+
+  const PaymentScheduleInstallmentDto({
+    required this.date,
+    required this.amountCents,
+    required this.status,
+  });
+
+  factory PaymentScheduleInstallmentDto.fromJson(Map<String, dynamic> json) =>
+      PaymentScheduleInstallmentDto(
+        date: json['date'] as String,
+        amountCents: (json['amount_cents'] as num).toInt(),
+        status: json['status'] as String,
+      );
+
+  PaymentScheduleInstallment toDomain() => PaymentScheduleInstallment(
+        date: DateTime.parse(date),
+        amountCents: amountCents,
+        status: InstallmentStatus.fromApi(status),
+      );
+}
+
+/// Contrat réel `GET /v1/payment-schedules` (`data: [...]`) : {id, quote_id,
+/// total_amount_cents, installments:[...], provider, status, created_at}.
+class PaymentScheduleDto {
+  final String id;
+  final String? quoteId;
+  final int totalAmountCents;
+  final List<PaymentScheduleInstallmentDto> installments;
+  final String status;
+  final String createdAt;
+
+  const PaymentScheduleDto({
+    required this.id,
+    this.quoteId,
+    required this.totalAmountCents,
+    required this.installments,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory PaymentScheduleDto.fromJson(Map<String, dynamic> json) =>
+      PaymentScheduleDto(
+        id: json['id'] as String,
+        quoteId: json['quote_id'] as String?,
+        totalAmountCents: (json['total_amount_cents'] as num).toInt(),
+        installments: (json['installments'] as List<dynamic>? ?? [])
+            .map((e) => PaymentScheduleInstallmentDto.fromJson(
+                e as Map<String, dynamic>))
+            .toList(),
+        status: json['status'] as String,
+        createdAt: json['created_at'] as String,
+      );
+
+  PaymentSchedule toDomain() => PaymentSchedule(
+        id: id,
+        quoteId: quoteId,
+        totalAmountCents: totalAmountCents,
+        installments: installments.map((i) => i.toDomain()).toList(),
+        status: PaymentScheduleStatus.fromApi(status),
+        createdAt: DateTime.parse(createdAt),
       );
 }
 

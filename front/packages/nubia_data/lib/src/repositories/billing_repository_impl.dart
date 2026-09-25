@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/billing/billing_api.dart';
 import 'package:nubia_domain/src/entities/quote.dart';
+import 'package:nubia_domain/src/entities/payment_schedule.dart';
 import 'package:nubia_domain/src/repositories/billing_repository.dart';
 
 class BillingRepositoryImpl implements BillingRepository {
@@ -29,6 +30,19 @@ class BillingRepositoryImpl implements BillingRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Devis introuvable.'));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<PaymentSchedule>>> getPaymentSchedules() async {
+    try {
+      final dtos = await _api.getPaymentSchedules();
+      return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      return Left(
+          _mapDioError(e, 'Erreur lors du chargement des échéanciers.'));
     } catch (e) {
       return const Left(ParseFailure());
     }

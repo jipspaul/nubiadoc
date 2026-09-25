@@ -270,6 +270,7 @@ void registerPatient(GetIt gi) {
       getQuoteAttachments: gi<GetPatientQuoteAttachmentsUseCase>(),
       getQuoteAttestation: gi<GetPatientQuoteAttestationUseCase>(),
       signQuoteAttestation: gi<SignPatientQuoteAttestationUseCase>(),
+      getQuotePaymentSchedule: gi<GetQuotePaymentScheduleUseCase>(),
     ),
   );
 

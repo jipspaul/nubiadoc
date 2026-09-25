@@ -17,6 +17,7 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     required GetPatientQuoteAttachmentsUseCase getQuoteAttachments,
     required GetPatientQuoteAttestationUseCase getQuoteAttestation,
     required SignPatientQuoteAttestationUseCase signQuoteAttestation,
+    required GetQuotePaymentScheduleUseCase getQuotePaymentSchedule,
   })  : _getPendingQuotes = getPendingQuotes,
         _getQuoteById = getQuoteById,
         _initiateSignature = initiateSignature,
@@ -25,6 +26,7 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
         _getQuoteAttachments = getQuoteAttachments,
         _getQuoteAttestation = getQuoteAttestation,
         _signQuoteAttestation = signQuoteAttestation,
+        _getQuotePaymentSchedule = getQuotePaymentSchedule,
         super(const FinancialInitial()) {
     on<FinancialLoadRequested>(_onLoad);
     on<FinancialQuoteSelected>(_onQuoteSelected);
@@ -44,6 +46,7 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
   final GetPatientQuoteAttachmentsUseCase _getQuoteAttachments;
   final GetPatientQuoteAttestationUseCase _getQuoteAttestation;
   final SignPatientQuoteAttestationUseCase _signQuoteAttestation;
+  final GetQuotePaymentScheduleUseCase _getQuotePaymentSchedule;
 
   Future<void> _onLoad(
     FinancialLoadRequested event,
@@ -168,9 +171,10 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     }
   }
 
-  // Chargement séparé de `_onQuoteSelected` (#7201) : les pièces jointes et
-  // l'attestation sont des sous-ressources, une erreur réseau sur l'une
-  // d'elles ne doit pas empêcher l'affichage du devis déjà chargé.
+  // Chargement séparé de `_onQuoteSelected` (#7201) : les pièces jointes,
+  // l'attestation et l'échéancier de paiement (#7018) sont des
+  // sous-ressources, une erreur réseau sur l'une d'elles ne doit pas
+  // empêcher l'affichage du devis déjà chargé.
   Future<void> _onAttestationLoadRequested(
     FinancialAttestationLoadRequested event,
     Emitter<FinancialState> emit,
@@ -180,6 +184,8 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     try {
       final attachmentsResult = await _getQuoteAttachments(current.quote.id);
       final attestationResult = await _getQuoteAttestation(current.quote.id);
+      final paymentScheduleResult =
+          await _getQuotePaymentSchedule(current.quote.id);
       final latest = state;
       if (latest is! FinancialQuoteDetail) return;
       safeEmit(FinancialQuoteDetail(
@@ -188,6 +194,7 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
         documentUrl: latest.documentUrl,
         attachments: attachmentsResult.fold((_) => const [], (v) => v),
         attestation: attestationResult.fold((_) => null, (v) => v),
+        paymentSchedule: paymentScheduleResult.fold((_) => null, (v) => v),
       ));
     } catch (_) {
       // Silencieux : le détail du devis reste affiché sans pièces jointes.

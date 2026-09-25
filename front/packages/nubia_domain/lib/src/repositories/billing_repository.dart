@@ -1,10 +1,15 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/quote.dart';
+import 'package:nubia_domain/src/entities/payment_schedule.dart';
 
 abstract class BillingRepository {
   Future<Either<Failure, List<Quote>>> getQuotes();
   Future<Either<Failure, Quote>> getQuoteById(String id);
+
+  /// `GET /v1/payment-schedules` — tous les échéanciers du patient connecté,
+  /// tous devis confondus (#7018, #4072).
+  Future<Either<Failure, List<PaymentSchedule>>> getPaymentSchedules();
 
   /// Signs the quote (synchronous stub — no redirect flow) and returns the
   /// updated [Quote] (now `signed`).
