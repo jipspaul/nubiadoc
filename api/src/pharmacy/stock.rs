@@ -141,8 +141,18 @@ pub struct CreateStockRequestBody {
 /// officine dépasse rarement quelques dizaines de références.
 pub(crate) const MAX_STOCK_REQUEST_ITEMS: usize = 200;
 
+/// Plafonds de longueur (#7138) : la garde bornait déjà `qty`, le vide et le
+/// NUL byte, mais jamais la longueur de `label`/`note` — un libellé de
+/// 50 000 caractères et une note de 100 000 passaient en 201, persistaient
+/// tels quels dans le JSONB et repartaient intégralement vers l'officine.
+/// Mêmes ordres de grandeur que `MAX_QUOTE_ITEM_LABEL_LEN` (libellé d'article,
+/// `cabinet_quotes.rs`) et `MAX_MOTIF_LEN` (note libre, `waiting_list.rs`).
+pub(crate) const MAX_STOCK_ITEM_LABEL_LEN: usize = 500;
+pub(crate) const MAX_STOCK_ITEM_NOTE_LEN: usize = 2_000;
+
 /// `POST /v1/cabinet/stock-requests` — émet une demande vers une pharmacie
-/// listée (404 sinon). Items vides, en nombre excessif, ou libellé vide → 422.
+/// listée (404 sinon). Items vides, en nombre excessif, libellé vide, ou
+/// libellé/note trop long → 422.
 pub async fn create_stock_request(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<WsHub>>,
@@ -162,8 +172,10 @@ pub async fn create_stock_request(
     // #4600 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
     for item in &body.items {
         crate::text_validation::reject_nul_byte(&item.label)?;
+        crate::text_validation::validate_max_len(&item.label, MAX_STOCK_ITEM_LABEL_LEN)?;
         if let Some(note) = &item.note {
             crate::text_validation::reject_nul_byte(note)?;
+            crate::text_validation::validate_max_len(note, MAX_STOCK_ITEM_NOTE_LEN)?;
         }
     }
 
