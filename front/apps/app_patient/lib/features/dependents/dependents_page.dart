@@ -1166,7 +1166,6 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
   /// de la maquette, cf. `_AdjustScopeCard` dans `incoming_request_page.dart`).
   bool _scopeAppointments = true;
   bool _scopeDocuments = true;
-  bool _scopeMessages = false;
 
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
   bool get _emailValid => _emailRe.hasMatch(_email.text.trim());
@@ -1192,7 +1191,6 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
           AccessRight.documents,
           AccessRight.ordonnances,
         ],
-        if (_scopeMessages) AccessRight.messages,
       };
 
   String _formatDate(DateTime date) => '${date.day.toString().padLeft(2, '0')}/'
@@ -1292,11 +1290,9 @@ class _AddDependentSheetState extends State<_AddDependentSheet> {
               _ProposedScopeCard(
                 appointments: _scopeAppointments,
                 documents: _scopeDocuments,
-                messages: _scopeMessages,
                 onAppointmentsChanged: (v) =>
                     setState(() => _scopeAppointments = v),
                 onDocumentsChanged: (v) => setState(() => _scopeDocuments = v),
-                onMessagesChanged: (v) => setState(() => _scopeMessages = v),
               ),
             ],
             const SizedBox(height: 24),
@@ -1378,22 +1374,23 @@ class _DependentDobField extends StatelessWidget {
 
 /// Carte « Ce que vous pourrez faire » (maquette design-v2, #5248) : le
 /// périmètre proposé par le demandeur pour l'invitation d'un proche adulte.
+///
+/// Ne propose QUE les droits que l'API sait accorder
+/// (`ACCESS_REQUEST_SCOPE_VALUES`, `api/src/auth/mod.rs`) : les messages
+/// avec le cabinet n'en font pas partie — la maquette les réserve au bloc
+/// négatif « ce qui restera hors d'atteinte » (#7010).
 class _ProposedScopeCard extends StatelessWidget {
   const _ProposedScopeCard({
     required this.appointments,
     required this.documents,
-    required this.messages,
     required this.onAppointmentsChanged,
     required this.onDocumentsChanged,
-    required this.onMessagesChanged,
   });
 
   final bool appointments;
   final bool documents;
-  final bool messages;
   final ValueChanged<bool> onAppointmentsChanged;
   final ValueChanged<bool> onDocumentsChanged;
-  final ValueChanged<bool> onMessagesChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1429,14 +1426,6 @@ class _ProposedScopeCard extends StatelessWidget {
             subtitle: 'Ordonnances, devis, factures',
             value: documents,
             onChanged: onDocumentsChanged,
-          ),
-          const SizedBox(height: 12),
-          _ScopeRow(
-            rowKey: const Key('proposed_scope_toggle_messages'),
-            icon: Icons.chat_bubble,
-            title: 'Ses messages avec le cabinet',
-            value: messages,
-            onChanged: onMessagesChanged,
           ),
         ],
       ),
