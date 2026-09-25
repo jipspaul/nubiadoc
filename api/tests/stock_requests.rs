@@ -540,3 +540,73 @@ async fn pagination_and_detail_route() {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn status_filter() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, pharmacy_id) = seed(&db).await;
+    let pro = pro_jwt(cabinet_id, "secretary");
+    let pharma = pharma_jwt(pharmacy_id);
+
+    // Deux demandes : une reste `sent`, l'autre passe `accepted` (#7139 :
+    // avant, `?status=` était ignoré et les deux listes ci-dessous étaient
+    // identiques quelle que soit la valeur passée).
+    let (_, sent_request) = call(
+        "POST",
+        "/v1/cabinet/stock-requests",
+        &pro,
+        Some(json!({"pharmacy_id": pharmacy_id,
+                    "items": [{"label": "Item sent", "qty": 1}]})),
+    )
+    .await;
+    let (_, accepted_request) = call(
+        "POST",
+        "/v1/cabinet/stock-requests",
+        &pro,
+        Some(json!({"pharmacy_id": pharmacy_id,
+                    "items": [{"label": "Item accepted", "qty": 1}]})),
+    )
+    .await;
+    let accepted_id = accepted_request["id"].as_str().unwrap().to_string();
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/stock-requests/{accepted_id}/accept"),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, list) = call("GET", "/v1/cabinet/stock-requests?status=sent", &pro, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let data = list["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["id"], sent_request["id"]);
+
+    let (status, list) = call(
+        "GET",
+        "/v1/pharmacy/stock-requests?status=accepted",
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let data = list["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["id"], accepted_id);
+
+    // Valeur hors énum → 422, jamais une liste silencieusement non filtrée.
+    let (status, _) = call("GET", "/v1/cabinet/stock-requests?status=bogus", &pro, None).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    let (status, _) = call(
+        "GET",
+        "/v1/pharmacy/stock-requests?status=bogus",
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}

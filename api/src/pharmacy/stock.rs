@@ -97,11 +97,22 @@ pub struct StockRequestsResponse {
 /// `limit` (défaut 200, max 500) et `offset` bornent le résultat (#7322 :
 /// avant, `LIMIT 200` était codé en dur sans aucun paramètre accepté — les
 /// lignes au-delà du plafond devenaient irrécupérables).
+///
+/// `status` filtre sur `VALID_STOCK_REQUEST_STATUSES`, `422` sinon (#7139 :
+/// avant, `status` (même une valeur bidon) était silencieusement ignoré et
+/// renvoyait toujours la même liste non filtrée).
 #[derive(Deserialize)]
 pub struct ListStockRequestsQuery {
+    pub status: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
+
+/// Énum `stock_request.status` (CHECK, migration 0125) — même doctrine que
+/// `VALID_QUOTE_STATUSES` : une valeur hors énum → `422`, jamais une liste
+/// silencieusement non filtrée (#7139).
+const VALID_STOCK_REQUEST_STATUSES: [&str; 5] =
+    ["sent", "accepted", "rejected", "fulfilled", "cancelled"];
 
 // ── Espace cabinet ────────────────────────────────────────────────────────────
 
@@ -235,13 +246,18 @@ pub async fn create_stock_request(
     Ok((StatusCode::CREATED, Json(request)))
 }
 
-/// `GET /v1/cabinet/stock-requests?limit=&offset=` — demandes émises par le
+/// `GET /v1/cabinet/stock-requests?status=&limit=&offset=` — demandes émises par le
 /// cabinet, triées `created_at DESC` (#7322).
 pub async fn list_cabinet_stock_requests(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
     Query(params): Query<ListStockRequestsQuery>,
 ) -> Result<Json<StockRequestsResponse>, AppError> {
+    if let Some(ref status) = params.status {
+        if !VALID_STOCK_REQUEST_STATUSES.contains(&status.as_str()) {
+            return Err(AppError::ValidationError);
+        }
+    }
     let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
     let offset: i64 = params.offset.unwrap_or(0).max(0);
 
@@ -252,14 +268,27 @@ pub async fn list_cabinet_stock_requests(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(&format!(
-        "SELECT {STOCK_COLUMNS} FROM stock_request ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-    ))
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let rows = if let Some(status) = &params.status {
+        sqlx::query(&format!(
+            "SELECT {STOCK_COLUMNS} FROM stock_request WHERE status = $1 \
+             ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+        ))
+        .bind(status)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    } else {
+        sqlx::query(&format!(
+            "SELECT {STOCK_COLUMNS} FROM stock_request ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+        ))
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    };
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let data = rows
@@ -411,13 +440,18 @@ pub async fn resend_stock_request(
 
 // ── Espace pharmacie ──────────────────────────────────────────────────────────
 
-/// `GET /v1/pharmacy/stock-requests?limit=&offset=` — demandes reçues par la
+/// `GET /v1/pharmacy/stock-requests?status=&limit=&offset=` — demandes reçues par la
 /// pharmacie, triées `created_at DESC` (#7322).
 pub async fn list_pharmacy_stock_requests(
     State(state): State<AppState>,
     claims: PharmaMemberClaims,
     Query(params): Query<ListStockRequestsQuery>,
 ) -> Result<Json<StockRequestsResponse>, AppError> {
+    if let Some(ref status) = params.status {
+        if !VALID_STOCK_REQUEST_STATUSES.contains(&status.as_str()) {
+            return Err(AppError::ValidationError);
+        }
+    }
     let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
     let offset: i64 = params.offset.unwrap_or(0).max(0);
 
@@ -428,14 +462,27 @@ pub async fn list_pharmacy_stock_requests(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(&format!(
-        "SELECT {STOCK_COLUMNS} FROM stock_request ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-    ))
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let rows = if let Some(status) = &params.status {
+        sqlx::query(&format!(
+            "SELECT {STOCK_COLUMNS} FROM stock_request WHERE status = $1 \
+             ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+        ))
+        .bind(status)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    } else {
+        sqlx::query(&format!(
+            "SELECT {STOCK_COLUMNS} FROM stock_request ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+        ))
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    };
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let data = rows
