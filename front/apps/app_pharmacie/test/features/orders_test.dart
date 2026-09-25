@@ -361,6 +361,36 @@ void main() {
     });
 
     testWidgets(
+        'pied de liste : délai moyen > 24h converti en jours, pas en '
+        'minutes brutes (#7636)', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(OrdersLoaded(orders: [
+        PharmacyOrder(
+          id: 'o1',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Jean D.',
+          prescriptionId: 'rx1',
+          status: PharmacyOrderStatus.ready,
+          createdAt: DateTime(2026, 7, 1, 8),
+          updatedAt: DateTime(2026, 7, 6, 15, 15),
+          readyAt: DateTime(2026, 7, 6, 15, 15),
+        ),
+      ]));
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(find.byKey(const Key('orders_list_footer')), findsOneWidget);
+      expect(find.textContaining('5 j'), findsOneWidget);
+      expect(find.textContaining('8595 min'), findsNothing);
+    });
+
+    testWidgets(
         'bouton « Scanner un retrait » propose les commandes prêtes (#7616)',
         (tester) async {
       final bloc = MockOrdersBloc();
