@@ -24,6 +24,8 @@ class _MockSendMessage extends Mock implements SendCabinetTeamMessageUseCase {}
 class _MockListPractitioners extends Mock
     implements ListCabinetPractitionersUseCase {}
 
+class _MockGetAgenda extends Mock implements GetCabinetAgendaUseCase {}
+
 final _message1 = CabinetTeamMessage(
   id: 'm1',
   senderId: 'u1',
@@ -68,19 +70,24 @@ void main() {
   late _MockListMessages listMessages;
   late _MockSendMessage sendMessage;
   late _MockListPractitioners listPractitioners;
+  late _MockGetAgenda getAgenda;
 
   setUp(() {
     listMessages = _MockListMessages();
     sendMessage = _MockSendMessage();
     listPractitioners = _MockListPractitioners();
+    getAgenda = _MockGetAgenda();
     when(() => listPractitioners())
         .thenAnswer((_) async => const Right(<CabinetPractitioner>[]));
+    when(() => getAgenda(any()))
+        .thenAnswer((_) async => const Right(<AgendaEntry>[]));
     GetIt.instance
         .registerFactory<ListCabinetTeamMessagesUseCase>(() => listMessages);
     GetIt.instance
         .registerFactory<SendCabinetTeamMessageUseCase>(() => sendMessage);
     GetIt.instance.registerFactory<ListCabinetPractitionersUseCase>(
         () => listPractitioners);
+    GetIt.instance.registerFactory<GetCabinetAgendaUseCase>(() => getAgenda);
     addTearDown(GetIt.instance.reset);
   });
 
@@ -338,6 +345,57 @@ void main() {
     });
 
     testWidgets(
+        'desktop → présence dérivée de l\'agenda du jour (#7668)',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+      when(() => listPractitioners()).thenAnswer((_) async => const Right([
+            CabinetPractitioner(
+              id: 'prac-lefevre',
+              displayName: 'Dr Claire Lefèvre',
+              specialite: 'Praticienne',
+            ),
+            CabinetPractitioner(
+              id: 'prac-marin',
+              displayName: 'Dr Hugo Marin',
+            ),
+          ]));
+      final now = DateTime.now();
+      when(() => getAgenda(any())).thenAnswer((_) async => Right([
+            AgendaEntry(
+              id: 'a1',
+              cabinetId: 'c1',
+              practitionerId: 'prac-lefevre',
+              practitionerName: 'Dr Claire Lefèvre',
+              startsAt: now.subtract(const Duration(minutes: 10)),
+              endsAt: now.add(const Duration(minutes: 10)),
+              isFree: false,
+              status: 'confirmed',
+            ),
+          ]));
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final lefevreRow = find.byKey(const Key('team_member_prac-lefevre'));
+      expect(
+        find.descendant(of: lefevreRow, matching: find.text('En consultation')),
+        findsOneWidget,
+      );
+
+      final marinRow = find.byKey(const Key('team_member_prac-marin'));
+      expect(
+        find.descendant(of: marinRow, matching: find.text('Disponible')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
         'desktop → roster praticiens indisponible → panneau « Équipe » masqué '
         '(pas de donnée inventée)', (tester) async {
       when(() => listMessages())
@@ -443,6 +501,78 @@ void main() {
 
       expect(
         find.byKey(const Key('team_messages_pinned_notice')),
+        findsNothing,
+      );
+    });
+  });
+
+  group('en-tête (#7668)', () {
+    testWidgets('sous-titre « Fil du cabinet · réservé à l\'équipe » affiché',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text("Fil du cabinet · réservé à l'équipe"),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('desktop → résumé du roster (avatars + « N membres »)',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+      when(() => listPractitioners()).thenAnswer((_) async => const Right([
+            CabinetPractitioner(
+              id: 'prac-lefevre',
+              displayName: 'Dr Claire Lefèvre',
+              specialite: 'Praticienne',
+            ),
+            CabinetPractitioner(
+              id: 'prac-marin',
+              displayName: 'Dr Hugo Marin',
+            ),
+          ]));
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('team_messages_roster_summary')),
+        findsOneWidget,
+      );
+      expect(find.text('2 membres'), findsOneWidget);
+    });
+
+    testWidgets('étroit (mobile) → résumé du roster masqué', (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+      when(() => listPractitioners()).thenAnswer((_) async => const Right([
+            CabinetPractitioner(
+              id: 'prac-lefevre',
+              displayName: 'Dr Claire Lefèvre',
+              specialite: 'Praticienne',
+            ),
+          ]));
+
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('team_messages_roster_summary')),
         findsNothing,
       );
     });
