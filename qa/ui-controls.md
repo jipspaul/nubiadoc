@@ -7,15 +7,15 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R99 — 2026-09-25 (12:00–14:00 UTC) — 5/5 apps + tunnel SSR ; 990 contrôles inventoriés, 376 activés
+### Ronde R99 — 2026-09-25 (12:00–14:00 UTC) — 5/5 apps + tunnel SSR ; **67 écrans**, 1 454 contrôles inventoriés, 512 activés
 
 > **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire
 > FRAIS** (rôle + libellé + occurrence) avant le clic — un clic qui change la liste décalait sinon
 > tous les rects suivants et produisait des « MORT » en série. Les dialogues sont refermés (Échap)
 > après chaque activation, le rail/chrome de navigation est exclu du décompte de l'écran (il est
 > audité à part), et `switch` a été ajouté aux rôles activables.
-> **Réfutations systématiques** : sur les 68 MORT et 28 CASSÉ bruts du harnais, **2 seulement** sont
-> des défauts réels (voir la colonne « morts »/« cassés ») ; les autres sont des artefacts vérifiés
+> **Réfutations systématiques** : sur les 73 MORT et 45 CASSÉ bruts du harnais, **4 seulement** sont
+> des défauts réels (#7666 ×2, #7656, #7671) ; les autres sont des artefacts vérifiés
 > un par un — contrôle sous le pli, chip hors du défileur horizontal, sélecteur de fichier (qui ne
 > modifie pas l'arbre Semantics), ou **sonde de rôle délibérée** (`403 GET /v1/cabinet/audit-log`,
 > `audit_log_access_cubit.dart:20-33` ; `404 GET /v1/quotes/:id/attestation`, sous-ressource absente
@@ -72,6 +72,22 @@
 | pharmacie | `/notification-preferences` (1280) | 12 | 0 | — | 0 | 0 | 2026-09-25T12:50:00Z |
 | infirmiere | `/` — 3 onglets (Disponibilité / Offres / Ma visite, 390 **et** 1280) | 7 par onglet | 5 | 5 | 0 | 0 — mais l'onglet « Offres » devient **inutilisable** sous une demande patient non bornée : « Accepter » à **16 000 px** sous le pli → **#7663** | 2026-09-25T12:47:00Z |
 | infirmiere | `/notification-preferences` (390) | 4 | 1 | 1 | 0 | 0 | 2026-09-25T12:50:00Z |
+| praticien | `/agenda` (1280) | 28 | 7 | 6 | 0 | **1 réel** — « **Démarrer** » → `409 out_of_window` sur tout RDV confirmé passé de plus de 60 min → **#7671** | 2026-09-25T13:38:00Z |
+| praticien | `/patients` (1280) | 34 | 14 | 14 | 0 | 0 (13 réfutés : `403 /notes` + `/medical-record` sur les patients sans relation de soin — l'écran affiche « 🔒 Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible. », dégradation **voulue et digne**, capture `R99_fiche_2.png`) | 2026-09-25T13:52:00Z |
+| praticien | `/stock` (1280) | 21 | 1 | 1 | 0 | 0 | 2026-09-25T13:40:00Z |
+| praticien | `/messages` (1280) | 27 | 8 | 8 | 0 | 0 | 2026-09-25T13:41:00Z |
+| secretariat | `/agenda` (1280) | 32 | 9 | 9 | 0 | 0 | 2026-09-25T13:35:00Z |
+| secretariat | `/patients` (1280) | 40 | 14 | 14 | 0 | 0 | 2026-09-25T13:36:00Z |
+| secretariat | `/devis` (1280) | 58 | 14 | 14 | 0 | 0 | 2026-09-25T13:52:00Z |
+| secretariat | `/salle-attente` (1280, file vide) | 24 | 0 | — | 0 | 0 — « Appeler suivant » **légitimement grisé** | 2026-09-25T13:36:00Z |
+| secretariat | `/cabinet-payouts`, `/cabinet-stats`, `/bookable-slots`, `/messages` (1280) | 4 écrans | — | OK | 0 | 0 | 2026-09-25T13:45:00Z |
+| pharmacie | `/` (File des commandes, 1280) | 22 | 8 | 8 | 0 | 0 | 2026-09-25T13:30:00Z |
+| pharmacie | `/messages` (1280) | 15 | 7 | 6 | 0 (1 réfuté : facette « Toutes » déjà active) | 0 | 2026-09-25T13:31:00Z |
+| pharmacie | `/orders/:id` (détail commande, 1280) | 16 | — | OK | 0 | 0 | 2026-09-25T13:46:00Z |
+| patient | `/prescriptions` (390) | 16 | 6 | 6 | 0 | 0 | 2026-09-25T13:33:00Z |
+| patient | `/treatment-plans`, `/appointments`, `/notifications` (390) | 3 écrans | — | OK | 0 | 0 | 2026-09-25T13:40:00Z |
+| patient | `/mes-rdv` — **rangée d'actions par carte** (390) | 3 cartes | 3 | 1 | **2 cartes sans AUCUN contrôle** → **#7672** | 0 | 2026-09-25T13:55:00Z |
+| praticien | `/patients/:id/dental-chart` → dialogue d'état de dent (1280×800 / 1280×900 / 1440×900) | 11 états | 1 + défilement | OK | 0 | 0 — 3 états sous le pli à 1280×800, **atteignables** (dialogue défilant) | 2026-09-25T13:35:00Z |
 
 **Cas adversariaux joués cette ronde (tous OK) :**
 
