@@ -21,6 +21,7 @@ import 'package:app_pharmacie/features/orders/orders_state.dart';
 import 'package:app_pharmacie/features/orders/widgets/order_row.dart';
 import 'package:app_pharmacie/features/orders/widgets/order_status_pill.dart';
 import 'package:app_pharmacie/features/orders/widgets/orders_kpis.dart';
+import 'package:app_pharmacie/features/orders/widgets/pickup_order_picker_sheet.dart';
 
 class MockPharmacyOrdersRepository extends Mock
     implements PharmacyOrdersRepository {}
@@ -325,6 +326,74 @@ void main() {
 
       expect(find.text('Jean D.'), findsOneWidget);
       expect(find.text('Prête'), findsOneWidget);
+    });
+
+    testWidgets(
+        'pied de liste : commandes affichées/total + délai moyen de '
+        'préparation (#7616)', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(OrdersLoaded(orders: [
+        PharmacyOrder(
+          id: 'o1',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Jean D.',
+          prescriptionId: 'rx1',
+          status: PharmacyOrderStatus.ready,
+          createdAt: DateTime(2026, 7, 1, 8),
+          updatedAt: DateTime(2026, 7, 1, 8, 20),
+          readyAt: DateTime(2026, 7, 1, 8, 20),
+        ),
+        order('o2', PharmacyOrderStatus.received),
+      ]));
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(find.byKey(const Key('orders_list_footer')), findsOneWidget);
+      expect(
+          find.textContaining('2 commandes affichées sur 2'), findsOneWidget);
+      expect(find.textContaining('20 min'), findsOneWidget);
+    });
+
+    testWidgets(
+        'bouton « Scanner un retrait » propose les commandes prêtes (#7616)',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(OrdersLoaded(orders: [
+        orderNamed('o1', 'Julie Martin', PharmacyOrderStatus.ready),
+        orderNamed('o2', 'Marc Dubois', PharmacyOrderStatus.received),
+      ]));
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      await tester.tap(find.byKey(const Key('orders_scan_pickup')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Quelle commande retirez-vous ?'), findsOneWidget);
+      // Recherche restreinte au sélecteur : « Julie Martin » apparaît aussi
+      // dans la ligne de la file, derrière la feuille modale.
+      final sheet = find.byType(PickupOrderPickerSheet);
+      expect(
+        find.descendant(of: sheet, matching: find.text('Julie Martin')),
+        findsOneWidget,
+      );
+      // Seules les commandes prêtes sont proposées — Marc Dubois est encore
+      // « Reçue ».
+      expect(
+        find.descendant(of: sheet, matching: find.text('Marc Dubois')),
+        findsNothing,
+      );
     });
 
     testWidgets('état vide → NubiaEmptyState', (tester) async {

@@ -187,6 +187,57 @@ void main() {
       );
     });
 
+    testWidgets(
+        'Cabinets partenaires — agrège les commandes du jour par cabinet '
+        '(#7616)', (tester) async {
+      final now = DateTime.now();
+      when(() => ordersBloc.state).thenReturn(OrdersLoaded(orders: [
+        PharmacyOrder(
+          id: 'o1',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Jean D.',
+          prescriptionId: 'rx1',
+          status: PharmacyOrderStatus.received,
+          createdAt: now,
+          updatedAt: now,
+          prescriberPractice: 'Cabinet Nubia Opéra',
+        ),
+        PharmacyOrder(
+          id: 'o2',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Ana B.',
+          prescriptionId: 'rx2',
+          status: PharmacyOrderStatus.preparing,
+          createdAt: now,
+          updatedAt: now,
+          prescriberPractice: 'Cabinet Nubia Opéra',
+        ),
+        PharmacyOrder(
+          id: 'o3',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Marc T.',
+          prescriptionId: 'rx3',
+          status: PharmacyOrderStatus.ready,
+          createdAt: now.subtract(const Duration(days: 2)),
+          updatedAt: now,
+          prescriberPractice: 'Cabinet Saint-Lazare',
+        ),
+      ]));
+      when(() => messagingBloc.state).thenReturn(
+        const PharmaMessagingConversationsLoaded([]),
+      );
+      when(() => stockBloc.state).thenReturn(const StockLoaded([]));
+
+      await pumpScreen(tester);
+
+      expect(find.text('Cabinets partenaires'), findsOneWidget);
+      expect(find.text('Cabinet Nubia Opéra'), findsOneWidget);
+      expect(find.text('2 commandes aujourd\'hui'), findsOneWidget);
+      // Commande vieille de 2 jours : hors « aujourd'hui », jamais de
+      // cabinet à « 0 commande » inventé (cf. #4916).
+      expect(find.text('Cabinet Saint-Lazare'), findsNothing);
+    });
+
     testWidgets('largeur < seuil → aside repliée', (tester) async {
       when(() => ordersBloc.state).thenReturn(OrdersLoaded(orders: [
         orderAt('o1', PharmacyOrderStatus.received,
