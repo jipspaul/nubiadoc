@@ -24,6 +24,7 @@ class CabinetTeamMessagesPage extends StatelessWidget {
         listMessages: GetIt.instance<ListCabinetTeamMessagesUseCase>(),
         sendMessage: GetIt.instance<SendCabinetTeamMessageUseCase>(),
         listPractitioners: GetIt.instance<ListCabinetPractitionersUseCase>(),
+        getAgenda: GetIt.instance<GetCabinetAgendaUseCase>(),
       ),
       child: const _TeamMessagesScaffold(),
     );
@@ -60,26 +61,92 @@ class _TeamMessagesAppBar extends StatelessWidget
 
   final ValueChanged<String> onSearchChanged;
 
-  @override
-  Widget build(BuildContext context) => AppBar(
-        title: const Text('Messagerie interne'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: SizedBox(
-              width: 230,
-              child: NubiaSearchBar(
-                key: const Key('team_messages_search'),
-                hint: 'Rechercher dans le fil…',
-                onChanged: onSearchChanged,
-              ),
-            ),
-          ),
-        ],
-      );
+  static const _height = kToolbarHeight + 14;
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Widget build(BuildContext context) {
+    final practitioners = switch (context.watch<CabinetTeamMessagesCubit>().state) {
+      CabinetTeamMessagesLoaded(:final practitioners) => practitioners,
+      _ => const <CabinetPractitioner>[],
+    };
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
+
+    return AppBar(
+      toolbarHeight: _height,
+      title: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Messagerie interne'),
+          Text(
+            "Fil du cabinet · réservé à l'équipe",
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: NubiaColors.n500),
+          ),
+        ],
+      ),
+      actions: [
+        if (isWide && practitioners.isNotEmpty)
+          _TeamRosterSummary(practitioners: practitioners),
+        Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: SizedBox(
+            width: 230,
+            child: NubiaSearchBar(
+              key: const Key('team_messages_search'),
+              hint: 'Rechercher dans le fil…',
+              onChanged: onSearchChanged,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(_height);
+}
+
+/// Résumé du roster dans la barre d'app (#7668, note ⑧ maquette) : rangée
+/// d'avatars + compteur « N membres », desktop uniquement (même seuil que
+/// `_TeamAside`) pour éviter le débordement sur mobile étroit.
+class _TeamRosterSummary extends StatelessWidget {
+  const _TeamRosterSummary({required this.practitioners});
+
+  final List<CabinetPractitioner> practitioners;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = practitioners.length;
+    return Padding(
+      key: const Key('team_messages_roster_summary'),
+      padding: const EdgeInsets.only(right: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < practitioners.length && i < 4; i++)
+            Padding(
+              padding: EdgeInsets.only(left: i == 0 ? 0 : 4),
+              child: NubiaAvatar(
+                initials: initialsFrom(practitioners[i].displayName),
+                radius: 12,
+              ),
+            ),
+          const SizedBox(width: 8),
+          Text(
+            '$count membre${count > 1 ? 's' : ''}',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: NubiaColors.n500),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _TeamMessagesBody extends StatefulWidget {
@@ -126,6 +193,9 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
         final practitioners = state is CabinetTeamMessagesLoaded
             ? state.practitioners
             : const <CabinetPractitioner>[];
+        final practitionersInConsultation = state is CabinetTeamMessagesLoaded
+            ? state.practitionersInConsultation
+            : const <String>{};
         final loadedMessages = state is CabinetTeamMessagesLoaded
             ? state.messages
             : const <CabinetTeamMessage>[];
@@ -163,7 +233,10 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
                 Expanded(child: thread),
                 _TeamAside(
                   pinnedMessages: pinnedMessages,
-                  teamMembers: _teamMembersFrom(practitioners),
+                  teamMembers: _teamMembersFrom(
+                    practitioners,
+                    practitionersInConsultation,
+                  ),
                   citedReferences: _citedReferencesToday(loadedMessages),
                 ),
               ],
@@ -188,19 +261,28 @@ class _TeamMember {
     required this.id,
     required this.name,
     required this.subtitle,
+    required this.isInConsultation,
   });
 
   final String id;
   final String name;
   final String subtitle;
+
+  /// Présence dérivée de l'agenda du jour (#7668, note ⑧ maquette) — `true`
+  /// si un RDV du praticien est en cours à l'instant du chargement.
+  final bool isInConsultation;
 }
 
-List<_TeamMember> _teamMembersFrom(List<CabinetPractitioner> practitioners) => [
+List<_TeamMember> _teamMembersFrom(
+  List<CabinetPractitioner> practitioners,
+  Set<String> inConsultationIds,
+) => [
       for (final practitioner in practitioners)
         _TeamMember(
           id: practitioner.id,
           name: practitioner.displayName,
           subtitle: practitioner.specialite ?? 'Praticien',
+          isInConsultation: inConsultationIds.contains(practitioner.id),
         ),
     ];
 
@@ -349,6 +431,7 @@ class _TeamMemberRow extends StatelessWidget {
           NubiaAvatar(initials: initialsFrom(member.name), radius: 18),
           const SizedBox(width: 10),
           Expanded(
+            flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -369,8 +452,34 @@ class _TeamMemberRow extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          // #7668 : `flexibleLabel` laisse la pastille rétrécir dans les 260px
+          // de l'aside plutôt que de forcer sa largeur intrinsèque (déborde
+          // sinon à côté d'un nom long).
+          Flexible(
+            child: _PresencePill(isInConsultation: member.isInConsultation),
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Pastille de présence (#7668, note ⑧ maquette) : dérivée de l'agenda du
+/// jour, pas d'un statut « absent »/« présent » qu'on ne peut pas vérifier —
+/// on ne sait que si un RDV est en cours ou non à l'instant présent.
+class _PresencePill extends StatelessWidget {
+  const _PresencePill({required this.isInConsultation});
+
+  final bool isInConsultation;
+
+  @override
+  Widget build(BuildContext context) {
+    return StatusPill(
+      label: isInConsultation ? 'En consultation' : 'Disponible',
+      variant:
+          isInConsultation ? StatusPillVariant.success : StatusPillVariant.neutral,
+      flexibleLabel: true,
     );
   }
 }
