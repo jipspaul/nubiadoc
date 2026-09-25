@@ -556,8 +556,10 @@ async fn create_appointment_unpublished_slot_via_slot_id_returns_409() {
     teardown(&db, &f).await;
 }
 
-// ── Test 3ter (#4405) : starts_at devinant l'horaire d'un créneau non publié ─
-// → 409 slot_taken, sans jamais connaître le slot_id.
+// ── Test 3ter (#4405/#7695) : starts_at devinant l'horaire d'un créneau non
+// publié → 409 slot_unavailable (pas de créneau *réservable* à cette heure),
+// symétrique de patch_appointment (régression #3881, appointments_patch.rs
+// `patch_appointment_internal_slot_returns_409_slot_unavailable`).
 
 #[tokio::test]
 async fn create_appointment_unpublished_slot_via_starts_at_returns_409() {
@@ -605,6 +607,139 @@ async fn create_appointment_unpublished_slot_via_starts_at_returns_409() {
         StatusCode::CONFLICT,
         "deviner l'horaire d'un créneau non publié ne doit pas suffire à le réserver"
     );
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["code"], "slot_unavailable");
+
+    teardown(&db, &f).await;
+}
+
+// ── Test 3quater (#7695) : starts_at sur un agenda totalement vide (aucun
+// availability_slot, publié ou non) → 409 slot_unavailable, PAS slot_taken —
+// sinon le diagnostic affirme à tort qu'un créneau est déjà pris.
+
+#[tokio::test]
+async fn create_appointment_no_slot_at_all_returns_409_slot_unavailable() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "empty-agenda").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/appointments")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(f.patient_user_id, f.patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "provider_id": f.provider_id,
+                        "starts_at": "2032-11-03T08:00:00Z",
+                        "motif": "détartrage"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::CONFLICT,
+        "aucun créneau publié à cette heure doit être refusé"
+    );
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        v["code"], "slot_unavailable",
+        "un agenda vide n'est pas un conflit (slot_taken) — cf. patch_appointment"
+    );
+
+    teardown(&db, &f).await;
+}
+
+// ── Test 3quinquies (#7695/#5481) : starts_at sur un créneau ouvert/publié
+// mais couvert par une provider_unavailability déclarée → 409 slot_taken,
+// symétrique de patch_appointment_unavailability_returns_409_slot_taken.
+
+#[tokio::test]
+async fn create_appointment_via_starts_at_unavailability_returns_409_slot_taken() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "starts-at-unavail").await;
+    insert_open_slot(&db, &f, "2032-11-04T09:00:00Z", "2032-11-04T09:30:00Z").await;
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO provider_unavailability (id, provider_id, starts_at, ends_at, reason) \
+         VALUES ($1, $2, '2032-11-04T08:30:00Z', '2032-11-04T10:00:00Z', 'congés')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(f.provider_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/appointments")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(f.patient_user_id, f.patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "provider_id": f.provider_id,
+                        "starts_at": "2032-11-04T09:00:00Z",
+                        "motif": "détartrage"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
