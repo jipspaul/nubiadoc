@@ -68,7 +68,7 @@ class _TasksViewState extends State<_TasksView> {
         leading: backOrHomeLeading(context),
         title: const Text('Tâches'),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         key: const Key('tasks_create_fab'),
         onPressed: () => showDialog<void>(
           context: context,
@@ -77,7 +77,8 @@ class _TasksViewState extends State<_TasksView> {
             child: const _CreateTaskDialog(),
           ),
         ),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('Nouvelle tâche'),
       ),
       body: BlocListener<TasksBloc, TasksState>(
         listenWhen: (_, current) =>
