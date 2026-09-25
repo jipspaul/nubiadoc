@@ -691,12 +691,14 @@ class _EntryCard extends StatelessWidget {
                                 ),
                               ),
                     ),
-                  // #6651 : `POST .../start` renvoie 409 too_early tant que
-                  // starts_at - 60min n'est pas atteint (même fenêtre que
-                  // start_consultation côté back, scheduling.rs) et 403
-                  // forbidden si le RDV appartient à un confrère du cabinet
-                  // (l'agenda praticien liste tout le cabinet, #6213) — le
-                  // bouton ne doit donc être offert que là où l'appel peut
+                  // #6651 : `POST .../start` renvoie 409 too_early / 409
+                  // out_of_window tant que `starts_at ± 60min` n'est pas
+                  // respecté pour un RDV confirmed (même fenêtre symétrique
+                  // que `check_patient_checkin_window` côté back,
+                  // appointment_time_guards.rs, #6770) et 403 forbidden si le
+                  // RDV appartient à un confrère du cabinet (l'agenda
+                  // praticien liste tout le cabinet, #6213) — le bouton ne
+                  // doit donc être offert que là où l'appel peut
                   // structurellement aboutir.
                   if (_canStart(context, entry))
                     NubiaButton(
@@ -722,14 +724,15 @@ class _EntryCard extends StatelessWidget {
   }
 }
 
-/// #6651 : reproduit ici les deux gardes que `POST .../start` applique côté
-/// back (`scheduling.rs::start_consultation`) — sinon le bouton est offert
-/// sur des lignes où l'appel échoue systématiquement (409/403).
+/// #6651/#7671 : reproduit ici les gardes que `POST .../start` applique côté
+/// back (`appointment_time_guards.rs::check_start_window`) — sinon le bouton
+/// est offert sur des lignes où l'appel échoue systématiquement (409/403).
 /// - Propriété : seul le praticien connecté peut démarrer SES rendez-vous,
 ///   même si l'agenda affiche tout le cabinet.
-/// - Fenêtre temporelle : un RDV `confirmed` n'est démarrable qu'à partir de
-///   `starts_at - 60min` (un `checked_in` a déjà passé cette garde au
-///   check-in, pas besoin de la revérifier ici).
+/// - Fenêtre temporelle : un RDV `confirmed` n'est démarrable que dans la
+///   fenêtre symétrique `starts_at ± 60min` (un `checked_in` a déjà passé la
+///   borne basse au check-in et n'a pas de borne haute côté back, pas besoin
+///   de la revérifier ici).
 bool _canStart(BuildContext context, AgendaEntry entry) {
   if (!entry.isConfirmed && !entry.isCheckedIn) return false;
   final session = switch (context.watch<ProAuthCubit>().state) {
@@ -739,7 +742,9 @@ bool _canStart(BuildContext context, AgendaEntry entry) {
   if (session?.practitionerId != entry.practitionerId) return false;
   if (entry.isCheckedIn) return true;
   final earliestStart = entry.startsAt.subtract(const Duration(minutes: 60));
-  return !DateTime.now().isBefore(earliestStart);
+  final latestStart = entry.startsAt.add(const Duration(minutes: 60));
+  final now = DateTime.now();
+  return !now.isBefore(earliestStart) && !now.isAfter(latestStart);
 }
 
 // ---------------------------------------------------------------------------

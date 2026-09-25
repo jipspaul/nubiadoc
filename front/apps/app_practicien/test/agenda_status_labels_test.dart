@@ -34,9 +34,8 @@ AgendaEntry _entryWithStatus(
       cabinetId: 'cab-1',
       practitionerId: practitionerId,
       practitionerName: 'Dr. Dupont',
-      startsAt: startsAt ?? DateTime(2026, 6, 16, 9, 0),
-      endsAt: (startsAt ?? DateTime(2026, 6, 16, 9, 0))
-          .add(const Duration(minutes: 30)),
+      startsAt: startsAt ?? DateTime.now(),
+      endsAt: (startsAt ?? DateTime.now()).add(const Duration(minutes: 30)),
       patientId: 'pat-1',
       patientName: 'Marie Martin',
       motif: 'Détartrage',
@@ -158,5 +157,24 @@ void main() {
     );
 
     expect(find.byKey(const Key('start_ag-too-early')), findsNothing);
+  });
+
+  // #7671 — `check_patient_checkin_window` (back) rejette aussi un
+  // démarrage plus de 60min après `starts_at` (409 out_of_window) : la
+  // garde front ne vérifiait jusqu'ici que la borne basse et offrait donc
+  // Démarrer sur tout RDV confirmé passé, quel que soit le retard.
+  testWidgets(
+      'RDV confirmé trop tard (starts_at + 60min dépassé) : Démarrer absent '
+      '(409 out_of_window côté back)', (tester) async {
+    await _pump(
+      tester,
+      _entryWithStatus(
+        'ag-out-of-window',
+        'confirmed',
+        startsAt: DateTime.now().subtract(const Duration(hours: 3)),
+      ),
+    );
+
+    expect(find.byKey(const Key('start_ag-out-of-window')), findsNothing);
   });
 }
