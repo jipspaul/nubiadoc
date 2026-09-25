@@ -296,6 +296,11 @@ pub struct ProviderItem {
     pub pmr: Option<bool>,
     pub accepts_new_patients: Option<bool>,
     pub teleconsult: Option<bool>,
+    /// Adresse du cabinet (#7658) : la carte résultat du tunnel SSR
+    /// (`web_tunnel::search_page::render_card`) affiche « adresse · distance »
+    /// (maquette) — même forme jsonb (`rue`/`cp`/`ville`) que
+    /// `ProviderProfile::address`.
+    pub address: Option<serde_json::Value>,
 }
 
 #[derive(Serialize)]
@@ -937,6 +942,7 @@ pub async fn search_providers(
         "FROM provider p \
          LEFT JOIN specialty s ON s.id = p.specialty_id \
          LEFT JOIN profession pr ON pr.id = s.profession_id \
+         LEFT JOIN establishment e ON e.id = p.establishment_id \
          WHERE p.is_listed = true \
              AND ($4::text IS NULL \
                   OR translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
@@ -985,7 +991,8 @@ pub async fn search_providers(
              p.tiers_payant, \
              p.pmr, \
              p.accepts_new_patients, \
-             p.teleconsult \
+             p.teleconsult, \
+             e.address \
          {from_where_clause} \
          ORDER BY {sort_clause} \
          LIMIT $16 OFFSET $17"
@@ -1065,6 +1072,7 @@ pub async fn search_providers(
             pmr: row.try_get("pmr").unwrap_or(None),
             accepts_new_patients: row.try_get("accepts_new_patients").unwrap_or(None),
             teleconsult: row.try_get("teleconsult").unwrap_or(None),
+            address: row.try_get("address").unwrap_or(None),
         });
     }
 
