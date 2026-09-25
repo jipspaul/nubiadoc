@@ -7,6 +7,82 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+### Ronde R99 — 2026-09-25 (12:00–14:00 UTC) — 5/5 apps + tunnel SSR ; 990 contrôles inventoriés, 376 activés
+
+> **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire
+> FRAIS** (rôle + libellé + occurrence) avant le clic — un clic qui change la liste décalait sinon
+> tous les rects suivants et produisait des « MORT » en série. Les dialogues sont refermés (Échap)
+> après chaque activation, le rail/chrome de navigation est exclu du décompte de l'écran (il est
+> audité à part), et `switch` a été ajouté aux rôles activables.
+> **Réfutations systématiques** : sur les 68 MORT et 28 CASSÉ bruts du harnais, **2 seulement** sont
+> des défauts réels (voir la colonne « morts »/« cassés ») ; les autres sont des artefacts vérifiés
+> un par un — contrôle sous le pli, chip hors du défileur horizontal, sélecteur de fichier (qui ne
+> modifie pas l'arbre Semantics), ou **sonde de rôle délibérée** (`403 GET /v1/cabinet/audit-log`,
+> `audit_log_access_cubit.dart:20-33` ; `404 GET /v1/quotes/:id/attestation`, sous-ressource absente
+> absorbée par un `fold`, `financial_bloc.dart:172-190`).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| **reservation (SSR)** | `/` + `/dentiste/lyon` + `/reservation/confirmer` (390 **et** 1280) | 3 + 23 puces + 8 champs | tous | tous | 0 | 0 | 2026-09-25T12:25:00Z |
+| patient | `/pharmacy/send` (390) **diff-driven #7140** | 276 → **54** après correctif #7655 | 10 | 10 | 0 (10 réfutés : la sélection ne changeait pas l'arbre — c'est **#7661**) | 0 | 2026-09-25T13:15:00Z |
+| patient | `/` (Accueil, 390) | 17 | 10 | 10 | 0 (2 réfutés : « Mes ordonnances »/« Mes documents » sous le pli, OK après défilement → `/prescriptions`) | 0 | 2026-09-25T12:55:00Z |
+| patient | `/documents` (390) | 28 | 16 | 16 | 0 (10 réfutés : 8 chips hors du défileur **horizontal** — la rangée défile bien ; « Ajouter un document » ouvre un **sélecteur de fichier**) | 0 | 2026-09-25T12:58:00Z |
+| patient | `/financial` (390) | 10 | 9 | 9 | 0 | 0 (9 réfutés : `404 /quotes/:id/attestation` = sous-ressource absente, absorbée) | 2026-09-25T12:58:00Z |
+| patient | `/pharmacy/orders` (390) | 16 | 12 | 12 | 0 | 0 | 2026-09-25T12:52:00Z |
+| patient | `/home-care` (390) | 17 | 13 | 13 | 0 | 0 | 2026-09-25T12:56:00Z |
+| patient | `/home-care/new` (390) | 11 | 9 | 9 | 0 (3 réfutés) | 0 | 2026-09-25T12:57:00Z |
+| patient | `/implant-passport` (390) | 6 | 6 | 6 | 0 | 0 | 2026-09-25T12:52:00Z |
+| patient | `/profile` (390) | 13 | 12 | 12 | 0 | 0 | 2026-09-25T12:59:00Z |
+| patient | `/profile/dependents` (390) | 22 | 6 | 6 | 0 | 0 | 2026-09-25T12:59:00Z |
+| patient | `/profile/consents` (390) | 4 | 2 | 2 | 0 | 0 | 2026-09-25T12:52:00Z |
+| patient | `/profile/notifications` (390) | 17 (3 boutons + 9 bascules) | 12 | 12 | 0 | 0 | 2026-09-25T13:10:00Z |
+| patient | `/mes-rdv` (390) | 7 | 6 | 6 | 0 | 0 | 2026-09-25T12:56:00Z |
+| patient | `/messaging` (390) | 9 | 8 | 8 | 0 | 0 | 2026-09-25T12:57:00Z |
+| patient | `/reviews` (390) | 1 | 0 | — | 0 | 0 | 2026-09-25T13:40:00Z |
+| patient | `/oubliettes` (390) | 1 (27 nœuds) | 0 | — | 0 | 0 | 2026-09-25T13:40:00Z |
+| praticien | `/` (Tableau de bord, 1280) | 28 | 9 | 9 | 0 | 0 | 2026-09-25T13:20:00Z |
+| praticien | `/mes-conges` (1280) **diff-driven** | 21 | 4 | 4 | 0 | 0 | 2026-09-25T12:22:00Z |
+| praticien | `/tasks` (1280) **diff-driven #7638** | 5 | 4 | 4 | 0 | 0 | 2026-09-25T12:22:00Z |
+| praticien | `/stock-inventory` (1280) | 33 | 8 | 8 | 0 | 0 (1 réfuté : échec CORS transitoire, non reproductible — préflight `OPTIONS` testé 40× : 40× `200` + `access-control-allow-origin`) | 2026-09-25T12:25:00Z |
+| praticien | `/lab-work-orders` (1280) | 26 | 5 | 5 | 0 | 0 | 2026-09-25T13:22:00Z |
+| praticien | `/ordonnances` (1280) | 20 | 1 | 1 | 0 | 0 | 2026-09-25T13:21:00Z |
+| praticien | `/devis` (1280) | 27 | 8 | 8 | 0 | 0 (8 réfutés : `404 …/attestation`) | 2026-09-25T13:21:00Z |
+| praticien | `/waiting-room` (1280, file vide) | 21 | 0 | — | 0 | 0 — « Appeler suivant » **légitimement grisé** (file vide) | 2026-09-25T13:20:00Z |
+| praticien | `/team-messages` (1280) | 20 | 1 | 1 | 0 | 0 | 2026-09-25T13:23:00Z |
+| praticien | `/cabinet-brief` (1280) | 5 | 4 | 4 | 0 | 0 | 2026-09-25T12:24:00Z |
+| praticien | `/lab-stats` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-09-25T12:24:00Z |
+| praticien | `/consent-templates` + `/questionnaire-templates` (1280) | 13 | 5 | 5 | 0 | 0 | 2026-09-25T12:25:00Z |
+| praticien | `/act-categories` (1280) | 2 | 1 | 1 | 0 | 0 (1 réfuté : `403` **attendu** — `ProAdminOrManagerClaims`, le bouton d'accès est déjà gaté `session.isAdmin`, `practicien_shell.dart:136-142` ; l'écran rend un état d'erreur digne + « Réessayer ») | 2026-09-25T13:45:00Z |
+| praticien | `/patients/:id/dental-chart` (1280) | 59 (32 dents + 11 états du dialogue) | 2 + dialogue | tous | 0 | 0 | 2026-09-25T13:35:00Z |
+| praticien | `/notification-preferences` (1280) | 16 (1 bouton + 11 bascules) | 1 bascule **avec contrôle de persistance** | 1 | 0 | 0 | 2026-09-25T12:50:00Z |
+| secretariat | **rail de navigation** (1280, 18 entrées, une à une) | 18 | 18 | 15 | **1 réel** — « **Réglages du cabinet** » (en-tête de groupe inerte : 21 entrées → 21 ; les 4 autres en-têtes replient bien) → **#7666** | **1 réel** — « **Congés** » ouvre `/cabinet-stats` (+ `403 /cabinet/stats/activity`) → **#7666** | 2026-09-25T13:05:00Z |
+| secretariat | `/conformite` (1280) **diff-driven** | 26 | 26 | 25 | 0 (21 réfutés : inventaire figé après un changement de facette) | **1 réel** — « **Clôturer** » → `422` + SnackBar « Impossible de clôturer l'item de conformité. » → **#7656** | 2026-09-25T12:30:00Z |
+| secretariat | `/tasks` (1280) **diff-driven #7638** | 6 | 6 | 5 | 0 (1 réfuté) | 0 (1 réfuté : sonde audit-log) | 2026-09-25T12:20:00Z |
+| secretariat | `/conges` (1280) **diff-driven** | 24 | 14 | 14 | 0 | 0 | 2026-09-25T12:45:00Z |
+| secretariat | `/admin-membres` (1280) **diff-driven #7631** | 30 | 17 | 17 | 0 | 0 — les 3 « **Lien — Praticien/Secrétaire/Admin** » rendent `403` **avec le message attendu** (« Accès réservé aux administrateurs du cabinet. ») : **#7631 corrigé**, vérifié à l'écran | 2026-09-25T12:47:00Z |
+| secretariat | `/liste-attente` (1280) | 23 | 13 | 13 | 0 (2 réfutés : entrée de rail déjà active + #7666) | 0 | 2026-09-25T13:00:00Z |
+| secretariat | `/appointment-motifs` (1280) | 24 | 13 | 13 | 0 (2 réfutés) | 0 | 2026-09-25T13:00:00Z |
+| secretariat | `/maintenance` (1280) | 28 | 13 | 13 | 0 (1 réfuté) | 0 | 2026-09-25T13:02:00Z |
+| secretariat | `/reprise-donnees` (1280) | 27 | 13 | 13 | 0 (2 réfutés) | 0 | 2026-09-25T13:02:00Z |
+| secretariat | `/team-messages` (1280) | 34 | 4 (les 3 actions du composeur + la recherche) | 2 | 0 | 0 — « Épingler » `aria-disabled=true` et « Joindre… » non exposé en bouton, **infobulle « indisponible pour l'instant »** → **#7668** (manque de livraison, pas un bouton mort) | 2026-09-25T13:25:00Z |
+| secretariat | `/` — palette ⌘K (1280) | 18 | 5 (⌘K, Ctrl+K, ↑, ↓, ⏎, Échap) | 6 | 0 | 0 | 2026-09-25T12:40:00Z |
+| secretariat | `/notification-preferences` (1280) | 16 | 0 (couvert côté praticien) | — | 0 | 0 | 2026-09-25T12:50:00Z |
+| pharmacie | `/stock` (1280) **diff-driven #7634/#7635** | 17 | 7 | 7 | 0 | 0 | 2026-09-25T12:35:00Z |
+| pharmacie | `/devis` (1280) | 26 | 12 | 12 | 0 (1 réfuté : facette « Tous » déjà active) | 0 — « **Nouveau devis** » mène bien à `/` **avec** le SnackBar « Choisissez la commande pour laquelle créer un devis. » : **#7577 corrigé**, vérifié image à l'appui | 2026-09-25T12:33:00Z |
+| pharmacie | `/notification-preferences` (1280) | 12 | 0 | — | 0 | 0 | 2026-09-25T12:50:00Z |
+| infirmiere | `/` — 3 onglets (Disponibilité / Offres / Ma visite, 390 **et** 1280) | 7 par onglet | 5 | 5 | 0 | 0 — mais l'onglet « Offres » devient **inutilisable** sous une demande patient non bornée : « Accepter » à **16 000 px** sous le pli → **#7663** | 2026-09-25T12:47:00Z |
+| infirmiere | `/notification-preferences` (390) | 4 | 1 | 1 | 0 | 0 | 2026-09-25T12:50:00Z |
+
+**Cas adversariaux joués cette ronde (tous OK) :**
+
+| cas | écran | résultat | last_check |
+|---|---|---|---|
+| **Double-clic** sur une action métier | pharmacie `/stock` → « Accepter » | **1 seule** requête `POST …/accept` émise pour 2 clics immédiats ; 0 requête ≥ 400, 0 erreur console | 2026-09-25T13:06:00Z |
+| **Retour navigateur au milieu d'un flux** | patient `/pharmacy/send` → `/pharmacy/search?selection=true` → `goBack()` | revient sur `/pharmacy/send`, l'écran se repeint (nearWhite 0,775), **49 lignes toujours là**, « Transmettre à la pharmacie » présent et **actif** ; 0 requête ≥ 400 ; état stable aux 4 échantillons (2/4/7/11 s) | 2026-09-25T13:08:00Z |
+| **Coupure réseau** (`route.abort()` sur `*/v1/*`) | secretariat `/conges` | **pas d'écran blanc, pas de spinner infini** : 27 contrôles toujours rendus, message d'erreur affiché | 2026-09-25T13:07:00Z |
+| **Saisie invalide via l'UI** | tunnel SSR `/reservation/confirmer` | requis vides → refus au formulaire, aucune requête ; e-mail malformé + motif de 250 caractères → refus, **aucun 4xx/5xx, aucune soumission silencieuse** | 2026-09-25T12:28:00Z |
+| **Double-réservation du même créneau** | tunnel SSR | après confirmation, ré-ouvrir la même URL → **410 « Ce créneau n'est plus disponible »** avec la sortie « Choisir un autre créneau avec Dr Claire Lefèvre » | 2026-09-25T12:29:00Z |
+
 ### Ronde R98 — 2026-09-25 (diff-driven : DP-F25/F26/F27, dont DP-F27.c mergée EN COURS DE RONDE)
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
