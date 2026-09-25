@@ -62,6 +62,19 @@ pub async fn create_unavailability(
     if ends_at <= starts_at {
         return Err(AppError::ValidationError);
     }
+    // #7014 : ni la durée ni l'ancienneté de départ n'étaient bornées — une
+    // seule indisponibilité de plusieurs siècles était acceptée (201) et
+    // vidait silencieusement l'agenda du praticien côté recherche patient,
+    // qui restait pourtant listé dans l'annuaire. Même logique que la borne
+    // symétrique des 120 ans sur la date de naissance (#6653, auth/mod.rs).
+    let max_duration = chrono::Duration::days(366);
+    if ends_at - starts_at > max_duration {
+        return Err(AppError::ValidationError);
+    }
+    let min_starts_at = chrono::Utc::now() - chrono::Duration::days(366);
+    if starts_at < min_starts_at {
+        return Err(AppError::ValidationError);
+    }
     if let Some(reason) = &body.reason {
         crate::text_validation::reject_nul_byte(reason)?;
     }
