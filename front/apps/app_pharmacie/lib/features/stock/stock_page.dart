@@ -285,7 +285,8 @@ String _linesSummary(StockRequest request) {
   final totalUnits =
       request.items.fold<int>(0, (sum, item) => sum + item.quantity);
   final lineCount = request.items.length;
-  return '$lineCount ligne${lineCount > 1 ? 's' : ''} · $totalUnits unités';
+  return '$lineCount ligne${lineCount > 1 ? 's' : ''} · $totalUnits '
+      'unité${totalUnits > 1 ? 's' : ''}';
 }
 
 /// Ouvre un dialogue pour accepter une demande avec une note optionnelle
