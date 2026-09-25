@@ -41,6 +41,16 @@ pub(crate) const ALLOWED_ACTS: &[&str] = &[
 /// Nombre max d'infirmières sollicitées par demande (fan-out).
 const MAX_OFFER_NURSES: i64 = 10;
 
+/// Borne de `patient_display_name` (#7663) : c'est un nom minimisé « Prénom
+/// N. » (cf. doc du champ ci-dessous), jamais un texte libre — même ordre de
+/// grandeur que `first_name` ailleurs dans l'API (`auth/mod.rs`, 100 car.).
+const MAX_DISPLAY_NAME_LEN: usize = 100;
+
+/// Borne de `notes` (#7663) : même doctrine que les autres champs libres
+/// patient→pro (`MAX_MOTIF_LEN` de `appointments_create.rs`, `bookings.rs`…) —
+/// un mot de contexte pour l'infirmière, pas un roman.
+const MAX_NOTES_LEN: usize = 2_000;
+
 // ── DTO commun (patient + infirmière) ──────────────────────────────────────────
 
 /// Colonnes projetées d'une `visit_request` dans les réponses API.
@@ -148,8 +158,11 @@ pub async fn create_visit_request(
     claims: PatientAccountClaims,
     Json(body): Json<CreateVisitBody>,
 ) -> Result<(StatusCode, Json<VisitDto>), AppError> {
-    // Validation : au moins un acte, tous connus.
+    // Validation : au moins un acte, tous connus, et pas plus que le
+    // catalogue n'en compte (#7663 : 200 entrées passaient en 201 — le
+    // barème dédupliquait déjà le prix, mais pas la ligne stockée/reservie).
     if body.requested_acts.is_empty()
+        || body.requested_acts.len() > ALLOWED_ACTS.len()
         || !body
             .requested_acts
             .iter()
@@ -176,6 +189,16 @@ pub async fn create_visit_request(
         return Err(AppError::ValidationError);
     }
     crate::text_validation::reject_nul_byte(&body.patient_display_name)?;
+    // #7663 : ni `patient_display_name` (nom minimisé « Prénom N. » attendu,
+    // pas un texte libre) ni `notes` n'avaient de borne haute — un patient
+    // pouvait ensevelir l'écran « Offres » de l'infirmière (et son bouton
+    // « Accepter ») sous des dizaines de milliers de caractères reservis tels
+    // quels par `GET /v1/nurse/offers`.
+    crate::text_validation::validate_max_len(&body.patient_display_name, MAX_DISPLAY_NAME_LEN)?;
+    if let Some(notes) = &body.notes {
+        crate::text_validation::reject_nul_byte(notes)?;
+        crate::text_validation::validate_max_len(notes, MAX_NOTES_LEN)?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
