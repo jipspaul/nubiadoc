@@ -18,7 +18,7 @@
 //! praticien ne peut pas se déclarer manuellement présent.
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -32,7 +32,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProSecretaryPlusClaims},
-    staff::audit,
+    staff::{audit, parse_instant},
     AppState,
 };
 
@@ -42,6 +42,22 @@ const TOTP_STEP_SECS: u64 = 60;
 const TOTP_DIGITS: usize = 6;
 const TOTP_SKEW: u8 = 1;
 const MANUAL_ENTRY_ROLES: [&str; 3] = ["secretary", "admin", "manager"];
+/// Fenêtre de rattrapage pour une saisie/correction manuelle — même choix
+/// que `cabinet_cash_register::MAX_PAST_DAYS` (#4393) : borne une date
+/// passée sans bloquer une correction tardive plausible (secrétariat qui
+/// rattrape un oubli de la semaine).
+const MAX_PAST_DAYS: i64 = 31;
+
+/// Un horodatage de correction manuelle doit être passé (ou présent) et pas
+/// antérieur à `MAX_PAST_DAYS` — sinon la saisie manuelle pourrait fabriquer
+/// une présence future ou une date aberrante.
+fn validate_manual_timestamp(ts: DateTime<Utc>) -> Result<(), AppError> {
+    let now = Utc::now();
+    if ts > now || ts < now - chrono::Duration::days(MAX_PAST_DAYS) {
+        return Err(AppError::ValidationError);
+    }
+    Ok(())
+}
 
 /// TOTP du cabinet : secret dérivé, jamais stocké — dérivable à nouveau à
 /// chaque appel à partir de `jwt_secret` (jamais exposé au client) et
@@ -91,6 +107,12 @@ pub struct ClockBody {
     /// Ignoré si `code` est fourni (le pointage QR est toujours pour soi).
     pub user_id: Option<Uuid>,
     pub code: Option<String>,
+    /// Horodatage de correction pour `clock_in` — saisie manuelle
+    /// uniquement (`code` absent) : le badge QR/mobile fait toujours foi de
+    /// l'instant présent, jamais d'un instant fourni par le client.
+    pub clock_in: Option<String>,
+    /// Idem pour `clock_out`.
+    pub clock_out: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -151,6 +173,15 @@ pub async fn clock_in(
     Json(body): Json<ClockBody>,
 ) -> Result<(StatusCode, Json<TimeClockEntryItem>), AppError> {
     let (target_user_id, source) = resolve_target(&state, &claims, &body)?;
+    let clock_in = match &body.clock_in {
+        Some(ts) if source == "manual" => {
+            let ts = parse_instant(ts)?;
+            validate_manual_timestamp(ts)?;
+            Some(ts)
+        }
+        Some(_) => return Err(AppError::ValidationError),
+        None => None,
+    };
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -184,11 +215,12 @@ pub async fn clock_in(
 
     let row = sqlx::query(
         "INSERT INTO time_clock_entry (cabinet_id, user_id, clock_in, source) \
-         VALUES ($1, $2, now(), $3) \
+         VALUES ($1, $2, COALESCE($3, now()), $4) \
          RETURNING id, user_id, clock_in, clock_out, source",
     )
     .bind(claims.cabinet_id)
     .bind(target_user_id)
+    .bind(clock_in)
     .bind(source)
     .fetch_one(&mut *tx)
     .await
@@ -225,7 +257,16 @@ pub async fn clock_out(
     claims: ProSecretaryPlusClaims,
     Json(body): Json<ClockBody>,
 ) -> Result<Json<TimeClockEntryItem>, AppError> {
-    let (target_user_id, _source) = resolve_target(&state, &claims, &body)?;
+    let (target_user_id, source) = resolve_target(&state, &claims, &body)?;
+    let clock_out = match &body.clock_out {
+        Some(ts) if source == "manual" => {
+            let ts = parse_instant(ts)?;
+            validate_manual_timestamp(ts)?;
+            Some(ts)
+        }
+        Some(_) => return Err(AppError::ValidationError),
+        None => None,
+    };
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -234,23 +275,35 @@ pub async fn clock_out(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query(
-        "UPDATE time_clock_entry SET clock_out = now() \
-         WHERE id = ( \
-             SELECT id FROM time_clock_entry \
-             WHERE cabinet_id = $1 AND user_id = $2 AND clock_out IS NULL \
-             ORDER BY clock_in DESC LIMIT 1 \
-         ) \
-         RETURNING id, user_id, clock_in, clock_out, source",
+    let open = sqlx::query(
+        "SELECT id, clock_in FROM time_clock_entry \
+         WHERE cabinet_id = $1 AND user_id = $2 AND clock_out IS NULL \
+         ORDER BY clock_in DESC LIMIT 1",
     )
     .bind(claims.cabinet_id)
     .bind(target_user_id)
     .fetch_optional(&mut *tx)
     .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+    let entry_id: Uuid = open.try_get("id").map_err(|_| AppError::Internal)?;
+    if let Some(clock_out) = clock_out {
+        let clock_in: DateTime<Utc> = open.try_get("clock_in").map_err(|_| AppError::Internal)?;
+        if clock_out <= clock_in {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    let row = sqlx::query(
+        "UPDATE time_clock_entry SET clock_out = COALESCE($1, now()) \
+         WHERE id = $2 \
+         RETURNING id, user_id, clock_in, clock_out, source",
+    )
+    .bind(clock_out)
+    .bind(entry_id)
+    .fetch_one(&mut *tx)
+    .await
     .map_err(|_| AppError::Internal)?;
-    let Some(row) = row else {
-        return Err(AppError::NotFound);
-    };
 
     let item = entry_row_to_item(&row)?;
     audit(
@@ -331,4 +384,134 @@ pub async fn list_time_clock(
         .map(entry_row_to_item)
         .collect::<Result<Vec<_>, _>>()
         .map(Json)
+}
+
+/// Corps de `PATCH /v1/cabinet/staff/time-clock/:id`.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PatchTimeClockBody {
+    pub clock_in: Option<String>,
+    pub clock_out: Option<String>,
+}
+
+/// `PATCH /v1/cabinet/staff/time-clock/:id` — corrige un pointage existant
+/// (oubli, erreur de borne QR/manuelle), réservé à `MANUAL_ENTRY_ROLES` —
+/// même contrat de rôle que la saisie manuelle (`resolve_target`), même
+/// symétrie que `staff::patch_shift` pour `staff_shift`.
+pub async fn patch_time_clock_entry(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PatchTimeClockBody>,
+) -> Result<Json<TimeClockEntryItem>, AppError> {
+    if !MANUAL_ENTRY_ROLES.contains(&claims.role.as_str()) {
+        return Err(AppError::Forbidden);
+    }
+    if body.clock_in.is_none() && body.clock_out.is_none() {
+        return Err(AppError::ValidationError);
+    }
+    let new_clock_in = body.clock_in.as_deref().map(parse_instant).transpose()?;
+    let new_clock_out = body.clock_out.as_deref().map(parse_instant).transpose()?;
+    if let Some(ts) = new_clock_in {
+        validate_manual_timestamp(ts)?;
+    }
+    if let Some(ts) = new_clock_out {
+        validate_manual_timestamp(ts)?;
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let existing = sqlx::query("SELECT clock_in, clock_out FROM time_clock_entry WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
+    let cur_clock_in: DateTime<Utc> = existing
+        .try_get("clock_in")
+        .map_err(|_| AppError::Internal)?;
+    let cur_clock_out: Option<DateTime<Utc>> = existing
+        .try_get("clock_out")
+        .map_err(|_| AppError::Internal)?;
+    let effective_clock_in = new_clock_in.unwrap_or(cur_clock_in);
+    let effective_clock_out = new_clock_out.or(cur_clock_out);
+    if let Some(clock_out) = effective_clock_out {
+        if clock_out <= effective_clock_in {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    let row = sqlx::query(
+        "UPDATE time_clock_entry SET clock_in = $1, clock_out = $2 \
+         WHERE id = $3 \
+         RETURNING id, user_id, clock_in, clock_out, source",
+    )
+    .bind(effective_clock_in)
+    .bind(effective_clock_out)
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let item = entry_row_to_item(&row)?;
+    audit(
+        &mut tx,
+        claims.cabinet_id,
+        claims.sub,
+        &claims.role,
+        "patch_time_clock_entry",
+        "time_clock_entry",
+        item.id,
+    )
+    .await?;
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok(Json(item))
+}
+
+/// `DELETE /v1/cabinet/staff/time-clock/:id` — supprime un pointage erroné,
+/// réservé à `MANUAL_ENTRY_ROLES` (même garde que la correction).
+pub async fn delete_time_clock_entry(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    if !MANUAL_ENTRY_ROLES.contains(&claims.role.as_str()) {
+        return Err(AppError::Forbidden);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let deleted = sqlx::query("DELETE FROM time_clock_entry WHERE id = $1 RETURNING id")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    if deleted.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    audit(
+        &mut tx,
+        claims.cabinet_id,
+        claims.sub,
+        &claims.role,
+        "delete_time_clock_entry",
+        "time_clock_entry",
+        id,
+    )
+    .await?;
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
