@@ -9,6 +9,7 @@
 use std::sync::Arc;
 
 use axum::{
+    body::Bytes,
     extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
@@ -512,6 +513,26 @@ pub struct RespondStockBody {
     pub note: Option<String>,
 }
 
+/// Parse le corps optionnel de `accept` (#7688). Corps absent/vide → note
+/// `None` (contrat documenté ci-dessus) ; sinon désérialisé strictement
+/// avec le même verdict que `reject` (`Json<RespondStockBody>`, non-`Option`) :
+/// JSON invalide → 400, champ inconnu (`deny_unknown_fields`) ou mauvais
+/// type → 422. `Option<Json<T>>` d'Axum rendait `None` sur échec de
+/// désérialisation au lieu de rejeter la requête, ce qui avalait tout corps
+/// malformé en 200 et perdait la note de réponse en silence.
+fn parse_respond_body(bytes: &[u8]) -> Result<RespondStockBody, AppError> {
+    if bytes.is_empty() {
+        return Ok(RespondStockBody::default());
+    }
+    serde_json::from_slice(bytes).map_err(|e| {
+        if e.is_data() {
+            AppError::ValidationError
+        } else {
+            AppError::BadRequest
+        }
+    })
+}
+
 /// Cabinet notifié de la réponse officine — praticien + secrétariat, même
 /// périmètre que `QUOTE_SIGNED_NOTIFY_ROLES`/`MESSAGE_RECEIVED_NOTIFY_ROLES`
 /// (billing.rs/messaging.rs) : ce sont les rôles qui émettent la demande
@@ -622,9 +643,10 @@ pub async fn accept_stock_request(
     Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PharmaMemberClaims,
     Path(id): Path<Uuid>,
-    body: Option<Json<RespondStockBody>>,
+    body: Bytes,
 ) -> Result<Json<StockRequestDto>, AppError> {
-    let note = body.as_ref().and_then(|b| b.note.as_deref());
+    let body = parse_respond_body(&body)?;
+    let note = body.note.as_deref();
     let request = stock_response(
         &state,
         &hub,
