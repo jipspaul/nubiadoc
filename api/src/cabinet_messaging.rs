@@ -56,6 +56,7 @@ pub struct CabinetConversationItem {
     /// Qualification cabinet (#7152/#7151) — `null` si non encore qualifiée.
     pub priority: Option<String>,
     pub origin: Option<String>,
+    pub motif: Option<String>,
     pub assignee_user_id: Option<Uuid>,
     pub summary: Option<String>,
 }
@@ -250,6 +251,7 @@ pub async fn list_cabinet_conversations(
                  c.status, \
                  c.priority, \
                  c.origin, \
+                 c.motif, \
                  c.assignee_user_id, \
                  c.summary, \
                  (SELECT MAX(m.created_at) \
@@ -282,7 +284,7 @@ pub async fn list_cabinet_conversations(
          ) \
          SELECT id, patient_first_name, patient_last_name, last_message_at, \
                 last_body, triage_flag, urgency_int, unread_count, scope, status, \
-                priority, origin, assignee_user_id, summary \
+                priority, origin, motif, assignee_user_id, summary \
          FROM conv \
          WHERE true{cursor_clause} \
          ORDER BY urgency_int ASC, last_message_at DESC NULLS LAST, id DESC \
@@ -380,6 +382,7 @@ pub async fn list_cabinet_conversations(
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
         let priority: Option<String> = row.try_get("priority").map_err(|_| AppError::Internal)?;
         let origin: Option<String> = row.try_get("origin").map_err(|_| AppError::Internal)?;
+        let motif: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
         let assignee_user_id: Option<Uuid> = row
             .try_get("assignee_user_id")
             .map_err(|_| AppError::Internal)?;
@@ -407,6 +410,7 @@ pub async fn list_cabinet_conversations(
             status,
             priority,
             origin,
+            motif,
             assignee_user_id,
             summary,
         });

@@ -760,3 +760,41 @@ async fn filter_by_assignee_matches_and_excludes() {
 
     cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
 }
+
+/// Régression #7614 : `motif` (migration 0298, #7152) était persisté par le
+/// `PATCH` mais jamais restitué par `GET /v1/cabinet/conversations`.
+#[tokio::test]
+async fn motif_is_returned_by_get() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id, secretariat_id) = insert_fixture(&db).await;
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE conversation SET motif = $1 WHERE id = $2")
+        .bind("QA-R97 rappel ordonnance")
+        .bind(conversation_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let token = make_pro_token(cabinet_id, "secretary", Some(secretariat_id));
+    let (status, json) = get(&token, "/v1/cabinet/conversations".to_string()).await;
+    assert_eq!(status, StatusCode::OK);
+    let conv = json["data"]
+        .as_array()
+        .expect("data[]")
+        .iter()
+        .find(|c| c["id"] == conversation_id.to_string())
+        .expect("la conversation de la fixture doit être listée");
+    assert_eq!(conv["motif"], "QA-R97 rappel ordonnance");
+
+    cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
+}
