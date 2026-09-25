@@ -143,19 +143,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Checkbox(
-                      key: const Key('onboarding_cgu_checkbox'),
-                      value: _cguAccepted,
-                      onChanged: (v) =>
-                          setState(() => _cguAccepted = v ?? false),
-                    ),
-                    const Expanded(
-                      child: Text(
-                          "J'accepte les conditions générales d'utilisation"),
-                    ),
-                  ],
+                CheckboxListTile(
+                  key: const Key('onboarding_cgu_checkbox'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text(
+                      "J'accepte les conditions générales d'utilisation"),
+                  value: _cguAccepted,
+                  onChanged: (v) => setState(() => _cguAccepted = v ?? false),
                 ),
                 if (state is AuthUnauthenticated && state.message != null) ...[
                   const SizedBox(height: 12),
