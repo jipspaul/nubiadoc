@@ -462,6 +462,29 @@ async fn post_with_oversized_prenom_nom_or_telephone_is_422_and_writes_nothing()
 }
 
 #[tokio::test]
+async fn post_with_a_non_numeric_telephone_is_422_and_writes_nothing() {
+    // #7133 : `telephone` n'était borné que par `!is_empty()` — une charge
+    // `<script>` passait tel quel en `contact.tel` de la fiche patient.
+    // `validate_phone_format` (#7375) doit la refuser comme n'importe quelle
+    // chaîne qui n'est pas un numéro E.164 après normalisation (#7436).
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let f = insert_provider_with_open_slot(&db, &suffix).await;
+    let email = format!("wtc-badphone-{suffix}@nubia.test");
+    let form = valid_form(&f, &email, true).replace(
+        "telephone=%2B33612345678",
+        "telephone=%3Cscript%3Ealert(1)%3C%2Fscript%3E",
+    );
+
+    let response = post_form(&form).await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(count_users_with_email(&db, &email).await, 0);
+}
+
+#[tokio::test]
 async fn post_with_a_birth_date_outside_the_120_year_window_is_422_and_writes_nothing() {
     // #7374 : le tunnel SSR public est la seule voie créant un
     // `patient_account` qui ne bornait pas `naissance` — une date dans le
