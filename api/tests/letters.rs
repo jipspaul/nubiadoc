@@ -432,6 +432,111 @@ async fn generate_letter_renders_pdf_and_stores_patient_document() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 1b (#7148) : signature/tampon téléversés → apposés sur le PDF ──────
+
+/// JPEG minimal (SOI + SOF0 3 composantes + EOI) — même construction que
+/// `pdf_text::tests::fake_jpeg`, reconnu par le nombre magique (`file_scan`)
+/// ET par `pdf_text::JpegImage::parse` (marqueur SOF).
+fn fake_jpeg() -> Vec<u8> {
+    let (width, height, components): (u16, u16, u8) = (120, 50, 3);
+    let mut b = vec![0xFFu8, 0xD8];
+    b.extend_from_slice(&[0xFF, 0xC0]);
+    let seg_len = 2 + 1 + 2 + 2 + 1 + 3 * components as usize;
+    b.push((seg_len >> 8) as u8);
+    b.push((seg_len & 0xFF) as u8);
+    b.push(8);
+    b.push((height >> 8) as u8);
+    b.push((height & 0xFF) as u8);
+    b.push((width >> 8) as u8);
+    b.push((width & 0xFF) as u8);
+    b.push(components);
+    for c in 0..components {
+        b.extend_from_slice(&[c + 1, 0x11, 0]);
+    }
+    b.extend_from_slice(&[0xFF, 0xD9]);
+    b
+}
+
+fn make_stamp_multipart(boundary: &str, file_bytes: &[u8]) -> Vec<u8> {
+    let mut body: Vec<u8> = Vec::new();
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(
+        b"Content-Disposition: form-data; name=\"file\"; filename=\"stamp.jpg\"\r\n",
+    );
+    body.extend_from_slice(b"Content-Type: image/jpeg\r\n\r\n");
+    body.extend_from_slice(file_bytes);
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    body
+}
+
+#[tokio::test]
+async fn generate_letter_embeds_signature_and_stamp_when_uploaded() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "practitioner");
+
+    let (status, _) = call_multipart(
+        state_with(app_pool().await),
+        "/v1/cabinet/provider/signature",
+        &token,
+        "X-SIG",
+        make_stamp_multipart("X-SIG", &fake_jpeg()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _) = call_multipart(
+        state_with(app_pool().await),
+        "/v1/cabinet/provider/stamp",
+        &token,
+        "X-STAMP",
+        make_stamp_multipart("X-STAMP", &fake_jpeg()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/patients/{}/letters", f.patient_id),
+        &token,
+        Some(json!({ "template_id": f.private_template_id, "overrides": {} })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{resp}");
+
+    let document_id: Uuid = serde_json::from_value(resp["document_id"].clone()).unwrap();
+    let storage_key: String =
+        sqlx::query("SELECT storage_key FROM document WHERE id = $1 AND cabinet_id = $2")
+            .bind(document_id)
+            .bind(f.cabinet_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("storage_key")
+            .unwrap();
+
+    let blob = sqlx::query("SELECT bytes FROM object_storage_blob WHERE key = $1")
+        .bind(&storage_key)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let bytes: Vec<u8> = blob.try_get("bytes").unwrap();
+    let text = String::from_utf8_lossy(&bytes);
+    assert_eq!(
+        text.matches("/Subtype /Image").count(),
+        2,
+        "signature ET tampon doivent être apposés : {text}"
+    );
+    assert!(text.contains("/Filter /DCTDecode"));
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 2 : liste = modèles globaux seedés + modèle privé ; isolation tenant ──
 
 #[tokio::test]
