@@ -41,8 +41,13 @@ StatusPillVariant statusVariant(String status) {
   }
 }
 
+// Les bornes sont écrites comme un jour calendaire encodé en UTC (minuit
+// UTC pour le début, 23:59:59 UTC pour la fin) : c'est une date, pas un
+// horodatage. Les relire avec `.toLocal()` fait basculer la date d'un jour
+// dès que le fuseau local a un décalage positif (#7639) — on garde donc les
+// composantes UTC telles quelles.
 String _formatDate(String isoInstant) {
-  final dt = DateTime.tryParse(isoInstant)?.toLocal();
+  final dt = DateTime.tryParse(isoInstant)?.toUtc();
   if (dt == null) return isoInstant;
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(dt.day)}/${two(dt.month)}/${dt.year}';
