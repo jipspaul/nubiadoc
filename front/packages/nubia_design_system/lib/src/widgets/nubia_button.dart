@@ -366,7 +366,12 @@ class _IconOnlyBtn extends StatelessWidget {
     );
 
     if (semanticLabel == null) return button;
-    return Tooltip(message: semanticLabel!, child: button);
+    return Semantics(
+      label: semanticLabel,
+      button: true,
+      excludeSemantics: true,
+      child: Tooltip(message: semanticLabel!, child: button),
+    );
   }
 }
 
