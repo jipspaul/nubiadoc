@@ -52,7 +52,7 @@ class MesCongesBody extends StatelessWidget {
         leading: backOrHomeLeading(context),
         title: const Text('Mes congés'),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         key: const Key('mes_conges_create_fab'),
         onPressed: () => showDialog<void>(
           context: context,
@@ -61,7 +61,8 @@ class MesCongesBody extends StatelessWidget {
             child: const _CreateLeaveRequestDialog(),
           ),
         ),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('Demander un congé'),
       ),
       body: BlocListener<MesCongesBloc, MesCongesState>(
         listenWhen: (_, current) =>

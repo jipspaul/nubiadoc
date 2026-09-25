@@ -54,7 +54,7 @@ class _ComplianceViewState extends State<_ComplianceView> {
         leading: backOrHomeLeading(context),
         title: const Text('Conformité'),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         key: const Key('compliance_create_fab'),
         onPressed: () => showDialog<void>(
           context: context,
@@ -63,7 +63,8 @@ class _ComplianceViewState extends State<_ComplianceView> {
             child: const _CreateComplianceItemDialog(),
           ),
         ),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('Ajouter'),
       ),
       body: BlocListener<ComplianceBloc, ComplianceState>(
         listenWhen: (_, current) =>
