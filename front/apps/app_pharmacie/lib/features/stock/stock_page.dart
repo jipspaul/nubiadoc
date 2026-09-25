@@ -461,6 +461,8 @@ class _StockRequestCard extends StatelessWidget {
                     child: Text(
                       '${item.label}'
                       '${item.note != null ? ' (${item.note})' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
@@ -701,6 +703,8 @@ class _StockDetailPanel extends StatelessWidget {
                         children: [
                           Text(
                             item.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall
                                 ?.copyWith(fontSize: 12.5),
                           ),
@@ -708,6 +712,8 @@ class _StockDetailPanel extends StatelessWidget {
                             const SizedBox(height: 2),
                             Text(
                               item.note!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 fontSize: 11,
                                 color: tokens.textTertiary,
