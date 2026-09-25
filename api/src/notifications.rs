@@ -64,16 +64,24 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
         | "appointment_motif_changed"
         // #7231 : jumeau des 3 kinds ci-dessus, oublié lors du même lot —
         // `appointments::cancel_appointment` émet déjà `appointment_id` en
-        // data, et `/appointments/{id}` (retraduit en `mesRdv?id=` côté
-        // front, cf. `notification_route_resolver.dart`) convient tout autant
-        // pour consulter un rendez-vous annulé que confirmé.
+        // data, même deep-link qu'un rendez-vous confirmé.
         | "appointment_cancelled" => {
+            // #7002 : `/appointments/{id}` n'est déclarée nulle part côté
+            // front (`app_router.dart` n'a que `/appointments` pour le
+            // booking et `/appointments/slots`) — 23 notifications sur 100
+            // aboutissaient à « Page introuvable ». `app_patient` n'a pas de
+            // détail de rendez-vous par id (cf. `MesRdvPage`) ; on retombe
+            // sur `/mes-rdv?id=`, déjà la convention utilisée pour les push
+            // FCM (cf. `NotificationRouteResolver._resolveFromType`).
             let id = data.get("appointment_id")?.as_str()?;
-            Some(format!("/appointments/{id}"))
+            Some(format!("/mes-rdv?id={id}"))
         }
         "message_received" => {
+            // #7002 : `/messages/{id}` — le préfixe déclaré côté front est
+            // `/messaging/{id}` (cf. `app_router.dart`), un mot d'écart qui
+            // menait 4 notifications sur 100 à « Page introuvable ».
             let id = data.get("conversation_id")?.as_str()?;
-            Some(format!("/messages/{id}"))
+            Some(format!("/messaging/{id}"))
         }
         // Invitation d'un proche adulte (#7005) : la demande reçue se décide
         // depuis « Mes proches » (section « Demandes reçues »), les
@@ -704,7 +712,7 @@ mod tests {
         let data = serde_json::json!({ "conversation_id": conversation_id, "type": "cabinet" });
         assert_eq!(
             derive_deep_link("message_received", &data),
-            Some(format!("/messages/{conversation_id}"))
+            Some(format!("/messaging/{conversation_id}"))
         );
     }
 
@@ -781,7 +789,17 @@ mod tests {
         let data = serde_json::json!({ "appointment_id": appointment_id });
         assert_eq!(
             derive_deep_link("appointment_cancelled", &data),
-            Some(format!("/appointments/{appointment_id}"))
+            Some(format!("/mes-rdv?id={appointment_id}"))
+        );
+    }
+
+    #[test]
+    fn waiting_room_called_derives_mes_rdv_deep_link() {
+        let appointment_id = uuid::Uuid::new_v4();
+        let data = serde_json::json!({ "appointment_id": appointment_id });
+        assert_eq!(
+            derive_deep_link("waiting_room_called", &data),
+            Some(format!("/mes-rdv?id={appointment_id}"))
         );
     }
 
