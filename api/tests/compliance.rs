@@ -727,3 +727,98 @@ async fn create_compliance_item_rejects_unbounded_recurrence_months() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test 9 : due_date en format année étendue rejetée à la création (#7656) ──
+
+#[tokio::test]
+async fn create_compliance_item_rejects_extended_year_due_date() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "secretary");
+
+    // `chrono` accepte le format année étendue `+AAAAAA-MM-JJ` (calendrier
+    // grégorien proleptique) sans erreur de parsing — seule la borne
+    // applicative ajoutée par #7656 le rejette désormais.
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/compliance-items",
+        &token,
+        Some(json!({
+            "kind": "other",
+            "label": "x",
+            "due_date": "+262100-01-01",
+            "recurrence_months": 1200
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "une due_date en année étendue doit être rejetée à la création, pas rendre l'item inclôturable : {resp}"
+    );
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 10 : clôture d'un item hérité dont due_date+recurrence déborde ──────
+// (#7656 — donnée créée avant ce correctif, hors de portée de la validation
+// à la création ; la clôture doit dégrader proprement plutôt qu'échouer.)
+
+#[tokio::test]
+async fn completing_legacy_item_with_overflowing_due_date_closes_without_recreating() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "secretary");
+
+    // Contourne la validation applicative pour reproduire une donnée
+    // héritée d'avant #7656 : due_date proche du maximum de `NaiveDate`,
+    // recurrence_months suffisant pour faire déborder `checked_add_months`.
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let item_id: Uuid = sqlx::query(
+        "INSERT INTO compliance_item \
+         (cabinet_id, kind, label, due_date, recurrence_months) \
+         VALUES ($1, 'other', 'legacy overflow', $2, 1200) \
+         RETURNING id",
+    )
+    .bind(f.cabinet_id)
+    .bind(chrono::NaiveDate::MAX)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap()
+    .try_get("id")
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let (status, completed) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/compliance-items/{item_id}/complete"),
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "la clôture d'un item hérité hors bornes doit réussir, pas figer l'item en pending : {completed}"
+    );
+    assert_eq!(completed["status"], "done");
+    assert!(
+        completed.get("next_item_id").is_none(),
+        "aucune occurrence suivante ne doit être recréée quand due_date + recurrence_months déborde : {completed}"
+    );
+
+    cleanup(&db, &f).await;
+}

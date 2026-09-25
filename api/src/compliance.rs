@@ -58,6 +58,17 @@ const MAX_DEVICE_DESCRIPTION_LEN: usize = 2_000;
 /// d'années : 1200 mois = 100 ans, largement suffisant.
 const MAX_RECURRENCE_MONTHS: i32 = 1_200;
 
+/// Plafond métier sur `due_date` (#7656, suite de #7486) : `#7486` a borné
+/// `recurrence_months` mais pas `due_date`, et `NaiveDate::parse_from_str`
+/// avec `%Y-%m-%d` accepte silencieusement le format année étendue
+/// `chrono` `+AAAAAA-MM-JJ` (calendrier grégorien proleptique). Un item créé
+/// avec une telle date passe la validation, puis fait déborder
+/// `NaiveDate::checked_add_months` à la clôture — l'item reste figé en
+/// `pending` pour toujours (bouton « Clôturer » définitivement cassé). Un
+/// échéancier de conformité n'a pas de sens au-delà de l'an 9999 (format
+/// ISO 8601 usuel, 4 chiffres).
+const MAX_DUE_DATE_YEAR: i32 = 9_999;
+
 /// Seuils d'alerte dashboard (jours avant `due_date`), du plus urgent au
 /// moins urgent.
 const ALERT_DUE_J7_DAYS: i64 = 7;
@@ -152,6 +163,16 @@ fn validate_item_fields(
     }
 
     Ok((label.to_string(), equipment_label))
+}
+
+/// Valide qu'une `due_date` reste dans l'horizon calendaire raisonnable
+/// (#7656) — voir [`MAX_DUE_DATE_YEAR`].
+fn validate_due_date(due_date: chrono::NaiveDate) -> Result<(), AppError> {
+    use chrono::Datelike;
+    if due_date.year() > MAX_DUE_DATE_YEAR {
+        return Err(AppError::ValidationError);
+    }
+    Ok(())
 }
 
 // ── GET/POST /v1/cabinet/compliance-items ────────────────────────────────────
@@ -292,6 +313,7 @@ pub async fn create_compliance_item(
     )?;
     let due_date = chrono::NaiveDate::parse_from_str(&body.due_date, "%Y-%m-%d")
         .map_err(|_| AppError::ValidationError)?;
+    validate_due_date(due_date)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -378,6 +400,9 @@ pub async fn patch_compliance_item(
         .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
+    if let Some(due_date) = due_date {
+        validate_due_date(due_date)?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -626,11 +651,17 @@ pub async fn complete_compliance_item(
         .try_get("recurrence_months")
         .map_err(|_| AppError::Internal)?;
 
-    let next_item_id = match recurrence_months {
-        Some(months) => {
-            let next_due_date = due_date
-                .checked_add_months(chrono::Months::new(months as u32))
-                .ok_or(AppError::ValidationError)?;
+    // #7656 : `due_date` n'était pas bornée avant ce correctif (seul
+    // `recurrence_months` l'était, #7486) — un item créé avant peut donc
+    // encore déborder ici. On clôture quand même l'item (pas de recréation
+    // de l'occurrence suivante) plutôt que d'échouer en 422 et de figer le
+    // bouton « Clôturer » indéfiniment.
+    let next_item_id = match recurrence_months.and_then(|months| {
+        due_date
+            .checked_add_months(chrono::Months::new(months as u32))
+            .map(|next_due_date| (months, next_due_date))
+    }) {
+        Some((months, next_due_date)) => {
             let row = sqlx::query(
                 "INSERT INTO compliance_item \
                  (cabinet_id, kind, label, subject_user_id, equipment_label, due_date, recurrence_months) \
@@ -643,13 +674,24 @@ pub async fn complete_compliance_item(
             .bind(subject_user_id)
             .bind(&equipment_label)
             .bind(next_due_date)
-            .bind(recurrence_months)
+            .bind(months)
             .fetch_one(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
             Some(row.try_get("id").map_err(|_| AppError::Internal)?)
         }
-        None => None,
+        None => {
+            if recurrence_months.is_some() {
+                tracing::warn!(
+                    cabinet_id = %claims.cabinet_id,
+                    item_id = %id,
+                    %due_date,
+                    recurrence_months = ?recurrence_months,
+                    "compliance item recurrence overflowed NaiveDate — closing without recreating next occurrence"
+                );
+            }
+            None
+        }
     };
 
     sqlx::query(
