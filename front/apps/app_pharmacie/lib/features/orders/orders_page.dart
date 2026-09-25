@@ -14,6 +14,8 @@ import 'orders_state.dart';
 import 'widgets/order_row.dart';
 import 'widgets/orders_aside.dart';
 import 'widgets/orders_kpis.dart';
+import 'widgets/orders_list_footer.dart';
+import 'widgets/pickup_order_picker_sheet.dart';
 
 /// Corps de l'écran « Commandes » — file (tableau) + colonne latérale.
 /// Consommable dans le bodyBuilder du ProShell. L'aside (ou le détail d'une
@@ -156,6 +158,23 @@ class _OrdersViewState extends State<OrdersView> {
         .toList();
   }
 
+  /// Bouton « Scanner un retrait » de la barre d'outils (#7616) : à la
+  /// différence du bouton de ligne (`OrderRow`, déjà lié à sa commande), le
+  /// comptoir n'a encore choisi aucune commande — on la fait choisir parmi
+  /// les commandes prêtes de la file COMPLÈTE (pas la vue filtrée/recherchée
+  /// courante), puis on rejoint l'écran de scan existant.
+  Future<void> _scanPickup(
+    BuildContext context,
+    List<PharmacyOrder> allOrders,
+  ) async {
+    final ready = allOrders
+        .where((order) => order.status == PharmacyOrderStatus.ready)
+        .toList();
+    final selected = await showPickupOrderPickerSheet(context, ready);
+    if (selected == null || !context.mounted) return;
+    context.go('/orders/${selected.id}/pickup', extra: selected);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Surface Material transparente : la barre de recherche embarque un
@@ -173,10 +192,18 @@ class _OrdersViewState extends State<OrdersView> {
         autofocus: true,
         skipTraversal: true,
         onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.slash &&
-              !_searchFocusNode.hasFocus) {
+          if (event is! KeyDownEvent || _searchFocusNode.hasFocus) {
+            return KeyEventResult.ignored;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.slash) {
             _searchFocusNode.requestFocus();
+            return KeyEventResult.handled;
+          }
+          // Raccourci « S » (pied de la maquette « S scanner ») : ouvre le
+          // même sélecteur que le bouton de la barre d'outils.
+          if (event.logicalKey == LogicalKeyboardKey.keyS) {
+            final state = context.read<OrdersBloc>().state;
+            if (state is OrdersLoaded) _scanPickup(context, state.orders);
             return KeyEventResult.handled;
           }
           return KeyEventResult.ignored;
@@ -203,20 +230,38 @@ class _OrdersViewState extends State<OrdersView> {
                 if (state is OrdersLoaded) OrdersKpiBanner(orders: state.orders),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(
-                      width: 280,
-                      child: NubiaSearchBar(
-                        key: const Key('orders_search'),
-                        controller: _searchController,
-                        focusNode: _searchFocusNode,
-                        hint: 'Patient, n° commande…',
-                        onChanged: (value) => setState(() => _query = value),
-                        locationChip:
-                            _query.isEmpty ? const _SearchShortcutHint() : null,
+                  // Wrap plutôt que Row (même raison qu'en dessous, #7571) :
+                  // le bouton de scan ne doit pas faire déborder la barre
+                  // quand la file est resserrée (`_wideQueueColumnWidth`).
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 280,
+                        child: NubiaSearchBar(
+                          key: const Key('orders_search'),
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          hint: 'Patient, n° commande…',
+                          onChanged: (value) => setState(() => _query = value),
+                          locationChip: _query.isEmpty
+                              ? const _SearchShortcutHint()
+                              : null,
+                        ),
                       ),
-                    ),
+                      NubiaButton(
+                        key: const Key('orders_scan_pickup'),
+                        label: 'Scanner un retrait',
+                        icon: Icons.qr_code_scanner,
+                        variant: NubiaButtonVariant.secondary,
+                        size: NubiaButtonSize.sm,
+                        onPressed: allOrders == null
+                            ? null
+                            : () => _scanPickup(context, allOrders),
+                      ),
+                    ],
                   ),
                 ),
                 Padding(
@@ -289,10 +334,11 @@ class _OrdersViewState extends State<OrdersView> {
         );
       case OrdersLoaded(:final pendingOrderId):
         final orders = _search(state.visible);
+        final Widget list;
         if (orders.isEmpty) {
           final query = _query.trim();
           final hasQuery = query.isNotEmpty;
-          return NubiaEmptyState(
+          list = NubiaEmptyState(
             icon: hasQuery ? Icons.search_off : Icons.shopping_bag_outlined,
             title: hasQuery
                 ? 'Aucun résultat pour « $query »'
@@ -313,25 +359,38 @@ class _OrdersViewState extends State<OrdersView> {
                   )
                 : null,
           );
-        }
-        return RefreshIndicator(
-          onRefresh: () {
-            _refreshCompleter = Completer<void>();
-            context.read<OrdersBloc>().add(const OrdersRefreshRequested());
-            return _refreshCompleter!.future;
-          },
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: orders.length,
-            itemBuilder: (context, index) {
-              final order = orders[index];
-              return OrderRow(
-                order: order,
-                onTap: () => context.go('/orders/${order.id}'),
-                actionInProgress: pendingOrderId == order.id,
-              );
+        } else {
+          list = RefreshIndicator(
+            onRefresh: () {
+              _refreshCompleter = Completer<void>();
+              context.read<OrdersBloc>().add(const OrdersRefreshRequested());
+              return _refreshCompleter!.future;
             },
-          ),
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: orders.length,
+              itemBuilder: (context, index) {
+                final order = orders[index];
+                return OrderRow(
+                  order: order,
+                  onTap: () => context.go('/orders/${order.id}'),
+                  actionInProgress: pendingOrderId == order.id,
+                );
+              },
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: list),
+            OrdersListFooter(
+              stats: OrdersFooterStats.of(
+                state.visible,
+                displayedCount: orders.length,
+              ),
+            ),
+          ],
         );
     }
   }

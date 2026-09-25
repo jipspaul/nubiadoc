@@ -10,6 +10,7 @@ import '../orders_bloc.dart';
 import '../orders_state.dart';
 import 'daily_flow_bars.dart';
 import 'order_wait.dart';
+import 'partner_practices_section.dart';
 
 /// Colonne latérale « À traiter » — agrège les signaux hors tableau de la
 /// file des commandes (maquette design-v2, #4916, point 6) : commandes en
@@ -80,6 +81,8 @@ class OrdersAside extends StatelessWidget {
             ),
           if (ordersState is OrdersLoaded)
             DailyFlowBars(orders: ordersState.orders),
+          if (ordersState is OrdersLoaded)
+            PartnerPracticesSection(orders: ordersState.orders),
           const Padding(
             padding: EdgeInsets.all(16),
             child: _PrivacyNotice(),
