@@ -35,9 +35,12 @@ fn vcard_escape(value: &str) -> String {
 }
 
 /// Construit le texte vCard 4.0 du cabinet à partir de `raison_sociale` et
-/// de `settings` (`contact.phone`/`contact.email`, `address.rue`/`cp`/`ville`
-/// — même shape que `cabinet_info::get_cabinet_info`). `KIND:org` marque
-/// explicitement qu'il s'agit d'une carte de cabinet, pas d'une personne.
+/// de `settings` (`contact.phone`/`contact.email` — même shape que
+/// `cabinet_info::get_cabinet_info`). `address` peut être soit une chaîne à
+/// plat (forme écrite par `PATCH /v1/cabinet`, cf. `auth::patch_cabinet`),
+/// soit un objet `{rue, cp, ville}` : les deux formes sont acceptées.
+/// `KIND:org` marque explicitement qu'il s'agit d'une carte de cabinet, pas
+/// d'une personne.
 fn build_vcard(name: &str, settings: &serde_json::Value) -> String {
     let mut lines = vec![
         "BEGIN:VCARD".to_string(),
@@ -63,11 +66,18 @@ fn build_vcard(name: &str, settings: &serde_json::Value) -> String {
     }
 
     let address = settings.get("address");
-    let rue = address.and_then(|a| a.get("rue")).and_then(|v| v.as_str());
-    let cp = address.and_then(|a| a.get("cp")).and_then(|v| v.as_str());
-    let ville = address
-        .and_then(|a| a.get("ville"))
-        .and_then(|v| v.as_str());
+    let address_str = address.and_then(|a| a.as_str());
+    let (rue, cp, ville) = if let Some(flat) = address_str.filter(|s| !s.is_empty()) {
+        (Some(flat), None, None)
+    } else {
+        (
+            address.and_then(|a| a.get("rue")).and_then(|v| v.as_str()),
+            address.and_then(|a| a.get("cp")).and_then(|v| v.as_str()),
+            address
+                .and_then(|a| a.get("ville"))
+                .and_then(|v| v.as_str()),
+        )
+    };
     if rue.is_some() || cp.is_some() || ville.is_some() {
         lines.push(format!(
             "ADR;TYPE=work:;;{};{};;{};",
@@ -335,6 +345,20 @@ mod tests {
         assert!(vcard.contains("TEL;TYPE=work,voice:0102030405\r\n"));
         assert!(vcard.contains("EMAIL;TYPE=work:cabinet@nubia.test\r\n"));
         assert!(vcard.contains("ADR;TYPE=work:;;12 rue de la Paix;Paris;;75001;\r\n"));
+    }
+
+    #[test]
+    fn build_vcard_accepts_flat_string_address() {
+        // Forme réellement écrite par `PATCH /v1/cabinet` (auth::patch_cabinet) :
+        // `settings.address` est une chaîne à plat, pas un objet {rue, cp, ville}.
+        let settings = serde_json::json!({
+            "contact": { "phone": "+33478920011" },
+            "address": "12 rue de la Republique, 69002 Lyon",
+        });
+        let vcard = build_vcard("Cabinet Lyon", &settings);
+
+        assert!(vcard.contains("TEL;TYPE=work,voice:+33478920011\r\n"));
+        assert!(vcard.contains("ADR;TYPE=work:;;12 rue de la Republique\\, 69002 Lyon;;;;\r\n"));
     }
 
     #[test]
