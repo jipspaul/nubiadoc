@@ -689,3 +689,51 @@ async fn post_review_nul_byte_in_comment_returns_422() {
 
     cleanup_fixture(&db, &f).await;
 }
+
+// ── Test (#7669) : comment au-delà de MAX_COMMENT_LEN → 422 ─────────────────
+
+#[tokio::test]
+async fn post_review_comment_over_max_len_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db, "commentlen").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/reviews")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(f.patient_user_id, f.patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .header("Idempotency-Key", Uuid::new_v4().to_string())
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "appointment_id": f.appointment_id,
+                        "rating": 5,
+                        "comment": "X".repeat(4_001)
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_fixture(&db, &f).await;
+}

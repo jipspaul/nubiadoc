@@ -17,6 +17,10 @@ use crate::{
 
 // ── POST /v1/reviews ─────────────────────────────────────────────────────────
 
+/// Borne haute de `comment`, alignée sur `cabinet_conversation_patch.rs::MAX_SUMMARY_LEN`
+/// (même ordre de grandeur qu'une synthèse libre) (#7669).
+const MAX_COMMENT_LEN: usize = 4_000;
+
 /// Corps de la requête `POST /v1/reviews`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -40,6 +44,7 @@ pub struct CreateReviewResponse {
 /// Vérifie que l'appointment appartient au patient (RLS via `app.patient_account_id`) → `404`.
 /// Vérifie que le statut est `done`, `checked_in` ou `in_progress` → `422` sinon.
 /// Contrainte UNIQUE `review_appointment_unique` → `409 review_already_exists`.
+/// `comment` : octet NUL, ou au-delà de `MAX_COMMENT_LEN` → `422` (#7669).
 /// Statut initial `pending` (modération avant publication).
 /// `author_display` = `"Prénom N."` dérivé du compte patient.
 pub async fn create_review(
@@ -60,8 +65,11 @@ pub async fn create_review(
         return Err(AppError::ValidationError);
     }
     // #4410 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    // #7669 : aucune borne haute → 1M caractères stockés et re-servis en entier
+    // à la file de modération du cabinet.
     if let Some(comment) = &body.comment {
         crate::text_validation::reject_nul_byte(comment)?;
+        crate::text_validation::validate_max_len(comment, MAX_COMMENT_LEN)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
