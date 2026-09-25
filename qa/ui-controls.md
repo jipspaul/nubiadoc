@@ -4103,6 +4103,76 @@ si près du bord. **Re-testée après l'avoir amenée à y=500, elle se comporte
 > corrigées dans `R94_act2.js`. Les rondes suivantes doivent partir de cet outil : un « bouton mort » annoncé
 > sans ces cinq garde-fous a de fortes chances d'être un artefact de mesure, pas un défaut du produit.
 
+### Ronde R97 — 2026-09-25 (diff-driven : PR #7602→#7606 mergées la veille au soir)
+
+**Périmètre** : 5 apps sur 5. **51 écrans** atteints, **1 077 contrôles inventoriés**, **146 activés**.
+**Verdict global : 0 bouton MORT confirmé, 1 CASSÉ confirmé (#7612), 1 « cassé » réfuté comme artefact de méthode.**
+
+Priorité de la ronde donnée par l'Étape 1bis : la **messagerie patient du secrétariat** (`/messages`,
+livrée la veille par #7606) et le **CR opératoire praticien** (#7603).
+
+| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/messages` (Messagerie patient — **écran neuf DP-F24**) | 36 | 17 | 16 | 0 | 0 | 2026-09-25T00:35Z |
+| secretariat | `/messages` → conversation ouverte (volet de détail) | 24 | 4 | 4 | 0 | 0 | 2026-09-25T00:38Z |
+| secretariat | `/patients` (Fiches patients) + volet de fiche | 38 | 6 | 6 | 0 | 0 | 2026-09-25T01:02Z |
+| secretariat | `/stock` (Demandes de stock) + volet de détail | 59 | 7 | 6 | 0 | **1 → #7612** | 2026-09-25T01:12Z |
+| secretariat | `/` (Tableau de bord) | 38 | 3 | 3 | 0 | 0 | 2026-09-25T00:20Z |
+| secretariat | rail complet, groupe « Réglages du cabinet » déplié (24 entrées) | 26 | 21 | 21 | 0 | 0 | 2026-09-25T00:52Z |
+| secretariat | `/team-messages` (Messagerie interne) | 26 | 1 | 1 | 0 | 0 | 2026-09-25T01:05Z |
+| secretariat | `/devis`, `/cabinet-payouts`, `/appointments`, `/correspondents` | 101 | 4 | 4 | 0 | 0 | 2026-09-25T01:30Z |
+| secretariat | `/admin-membres`, `/admin-secretariats`, `/cabinet-stats`, `/maintenance`, `/reprise-donnees`, `/appointment-motifs` | 84 | 6 | 6 | 0 | 0 | 2026-09-25T01:28Z |
+| secretariat | `/notification-preferences` (9 switches) | 12 | 1 | 1 | 0 | 0 | 2026-09-25T01:28Z |
+| praticien | `/` (Tableau de bord) | 34 | 2 | 2 | 0 | 0 | 2026-09-25T01:20Z |
+| praticien | `/agenda`, `/waiting-room`, `/patients`, `/consultation` | 117 | 4 | 4 | 0 | 0 | 2026-09-25T01:21Z |
+| praticien | `/ordonnances`, `/devis`, `/stock`, `/stock-inventory`, `/lab-work-orders` | 122 | 5 | 5 | 0 | 0 | 2026-09-25T01:22Z |
+| praticien | `/messages` (**inbox cabinet — HORS SERVICE**) | 19 | 1 | 0 | 0 | **1 → #7608** | 2026-09-25T00:45Z |
+| praticien | `/team-messages`, `/notification-preferences` | 32 | 2 | 2 | 0 | 0 | 2026-09-25T01:22Z |
+| praticien | « Modèles de consentement » (overlay, 10 modèles) | 22 | 1 | 1 | 0 | 0 | 2026-09-25T01:24Z |
+| praticien | « Questionnaire médical » (overlay) | 3 | 1 | 1 | 0 | 0 | 2026-09-25T01:24Z |
+| pharmacie | `/` (File des commandes) | 32 | 2 | 2 | 0 | 0 | 2026-09-25T00:58Z |
+| pharmacie | `/stock`, `/messages` | 28 | 2 | 2 | 0 | 0 | 2026-09-25T00:58Z |
+| pharmacie | `/devis` + « Nouveau devis » | 38 | 3 | 3 | 0 | 0 | 2026-09-25T01:15Z |
+| pharmacie | `/notification-preferences` (8 switches) | 9 | 1 | 1 | 0 | 0 | 2026-09-25T00:58Z |
+| patient | `/` (Accueil, 390×844) + 4 cartes d'accès rapide | 18 | 7 | 7 | 0 | 0 | 2026-09-25T00:50Z |
+| patient | 5 onglets (Accueil / Mes RDV / Messages / Documents / Profil) | 90 | 9 | 9 | 0 | 0 | 2026-09-25T00:55Z |
+| patient | `/prescriptions`, `/appointments` | 40 | 2 | 2 | 0 | 0 | 2026-09-25T00:52Z |
+| infirmiere | `/` — 3 onglets (Disponibilité / Offres / Ma visite) + bascule « En ligne » | 8 | 4 | 4 | 0 | 0 | 2026-09-25T00:42Z |
+
+**Total : 1 077 inventoriés, 146 activés, 0 mort, 2 cassés (dont 1 réfuté).**
+
+#### Le contrôle CASSÉ confirmé — volet de détail du stock secrétariat
+
+Le volet s'ouvre, mais son unique action **« Relancer la pharmacie »** est mesurée à **y = 22 762**
+puis **y = 38 884** px sous un viewport de 800 px, sur deux demandes distinctes. Cause :
+`stock_page.dart:1319` rend `item.label` **sans `maxLines` ni `overflow`** — le seul `Text` du fichier
+à ne pas poser la garde, sur ~12 qui la posent (`:610`, `:621`, `:746`, `:962`, `:972`, `:1010`,
+`:1024`, `:1083`, `:1094`, `:1242`). Un libellé long s'étale sur des milliers de lignes et éjecte le
+bouton, construit après la boucle d'articles (`:1341-1345`) → **#7612 (P2)**.
+
+*(Le second « cassé » est `/messages` praticien : l'écran ne rend qu'un bouton « Réessayer » parce que
+`GET /v1/cabinet/conversations` répond 500 — c'est le bug d'API **#7608 (P0)**, pas un défaut du widget.)*
+
+#### Leçon de méthode — un « bouton cassé » qui n'en était pas
+
+Le clic **aux coordonnées** du nœud « Stock » du rail (groupe « Réglages du cabinet » déplié)
+ouvrait `/notification-preferences`. Mesures : rect de « Stock » `[692..724]`, rect de
+« Préférences de notifications » `[708..748]`, **16 px de chevauchement**, et
+`elementFromPoint(125, 708)` rendant le nœud du pied de rail.
+
+**C'était un artefact de la méthode, pas un défaut du produit.** La barre latérale est un
+`Column[Expanded(ListView), footer]` (`pro_shell.dart:611-655`) — une mise en page qui ne peut pas
+se chevaucher. Mais les nœuds Semantics d'un `ListView` conservent leur **rect de layout** même
+hors de la zone visible (cache extent) : « Stock » est rapporté là où il *serait* peint, sous le
+pied de rail qui, lui, peint réellement. Deux contre-épreuves : (a) après une molette de 600 px la
+liste défile normalement et « Membres » ouvre bien `/admin-membres` ; (b) l'**activation logique**
+du nœud — `el.click()`, exactement ce que fait une aide technique — ouvre bien **`/stock`**.
+**Non rapporté.**
+
+> **Règle à retenir** : un clic aux coordonnées ne prouve un contrôle cassé que si le nœud est
+> réellement visible à ces coordonnées. Pour tout contrôle d'une liste défilante, contre-vérifier
+> par activation logique (`el.click()`) **avant** de conclure.
+
 ### Ronde R96 — 2026-09-24 (18:00–21:00 UTC)
 
 Méthode inchangée depuis R94 (inventaire Semantics → mise en cadre → activation → verdict), avec le
