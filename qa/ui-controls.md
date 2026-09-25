@@ -231,6 +231,27 @@ comme des écrans à part entière. *Piège de repérage : la barre d'onglets es
 `true`**, et il ne reste **aucune demande de visite active** en fin de ronde (23 `done`, 20 `cancelled`,
 7 `expired`).
 
+### Ronde R100 — cas adversariaux `app_practicien` (3ᵉ app couverte dans cette catégorie)
+
+| cas | verdict | preuve |
+|---|---|---|
+| **Enregistrement d'une note clinique** (`/patients/:id`) | **OK, bout en bout** | Champ « Notes du praticien… » rempli → le bouton « **Enregistrer les notes** » **s'active** (il était, à raison, `DÉSACTIVÉ` tant que le champ était vide) → **1 seul** `POST /v1/cabinet/patients/:id/notes`, 0 requête ≥ 400 → et la note **a bien persisté** (re-`GET` : marqueur `QA-R100-note-1790368058` présent, horodaté 20:28:06). |
+| **Double-submit** sur « Enregistrer les notes » | **OK** | Un clic = une écriture ; aucune écriture en double. |
+| **Texte très long** (342 car.) dans les notes | **OK** | **0 débordement HORIZONTAL** (`x < 0` ou `x+w > 1282`). |
+| **BACK navigateur** au milieu du flux fiche patient → schéma dentaire | **OK** | Retour sur un écran **repeint et utilisable** (34 contrôles, `nearWhite` 0.751, 155 nœuds Semantics). |
+| **Coupure réseau** (`route.abort` sur `*/v1/*`) sur `/agenda` | **OK** | 24 contrôles toujours présents (navigation complète utilisable), `nearWhite` 0.783, **erreur digne** proposée — ni page blanche ni spinner infini. |
+
+> **Deuxième correction de méthode — le corollaire de la première.** Ce parcours a d'abord produit
+> deux « défauts » spectaculaires, tous deux **faux** :
+> 1. « **25 contrôles qui débordent** » → mon critère comptait le débordement **vertical**, or la fiche
+>    patient est une page **longue et défilante** (le champ de notes est à **y = 6170**). Mesuré
+>    **horizontalement**, le seul axe qui signale une vraie casse de mise en page : **0**.
+> 2. « **« Enregistrer les notes » ne déclenche aucune écriture** » → Playwright clique aux coordonnées
+>    du **viewport** ; un clic à `y = 6250` ne touche rien. Aucun texte n'était saisi, donc le bouton
+>    restait **légitimement désactivé**. Après défilement jusqu'au champ (`y` ramené à 234), tout
+>    fonctionne. **Il faut faire défiler jusqu'au contrôle avant de l'activer** — le marqueur
+>    `offscreen` de l'inventaire est là pour ça et doit être respecté, pas contourné.
+
 ### Ronde R99 — 2026-09-25 (12:00–14:20 UTC) — 5/5 apps + tunnel SSR ; **69 écrans**, 1 515 contrôles inventoriés, 534 activés, 416 OK
 
 > **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire
