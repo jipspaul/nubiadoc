@@ -857,11 +857,15 @@ pub async fn send_cabinet_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Verrou FOR UPDATE (même pattern que payment_schedules.rs:218-222) : sérialise
+    // avec tout autre envoi concurrent du même devis pour qu'un double-clic sur
+    // « Envoyer » ne déclenche pas deux notifications `quote_received` (#7016).
     let row = sqlx::query(
         "SELECT q.status, p.patient_account_id \
          FROM quote q \
          LEFT JOIN patient p ON p.id = q.patient_id \
-         WHERE q.id = $1 AND q.cabinet_id = $2 AND q.deleted_at IS NULL",
+         WHERE q.id = $1 AND q.cabinet_id = $2 AND q.deleted_at IS NULL \
+         FOR UPDATE OF q",
     )
     .bind(id)
     .bind(claims.cabinet_id)

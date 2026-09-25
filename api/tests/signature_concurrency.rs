@@ -364,8 +364,8 @@ struct QuoteFixture {
 }
 
 /// Cabinet + membre `practitioner` + patient (compte app + fiche) + devis
-/// `sent` (même squelette que `quote_lifecycle_notifications.rs`).
-async fn seed_quote(db: &PgPool) -> QuoteFixture {
+/// au statut `status` (même squelette que `quote_lifecycle_notifications.rs`).
+async fn seed_quote_with_status(db: &PgPool, status: &str) -> QuoteFixture {
     let f = QuoteFixture {
         cabinet_id: Uuid::new_v4(),
         practitioner_user_id: Uuid::new_v4(),
@@ -446,17 +446,22 @@ async fn seed_quote(db: &PgPool) -> QuoteFixture {
 
     sqlx::query(
         "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) \
-         VALUES ($1, $2, $3, 'sent', 150.00, 'EUR')",
+         VALUES ($1, $2, $3, $4, 150.00, 'EUR')",
     )
     .bind(f.quote_id)
     .bind(f.cabinet_id)
     .bind(f.patient_id)
+    .bind(status)
     .execute(&mut *tx)
     .await
     .unwrap();
 
     tx.commit().await.unwrap();
     f
+}
+
+async fn seed_quote(db: &PgPool) -> QuoteFixture {
+    seed_quote_with_status(db, "sent").await
 }
 
 async fn cleanup_quote(db: &PgPool, f: &QuoteFixture) {
@@ -588,6 +593,70 @@ async fn concurrent_quote_sign_is_idempotent_and_never_500() {
     );
     assert_eq!(documents, 1, "un seul PDF de devis dans le coffre-fort");
     assert!(document_id.is_some(), "quote.document_id doit être posé");
+
+    cleanup_quote(&db, &f).await;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Devis — POST /v1/cabinet/quotes/:id/send (#7016)
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// #7016 : N envois simultanés d'un même devis `draft` → N × 200 idempotents,
+/// aucun 5xx, mais EXACTEMENT UNE notification `quote_received` pour le
+/// patient (un double-clic sur « Envoyer » ne doit pas doubler la
+/// notification, contrairement à un read-then-write sans verrou).
+#[tokio::test]
+async fn concurrent_quote_send_yields_exactly_one_patient_notification() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed_quote_with_status(&db, "draft").await;
+
+    let router = app(state_with(app_pool().await));
+    let results = post_concurrently(
+        router,
+        format!("/v1/cabinet/quotes/{}/send", f.quote_id),
+        make_pro_jwt(f.practitioner_user_id, f.cabinet_id, "practitioner"),
+    )
+    .await;
+
+    let statuses: Vec<StatusCode> = results.iter().map(|(s, _)| *s).collect();
+    assert!(
+        statuses.iter().all(|s| !s.is_server_error()),
+        "aucun 5xx attendu sur une course prévisible, obtenu {statuses:?}"
+    );
+    assert!(
+        statuses.iter().all(|s| *s == StatusCode::OK),
+        "chaque envoi doit renvoyer 200 (idempotent), obtenu {results:?}"
+    );
+
+    let notifications: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM notification WHERE app_user_id = $1 AND kind = $2",
+    )
+    .bind(f.patient_account_user_id)
+    .bind("quote_received")
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        notifications, 1,
+        "un seul geste d'envoi doit produire UNE seule notification patient, obtenu {results:?}"
+    );
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let status: String = sqlx::query_scalar("SELECT status FROM quote WHERE id = $1")
+        .bind(f.quote_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(status, "sent");
 
     cleanup_quote(&db, &f).await;
 }
