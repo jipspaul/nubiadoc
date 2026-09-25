@@ -478,6 +478,110 @@ async fn cross_tenant_patch_returns_404() {
     teardown(&db, &f).await;
 }
 
+// ── `motif`/`summary` trop longs → 422, aucune borne = #7610 ────────────────
+
+#[tokio::test]
+async fn motif_over_max_len_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "motiflen").await;
+
+    let token = make_pro_jwt(
+        f.secretary_user_id,
+        f.cabinet_id,
+        "secretary",
+        Some(f.secretariat_id),
+    );
+    let (status, _) = patch(
+        &token,
+        format!("/v1/cabinet/conversations/{}", f.conversation_id),
+        json!({ "motif": "M".repeat(2_001) }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    teardown(&db, &f).await;
+}
+
+#[tokio::test]
+async fn summary_over_max_len_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "summarylen").await;
+
+    let token = make_pro_jwt(
+        f.secretary_user_id,
+        f.cabinet_id,
+        "secretary",
+        Some(f.secretariat_id),
+    );
+    let (status, _) = patch(
+        &token,
+        format!("/v1/cabinet/conversations/{}", f.conversation_id),
+        json!({ "summary": "S".repeat(4_001) }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    teardown(&db, &f).await;
+}
+
+// ── Octet NUL dans `motif`/`summary` → 422, pas 500 = #7610 ──────────────────
+
+#[tokio::test]
+async fn motif_with_nul_byte_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "motifnul").await;
+
+    let token = make_pro_jwt(
+        f.secretary_user_id,
+        f.cabinet_id,
+        "secretary",
+        Some(f.secretariat_id),
+    );
+    let (status, _) = patch(
+        &token,
+        format!("/v1/cabinet/conversations/{}", f.conversation_id),
+        json!({ "motif": "QA\u{0000}nul" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    teardown(&db, &f).await;
+}
+
+#[tokio::test]
+async fn summary_with_nul_byte_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "summarynul").await;
+
+    let token = make_pro_jwt(
+        f.secretary_user_id,
+        f.cabinet_id,
+        "secretary",
+        Some(f.secretariat_id),
+    );
+    let (status, _) = patch(
+        &token,
+        format!("/v1/cabinet/conversations/{}", f.conversation_id),
+        json!({ "summary": "QA\u{0000}nul" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    teardown(&db, &f).await;
+}
+
 #[tokio::test]
 async fn patch_no_jwt_returns_401() {
     let response = app(state())

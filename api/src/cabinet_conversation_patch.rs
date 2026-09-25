@@ -18,8 +18,17 @@ use crate::{
     cabinet_messaging::{
         VALID_CONVERSATION_ORIGINS, VALID_CONVERSATION_PRIORITIES, VALID_CONVERSATION_STATUSES,
     },
+    text_validation::{reject_nul_byte, validate_max_len},
     AppState,
 };
+
+/// Borne haute de `motif`, alignée sur `waiting_list.rs::MAX_MOTIF_LEN` (#7548).
+const MAX_MOTIF_LEN: usize = 2_000;
+
+/// Borne haute de `summary`, alignée sur les champs de synthèse/description
+/// libres du même ordre de grandeur (`cabinet_tasks.rs::MAX_TASK_DESCRIPTION_LEN`,
+/// `maintenance.rs::MAX_TICKET_DESCRIPTION_LEN`).
+const MAX_SUMMARY_LEN: usize = 4_000;
 
 /// Corps de `PATCH /v1/cabinet/conversations/:id`. Champ absent = inchangé —
 /// pas de moyen de remettre `assignee_user_id`/`motif`/`summary` à `null` par
@@ -58,7 +67,8 @@ pub struct PatchConversationQualificationResponse {
 /// au(x) praticien(s) suivant le patient.
 /// `status`/`priority`/`origin` hors énum → `422`. `assignee_user_id` fourni
 /// mais absent du cabinet (`cabinet_membership`) → `404` (même doctrine que
-/// `cabinet_tasks::validate_task_refs`).
+/// `cabinet_tasks::validate_task_refs`). `motif`/`summary` : octet NUL, ou
+/// au-delà de `MAX_MOTIF_LEN`/`MAX_SUMMARY_LEN` → `422` (#7610).
 /// Insère une entrée `audit_log` (`entity = 'conversation'`).
 pub async fn patch_cabinet_conversation(
     State(state): State<AppState>,
@@ -80,6 +90,14 @@ pub async fn patch_cabinet_conversation(
         if !VALID_CONVERSATION_STATUSES.contains(&status.as_str()) {
             return Err(AppError::ValidationError);
         }
+    }
+    if let Some(ref motif) = body.motif {
+        reject_nul_byte(motif)?;
+        validate_max_len(motif, MAX_MOTIF_LEN)?;
+    }
+    if let Some(ref summary) = body.summary {
+        reject_nul_byte(summary)?;
+        validate_max_len(summary, MAX_SUMMARY_LEN)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
