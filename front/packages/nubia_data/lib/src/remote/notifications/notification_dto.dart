@@ -160,6 +160,13 @@ class NotificationDto {
         return "Aucune infirmière n'était disponible pour cette demande de visite.";
       case 'stock_request_received':
         return 'Une officine a besoin de ce produit, vérifiez votre stock.';
+      case 'stock_request_answered':
+        return switch (data['status']) {
+          'accepted' => 'La pharmacie a accepté votre demande de stock.',
+          'rejected' => 'La pharmacie a refusé votre demande de stock.',
+          'fulfilled' => 'La pharmacie a honoré votre demande de stock.',
+          _ => 'La pharmacie a répondu à votre demande de stock.',
+        };
       case 'task_assigned':
         return 'Une nouvelle tâche vous a été assignée.';
       default:

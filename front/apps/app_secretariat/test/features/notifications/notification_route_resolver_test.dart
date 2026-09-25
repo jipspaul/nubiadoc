@@ -26,6 +26,13 @@ void main() {
       );
     });
 
+    test('stock_request_answered -> stock', () {
+      expect(
+        NotificationRouteResolver.resolve(kind: 'stock_request_answered'),
+        AppRouter.stock,
+      );
+    });
+
     test('message_received -> messages', () {
       expect(
         NotificationRouteResolver.resolve(kind: 'message_received'),
