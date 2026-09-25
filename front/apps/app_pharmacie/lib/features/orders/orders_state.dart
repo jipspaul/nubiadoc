@@ -32,12 +32,13 @@ class OrdersLoaded extends OrdersState {
   /// de fraîcheur (« Mise à jour il y a N s »).
   final DateTime updatedAt;
 
-  /// Sans filtre explicite, la file de travail exclut les commandes
-  /// terminales (retirées/refusées/annulées, déjà soldées) — la maquette
-  /// ne prévoit aucune facette pour les revoir depuis cet écran. Triée par
-  /// réception croissante : la commande la plus ancienne (donc la plus
-  /// urgente) est toujours en tête, jamais enfouie sous des lignes plus
-  /// récentes.
+  /// Sans filtre explicite (« Toutes »), la file de travail exclut les
+  /// commandes terminales (retirées/refusées/annulées, déjà soldées) —
+  /// chacune reste consultable via sa propre facette (#7003 : sans ça, une
+  /// commande delivrée devenait injoignable, aucune facette ni la recherche
+  /// ne la couvrant). Triée par réception croissante : la commande la plus
+  /// ancienne (donc la plus urgente) est toujours en tête, jamais enfouie
+  /// sous des lignes plus récentes.
   List<PharmacyOrder> get visible {
     final matching = filter == null
         ? orders.where((order) => !order.status.isTerminal)

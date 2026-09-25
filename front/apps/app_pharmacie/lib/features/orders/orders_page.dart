@@ -119,11 +119,18 @@ class _OrdersViewState extends State<OrdersView> {
   final _searchController = TextEditingController();
   String _query = '';
 
+  // #7003 — « Toutes » (filter == null) reste la file de travail (statuts
+  // actifs seulement, cf. OrdersLoaded.visible) : les 3 statuts terminaux
+  // ci-dessous n'y sont donc pas comptés, mais restent chacun atteignables
+  // via leur propre facette (et la recherche, une fois la facette active).
   static const _filters = <(String, PharmacyOrderStatus?)>[
     ('Toutes', null),
     ('Reçues', PharmacyOrderStatus.received),
     ('En préparation', PharmacyOrderStatus.preparing),
     ('Prêtes', PharmacyOrderStatus.ready),
+    ('Retirées', PharmacyOrderStatus.pickedUp),
+    ('Refusées', PharmacyOrderStatus.rejected),
+    ('Annulées', PharmacyOrderStatus.cancelled),
   ];
 
   @override
