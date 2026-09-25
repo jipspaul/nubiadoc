@@ -31,6 +31,25 @@ pub struct ImplantItem {
     pub tooth_position: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    // Identification dispositif + suivi (#7665) — distincts de `brand`/
+    // `lot_number`, données demandées par un radiologue avant imagerie
+    // (matériau, compatibilité IRM, dimensions) et suivi périodique.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manufacturer: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dimensions: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub material: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mri_compatibility: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_control_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_control: Option<String>,
 }
 
 /// Réponse de `GET /v1/implant-passport`.
@@ -50,6 +69,22 @@ fn implant_item_from_row(row: &sqlx::postgres::PgRow) -> Result<ImplantItem, App
         .try_get("tooth_position")
         .map_err(|_| AppError::Internal)?;
     let notes: Option<String> = row.try_get("notes").map_err(|_| AppError::Internal)?;
+    let manufacturer: Option<String> = row
+        .try_get("manufacturer")
+        .map_err(|_| AppError::Internal)?;
+    let model: Option<String> = row.try_get("model").map_err(|_| AppError::Internal)?;
+    let reference: Option<String> = row.try_get("reference").map_err(|_| AppError::Internal)?;
+    let dimensions: Option<String> = row.try_get("dimensions").map_err(|_| AppError::Internal)?;
+    let material: Option<String> = row.try_get("material").map_err(|_| AppError::Internal)?;
+    let mri_compatibility: Option<String> = row
+        .try_get("mri_compatibility")
+        .map_err(|_| AppError::Internal)?;
+    let last_control_date: Option<chrono::NaiveDate> = row
+        .try_get("last_control_date")
+        .map_err(|_| AppError::Internal)?;
+    let next_control: Option<String> = row
+        .try_get("next_control")
+        .map_err(|_| AppError::Internal)?;
 
     Ok(ImplantItem {
         id,
@@ -58,6 +93,14 @@ fn implant_item_from_row(row: &sqlx::postgres::PgRow) -> Result<ImplantItem, App
         placement_date: placement_date.map(|d| d.to_string()),
         tooth_position,
         notes,
+        manufacturer,
+        model,
+        reference,
+        dimensions,
+        material,
+        mri_compatibility,
+        last_control_date: last_control_date.map(|d| d.to_string()),
+        next_control,
     })
 }
 
@@ -89,7 +132,9 @@ pub async fn list_implant_passport(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(
-        "SELECT id, brand, lot_number, placement_date, tooth_position, notes \
+        "SELECT id, brand, lot_number, placement_date, tooth_position, notes, \
+         manufacturer, model, reference, dimensions, material, mri_compatibility, \
+         last_control_date, next_control \
          FROM implant_passport \
          WHERE deleted_at IS NULL \
          ORDER BY placement_date DESC NULLS LAST, id DESC",
@@ -158,7 +203,9 @@ pub async fn export_implant_passport(
 
     let (storage_key, items) = if let Some(implant_id) = query.implant_id {
         let row = sqlx::query(
-            "SELECT id, brand, lot_number, placement_date, tooth_position, notes \
+            "SELECT id, brand, lot_number, placement_date, tooth_position, notes, \
+             manufacturer, model, reference, dimensions, material, mri_compatibility, \
+             last_control_date, next_control \
              FROM implant_passport WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(implant_id)
@@ -173,7 +220,9 @@ pub async fn export_implant_passport(
         )
     } else {
         let rows = sqlx::query(
-            "SELECT id, brand, lot_number, placement_date, tooth_position, notes \
+            "SELECT id, brand, lot_number, placement_date, tooth_position, notes, \
+             manufacturer, model, reference, dimensions, material, mri_compatibility, \
+             last_control_date, next_control \
              FROM implant_passport \
              WHERE deleted_at IS NULL \
              ORDER BY placement_date DESC NULLS LAST, id DESC",

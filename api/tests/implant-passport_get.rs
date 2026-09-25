@@ -336,6 +336,161 @@ async fn implant_passport_get_returns_implants_for_patient() {
         .ok();
 }
 
+// ── Test 4b : identification dispositif + suivi (#7665) ──────────────────────
+
+#[tokio::test]
+async fn implant_passport_get_returns_device_details() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let implant_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("ip-get-device+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Cléo', 'Device')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet IP Device Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Cléo', 'Device', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO implant_passport \
+             (id, cabinet_id, patient_id, implant_ref, brand, manufacturer, model, reference, \
+              dimensions, material, mri_compatibility, last_control_date, next_control) \
+             VALUES ($1, $2, $3, 'REF-T7665', 'Nobel Biocare', 'Nobel Biocare', \
+                     'Replace Select Tapered', '36214', 'Ø 4,3 mm · L 11,5 mm', \
+                     'Titane grade 4', 'Compatible IRM sous conditions', '2026-07-04', \
+                     'Mars 2027 · annuel')",
+        )
+        .bind(implant_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/implant-passport")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1, "doit retourner 1 implant");
+    assert_eq!(data[0]["manufacturer"], "Nobel Biocare");
+    assert_eq!(data[0]["model"], "Replace Select Tapered");
+    assert_eq!(data[0]["reference"], "36214");
+    assert_eq!(data[0]["dimensions"], "Ø 4,3 mm · L 11,5 mm");
+    assert_eq!(data[0]["material"], "Titane grade 4");
+    assert_eq!(
+        data[0]["mri_compatibility"],
+        "Compatible IRM sous conditions"
+    );
+    assert_eq!(data[0]["last_control_date"], "2026-07-04");
+    assert_eq!(data[0]["next_control"], "Mars 2027 · annuel");
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM implant_passport WHERE id = $1")
+            .bind(implant_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 5 : isolation RLS — patient B ne voit pas les implants de patient A ──
 
 #[tokio::test]

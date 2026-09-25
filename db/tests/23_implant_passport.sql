@@ -51,6 +51,24 @@ SELECT has_column('implant_passport', 'tooth_position',
 SELECT has_column('implant_passport', 'notes',
     'implant_passport.notes présent (nullable)');
 
+-- Identification dispositif + suivi (0302, #7665)
+SELECT has_column('implant_passport', 'manufacturer',
+    'implant_passport.manufacturer présent (nullable)');
+SELECT has_column('implant_passport', 'model',
+    'implant_passport.model présent (nullable)');
+SELECT has_column('implant_passport', 'reference',
+    'implant_passport.reference présent (nullable)');
+SELECT has_column('implant_passport', 'dimensions',
+    'implant_passport.dimensions présent (nullable)');
+SELECT has_column('implant_passport', 'material',
+    'implant_passport.material présent (nullable)');
+SELECT has_column('implant_passport', 'mri_compatibility',
+    'implant_passport.mri_compatibility présent (nullable)');
+SELECT has_column('implant_passport', 'last_control_date',
+    'implant_passport.last_control_date présent (nullable)');
+SELECT has_column('implant_passport', 'next_control',
+    'implant_passport.next_control présent (nullable)');
+
 SELECT has_column('implant_passport', 'created_at',
     'implant_passport.created_at présent');
 SELECT col_type_is('implant_passport', 'created_at',
