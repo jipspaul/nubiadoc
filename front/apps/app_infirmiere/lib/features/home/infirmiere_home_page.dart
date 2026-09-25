@@ -237,6 +237,8 @@ class _OffersTab extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(o.patientDisplayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.titleMedium),
                       ),
                       Text(
@@ -256,6 +258,8 @@ class _OffersTab extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       o.notes!,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             fontStyle: FontStyle.italic,
                           ),
@@ -319,6 +323,8 @@ class _VisitTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(v.patientDisplayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 4),
           Text(v.requestedActs.map(homeCareActLabel).join(' · ')),
