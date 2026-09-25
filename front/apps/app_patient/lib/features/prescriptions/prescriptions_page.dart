@@ -99,10 +99,14 @@ class PrescriptionsBody extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final prescription = prescriptions[index];
+              final createdAtLocal = prescription.createdAt.toLocal();
+              final date = locale.formatShortDate(createdAtLocal);
+              final time = locale.formatTimeOfDay(
+                TimeOfDay.fromDateTime(createdAtLocal),
+              );
               return ListRow(
                 key: Key('prescription_${prescription.id}'),
-                title:
-                    'Ordonnance du ${locale.formatShortDate(prescription.createdAt.toLocal())}',
+                title: 'Ordonnance du $date à $time',
                 subtitle: _statusLabel(prescription.status),
                 showDivider: false,
                 trailing: prescription.documentId != null
