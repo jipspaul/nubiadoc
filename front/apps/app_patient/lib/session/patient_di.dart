@@ -103,6 +103,7 @@ void registerPatient(GetIt gi) {
   gi.registerFactory<SendPrescriptionCubit>(
     () => SendPrescriptionCubit(
       listPrescriptions: gi<ListMyPrescriptionsUseCase>(),
+      listPharmacyOrders: gi<ListPatientPharmacyOrdersUseCase>(),
       getMyPharmacy: gi<GetMyPharmacyUseCase>(),
       createOrder: gi<CreatePharmacyOrderUseCase>(),
     ),
