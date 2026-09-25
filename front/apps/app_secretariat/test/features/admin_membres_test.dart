@@ -797,9 +797,12 @@ void main() {
       );
     });
 
-    testWidgets('échec de génération (réel) : pas de SnackBar de succès',
-        (tester) async {
-      when(() => inviteLinksCubit.state).thenReturn(const InviteLinksState());
+    testWidgets(
+        'échec de génération (403) : pas de SnackBar de succès mais un '
+        'message d\'erreur', (tester) async {
+      when(() => inviteLinksCubit.state).thenReturn(
+        const InviteLinksState(error: 'Accès réservé aux administrateurs.'),
+      );
       when(() => inviteLinksCubit.generate(any()))
           .thenAnswer((_) async => null);
 
@@ -810,6 +813,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Lien copié'), findsNothing);
+      expect(
+        find.textContaining('Accès réservé aux administrateurs.'),
+        findsOneWidget,
+      );
     });
   });
 }

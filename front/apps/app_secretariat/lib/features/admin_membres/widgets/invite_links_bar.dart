@@ -32,8 +32,17 @@ class InviteLinksBar extends StatelessWidget {
   const InviteLinksBar({super.key});
 
   Future<void> _copy(BuildContext context, MemberRole role) async {
-    final link = await context.read<InviteLinksCubit>().generate(role);
-    if (link == null || !context.mounted) return;
+    final cubit = context.read<InviteLinksCubit>();
+    final link = await cubit.generate(role);
+    if (!context.mounted) return;
+    if (link == null) {
+      NubiaSnackbar.show(
+        context: context,
+        message: cubit.state.error ?? 'Échec de la génération du lien.',
+        variant: NubiaSnackbarVariant.error,
+      );
+      return;
+    }
     await Clipboard.setData(ClipboardData(text: link.url));
     if (!context.mounted) return;
     NubiaSnackbar.show(
