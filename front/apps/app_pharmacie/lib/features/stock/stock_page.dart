@@ -495,16 +495,17 @@ class _StockRequestCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(
-                  child: NubiaButton(
-                    key: Key('stock_accept_${request.id}'),
-                    label: 'Accepter',
-                    isLoading: responding,
-                    onPressed: responding
-                        ? null
-                        : () => bloc.add(StockRespondRequested(
-                            request.id, StockRequestResponse.accept)),
-                  ),
+                // Compacte (pas Expanded) : la maquette rend « Accepter » et
+                // « Refuser » comme deux actions côte à côte de même gabarit
+                // dans la colonne ACTION, jamais un bouton pleine largeur.
+                NubiaButton(
+                  key: Key('stock_accept_${request.id}'),
+                  label: 'Accepter',
+                  isLoading: responding,
+                  onPressed: responding
+                      ? null
+                      : () => bloc.add(StockRespondRequested(
+                          request.id, StockRequestResponse.accept)),
                 ),
                 const SizedBox(width: 8),
                 // Refus irréversible engageant la relation commerciale : action

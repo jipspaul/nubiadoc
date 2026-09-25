@@ -165,6 +165,91 @@ void main() {
       expect(find.text('Rupture'), findsNothing);
     });
 
+    testWidgets(
+        'QA #7662 — cliquer une carte ouvre le volet de détail avec '
+        'disponibilité par ligne et « Accepter avec une note »',
+        (tester) async {
+      // Liste + volet juxtaposés : élargit la surface de test comme pour
+      // le volet devis (écart #2/#3 ci-dessous).
+      tester.view.physicalSize = const Size(1360, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final bloc = MockStockBloc();
+      final request = StockRequest(
+        id: 's1',
+        pharmacyId: 'p1',
+        cabinetName: 'Cabinet Dupont',
+        items: const [
+          StockRequestItem(
+            label: 'Compresses stériles',
+            quantity: 10,
+            availability: StockItemAvailability(
+              status: StockItemAvailabilityStatus.inStock,
+            ),
+          ),
+          StockRequestItem(
+            label: 'Gants nitrile taille M',
+            quantity: 5,
+            availability: StockItemAvailability(
+              status: StockItemAvailabilityStatus.limited,
+              quantityAvailable: 2,
+            ),
+          ),
+        ],
+        status: StockRequestStatus.sent,
+        createdAt: DateTime(2026, 7, 1),
+      );
+      when(() => bloc.state).thenReturn(StockLoaded([request]));
+
+      await tester.pumpApp(
+        BlocProvider<StockBloc>.value(
+            value: bloc, child: const Scaffold(body: StockView())),
+      );
+
+      // Avant clic : pas de volet.
+      expect(find.byKey(const Key('stock_detail_panel_s1')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('stock_request_s1')));
+      await tester.pumpAndSettle();
+
+      final detail = find.byKey(const Key('stock_detail_panel_s1'));
+      expect(detail, findsOneWidget);
+      expect(
+        find.descendant(of: detail, matching: find.text('En stock')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: detail, matching: find.text('2 dispo')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+            of: detail, matching: find.text('Accepter avec une note')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('stock_detail_accept_s1')));
+      await tester.pumpAndSettle();
+
+      // La note reste optionnelle : le dialogue s'ouvre avant tout appel bloc.
+      expect(find.text('Accepter la demande'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('stock_accept_note_confirm')));
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const StockRespondRequested(
+            's1',
+            StockRequestResponse.accept,
+          ))).called(1);
+
+      await tester.tap(find.byKey(const Key('stock_detail_close')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('stock_detail_panel_s1')), findsNothing);
+    });
+
     testWidgets('demande acceptée → bouton Honorer', (tester) async {
       final bloc = MockStockBloc();
       when(() => bloc.state)
