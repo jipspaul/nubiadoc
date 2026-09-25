@@ -7,6 +7,7 @@ import 'admin_membres_bloc.dart';
 import 'admin_membres_event.dart';
 import 'admin_membres_state.dart';
 import 'invite_member_dialog.dart';
+import 'widgets/invite_links_bar.dart';
 
 class AdminMembresPage extends StatefulWidget {
   const AdminMembresPage({super.key});
@@ -92,58 +93,69 @@ class _AdminMembresPageState extends State<AdminMembresPage>
               label: const Text('Ajouter membre'),
             )
           : null,
-      body: BlocListener<AdminMembresBloc, AdminMembresState>(
-        listenWhen: (_, state) =>
-            state is AdminMembresInviteSuccess ||
-            state is AdminMembresInviteForbidden,
-        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              state is AdminMembresInviteForbidden
-                  ? state.message
-                  : 'Invitation envoyée.',
+      body: Column(
+        children: [
+          // Liens d'invitation copiables par rôle (#7147/#7148) — action
+          // admin distincte de l'invitation nominative par e-mail (FAB
+          // ci-dessus), masquée dans les mêmes conditions (403).
+          if (canInvite) const InviteLinksBar(),
+          Expanded(
+            child: BlocListener<AdminMembresBloc, AdminMembresState>(
+              listenWhen: (_, state) =>
+                  state is AdminMembresInviteSuccess ||
+                  state is AdminMembresInviteForbidden,
+              listener: (context, state) =>
+                  ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    state is AdminMembresInviteForbidden
+                        ? state.message
+                        : 'Invitation envoyée.',
+                  ),
+                ),
+              ),
+              child: BlocBuilder<AdminMembresBloc, AdminMembresState>(
+                buildWhen: (_, state) =>
+                    state is! AdminMembresInviteSuccess &&
+                    state is! AdminMembresInviteForbidden,
+                builder: (context, state) => switch (state) {
+                  AdminMembresInitial() ||
+                  AdminMembresLoading() ||
+                  AdminMembresInviteSuccess() ||
+                  AdminMembresInviteForbidden() =>
+                    const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  AdminMembresEmpty() => const NubiaEmptyState(
+                      key: Key('admin_membres_empty'),
+                      icon: Icons.group_outlined,
+                      title: 'Aucun membre ni secrétariat enregistré.',
+                    ),
+                  AdminMembresLoaded(:final members, :final secretariats) =>
+                    TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _MembersList(members: members),
+                        _SecretariatsList(secretariats: secretariats),
+                      ],
+                    ),
+                  AdminMembresForbidden(:final message) => NubiaEmptyState(
+                      key: const Key('admin_membres_forbidden'),
+                      icon: Icons.lock_outline,
+                      title: 'Accès réservé aux administrateurs',
+                      subtitle: message,
+                    ),
+                  AdminMembresError(:final message) => NubiaErrorWidget(
+                      message: message,
+                      onRetry: () => context
+                          .read<AdminMembresBloc>()
+                          .add(const AdminMembresLoadRequested()),
+                    ),
+                },
+              ),
             ),
           ),
-        ),
-        child: BlocBuilder<AdminMembresBloc, AdminMembresState>(
-          buildWhen: (_, state) =>
-              state is! AdminMembresInviteSuccess &&
-              state is! AdminMembresInviteForbidden,
-          builder: (context, state) => switch (state) {
-            AdminMembresInitial() ||
-            AdminMembresLoading() ||
-            AdminMembresInviteSuccess() ||
-            AdminMembresInviteForbidden() =>
-              const Center(
-                child: CircularProgressIndicator(),
-              ),
-            AdminMembresEmpty() => const NubiaEmptyState(
-                key: Key('admin_membres_empty'),
-                icon: Icons.group_outlined,
-                title: 'Aucun membre ni secrétariat enregistré.',
-              ),
-            AdminMembresLoaded(:final members, :final secretariats) =>
-              TabBarView(
-                controller: _tabController,
-                children: [
-                  _MembersList(members: members),
-                  _SecretariatsList(secretariats: secretariats),
-                ],
-              ),
-            AdminMembresForbidden(:final message) => NubiaEmptyState(
-                key: const Key('admin_membres_forbidden'),
-                icon: Icons.lock_outline,
-                title: 'Accès réservé aux administrateurs',
-                subtitle: message,
-              ),
-            AdminMembresError(:final message) => NubiaErrorWidget(
-                message: message,
-                onRetry: () => context
-                    .read<AdminMembresBloc>()
-                    .add(const AdminMembresLoadRequested()),
-              ),
-          },
-        ),
+        ],
       ),
     );
   }

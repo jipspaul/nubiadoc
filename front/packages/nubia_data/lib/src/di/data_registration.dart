@@ -63,6 +63,8 @@ import '../remote/documents/document_api.dart';
 import '../remote/patient_treatment_plans/patient_treatment_plans_api.dart';
 import '../remote/implant_passport/implant_passport_api.dart';
 import '../remote/members/members_api.dart';
+import '../remote/cabinet_invite_links/cabinet_invite_links_api.dart';
+import '../remote/provider_stamp/provider_stamp_api.dart';
 import '../remote/messaging/messaging_api.dart';
 import '../remote/notifications/notification_api.dart';
 import '../remote/patient_pharmacy/patient_pharmacy_api.dart';
@@ -142,6 +144,8 @@ import '../repositories/dashboard_layout_repository_impl.dart';
 import '../repositories/document_repository_impl.dart';
 import '../repositories/patient_treatment_plans_repository_impl.dart';
 import '../repositories/members_repository_impl.dart';
+import '../repositories/cabinet_invite_links_repository_impl.dart';
+import '../repositories/provider_stamp_repository_impl.dart';
 import '../repositories/message_repository_impl.dart';
 import '../repositories/notification_repository_impl.dart';
 import '../repositories/pro_notification_preferences_repository_impl.dart';
@@ -707,6 +711,12 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<MembersApi>(
       () => MembersApi(gi()),
     )
+    ..registerLazySingleton<CabinetInviteLinksApi>(
+      () => CabinetInviteLinksApi(gi()),
+    )
+    ..registerLazySingleton<ProviderStampApi>(
+      () => ProviderStampApi(gi()),
+    )
     ..registerLazySingleton<SecretariatApi>(
       () => SecretariatApi(gi()),
     )
@@ -848,6 +858,12 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<MembersRepository>(
       () => MembersRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<CabinetInviteLinksRepository>(
+      () => CabinetInviteLinksRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<ProviderStampRepository>(
+      () => ProviderStampRepositoryImpl(gi()),
     )
     ..registerLazySingleton<SecretariatRepository>(
       () => SecretariatRepositoryImpl(gi()),
@@ -1020,6 +1036,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListMembersUseCase(gi()))
     ..registerFactory(() => InviteMemberUseCase(gi()))
     ..registerFactory(() => UpdateMemberRoleUseCase(gi()))
+    ..registerFactory(() => CreateInviteLinkUseCase(gi()))
+    ..registerFactory(() => UploadProviderSignatureUseCase(gi()))
+    ..registerFactory(() => UploadProviderStampUseCase(gi()))
     ..registerFactory(() => ListSecretariatsUseCase(gi()))
     ..registerFactory(() => AddSecretariatUseCase(gi()))
     ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
