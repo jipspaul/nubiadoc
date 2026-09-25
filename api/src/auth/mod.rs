@@ -393,6 +393,12 @@ pub(crate) enum AppError {
     /// validé plutôt qu'un motif générique. Le `Value` porte
     /// `starts_at`/`ends_at`/`kind` du congé.
     StaffOnLeave(serde_json::Value),
+    /// Corps JSON syntaxiquement invalide sur un endpoint qui parse le body
+    /// lui-meme plutot que via l'extracteur `Json<T>` (typiquement un corps
+    /// optionnel, ex. `POST .../accept`, #7688) - meme code que le fallback
+    /// `normalize_extractor_rejections` (`lib.rs`) pour un rejet `Json<T>`
+    /// standard, afin de garder un contrat identique aux endpoints jumeaux.
+    BadRequest,
 }
 
 impl IntoResponse for AppError {
@@ -790,6 +796,11 @@ impl IntoResponse for AppError {
             AppError::StaffOnLeave(leave) => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "staff_on_leave", "leave": leave})),
+            )
+                .into_response(),
+            AppError::BadRequest => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"code": "bad_request"})),
             )
                 .into_response(),
         }
