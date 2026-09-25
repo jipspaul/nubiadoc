@@ -69,8 +69,9 @@ fn implant_item_from_row(row: &sqlx::postgres::PgRow) -> Result<ImplantItem, App
         .try_get("tooth_position")
         .map_err(|_| AppError::Internal)?;
     let notes: Option<String> = row.try_get("notes").map_err(|_| AppError::Internal)?;
-    let manufacturer: Option<String> =
-        row.try_get("manufacturer").map_err(|_| AppError::Internal)?;
+    let manufacturer: Option<String> = row
+        .try_get("manufacturer")
+        .map_err(|_| AppError::Internal)?;
     let model: Option<String> = row.try_get("model").map_err(|_| AppError::Internal)?;
     let reference: Option<String> = row.try_get("reference").map_err(|_| AppError::Internal)?;
     let dimensions: Option<String> = row.try_get("dimensions").map_err(|_| AppError::Internal)?;
@@ -81,8 +82,9 @@ fn implant_item_from_row(row: &sqlx::postgres::PgRow) -> Result<ImplantItem, App
     let last_control_date: Option<chrono::NaiveDate> = row
         .try_get("last_control_date")
         .map_err(|_| AppError::Internal)?;
-    let next_control: Option<String> =
-        row.try_get("next_control").map_err(|_| AppError::Internal)?;
+    let next_control: Option<String> = row
+        .try_get("next_control")
+        .map_err(|_| AppError::Internal)?;
 
     Ok(ImplantItem {
         id,
