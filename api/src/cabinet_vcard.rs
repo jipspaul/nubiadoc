@@ -51,7 +51,9 @@ fn build_vcard(name: &str, settings: &serde_json::Value) -> String {
     let phone = contact
         .and_then(|c| c.get("phone").or_else(|| c.get("telephone")))
         .and_then(|v| v.as_str());
-    let email = contact.and_then(|c| c.get("email")).and_then(|v| v.as_str());
+    let email = contact
+        .and_then(|c| c.get("email"))
+        .and_then(|v| v.as_str());
 
     if let Some(phone) = phone {
         lines.push(format!("TEL;TYPE=work,voice:{}", vcard_escape(phone)));
