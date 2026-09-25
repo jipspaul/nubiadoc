@@ -71,6 +71,9 @@ class ReviewsPage extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+/// Borne haute de `comment`, alignée sur `api/src/reviews.rs::MAX_COMMENT_LEN` (#7669).
+const _maxCommentLength = 4000;
+
 /// Formulaire de saisie d'un avis (note 1-5 + commentaire optionnel) pour un
 /// rendez-vous donné — appelle `POST /v1/reviews` via [ReviewSubmitRequested].
 class _ReviewSubmitForm extends StatefulWidget {
@@ -131,6 +134,7 @@ class _ReviewSubmitFormState extends State<_ReviewSubmitForm> {
             controller: _commentController,
             label: 'Commentaire (optionnel)',
             variant: NubiaTextFieldVariant.multiline,
+            maxLength: _maxCommentLength,
           ),
           const SizedBox(height: 20),
           NubiaButton(
