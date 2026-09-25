@@ -86,7 +86,10 @@ class OrdersListFooter extends StatelessWidget {
           Text.rich(
             TextSpan(style: style, children: [
               const TextSpan(text: 'Délai moyen de préparation : '),
-              TextSpan(text: avg == null ? '—' : '$avg min', style: strongStyle),
+              TextSpan(
+                text: avg == null ? '—' : _formatAverageDelay(avg),
+                style: strongStyle,
+              ),
             ]),
           ),
           Text('↑ ↓ naviguer', style: style),
@@ -97,4 +100,17 @@ class OrdersListFooter extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Formate un délai moyen (en minutes) avec la même cascade que
+/// [orderWaitOf] : minutes en dessous de l'heure, `h mm` au-delà, jours
+/// au-delà de 24 h — pour ne pas afficher de minutes brutes illisibles
+/// (ex. « 8595 min ») dans le pied de liste.
+String _formatAverageDelay(int minutes) {
+  final days = minutes ~/ (60 * 24);
+  if (days >= 1) return '$days j';
+  if (minutes >= 60) {
+    return '${minutes ~/ 60} h ${(minutes % 60).toString().padLeft(2, '0')}';
+  }
+  return '$minutes min';
 }
