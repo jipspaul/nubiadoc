@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
@@ -78,6 +79,38 @@ void main() {
       await tester.tap(find.text('Ligne cliquable'));
       await tester.pumpAndSettle();
       expect(tapped, 1);
+    });
+
+    testWidgets('selected expose aria-selected via Semantics', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _wrap(
+          const ListRow(
+            key: Key('row'),
+            title: 'Ordonnance du 19 sept. 2026',
+            selected: true,
+          ),
+        ),
+      );
+
+      final semantics = tester.getSemantics(find.byKey(const Key('row')));
+      expect(semantics.hasFlag(SemanticsFlag.isSelected), isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('selected null ne modifie pas la sémantique par défaut', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _wrap(const ListRow(key: Key('row'), title: 'Non sélectionnable')),
+      );
+
+      final semantics = tester.getSemantics(find.byKey(const Key('row')));
+      expect(semantics.hasFlag(SemanticsFlag.isSelected), isFalse);
+      handle.dispose();
     });
   });
 }

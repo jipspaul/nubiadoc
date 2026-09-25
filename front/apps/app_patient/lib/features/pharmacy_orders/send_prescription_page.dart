@@ -104,6 +104,7 @@ class _ReadyView extends StatelessWidget {
               trailing: state.selectedPrescription?.id == prescription.id
                   ? const Icon(Icons.check_circle)
                   : null,
+              selected: state.selectedPrescription?.id == prescription.id,
               onTap: () => cubit.selectPrescription(prescription),
             ),
           const SizedBox(height: 24),
