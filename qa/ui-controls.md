@@ -148,6 +148,34 @@ sur `/agenda`, `/patients`, `/messages` **et** `/cabinet-payouts` — ce qui con
 **Total consolidé de la ronde R100 : 1 025 contrôles inventoriés, 908 activés, 899 OK, 8 morts (tous #7692),
 0 cassé réel, 7 désactivés justifiés.**
 
+### Ronde R100 — cas adversariaux sur une app PRO + correction de méthode
+
+**Cas adversariaux joués sur `app_pharmacie` (1280×800) — tous conformes :**
+
+| cas | verdict | preuve |
+|---|---|---|
+| **Double-submit** sur « **Accepter** » (action métier, `/stock`) | **OK** | Deux clics immédiats → **exactement 1** `POST`, **0** requête ≥ 400. |
+| **Saisie invalide** : refuser avec un motif **vide** | **OK** | La boîte « Refuser la demande » expose `textbox:"Motif du refus"` + `button:"Annuler"` + `button:"Refuser"` **`[DÉSACTIVÉ]`** — la garde est tenue **côté UI**, le bouton ne s'active qu'une fois le motif saisi. Cohérent avec la prescription ② de la maquette (« un refus sans motif obligatoire ») et avec le libellé « Refuser — motif obligatoire ». |
+| **Texte très long** (320 car.) dans le motif | **OK** | **0 contrôle** hors du viewport 1280×800 — aucun débordement ni chevauchement. |
+| **Coupure réseau** (`route.abort` sur `*/v1/*`) sur `/devis` | **OK** | **Erreur digne** : la navigation reste utilisable (Commandes / Stock / Messages / Devis) et un « **Réessayer** » apparaît ; `nearWhite` 0.797, ni écran blanc ni spinner infini. |
+
+> **Correction de méthode — à retenir absolument pour la prochaine ronde.** Plusieurs « login KO »
+> de cette ronde ont d'abord été attribués à la charge CPU puis à un redéploiement des fronts
+> (last-modified 19:43→19:46, réel et confirmé). **La cause principale était en fait mon propre
+> harnais** : après `mouse.click` sur un champ, l'`<input>` de `flt-text-editing-host` n'est pas
+> encore prêt et **avale le PREMIER caractère**. Diagnostic sans ambiguïté en relisant `input.value`
+> avant de soumettre :
+> ```
+> attendu : email len=33  mdp len=10
+> methode A (clic + type) -> email "jean.officine@pharmacie-lyon.test" (33)  OK
+>                            mdp   "ubia2026!"                        (9)   ← le « N » a saute
+> ```
+> Le serveur rendait donc un **401 légitime** (« E-mail ou mot de passe incorrect ») sur un mot de
+> passe réellement faux. Correctif appliqué au harnais : temporisation de 500 ms après le clic,
+> puis **relecture de `input.value` et jusqu'à 3 tentatives** jusqu'à égalité stricte avec la valeur
+> attendue. **Ce n'était pas un défaut de l'application** — et c'est exactement le genre d'artefact
+> qui, non vérifié, produit un faux P1 « connexion cassée ».
+
 ### Ronde R99 — 2026-09-25 (12:00–14:20 UTC) — 5/5 apps + tunnel SSR ; **69 écrans**, 1 515 contrôles inventoriés, 534 activés, 416 OK
 
 > **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire
