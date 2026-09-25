@@ -324,8 +324,12 @@ pub async fn create_appointment(
         // est distinct d'un chevauchement réel (provider_unavailability),
         // comme patch_appointment (appointments_actions.rs:156-190) le fait
         // déjà — sinon slot_taken affirme à tort qu'un créneau est déjà pris.
+        // Le filtre `status = 'open'` ne doit PAS être dans le WHERE : sinon un
+        // créneau déjà réservé entre-temps (double booking sur le même
+        // starts_at) ne matche plus aucune ligne et retombe à tort sur
+        // SlotUnavailable au lieu de SlotTaken.
         let slot_row = sqlx::query(
-            "SELECT s.id, s.ends_at, EXISTS ( \
+            "SELECT s.id, s.ends_at, s.status, EXISTS ( \
                  SELECT 1 FROM provider_unavailability pu \
                  JOIN provider prov ON prov.id = pu.provider_id \
                  WHERE prov.practitioner_id = $2 \
@@ -334,7 +338,7 @@ pub async fn create_appointment(
              ) AS unavailable \
              FROM availability_slot s \
              WHERE s.cabinet_id = $1 AND s.practitioner_id = $2 AND s.starts_at = $3 \
-             AND s.deleted_at IS NULL AND s.status = 'open' AND s.online_booking = true",
+             AND s.deleted_at IS NULL AND s.online_booking = true",
         )
         .bind(cabinet_id)
         .bind(practitioner_id)
@@ -343,6 +347,11 @@ pub async fn create_appointment(
         .await
         .map_err(|_| AppError::Internal)?
         .ok_or(AppError::SlotUnavailable)?;
+
+        let status: String = slot_row.try_get("status").map_err(|_| AppError::Internal)?;
+        if status != "open" {
+            return Err(AppError::SlotTaken);
+        }
 
         if slot_row
             .try_get::<bool, _>("unavailable")
