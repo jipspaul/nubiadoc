@@ -1027,6 +1027,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => SendMessageCabinetUseCase(gi()))
     ..registerFactory(() => ConvertConversationToAppointmentUseCase(gi()))
     ..registerFactory(() => AssignCabinetConversationUseCase(gi()))
+    ..registerFactory(() => UpdateConversationQualificationUseCase(gi()))
     ..registerFactory(() => GetMedicalRecordUseCase(gi()))
     ..registerFactory(() => GetTodayNotesUseCase(gi()));
 

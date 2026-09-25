@@ -69,3 +69,29 @@ final class CabinetMessagingAssigneeChanged extends CabinetMessagingEvent {
   @override
   List<Object?> get props => [conversationId, assigneeUserId];
 }
+
+/// Qualifie la conversation ouverte — origine, priorité, statut, synthèse
+/// (#7609). `null` sur un champ = inchangé, même sémantique que le corps de
+/// `PATCH /v1/cabinet/conversations/:id`. Déclenché depuis le fil (vue
+/// « Secrétariat ») plutôt que depuis la liste, contrairement à
+/// [CabinetMessagingAssigneeChanged].
+final class CabinetMessagingQualificationChanged
+    extends CabinetMessagingEvent {
+  final String conversationId;
+  final String? origin;
+  final String? priority;
+  final String? status;
+  final String? summary;
+
+  const CabinetMessagingQualificationChanged({
+    required this.conversationId,
+    this.origin,
+    this.priority,
+    this.status,
+    this.summary,
+  });
+
+  @override
+  List<Object?> get props =>
+      [conversationId, origin, priority, status, summary];
+}

@@ -74,4 +74,28 @@ class CabinetMessagingApi {
       data: {'assignee_user_id': assigneeUserId},
     );
   }
+
+  /// `PATCH $basePath/conversations/{id}` — qualifie une conversation
+  /// (origine/priorité/statut/synthèse, #7609). Un champ `null` est omis du
+  /// corps plutôt qu'envoyé explicitement : le back traite un champ absent
+  /// et un champ `null` de façon identique (« inchangé »), mais l'omission
+  /// documente mieux l'intention côté client. `motif` volontairement absent
+  /// (cloisonnement clinique, cf. `CabinetMessageRepository.updateQualification`).
+  Future<void> updateQualification({
+    required String conversationId,
+    String? origin,
+    String? priority,
+    String? status,
+    String? summary,
+  }) async {
+    await _dio.patch<Map<String, dynamic>>(
+      '$basePath/conversations/$conversationId',
+      data: {
+        if (origin != null) 'origin': origin,
+        if (priority != null) 'priority': priority,
+        if (status != null) 'status': status,
+        if (summary != null) 'summary': summary,
+      },
+    );
+  }
 }

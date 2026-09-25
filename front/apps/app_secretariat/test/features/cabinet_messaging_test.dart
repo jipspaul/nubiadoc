@@ -30,6 +30,9 @@ class _MockListCabinetPractitionersUseCase extends Mock
 class _MockAssignCabinetConversationUseCase extends Mock
     implements AssignCabinetConversationUseCase {}
 
+class _MockUpdateConversationQualificationUseCase extends Mock
+    implements UpdateConversationQualificationUseCase {}
+
 final _slot = Slot(
   id: 'slot-1',
   cabinetId: 'cab-1',
@@ -97,6 +100,7 @@ void main() {
     late SendMessageCabinetUseCase sendMessage;
     late _MockListCabinetPractitionersUseCase listPractitioners;
     late _MockAssignCabinetConversationUseCase assignConversation;
+    late _MockUpdateConversationQualificationUseCase updateQualification;
 
     final conversations = [
       const CabinetConversation(
@@ -127,6 +131,7 @@ void main() {
       when(() => listPractitioners())
           .thenAnswer((_) async => const Right(<CabinetPractitioner>[]));
       assignConversation = _MockAssignCabinetConversationUseCase();
+      updateQualification = _MockUpdateConversationQualificationUseCase();
     });
 
     blocTest<CabinetMessagingBloc, CabinetMessagingState>(
@@ -141,6 +146,7 @@ void main() {
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
           assignConversation: assignConversation,
+          updateQualification: updateQualification,
           listPractitioners: listPractitioners,
         );
       },
@@ -164,6 +170,7 @@ void main() {
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
           assignConversation: assignConversation,
+          updateQualification: updateQualification,
           listPractitioners: listPractitioners,
         );
       },
@@ -187,6 +194,7 @@ void main() {
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
           assignConversation: assignConversation,
+          updateQualification: updateQualification,
           listPractitioners: listPractitioners,
         );
       },
@@ -226,6 +234,7 @@ void main() {
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
           assignConversation: assignConversation,
+          updateQualification: updateQualification,
           listPractitioners: listPractitioners,
         );
       },
@@ -261,6 +270,7 @@ void main() {
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
           assignConversation: assignConversation,
+          updateQualification: updateQualification,
           listPractitioners: listPractitioners,
         );
       },
@@ -318,6 +328,7 @@ void main() {
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
           assignConversation: assignConversation,
+          updateQualification: updateQualification,
           listPractitioners: listPractitioners,
         );
       },
@@ -347,6 +358,7 @@ void main() {
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
           assignConversation: assignConversation,
+          updateQualification: updateQualification,
           listPractitioners: listPractitioners,
         );
       },
@@ -382,6 +394,7 @@ void main() {
           sendMessage: sendMessage,
           convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
           assignConversation: assignConversation,
+          updateQualification: updateQualification,
           listPractitioners: listPractitioners,
         );
       },
@@ -394,6 +407,132 @@ void main() {
         CabinetMessagingConversationsLoaded(
           conversations,
           assignError: 'Erreur réseau',
+        ),
+      ],
+    );
+
+    blocTest<CabinetMessagingBloc, CabinetMessagingState>(
+      'qualifie le fil ouvert — met à jour origine/priorité/statut/synthèse '
+      '(#7609)',
+      build: () {
+        when(() => updateQualification(
+              conversationId: 'conv1',
+              origin: 'phone',
+              priority: 'urgent',
+              status: 'in_progress',
+              summary: 'Rappel ordonnance',
+            )).thenAnswer((_) async => const Right(null));
+        return CabinetMessagingBloc(
+          listConversations: listConversations,
+          getMessages: getMessages,
+          sendMessage: sendMessage,
+          convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+          assignConversation: assignConversation,
+          updateQualification: updateQualification,
+          listPractitioners: listPractitioners,
+        );
+      },
+      seed: () => const CabinetMessagingThreadLoaded(
+        conversation: CabinetConversation(
+          id: 'conv1',
+          patientId: 'p1',
+          patientName: 'Marie Curie',
+          unreadCount: 0,
+        ),
+        messages: [],
+      ),
+      act: (bloc) => bloc.add(const CabinetMessagingQualificationChanged(
+        conversationId: 'conv1',
+        origin: 'phone',
+        priority: 'urgent',
+        status: 'in_progress',
+        summary: 'Rappel ordonnance',
+      )),
+      expect: () => [
+        const CabinetMessagingThreadLoaded(
+          conversation: CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+          messages: [],
+          qualifying: true,
+        ),
+        const CabinetMessagingThreadLoaded(
+          conversation: CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+            status: 'in_progress',
+            priority: 'urgent',
+            origin: 'phone',
+            summary: 'Rappel ordonnance',
+          ),
+          messages: [],
+        ),
+      ],
+    );
+
+    blocTest<CabinetMessagingBloc, CabinetMessagingState>(
+      'qualification en échec — expose qualificationError',
+      build: () {
+        when(() => updateQualification(
+              conversationId: 'conv1',
+              origin: 'phone',
+              priority: 'urgent',
+              status: 'in_progress',
+              summary: 'Rappel ordonnance',
+            )).thenAnswer(
+          (_) async => const Left(NetworkFailure('Erreur réseau')),
+        );
+        return CabinetMessagingBloc(
+          listConversations: listConversations,
+          getMessages: getMessages,
+          sendMessage: sendMessage,
+          convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+          assignConversation: assignConversation,
+          updateQualification: updateQualification,
+          listPractitioners: listPractitioners,
+        );
+      },
+      seed: () => const CabinetMessagingThreadLoaded(
+        conversation: CabinetConversation(
+          id: 'conv1',
+          patientId: 'p1',
+          patientName: 'Marie Curie',
+          unreadCount: 0,
+        ),
+        messages: [],
+      ),
+      act: (bloc) => bloc.add(const CabinetMessagingQualificationChanged(
+        conversationId: 'conv1',
+        origin: 'phone',
+        priority: 'urgent',
+        status: 'in_progress',
+        summary: 'Rappel ordonnance',
+      )),
+      expect: () => [
+        const CabinetMessagingThreadLoaded(
+          conversation: CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+          messages: [],
+          qualifying: true,
+        ),
+        const CabinetMessagingThreadLoaded(
+          conversation: CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+          messages: [],
+          qualificationError: 'Erreur réseau',
         ),
       ],
     );
@@ -955,6 +1094,100 @@ void main() {
         expect(
           find.text(
               'Ce créneau vient d\'être réservé, choisissez-en un autre.'),
+          findsOneWidget,
+        );
+      });
+    });
+
+    group('Qualifier la conversation (#7609)', () {
+      testWidgets(
+        'thread → "Qualifier" → édition → dispatch '
+        'CabinetMessagingQualificationChanged',
+        (tester) async {
+          when(() => bloc.state).thenReturn(
+            const CabinetMessagingThreadLoaded(
+              conversation: CabinetConversation(
+                id: 'conv1',
+                patientId: 'p1',
+                patientName: 'Marie Curie',
+                unreadCount: 0,
+              ),
+              messages: [],
+            ),
+          );
+          await tester.pumpWidget(buildPage());
+          await tester.pump();
+
+          final qualifyButton =
+              find.byKey(const Key('edit_conversation_qualification'));
+          await tester.ensureVisible(qualifyButton);
+          await tester.tap(qualifyButton);
+          await tester.pumpAndSettle();
+
+          expect(
+            find.byKey(const Key('qualification_editor')),
+            findsOneWidget,
+          );
+
+          await tester.enterText(
+            find.byKey(const Key('qualification_summary')),
+            'Rappel ordonnance',
+          );
+          await tester.tap(
+            find.byKey(const Key('qualification_editor_confirm')),
+          );
+          await tester.pumpAndSettle();
+
+          verify(() => bloc.add(const CabinetMessagingQualificationChanged(
+                conversationId: 'conv1',
+                origin: null,
+                priority: null,
+                status: 'open',
+                summary: 'Rappel ordonnance',
+              ))).called(1);
+        },
+      );
+
+      testWidgets('qualificationError affiche un message d\'erreur (snackbar)',
+          (tester) async {
+        whenListen(
+          bloc,
+          Stream<CabinetMessagingState>.fromIterable([
+            const CabinetMessagingThreadLoaded(
+              conversation: CabinetConversation(
+                id: 'conv1',
+                patientId: 'p1',
+                patientName: 'Marie Curie',
+                unreadCount: 0,
+              ),
+              messages: [],
+            ),
+            const CabinetMessagingThreadLoaded(
+              conversation: CabinetConversation(
+                id: 'conv1',
+                patientId: 'p1',
+                patientName: 'Marie Curie',
+                unreadCount: 0,
+              ),
+              messages: [],
+              qualificationError: 'Erreur lors de la qualification.',
+            ),
+          ]),
+          initialState: const CabinetMessagingThreadLoaded(
+            conversation: CabinetConversation(
+              id: 'conv1',
+              patientId: 'p1',
+              patientName: 'Marie Curie',
+              unreadCount: 0,
+            ),
+            messages: [],
+          ),
+        );
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Erreur lors de la qualification.'),
           findsOneWidget,
         );
       });

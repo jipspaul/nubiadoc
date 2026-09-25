@@ -82,34 +82,59 @@ final class CabinetMessagingThreadLoaded extends CabinetMessagingState {
   /// Message d'erreur de la dernière tentative de conversion, `null` sinon.
   final String? conversionError;
 
+  /// Qualification (origine/priorité/statut/synthèse) en cours d'envoi
+  /// (#7609) — désactive le bouton de sauvegarde de l'éditeur pendant l'appel.
+  final bool qualifying;
+
+  /// Message d'erreur de la dernière tentative de qualification, `null`
+  /// sinon — même sémantique que [conversionError].
+  final String? qualificationError;
+
   const CabinetMessagingThreadLoaded({
     required this.conversation,
     required this.messages,
     this.sending = false,
     this.converting = false,
     this.conversionError,
+    this.qualifying = false,
+    this.qualificationError,
   });
 
   CabinetMessagingThreadLoaded copyWith({
+    CabinetConversation? conversation,
     List<Message>? messages,
     bool? sending,
     bool? converting,
     String? conversionError,
     bool clearConversionError = false,
+    bool? qualifying,
+    String? qualificationError,
+    bool clearQualificationError = false,
   }) =>
       CabinetMessagingThreadLoaded(
-        conversation: conversation,
+        conversation: conversation ?? this.conversation,
         messages: messages ?? this.messages,
         sending: sending ?? this.sending,
         converting: converting ?? this.converting,
         conversionError: clearConversionError
             ? null
             : (conversionError ?? this.conversionError),
+        qualifying: qualifying ?? this.qualifying,
+        qualificationError: clearQualificationError
+            ? null
+            : (qualificationError ?? this.qualificationError),
       );
 
   @override
-  List<Object?> get props =>
-      [conversation, messages, sending, converting, conversionError];
+  List<Object?> get props => [
+        conversation,
+        messages,
+        sending,
+        converting,
+        conversionError,
+        qualifying,
+        qualificationError,
+      ];
 }
 
 final class CabinetMessagingThreadError extends CabinetMessagingState {

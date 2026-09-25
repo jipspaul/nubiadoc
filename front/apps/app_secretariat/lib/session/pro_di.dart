@@ -192,6 +192,7 @@ void registerPro(GetIt gi) {
         sendMessage: gi<SendMessageCabinetUseCase>(),
         convertToAppointment: gi<ConvertConversationToAppointmentUseCase>(),
         assignConversation: gi<AssignCabinetConversationUseCase>(),
+        updateQualification: gi<UpdateConversationQualificationUseCase>(),
         listPractitioners: gi<ListCabinetPractitionersUseCase>(),
       ),
     )
