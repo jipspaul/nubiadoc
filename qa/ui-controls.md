@@ -7,7 +7,7 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R99 — 2026-09-25 (12:00–14:00 UTC) — 5/5 apps + tunnel SSR ; **67 écrans**, 1 454 contrôles inventoriés, 512 activés
+### Ronde R99 — 2026-09-25 (12:00–14:20 UTC) — 5/5 apps + tunnel SSR ; **69 écrans**, 1 515 contrôles inventoriés, 534 activés, 416 OK
 
 > **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire
 > FRAIS** (rôle + libellé + occurrence) avant le clic — un clic qui change la liste décalait sinon
