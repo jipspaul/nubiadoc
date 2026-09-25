@@ -176,6 +176,32 @@ sur `/agenda`, `/patients`, `/messages` **et** `/cabinet-payouts` — ce qui con
 > attendue. **Ce n'était pas un défaut de l'application** — et c'est exactement le genre d'artefact
 > qui, non vérifié, produit un faux P1 « connexion cassée ».
 
+### Ronde R100 — segment final : les écrans « Réglages » rendus injoignables par #7692
+
+Audit des écrans que **#7692** empêche d'atteindre au clic — **tous atteints par URL directe et
+pleinement fonctionnels**, ce qui confirme que le défaut est bien de **navigation**, pas de rendu :
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/cabinet-stats` | 1280×800 | 24 | 23 | 22 | **1** | 0 | 2026-09-25T20:40Z |
+| secretariat | `/appointment-motifs` | 1280×800 | 24 | 23 | 22 | **1** | 0 | 2026-09-25T20:44Z |
+| secretariat | `/maintenance` | 1280×800 | 28 | 26 | 25 | **1** | 0 | 2026-09-25T20:48Z |
+
+- Le **mort** de chaque écran est, encore, « **Réglages du cabinet** » (**#7692**) — désormais constaté
+  sur **9 écrans** du secrétariat. *Les seconds « morts » bruts (« Statistiques », « Motifs de RDV »)
+  sont le clic sur la destination **courante** du rail : un no-op légitime, requalifié.*
+- `/cabinet-stats` : le `403 GET /v1/cabinet/stats/activity` (secrétariat) est **traité de façon
+  exemplaire** — cadenas + « **Réservé aux praticiens — Votre rôle ne permet pas d'afficher l'activité
+  par praticien.** », **les 4 cartes de KPI restant affichées** (CA encaissé, reste à encaisser, taux de
+  transformation, devis signés). Requalifié en faux positif.
+
+**Re-vérification (unique de la ronde) — B4, cloisonnement clinique : toujours parfait.**
+Sur `medical-record`, `dental-chart`, `notes`, `treatment-plans` et `periodontal-chart` du même
+patient : **praticien 200 / secrétariat 403 / patient 403** sur les cinq. Idem `/ccam/acts`
+(praticien 200, secrétariat 403, patient 403). RBAC membres re-contrôlé : lecture ouverte
+(secrétaire **et** praticien 200), écriture **403 pour les deux** (réservée admin/manager).
+Patient d'un autre tenant → **404**.
+
 ### Ronde R99 — 2026-09-25 (12:00–14:20 UTC) — 5/5 apps + tunnel SSR ; **69 écrans**, 1 515 contrôles inventoriés, 534 activés, 416 OK
 
 > **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire
