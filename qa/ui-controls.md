@@ -72,6 +72,7 @@
 | pharmacie | `/notification-preferences` (1280) | 12 | 0 | — | 0 | 0 | 2026-09-25T12:50:00Z |
 | infirmiere | `/` — 3 onglets (Disponibilité / Offres / Ma visite, **390×844 ET 1280×900**) | 7 par onglet | 5 | 5 | 0 | 0 — mais l'onglet « Offres » devient **inutilisable** sous une demande patient non bornée : « Accepter » à **16 000 px** sous le pli → **#7663** | 2026-09-25T12:47:00Z |
 | infirmiere | `/` — 2ᵉ passe aux **deux viewports**, jeton `kind:"nurse"` frais | 7 / 6 / 6 par onglet | 1 (« En ligne ») | 1 | 0 | 0 | 2026-09-25T14:05:00Z |
+| pharmacie | `/stock` et `/` — **1280 / 1440 / 1920** (responsive « Écrans PC ») | 21 / 37 | — | — | 0 | 0 — mais `/stock` garde **21 contrôles aux 3 largeurs** (rien à révéler, cf. **#7662**) alors que `/` passe de 37 à 38 et alimente sa colonne de droite | 2026-09-25T15:02:00Z |
 | infirmiere | `/notification-preferences` (390) | 4 | 1 | 1 | 0 | 0 | 2026-09-25T12:50:00Z |
 | praticien | `/agenda` (1280) | 28 | 7 | 6 | 0 | **1 réel** — « **Démarrer** » → `409 out_of_window` sur tout RDV confirmé passé de plus de 60 min → **#7671** | 2026-09-25T13:38:00Z |
 | praticien | `/patients` (1280) | 34 | 14 | 14 | 0 | 0 (13 réfutés : `403 /notes` + `/medical-record` sur les patients sans relation de soin — l'écran affiche « 🔒 Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible. », dégradation **voulue et digne**, capture `R99_fiche_2.png`) | 2026-09-25T13:52:00Z |
@@ -94,7 +95,7 @@
 
 | balayage | routes chargées | écrans blancs réels | 5xx front | last_check |
 |---|---|---|---|---|
-| 5 apps, toutes les routes de leurs `app_router.dart` (390×844 pour patient/infirmière, 1280×800 pour les 3 back-offices), ré-authentification tous les 10 écrans | voir `qa/screenshots/*/R99_blank_*.png` | **0** | **0** | 2026-09-25T15:00:00Z |
+| 5 apps, toutes les routes de leurs `app_router.dart` (390×844 pour patient/infirmière, 1280×800 pour les 3 back-offices), ré-authentification tous les 10 écrans | **78** | **0** | **0** | 2026-09-25T15:05:00Z |
 
 > Un seul écran a dépassé le seuil pixel (`patient /reviews`, nearWhite 0,991, 1 contrôle) : vérifié
 > à la main, il rend son **état vide légitime** (« Avis — Aucun avis pour ce prestataire. ») quand on
