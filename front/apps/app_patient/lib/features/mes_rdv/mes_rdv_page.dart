@@ -751,13 +751,14 @@ class _AppointmentCard extends StatelessWidget {
                 color: NubiaColors.n500,
               ),
             ],
-            if (appointment.isUpcoming ||
-                appointment.canCancel ||
-                appointment.canModify ||
-                isHistory) ...[
-              const SizedBox(height: 12),
-              _ActionButtons(appointment: appointment, isHistory: isHistory),
-            ],
+            // #7672 : la rangée d'actions ne doit JAMAIS être conditionnée à
+            // isUpcoming/canCancel/canModify — le menu `···` qu'elle porte a
+            // toujours au moins « Ajouter au calendrier » (non gaté), donc il
+            // n'est jamais vide. La masquer rendait cette action et
+            // « Contacter le cabinet » inatteignables sur un RDV `requested`
+            // à moins de 2h (cf. issue).
+            const SizedBox(height: 12),
+            _ActionButtons(appointment: appointment, isHistory: isHistory),
             if (isHistory &&
                 (appointment.hasReport ||
                     appointment.prescriptionCount > 0)) ...[
