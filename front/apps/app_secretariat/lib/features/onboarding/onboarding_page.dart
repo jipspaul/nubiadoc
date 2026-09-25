@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../router/app_router.dart';
 import '../../session/pro_auth_cubit.dart';
+import 'provider_stamp_cubit.dart';
+import 'widgets/provider_stamp_step.dart';
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key, required this.invitationToken});
@@ -58,20 +61,39 @@ class _OnboardingPageState extends State<OnboardingPage> {
       return _invalidInviteScreen(context);
     }
 
-    return BlocConsumer<ProAuthCubit, AuthState>(
-      listener: (context, state) {
-        if (state is AuthAuthenticated) {
-          context.go(AppRouter.home);
-        }
-      },
+    return BlocBuilder<ProAuthCubit, AuthState>(
       builder: (context, state) {
         if (state is AuthUnauthenticated && state.invalidInvite) {
           return _invalidInviteScreen(context);
+        }
+        if (state is AuthAuthenticated) {
+          return _profileSetupScreen(context);
         }
         return _buildForm(context, state);
       },
     );
   }
+
+  /// Étape finale, affichée après création du compte (#7148/#7147) :
+  /// signature/tampon optionnels avant de rejoindre le shell — cf.
+  /// `ProviderStampStep`.
+  Widget _profileSetupScreen(BuildContext context) => Scaffold(
+        key: const Key('onboarding_profile_setup_scaffold'),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: BlocProvider(
+                create: (_) => GetIt.instance<ProviderStampCubit>(),
+                child: ProviderStampStep(
+                  onDone: () => context.go(AppRouter.home),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 
   Widget _buildForm(BuildContext context, AuthState state) {
     final loading = state is AuthLoading;

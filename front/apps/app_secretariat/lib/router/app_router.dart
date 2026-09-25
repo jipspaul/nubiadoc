@@ -13,6 +13,7 @@ import '../features/cabinet_brief/cabinet_brief_event.dart';
 import '../features/cabinet_brief/cabinet_brief_page.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/admin_membres/admin_membres_page.dart';
+import '../features/admin_membres/invite_links_cubit.dart';
 import '../features/admin_secretariats/admin_secretariats_bloc.dart';
 import '../features/admin_secretariats/admin_secretariats_page.dart';
 import '../features/appointment_motifs/appointment_motifs_bloc.dart';
@@ -107,6 +108,12 @@ class AppRouter {
         homeRoute: home,
         splashRoute: splash,
         authRoutes: const {login, onboard, splash},
+        // `onboard` exclu du bounce post-auth (#7147) : après
+        // `registerWithInvitation`, l'onboarding affiche l'étape
+        // signature/tampon (`ProviderStampStep`) avant de naviguer lui-même
+        // vers `home` — sans exclusion, le flip d'état d'auth court-circuite
+        // cette étape (cf. doc de `guestOnlyRoutes`).
+        guestOnlyRoutes: const {login, splash},
       ),
       // Route inconnue (deep-link périmé, bookmark cassé) : sans errorBuilder,
       // go_router affiche son écran par défaut avec l'exception brute
@@ -360,8 +367,15 @@ class AppRouter {
             StatefulShellBranch(routes: [
               GoRoute(
                 path: adminMembres,
-                builder: (_, __) => BlocProvider(
-                  create: (_) => GetIt.instance<AdminMembresBloc>(),
+                builder: (_, __) => MultiBlocProvider(
+                  providers: [
+                    BlocProvider(
+                      create: (_) => GetIt.instance<AdminMembresBloc>(),
+                    ),
+                    BlocProvider(
+                      create: (_) => GetIt.instance<InviteLinksCubit>(),
+                    ),
+                  ],
                   child: const AdminMembresPage(),
                 ),
               ),

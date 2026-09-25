@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -11,6 +12,7 @@ import 'package:app_secretariat/features/admin_membres/admin_membres_bloc.dart';
 import 'package:app_secretariat/features/admin_membres/admin_membres_event.dart';
 import 'package:app_secretariat/features/admin_membres/admin_membres_page.dart';
 import 'package:app_secretariat/features/admin_membres/admin_membres_state.dart';
+import 'package:app_secretariat/features/admin_membres/invite_links_cubit.dart';
 import 'package:app_secretariat/pro_config.dart';
 
 class _MockMembersRepository extends Mock implements MembersRepository {}
@@ -18,9 +20,15 @@ class _MockMembersRepository extends Mock implements MembersRepository {}
 class _MockSecretariatRepository extends Mock
     implements SecretariatRepository {}
 
+class _MockCabinetInviteLinksRepository extends Mock
+    implements CabinetInviteLinksRepository {}
+
 class _MockAdminMembresBloc
     extends MockBloc<AdminMembresEvent, AdminMembresState>
     implements AdminMembresBloc {}
+
+class _MockInviteLinksCubit extends MockCubit<InviteLinksState>
+    implements InviteLinksCubit {}
 
 class _FakeAdminMembresEvent extends Fake implements AdminMembresEvent {}
 
@@ -312,22 +320,93 @@ void main() {
     );
   });
 
+  // --- InviteLinksCubit ---------------------------------------------------------
+  group('InviteLinksCubit', () {
+    setUpAll(() {
+      registerFallbackValue(MemberRole.secretary);
+    });
+
+    late _MockCabinetInviteLinksRepository repo;
+    late CreateInviteLinkUseCase createInviteLink;
+
+    final link = CabinetInviteLink(
+      id: 'l1',
+      role: 'practitioner',
+      token: 'tok-1',
+      url: 'https://app.nubia.invalid/register?invite_link_token=tok-1',
+      maxUses: 20,
+      expiresAt: DateTime(2026, 1, 1),
+    );
+
+    setUp(() {
+      repo = _MockCabinetInviteLinksRepository();
+      createInviteLink = CreateInviteLinkUseCase(repo);
+    });
+
+    blocTest<InviteLinksCubit, InviteLinksState>(
+      'émet pendingRole puis lastLink sur succès',
+      build: () {
+        when(() => repo.create(any())).thenAnswer((_) async => Right(link));
+        return InviteLinksCubit(createInviteLink);
+      },
+      act: (cubit) => cubit.generate(MemberRole.practitioner),
+      expect: () => [
+        const InviteLinksState(pendingRole: MemberRole.practitioner),
+        InviteLinksState(lastLink: link),
+      ],
+    );
+
+    blocTest<InviteLinksCubit, InviteLinksState>(
+      'émet pendingRole puis error sur échec (403 non-admin)',
+      build: () {
+        when(() => repo.create(any())).thenAnswer(
+          (_) async => const Left(ServerFailure(
+            message: 'Accès réservé aux administrateurs du cabinet.',
+            statusCode: 403,
+          )),
+        );
+        return InviteLinksCubit(createInviteLink);
+      },
+      act: (cubit) => cubit.generate(MemberRole.admin),
+      expect: () => [
+        const InviteLinksState(pendingRole: MemberRole.admin),
+        const InviteLinksState(
+          error: 'Accès réservé aux administrateurs du cabinet.',
+        ),
+      ],
+    );
+
+    test('generate() renvoie le lien généré à l\'appelant', () async {
+      when(() => repo.create(any())).thenAnswer((_) async => Right(link));
+      final cubit = InviteLinksCubit(createInviteLink);
+      final result = await cubit.generate(MemberRole.practitioner);
+      expect(result, link);
+    });
+  });
+
   // --- AdminMembresPage widget test --------------------------------------------
   group('AdminMembresPage', () {
     late _MockAdminMembresBloc bloc;
+    late _MockInviteLinksCubit inviteLinksCubit;
 
     setUpAll(() {
       registerFallbackValue(_FakeAdminMembresEvent());
+      registerFallbackValue(MemberRole.secretary);
     });
 
     setUp(() {
       bloc = _MockAdminMembresBloc();
+      inviteLinksCubit = _MockInviteLinksCubit();
+      when(() => inviteLinksCubit.state).thenReturn(const InviteLinksState());
     });
 
     Widget buildPage() => MaterialApp(
           theme: NubiaTheme.light,
-          home: BlocProvider<AdminMembresBloc>.value(
-            value: bloc,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<AdminMembresBloc>.value(value: bloc),
+              BlocProvider<InviteLinksCubit>.value(value: inviteLinksCubit),
+            ],
             child: const AdminMembresPage(),
           ),
         );
@@ -580,8 +659,8 @@ void main() {
               'Accès réservé aux administrateurs du cabinet.'),
           AdminMembresLoaded(members: currentMembers, secretariats: const []),
         ]),
-        initialState: AdminMembresLoaded(
-            members: currentMembers, secretariats: const []),
+        initialState:
+            AdminMembresLoaded(members: currentMembers, secretariats: const []),
       );
 
       await tester.pumpWidget(buildPage());
@@ -600,6 +679,137 @@ void main() {
       // La liste des membres, déjà chargée, ne doit pas disparaître.
       expect(find.text('Sophie Martin'), findsOneWidget);
       expect(find.byKey(const Key('add_member_fab')), findsOneWidget);
+    });
+  });
+
+  // --- InviteLinksBar : liens d'invitation copiables par rôle (#7147) ---------
+  group('InviteLinksBar', () {
+    late _MockAdminMembresBloc bloc;
+    late _MockInviteLinksCubit inviteLinksCubit;
+
+    setUpAll(() {
+      registerFallbackValue(_FakeAdminMembresEvent());
+      registerFallbackValue(MemberRole.secretary);
+    });
+
+    setUp(() {
+      bloc = _MockAdminMembresBloc();
+      when(() => bloc.state).thenReturn(
+        const AdminMembresLoaded(members: [], secretariats: []),
+      );
+      inviteLinksCubit = _MockInviteLinksCubit();
+      // `Clipboard.setData`/`getData` (canal `flutter/platform`) n'ont pas
+      // de réponse par défaut en test — sans ce mock, l'await ne se résout
+      // jamais dans le budget de `pumpAndSettle` et le SnackBar n'apparaît
+      // jamais. Émule un presse-papiers en mémoire pour permettre à
+      // `Clipboard.getData` de relire ce que le widget a copié.
+      String? clipboardText;
+      TestWidgetsFlutterBinding.ensureInitialized()
+          .defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        switch (call.method) {
+          case 'Clipboard.setData':
+            clipboardText = (call.arguments as Map)['text'] as String?;
+            return null;
+          case 'Clipboard.getData':
+            return {'text': clipboardText};
+          default:
+            return null;
+        }
+      });
+    });
+
+    Widget buildPage() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<AdminMembresBloc>.value(value: bloc),
+              BlocProvider<InviteLinksCubit>.value(value: inviteLinksCubit),
+            ],
+            child: const AdminMembresPage(),
+          ),
+        );
+
+    testWidgets('affiche un bouton « lien » par rôle éligible', (tester) async {
+      when(() => inviteLinksCubit.state).thenReturn(const InviteLinksState());
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('invite_link_button_practitioner')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('invite_link_button_secretary')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('invite_link_button_admin')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('masquée quand la page est en accès refusé (403)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        const AdminMembresForbidden(
+            'Accès réservé aux administrateurs du cabinet.'),
+      );
+      when(() => inviteLinksCubit.state).thenReturn(const InviteLinksState());
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('invite_link_button_secretary')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('tap sur un rôle génère le lien via le use case et le copie',
+        (tester) async {
+      when(() => inviteLinksCubit.state).thenReturn(const InviteLinksState());
+      when(() => inviteLinksCubit.generate(any())).thenAnswer(
+        (_) async => CabinetInviteLink(
+          id: 'l1',
+          role: 'secretary',
+          token: 'tok-1',
+          url: 'https://app.nubia.invalid/register?invite_link_token=tok-1',
+          maxUses: 20,
+          expiresAt: DateTime(2026, 1, 1),
+        ),
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('invite_link_button_secretary')));
+      await tester.pumpAndSettle();
+
+      verify(() => inviteLinksCubit.generate(MemberRole.secretary)).called(1);
+      expect(find.textContaining('Lien copié'), findsOneWidget);
+
+      final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
+      expect(
+        clipboard?.text,
+        'https://app.nubia.invalid/register?invite_link_token=tok-1',
+      );
+    });
+
+    testWidgets('échec de génération (réel) : pas de SnackBar de succès',
+        (tester) async {
+      when(() => inviteLinksCubit.state).thenReturn(const InviteLinksState());
+      when(() => inviteLinksCubit.generate(any()))
+          .thenAnswer((_) async => null);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('invite_link_button_admin')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Lien copié'), findsNothing);
     });
   });
 }
