@@ -5,6 +5,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
 use sqlx::PgPool;
@@ -39,6 +40,17 @@ fn state_with(db: PgPool) -> AppState {
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     }
+}
+
+/// RFC3339 tronqué à la seconde (pas de fraction) : `timestamptz` en base
+/// n'a que la précision microseconde, comparer des chaînes générées avec la
+/// précision nanoseconde de `Utc::now()` casserait l'égalité après
+/// aller-retour DB.
+fn rfc3339_secs(offset: Duration) -> String {
+    let secs = (Utc::now() + offset).timestamp();
+    chrono::DateTime::from_timestamp(secs, 0)
+        .unwrap()
+        .to_rfc3339()
 }
 
 fn exp() -> u64 {
@@ -419,6 +431,168 @@ async fn list_time_clock_filters_by_user() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(list.as_array().unwrap().len(), 1);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn manual_entry_can_backdate_within_the_reasonable_window() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let secretary_token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+    let yesterday = rfc3339_secs(-Duration::hours(20));
+
+    let (status, entry) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/staff/time-clock/in",
+        &secretary_token,
+        Some(json!({ "user_id": f.other_practitioner_id, "clock_in": yesterday })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{entry:?}");
+    assert_eq!(entry["clock_in"].as_str().unwrap(), yesterday);
+
+    let closing = rfc3339_secs(-Duration::hours(19));
+    let (status, entry) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/staff/time-clock/out",
+        &secretary_token,
+        Some(json!({ "user_id": f.other_practitioner_id, "clock_out": closing })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{entry:?}");
+    assert_eq!(entry["clock_out"].as_str().unwrap(), closing);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn manual_entry_rejects_a_future_or_too_old_clock_in() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let secretary_token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+
+    let future = rfc3339_secs(Duration::hours(1));
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/staff/time-clock/in",
+        &secretary_token,
+        Some(json!({ "user_id": f.other_practitioner_id, "clock_in": future })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let too_old = rfc3339_secs(-Duration::days(32));
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/staff/time-clock/in",
+        &secretary_token,
+        Some(json!({ "user_id": f.other_practitioner_id, "clock_in": too_old })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn mobile_badge_cannot_supply_a_clock_in_timestamp() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_token(f.practitioner_id, f.cabinet_id, "practitioner");
+    let code = current_code(&token).await;
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/staff/time-clock/in",
+        &token,
+        Some(json!({ "code": code, "clock_in": rfc3339_secs(Duration::seconds(0)) })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn secretary_can_patch_and_delete_a_manual_entry() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let secretary_token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+    let practitioner_token = make_pro_token(f.practitioner_id, f.cabinet_id, "practitioner");
+
+    let (status, entry) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/staff/time-clock/in",
+        &secretary_token,
+        Some(json!({ "user_id": f.other_practitioner_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{entry:?}");
+    let entry_id = entry["id"].as_str().unwrap().to_string();
+
+    // Un praticien ne peut pas corriger un pointage.
+    let corrected = rfc3339_secs(-Duration::hours(2));
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/staff/time-clock/{entry_id}"),
+        &practitioner_token,
+        Some(json!({ "clock_in": corrected })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // Le secrétariat corrige l'heure d'entrée.
+    let (status, entry) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/staff/time-clock/{entry_id}"),
+        &secretary_token,
+        Some(json!({ "clock_in": corrected })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{entry:?}");
+    assert_eq!(entry["clock_in"].as_str().unwrap(), corrected);
+
+    // Le secrétariat supprime le pointage erroné.
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "DELETE",
+        &format!("/v1/cabinet/staff/time-clock/{entry_id}"),
+        &secretary_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "DELETE",
+        &format!("/v1/cabinet/staff/time-clock/{entry_id}"),
+        &secretary_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
     cleanup(&db, &f).await;
 }

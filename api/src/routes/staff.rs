@@ -43,6 +43,11 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             post(staff_timeclock::clock_out),
         )
         .route(
+            "/v1/cabinet/staff/time-clock/:id",
+            patch(staff_timeclock::patch_time_clock_entry)
+                .delete(staff_timeclock::delete_time_clock_entry),
+        )
+        .route(
             "/v1/cabinet/staff/time-clock",
             get(staff_timeclock::list_time_clock),
         )
