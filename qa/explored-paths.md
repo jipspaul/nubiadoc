@@ -17,8 +17,12 @@ les correctifs des 12 findings de R98 — puis **3 merges de plus EN COURS DE RO
 **Bilan** : **15 findings** (4 P1, 11 P2, aucun P0), **69 écrans** audités contrôle par contrôle sur
 les 5 apps + le tunnel SSR, **11 écrans** comparés à LEUR maquette v2 (quota : 5), **9 correctifs de
 R98 re-vérifiés** (8 CLEAN, 1 partiel), et un **balayage des 181 routes GET** de l'API sans un seul 5xx.
-**5 des 15 findings ont été corrigés et mergés PENDANT la ronde** (#7655, #7661, #7665, #7668, #7672) —
-la contre-épreuve de #7655 a pu être faite en direct après son déploiement.
+**7 des 15 findings ont été corrigés et mergés PENDANT la ronde** (#7655, #7661, #7665, #7668, #7672,
+#7673, et #7138 hors périmètre) — et **quatre d'entre eux ont été re-vérifiés en direct après leur
+déploiement** : #7655 (49 lignes au lieu de 271, curseur suivi, plus de 409), #7668 (3 des 5 points),
+#7672 (le menu `···` est revenu sur les RDV à moins de 2 h), #7673 (la case CGU passe de 40×68 px sans
+nom à **372×68 px portant son libellé**). #7661 et #7665 étaient mergés mais pas encore déployés au
+moment du contrôle — consigné tel quel sur chaque ticket.
 
 **Le neuf de la ronde** : `app_patient/features/pharmacy_orders/send_prescription_*` (#7140),
 `app_pharmacie/features/stock` (#7634/#7635), `app_secretariat/{tasks,compliance,conges,admin_membres,onboarding,router,pro_auth_cubit}`,
