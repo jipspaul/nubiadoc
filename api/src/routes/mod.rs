@@ -25,4 +25,5 @@ pub mod nurse_routes;
 pub mod pharmacy_routes;
 pub mod scheduling;
 pub mod secretariats;
+pub mod staff;
 pub mod webhooks_interop;

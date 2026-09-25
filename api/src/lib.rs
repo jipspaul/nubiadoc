@@ -174,6 +174,9 @@ mod scaleway_storage_signer;
 mod scheduling;
 mod signature_stamp;
 mod slot_hold_expiry;
+mod staff;
+mod staff_leave;
+mod staff_timeclock;
 mod sterilization;
 mod sterilization_labels;
 mod stock_import;
@@ -669,6 +672,7 @@ fn build_router(
     let router = routes::cabinet_briefs::add(router);
     let router = routes::compliance::add(router);
     let router = routes::maintenance::add(router);
+    let router = routes::staff::add(router);
     // Route de service du `StorageSigner` self-hébergé (#6425) — sert les
     // objets `ObjectStorage` via les URL générées par `LocalStorageSigner`.
     // Toujours montée (coût nul si `ScalewayStorageSigner` est le signer
