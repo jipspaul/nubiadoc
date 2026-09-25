@@ -70,7 +70,8 @@
 | pharmacie | `/stock` (1280) **diff-driven #7634/#7635** | 17 | 7 | 7 | 0 | 0 | 2026-09-25T12:35:00Z |
 | pharmacie | `/devis` (1280) | 26 | 12 | 12 | 0 (1 réfuté : facette « Tous » déjà active) | 0 — « **Nouveau devis** » mène bien à `/` **avec** le SnackBar « Choisissez la commande pour laquelle créer un devis. » : **#7577 corrigé**, vérifié image à l'appui | 2026-09-25T12:33:00Z |
 | pharmacie | `/notification-preferences` (1280) | 12 | 0 | — | 0 | 0 | 2026-09-25T12:50:00Z |
-| infirmiere | `/` — 3 onglets (Disponibilité / Offres / Ma visite, 390 **et** 1280) | 7 par onglet | 5 | 5 | 0 | 0 — mais l'onglet « Offres » devient **inutilisable** sous une demande patient non bornée : « Accepter » à **16 000 px** sous le pli → **#7663** | 2026-09-25T12:47:00Z |
+| infirmiere | `/` — 3 onglets (Disponibilité / Offres / Ma visite, **390×844 ET 1280×900**) | 7 par onglet | 5 | 5 | 0 | 0 — mais l'onglet « Offres » devient **inutilisable** sous une demande patient non bornée : « Accepter » à **16 000 px** sous le pli → **#7663** | 2026-09-25T12:47:00Z |
+| infirmiere | `/` — 2ᵉ passe aux **deux viewports**, jeton `kind:"nurse"` frais | 7 / 6 / 6 par onglet | 1 (« En ligne ») | 1 | 0 | 0 | 2026-09-25T14:05:00Z |
 | infirmiere | `/notification-preferences` (390) | 4 | 1 | 1 | 0 | 0 | 2026-09-25T12:50:00Z |
 | praticien | `/agenda` (1280) | 28 | 7 | 6 | 0 | **1 réel** — « **Démarrer** » → `409 out_of_window` sur tout RDV confirmé passé de plus de 60 min → **#7671** | 2026-09-25T13:38:00Z |
 | praticien | `/patients` (1280) | 34 | 14 | 14 | 0 | 0 (13 réfutés : `403 /notes` + `/medical-record` sur les patients sans relation de soin — l'écran affiche « 🔒 Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible. », dégradation **voulue et digne**, capture `R99_fiche_2.png`) | 2026-09-25T13:52:00Z |
