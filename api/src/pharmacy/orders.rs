@@ -503,15 +503,16 @@ pub async fn get_pharmacy_order_items(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let order_row = sqlx::query(
-        "SELECT prescription_id FROM pharmacy_order \
-         WHERE id = $1 AND status IN ('received', 'preparing', 'ready', 'picked_up')",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::NotFound)?;
+    // Pas de filtre de statut (#7013) : une commande cancelled/rejected reste
+    // consultable en lecture par l'officine qui l'a traitée (trace de ce qui
+    // avait été demandé). Le cloisonnement tenant est déjà assuré par
+    // app.current_pharmacy_id (RLS), comme pour GET /v1/pharmacy/orders/{id}.
+    let order_row = sqlx::query("SELECT prescription_id FROM pharmacy_order WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
 
     let prescription_id: Uuid = order_row
         .try_get("prescription_id")
