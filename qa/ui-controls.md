@@ -7,6 +7,82 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+### Ronde R98 — 2026-09-25 (diff-driven : DP-F25/F26/F27, dont DP-F27.c mergée EN COURS DE RONDE)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| praticien | `/` (Tableau de bord, 1280) | 36 | 35 | 29 | 0 (6 réfutés) | 0 | 2026-09-25T06:30:00Z |
+| praticien | `/agenda` (1280) | 31 | 30 | 28 | 0 (2 réfutés) | 0 | 2026-09-25T06:32:00Z |
+| praticien | `/waiting-room` (1280, file NON vide) | 22 | 20 | 20 | 0 | 0 | 2026-09-25T06:34:00Z |
+| praticien | `/tasks` (1280) | 5 | 5 | 5 | 0 | 0 | 2026-09-25T06:35:00Z |
+| praticien | `/mes-conges` (1280) **NEUF** | 5 | 5 | 5 | 0 | 0 | 2026-09-25T06:45:00Z |
+| praticien | `/mes-conges` → dialogue « Nouvelle demande » (1280) **NEUF** | 7 | 7 | 7 | 0 | 0 | 2026-09-25T06:47:00Z |
+| secretariat | `/admin-membres` (1280) | 33 | 32 | 26 | 0 (3 réfutés) | **3** | 2026-09-25T06:25:00Z |
+| secretariat | `/stock` (1280) | 58 | 57 | 57 | 0 (24 réfutés) | 0 | 2026-09-25T06:58:00Z |
+| secretariat | `/onboard` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-09-25T06:26:00Z |
+| secretariat | `/conges` (1280) **NEUF** | 4 | 4 | 4 | 0 | 0 | 2026-09-25T06:44:00Z |
+| pharmacie | `/` (File des commandes, 1280) | 34 | 33 | 33 | 0 | 0 | 2026-09-25T06:42:00Z |
+| pharmacie | `/orders/:id` (détail, 1280) | 32 | 31 | 31 | 0 | 0 | 2026-09-25T06:42:00Z |
+| pharmacie | `/orders/:id/pickup` (scan de retrait, 1280) | 4 | 4 | 4 | 0 | 0 | 2026-09-25T06:42:00Z |
+| pharmacie | `/stock` (1280) | 15 | 14 | 14 | 0 | 0 | 2026-09-25T06:40:00Z |
+| patient | `/` (Accueil, 390) | 22 | 22 | 20 | 0 (2 réfutés) | 0 | 2026-09-25T06:30:00Z |
+| patient | `/mes-rdv` (390) | 11 | 11 | 11 | 0 | 0 | 2026-09-25T06:50:00Z |
+| patient | `/prescriptions` (390) | 17 | 17 | 17 | 0 | 0 | 2026-09-25T06:50:00Z |
+| patient | `/profile/dependents` (390) | 24 | 24 | 24 | 0 | 0 | 2026-09-25T06:51:00Z |
+| infirmiere | `/` onglet Disponibilité (390) | 8 | 7 | 6 | 0 (1 réfuté) | 0 | 2026-09-25T06:52:00Z |
+| infirmiere | `/` onglet Offres (390) | 8 | 8 | 8 | 0 | 0 | 2026-09-25T06:52:00Z |
+| infirmiere | `/` onglet Ma visite (390) | 7 | 7 | 7 | 0 | 0 | 2026-09-25T06:52:00Z |
+| infirmiere | `/notification-preferences` (390) | 5 | 5 | 3 | 0 (2 réfutés) | 0 | 2026-09-25T06:30:00Z |
+
+**CUMUL R98 — 22 écran×route · 388 contrôles inventoriés · 378 activés · `0` MORT confirmé · `3` CASSÉS confirmés.**
+
+#### Les 3 CASSÉS confirmés
+Les boutons **« Lien — Praticien »**, **« Lien — Secrétaire »** et **« Lien — Admin »** de
+`secretariat /admin-membres` (livrés le jour même par DP-F25.c) : clic → `POST /v1/cabinet/invite-links`
+→ **403 forbidden**, screenshot **identique octet pour octet** avant/après, **0 libellé nouveau** dans
+l'arbre Semantics. Aucun retour d'aucune sorte. → **#7631 (P1)**.
+Cause double : la garde d'affichage observe le mauvais droit (`admin_membres_page.dart:37-42` teste
+l'échec du **chargement** de la liste, que la secrétaire a le droit de lire → 200), et l'erreur est
+stockée puis jamais rendue (`invite_links_cubit.dart:48-52` alimente `state.error`, que
+`invite_links_bar.dart:58-60` ne lit jamais ; `_copy:33-35` sort en silence sur `link == null`).
+
+#### 38 verdicts MORT rendus par les balayages, 38 réfutés au re-test individuel
+Conformément à la règle de la maison, **aucun** n'a été publié. Les deux plus importants ont été
+re-testés **page rechargée**, isolément : `secretariat /stock` → **« Actualiser »** = OK (déclenche
+`GET /v1/cabinet/stock-requests?limit=500`), **« Nouvelle demande »** = OK (ouvre la boîte de création,
+58 → 10 contrôles, 6 libellés nouveaux dont « Choisir une pharmacie », « Article », « Qté »). Les 36
+autres relèvent des causes déjà cataloguées : en-tête de groupe repliable du rail, coordonnées périmées
+après repli/reflow de liste, conteneur `group` englobant.
+
+#### Faux positif du harnais corrigé cette ronde
+Les `<input>` de Flutter web ne portent **pas** d'attribut `role` (seulement `aria-label` + `type`) :
+le sélecteur d'inventaire des rondes précédentes ne voyait donc **aucun champ de saisie**. Sélecteur
+élargi à `input, textarea` (rôle effectif `textbox`) — c'est ce qui a fait apparaître, par exemple,
+`textbox:"Cabinet, article…"` sur `pharmacie /stock` et `textbox:"Patient, n° commande…"` sur
+`pharmacie /`. À conserver pour les rondes suivantes.
+
+#### Contrôle sans nom accessible
+`praticien /mes-conges` : le bouton flottant de création est un `[role=button]` au **libellé vide**
+(`FloatingActionButton` sans `tooltip` ni `label`, `mes_conges_page.dart:55-65`). Il **fonctionne**
+(le clic ouvre la boîte de dialogue) mais n'est pas nommé. Même forme sur `praticien /tasks`
+(confirmé sur le rendu : `'' button`), `secretariat /tasks` et `secretariat /conformite`. → **#7638 (P2)**.
+
+#### Cas adversariaux joués sur le dialogue « Nouvelle demande de congé » (écran mergé ce jour)
+| cas | résultat |
+|---|---|
+| soumission à vide | **OK** — « Envoyer la demande » est `disabled=true` tant que les deux dates manquent ; le clic ne produit **aucune** requête, aucun pixel ne bouge, aucune erreur console |
+| double-clic rapide sur « Envoyer la demande » | **OK** — **une seule** `POST /v1/cabinet/staff/leave-requests` part (→ 201), le dialogue se ferme ; pas de doublon, pas d'exception |
+| texte très long | **sans objet** — le formulaire n'a que deux sélecteurs de date et un choix de type, aucun champ libre |
+| coupure réseau (`route.abort()` sur `*/v1/*`) | **OK** — aucun écran blanc, aucun spinner infini : le dialogue reste intact et utilisable (8 contrôles, mêmes libellés), 0 erreur console |
+| sélecteur de date au clavier/lecteur d'écran | **OK** — 39 contrôles nommés (« 1, mardi 1 septembre 2026 », « Mois précédent », « Passer à la saisie ») |
+
+#### Retour 403 : deux écrans livrés le même jour, deux comportements opposés
+`secretariat /conges` fait **bien** les choses : clic « Approuver » en tant que secrétaire →
+403 → SnackBar **« Validation réservée aux administrateurs/managers. »** peint à l'écran
+(capture `qa/screenshots/secretariat/conges-clic-approuver-403-1280.png`). Le défaut résiduel y est
+seulement qu'il n'est pas **annoncé** (→ #7640). À l'inverse, `secretariat /admin-membres` (même jour,
+même app) ne dit **rien** du tout (→ #7631).
+
 ### Ronde R95 — 2026-09-24 (diff-driven : PR #7561→#7565 mergées le matin même)
 
 **Périmètre** : 5 apps sur 5. **23 écrans** audités au passage en masse + **11 audits pilotés à la main**.
