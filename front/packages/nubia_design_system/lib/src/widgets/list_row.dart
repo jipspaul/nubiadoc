@@ -19,6 +19,9 @@ import 'package:nubia_design_system/src/theme/nubia_tokens.dart';
 /// - [trailing] : widget de droite optionnel (badge / valeur / chevron).
 /// - [unread] : variante non-lu (point `primary` + titre renforcé).
 /// - [showDivider] : affiche le séparateur bas (défaut `true`).
+/// - [selected] : état de sélection sémantique (`aria-selected`) pour une
+///   liste à choix. `null` (défaut) n'expose aucun état — comportement
+///   inchangé pour les listes non sélectionnables.
 /// - [onTap] : callback au tap sur la ligne.
 class ListRow extends StatelessWidget {
   const ListRow({
@@ -31,6 +34,7 @@ class ListRow extends StatelessWidget {
     this.trailing,
     this.unread = false,
     this.showDivider = true,
+    this.selected,
     this.onTap,
   });
 
@@ -42,6 +46,7 @@ class ListRow extends StatelessWidget {
   final Widget? trailing;
   final bool unread;
   final bool showDivider;
+  final bool? selected;
   final VoidCallback? onTap;
 
   @override
@@ -122,16 +127,20 @@ class ListRow extends StatelessWidget {
             child: InkWell(onTap: onTap, child: row),
           );
 
-    if (!showDivider) {
-      return tappable;
+    final Widget content = showDivider
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              tappable,
+              Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+            ],
+          )
+        : tappable;
+
+    if (selected == null) {
+      return content;
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        tappable,
-        Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
-      ],
-    );
+    return Semantics(selected: selected, child: content);
   }
 }

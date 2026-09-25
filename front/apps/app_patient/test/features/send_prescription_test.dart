@@ -1,6 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -253,5 +253,36 @@ void main() {
 
       expect(find.text('Aucune ordonnance à envoyer'), findsOneWidget);
     });
+
+    testWidgets(
+      'ordonnance choisie expose aria-selected (#7661)',
+      (tester) async {
+        final cubit = MockSendPrescriptionCubit();
+        when(() => cubit.state).thenReturn(SendPrescriptionReady(
+          prescriptions: [prescription('rx1'), prescription('rx2')],
+          selectedPrescription: prescription('rx1'),
+          pharmacy: pharmacy,
+        ));
+
+        final handle = tester.ensureSemantics();
+        await tester.pumpApp(
+          BlocProvider<SendPrescriptionCubit>.value(
+            value: cubit,
+            child: const SendPrescriptionBody(),
+          ),
+        );
+
+        final selected = tester.getSemantics(
+          find.byKey(const Key('prescription_rx1')),
+        );
+        final unselected = tester.getSemantics(
+          find.byKey(const Key('prescription_rx2')),
+        );
+
+        expect(selected.hasFlag(SemanticsFlag.isSelected), isTrue);
+        expect(unselected.hasFlag(SemanticsFlag.isSelected), isFalse);
+        handle.dispose();
+      },
+    );
   });
 }
