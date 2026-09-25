@@ -90,6 +90,19 @@
 | patient | `/mes-rdv` — **rangée d'actions par carte** (390) | 3 cartes | 3 | 1 | **2 cartes sans AUCUN contrôle** → **#7672** | 0 | 2026-09-25T13:55:00Z |
 | praticien | `/patients/:id/dental-chart` → dialogue d'état de dent (1280×800 / 1280×900 / 1440×900) | 11 états | 1 + défilement | OK | 0 | 0 — 3 états sous le pli à 1280×800, **atteignables** (dialogue défilant) | 2026-09-25T13:35:00Z |
 
+**Balayage « aucun écran blanc » — toutes les routes des 5 apps, aux viewports de référence :**
+
+| balayage | routes chargées | écrans blancs réels | 5xx front | last_check |
+|---|---|---|---|---|
+| 5 apps, toutes les routes de leurs `app_router.dart` (390×844 pour patient/infirmière, 1280×800 pour les 3 back-offices), ré-authentification tous les 10 écrans | voir `qa/screenshots/*/R99_blank_*.png` | **0** | **0** | 2026-09-25T15:00:00Z |
+
+> Un seul écran a dépassé le seuil pixel (`patient /reviews`, nearWhite 0,991, 1 contrôle) : vérifié
+> à la main, il rend son **état vide légitime** (« Avis — Aucun avis pour ce prestataire. ») quand on
+> l'atteint en lien profond sans `providerId`. Ce n'est pas un canvas vide.
+> *Piège de harnais consigné : sans ré-authentification périodique, la fin d'un balayage long tombe
+> sur l'écran de connexion et tous les relevés deviennent identiques (`white=0,937 ctrl=7`) — ce qui
+> ressemble à une panne généralisée. Vérifier `exp` du JWT avant de conclure.*
+
 **Cas adversariaux joués cette ronde (tous OK) :**
 
 | cas | écran | résultat | last_check |
