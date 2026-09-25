@@ -33,6 +33,7 @@ import '../features/lab_work/lab_stats_cubit.dart';
 import '../features/lab_work/lab_work_orders_bloc.dart';
 import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/tasks/tasks_bloc.dart';
+import '../features/mes_conges/mes_conges_bloc.dart';
 import '../features/cabinet_brief/cabinet_brief_bloc.dart';
 import '../features/stock/stock_inventory_bloc.dart';
 import '../features/stock/stock_locations_bloc.dart';
@@ -321,6 +322,14 @@ void registerPro(GetIt gi) {
       listTasks: gi<ListCabinetTasksUseCase>(),
       createTask: gi<CreateCabinetTaskUseCase>(),
       completeTask: gi<CompleteCabinetTaskUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<MesCongesBloc>(
+    () => MesCongesBloc(
+      listLeaveRequests: gi<ListLeaveRequestsUseCase>(),
+      createLeaveRequest: gi<CreateLeaveRequestUseCase>(),
+      cancelLeaveRequest: gi<CancelLeaveRequestUseCase>(),
     ),
   );
 

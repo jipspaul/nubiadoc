@@ -32,6 +32,7 @@ import '../remote/lab_work_orders/lab_work_orders_api.dart';
 import '../remote/cabinet_tasks/cabinet_tasks_api.dart';
 import '../remote/maintenance/maintenance_api.dart';
 import '../remote/cabinet_briefs/cabinet_briefs_api.dart';
+import '../remote/leave_requests/leave_requests_api.dart';
 import '../remote/dental_chart/dental_chart_api.dart';
 import '../remote/periodontal_chart/periodontal_chart_api.dart';
 import '../remote/cabinet_medical_questionnaire/cabinet_medical_questionnaire_api.dart';
@@ -113,6 +114,7 @@ import '../repositories/lab_work_orders_repository_impl.dart';
 import '../repositories/cabinet_tasks_repository_impl.dart';
 import '../repositories/maintenance_repository_impl.dart';
 import '../repositories/cabinet_briefs_repository_impl.dart';
+import '../repositories/leave_requests_repository_impl.dart';
 import '../repositories/dental_chart_repository_impl.dart';
 import '../repositories/periodontal_chart_repository_impl.dart';
 import '../repositories/cabinet_medical_questionnaire_repository_impl.dart';
@@ -1083,6 +1085,20 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerFactory(() => GetCabinetBriefUseCase(gi()))
     ..registerFactory(() => GetCabinetBriefPdfUseCase(gi()));
+
+  // Planning équipe / congés (#7143/#7144) — accès cabinet-wide, pas de
+  // garde `includeClinical` (secrétariat inclus).
+  gi
+    ..registerLazySingleton<LeaveRequestsApi>(
+      () => LeaveRequestsApi(gi()),
+    )
+    ..registerLazySingleton<LeaveRequestsRepository>(
+      () => LeaveRequestsRepositoryImpl(gi()),
+    )
+    ..registerFactory(() => ListLeaveRequestsUseCase(gi()))
+    ..registerFactory(() => CreateLeaveRequestUseCase(gi()))
+    ..registerFactory(() => DecideLeaveRequestUseCase(gi()))
+    ..registerFactory(() => CancelLeaveRequestUseCase(gi()));
 
   if (includeClinical) {
     gi
