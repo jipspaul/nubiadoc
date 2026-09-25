@@ -23,6 +23,7 @@ import '../remote/patient_alerts/patient_alerts_api.dart';
 import '../remote/patient_documents/patient_documents_api.dart';
 import '../remote/orthodontics/orthodontics_api.dart';
 import '../remote/sterilization/sterilization_api.dart';
+import '../remote/cabinet_vcard/cabinet_vcard_api.dart';
 import '../remote/stock_items/stock_items_api.dart';
 import '../remote/stock_locations/stock_locations_api.dart';
 import '../remote/stock_import/stock_import_api.dart';
@@ -103,6 +104,7 @@ import '../repositories/patient_documents_repository_impl.dart';
 import '../repositories/implant_passport_repository_impl.dart';
 import '../repositories/orthodontics_repository_impl.dart';
 import '../repositories/sterilization_repository_impl.dart';
+import '../repositories/cabinet_vcard_repository_impl.dart';
 import '../repositories/stock_items_repository_impl.dart';
 import '../repositories/stock_locations_repository_impl.dart';
 import '../repositories/stock_import_repository_impl.dart';
@@ -651,6 +653,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<SterilizationApi>(
       () => SterilizationApi(gi()),
     )
+    ..registerLazySingleton<CabinetVcardApi>(
+      () => CabinetVcardApi(gi()),
+    )
     ..registerLazySingleton<StockItemsApi>(
       () => StockItemsApi(gi()),
     )
@@ -798,6 +803,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<SterilizationRepository>(
       () => SterilizationRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<CabinetVcardRepository>(
+      () => CabinetVcardRepositoryImpl(gi()),
     )
     ..registerLazySingleton<StockItemsRepository>(
       () => StockItemsRepositoryImpl(gi()),
@@ -951,6 +959,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListSterilizationCyclesUseCase(gi()))
     ..registerFactory(() => AddSterilizedPouchUseCase(gi()))
     ..registerFactory(() => GetSterilizationLabelsPdfUseCase(gi()))
+    ..registerFactory(() => GetCabinetVcardUseCase(gi()))
+    ..registerFactory(() => GetCabinetVcardQrPngUseCase(gi()))
     ..registerFactory(() => ConfirmSterilizedPouchUseUseCase(gi()))
     ..registerFactory(() => ListStockItemsUseCase(gi()))
     ..registerFactory(() => AddStockMovementUseCase(gi()))
