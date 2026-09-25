@@ -23,6 +23,14 @@
 toujours pas de maquette v2 dédiée (manque **connu et assumé**, non rapporté) ; ses 2 écrans ont été
 audités contre les tokens du design system et n'en dévient pas.
 
+### Ronde R100 — 6ᵉ écran comparé (20:30 UTC)
+
+| app | écran/route | maquette | verdict | divergences | last_check |
+|---|---|---|---|---|---|
+| pharmacie | `/stock` (Demandes de stock) | `Pharmacie Devis et Stock v2.html` | **CONFORME** | Tokens exacts (`rgb(250,250,249)`, `rgb(28,25,23)`, `rgb(4,120,87)`, `rgb(236,253,245)`, `rgb(231,229,228)`). **Les 3 prescriptions applicables à cet écran sont livrées** : ① « le délai devient la première colonne » → « **Attend 1 h 32** » en ambre, juste sous le nom du cabinet ; ② « un refus sans motif obligatoire » → le bouton porte désormais « **Refuser — motif obligatoire** » ; ③ « deux boutons pleine largeur pour deux intentions opposées » → hiérarchie **corrigée** : « Accepter » est un bouton plein compact (vert `brand-700`), « Refuser » un bouton **secondaire teinté** en contour rouge — plus à égalité, exactement ce que la maquette demande. Bandeau de KPI (6 à répondre / 48 acceptées / 59 honorées) et pied « 6 demandes affichées sur 209 · Taux d'acceptation : 88 % » conformes au modèle de la maquette. La ligne de demande est de nouveau **activable** et ouvre son volet (correctif #7680 vérifié). *La 4ᵉ prescription (sous-total par ligne) concerne l'écran `/devis`, hors périmètre de cette comparaison.* | 2026-09-25T20:32:00Z |
+
+**Bilan design-v2 de la ronde R100 : 6 écrans comparés, 5 conformes, 1 divergent** (#7692).
+
 ### Ronde R99 — 2026-09-25 (12:00–14:00 UTC) — 8 écrans comparés, dont la **1re comparaison du tunnel SSR**
 
 | app | écran/route | maquette | verdict | divergences | last_check |
