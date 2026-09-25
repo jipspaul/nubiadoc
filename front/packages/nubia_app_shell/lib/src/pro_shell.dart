@@ -140,6 +140,15 @@ class _NavRow {
   final ProNavDestination? destination;
   final String? group;
   final bool collapsed;
+
+  /// Clé stable (#7692) — un en-tête et une destination partagent le même
+  /// type de widget racine (`Semantics`) dans le `ListView`/`Drawer` non
+  /// gardé par clé jusqu'ici : sans elle, Flutter ne peut distinguer les
+  /// deux catégories de ligne par position lorsque la liste change de
+  /// composition (filtrage admin/journal d'accès, badges), au risque de
+  /// réutiliser l'Element/RenderObject d'un en-tête pour une destination (ou
+  /// l'inverse) à la même position.
+  Key get key => ValueKey(group != null ? 'group:$group' : 'dest:${destination!.route}');
 }
 
 class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
@@ -348,6 +357,18 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
   /// le `ListView` scrollable de la barre latérale (`_buildDesktop`) — un
   /// lecteur d'écran ne voyait aucun des en-têtes de groupe malgré un rendu
   /// et un clic fonctionnels.
+  ///
+  /// Hauteur explicite de 32px (#7692), identique à [_sidebarEntry] : la
+  /// version précédente laissait le `Row` se dimensionner à son contenu
+  /// intrinsèque (~28px, variable selon la métrique de police réelle) —
+  /// seul en-tête de la colonne à ne pas avoir de zone de tap figée. À
+  /// 1280×800, l'en-tête « Réglages du cabinet » (dernier groupe, seul
+  /// replié par défaut) n'ouvrait jamais son groupe au clic quelle que soit
+  /// la modalité (centre/libellé/chevron/double-clic/appui long/action
+  /// Semantics), alors que le même code fonctionnait pour un groupe déplié
+  /// par défaut (`Facturation`) à la même résolution — cohérent avec une
+  /// zone interactive dont la géométrie dépend du rendu de texte plutôt que
+  /// d'une taille fixée.
   Widget _sidebarGroupHeader(
     BuildContext context,
     _NavRow row, {
@@ -365,26 +386,29 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
         child: InkWell(
           borderRadius: BorderRadius.circular(6),
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
-            child: Row(
-              children: [
-                _groupHeaderIcon(context, row.collapsed,
-                    color: _sidebarGroupLabel),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    row.group!,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.8,
-                      color: _sidebarGroupLabel,
+          child: SizedBox(
+            height: 32,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                children: [
+                  _groupHeaderIcon(context, row.collapsed,
+                      color: _sidebarGroupLabel),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      row.group!,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                        color: _sidebarGroupLabel,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -628,21 +652,27 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                       children: [
                         for (int i = 0; i < rows.length; i++)
                           if (rows[i].destination != null)
-                            _sidebarEntry(
-                              context,
-                              icon: Icon(rows[i].destination!.icon),
-                              label: rows[i].destination!.label,
-                              selected: i == rowIndex,
-                              onTap: () => _selectRow(destinations, rows, i),
-                              badgeCount: rows[i].destination!.badgeCount,
-                              trailing:
-                                  _workloadBadge(context, rows[i].destination!),
+                            KeyedSubtree(
+                              key: rows[i].key,
+                              child: _sidebarEntry(
+                                context,
+                                icon: Icon(rows[i].destination!.icon),
+                                label: rows[i].destination!.label,
+                                selected: i == rowIndex,
+                                onTap: () => _selectRow(destinations, rows, i),
+                                badgeCount: rows[i].destination!.badgeCount,
+                                trailing: _workloadBadge(
+                                    context, rows[i].destination!),
+                              ),
                             )
                           else
-                            _sidebarGroupHeader(
-                              context,
-                              rows[i],
-                              onTap: () => _selectRow(destinations, rows, i),
+                            KeyedSubtree(
+                              key: rows[i].key,
+                              child: _sidebarGroupHeader(
+                                context,
+                                rows[i],
+                                onTap: () => _selectRow(destinations, rows, i),
+                              ),
                             ),
                       ],
                     ),
@@ -696,6 +726,7 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
               for (int i = 0; i < rows.length; i++)
                 if (rows[i].destination != null)
                   ListTile(
+                    key: rows[i].key,
                     leading: Icon(rows[i].destination!.icon),
                     title: Text(rows[i].destination!.label),
                     trailing: _workloadBadge(context, rows[i].destination!),
@@ -706,10 +737,13 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                     },
                   )
                 else
-                  _groupHeaderListTile(
-                    context,
-                    rows[i],
-                    onTap: () => _selectRow(destinations, rows, i),
+                  KeyedSubtree(
+                    key: rows[i].key,
+                    child: _groupHeaderListTile(
+                      context,
+                      rows[i],
+                      onTap: () => _selectRow(destinations, rows, i),
+                    ),
                   ),
               const Spacer(),
               _trailing(context),
