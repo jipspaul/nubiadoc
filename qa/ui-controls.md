@@ -202,6 +202,35 @@ patient : **praticien 200 / secrétariat 403 / patient 403** sur les cinq. Idem 
 (secrétaire **et** praticien 200), écriture **403 pour les deux** (réservée admin/manager).
 Patient d'un autre tenant → **404**.
 
+### Ronde R100 — app infirmière : audit ONGLET PAR ONGLET (le domaine le plus récent)
+
+`app_infirmiere` ne déclare que **2 routes** (`/` et `/notification-preferences`) : tout son contenu vit
+dans les **3 onglets** de l'accueil, qui ne sont donc pas atteignables par URL. Ils ont été audités
+comme des écrans à part entière. *Piège de repérage : la barre d'onglets est en **bas** d'écran
+(`y=764`), pas en haut — un filtre sur `y < 300` ne la trouve jamais ; c'est `role="tab"` qui la désigne.*
+
+| app | écran | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` onglet **Disponibilité** | 390×844 | 8 | 4 | 4 | 0 | 0 | 1 | 2026-09-25T20:55Z |
+| infirmiere | `/` onglet **Offres** | 390×844 | 7 | 3 | 2 | 1* | 0 | 1 | 2026-09-25T20:57Z |
+| infirmiere | `/` onglet **Ma visite** | 390×844 | 7 | 3 | 3 | 0 | 0 | 1 | 2026-09-25T20:59Z |
+
+*\* le « mort » est le conteneur `tablist` (libellé vide), requalifié.*
+
+- **Onglet Disponibilité** : porte l'interrupteur « **En ligne** », qui bascule réellement — vérifié
+  **par l'API** : après activation, `GET /v1/nurse/profile` rend `is_online: false`, puis `true` après
+  restauration. La bascule UI et `PATCH /v1/nurse/availability` sont bien le même état.
+- **Onglet Offres** : **état vide digne** — icône + « **Aucune offre** » + « Les demandes de visite
+  proches apparaîtront ici. » (capture jointe). Cohérent avec l'API : 0 offre en attente à cet instant.
+- **Onglet Ma visite** : idem, aucune visite en cours (les 3 demandes créées dans la ronde sont `done`
+  ou `cancelled`).
+- **Conformité tokens** (l'app n'a pas de maquette v2 dédiée — manque connu, non rapporté) : palette et
+  typographie conformes au design system, shell mobile aligné sur les patterns de `Patient Accueil v2`.
+
+**Hygiène des données de test** : l'interrupteur « En ligne » basculé par l'audit a été **remis à
+`true`**, et il ne reste **aucune demande de visite active** en fin de ronde (23 `done`, 20 `cancelled`,
+7 `expired`).
+
 ### Ronde R99 — 2026-09-25 (12:00–14:20 UTC) — 5/5 apps + tunnel SSR ; **69 écrans**, 1 515 contrôles inventoriés, 534 activés, 416 OK
 
 > **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire
