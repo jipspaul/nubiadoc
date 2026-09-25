@@ -13,6 +13,7 @@ class CabinetMessagingBloc
   final SendMessageCabinetUseCase _sendMessage;
   final ConvertConversationToAppointmentUseCase _convertToAppointment;
   final AssignCabinetConversationUseCase _assignConversation;
+  final UpdateConversationQualificationUseCase _updateQualification;
   final ListCabinetPractitionersUseCase _listPractitioners;
 
   CabinetMessagingBloc({
@@ -21,12 +22,14 @@ class CabinetMessagingBloc
     required SendMessageCabinetUseCase sendMessage,
     required ConvertConversationToAppointmentUseCase convertToAppointment,
     required AssignCabinetConversationUseCase assignConversation,
+    required UpdateConversationQualificationUseCase updateQualification,
     required ListCabinetPractitionersUseCase listPractitioners,
   })  : _listConversations = listConversations,
         _getMessages = getMessages,
         _sendMessage = sendMessage,
         _convertToAppointment = convertToAppointment,
         _assignConversation = assignConversation,
+        _updateQualification = updateQualification,
         _listPractitioners = listPractitioners,
         super(const CabinetMessagingInitial()) {
     on<CabinetMessagingConversationsLoadRequested>(_onConversationsLoad);
@@ -35,6 +38,7 @@ class CabinetMessagingBloc
     on<CabinetMessagingBackRequested>(_onBack);
     on<CabinetMessagingConvertToAppointmentRequested>(_onConvertToAppointment);
     on<CabinetMessagingAssigneeChanged>(_onAssigneeChanged);
+    on<CabinetMessagingQualificationChanged>(_onQualificationChanged);
   }
 
   Future<void> _onConversationsLoad(
@@ -204,6 +208,61 @@ class CabinetMessagingBloc
       safeEmit(
         current.copyWith(assignError: 'Erreur lors de l\'assignation.'),
       );
+    }
+  }
+
+  /// Qualifie la conversation ouverte (#7609) — met à jour l'entrée locale
+  /// pour un rendu immédiat de l'éditeur ; la liste se resynchronise au
+  /// retour (`_onBack` recharge toujours depuis l'API).
+  Future<void> _onQualificationChanged(
+    CabinetMessagingQualificationChanged event,
+    Emitter<CabinetMessagingState> emit,
+  ) async {
+    final current = state;
+    if (current is! CabinetMessagingThreadLoaded) return;
+
+    emit(current.copyWith(qualifying: true, clearQualificationError: true));
+    try {
+      final result = await _updateQualification(
+        conversationId: event.conversationId,
+        origin: event.origin,
+        priority: event.priority,
+        status: event.status,
+        summary: event.summary,
+      );
+      result.fold(
+        (failure) => safeEmit(current.copyWith(
+          qualifying: false,
+          qualificationError: failure.message,
+        )),
+        (_) => safeEmit(current.copyWith(
+          qualifying: false,
+          clearQualificationError: true,
+          conversation: CabinetConversation(
+            id: current.conversation.id,
+            patientId: current.conversation.patientId,
+            patientName: current.conversation.patientName,
+            patientPhone: current.conversation.patientPhone,
+            unreadCount: current.conversation.unreadCount,
+            lastMessageAt: current.conversation.lastMessageAt,
+            lastMessage: current.conversation.lastMessage,
+            lastMessagePreview: current.conversation.lastMessagePreview,
+            triageFlag: current.conversation.triageFlag,
+            orderRef: current.conversation.orderRef,
+            orderStatusLabel: current.conversation.orderStatusLabel,
+            status: event.status ?? current.conversation.status,
+            priority: event.priority ?? current.conversation.priority,
+            origin: event.origin ?? current.conversation.origin,
+            summary: event.summary ?? current.conversation.summary,
+            assigneeUserId: current.conversation.assigneeUserId,
+          ),
+        )),
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(
+        qualifying: false,
+        qualificationError: 'Erreur lors de la qualification.',
+      ));
     }
   }
 }

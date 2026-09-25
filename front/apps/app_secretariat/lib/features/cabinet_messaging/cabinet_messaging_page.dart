@@ -8,6 +8,7 @@ import 'cabinet_messaging_event.dart';
 import 'cabinet_messaging_state.dart';
 import 'widgets/appointment_slot_picker.dart';
 import 'widgets/assignee_picker.dart';
+import 'widgets/qualification_editor.dart';
 
 const _statusLabels = {
   'open': 'Ouvert',
@@ -85,6 +86,14 @@ class _CabinetMessagingPageState extends State<CabinetMessagingPage> {
       appBar: AppBar(title: const Text('Messages')),
       body: BlocConsumer<CabinetMessagingBloc, CabinetMessagingState>(
         listener: (context, state) {
+          if (state is CabinetMessagingThreadLoaded) {
+            if (state.qualificationError != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(state.qualificationError!)),
+              );
+            }
+            return;
+          }
           if (state is! CabinetMessagingConversationsLoaded) return;
           if (state.assignError != null) {
             ScaffoldMessenger.of(context)
@@ -579,6 +588,25 @@ class _ThreadViewState extends State<_ThreadView> {
         );
   }
 
+  /// Ouvre l'éditeur de qualification du fil (#7609) — seule l'assignation
+  /// était éditable jusqu'ici, depuis la liste.
+  Future<void> _editQualification() async {
+    final result = await QualificationEditor.show(
+      context,
+      conversation: widget.state.conversation,
+    );
+    if (result == null || !mounted) return;
+    context.read<CabinetMessagingBloc>().add(
+          CabinetMessagingQualificationChanged(
+            conversationId: widget.state.conversation.id,
+            origin: result.origin,
+            priority: result.priority,
+            status: result.status,
+            summary: result.summary,
+          ),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
@@ -608,6 +636,21 @@ class _ThreadViewState extends State<_ThreadView> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                state.qualifying
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : TextButton.icon(
+                        key: const Key('edit_conversation_qualification'),
+                        onPressed: _editQualification,
+                        icon: const Icon(Icons.tune),
+                        label: const Text('Qualifier'),
+                      ),
                 state.converting
                     ? const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 12),

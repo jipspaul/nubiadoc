@@ -442,6 +442,7 @@ export 'src/usecases/cabinet_messaging/get_cabinet_conversation_use_case.dart';
 export 'src/usecases/cabinet_messaging/send_message_cabinet_use_case.dart';
 export 'src/usecases/cabinet_messaging/convert_conversation_to_appointment_use_case.dart';
 export 'src/usecases/cabinet_messaging/assign_cabinet_conversation_use_case.dart';
+export 'src/usecases/cabinet_messaging/update_conversation_qualification_use_case.dart';
 // cabinet info pro
 export 'src/repositories/cabinet_repository.dart';
 export 'src/usecases/cabinet_info/update_cabinet_use_case.dart';

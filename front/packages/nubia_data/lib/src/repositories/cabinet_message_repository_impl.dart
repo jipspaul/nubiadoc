@@ -111,6 +111,33 @@ class CabinetMessageRepositoryImpl implements CabinetMessageRepository {
     }
   }
 
+  @override
+  Future<Either<Failure, void>> updateQualification({
+    required String conversationId,
+    String? origin,
+    String? priority,
+    String? status,
+    String? summary,
+  }) async {
+    try {
+      await _api.updateQualification(
+        conversationId: conversationId,
+        origin: origin,
+        priority: priority,
+        status: status,
+        summary: summary,
+      );
+      return const Right(null);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure());
+      }
+      return Left(_mapDioError(e, 'Erreur lors de la qualification.'));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
   Failure _mapDioError(DioException e, String defaultMessage) {
     if (e.type == DioExceptionType.connectionError ||
         e.type == DioExceptionType.connectionTimeout) {

@@ -27,4 +27,18 @@ abstract class CabinetMessageRepository {
     required String conversationId,
     required String assigneeUserId,
   });
+
+  /// PATCH /v1/cabinet/conversations/{id} — qualifie une conversation
+  /// (#7609) : origine, priorité, statut, synthèse. Un champ `null` reste
+  /// inchangé côté API (même limite que [assignConversation], pas de moyen
+  /// de remettre un champ à vide par ce biais). `motif` volontairement
+  /// absent : cloisonnement clinique §07 §4.1, même doctrine que
+  /// `CabinetConversation` qui ne porte aucun champ clinique.
+  Future<Either<Failure, void>> updateQualification({
+    required String conversationId,
+    String? origin,
+    String? priority,
+    String? status,
+    String? summary,
+  });
 }
