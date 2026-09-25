@@ -74,6 +74,7 @@ pub async fn estimate_visit_price(
         "visit price estimate requested"
     );
     if body.requested_acts.is_empty()
+        || body.requested_acts.len() > ALLOWED_ACTS.len()
         || !body
             .requested_acts
             .iter()
