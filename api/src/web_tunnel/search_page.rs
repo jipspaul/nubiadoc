@@ -260,9 +260,31 @@ pub async fn search_page(
     let h1 = format!("{} à {}", page_subject_label(&query_slug), loc_label);
     let title = format!("{h1} — Nubia");
 
+    // #7659 : la phrase ne doit affirmer que ce que `providers` contient
+    // réellement — même source que `render_tags` (sector, tiers_payant) —
+    // et se taire (plutôt que fabriquer) quand ce n'est pas majoritaire.
+    let tiers_payant_count = providers
+        .iter()
+        .filter(|p| p.tiers_payant == Some(true))
+        .count();
+    let secteur1_count = providers
+        .iter()
+        .filter(|p| p.sector.as_deref() == Some("1"))
+        .count();
+    let majority_tiers_payant = total > 0 && (tiers_payant_count as i64) * 2 > total;
+    let majority_secteur1 = total > 0 && (secteur1_count as i64) * 2 > total;
+    let majority_sentence = match (majority_tiers_payant, majority_secteur1) {
+        (true, true) => {
+            " La majorité pratique le tiers payant et les tarifs conventionnés du secteur 1."
+        }
+        (true, false) => " La majorité pratique le tiers payant.",
+        (false, true) => " La majorité pratique les tarifs conventionnés du secteur 1.",
+        (false, false) => "",
+    };
+
     let seo_paragraph = if total > 0 {
         format!(
-            "{total} praticien{s} accepte{ntpl} des rendez-vous en ligne à {loc_label}, dont {within_48h} avec une disponibilité sous 48 heures. La majorité pratique le tiers payant et les tarifs conventionnés du secteur 1.",
+            "{total} praticien{s} accepte{ntpl} des rendez-vous en ligne à {loc_label}, dont {within_48h} avec une disponibilité sous 48 heures.{majority_sentence}",
             s = if total > 1 { "s" } else { "" },
             ntpl = if total > 1 { "nt" } else { "" },
         )
