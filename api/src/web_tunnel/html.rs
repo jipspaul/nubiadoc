@@ -121,6 +121,9 @@ a { color: var(--brand-700); }
 .seo .lk { display: inline-block; margin: .25rem .75rem .25rem 0; padding: .35rem .75rem; border: 1px solid var(--n-200); border-radius: 999px; text-decoration: none; font-size: .875rem; }
 .card { background: #fff; border: 1px solid var(--n-200); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
 .card h3 { margin: 0 0 .25rem; font-family: Inter, sans-serif; font-size: 1.05rem; }
+.chead { display: flex; gap: .75rem; align-items: flex-start; }
+.avatar { flex: 0 0 auto; width: 2.5rem; height: 2.5rem; border-radius: 999px; background: var(--brand-50); color: var(--brand-700); font-weight: 700; font-size: .85rem; display: flex; align-items: center; justify-content: center; }
+.addr { color: var(--n-600); font-size: .85rem; margin: .2rem 0 0; }
 .muted { color: var(--n-600); font-size: .9rem; }
 .tags { margin: .5rem 0 0; }
 .tag { display: inline-block; font-size: .75rem; font-weight: 600; background: var(--n-100); color: var(--n-600); border-radius: 6px; padding: .15rem .5rem; margin: 0 .35rem .35rem 0; }
@@ -134,11 +137,14 @@ a { color: var(--brand-700); }
 .stp.dn, .stp.now { color: var(--n-900); font-weight: 600; }
 .grp { background: #fff; border: 1px solid var(--n-200); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; display: flex; flex-direction: column; gap: .75rem; }
 .grp .fi { display: flex; flex-direction: column; gap: .25rem; }
-.grp .fi input { height: 2.5rem; border: 1px solid var(--n-200); border-radius: 8px; padding: 0 .75rem; font: inherit; }
+.grp .fi input, .grp .fi select { height: 2.5rem; border: 1px solid var(--n-200); border-radius: 8px; padding: 0 .75rem; font: inherit; }
 .grp .fi textarea { border: 1px solid var(--n-200); border-radius: 8px; padding: .5rem .75rem; font: inherit; resize: vertical; }
 .grp .ck { display: flex; gap: .5rem; align-items: flex-start; font-size: .9rem; }
 .grp .ck input { margin-top: .2rem; }
 .grp button { height: 2.75rem; border: none; border-radius: 10px; background: var(--brand-700); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.search-bar { flex-direction: row; flex-wrap: wrap; align-items: flex-end; }
+.search-bar .fi { flex: 1 1 200px; }
+.search-bar button { flex: 0 0 auto; padding: 0 1.5rem; }
 "#;
 
 pub fn page(title: &str, meta: &PageMeta, body: &str) -> Html<String> {

@@ -10,6 +10,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::marketplace::{
@@ -325,8 +326,11 @@ pub async fn search_page(
         .collect::<Vec<_>>()
         .join("\n");
 
+    let search_bar = render_search_bar(&query_slug, &loc);
+
     let body = format!(
-        r#"<h1>{h1}</h1>
+        r#"{search_bar}
+<h1>{h1}</h1>
 <p class="muted">{total} praticien{s} trouvé{s}</p>
 {cards}
 <div class="context">
@@ -347,6 +351,100 @@ pub async fn search_page(
     }
 
     page(&title, &meta, &body).into_response()
+}
+
+/// Triptyque « spécialité / où / rechercher » (maquette, écran ①, note « la
+/// page qui doit être indexée ») — jusqu'ici absent du DOM (#7658 : 0
+/// `<form>`, 0 `<input>` relevés en live), la seule sortie de la page était
+/// le bloc de maillage `.seo` en bas de page. Soumission en `GET` vers
+/// [`search_redirect`], pas de JS : cohérent avec le reste du tunnel, rendu
+/// entièrement côté serveur (#5355).
+fn render_search_bar(query_slug: &str, loc: &Locality) -> String {
+    let selected_specialty = if is_known_specialty_slug(query_slug) {
+        query_slug
+    } else {
+        "dentiste"
+    };
+    let options = KNOWN_SPECIALTIES
+        .iter()
+        .map(|slug| {
+            let selected = if *slug == selected_specialty {
+                " selected"
+            } else {
+                ""
+            };
+            format!(
+                r#"<option value="{slug}"{selected}>{label}</option>"#,
+                slug = escape(slug),
+                label = escape(&specialty_plural_label(slug)),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+
+    format!(
+        r#"<form method="get" action="/recherche" class="grp search-bar">
+  <div class="fi"><label for="specialty">Spécialité ou nom</label>
+    <select id="specialty" name="specialty">{options}</select>
+  </div>
+  <div class="fi"><label for="place">Où</label>
+    <input id="place" name="place" type="text" value="{place}" placeholder="Ville" required>
+  </div>
+  <button type="submit">Rechercher</button>
+</form>"#,
+        place = escape(&loc.city_label),
+    )
+}
+
+/// `GET /recherche?specialty=…&place=…` — cible de [`render_search_bar`] :
+/// redirige vers la page de recherche `/:query_slug/:locality_slug`
+/// correspondante. Un `place` inconnu redirige quand même (`locality_not_found`
+/// prend le relais, #7224) plutôt que de re-décider ici ce qu'est une ville
+/// valide — une seule source de vérité (`marketplace::is_known_place`).
+pub async fn search_redirect(Query(params): Query<SearchRedirectQuery>) -> Response {
+    let specialty = params
+        .specialty
+        .as_deref()
+        .filter(|s| is_known_specialty_slug(s))
+        .unwrap_or("dentiste");
+    let place_slug = params
+        .place
+        .as_deref()
+        .map(slugify_place)
+        .filter(|s| !s.is_empty());
+
+    match place_slug {
+        Some(place_slug) => Redirect::to(&format!("/{specialty}/{place_slug}")).into_response(),
+        None => Redirect::to("/").into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct SearchRedirectQuery {
+    specialty: Option<String>,
+    place: Option<String>,
+}
+
+/// Slug de ville à partir du texte libre saisi dans le champ « Où » —
+/// minuscules, accents non gérés (comme `marketplace::KNOWN_CITY_COORDS`,
+/// toutes ses entrées sont sans accent), tout ce qui n'est pas alphanumérique
+/// devient un tiret, tirets consécutifs/en bord fusionnés.
+fn slugify_place(input: &str) -> String {
+    let mut slug = String::with_capacity(input.len());
+    let mut last_was_dash = true; // évite un tiret de tête
+    for ch in input.trim().to_lowercase().chars() {
+        if ch.is_alphanumeric() {
+            slug.push(ch);
+            last_was_dash = false;
+        } else if !last_was_dash {
+            slug.push('-');
+            last_was_dash = true;
+        }
+    }
+    while slug.ends_with('-') {
+        slug.pop();
+    }
+    slug
 }
 
 /// `404` + `noindex` (#7224) : un slug de ville hors du lookup géo statique
@@ -429,17 +527,78 @@ fn render_card(p: &ProviderItem, slots: &[SlotRef]) -> String {
     let href = slug_for(&p.display_name, p.specialty.as_deref(), None);
     format!(
         r#"<article class="card">
-  <h3><a href="/{href}">{name}</a></h3>
-  <p class="muted">{specialty}</p>
+  <div class="chead">
+    <span class="avatar" aria-hidden="true">{initials}</span>
+    <div>
+      <h3><a href="/{href}">{name}</a></h3>
+      <p class="muted">{specialty}</p>
+      {address}
+    </div>
+  </div>
   {tags}
   {slots_block}
 </article>"#,
+        initials = escape(&initials(&p.display_name)),
         href = escape(&href),
         name = escape(&p.display_name),
         specialty = escape(p.specialty.as_deref().unwrap_or("")),
+        address = render_address_line(p),
         tags = render_tags(p),
         slots_block = render_slots_block(p.provider_id, slots, &href),
     )
+}
+
+/// Médaillon d'initiales (maquette) — 2 premières initiales des mots du nom
+/// affiché, sans dépendance à une photo (aucune n'est stockée côté praticien).
+fn initials(display_name: &str) -> String {
+    display_name
+        .split_whitespace()
+        .filter_map(|w| w.chars().next())
+        .take(2)
+        .flat_map(|c| c.to_uppercase())
+        .collect()
+}
+
+/// « 12 rue de la Paix, 75002 Paris · 400 m » (maquette) — adresse du
+/// cabinet (`e.address`, même forme jsonb que `ProviderProfile::address`,
+/// `provider_page.rs`) et distance (`distance_m`, déjà remontée par
+/// `search_providers` mais jusqu'ici jamais rendue sur la carte, #7658).
+/// Vide (pas de `<p>`) quand ni l'un ni l'autre n'est connu.
+fn render_address_line(p: &ProviderItem) -> String {
+    let mut parts = Vec::new();
+    if let Some(address) = p.address.as_ref() {
+        let rue = address.get("rue").and_then(|v| v.as_str());
+        let cp = address.get("cp").and_then(|v| v.as_str());
+        let ville = address.get("ville").and_then(|v| v.as_str());
+        let cp_ville = match (cp, ville) {
+            (Some(cp), Some(ville)) => Some(format!("{cp} {ville}")),
+            (None, Some(ville)) => Some(ville.to_string()),
+            (Some(cp), None) => Some(cp.to_string()),
+            (None, None) => None,
+        };
+        match (rue, cp_ville) {
+            (Some(rue), Some(cp_ville)) => parts.push(format!("{rue}, {cp_ville}")),
+            (Some(rue), None) => parts.push(rue.to_string()),
+            (None, Some(cp_ville)) => parts.push(cp_ville),
+            (None, None) => {}
+        }
+    }
+    if let Some(distance) = p.distance_m {
+        parts.push(format_distance(distance));
+    }
+    if parts.is_empty() {
+        return String::new();
+    }
+    format!(r#"<p class="addr">{}</p>"#, escape(&parts.join(" · ")))
+}
+
+/// `400` -> `"400 m"`, `1560.0` -> `"1,6 km"` (virgule française).
+fn format_distance(distance_m: f64) -> String {
+    if distance_m < 1000.0 {
+        format!("{} m", distance_m.round() as i64)
+    } else {
+        format!("{:.1} km", distance_m / 1000.0).replace('.', ",")
+    }
 }
 
 /// Attributs patient de la maquette (secteur, tiers payant, nouveaux
@@ -640,6 +799,157 @@ fn maillage_links(query_slug: &str, loc: &Locality) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #7658 — root cause : la page de recherche n'avait ni `<form>` ni
+    /// `<input>` (0 des deux relevés en live) — seule sortie de la page, le
+    /// bloc de maillage tout en bas. `render_search_bar` doit exposer les 2
+    /// champs réels (spécialité, où) et un bouton de soumission.
+    #[test]
+    fn render_search_bar_exposes_a_real_form_with_specialty_and_place_inputs() {
+        let loc = locality::parse("lyon");
+        let html = render_search_bar("dentiste", &loc);
+        assert!(html.contains("<form"));
+        assert!(html.contains("<select"));
+        assert!(html.contains(r#"<input id="place" name="place""#));
+        assert!(html.contains(r#"value="Lyon""#));
+        assert!(html.contains(r#"<button type="submit">Rechercher</button>"#));
+    }
+
+    #[test]
+    fn render_search_bar_preselects_the_current_specialty() {
+        let loc = locality::parse("paris");
+        let html = render_search_bar("orthodontiste", &loc);
+        assert!(html.contains(r#"<option value="orthodontiste" selected>"#));
+    }
+
+    /// Un `query_slug` d'acte (`detartrage`, `urgence-dentiste`, …) n'est pas
+    /// une spécialité du `<select>` — doit retomber sur la 1re option plutôt
+    /// que ne rien présélectionner.
+    #[test]
+    fn render_search_bar_falls_back_to_the_first_specialty_for_a_non_specialty_query_slug() {
+        let loc = locality::parse("paris");
+        let html = render_search_bar("detartrage", &loc);
+        assert!(html.contains(r#"<option value="dentiste" selected>"#));
+    }
+
+    #[test]
+    fn slugify_place_lowercases_trims_and_dashes_whitespace() {
+        assert_eq!(slugify_place("Lyon"), "lyon");
+        assert_eq!(slugify_place("  Paris  "), "paris");
+        assert_eq!(slugify_place("Aix en Provence"), "aix-en-provence");
+    }
+
+    #[test]
+    fn slugify_place_collapses_separators_without_leading_or_trailing_dash() {
+        assert_eq!(slugify_place("-Lyon-"), "lyon");
+        assert_eq!(slugify_place("Saint--Étienne"), "saint-étienne");
+        assert_eq!(slugify_place(""), "");
+        assert_eq!(slugify_place("   "), "");
+    }
+
+    #[tokio::test]
+    async fn search_redirect_targets_the_slugified_specialty_and_place() {
+        let response = search_redirect(Query(SearchRedirectQuery {
+            specialty: Some("orthodontiste".to_string()),
+            place: Some(" Lyon ".to_string()),
+        }))
+        .await;
+        assert!(response.status().is_redirection());
+        let location = response
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap();
+        assert_eq!(location, "/orthodontiste/lyon");
+    }
+
+    #[tokio::test]
+    async fn search_redirect_defaults_an_unknown_specialty_to_dentiste() {
+        let response = search_redirect(Query(SearchRedirectQuery {
+            specialty: Some("pizza".to_string()),
+            place: Some("Lyon".to_string()),
+        }))
+        .await;
+        let location = response
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap();
+        assert_eq!(location, "/dentiste/lyon");
+    }
+
+    #[tokio::test]
+    async fn search_redirect_without_a_place_falls_back_to_home() {
+        let response = search_redirect(Query(SearchRedirectQuery {
+            specialty: Some("dentiste".to_string()),
+            place: None,
+        }))
+        .await;
+        let location = response
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap();
+        assert_eq!(location, "/");
+    }
+
+    fn provider_item(distance_m: Option<f64>, address: Option<serde_json::Value>) -> ProviderItem {
+        ProviderItem {
+            provider_id: Uuid::nil(),
+            display_name: "Dr Amélie Dubois".to_string(),
+            specialty: Some("Chirurgien-dentiste".to_string()),
+            sector: None,
+            distance_m,
+            next_slot_at: None,
+            rating_avg: None,
+            geo: None,
+            is_listed: true,
+            tiers_payant: None,
+            pmr: None,
+            accepts_new_patients: None,
+            teleconsult: None,
+            address,
+        }
+    }
+
+    /// #7658 — root cause : `distance_m` était déjà remonté par
+    /// `search_providers` mais jamais rendu sur la carte.
+    #[test]
+    fn render_address_line_joins_the_street_postcode_city_and_distance() {
+        let address =
+            serde_json::json!({"rue": "12 rue de la Paix", "cp": "75002", "ville": "Paris"});
+        let p = provider_item(Some(400.0), Some(address));
+        assert_eq!(
+            render_address_line(&p),
+            r#"<p class="addr">12 rue de la Paix, 75002 Paris · 400 m</p>"#
+        );
+    }
+
+    #[test]
+    fn render_address_line_is_empty_without_address_or_distance() {
+        let p = provider_item(None, None);
+        assert_eq!(render_address_line(&p), "");
+    }
+
+    #[test]
+    fn render_address_line_shows_distance_alone_without_a_known_address() {
+        let p = provider_item(Some(1560.0), None);
+        assert_eq!(render_address_line(&p), r#"<p class="addr">1,6 km</p>"#);
+    }
+
+    #[test]
+    fn format_distance_switches_from_meters_to_kilometers_at_1000m() {
+        assert_eq!(format_distance(400.0), "400 m");
+        assert_eq!(format_distance(999.0), "999 m");
+        assert_eq!(format_distance(1560.0), "1,6 km");
+    }
+
+    #[test]
+    fn initials_takes_the_first_two_word_initials_uppercased() {
+        assert_eq!(initials("Dr Amélie Dubois"), "DA");
+        assert_eq!(initials("dupont"), "D");
+        assert_eq!(initials(""), "");
+    }
 
     /// #7354 — repro exacte de l'issue : `/dentiste/LYON` et `/dentiste/LyOn`
     /// doivent tous deux rediriger vers le slug de ville normalisé, pas se

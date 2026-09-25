@@ -181,6 +181,7 @@ mod tests {
             pmr: None,
             accepts_new_patients: None,
             teleconsult: None,
+            address: None,
         }];
         let urls = provider_urls(&providers, "https://reservation.doc.nubia-link.com");
         assert_eq!(
