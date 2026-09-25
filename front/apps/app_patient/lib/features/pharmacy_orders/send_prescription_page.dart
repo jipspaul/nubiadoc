@@ -39,8 +39,11 @@ class SendPrescriptionBody extends StatelessWidget {
             current is SendPrescriptionReady && current.submitError != null,
         listener: (context, state) {
           final message = (state as SendPrescriptionReady).submitError!;
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(message)));
+          NubiaSnackbar.show(
+            context: context,
+            message: message,
+            variant: NubiaSnackbarVariant.error,
+          );
           context.read<SendPrescriptionCubit>().dismissSubmitError();
         },
         child: BlocBuilder<SendPrescriptionCubit, SendPrescriptionState>(
