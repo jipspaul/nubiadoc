@@ -1323,12 +1323,16 @@ class _StockDetailPanel extends StatelessWidget {
                         children: [
                           Text(
                             item.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: textTheme.bodySmall?.copyWith(fontSize: 12.5),
                           ),
                           if (item.note != null) ...[
                             const SizedBox(height: 2),
                             Text(
                               item.note!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: textTheme.bodySmall?.copyWith(
                                 fontSize: 11,
                                 color: NubiaColors.n500,
