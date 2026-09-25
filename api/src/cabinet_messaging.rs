@@ -302,7 +302,15 @@ pub async fn list_cabinet_conversations(
 
     // Lie les paramètres : $1=fetch_limit, puis curseur ($2...), puis secretariat_id si secretary,
     // puis les 4 filtres de qualification (#7151, toujours liés — cf. `qualification_filter`).
-    let sid = claims.secretariat_id;
+    // Le bind doit suivre EXACTEMENT la même condition que `sec_filter` (placeholder émis
+    // seulement pour role == "secretary") : practitioner/admin portent aussi un
+    // `secretariat_id` dans leur JWT, donc filtrer sur `Option::is_some()` seul désynchronise
+    // le nombre de binds du nombre de `$n` et fait échouer la requête (#7608).
+    let sid = if claims.role == "secretary" {
+        claims.secretariat_id
+    } else {
+        None
+    };
     let rows = match &cursor {
         None => {
             let q = sqlx::query(&sql).persistent(false).bind(fetch_limit);

@@ -798,3 +798,31 @@ async fn motif_is_returned_by_get() {
 
     cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
 }
+
+/// #7608 : practitioner/admin portent aussi un `secretariat_id` dans leur JWT
+/// (rattachement à un secrétariat) — la liste ne doit pas 500 pour autant,
+/// seule `secretary` applique le cloisonnement R10 sur ce paramètre.
+#[tokio::test]
+async fn practitioner_and_admin_with_secretariat_id_get_200() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id, secretariat_id) = insert_fixture(&db).await;
+
+    for role in ["practitioner", "admin"] {
+        let token = make_pro_token(cabinet_id, role, Some(secretariat_id));
+        let (status, json) = get(&token, "/v1/cabinet/conversations".to_string()).await;
+        assert_eq!(status, StatusCode::OK, "role={role}");
+        assert!(
+            json["data"]
+                .as_array()
+                .expect("data[]")
+                .iter()
+                .any(|c| c["id"] == conversation_id.to_string()),
+            "role={role} doit lister la conversation de la fixture"
+        );
+    }
+
+    cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
+}
