@@ -1221,6 +1221,10 @@ class _StockDetailPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final units = request.items.fold<int>(
+      0,
+      (sum, item) => sum + item.quantity,
+    );
 
     return Container(
       key: Key('stock_detail_panel_${request.id}'),
@@ -1288,8 +1292,7 @@ class _StockDetailPanel extends StatelessWidget {
                 Text(
                   '${request.items.length} ligne'
                   '${request.items.length > 1 ? 's' : ''} · '
-                  '${request.items.fold<int>(0, (sum, item) => sum + item.quantity)} '
-                  'unités',
+                  '$units unité${units > 1 ? 's' : ''}',
                   style: textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
                   overflow: TextOverflow.ellipsis,
                 ),
