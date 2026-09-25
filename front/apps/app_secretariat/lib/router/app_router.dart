@@ -324,6 +324,16 @@ class AppRouter {
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
+                path: conges,
+                builder: (_, __) => BlocProvider(
+                  create: (_) => GetIt.instance<CongesBloc>()
+                    ..add(const CongesLoadRequested(status: 'pending')),
+                  child: const CongesPage(),
+                ),
+              ),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
                 path: cabinetStats,
                 builder: (_, __) => BlocProvider(
                   create: (_) => GetIt.instance<CabinetStatsBloc>()
@@ -401,16 +411,6 @@ class AppRouter {
                   create: (_) => GetIt.instance<AuditLogBloc>()
                     ..add(const AuditLogLoadRequested()),
                   child: const AuditLogPage(),
-                ),
-              ),
-            ]),
-            StatefulShellBranch(routes: [
-              GoRoute(
-                path: conges,
-                builder: (_, __) => BlocProvider(
-                  create: (_) => GetIt.instance<CongesBloc>()
-                    ..add(const CongesLoadRequested(status: 'pending')),
-                  child: const CongesPage(),
                 ),
               ),
             ]),
