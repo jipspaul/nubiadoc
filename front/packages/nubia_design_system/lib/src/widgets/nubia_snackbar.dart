@@ -1,5 +1,6 @@
 // lib/presentation/widgets/nubia_snackbar.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:nubia_design_system/src/theme/nubia_tokens.dart';
 
 /// Variants sémantiques du [NubiaSnackbar].
@@ -86,6 +87,12 @@ class NubiaSnackbar {
               onPressed: onAction,
             )
           : null,
+    );
+
+    SemanticsService.sendAnnouncement(
+      View.of(context),
+      message,
+      Directionality.of(context),
     );
 
     final messenger = ScaffoldMessenger.of(context);
