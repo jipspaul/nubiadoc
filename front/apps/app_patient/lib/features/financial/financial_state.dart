@@ -36,6 +36,7 @@ final class FinancialQuoteDetail extends FinancialState {
     this.documentUrl,
     this.attachments = const [],
     this.attestation,
+    this.paymentSchedule,
   });
 
   final Quote quote;
@@ -52,9 +53,15 @@ final class FinancialQuoteDetail extends FinancialState {
   /// devis (#7201/#7203) — `null` si aucune n'a été déposée par le cabinet.
   final QuoteAttestation? attestation;
 
+  /// Échéancier `active` posé par le praticien sur ce devis (#7018, #4072) —
+  /// `null` si aucun n'a été posé. Tant qu'il existe, l'API refuse tout
+  /// paiement ad hoc sur le devis (garde #5669) : le patient doit régler via
+  /// ces jalons, jamais via l'acompte générique.
+  final PaymentSchedule? paymentSchedule;
+
   @override
   List<Object?> get props =>
-      [quote, quotes, documentUrl, attachments, attestation];
+      [quote, quotes, documentUrl, attachments, attestation, paymentSchedule];
 }
 
 /// Paiement en cours.

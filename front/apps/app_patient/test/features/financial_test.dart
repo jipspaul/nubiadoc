@@ -39,6 +39,9 @@ class MockGetPatientQuoteAttestationUseCase extends Mock
 class MockSignPatientQuoteAttestationUseCase extends Mock
     implements SignPatientQuoteAttestationUseCase {}
 
+class MockGetQuotePaymentScheduleUseCase extends Mock
+    implements GetQuotePaymentScheduleUseCase {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -109,6 +112,33 @@ final _signedAttestation = QuoteAttestation(
   createdAt: DateTime(2026, 6, 1),
 );
 
+/// Échéancier `active` à 3 jalons datés posé par le praticien sur
+/// `q-signed` (#7018, repro QA-20260915-28).
+final _activePaymentSchedule = PaymentSchedule(
+  id: 'sched-1',
+  quoteId: 'q-signed',
+  totalAmountCents: 30000,
+  installments: [
+    PaymentScheduleInstallment(
+      date: DateTime(2026, 10, 1),
+      amountCents: 10000,
+      status: InstallmentStatus.pending,
+    ),
+    PaymentScheduleInstallment(
+      date: DateTime(2026, 11, 1),
+      amountCents: 10000,
+      status: InstallmentStatus.pending,
+    ),
+    PaymentScheduleInstallment(
+      date: DateTime(2026, 12, 1),
+      amountCents: 10000,
+      status: InstallmentStatus.pending,
+    ),
+  ],
+  status: PaymentScheduleStatus.active,
+  createdAt: DateTime(2026, 9, 1),
+);
+
 FinancialBloc _makeBloc({
   required MockGetPendingQuotesUseCase getPendingQuotes,
   required MockGetQuoteByIdUseCase getQuoteById,
@@ -118,17 +148,28 @@ FinancialBloc _makeBloc({
   required MockGetPatientQuoteAttachmentsUseCase getQuoteAttachments,
   required MockGetPatientQuoteAttestationUseCase getQuoteAttestation,
   required MockSignPatientQuoteAttestationUseCase signQuoteAttestation,
-}) =>
-    FinancialBloc(
-      getPendingQuotes: getPendingQuotes,
-      getQuoteById: getQuoteById,
-      initiateSignature: initiateSignature,
-      initiateDeposit: initiateDeposit,
-      getDocumentSignedUrl: getDocumentSignedUrl,
-      getQuoteAttachments: getQuoteAttachments,
-      getQuoteAttestation: getQuoteAttestation,
-      signQuoteAttestation: signQuoteAttestation,
-    );
+  MockGetQuotePaymentScheduleUseCase? getQuotePaymentSchedule,
+}) {
+  // Défaut neutre (aucun échéancier, #7018) : seuls les tests dédiés à
+  // l'échéancier ont besoin de le stubber explicitement.
+  final paymentSchedule =
+      getQuotePaymentSchedule ?? MockGetQuotePaymentScheduleUseCase();
+  if (getQuotePaymentSchedule == null) {
+    when(() => paymentSchedule(any()))
+        .thenAnswer((_) async => const Right(null));
+  }
+  return FinancialBloc(
+    getPendingQuotes: getPendingQuotes,
+    getQuoteById: getQuoteById,
+    initiateSignature: initiateSignature,
+    initiateDeposit: initiateDeposit,
+    getDocumentSignedUrl: getDocumentSignedUrl,
+    getQuoteAttachments: getQuoteAttachments,
+    getQuoteAttestation: getQuoteAttestation,
+    signQuoteAttestation: signQuoteAttestation,
+    getQuotePaymentSchedule: paymentSchedule,
+  );
+}
 
 Widget _wrap(FinancialBloc bloc) => MaterialApp(
       theme: NubiaTheme.light,
@@ -562,6 +603,59 @@ void main() {
         find.descendant(
           of: find.byKey(const Key('payment_schedule_step_balance')),
           matching: find.text(formatQuoteCents(balance)),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'appelle GET /v1/payment-schedules et affiche les jalons datés du '
+        'praticien à la place de l\'échéancier acompte/solde (#7018)',
+        (tester) async {
+      when(() => mockGetPendingQuotes())
+          .thenAnswer((_) async => Right([_signedQuoteWithDocument]));
+      when(() => mockGetQuoteById(any()))
+          .thenAnswer((_) async => Right(_signedQuoteWithDocument));
+
+      final mockGetPaymentSchedule = MockGetQuotePaymentScheduleUseCase();
+      when(() => mockGetPaymentSchedule(any()))
+          .thenAnswer((_) async => Right(_activePaymentSchedule));
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+        getDocumentSignedUrl: mockGetDocumentSignedUrl,
+        getQuoteAttachments: mockGetQuoteAttachments,
+        getQuoteAttestation: mockGetQuoteAttestation,
+        signQuoteAttestation: mockSignQuoteAttestation,
+        getQuotePaymentSchedule: mockGetPaymentSchedule,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      bloc.add(const FinancialQuoteSelected('q-signed'));
+      await tester.pumpAndSettle();
+
+      verify(() => mockGetPaymentSchedule('q-signed')).called(1);
+
+      // L'échéancier réel (daté) remplace l'échéancier acompte/solde (#5238)
+      // et le CTA « Payer l'acompte » est masqué — l'API le refuserait de
+      // toute façon avec 422 (garde #5669) tant que l'échéancier est actif.
+      expect(find.byKey(const Key('real_payment_schedule')), findsOneWidget);
+      expect(find.byKey(const Key('payment_schedule')), findsNothing);
+      expect(find.byKey(const Key('btn_pay')), findsNothing);
+
+      expect(find.text('01/10/2026'), findsOneWidget);
+      expect(find.text('01/11/2026'), findsOneWidget);
+      expect(find.text('01/12/2026'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('real_payment_schedule_installment_0')),
+          matching: find.text(formatQuoteCents(10000)),
         ),
         findsOneWidget,
       );

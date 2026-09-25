@@ -54,6 +54,17 @@ class BillingApi {
     return QuoteDto.fromJson(response.data!);
   }
 
+  /// GET /v1/payment-schedules — échéanciers du patient connecté, tous
+  /// devis confondus (#7018, #4072).
+  Future<List<PaymentScheduleDto>> getPaymentSchedules() async {
+    final response =
+        await _dio.get<Map<String, dynamic>>('/payment-schedules');
+    final data = (response.data?['data'] as List<dynamic>? ?? []);
+    return data
+        .map((e) => PaymentScheduleDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// POST /v1/billing/quotes/:id/deposit
   Future<DepositSecretDto> initiateDeposit({
     required String quoteId,

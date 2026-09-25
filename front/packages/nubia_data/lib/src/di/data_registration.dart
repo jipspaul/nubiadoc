@@ -518,6 +518,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetQuoteByIdUseCase(gi()))
     ..registerFactory(() => InitiateDepositUseCase(gi()))
     ..registerFactory(() => InitiateSignatureUseCase(gi()))
+    ..registerFactory(() => GetQuotePaymentScheduleUseCase(gi()))
     ..registerFactory(() => GetPatientQuoteAttachmentsUseCase(gi()))
     ..registerFactory(() => GetPatientQuoteAttestationUseCase(gi()))
     ..registerFactory(() => SignPatientQuoteAttestationUseCase(gi()))

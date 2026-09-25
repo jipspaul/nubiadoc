@@ -41,13 +41,20 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
     final cs = theme.colorScheme;
     final quote = widget.state.quote;
     final attestation = widget.state.attestation;
+    final paymentSchedule = widget.state.paymentSchedule;
     // Verrou UI (#7201/#7203) : le devis n'est signable que si aucune
     // attestation d'information n'a été déposée, ou si elle est déjà signée
     // — l'API refuse de toute façon avec `409 attestation_not_signed` sinon
     // (cf. `billing::sign_quote`), ce verrou n'est qu'un confort d'affichage.
     final attestationPending = attestation != null && !attestation.isSigned;
     final canSign = quote.canSign && !attestationPending;
-    final canPay = quote.status == QuoteStatus.signed && quote.depositCents > 0;
+    // #7018 : tant qu'un échéancier `active` existe sur le devis, l'API
+    // refuse tout paiement ad hoc (acompte compris) avec `422
+    // validation_error` (garde #5669) — le patient doit régler via les
+    // jalons de cet échéancier, jamais via l'acompte générique.
+    final canPay = quote.status == QuoteStatus.signed &&
+        quote.depositCents > 0 &&
+        paymentSchedule == null;
     final canDownload =
         quote.status == QuoteStatus.signed && quote.documentId != null;
     // Obligation conventionnelle de présenter l'alternative RAC 0 (#4061) :
@@ -134,7 +141,9 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                 QuoteAttachmentsList(attachments: widget.state.attachments),
                 if (attestation != null)
                   QuoteAttestationPanel(attestation: attestation),
-                if (canPay) ...[
+                if (paymentSchedule != null)
+                  _RealPaymentScheduleCard(schedule: paymentSchedule)
+                else if (canPay) ...[
                   _DepositCard(quote: quote),
                   _PaymentSchedule(quote: quote),
                 ],
@@ -552,6 +561,110 @@ class _PaymentScheduleStep extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Échéancier RÉEL posé par le praticien (`GET /v1/payment-schedules`,
+/// #7018/#4072) — jalons datés, à la différence de [_PaymentSchedule]
+/// (acompte/solde dérivés du devis, sans date). Affiché à la place de ce
+/// dernier dès qu'un échéancier `active` existe pour ce devis : le patient
+/// doit alors régler directement auprès du cabinet selon ces jalons, tout
+/// paiement ad hoc étant refusé par l'API (`422`, garde #5669).
+class _RealPaymentScheduleCard extends StatelessWidget {
+  const _RealPaymentScheduleCard({required this.schedule});
+
+  final PaymentSchedule schedule;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: NubiaCard(
+        key: const Key('real_payment_schedule'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Échéancier de paiement',
+              style: theme.textTheme.labelLarge
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Réglé directement auprès du cabinet, aux dates convenues.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 8),
+            for (int i = 0; i < schedule.installments.length; i++)
+              _RealPaymentScheduleRow(
+                key: Key('real_payment_schedule_installment_$i'),
+                installment: schedule.installments[i],
+                showDivider: i > 0,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RealPaymentScheduleRow extends StatelessWidget {
+  const _RealPaymentScheduleRow({
+    super.key,
+    required this.installment,
+    required this.showDivider,
+  });
+
+  final PaymentScheduleInstallment installment;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = theme.extension<NubiaTokens>()!;
+    final isPaid = installment.status == InstallmentStatus.paid;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showDivider)
+          Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  formatQuoteDate(installment.date),
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: cs.onSurface),
+                ),
+              ),
+              const SizedBox(width: 8),
+              StatusPill(
+                label: isPaid ? 'Réglé' : 'À venir',
+                variant:
+                    isPaid ? StatusPillVariant.success : StatusPillVariant.info,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                formatQuoteCents(installment.amountCents),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: tabularFigures,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
