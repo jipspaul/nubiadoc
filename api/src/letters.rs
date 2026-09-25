@@ -40,7 +40,7 @@ use crate::{
     auth::{AppError, ProSecretaryPlusClaims},
     letter_docx,
     patient_tags::ensure_secretary_scope,
-    pdf_text, AppState,
+    pdf_text, signature_stamp, AppState,
 };
 
 /// Placeholders reconnus par le moteur (forme `{{nom}}`, espaces internes
@@ -537,6 +537,11 @@ struct LetterContext {
     header: Vec<String>,
     footer: Vec<String>,
     kind: String,
+    /// `provider.signature_image_id`/`stamp_image_id` du praticien résolu
+    /// (#7148) — `None` si aucun praticien résolu ou s'il n'a pas encore
+    /// téléversé l'image correspondante.
+    signature_image_id: Option<Uuid>,
+    stamp_image_id: Option<Uuid>,
 }
 
 fn insert_opt(values: &mut BTreeMap<String, String>, key: &str, value: Option<String>) {
@@ -672,6 +677,18 @@ pub async fn generate_patient_letter(
     for (key, value) in &body.overrides {
         values.insert(key.clone(), value.trim().to_string());
     }
+    // Signature/tampon du praticien (#7148) — best-effort : absents tant
+    // que non téléversés, sans jamais bloquer la génération du courrier.
+    // Uniquement pour le moteur texte (branche `else` ci-dessous) : le
+    // rendu `.docx` (`letter_docx`) reste hors scope de l'apposition.
+    let (signature_img, stamp_img) = signature_stamp::load_practitioner_stamps(
+        &mut tx,
+        object_storage.as_ref(),
+        claims.cabinet_id,
+        ctx.signature_image_id,
+        ctx.stamp_image_id,
+    )
+    .await;
     // `.docx` (#7157) : substitution dans `word/document.xml`, PDF si un
     // convertisseur est disponible (`soffice`), sinon `.docx` rendu tel
     // quel — jamais d'erreur pour cette conversion, cf. `letter_docx`.
@@ -699,7 +716,13 @@ pub async fn generate_patient_letter(
     } else {
         let rendered = render(&body_template, &values)?;
         let body_lines = pdf_text::wrap_lines(&rendered, pdf_text::WRAP_COLUMNS);
-        let pdf_bytes = pdf_text::build_text_pdf(&ctx.header, &body_lines, &ctx.footer);
+        let pdf_bytes = pdf_text::build_text_pdf_with_stamps(
+            &ctx.header,
+            &body_lines,
+            &ctx.footer,
+            signature_img.as_ref(),
+            stamp_img.as_ref(),
+        );
         (pdf_bytes, "application/pdf", "pdf", rendered)
     };
     let size_bytes = output_bytes.len() as i64;
@@ -886,10 +909,16 @@ async fn resolve_context(
     }
 
     // Praticien : l'appelant s'il est praticien, sinon celui du RDV retenu.
+    // `signature_image_id`/`stamp_image_id` (#7148) viennent du profil
+    // `provider` du praticien (LEFT JOIN : absent tant qu'il n'a rien
+    // téléversé, jamais bloquant pour la génération du courrier).
     let prac_row = if claims.role == "practitioner" {
         sqlx::query(
-            "SELECT rpps, practitioner_display_name(id) AS display_name \
-             FROM practitioner WHERE cabinet_id = $1 AND user_id = $2",
+            "SELECT pr.rpps, practitioner_display_name(pr.id) AS display_name, \
+                    pv.signature_image_id, pv.stamp_image_id \
+             FROM practitioner pr \
+             LEFT JOIN provider pv ON pv.practitioner_id = pr.id \
+             WHERE pr.cabinet_id = $1 AND pr.user_id = $2",
         )
         .bind(claims.cabinet_id)
         .bind(claims.sub)
@@ -898,8 +927,11 @@ async fn resolve_context(
         .map_err(|_| AppError::Internal)?
     } else if let Some(prac_id) = rdv_practitioner_id {
         sqlx::query(
-            "SELECT rpps, practitioner_display_name(id) AS display_name \
-             FROM practitioner WHERE cabinet_id = $1 AND id = $2",
+            "SELECT pr.rpps, practitioner_display_name(pr.id) AS display_name, \
+                    pv.signature_image_id, pv.stamp_image_id \
+             FROM practitioner pr \
+             LEFT JOIN provider pv ON pv.practitioner_id = pr.id \
+             WHERE pr.cabinet_id = $1 AND pr.id = $2",
         )
         .bind(claims.cabinet_id)
         .bind(prac_id)
@@ -911,11 +943,19 @@ async fn resolve_context(
     };
     let mut prac_name: Option<String> = None;
     let mut prac_rpps: Option<String> = None;
+    let mut signature_image_id: Option<Uuid> = None;
+    let mut stamp_image_id: Option<Uuid> = None;
     if let Some(row) = &prac_row {
         prac_name = row
             .try_get("display_name")
             .map_err(|_| AppError::Internal)?;
         prac_rpps = row.try_get("rpps").map_err(|_| AppError::Internal)?;
+        signature_image_id = row
+            .try_get("signature_image_id")
+            .map_err(|_| AppError::Internal)?;
+        stamp_image_id = row
+            .try_get("stamp_image_id")
+            .map_err(|_| AppError::Internal)?;
     }
     insert_opt(&mut values, "praticien.nom", prac_name.clone());
     insert_opt(&mut values, "praticien.rpps", prac_rpps.clone());
@@ -957,6 +997,8 @@ async fn resolve_context(
         header,
         footer,
         kind,
+        signature_image_id,
+        stamp_image_id,
     })
 }
 

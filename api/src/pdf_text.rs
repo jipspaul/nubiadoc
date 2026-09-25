@@ -63,6 +63,22 @@ pub(crate) fn wrap_lines(text: &str, width: usize) -> Vec<String> {
 /// encodées WinAnsi ([`escape_winansi`]) : un `(`, `)` ou `\` dans une valeur
 /// substituée ne peut pas casser le flux de contenu.
 pub(crate) fn build_text_pdf(header: &[String], body: &[String], footer: &[String]) -> Vec<u8> {
+    build_text_pdf_with_stamps(header, body, footer, None, None)
+}
+
+/// Comme [`build_text_pdf`], avec en plus la signature et/ou le tampon du
+/// praticien apposés en bas de la DERNIÈRE page (#7148) — `None` pour l'un
+/// ou l'autre si le praticien n'a pas (encore) téléversé l'image
+/// correspondante (`provider.signature_image_id`/`stamp_image_id`,
+/// migration 0299), auquel cas le PDF produit est identique à
+/// `build_text_pdf`.
+pub(crate) fn build_text_pdf_with_stamps(
+    header: &[String],
+    body: &[String],
+    footer: &[String],
+    signature: Option<&JpegImage>,
+    stamp: Option<&JpegImage>,
+) -> Vec<u8> {
     let chunks: Vec<&[String]> = if body.is_empty() {
         vec![&[]]
     } else {
@@ -70,7 +86,8 @@ pub(crate) fn build_text_pdf(header: &[String], body: &[String], footer: &[Strin
     };
     let page_count = chunks.len();
 
-    // Objets : 1 catalogue, 2 pages, 3 police, puis (page, contenu) × N.
+    // Objets : 1 catalogue, 2 pages, 3 police, puis (page, contenu) × N,
+    // puis les éventuels XObjects image (signature/tampon, dernière page).
     let mut objects: Vec<Vec<u8>> = Vec::with_capacity(3 + 2 * page_count);
     objects.push(b"<< /Type /Catalog /Pages 2 0 R >>".to_vec());
     let kids: Vec<String> = (0..page_count)
@@ -89,14 +106,25 @@ pub(crate) fn build_text_pdf(header: &[String], body: &[String], footer: &[Strin
             .to_vec(),
     );
 
+    // Les XObjects image prendront les numéros d'objet juste après tous les
+    // (page, contenu) déjà réservés ci-dessus (3 + 2 * page_count objets).
+    let first_stamp_obj = 4 + 2 * page_count;
+    let (stamp_objects, stamp_resources, stamp_ops) =
+        stamp_placement(signature, stamp, first_stamp_obj);
+
     for (i, chunk) in chunks.iter().enumerate() {
         let page_obj = 4 + 2 * i;
         let content_obj = page_obj + 1;
+        let is_last = i + 1 == page_count;
+        let resources = if is_last && !stamp_resources.is_empty() {
+            format!("<< /Font << /F1 3 0 R >> /XObject <<{stamp_resources} >> >>")
+        } else {
+            "<< /Font << /F1 3 0 R >> >>".to_string()
+        };
         objects.push(
             format!(
-                "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R >> >> \
-                 /MediaBox [0 0 595 842] /Contents {} 0 R >>",
-                content_obj
+                "<< /Type /Page /Parent 2 0 R /Resources {resources} \
+                 /MediaBox [0 0 595 842] /Contents {content_obj} 0 R >>"
             )
             .into_bytes(),
         );
@@ -123,12 +151,20 @@ pub(crate) fn build_text_pdf(header: &[String], body: &[String], footer: &[Strin
         }
         push_text_line(&mut content, &format!("Page {}/{}", i + 1, page_count));
         content.extend_from_slice(b"ET");
+        // Signature/tampon (#7148) : opérateurs graphiques hors bloc texte,
+        // uniquement sur la dernière page.
+        if is_last && !stamp_ops.is_empty() {
+            content.push(b'\n');
+            content.extend_from_slice(&stamp_ops);
+        }
 
         let mut obj = format!("<< /Length {} >>\nstream\n", content.len()).into_bytes();
         obj.extend_from_slice(&content);
         obj.extend_from_slice(b"\nendstream");
         objects.push(obj);
     }
+
+    objects.extend(stamp_objects);
 
     let mut pdf: Vec<u8> = b"%PDF-1.4\n".to_vec();
     let mut offsets = Vec::with_capacity(objects.len());
@@ -159,6 +195,139 @@ fn push_text_line(content: &mut Vec<u8>, line: &str) {
     content.push(b'(');
     content.extend(escape_winansi(line));
     content.extend_from_slice(b") Tj T*\n");
+}
+
+/// Image JPEG baseline (signature ou tampon scanné du praticien, #7148) à
+/// apposer sur un PDF généré. Les octets JPEG sont réinjectés tels quels
+/// dans un flux `/Filter /DCTDecode` — pas de décodage pixel ni de
+/// recompression, cohérent avec l'absence de dépendance PDF du reste de ce
+/// module. PNG non géré : rejouer son filtrage par ligne (Paeth/Up/Sub/
+/// Average) demanderait une dépendance externe — les endpoints d'upload de
+/// signature/tampon (`cabinet_provider_stamp.rs`) n'acceptent donc que JPEG.
+pub(crate) struct JpegImage {
+    bytes: Vec<u8>,
+    width_px: u32,
+    height_px: u32,
+    gray: bool,
+}
+
+impl JpegImage {
+    /// Lit dimensions et nombre de composantes depuis le marqueur SOF —
+    /// suffisant pour poser `/Width`, `/Height` et `/ColorSpace` sans
+    /// décoder les pixels. `None` si `bytes` n'a pas de marqueur SOF valide
+    /// avant la fin du flux ou avant `SOS` (pas un JPEG reconnu).
+    pub(crate) fn parse(bytes: Vec<u8>) -> Option<Self> {
+        if bytes.len() < 4 || bytes[0] != 0xFF || bytes[1] != 0xD8 {
+            return None;
+        }
+        let mut i = 2usize;
+        while i < bytes.len() {
+            while bytes.get(i) == Some(&0xFF) {
+                i += 1;
+            }
+            let marker = *bytes.get(i)?;
+            i += 1;
+            if marker == 0xD9 {
+                return None; // EOI sans SOF rencontré.
+            }
+            if (0xD0..=0xD7).contains(&marker) || marker == 0x01 {
+                continue; // Marqueurs sans champ de longueur (RST*, TEM).
+            }
+            let hi = *bytes.get(i)? as usize;
+            let lo = *bytes.get(i + 1)? as usize;
+            let seg_len = (hi << 8) | lo;
+            if seg_len < 2 || i + seg_len > bytes.len() {
+                return None;
+            }
+            let is_sof = matches!(
+                marker,
+                0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF
+            );
+            if is_sof {
+                if seg_len < 8 {
+                    return None;
+                }
+                let height = ((bytes[i + 3] as u32) << 8) | bytes[i + 4] as u32;
+                let width = ((bytes[i + 5] as u32) << 8) | bytes[i + 6] as u32;
+                let components = bytes[i + 7];
+                if width == 0 || height == 0 {
+                    return None;
+                }
+                return Some(JpegImage {
+                    bytes,
+                    width_px: width,
+                    height_px: height,
+                    gray: components == 1,
+                });
+            }
+            if marker == 0xDA {
+                return None; // Début du scan entropique sans SOF rencontré.
+            }
+            i += seg_len;
+        }
+        None
+    }
+}
+
+fn jpeg_xobject(img: &JpegImage) -> Vec<u8> {
+    let colorspace = if img.gray {
+        "/DeviceGray"
+    } else {
+        "/DeviceRGB"
+    };
+    let mut obj = format!(
+        "<< /Type /XObject /Subtype /Image /Width {} /Height {} /ColorSpace {} \
+         /BitsPerComponent 8 /Filter /DCTDecode /Length {} >>\nstream\n",
+        img.width_px,
+        img.height_px,
+        colorspace,
+        img.bytes.len()
+    )
+    .into_bytes();
+    obj.extend_from_slice(&img.bytes);
+    obj.extend_from_slice(b"\nendstream");
+    obj
+}
+
+/// Ajuste `img` dans une boîte `max_w` × `max_h` (points PDF) en conservant
+/// son ratio largeur/hauteur.
+fn fit_box(img: &JpegImage, max_w: f32, max_h: f32) -> (f32, f32) {
+    let scale = (max_w / img.width_px as f32).min(max_h / img.height_px as f32);
+    (img.width_px as f32 * scale, img.height_px as f32 * scale)
+}
+
+/// Construit les objets XObject `/Image`, le fragment `/XObject` à insérer
+/// dans le dictionnaire `/Resources` d'une page, et les opérateurs `cm ...
+/// Do` qui posent signature (à gauche) puis tampon (à droite) en bas de
+/// page. `first_obj_num` = numéro du premier objet PDF libre — les
+/// XObjects prennent les numéros suivants, dans l'ordre signature puis
+/// tampon. Retourne des valeurs vides si `signature` et `stamp` sont tous
+/// deux `None`.
+pub(crate) fn stamp_placement(
+    signature: Option<&JpegImage>,
+    stamp: Option<&JpegImage>,
+    first_obj_num: usize,
+) -> (Vec<Vec<u8>>, String, Vec<u8>) {
+    let mut objects = Vec::new();
+    let mut resources = String::new();
+    let mut ops = Vec::new();
+    let mut next_obj = first_obj_num;
+    let mut x = 320.0f32;
+    const Y: f32 = 95.0;
+    for (img, max_w, max_h, slot_width) in [
+        (signature, 120.0f32, 55.0f32, 140.0f32),
+        (stamp, 90.0f32, 90.0f32, 100.0f32),
+    ] {
+        let Some(img) = img else { continue };
+        let (w, h) = fit_box(img, max_w, max_h);
+        let name = format!("ImS{next_obj}");
+        objects.push(jpeg_xobject(img));
+        resources.push_str(&format!(" /{name} {next_obj} 0 R"));
+        ops.extend_from_slice(format!("q {w} 0 0 {h} {x} {Y} cm /{name} Do Q\n").as_bytes());
+        next_obj += 1;
+        x += slot_width;
+    }
+    (objects, resources, ops)
 }
 
 /// Convertit un caractère Unicode en octet WinAnsiEncoding (PDF, ~ Windows-1252).
@@ -267,5 +436,85 @@ mod tests {
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.contains("/Count 1"));
         assert!(text.contains("(Page 1/1) Tj"));
+    }
+
+    /// JPEG minimal (SOI + SOF0 + EOI, pas de données entropiques) —
+    /// suffisant pour `JpegImage::parse`, qui ne lit que les marqueurs.
+    fn fake_jpeg(width: u16, height: u16, components: u8) -> Vec<u8> {
+        let mut b = vec![0xFFu8, 0xD8]; // SOI
+        b.extend_from_slice(&[0xFF, 0xC0]); // SOF0
+        let seg_len = 2 + 1 + 2 + 2 + 1 + 3 * components as usize;
+        b.push((seg_len >> 8) as u8);
+        b.push((seg_len & 0xFF) as u8);
+        b.push(8); // precision
+        b.push((height >> 8) as u8);
+        b.push((height & 0xFF) as u8);
+        b.push((width >> 8) as u8);
+        b.push((width & 0xFF) as u8);
+        b.push(components);
+        for c in 0..components {
+            b.extend_from_slice(&[c + 1, 0x11, 0]);
+        }
+        b.extend_from_slice(&[0xFF, 0xD9]); // EOI
+        b
+    }
+
+    #[test]
+    fn jpeg_image_parse_reads_dimensions_and_colorspace() {
+        let rgb = JpegImage::parse(fake_jpeg(200, 100, 3)).unwrap();
+        assert_eq!((rgb.width_px, rgb.height_px, rgb.gray), (200, 100, false));
+
+        let gray = JpegImage::parse(fake_jpeg(50, 60, 1)).unwrap();
+        assert_eq!((gray.width_px, gray.height_px, gray.gray), (50, 60, true));
+    }
+
+    #[test]
+    fn jpeg_image_parse_rejects_non_jpeg() {
+        assert!(JpegImage::parse(b"not a jpeg".to_vec()).is_none());
+        assert!(JpegImage::parse(b"%PDF-1.4".to_vec()).is_none());
+        assert!(JpegImage::parse(vec![]).is_none());
+    }
+
+    #[test]
+    fn stamp_placement_is_empty_without_images() {
+        let (objects, resources, ops) = stamp_placement(None, None, 10);
+        assert!(objects.is_empty());
+        assert_eq!(resources, "");
+        assert!(ops.is_empty());
+    }
+
+    #[test]
+    fn build_text_pdf_with_stamps_embeds_xobjects_on_last_page_only() {
+        let header = vec!["Cabinet".to_string()];
+        let footer = vec!["Pied".to_string()];
+        let body: Vec<String> = (0..100).map(|i| format!("ligne {i}")).collect();
+        let signature = JpegImage::parse(fake_jpeg(300, 120, 3)).unwrap();
+        let stamp = JpegImage::parse(fake_jpeg(80, 80, 1)).unwrap();
+        let pdf =
+            build_text_pdf_with_stamps(&header, &body, &footer, Some(&signature), Some(&stamp));
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+        assert!(pdf.ends_with(b"%%EOF"));
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/Count 3"));
+        // Un seul dictionnaire /Resources référence des XObjects : la
+        // dernière page uniquement.
+        assert_eq!(text.matches("/XObject <<").count(), 1);
+        assert_eq!(text.matches("/Subtype /Image").count(), 2);
+        assert!(text.contains("/ColorSpace /DeviceRGB"));
+        assert!(text.contains("/ColorSpace /DeviceGray"));
+        assert!(text.contains("/Filter /DCTDecode"));
+    }
+
+    #[test]
+    fn build_text_pdf_without_stamps_is_unchanged() {
+        // Non-régression : `build_text_pdf` (sans signature/tampon) produit
+        // toujours le même contenu qu'avant #7148.
+        let header = vec!["Cabinet".to_string()];
+        let footer = vec!["Pied".to_string()];
+        let body = vec!["Une ligne.".to_string()];
+        let pdf = build_text_pdf(&header, &body, &footer);
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(!text.contains("/XObject"));
+        assert!(!text.contains("/Subtype /Image"));
     }
 }

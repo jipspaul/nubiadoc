@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::{
     auth::{AppError, PatientAccountClaims},
     billing_payments::{create_payment_intent, PaymentIntentBody, PaymentIntentResponse},
-    notify, AppState, JobDispatcher,
+    notify, pdf_text, signature_stamp, AppState, JobDispatcher,
 };
 
 /// Rôles cabinet notifiés à la signature d'un devis (#6262) : praticien +
@@ -305,7 +305,7 @@ pub async fn get_quote(
         "SELECT q.id, q.cabinet_id, q.patient_id, q.status, q.version, \
                 (q.total_amount * 100)::bigint AS amount_cents, \
                 q.currency, q.signed_at, q.created_at, q.updated_at, q.deposit_pct::double precision AS deposit_pct, \
-                q.document_id, \
+                q.document_id, q.practitioner_id, \
                 practitioner_display_name(q.practitioner_id) AS practitioner_name \
          FROM quote q \
          WHERE q.id = $1 AND q.deleted_at IS NULL",
@@ -377,6 +377,9 @@ pub async fn get_quote(
     let practitioner_name: Option<String> = quote_row
         .try_get("practitioner_name")
         .map_err(|_| AppError::Internal)?;
+    let practitioner_id: Option<Uuid> = quote_row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
     let mut document_id: Option<Uuid> = quote_row
         .try_get("document_id")
         .map_err(|_| AppError::Internal)?;
@@ -394,6 +397,7 @@ pub async fn get_quote(
             id,
             cabinet_id,
             patient_id,
+            practitioner_id,
             practitioner_name.as_deref().unwrap_or("Praticien"),
             created_at,
             amount_cents,
@@ -679,6 +683,7 @@ pub async fn sign_quote(
         id,
         cabinet_id,
         patient_id,
+        practitioner_id,
         &practitioner_name,
         created_at,
         amount_cents,
@@ -766,12 +771,50 @@ async fn generate_quote_document(
     quote_id: Uuid,
     cabinet_id: Uuid,
     patient_id: Uuid,
+    practitioner_id: Option<Uuid>,
     practitioner_name: &str,
     created_at: chrono::DateTime<chrono::Utc>,
     amount_cents: i64,
     currency: &str,
     uploaded_by: Uuid,
 ) -> Result<Uuid, AppError> {
+    // Signature/tampon du praticien (#7148) — best-effort : absents tant
+    // que non téléversés ou si le devis n'a pas de praticien assigné,
+    // jamais bloquant pour la génération du PDF.
+    let (signature_img, stamp_img) = match practitioner_id {
+        Some(pid) => {
+            let provider_row = sqlx::query(
+                "SELECT signature_image_id, stamp_image_id \
+                 FROM provider WHERE practitioner_id = $1 AND cabinet_id = $2",
+            )
+            .bind(pid)
+            .bind(cabinet_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+            match provider_row {
+                Some(row) => {
+                    let signature_image_id: Option<Uuid> = row
+                        .try_get("signature_image_id")
+                        .map_err(|_| AppError::Internal)?;
+                    let stamp_image_id: Option<Uuid> = row
+                        .try_get("stamp_image_id")
+                        .map_err(|_| AppError::Internal)?;
+                    signature_stamp::load_practitioner_stamps(
+                        tx,
+                        object_storage.as_ref(),
+                        cabinet_id,
+                        signature_image_id,
+                        stamp_image_id,
+                    )
+                    .await
+                }
+                None => (None, None),
+            }
+        }
+        None => (None, None),
+    };
+
     let patient_row = sqlx::query("SELECT first_name, last_name FROM patient WHERE id = $1")
         .bind(patient_id)
         .fetch_one(&mut **tx)
@@ -815,6 +858,8 @@ async fn generate_quote_document(
         amount_cents,
         currency,
         &items,
+        signature_img.as_ref(),
+        stamp_img.as_ref(),
     );
     let size_bytes = pdf_bytes.len() as i64;
     let storage_key = format!("devis/{}.pdf", quote_id);
@@ -851,6 +896,7 @@ async fn generate_quote_document(
 /// (#4626) : pas de dépendance externe (crate PDF), contenu réel et non nul
 /// suffisant pour un document ouvrable par n'importe quel lecteur (taille et
 /// hash réels).
+#[allow(clippy::too_many_arguments)]
 fn render_quote_pdf(
     quote_id: Uuid,
     patient_name: &str,
@@ -859,6 +905,8 @@ fn render_quote_pdf(
     total_amount_cents: i64,
     currency: &str,
     items: &[(String, i64)],
+    signature: Option<&pdf_text::JpegImage>,
+    stamp: Option<&pdf_text::JpegImage>,
 ) -> Vec<u8> {
     let mut lines: Vec<String> = vec![
         "Devis".to_string(),
@@ -894,12 +942,29 @@ fn render_quote_pdf(
     }
     content.extend_from_slice(b"ET");
 
-    let objects: Vec<Vec<u8>> = vec![
+    // Signature/tampon du praticien (#7148) — objets XObject numérotés à
+    // partir de 6 (les 5 objets ci-dessous occupent 1..=5) + opérateurs de
+    // placement, hors bloc texte.
+    let (stamp_objects, stamp_resources, stamp_ops) =
+        pdf_text::stamp_placement(signature, stamp, 6);
+    if !stamp_ops.is_empty() {
+        content.push(b'\n');
+        content.extend_from_slice(&stamp_ops);
+    }
+    let resources = if stamp_resources.is_empty() {
+        "<< /Font << /F1 5 0 R >> >>".to_string()
+    } else {
+        format!("<< /Font << /F1 5 0 R >> /XObject <<{stamp_resources} >> >>")
+    };
+
+    let mut objects: Vec<Vec<u8>> = vec![
         b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
-        b"<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> \
-         /MediaBox [0 0 595 842] /Contents 4 0 R >>"
-            .to_vec(),
+        format!(
+            "<< /Type /Page /Parent 2 0 R /Resources {resources} \
+             /MediaBox [0 0 595 842] /Contents 4 0 R >>"
+        )
+        .into_bytes(),
         {
             let mut obj = format!("<< /Length {} >>\nstream\n", content.len()).into_bytes();
             obj.extend_from_slice(&content);
@@ -909,6 +974,7 @@ fn render_quote_pdf(
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
             .to_vec(),
     ];
+    objects.extend(stamp_objects);
 
     let mut pdf: Vec<u8> = b"%PDF-1.4\n".to_vec();
     let mut offsets = Vec::with_capacity(objects.len());

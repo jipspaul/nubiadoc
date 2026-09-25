@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 
-use crate::{auth, medical_questionnaire, pharmacy, AppState};
+use crate::{auth, cabinet_provider_stamp, medical_questionnaire, pharmacy, AppState};
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
     router
@@ -54,6 +54,14 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/provider/listing",
             put(auth::put_cabinet_provider_listing),
+        )
+        .route(
+            "/v1/cabinet/provider/signature",
+            post(cabinet_provider_stamp::upload_provider_signature),
+        )
+        .route(
+            "/v1/cabinet/provider/stamp",
+            post(cabinet_provider_stamp::upload_provider_stamp),
         )
         .route(
             "/v1/cabinet/members",

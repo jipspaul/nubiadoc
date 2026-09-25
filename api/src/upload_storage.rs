@@ -43,6 +43,10 @@ pub const PREFIX_CABINET_DOCUMENT: &str = "dossier";
 /// Préfixe de clé des photos jointes à un ticket de maintenance
 /// (`POST /v1/cabinet/maintenance/photos`, #7167).
 pub const PREFIX_MAINTENANCE_PHOTO: &str = "maintenance";
+/// Préfixe de clé de la signature/du tampon du praticien
+/// (`POST /v1/cabinet/provider/signature`, `POST /v1/cabinet/provider/stamp`,
+/// #7148).
+pub const PREFIX_PROVIDER_STAMP: &str = "tampon-signature";
 
 /// Écrit `bytes` dans l'`ObjectStorage` sous une clé fraîche `<prefix>/<uuid>`
 /// et retourne cette clé. Échec d'écriture → `AppError::Internal` (journalisé,

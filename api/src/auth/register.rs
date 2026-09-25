@@ -95,6 +95,13 @@ pub struct RegisterBody {
     /// Token d'invitation envoyé par email lors de `POST /v1/cabinet/members`.
     /// Si présent, finalise le compte secrétariat invité au lieu de créer un compte patient.
     invitation_token: Option<String>,
+    /// Jeton d'un lien d'invitation par rôle (`POST /v1/cabinet/invite-links`,
+    /// #7148). Si présent (et `invitation_token` absent), crée un nouveau
+    /// compte pro rattaché au cabinet et au rôle du lien, au lieu d'un
+    /// compte patient. Prime sur `invite_link_token` si `invitation_token`
+    /// est également fourni (compte nominatif déjà créé, priorité au
+    /// parcours existant).
+    invite_link_token: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -236,6 +243,14 @@ pub async fn register(
 
     if let Some(ref invite_token) = body.invitation_token {
         return register_invited(state, invite_token, &body.password).await;
+    }
+
+    if let Some(ref invite_link_token) = body.invite_link_token {
+        let email = body.email.trim();
+        if email.is_empty() {
+            return Err(AppError::ValidationError);
+        }
+        return register_via_invite_link(state, invite_link_token, email, &body.password).await;
     }
 
     let creation = create_patient_account(
@@ -436,6 +451,165 @@ async fn register_invited(
             account_id: user_id,
             access_token,
             refresh_token: raw_refresh,
+        }),
+    ))
+}
+
+/// Finalise l'inscription via un lien d'invitation par rôle
+/// (`POST /v1/cabinet/invite-links`, #7148) : crée un NOUVEAU compte pro
+/// (`app_user` + `cabinet_membership`) rattaché au cabinet et au rôle
+/// portés par le lien — distinct de [`register_invited`] (token nominatif
+/// qui finalise un `app_user` déjà créé par `cabinet_secretariats::provision_staff`).
+///
+/// Jeton inexistant → [`AppError::InvitationInvalid`]. Révoqué, expiré ou
+/// quota d'utilisations atteint → [`AppError::LinkExpired`]. Email déjà pris
+/// → [`AppError::MemberAlreadyExists`] (contexte pro, pas de leurre
+/// anti-énumération ici — même choix que `provision_staff`).
+async fn register_via_invite_link(
+    state: AppState,
+    token: &str,
+    email: &str,
+    password: &str,
+) -> Result<(StatusCode, Json<RegisterResponse>), AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // RLS ouverte pour nubia_app sur cabinet_invite_link (migration 0299) :
+    // résolution par token sans contexte cabinet, le visiteur n'est pas
+    // encore authentifié (même doctrine que account_access_request, 0241).
+    let link_row = sqlx::query(
+        "SELECT id, cabinet_id, role, expires_at, max_uses, uses, revoked_at \
+         FROM cabinet_invite_link WHERE token = $1",
+    )
+    .bind(token)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::InvitationInvalid)?;
+
+    let link_id: Uuid = link_row.try_get("id").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = link_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+    let role: String = link_row.try_get("role").map_err(|_| AppError::Internal)?;
+    let expires_at: chrono::DateTime<chrono::Utc> = link_row
+        .try_get("expires_at")
+        .map_err(|_| AppError::Internal)?;
+    let max_uses: i32 = link_row
+        .try_get("max_uses")
+        .map_err(|_| AppError::Internal)?;
+    let uses: i32 = link_row.try_get("uses").map_err(|_| AppError::Internal)?;
+    let revoked_at: Option<chrono::DateTime<chrono::Utc>> = link_row
+        .try_get("revoked_at")
+        .map_err(|_| AppError::Internal)?;
+
+    if revoked_at.is_some() || expires_at <= chrono::Utc::now() || uses >= max_uses {
+        return Err(AppError::LinkExpired);
+    }
+
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|_| AppError::Internal)?
+        .to_string();
+
+    let user_id = Uuid::new_v4();
+    let insert_result = sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'pro')",
+    )
+    .bind(user_id)
+    .bind(email)
+    .bind(&password_hash)
+    .execute(&mut *tx)
+    .await;
+
+    if let Err(e) = insert_result {
+        return Err(if is_unique_violation(&e) {
+            AppError::MemberAlreadyExists
+        } else {
+            AppError::Internal
+        });
+    }
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
+         VALUES ($1, $2, $3, true)",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .bind(&role)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Incrémente `uses` de façon conditionnelle : deux inscriptions
+    // concurrentes sur un lien à 1 usage restant ne doivent pas toutes les
+    // deux réussir. 0 ligne mise à jour = quota atteint entre la lecture
+    // initiale et ici → le compte vient d'être créé pour rien côté
+    // transaction, mais celle-ci est abandonnée par le rollback implicite.
+    let consumed = sqlx::query(
+        "UPDATE cabinet_invite_link SET uses = uses + 1 \
+         WHERE id = $1 AND uses < max_uses RETURNING id",
+    )
+    .bind(link_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if consumed.is_none() {
+        return Err(AppError::LinkExpired);
+    }
+
+    let raw_refresh_token = Uuid::new_v4().to_string();
+    sqlx::query(
+        r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
+           VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
+    )
+    .bind(user_id)
+    .bind(&raw_refresh_token)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        + 900;
+    let claims = ProRegisterClaims {
+        sub: user_id,
+        kind: "pro".to_string(),
+        cabinet_id,
+        role,
+        secretariat_id: None,
+        exp,
+    };
+    let access_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+    )
+    .map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        user_id = %user_id,
+        cabinet_id = %cabinet_id,
+        "registered via cabinet invite link"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(RegisterResponse {
+            account_id: user_id,
+            access_token,
+            refresh_token: raw_refresh_token,
         }),
     ))
 }
