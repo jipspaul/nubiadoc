@@ -282,7 +282,8 @@ void main() {
     });
 
     test('sans filtre : les commandes terminales (retirée, refusée, '
-        'annulée) sont exclues — pas de facette pour les revoir ici', () {
+        'annulée) sont exclues — reste consultables via leur propre '
+        'facette (#7003)', () {
       final state = OrdersLoaded(orders: [
         orderAt('o1', PharmacyOrderStatus.received, DateTime(2026, 7, 1, 9)),
         orderAt('o2', PharmacyOrderStatus.pickedUp, DateTime(2026, 7, 1, 8)),
@@ -514,6 +515,67 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        '#7003 : une commande retirée est invisible sur « Toutes » mais '
+        'sa facette existe et déclenche bien son filtre', (tester) async {
+      final pickedUp = orderNamed(
+        'o1',
+        'Marc D.',
+        PharmacyOrderStatus.pickedUp,
+      );
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(OrdersLoaded(orders: [pickedUp]));
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(find.byKey(const Key('order_row_o1')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('orders_filter_pickedUp')));
+      verify(() => bloc.add(
+            const OrdersFilterChanged(PharmacyOrderStatus.pickedUp),
+          )).called(1);
+    });
+
+    testWidgets(
+        '#7003 : une fois la facette « Retirées » active, la commande est '
+        'listée et joignable par la recherche', (tester) async {
+      final pickedUp = orderNamed(
+        'o1',
+        'Marc D.',
+        PharmacyOrderStatus.pickedUp,
+      );
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(OrdersLoaded(
+        orders: [pickedUp],
+        filter: PharmacyOrderStatus.pickedUp,
+      ));
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(find.byKey(const Key('order_row_o1')), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('orders_search')), 'Marc');
+      await tester.pump();
+      expect(find.byKey(const Key('order_row_o1')), findsOneWidget);
+
+      await tester.enterText(
+          find.byKey(const Key('orders_search')), 'Introuvable');
+      await tester.pump();
+      expect(find.byKey(const Key('order_row_o1')), findsNothing);
     });
 
     testWidgets(
