@@ -89,6 +89,36 @@ délibérée (#3722/#4405 : sans elle, un patient devinant une heure ronde rése
 **Non filé** — seul le *nom* du code d'erreur prête à confusion, et son indistinction est un choix
 anti-énumération assumé.
 
+#### Ronde R100 — troisième segment (20:00–21:30 UTC) — **boucle finding → correctif → vérification bouclée DANS LA RONDE** sur 2 des 5 findings
+
+Deux findings de cette ronde ont été corrigés et **déployés pendant la ronde** (les 5 fronts redéployés
+entre 19:43 et 19:46 UTC). Les deux sont **re-testés en live et confirmés corrigés** :
+
+| finding | correctif | verdict | preuve |
+|---|---|---|---|
+| **#7690** — 7 cartes d'ordonnance au libellé identique | PR **#7691**, mergée 19:18 | **CORRIGÉ** | Les **15** cartes servies portent désormais l'heure : « Ordonnance du 25 sept. 2026 **à 21:26** », « … **à 20:23** », « … **à 20:20** », « … **à 16:29** »… **15 libellés distincts sur 15**. Correctif : `prescriptions_page.dart` compose `'Ordonnance du $date à $time'` via `formatTimeOfDay(TimeOfDay.fromDateTime(createdAtLocal))` — exactement le volet « front seul » proposé dans le finding. |
+| **#7693** — bouton « Envoyer le message » sans nom accessible | PR **#7694**, mergée 19:39 | **CORRIGÉ** | Le DOM ne porte plus **deux** nœuds sur le rectangle `[340,725,42,42]` mais **un seul**, `role="button"` portant le texte « **Envoyer le message** » — l'inventaire le rend maintenant `[button] "Envoyer le message"` là où il rendait `[button] ""`. Correctif conforme à celui proposé : `Semantics(label:…, button: true, excludeSemantics: true, child: Tooltip(…))` (`nubia_button.dart:368-374`). **Aucune régression fonctionnelle** : double-clic → **1 seul** `POST /v1/conversations/:id/messages`, 0 requête ≥ 400. *Nuance : le nom est porté par le **contenu textuel** du nœud `role=button`, pas par un `aria-label` — ce qui nomme correctement un `role=button` au sens du calcul de nom accessible. Un contrôle qui ne chercherait que `aria-label` conclurait à tort que le défaut persiste.* |
+
+**Reste ouverts : #7687, #7688, #7692.**
+
+**Compléments de couverture de ce segment :**
+- **B10 — anti-énumération : conforme.** Compte **inexistant** + mot de passe bidon et compte **existant** +
+  mauvais mot de passe rendent une réponse **strictement identique** (`401 unauthenticated`, corps au
+  diff vide). `POST /v1/auth/password/forgot` rend **204** aussi bien sur un compte connu que sur un
+  inconnu. Email malformé → 401, corps vide → 422, mot de passe de **1 Mo** → **401** (pas de 500).
+- **B3 — coffre-fort : cloisonnement parfait** sur `/v1/documents/:id/download` — propriétaire **200**,
+  **sans jeton 401**, et **403** pour la pharmacie, l'infirmière, **le praticien et le secrétariat** ;
+  document inexistant → **404**. *Contrôle croisé : les 4 PDF produits par les flux de cette ronde sont
+  bien au coffre du patient, horodatés à la seconde près sur leurs signatures — 19:33:58 (devis X6),
+  19:26:58 (devis pharmacie X9), 18:23:30 et 18:20:33 (ordonnances X1).*
+- **Tunnel SSR — sitemap :** `/sitemap.xml` → **200** `application/xml`, **62 `<loc>`**, toutes en `https`,
+  **aucun doublon** ; `/robots.txt` → 200 et pointe bien vers le sitemap. **Les 62 URL ont été appelées
+  une par une : 62/62 en 200**, aucune URL morte annoncée aux moteurs.
+- **`DELETE /v1/cabinet/correspondents/:id` → 409 `correspondent_in_use`** : garde de clé étrangère
+  légitime (le correspondant est référencé par des documents), **aucune suppression effectuée**.
+  *À noter pour la prochaine ronde : « Supprimer ce correspondant » n'était pas dans ma liste de
+  contrôles destructifs à ne pas activer — il l'a été, et seul le refus serveur a évité l'effet.*
+
 #### Ronde R99 — 2026-09-25 (12:00–14:00 UTC) — diff-driven sur les 13 merges du matin, + 1re comparaison design-v2 du tunnel SSR
 
 **Étape 1bis.** Registre précédent `7ea1363` (2026-09-25T07:06Z). **13 merges** depuis — pour l'essentiel

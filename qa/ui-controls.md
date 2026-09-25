@@ -121,6 +121,33 @@ sur `/agenda`, `/patients`, `/messages` **et** `/cabinet-payouts` — ce qui con
 **Total consolidé de la ronde : 851 contrôles inventoriés, 749 activés, 743 OK, 6 morts (tous #7692),
 0 cassé, 7 désactivés justifiés.**
 
+### Ronde R100 — troisième segment (20:00–21:30 UTC) — 9 écrans de plus, **+184 contrôles**
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| praticien | `/consultation` | 1280×800 | 35 | 30 | 30 | 0 | 0 | 0 | 2026-09-25T20:05Z |
+| praticien | `/stock` | 1280×800 | 21 | 20 | 20 | 0 | 0 | 0 | 2026-09-25T20:09Z |
+| praticien | `/tasks` | 1280×800 | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-25T20:11Z |
+| praticien | `/messages` | 1280×800 | 27 | 26 | 26 | 0 | 0 | 0 | 2026-09-25T20:15Z |
+| secretariat | `/conformite` | 1280×800 | 32 | 26 | 26 | 0 | 0 | 0 | 2026-09-25T20:03Z |
+| secretariat | `/tasks` | 1280×800 | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-25T20:06Z |
+| secretariat | `/liste-attente` | 1280×800 | 23 | 22 | 21 | **1** | 0 | 0 | 2026-09-25T20:10Z |
+| secretariat | `/correspondents` | 1280×800 | 26 | 25 | 23 | **1** | 1 | 0 | 2026-09-25T20:14Z |
+| **SOUS-TOTAL** | **8 écrans** | — | **174** | **159** | **156** | **2** | **1** | **0** | — |
+
+- Les **2 morts** sont, une fois de plus, l'en-tête « **Réglages du cabinet** » (**#7692**) — désormais
+  constaté sur **6** écrans du secrétariat.
+- Le **1 cassé** est `DELETE /v1/cabinet/correspondents/:id` → **409 `correspondent_in_use`** : garde de
+  clé étrangère légitime, aucune suppression effectuée. *Ce contrôle (« Supprimer ce correspondant »)
+  aurait dû figurer dans la liste des actions destructives non activées — à corriger à la ronde suivante.*
+- Les deux « cassés » de `/conformite` et `/tasks` sont le **sondage de rôle** `GET /v1/cabinet/audit-log`
+  → 403 (par conception, cf. `audit_log_access_cubit.dart:12-15`), requalifiés.
+- Le bouton « **Clôturer** » de `/conformite` répond correctement (`OK(labels+pixels)`) — contre-épreuve
+  UI du correctif **#7684**.
+
+**Total consolidé de la ronde R100 : 1 025 contrôles inventoriés, 908 activés, 899 OK, 8 morts (tous #7692),
+0 cassé réel, 7 désactivés justifiés.**
+
 ### Ronde R99 — 2026-09-25 (12:00–14:20 UTC) — 5/5 apps + tunnel SSR ; **69 écrans**, 1 515 contrôles inventoriés, 534 activés, 416 OK
 
 > **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire
