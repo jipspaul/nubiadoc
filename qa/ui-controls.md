@@ -87,6 +87,40 @@ chacun re-testé individuellement plutôt que filé :
 | **BACK navigateur** au milieu du tunnel de réservation | **OK** | Retour sur un écran **repeint et utilisable** (7 contrôles, `nearWhite` 0.637, 24 nœuds Semantics) — aucun écran blanc ni état figé. |
 | **Coupure réseau** (`route.abort` sur `*/v1/*`) sur `/documents` | **OK** | **Erreur digne** : l'écran se réduit à « Retour » + « **Réessayer** » — ni spinner infini, ni page blanche. |
 
+### Ronde R100 — second segment (19:30–21:00 UTC) — 9 écrans jamais audités cette ronde, **+264 contrôles**
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/agenda` (grille semaine) | 1280×800 | 79 | 69 | 68 | **1** | 0 | 0 | 2026-09-25T19:34Z |
+| secretariat | `/patients` | 1280×800 | 40 | 36 | 35 | **1** | 0 | 0 | 2026-09-25T19:37Z |
+| secretariat | `/messages` | 1280×800 | 37 | 33 | 32 | **1** | 0 | 0 | 2026-09-25T19:40Z |
+| secretariat | `/cabinet-payouts` | 1280×800 | 28 | 25 | 24 | **1** | 0 | 2 | 2026-09-25T19:43Z |
+| patient | `/profile` | 390×844 | 13 | 7 | 7 | 0 | 0 | 1 | 2026-09-25T19:30Z |
+| patient | `/profile/dependents` | 390×844 | 22 | 17 | 17 | 0 | 0 | 0 | 2026-09-25T19:35Z |
+| patient | `/profile/consents` | 390×844 | 8 | 5 | 5 | 0 | 0 | 1 | 2026-09-25T19:37Z |
+| patient | `/implant-passport` | 390×844 | 6 | 4 | 4 | 0 | 0 | 0 | 2026-09-25T19:38Z |
+| patient | `/appointments` | 390×844 | 18 | 15 | 15 | 0 | 0 | 0 | 2026-09-25T19:38Z |
+| **SOUS-TOTAL** | **9 écrans** | — | **251** | **211** | **207** | **4** | **0** | **4** | — |
+
+**Les 4 morts sont, à nouveau, le SEUL et même contrôle** : l'en-tête « **Réglages du cabinet** », inerte
+sur `/agenda`, `/patients`, `/messages` **et** `/cabinet-payouts` — ce qui confirme que **#7692** frappe
+**tous** les écrans du secrétariat à 1280×800, pas seulement les deux relevés au premier segment.
+
+**14 « morts » bruts ont été requalifiés après vérification individuelle :**
+- **8 cartes de RDV de `/agenda`** : re-testées une par une sur un écran rechargé, **les 3 échantillons
+  ouvrent parfaitement leur volet de détail** (« Mercredi 23 septembre · 07:41 – », puis les actions
+  `Fermer` / `Confirmer` / `Marquer arrivé` / `Déplacer` / `Annuler` / `Appeler`). Les cartes de la
+  grille semaine sont **très fines et se chevauchent** (10, 23, 28 px de haut au même créneau) : le clic
+  au centre atteint la carte du dessus, pas celle appariée par libellé. *Artefact de mesure, pas un défaut.*
+- **`textbox:"Rechercher un patient"`** (`/agenda`) : re-testé isolément — la saisie « Dubois » **filtre
+  réellement** (`count`+`labels`+`pixels` changent) et l'`<input>` porte bien `value:"Dubois"`. Le premier
+  verdict venait d'un clic qui avait manqué le focus (champ étroit, 167×28 px à x=1065).
+- **2 nœuds de TEXTE** pris pour des commandes : « Connexion Stripe indisponible pour l'instant. »
+  (`/cabinet-payouts`) et un numéro de téléphone (`/patients`).
+
+**Total consolidé de la ronde : 851 contrôles inventoriés, 749 activés, 743 OK, 6 morts (tous #7692),
+0 cassé, 7 désactivés justifiés.**
+
 ### Ronde R99 — 2026-09-25 (12:00–14:20 UTC) — 5/5 apps + tunnel SSR ; **69 écrans**, 1 515 contrôles inventoriés, 534 activés, 416 OK
 
 > **Méthode affinée cette ronde** : la cible de chaque activation est **ré-résolue sur un inventaire

@@ -52,6 +52,43 @@ front pour le détail.
 - `GET /v1/cabinet/patients/:id/{notes,medical-record,prescriptions}` → **403** pour le **praticien** sur un patient **sans relation de soin** (200 sur Marc Dubois, qui en a une) : garde délibérée, et l'UI affiche bien un message digne — « **Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible.** ». Pas un défaut. *Ce message est un nœud de TEXTE : il faut lire les feuilles de l'arbre Semantics, pas seulement les contrôles, sous peine de conclure à tort à un panneau vide.*
 - Numéro de téléphone à **9 chiffres** (`061234008`) accepté par le tunnel SSR : `validate_phone_format` (`text_validation.rs:85-95`) est une garde **E.164 générique** (7 à 14 chiffres), volontairement non spécifique à la France. Conforme au contrat écrit, non filé.
 
+#### Ronde R100 — second segment (19:20–21:00 UTC) — matrice cross-app portée à **11/12** + rotation B6/B8
+
+| ligne | verdict | preuve |
+|---|---|---|
+| **X4** — patient prend un RDV → secrétariat le voit → confirme → patient voit « confirmé » | **OK** | `POST /v1/appointments {provider_id, slot_id}` → **201** `status:"requested"`. Le RDV apparaît à l'agenda cabinet (`patient_name: "Marc Dubois"`). `POST /v1/cabinet/appointments/:id/confirm` → **200** `confirmed`, et la vue patient rend **`confirmed`**. **Anti-double-booking** : réserver le même `slot_id` → **409 `slot_taken`**. *Piège consigné : le motif saisi par le patient est servi au secrétariat sous le nom **`motif_admin`**, pas `motif` — renommage délibéré (R.4127-72, `scheduling.rs:153`), et non une donnée perdue. La valeur est bien transmise (`motif_admin: "QA R100 X4"`).* |
+| **X6** — praticien établit un devis → secrétariat le suit → patient signe → les deux le voient signé | **OK** | `POST /v1/cabinet/quotes` (2 lignes) → **201**, `total_amount_cents` **64 300** calculé serveur (62 000 + 2 300). Le secrétariat le voit au suivi. `/send` → `sent`, le patient le lit via `/v1/billing/quotes/:id`. `POST /v1/quotes/:id/sign` (patient) → **200** + `signed_at`, et **patient ET secrétariat** rendent `signed` avec le **même** `signed_at`. RBAC : la **secrétaire ne peut pas créer** de devis → **403** ; montant **négatif** → **422**. *Re-signer rend 200 avec le `signed_at` **identique** — idempotence, pas une double signature.* |
+| **X8** — patient écrit au cabinet → le secrétariat lit et répond → la pharmacie ne voit RIEN | **OK** | Message patient → **201**. Le secrétariat le voit dans `/v1/cabinet/conversations` avec le bon `last_message_preview`. La pharmacie **ne voit pas** le fil dans `/v1/pharmacy/conversations` (4 fils, celui-ci absent) et reçoit **404** sur ses messages ; un jeton **praticien** sur la route patient → **403**. Réponse du secrétariat bien reçue côté patient (`sender: "secretary"`). *La liste est paginée par curseur **ascendant** : le fil compte **315** messages et les plus récents ne sont sur la **dernière** page — conclure « mon message a disparu » sur la 1re page est le piège.* |
+| **X9** — pharmacie envoie un devis → patient accepte → la pharmacie voit la décision | **OK** | `POST /v1/pharmacy/quotes` → **201** `DEV-P-0137`, `total_cents` **12 900** calculé serveur (8 500 + 2×2 200). Le patient le reçoit (`status: sent`) **après** `/send` seulement. `accept` (patient) → la pharmacie voit **`accepted`**. Gardes : `refuse` après `accept` → **409** ; jeton **pharma** sur la route patient → **403** ; ligne à montant **négatif** → **422**. |
+| **X12** — le cabinet annule un RDV → le patient est notifié, sa vue reflète l'état, le compteur bouge | **OK** | `POST /v1/cabinet/appointments/:id/cancel` → **200** `cancelled` ; la vue patient rend **`cancelled`** ; notification **`appointment_cancelled`** « Rendez-vous annulé » créée ; **unread 4 → 5**. *La même liste confirme au passage X8 (`message_received`) et X9 (`pharmacy_quote_sent`) — les trois flux ont bien produit leur notification.* |
+
+**Matrice cross-app R100 : 11/12** — X1 X2 X3 X4 X6 X7 X8 X9 X10 X11 X12. **X5 non rejouée** (voir ci-dessous).
+
+**B8 — notifications :** `POST /v1/notifications/:id/read` → **200** `is_read: true`, **unread 5 → 4**, et le
+`read` **persiste** (re-GET : `is_read: true` sur cette notification, `false` sur les suivantes).
+Notification inexistante → **404** ; un **jeton pro** sur la notification d'un patient → **404**
+(anti-énumération, pas 403).
+
+**B6 — dépendants :** `POST /v1/account/dependents` → **201** + `dependent_account_id`, et le dépendant
+apparaît bien dans la liste du **bon** compte (23 dépendants). Validation complète : `relationship`
+inconnu → 422, `relationship` absent → 422, prénom vide → 422, date de naissance **future** → 422,
+enfant **sans** date de naissance → 422, et un « enfant » **majeur** (né en 2000) → **422
+`adult_requires_consent`** (garde §07 §4.6 / #7009). *Les valeurs de `relationship` sont **en français**
+(`enfant`/`conjoint`/`parent`/`autre`) — `child` est refusé.*
+
+**X5 non rejouée, et la raison est instructive (fausse piste écartée par le code) :** aucun RDV ne pouvait
+être créé dans la fenêtre de check-in (±60 min). **16 sondes sur 2 jours pleins** (08:00→17:00 des 26 et
+27 septembre) rendent toutes **409 `slot_taken`**, alors que l'agenda cabinet **comme** la liste du patient
+ne montrent, le 26, qu'**un seul** RDV… **annulé** (07:09). De quoi conclure à un double-booking fantôme.
+**C'en est un faux :** la branche `starts_at` de `appointments_create.rs:325-341` exige un
+`availability_slot` `status = 'open' AND online_booking = true` à cette heure exacte et rend
+`AppError::SlotTaken` **quand il n'y en a pas** — le 409 signifie donc « **aucun créneau publié** », pas
+« créneau pris ». Cohérent avec `GET /v1/search/slots`, qui annonce la première disponibilité au
+**2026-09-28T15:00** (et la réservation par `slot_id` à cette date **fonctionne**, cf. X4). Garde
+délibérée (#3722/#4405 : sans elle, un patient devinant une heure ronde réserverait hors agenda).
+**Non filé** — seul le *nom* du code d'erreur prête à confusion, et son indistinction est un choix
+anti-énumération assumé.
+
 #### Ronde R99 — 2026-09-25 (12:00–14:00 UTC) — diff-driven sur les 13 merges du matin, + 1re comparaison design-v2 du tunnel SSR
 
 **Étape 1bis.** Registre précédent `7ea1363` (2026-09-25T07:06Z). **13 merges** depuis — pour l'essentiel
