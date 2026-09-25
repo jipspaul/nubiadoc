@@ -49,6 +49,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required bool acceptCgu,
     required String cguVersion,
     String? inviteToken,
+    String? inviteLinkToken,
   }) async {
     try {
       final response = await _api.register(
@@ -57,6 +58,7 @@ class AuthRepositoryImpl implements AuthRepository {
         acceptCgu: acceptCgu,
         cguVersion: cguVersion,
         inviteToken: inviteToken,
+        inviteLinkToken: inviteLinkToken,
       );
       await _tokenStorage.saveTokens(
         access: response.tokens.accessToken,
@@ -69,6 +71,9 @@ class AuthRepositoryImpl implements AuthRepository {
     } on DioException catch (e) {
       // 400 + code=invitation_invalid sur un register avec invitation_token =
       // invitation inconnue ou expirée (voir AppError::InvitationInvalid côté API).
+      // Un register avec invite_link_token répond de la même façon pour un
+      // jeton inconnu, et 410 + code=link_expired pour un lien révoqué/expiré/
+      // épuisé (voir AppError::LinkExpired) — même écran « invitation invalide ».
       final statusCode = e.response?.statusCode;
       final apiCode = e.response?.data is Map
           ? (e.response!.data as Map)['code'] as String?
@@ -77,6 +82,12 @@ class AuthRepositoryImpl implements AuthRepository {
           inviteToken.isNotEmpty &&
           statusCode == 400 &&
           apiCode == 'invitation_invalid') {
+        return const Left(InvalidInviteFailure());
+      }
+      if (inviteLinkToken != null &&
+          inviteLinkToken.isNotEmpty &&
+          ((statusCode == 400 && apiCode == 'invitation_invalid') ||
+              (statusCode == 410 && apiCode == 'link_expired'))) {
         return const Left(InvalidInviteFailure());
       }
       return Left(_mapDioError(e));

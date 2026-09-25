@@ -194,6 +194,120 @@ void main() {
       );
       expect(btn.onPressed, isNotNull);
     });
+
+    testWidgets(
+        'soumission (invitation_token) : appelle registerWithInvitation, pas registerWithInviteLink',
+        (tester) async {
+      when(() => cubit.registerWithInvitation(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+            inviteToken: any(named: 'inviteToken'),
+            acceptCgu: any(named: 'acceptCgu'),
+          )).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        _wrap(
+          const OnboardingPage(invitationToken: 'tok-abc'),
+          cubit,
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const Key('onboarding_email_field')),
+        'sec@cabinet.fr',
+      );
+      await tester.enterText(
+        find.byKey(const Key('onboarding_password_field')),
+        'P@ssw0rd!',
+      );
+      await tester.tap(find.byKey(const Key('onboarding_cgu_checkbox')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('onboarding_submit_button')));
+
+      verify(() => cubit.registerWithInvitation(
+            email: 'sec@cabinet.fr',
+            password: 'P@ssw0rd!',
+            inviteToken: 'tok-abc',
+            acceptCgu: true,
+          )).called(1);
+      verifyNever(() => cubit.registerWithInviteLink(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+            inviteLinkToken: any(named: 'inviteLinkToken'),
+            acceptCgu: any(named: 'acceptCgu'),
+          ));
+    });
+  });
+
+  // #7628 : lien d'invitation par rôle (`invite_link_token`) — même
+  // formulaire que le token nominatif, mais route vers un endpoint back
+  // différent (`registerWithInviteLink`, nouveau compte pro).
+  group('OnboardingPage — invite_link_token présent', () {
+    late _MockProAuthCubit cubit;
+
+    setUp(() {
+      cubit = _MockProAuthCubit();
+      when(() => cubit.state).thenReturn(const AuthUnauthenticated());
+    });
+
+    testWidgets('affiche le formulaire (sans invitationToken)', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          const OnboardingPage(
+            invitationToken: null,
+            inviteLinkToken: 'link-tok-abc',
+          ),
+          cubit,
+        ),
+      );
+
+      expect(find.byKey(const Key('onboarding_email_field')), findsOneWidget);
+      expect(find.byKey(const Key('onboarding_submit_button')), findsOneWidget);
+    });
+
+    testWidgets(
+        'soumission : appelle registerWithInviteLink, pas registerWithInvitation',
+        (tester) async {
+      when(() => cubit.registerWithInviteLink(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+            inviteLinkToken: any(named: 'inviteLinkToken'),
+            acceptCgu: any(named: 'acceptCgu'),
+          )).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        _wrap(
+          const OnboardingPage(
+            invitationToken: null,
+            inviteLinkToken: 'link-tok-abc',
+          ),
+          cubit,
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const Key('onboarding_email_field')),
+        'nouveau@cabinet.fr',
+      );
+      await tester.enterText(
+        find.byKey(const Key('onboarding_password_field')),
+        'P@ssw0rd!',
+      );
+      await tester.tap(find.byKey(const Key('onboarding_cgu_checkbox')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('onboarding_submit_button')));
+
+      verify(() => cubit.registerWithInviteLink(
+            email: 'nouveau@cabinet.fr',
+            password: 'P@ssw0rd!',
+            inviteLinkToken: 'link-tok-abc',
+            acceptCgu: true,
+          )).called(1);
+      verifyNever(() => cubit.registerWithInvitation(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+            inviteToken: any(named: 'inviteToken'),
+            acceptCgu: any(named: 'acceptCgu'),
+          ));
+    });
   });
 
   group('ProviderStampCubit', () {

@@ -61,7 +61,7 @@ pub struct InviteLinkResponse {
     /// Jeton opaque, aussi consommable seul par
     /// `POST /v1/auth/register { invite_link_token }`.
     pub token: String,
-    /// URL complète copiable (`APP_BASE_URL` + route front d'inscription).
+    /// URL complète copiable (`SECRETARIAT_BASE_URL` + route front d'inscription).
     pub url: String,
     pub max_uses: i32,
     pub expires_at: String,
@@ -124,9 +124,17 @@ pub async fn create_invite_link(
     let expires_at: chrono::DateTime<chrono::Utc> =
         row.try_get("expires_at").map_err(|_| AppError::Internal)?;
 
-    let app_base_url =
-        std::env::var("APP_BASE_URL").unwrap_or_else(|_| "https://app.nubia.invalid".to_string());
-    let url = format!("{app_base_url}/register?invite_link_token={token}");
+    // #7628 : `APP_BASE_URL` (utilisé par `brevo_mailer.rs`) est la base de
+    // `app_patient` — jamais servie aux admins de cabinet qui génèrent ce
+    // lien. La destination réelle est l'app_secretariat (onboarding
+    // admin/secrétaire/praticien, cf. `InviteLinksBar`), dont la base de
+    // prod (`secretariat.doc.nubia-link.com`, cf. `infra/deploy/`) a sa
+    // propre variable. Route `/register` inexistante côté front : la seule
+    // route qui consomme un jeton d'inscription pro est `/onboard`
+    // (`app_router.dart`), déjà lue avec `invite_link_token`.
+    let secretariat_base_url = std::env::var("SECRETARIAT_BASE_URL")
+        .unwrap_or_else(|_| "https://secretariat.doc.nubia-link.com".to_string());
+    let url = format!("{secretariat_base_url}/onboard?invite_link_token={token}");
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,

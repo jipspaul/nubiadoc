@@ -10,9 +10,18 @@ import 'provider_stamp_cubit.dart';
 import 'widgets/provider_stamp_step.dart';
 
 class OnboardingPage extends StatefulWidget {
-  const OnboardingPage({super.key, required this.invitationToken});
+  const OnboardingPage({
+    super.key,
+    required this.invitationToken,
+    this.inviteLinkToken,
+  });
 
   final String? invitationToken;
+
+  /// Jeton d'un lien d'invitation par rôle (#7628,
+  /// `POST /v1/cabinet/invite-links`) — alternative à [invitationToken] :
+  /// crée un nouveau compte pro plutôt que de finaliser un compte existant.
+  final String? inviteLinkToken;
 
   @override
   State<OnboardingPage> createState() => _OnboardingPageState();
@@ -55,9 +64,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
         ),
       );
 
+  bool get _hasInvitationToken =>
+      widget.invitationToken != null && widget.invitationToken!.isNotEmpty;
+  bool get _hasInviteLinkToken =>
+      widget.inviteLinkToken != null && widget.inviteLinkToken!.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
-    if (widget.invitationToken == null || widget.invitationToken!.isEmpty) {
+    if (!_hasInvitationToken && !_hasInviteLinkToken) {
       return _invalidInviteScreen(context);
     }
 
@@ -155,11 +169,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   label: 'Finaliser mon compte',
                   isLoading: loading,
                   onPressed: (!loading && _canSubmit)
-                      ? () =>
-                          context.read<ProAuthCubit>().registerWithInvitation(
+                      ? () => _hasInvitationToken
+                          ? context.read<ProAuthCubit>().registerWithInvitation(
                                 email: _email.text.trim(),
                                 password: _password.text,
                                 inviteToken: widget.invitationToken!,
+                                acceptCgu: _cguAccepted,
+                              )
+                          : context.read<ProAuthCubit>().registerWithInviteLink(
+                                email: _email.text.trim(),
+                                password: _password.text,
+                                inviteLinkToken: widget.inviteLinkToken!,
                                 acceptCgu: _cguAccepted,
                               )
                       : null,

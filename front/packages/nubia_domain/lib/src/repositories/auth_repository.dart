@@ -14,6 +14,7 @@ abstract class AuthRepository {
     required bool acceptCgu,
     required String cguVersion,
     String? inviteToken,
+    String? inviteLinkToken,
   });
   Future<Either<Failure, String>> registerPro({
     required String email,

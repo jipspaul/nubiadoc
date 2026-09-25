@@ -24,6 +24,7 @@ class AuthApi {
     required bool acceptCgu,
     required String cguVersion,
     String? inviteToken,
+    String? inviteLinkToken,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/register',
@@ -33,6 +34,7 @@ class AuthApi {
         'accept_cgu': acceptCgu,
         'cgu_version': cguVersion,
         if (inviteToken != null) 'invitation_token': inviteToken,
+        if (inviteLinkToken != null) 'invite_link_token': inviteLinkToken,
       },
     );
     return AuthResponseDto.fromJson(response.data!);

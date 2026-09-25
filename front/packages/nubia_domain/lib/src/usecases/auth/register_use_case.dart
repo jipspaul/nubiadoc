@@ -13,6 +13,7 @@ class RegisterUseCase {
     required bool acceptCgu,
     required String cguVersion,
     String? inviteToken,
+    String? inviteLinkToken,
   }) {
     return _repository.register(
       email: email,
@@ -20,6 +21,7 @@ class RegisterUseCase {
       acceptCgu: acceptCgu,
       cguVersion: cguVersion,
       inviteToken: inviteToken,
+      inviteLinkToken: inviteLinkToken,
     );
   }
 }

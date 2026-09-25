@@ -130,8 +130,7 @@ void main() {
     blocTest<ProAuthCubit, AuthState>(
       'pas de token stocké : émet AuthUnauthenticated sans appeler /me',
       build: () {
-        when(() => mockStorage.getAccessToken())
-            .thenAnswer((_) async => null);
+        when(() => mockStorage.getAccessToken()).thenAnswer((_) async => null);
         return buildCubit();
       },
       act: (cubit) => cubit.restore(),
@@ -274,6 +273,70 @@ void main() {
           (s) => s.message,
           'message',
           "Erreur lors de l'inscription.",
+        ),
+      ],
+      verify: (_) {
+        verifyNever(() => mockDeviceReg.registerOnLogin(any()));
+      },
+    );
+  });
+
+  group('ProAuthCubit.registerWithInviteLink', () {
+    blocTest<ProAuthCubit, AuthState>(
+      'succès : émet AuthLoading puis AuthAuthenticated et appelle registerOnLogin',
+      build: () {
+        when(
+          () => mockRegister(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+            acceptCgu: any(named: 'acceptCgu'),
+            cguVersion: any(named: 'cguVersion'),
+            inviteLinkToken: any(named: 'inviteLinkToken'),
+          ),
+        ).thenAnswer((_) async => const Right(_account));
+        return buildCubit();
+      },
+      act: (cubit) => cubit.registerWithInviteLink(
+        email: 'alice@example.com',
+        password: 's3cr3t',
+        inviteLinkToken: 'link-tok-valid',
+        acceptCgu: true,
+      ),
+      expect: () => [
+        const AuthLoading(),
+        isA<AuthAuthenticated>(),
+      ],
+      verify: (_) {
+        verify(() => mockDeviceReg.registerOnLogin('secretariat')).called(1);
+      },
+    );
+
+    blocTest<ProAuthCubit, AuthState>(
+      'échec lien invalide/expiré : émet AuthLoading puis AuthUnauthenticated(invalidInvite)',
+      build: () {
+        when(
+          () => mockRegister(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+            acceptCgu: any(named: 'acceptCgu'),
+            cguVersion: any(named: 'cguVersion'),
+            inviteLinkToken: any(named: 'inviteLinkToken'),
+          ),
+        ).thenAnswer((_) async => const Left(InvalidInviteFailure()));
+        return buildCubit();
+      },
+      act: (cubit) => cubit.registerWithInviteLink(
+        email: 'alice@example.com',
+        password: 's3cr3t',
+        inviteLinkToken: 'link-tok-expired',
+        acceptCgu: true,
+      ),
+      expect: () => [
+        const AuthLoading(),
+        isA<AuthUnauthenticated>().having(
+          (s) => s.invalidInvite,
+          'invalidInvite',
+          true,
         ),
       ],
       verify: (_) {
