@@ -320,17 +320,25 @@ pub async fn create_appointment(
         // #4405 : même garde que la branche slot_id ci-dessus — sans elle,
         // un patient qui devine l'heure exacte d'un créneau interne (heures
         // rondes) le réserve sans même connaître son slot_id.
+        // #7695 : aucun availability_slot publié à cette heure (agenda vide)
+        // est distinct d'un chevauchement réel (provider_unavailability),
+        // comme patch_appointment (appointments_actions.rs:156-190) le fait
+        // déjà — sinon slot_taken affirme à tort qu'un créneau est déjà pris.
+        // Le filtre `status = 'open'` ne doit PAS être dans le WHERE : sinon un
+        // créneau déjà réservé entre-temps (double booking sur le même
+        // starts_at) ne matche plus aucune ligne et retombe à tort sur
+        // SlotUnavailable au lieu de SlotTaken.
         let slot_row = sqlx::query(
-            "SELECT id, ends_at FROM availability_slot \
-             WHERE cabinet_id = $1 AND practitioner_id = $2 AND starts_at = $3 \
-             AND deleted_at IS NULL AND status = 'open' AND online_booking = true \
-             AND NOT EXISTS ( \
+            "SELECT s.id, s.ends_at, s.status, EXISTS ( \
                  SELECT 1 FROM provider_unavailability pu \
                  JOIN provider prov ON prov.id = pu.provider_id \
                  WHERE prov.practitioner_id = $2 \
-                   AND pu.starts_at < availability_slot.ends_at \
-                   AND pu.ends_at > availability_slot.starts_at \
-             )",
+                   AND pu.starts_at < s.ends_at \
+                   AND pu.ends_at > s.starts_at \
+             ) AS unavailable \
+             FROM availability_slot s \
+             WHERE s.cabinet_id = $1 AND s.practitioner_id = $2 AND s.starts_at = $3 \
+             AND s.deleted_at IS NULL AND s.online_booking = true",
         )
         .bind(cabinet_id)
         .bind(practitioner_id)
@@ -338,7 +346,19 @@ pub async fn create_appointment(
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?
-        .ok_or(AppError::SlotTaken)?;
+        .ok_or(AppError::SlotUnavailable)?;
+
+        let status: String = slot_row.try_get("status").map_err(|_| AppError::Internal)?;
+        if status != "open" {
+            return Err(AppError::SlotTaken);
+        }
+
+        if slot_row
+            .try_get::<bool, _>("unavailable")
+            .map_err(|_| AppError::Internal)?
+        {
+            return Err(AppError::SlotTaken);
+        }
 
         let resolved_id: Uuid = slot_row.try_get("id").map_err(|_| AppError::Internal)?;
         let ea: chrono::DateTime<chrono::Utc> = slot_row
