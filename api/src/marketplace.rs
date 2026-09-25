@@ -394,6 +394,17 @@ fn available_time_clause(available: Option<&str>) -> &'static str {
 const UNAVAILABILITY_EXCLUSION_CLAUSE: &str =
     " AND NOT provider_unavailable_at(sl.provider_id, sl.starts_at, sl.ends_at)";
 
+/// Fragment SQL analogue à `UNAVAILABILITY_EXCLUSION_CLAUSE` mais pour les
+/// congés (`leave_request`, migration 0300) : `staff_leave.rs` affirme qu'un
+/// `status = 'approved'` EST l'indisponibilité du praticien, mais jusqu'ici
+/// aucune requête ne consultait la table (#7632) — un congé validé restait
+/// réservable en ligne chaque jour. Passe par `provider_on_leave_at`
+/// (migration 0301), même `SECURITY DEFINER`/`row_security = off` que
+/// `provider_unavailable_at` : ces routes publiques ne posent jamais le GUC
+/// `app.current_cabinet_id` qu'exige la policy RLS de `leave_request`.
+const LEAVE_EXCLUSION_CLAUSE: &str =
+    " AND NOT provider_on_leave_at(sl.provider_id, sl.starts_at, sl.ends_at)";
+
 /// Prédicat « créneau réservable » des listings publics (alias `sl`) : `open`,
 /// OU `held` dont le hold est expiré (#6992/#6840). Avant, `sl.status = 'open'`
 /// seul : un hold abandonné (tunnel fermé, retour arrière, hésitation > 10 min)
@@ -644,7 +655,7 @@ pub async fn search_slots(
              AND sl.deleted_at IS NULL \
              AND sl.online_booking = true \
              AND sl.starts_at > now() \
-             {UNAVAILABILITY_EXCLUSION_CLAUSE} \
+             {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE} \
              AND ($4::text IS NULL \
                   OR translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
                        LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
@@ -772,7 +783,7 @@ pub async fn search_slots(
                  AND sl.starts_at > now() \
                  AND ($2::date IS NULL OR sl.starts_at::date = $2) \
                  {available_clause} \
-                 {UNAVAILABILITY_EXCLUSION_CLAUSE} \
+                 {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE} \
              ORDER BY sl.starts_at ASC"
         );
         let slot_rows = sqlx::query(&slots_sql)
@@ -908,7 +919,7 @@ pub async fn search_providers(
               SELECT 1 FROM availability_slot sl \
               WHERE sl.provider_id = p.id AND {SLOT_BOOKABLE_CLAUSE} \
               AND sl.deleted_at IS NULL AND sl.online_booking = true{available_time} \
-              {UNAVAILABILITY_EXCLUSION_CLAUSE})"
+              {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE})"
         )
     };
 
@@ -965,7 +976,7 @@ pub async fn search_providers(
               WHERE sl.provider_id = p.id AND {SLOT_BOOKABLE_CLAUSE} \
               AND sl.deleted_at IS NULL AND sl.online_booking = true \
               AND sl.starts_at > now() \
-              {UNAVAILABILITY_EXCLUSION_CLAUSE}) AS next_slot_at, \
+              {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE}) AS next_slot_at, \
              (SELECT round(avg(rating)::numeric, 1)::double precision FROM review \
               WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
              ST_Y(p.geo::geometry) AS geo_lat, \

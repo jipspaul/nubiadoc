@@ -19,6 +19,7 @@ use axum::{
 };
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -131,6 +132,8 @@ fn shift_row_to_item(row: &sqlx::postgres::PgRow) -> Result<ShiftItem, AppError>
 
 /// `POST /v1/cabinet/staff/shifts` — planifie un créneau pour un membre de
 /// l'équipe. `ends_at <= starts_at` → 422. `user_id` hors cabinet → 404.
+/// Chevauche un `leave_request` `approved` du membre → 409 `staff_on_leave`
+/// (#7632).
 pub async fn create_shift(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -154,6 +157,37 @@ pub async fn create_shift(
         .map_err(|_| AppError::Internal)?;
 
     ensure_member(&mut tx, claims.cabinet_id, body.user_id).await?;
+
+    // #7632 : un `leave_request` `approved` du membre visé EST son
+    // indisponibilité (cf. `staff_leave.rs`), mais jusqu'ici jamais consultée
+    // — le secrétariat pouvait planifier un créneau en plein congé validé.
+    // Même distinction que `provider_unavailability`/`ProviderUnavailable`
+    // (scheduling.rs) : ce n'est pas un chevauchement de créneau
+    // (`staff_shift` peut être vide), donc un code dédié plutôt que
+    // `SlotTaken`, pour que le motif réel (congé validé) reste visible.
+    let overlapping_leave = sqlx::query(
+        "SELECT starts_at, ends_at, kind FROM leave_request \
+         WHERE user_id = $1 AND status = 'approved' \
+           AND starts_at < $2 AND ends_at > $3",
+    )
+    .bind(body.user_id)
+    .bind(ends_at)
+    .bind(starts_at)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if let Some(row) = overlapping_leave {
+        let leave_starts_at: DateTime<Utc> =
+            row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+        let leave_ends_at: DateTime<Utc> =
+            row.try_get("ends_at").map_err(|_| AppError::Internal)?;
+        let kind: String = row.try_get("kind").map_err(|_| AppError::Internal)?;
+        return Err(AppError::StaffOnLeave(json!({
+            "starts_at": leave_starts_at.to_rfc3339(),
+            "ends_at": leave_ends_at.to_rfc3339(),
+            "kind": kind,
+        })));
+    }
 
     let row = sqlx::query(
         "INSERT INTO staff_shift (cabinet_id, user_id, starts_at, ends_at, room) \

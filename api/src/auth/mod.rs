@@ -386,6 +386,13 @@ pub(crate) enum AppError {
     /// manquante à la soumission finale). `422`, le `String` porte le détail
     /// (clé de question fautive) pour que le client cible le champ en cause.
     QuestionnaireSchemaViolation(String),
+    /// `POST /v1/cabinet/staff/shifts` (#7632) : le créneau demandé chevauche
+    /// un `leave_request` `approved` du membre visé — même distinction que
+    /// `ProviderUnavailable` : ce n'est pas un chevauchement de créneau
+    /// (`staff_shift` peut être vide), le secrétariat doit voir le congé
+    /// validé plutôt qu'un motif générique. Le `Value` porte
+    /// `starts_at`/`ends_at`/`kind` du congé.
+    StaffOnLeave(serde_json::Value),
 }
 
 impl IntoResponse for AppError {
@@ -778,6 +785,11 @@ impl IntoResponse for AppError {
             AppError::QuestionnaireSchemaViolation(message) => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(json!({"code": "questionnaire_schema_violation", "message": message})),
+            )
+                .into_response(),
+            AppError::StaffOnLeave(leave) => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "staff_on_leave", "leave": leave})),
             )
                 .into_response(),
         }
