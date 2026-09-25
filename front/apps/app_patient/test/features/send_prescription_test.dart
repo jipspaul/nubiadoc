@@ -27,12 +27,17 @@ PatientPrescription prescription(String id,
       createdAt: DateTime(2026, 7, 1),
     );
 
-PharmacyOrder order() => PharmacyOrder(
-      id: 'o1',
+PharmacyOrder order({
+  String id = 'o1',
+  String prescriptionId = 'rx1',
+  PharmacyOrderStatus status = PharmacyOrderStatus.received,
+}) =>
+    PharmacyOrder(
+      id: id,
       pharmacyId: 'p1',
       pharmacyName: 'Pharmacie du Port',
-      prescriptionId: 'rx1',
-      status: PharmacyOrderStatus.received,
+      prescriptionId: prescriptionId,
+      status: status,
       createdAt: DateTime(2026, 7, 1),
       updatedAt: DateTime(2026, 7, 1),
     );
@@ -44,9 +49,13 @@ void main() {
 
   SendPrescriptionCubit buildCubit() => SendPrescriptionCubit(
         listPrescriptions: ListMyPrescriptionsUseCase(repo),
+        listPharmacyOrders: ListPatientPharmacyOrdersUseCase(repo),
         getMyPharmacy: GetMyPharmacyUseCase(repo),
         createOrder: CreatePharmacyOrderUseCase(repo),
       );
+
+  void stubNoOrders() =>
+      when(() => repo.listOrders()).thenAnswer((_) async => const Right([]));
 
   group('SendPrescriptionCubit', () {
     blocTest<SendPrescriptionCubit, SendPrescriptionState>(
@@ -63,6 +72,7 @@ void main() {
             ),
           ]),
         );
+        stubNoOrders();
         when(() => repo.getMyPharmacy())
             .thenAnswer((_) async => const Right(pharmacy));
         return buildCubit();
@@ -84,6 +94,7 @@ void main() {
         when(() => repo.listPrescriptions()).thenAnswer(
           (_) async => Right([prescription('rx1'), prescription('rx2')]),
         );
+        stubNoOrders();
         when(() => repo.getMyPharmacy())
             .thenAnswer((_) async => const Right(pharmacy));
         return buildCubit();
@@ -92,6 +103,48 @@ void main() {
       verify: (cubit) {
         final state = cubit.state as SendPrescriptionReady;
         expect(state.selectedPrescription?.id, 'rx2');
+      },
+    );
+
+    blocTest<SendPrescriptionCubit, SendPrescriptionState>(
+      'charge : exclut une ordonnance `sent` avec une commande active ou '
+      'déjà retirée, garde celle dont la commande est rejetée/annulée '
+      '(#7140)',
+      build: () {
+        when(() => repo.listPrescriptions()).thenAnswer(
+          (_) async => Right([
+            prescription('rx-active', status: PrescriptionStatus.sent),
+            prescription('rx-pickedup', status: PrescriptionStatus.sent),
+            prescription('rx-rejected', status: PrescriptionStatus.sent),
+          ]),
+        );
+        when(() => repo.listOrders()).thenAnswer(
+          (_) async => Right([
+            order(
+              id: 'o-active',
+              prescriptionId: 'rx-active',
+              status: PharmacyOrderStatus.preparing,
+            ),
+            order(
+              id: 'o-pickedup',
+              prescriptionId: 'rx-pickedup',
+              status: PharmacyOrderStatus.pickedUp,
+            ),
+            order(
+              id: 'o-rejected',
+              prescriptionId: 'rx-rejected',
+              status: PharmacyOrderStatus.rejected,
+            ),
+          ]),
+        );
+        when(() => repo.getMyPharmacy())
+            .thenAnswer((_) async => const Right(pharmacy));
+        return buildCubit();
+      },
+      act: (cubit) => cubit.load(),
+      verify: (cubit) {
+        final state = cubit.state as SendPrescriptionReady;
+        expect(state.prescriptions.map((p) => p.id), ['rx-rejected']);
       },
     );
 
@@ -119,13 +172,17 @@ void main() {
     );
 
     blocTest<SendPrescriptionCubit, SendPrescriptionState>(
-      'doublon actif (409) → SendPrescriptionError',
+      'doublon actif (409) → reste sur SendPrescriptionReady avec un '
+      'submitError, ne détruit pas la liste (#7140, comme #7119)',
       build: () {
         when(() => repo.createOrder(
                 prescriptionId: any(named: 'prescriptionId'),
                 pharmacyId: any(named: 'pharmacyId')))
             .thenAnswer((_) async => const Left(ServerFailure(
-                message: 'Commande déjà en cours.', statusCode: 409)));
+                message: 'Cette ordonnance a déjà été transmise à une '
+                    'pharmacie.',
+                statusCode: 409,
+                code: 'already_ordered')));
         return buildCubit();
       },
       seed: () => SendPrescriptionReady(
@@ -135,8 +192,15 @@ void main() {
       ),
       act: (cubit) => cubit.submit(),
       expect: () => [
-        isA<SendPrescriptionReady>(),
-        isA<SendPrescriptionError>(),
+        isA<SendPrescriptionReady>()
+            .having((s) => s.submitting, 'submitting', isTrue),
+        isA<SendPrescriptionReady>()
+            .having((s) => s.submitting, 'submitting', isFalse)
+            .having((s) => s.submitError, 'submitError',
+                'Cette ordonnance a déjà été transmise à une pharmacie.')
+            .having((s) => s.prescriptions.map((p) => p.id), 'prescriptions',
+                ['rx1'])
+            .having((s) => s.pharmacy, 'pharmacy', pharmacy),
       ],
     );
 

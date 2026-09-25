@@ -34,22 +34,32 @@ class SendPrescriptionBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Envoyer une ordonnance')),
-      body: BlocBuilder<SendPrescriptionCubit, SendPrescriptionState>(
-        builder: (context, state) {
-          switch (state) {
-            case SendPrescriptionLoading():
-              return const Center(child: CircularProgressIndicator());
-            case SendPrescriptionError(:final message):
-              return NubiaErrorWidget(
-                message: message,
-                onRetry: () => context.read<SendPrescriptionCubit>().load(),
-              );
-            case SendPrescriptionSuccess(:final order):
-              return _SuccessView(order: order);
-            case SendPrescriptionReady():
-              return _ReadyView(state: state);
-          }
+      body: BlocListener<SendPrescriptionCubit, SendPrescriptionState>(
+        listenWhen: (previous, current) =>
+            current is SendPrescriptionReady && current.submitError != null,
+        listener: (context, state) {
+          final message = (state as SendPrescriptionReady).submitError!;
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(message)));
+          context.read<SendPrescriptionCubit>().dismissSubmitError();
         },
+        child: BlocBuilder<SendPrescriptionCubit, SendPrescriptionState>(
+          builder: (context, state) {
+            switch (state) {
+              case SendPrescriptionLoading():
+                return const Center(child: CircularProgressIndicator());
+              case SendPrescriptionError(:final message):
+                return NubiaErrorWidget(
+                  message: message,
+                  onRetry: () => context.read<SendPrescriptionCubit>().load(),
+                );
+              case SendPrescriptionSuccess(:final order):
+                return _SuccessView(order: order);
+              case SendPrescriptionReady():
+                return _ReadyView(state: state);
+            }
+          },
+        ),
       ),
     );
   }

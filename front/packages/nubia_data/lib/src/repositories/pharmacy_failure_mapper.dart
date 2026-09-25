@@ -34,6 +34,18 @@ Future<Either<Failure, T>> guardPharmacyCall<T>(
             );
           }
         }
+        // `already_ordered` (#7140) : aucune commande n'a été créée, le
+        // message générique « état actuel de la commande » induit en erreur.
+        if (data is Map && data['code'] == 'already_ordered') {
+          return const Left(
+            ServerFailure(
+              message:
+                  'Cette ordonnance a déjà été transmise à une pharmacie.',
+              statusCode: 409,
+              code: 'already_ordered',
+            ),
+          );
+        }
         return const Left(
           ServerFailure(
             message: 'Action impossible dans l’état actuel de la commande.',
