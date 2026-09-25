@@ -142,6 +142,41 @@ class ProAuthCubit extends Cubit<AuthState> {
     }
   }
 
+  /// Finalise l'inscription via un lien d'invitation par rôle (#7628,
+  /// `POST /v1/cabinet/invite-links`) — distinct de [registerWithInvitation]
+  /// (token nominatif) : crée un nouveau compte pro, pas de compte
+  /// préexistant à finaliser.
+  Future<void> registerWithInviteLink({
+    required String email,
+    required String password,
+    required String inviteLinkToken,
+    required bool acceptCgu,
+    String cguVersion = '1.0',
+  }) async {
+    emit(const AuthLoading());
+    try {
+      final result = await _register(
+        email: email,
+        password: password,
+        acceptCgu: acceptCgu,
+        cguVersion: cguVersion,
+        inviteLinkToken: inviteLinkToken,
+      );
+      await result.fold(
+        (failure) async => emit(AuthUnauthenticated(
+          failure.message,
+          failure is InvalidInviteFailure,
+        )),
+        (_) async {
+          _deviceRegistration.registerOnLogin(_app);
+          emit(AuthAuthenticated(await _session()));
+        },
+      );
+    } catch (_) {
+      emit(const AuthUnauthenticated("Erreur lors de l'inscription."));
+    }
+  }
+
   Future<void> signOut() async {
     await _logout();
     emit(const AuthUnauthenticated());
@@ -164,9 +199,9 @@ class ProAuthCubit extends Cubit<AuthState> {
       final response = await _api.dio.get<Map<String, dynamic>>('/me');
       userId = response.data?['user_id'] as String? ?? userId;
       displayName = response.data?['display_name'] as String?;
-      final memberships = (response.data?['memberships'] as List<dynamic>? ??
-              const [])
-          .cast<Map<String, dynamic>>();
+      final memberships =
+          (response.data?['memberships'] as List<dynamic>? ?? const [])
+              .cast<Map<String, dynamic>>();
       final ownRoleMatches = memberships.where(
         (m) => proRoleFromString(m['role'] as String?) == ProConfig.role,
       );

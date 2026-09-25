@@ -26,6 +26,10 @@
 set -eu
 cd /opt/nubia
 PUBLIC_API_BASE="${PUBLIC_API_BASE:-http://192.168.1.100:3000}"
+# #7628 : base publique de l'app_secretariat (lien d'invitation par rôle,
+# `cabinet_invite_links.rs`) — même domaine que le vhost Caddy de
+# `infra/deploy/Caddyfile.snippet` (front secrétariat, port 8083).
+SECRETARIAT_BASE_URL="${SECRETARIAT_BASE_URL:-https://secretariat.doc.nubia-link.com}"
 
 # --- Garde-fou disque (incident 2026-07-30 -> 2026-08-02) --------------------
 # Le LXC fait 7,8 Go. Chaque déploiement empile de nouvelles couches podman :
@@ -146,6 +150,7 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
   -e SCW_SECRET_KEY="${SCW_SECRET_KEY:-}" \
   -e SCW_BUCKET="${SCW_BUCKET:-}" \
   -e PUBLIC_API_BASE="$PUBLIC_API_BASE" -e STORAGE_SIGNING_KEY=dev-only-not-for-prod \
+  -e SECRETARIAT_BASE_URL="$SECRETARIAT_BASE_URL" \
   -e KMS_MASTER_KEY="$KMS_MASTER_KEY" \
   localhost/nubia-api:latest >/dev/null
 # #5688 : avant ce -e, YOUSIGN_API_KEY n'était jamais transmise au conteneur

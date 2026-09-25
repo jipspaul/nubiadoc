@@ -156,6 +156,7 @@ class AppRouter {
           path: onboard,
           builder: (_, state) => OnboardingPage(
             invitationToken: state.uri.queryParameters['invitation_token'],
+            inviteLinkToken: state.uri.queryParameters['invite_link_token'],
           ),
         ),
         // Routes secondaires — pas des destinations de nav (absentes de
