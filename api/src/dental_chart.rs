@@ -83,17 +83,7 @@ fn validate_teeth(teeth: &Value) -> Result<(), AppError> {
     let map = teeth.as_object().ok_or(AppError::ValidationError)?;
 
     for (key, value) in map {
-        let is_valid_tooth_code = key.len() == 2 && key.chars().all(|c| c.is_ascii_digit()) && {
-            let quadrant = key.as_bytes()[0] - b'0';
-            let tooth = key.as_bytes()[1] - b'0';
-            match quadrant {
-                1..=4 => (1..=8).contains(&tooth),
-                5..=8 => (1..=5).contains(&tooth),
-                _ => false,
-            }
-        };
-
-        if !is_valid_tooth_code {
+        if !crate::text_validation::is_valid_tooth_code(key) {
             return Err(AppError::ValidationError);
         }
 

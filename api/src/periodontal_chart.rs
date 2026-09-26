@@ -51,16 +51,59 @@ pub struct PutPeriodontalChartBody {
     pub indices: Value,
 }
 
-/// `sites`/`indices` : objet libre (aucun référentiel unique ne s'impose
-/// pour les indices parodontaux, cf. migration 0179) — seule contrainte :
-/// un objet, pas un scalaire/tableau (même garde minimale que `dental_chart`
-/// avant validation stricte des clés, qui elle repose sur un référentiel
-/// ISO 3950 qui n'a pas d'équivalent ici).
-fn validate_object(value: &Value) -> Result<(), AppError> {
-    if !value.is_object() {
-        return Err(AppError::ValidationError);
+/// Profondeur de poche maximale plausible (mm) — au-delà, la dent est
+/// cliniquement mobile/indiquée pour extraction, pas sondée (#6983).
+const MAX_POCKET_DEPTH_MM: i64 = 15;
+
+/// Borne haute d'un indice clinique (plaque, saignement...) : ces indices
+/// sont exprimés en pourcentage, donc jamais négatifs ni au-delà de 100
+/// (#6983), même si aucun référentiel unique n'impose leur NOM (cf.
+/// migration 0179 — c'est `indices` qui reste à clé libre, pas sa valeur).
+const MAX_INDEX_VALUE: f64 = 100.0;
+
+/// Valide `sites` : les CLÉS sont des codes de dent ISO 3950, même
+/// référentiel que `dental_chart` (#6983 — avant ce correctif, `sites`
+/// n'était vérifié que comme "un objet JSON", laissant passer des codes de
+/// dent arbitraires). Chaque valeur est un objet site→profondeur de poche
+/// (mm) ; chaque profondeur doit être un entier dans `[0, MAX_POCKET_DEPTH_MM]`
+/// (une poche négative ou de plusieurs mètres n'a pas de sens physique).
+fn validate_sites(sites: &Value) -> Result<(), AppError> {
+    let map = sites.as_object().ok_or(AppError::ValidationError)?;
+
+    for (tooth_code, site_value) in map {
+        if !crate::text_validation::is_valid_tooth_code(tooth_code) {
+            return Err(AppError::ValidationError);
+        }
+
+        let site_map = site_value.as_object().ok_or(AppError::ValidationError)?;
+        for (site_key, depth) in site_map {
+            crate::text_validation::reject_nul_byte(site_key)?;
+            let depth = depth.as_i64().ok_or(AppError::ValidationError)?;
+            if !(0..=MAX_POCKET_DEPTH_MM).contains(&depth) {
+                return Err(AppError::ValidationError);
+            }
+        }
     }
-    crate::text_validation::reject_nul_byte_in_json(value)?;
+
+    Ok(())
+}
+
+/// Valide `indices` : objet nom→valeur numérique — le NOM reste libre
+/// (aucun référentiel unique ne s'impose pour les indices parodontaux, cf.
+/// migration 0179) mais la VALEUR doit être un nombre plausible pour un
+/// pourcentage clinique, `[0, MAX_INDEX_VALUE]` (#6983 : avant ce correctif,
+/// n'importe quelle valeur — chaîne, négative, ou 99999 — était persistée).
+fn validate_indices(indices: &Value) -> Result<(), AppError> {
+    let map = indices.as_object().ok_or(AppError::ValidationError)?;
+
+    for (key, value) in map {
+        crate::text_validation::reject_nul_byte(key)?;
+        let n = value.as_f64().ok_or(AppError::ValidationError)?;
+        if !(0.0..=MAX_INDEX_VALUE).contains(&n) {
+            return Err(AppError::ValidationError);
+        }
+    }
+
     Ok(())
 }
 
@@ -181,7 +224,9 @@ pub async fn get_periodontal_chart(
 ///
 /// Praticien uniquement (R.4127-72) — secrétaire → 403.
 /// Patient inexistant ou hors tenant → 404.
-/// `sites`/`indices` doivent être des objets JSON → 422 sinon.
+/// `sites` : clés = codes de dent ISO 3950, valeurs = profondeurs de poche
+/// (mm) dans `[0, 15]`. `indices` : valeurs dans `[0, 100]` (#6983). Sinon
+/// → 422.
 /// Réponse : `200` avec le bilan créé.
 pub async fn put_periodontal_chart(
     State(state): State<AppState>,
@@ -189,8 +234,8 @@ pub async fn put_periodontal_chart(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<PutPeriodontalChartBody>,
 ) -> Result<Json<PeriodontalChartResponse>, AppError> {
-    validate_object(&body.sites)?;
-    validate_object(&body.indices)?;
+    validate_sites(&body.sites)?;
+    validate_indices(&body.indices)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
