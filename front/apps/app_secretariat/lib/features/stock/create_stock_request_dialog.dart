@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -24,17 +25,21 @@ Future<CreateStockRequestResult?> showCreateStockRequestDialog(
 ) {
   return showGeneralDialog<CreateStockRequestResult>(
     context: context,
+    barrierDismissible: true,
     barrierLabel: 'Nouvelle demande de stock',
     barrierColor: Colors.black.withValues(alpha: 0.45),
     transitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (context, animation, secondaryAnimation) {
-      return const Align(
+      return Align(
         alignment: Alignment.centerRight,
-        child: Material(
-          child: SizedBox(
-            width: _panelWidth,
-            height: double.infinity,
-            child: CreateStockRequestDialog(),
+        child: Semantics(
+          role: SemanticsRole.dialog,
+          child: const Material(
+            child: SizedBox(
+              width: _panelWidth,
+              height: double.infinity,
+              child: CreateStockRequestDialog(),
+            ),
           ),
         ),
       );

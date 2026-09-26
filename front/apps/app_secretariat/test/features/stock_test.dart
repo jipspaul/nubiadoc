@@ -216,6 +216,23 @@ void main() {
       expect(find.byType(CreateStockRequestDialog), findsOneWidget);
     });
 
+    // #7720 — le volet doit se fermer par Échap, comme le panneau de la
+    // cloche (même primitive showGeneralDialog).
+    testWidgets('le volet « Nouvelle demande » se ferme par Échap',
+        (tester) async {
+      when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('new_stock_request_fab')));
+      await tester.pumpAndSettle();
+      expect(find.byType(CreateStockRequestDialog), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(CreateStockRequestDialog), findsNothing);
+    });
+
     // #5187 — recherche par article / pharmacie.
     testWidgets('affiche le champ de recherche avec le placeholder exact',
         (tester) async {
