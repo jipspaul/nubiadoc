@@ -280,6 +280,48 @@ async fn create_appointment_motif_blank_label_returns_422() {
     cleanup_cabinet(&db, cabinet_id).await;
 }
 
+/// Non-régression #7748 : durée par défaut au-delà de la borne haute plausible → 422.
+#[tokio::test]
+async fn create_appointment_motif_duration_too_high_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let cabinet_id = insert_cabinet(&db, "duration-too-high").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/appointment-motifs")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), cabinet_id, "admin")
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({"label": "Consultation", "default_duration_minutes": i32::MAX})
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_cabinet(&db, cabinet_id).await;
+}
+
 /// PATCH + DELETE : cycle complet admin.
 #[tokio::test]
 async fn patch_then_delete_appointment_motif_as_admin() {
