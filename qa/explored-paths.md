@@ -3882,3 +3882,12 @@ corrigées, 1 (#7718) laisse une branche non couverte → #7732.**
 - `/v1/webhooks/stripe` : signature Stripe requise, hors périmètre sans clé de test.
 - `/v1/interop/fhir/*` au-delà de la garde d'authentification : nécessite un jeton partenaire
   `client_credentials`, absent des variables d'environnement.
+
+### Correctifs mergés PENDANT la ronde, re-testés sur le live avant clôture
+
+| issue | correctif | déployé ? | re-test |
+|---|---|---|---|
+| **#7732** (R102-1) | PR #7733 | **oui, 07:31Z** | `place=Zzzzville&radius_km=5` → **422** sur `/search/providers` **et** `/search/slots` ; 6 cas de non-régression repassés (`place` connu + radius → 200 n=2, `lat`+`lng` → 200, `radius_km` seul → 422, `sort=distance` seul → 422, `place` inconnu seul → repli 200 inchangé, sans filtre → 200 n=17). **Corrigé.** |
+| **#7734** (R102-2) | PR #7735 | **oui, 07:32Z** | `cancel` patient sur une visite `arrived` → **409 `invalid_status`** ; l'infirmière retrouve sa sortie (`done` → 200, `done_at` 07:32:31Z). Non-régression : `cancel` sur `requested/offered` → 200, sur `en_route` → 200. **Corrigé.** |
+| **#7737** (R102-4) | PR #7739 | **oui, 07:33Z** | détail d'un plan `draft` côté patient → **404** ; plan `in_progress` → 200 avec ses 5 phases et son `appointment_id` ; liste patient inchangée (16, sans draft) ; le praticien garde son brouillon (56 plans, `fd921996` inclus). **Corrigé.** |
+| #7706 (R101, fermée) | PR #7731 (`Scrollbar` sur le `ListView` du `ProShell`) | **pas encore à 07:43Z** | le rail secrétariat est toujours clippé à 1280×800 (« Congés » 238×**13**, « Réglages du cabinet » MORT, 34 ⇒ 34 contrôles) alors qu'il fonctionne à 1280×1000 (34 ⇒ 42, les 8 destinations de réglages révélées). Le bundle **est** postérieur à #7710 (« Absences » déployé), donc #7731 n'y est simplement pas encore. Mesure consignée en commentaire de #7706, **non re-filée** (fermée < 24 h, symptôme identique). |

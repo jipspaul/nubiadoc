@@ -4940,6 +4940,14 @@ re-test individuel **page rechargée**, avec **pixel-diff** ET relecture du code
 | infirmiere | `/` onglet Offres (390×844) | 11 | 2 | 2 | 0 | 0 | 2026-09-26T06:47:00Z |
 | infirmiere | `/` onglet Ma visite (390×844) | 8 | 3 ⁵ | 3 | 0 | 0 | 2026-09-26T06:48:00Z |
 | infirmiere | `/notification-preferences` (390×844) | 5 | 3 | 3 | 0 | 0 | 2026-09-26T06:45:00Z |
+| praticien | `/act-categories` (1280×800) | 2 | 2 | 2 ⁶ | 0 | 0 | 2026-09-26T07:39:00Z |
+| praticien | `/consent-templates` (1280×800) | 26 | 12 | 12 | 0 | 0 | 2026-09-26T07:40:00Z |
+| praticien | `/lab-stats` (1280×800) | 2 | 1 | 1 | 0 | 0 | 2026-09-26T07:41:00Z |
+| praticien | `/stock-inventory` (1280×800) | 37 | 7 | 7 | 0 | 0 | 2026-09-26T07:41:00Z |
+| pharmacie | `/orders/:id` Délivrance (1440×900) | 34 | — (comparaison design) | — | — | — | 2026-09-26T07:36:00Z |
+| patient | `/pharmacy/orders/:id` Suivi de commande (390×844) | 3 | — (comparaison design) | — | — | — | 2026-09-26T07:36:00Z |
+| secretariat | `/salle-attente` (1280×800) | 35 | — (parcours X5) | — | — | — | 2026-09-26T07:29:00Z |
+| praticien | `/waiting-room` (1280×800) | 26 | 1 | 1 | 0 | 0 | 2026-09-26T07:30:00Z |
 
 ¹ **« Réglages du cabinet » MORT sur `/` à 1280×800** (`diff` nul sur url/count/labels/pixels). C'est le
 symptôme exact de **#7706**, fermée le jour même (< 24 h) : **non re-filé**. Confirmation de sa cause :
@@ -4960,6 +4968,15 @@ En revanche « Mentionner » + « Envoyer » publie un message dont tout le corp
 ⁵ Les 3 transitions de visite (`Je pars` → `Je suis arrivé·e` → `Visite terminée`) pilotées **depuis
 l'UI**, toutes OK, 0 erreur console, 0 requête en échec. L'offre est acceptée depuis l'onglet Offres
 (bouton « Accepter », carte « Marc D. · 67,00 € · Prise de sang · Toilette · Lyon 69002 »).
+
+⁶ **Troisième faux « CASSÉ » du même type, et le plus instructif** : `/act-categories` est un réglage
+**réservé aux admins** (`ProAdminOrManagerClaims`, `cabinet_act_categories.rs:99`) et le bouton qui y
+mène est déjà masqué pour un praticien (`practicien_shell.dart:136` — `if (session.isAdmin)`, #7185).
+Atteint par URL directe avec un jeton `practitioner`, l'écran rend **exactement ce qu'il faut** :
+« **Accès refusé. Rôle administrateur requis.** » + flèche de retour (capture
+`R102_praticien__act_categories_1280x800.png`). Le 403 en console est la conséquence attendue, pas un
+défaut. *Seule réserve, non rapportée : le bouton « Réessayer » relance un appel qui ne peut pas
+aboutir tant que le rôle n'a pas changé.*
 
 **Cas adversariaux joués** (Étape 2f, app patient) :
 - **Texte très long** : 240 caractères dans « Prénom » → aucun débordement hors viewport, 9 contrôles
