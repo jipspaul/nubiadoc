@@ -72,6 +72,24 @@ pub struct TreatmentPlanItem {
     pub pending_quote_label: Option<String>,
     pub pending_quote_received_at: Option<String>,
     pub pending_quote_patient_share_cents: Option<i64>,
+    /// Praticien auteur du plan et date de proposition (#7740) — alimentent
+    /// le sous-titre « Dr <praticien> · proposé le <date> » de la carte de
+    /// liste (`PlanCard`, front déjà prêt depuis #5288 mais jamais alimenté).
+    /// `practitioner_name` est le nom SANS titre (`practitioner_person_name`,
+    /// migration 0304) — le front préfixe lui-même « Dr ». `proposed_at` =
+    /// `treatment_plan.created_at` : pas de colonne dédiée, la création du
+    /// plan par le praticien EST la proposition au patient.
+    pub practitioner_name: Option<String>,
+    pub proposed_at: String,
+    /// Rendez-vous programmé pour la phase courante de ce plan, s'il y en a
+    /// un — rangée « Prochaine séance … Voir » de la carte de liste (#7740,
+    /// note ⑤ de la maquette design-v2 : relier plans/RDV/devis). Même
+    /// source que `appointment_id`/`appointment_at` du détail (#7715) —
+    /// `treatment_session_act` (migration 0288) — mais restreinte à la seule
+    /// phase courante (celle que `current_phase_title` désigne), pas
+    /// n'importe quelle phase du plan.
+    pub next_appointment_id: Option<Uuid>,
+    pub next_appointment_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -126,7 +144,8 @@ pub async fn list_treatment_plans(
     };
 
     let sql = format!(
-        "SELECT tp.id, tp.cabinet_id, tp.title, tp.status, tp.created_at \
+        "SELECT tp.id, tp.cabinet_id, tp.title, tp.status, tp.created_at, \
+                practitioner_person_name(tp.practitioner_id) AS practitioner_name \
          FROM treatment_plan tp \
          WHERE tp.deleted_at IS NULL AND tp.status <> 'draft'\
          {cursor_clause} \
@@ -184,6 +203,9 @@ pub async fn list_treatment_plans(
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let practitioner_name: Option<String> = row
+            .try_get("practitioner_name")
+            .map_err(|_| AppError::Internal)?;
 
         last_created_at = Some(created_at);
         last_id = Some(id);
@@ -211,6 +233,9 @@ pub async fn list_treatment_plans(
                     (SELECT title FROM treatment_phase \
                      WHERE plan_id = $1 AND status <> 'done' \
                      ORDER BY position ASC, id ASC LIMIT 1) AS current_phase_title, \
+                    (SELECT id FROM treatment_phase \
+                     WHERE plan_id = $1 AND status <> 'done' \
+                     ORDER BY position ASC, id ASC LIMIT 1) AS current_phase_id, \
                     COALESCE( \
                         (SELECT rn FROM ( \
                             SELECT id, status, \
@@ -237,6 +262,46 @@ pub async fn list_treatment_plans(
         let current_step: i64 = phase_progress
             .try_get("current_step")
             .map_err(|_| AppError::Internal)?;
+        let current_phase_id: Option<Uuid> = phase_progress
+            .try_get("current_phase_id")
+            .map_err(|_| AppError::Internal)?;
+
+        // Prochaine séance programmée pour la phase courante (#7740, note ⑤
+        // de la maquette design-v2 : relier plans/RDV/devis) — même chemin
+        // que le détail (#5299/#7715) : `quote_item` de la phase ->
+        // `treatment_session_act` (migration 0288) -> `treatment_session` ->
+        // `appointment`. Restreint à la phase courante (pas tout le plan) :
+        // la carte de liste n'a qu'une seule rangée « Prochaine séance »,
+        // et c'est l'étape en cours que le patient doit relier à son RDV.
+        let next_appointment = match current_phase_id {
+            Some(phase_id) => sqlx::query(
+                "SELECT a.id AS appointment_id, a.starts_at \
+                 FROM quote_item qi \
+                 JOIN treatment_session_act tsa ON tsa.quote_item_id = qi.id \
+                 JOIN treatment_session ts ON ts.id = tsa.session_id \
+                 JOIN appointment a ON a.id = ts.appointment_id \
+                 WHERE qi.phase_id = $1 AND a.deleted_at IS NULL AND a.status <> 'cancelled' \
+                 ORDER BY a.starts_at ASC \
+                 LIMIT 1",
+            )
+            .bind(phase_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+            None => None,
+        };
+
+        let (next_appointment_id, next_appointment_at) = match next_appointment {
+            Some(row) => {
+                let appointment_id: Uuid = row
+                    .try_get("appointment_id")
+                    .map_err(|_| AppError::Internal)?;
+                let starts_at: chrono::DateTime<chrono::Utc> =
+                    row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+                (Some(appointment_id), Some(starts_at.to_rfc3339()))
+            }
+            None => (None, None),
+        };
 
         // Montant du plan (#6242) : la liste affichait « 0 € » sur 100 % des
         // plans faute d'exposer ce total, alors que le détail (get_treatment_plan
@@ -331,6 +396,10 @@ pub async fn list_treatment_plans(
             pending_quote_label,
             pending_quote_received_at,
             pending_quote_patient_share_cents,
+            practitioner_name,
+            proposed_at: created_at.to_rfc3339(),
+            next_appointment_id,
+            next_appointment_at,
         });
     }
 
