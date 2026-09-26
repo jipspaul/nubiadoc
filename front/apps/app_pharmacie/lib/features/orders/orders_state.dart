@@ -36,15 +36,38 @@ class OrdersLoaded extends OrdersState {
   /// commandes terminales (retirées/refusées/annulées, déjà soldées) —
   /// chacune reste consultable via sa propre facette (#7003 : sans ça, une
   /// commande delivrée devenait injoignable, aucune facette ni la recherche
-  /// ne la couvrant). Triée par réception croissante : la commande la plus
-  /// ancienne (donc la plus urgente) est toujours en tête, jamais enfouie
-  /// sous des lignes plus récentes.
+  /// ne la couvrant). Triée d'abord par ce qu'il reste à faire (reçue >
+  /// en préparation > prête), puis par réception croissante dans chaque
+  /// groupe : la commande la plus ancienne encore à préparer est toujours en
+  /// tête, jamais enfouie sous des commandes déjà prêtes (#7711).
   List<PharmacyOrder> get visible {
     final matching = filter == null
         ? orders.where((order) => !order.status.isTerminal)
         : orders.where((order) => order.status == filter);
     return matching.toList()
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      ..sort((a, b) {
+        final workOrder = _workPriority(a.status) - _workPriority(b.status);
+        if (workOrder != 0) return workOrder;
+        return a.createdAt.compareTo(b.createdAt);
+      });
+  }
+
+  /// Rang de priorité de travail d'un statut actif : plus petit = plus
+  /// urgent à traiter. Les commandes déjà prêtes (travail terminé, en
+  /// attente du patient) passent après celles encore à préparer.
+  static int _workPriority(PharmacyOrderStatus status) {
+    switch (status) {
+      case PharmacyOrderStatus.received:
+        return 0;
+      case PharmacyOrderStatus.preparing:
+        return 1;
+      case PharmacyOrderStatus.ready:
+        return 2;
+      case PharmacyOrderStatus.pickedUp:
+      case PharmacyOrderStatus.rejected:
+      case PharmacyOrderStatus.cancelled:
+        return 3;
+    }
   }
 
   // updatedAt est un horodatage d'affichage (indicateur de fraîcheur), pas
