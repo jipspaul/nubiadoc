@@ -705,13 +705,16 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('team_message_mention_button')));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       final field = tester.widget<TextField>(find.descendant(
         of: find.byKey(const Key('team_message_input')),
         matching: find.byType(TextField),
       ));
       expect(field.controller!.text, '@');
+      // #6995 : le focus doit revenir au composeur, pas rester sur le
+      // bouton, sinon la frappe suivante (le nom mentionné) est perdue.
+      expect(field.focusNode?.hasFocus, isTrue);
     });
 
     testWidgets(
