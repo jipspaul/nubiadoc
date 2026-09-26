@@ -108,7 +108,7 @@ class _DashboardPageState extends State<DashboardPage> {
               key: const Key('header_action_search'),
               icon: Icons.search,
               tooltip: 'Annuaire',
-              onPressed: () => context.push(AppRouter.appointments),
+              onPressed: () => context.go(AppRouter.appointments),
             ),
             BlocSelector<NotificationsBloc, NotificationsState, bool>(
               selector: (s) =>
@@ -118,7 +118,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 icon: Icons.notifications_outlined,
                 tooltip: 'Notifications',
                 showDot: hasUnread,
-                onPressed: () => context.push(AppRouter.notifications),
+                onPressed: () => context.go(AppRouter.notifications),
               ),
             ),
             const SizedBox(width: 4),
@@ -150,7 +150,7 @@ class _DashboardPageState extends State<DashboardPage> {
         floatingActionButton: _index == 1
             ? FloatingActionButton.extended(
                 key: const Key('mes_rdv_tab_book_fab'),
-                onPressed: () => context.push(AppRouter.appointments),
+                onPressed: () => context.go(AppRouter.appointments),
                 icon: const Icon(Icons.event_available_outlined),
                 label: const Text('Prendre un rendez-vous'),
               )

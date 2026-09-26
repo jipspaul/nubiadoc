@@ -193,7 +193,7 @@ class _ConversationsList extends StatelessWidget {
         timestamp: lastAt != null ? NubiaDate.relative(lastAt) : null,
         urgent: last?.urgency == MessageUrgency.urgent,
       ),
-      onTap: () => context.push(
+      onTap: () => context.go(
         '${AppRouter.messaging}/${conv.id}',
         extra: conv,
       ),
@@ -846,7 +846,7 @@ class _AttachmentCard extends StatelessWidget {
       key: Key('messaging_attachment_${attachment.documentId}'),
       borderRadius: BorderRadius.circular(10),
       onTap: () => context
-          .push('${AppRouter.documents}?id=${attachment.documentId}'),
+          .go('${AppRouter.documents}?id=${attachment.documentId}'),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(

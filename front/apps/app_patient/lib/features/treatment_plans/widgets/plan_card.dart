@@ -32,7 +32,7 @@ class PlanCard extends StatelessWidget {
       child: NubiaCard(
         key: Key('treatment_plan_${plan.id}'),
         state: NubiaCardState.interactive,
-        onTap: () => context.push('/treatment-plans/${plan.id}'),
+        onTap: () => context.go('/treatment-plans/${plan.id}'),
         padding: const EdgeInsets.all(12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -212,7 +212,7 @@ class _NextAppointmentRow extends StatelessWidget {
           GestureDetector(
             key: Key('treatment_plan_${plan.id}_next_appointment_cta'),
             onTap: () =>
-                context.push('${AppRouter.mesRdv}?id=${plan.nextAppointmentId}'),
+                context.go('${AppRouter.mesRdv}?id=${plan.nextAppointmentId}'),
             child: const Text(
               'Voir',
               style: TextStyle(

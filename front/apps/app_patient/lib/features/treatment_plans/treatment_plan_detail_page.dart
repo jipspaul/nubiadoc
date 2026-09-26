@@ -284,7 +284,7 @@ class _PhaseCard extends StatelessWidget {
               label: 'Consulter et signer le devis',
               icon: Icons.draw,
               onPressed: () => context
-                  .push('${AppRouter.financial}?id=${phase.pendingQuoteId}'),
+                  .go('${AppRouter.financial}?id=${phase.pendingQuoteId}'),
             ),
           ),
         ],
@@ -297,7 +297,7 @@ class _PhaseCard extends StatelessWidget {
             size: NubiaButtonSize.sm,
             icon: Icons.event,
             onPressed: () =>
-                context.push('${AppRouter.mesRdv}?id=${phase.appointmentId}'),
+                context.go('${AppRouter.mesRdv}?id=${phase.appointmentId}'),
           ),
         ],
       ],

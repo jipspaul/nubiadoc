@@ -6,6 +6,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'implant_detail_cubit.dart';
 import 'implant_passport_cubit.dart';
 
@@ -77,6 +78,7 @@ class ImplantDetailPage extends StatelessWidget {
       create: (_) => GetIt.instance<ImplantDetailCubit>(),
       child: Scaffold(
         appBar: AppBar(
+          leading: backOrHomeLeading(context),
           title: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

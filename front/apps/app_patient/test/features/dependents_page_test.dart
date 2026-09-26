@@ -216,7 +216,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('book_stub')), findsOneWidget);
 
-    router.pop();
+    router.go(AppRouter.profileDependents);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Documents'));

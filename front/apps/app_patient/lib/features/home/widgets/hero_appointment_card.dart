@@ -71,7 +71,7 @@ class _HeroAppointmentCta extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => context.push(AppRouter.appointments),
+          onTap: () => context.go(AppRouter.appointments),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Row(

@@ -71,21 +71,21 @@ class MyPharmacyBody extends StatelessWidget {
                     NubiaButton(
                       key: const Key('send_prescription_button'),
                       label: 'Envoyer une ordonnance',
-                      onPressed: () => context.push('/pharmacy/send'),
+                      onPressed: () => context.go('/pharmacy/send'),
                     ),
                     const SizedBox(height: 8),
                     NubiaButton(
                       key: const Key('my_orders_button'),
                       label: 'Suivre mes commandes',
                       variant: NubiaButtonVariant.secondary,
-                      onPressed: () => context.push('/pharmacy/orders'),
+                      onPressed: () => context.go('/pharmacy/orders'),
                     ),
                     const SizedBox(height: 8),
                     NubiaButton(
                       key: const Key('my_pharmacy_quotes_button'),
                       label: 'Mes devis pharmacie',
                       variant: NubiaButtonVariant.secondary,
-                      onPressed: () => context.push('/pharmacy/quotes'),
+                      onPressed: () => context.go('/pharmacy/quotes'),
                     ),
                     const SizedBox(height: 8),
                     NubiaButton(

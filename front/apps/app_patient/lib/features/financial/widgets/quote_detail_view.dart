@@ -281,7 +281,7 @@ class _Rac0AlternativeBanner extends StatelessWidget {
                   child: InkWell(
                     key: const Key('rac0_alternative_banner_cta'),
                     borderRadius: BorderRadius.circular(20),
-                    onTap: () => context.push(AppRouter.messaging),
+                    onTap: () => context.go(AppRouter.messaging),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
