@@ -212,9 +212,7 @@ async fn post_checkin_manual_happy_path_returns_200() {
                     ),
                 )
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&json!({})).unwrap(),
-                ))
+                .body(Body::from(serde_json::to_string(&json!({})).unwrap()))
                 .unwrap(),
         )
         .await
@@ -314,9 +312,7 @@ async fn post_checkin_notifies_practitioner() {
                     ),
                 )
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&json!({})).unwrap(),
-                ))
+                .body(Body::from(serde_json::to_string(&json!({})).unwrap()))
                 .unwrap(),
         )
         .await
@@ -426,9 +422,7 @@ async fn post_checkin_invalid_status_returns_409() {
                     ),
                 )
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&json!({})).unwrap(),
-                ))
+                .body(Body::from(serde_json::to_string(&json!({})).unwrap()))
                 .unwrap(),
         )
         .await
@@ -527,9 +521,7 @@ async fn post_checkin_too_late_returns_409() {
                     ),
                 )
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&json!({})).unwrap(),
-                ))
+                .body(Body::from(serde_json::to_string(&json!({})).unwrap()))
                 .unwrap(),
         )
         .await
@@ -624,9 +616,7 @@ async fn post_checkin_wrong_patient_returns_404() {
                     ),
                 )
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&json!({})).unwrap(),
-                ))
+                .body(Body::from(serde_json::to_string(&json!({})).unwrap()))
                 .unwrap(),
         )
         .await
