@@ -634,12 +634,23 @@ pub async fn quick_create_patient(
         return Err(AppError::ValidationError);
     }
 
-    let birth_date: Option<chrono::NaiveDate> = body
-        .birth_date
-        .as_deref()
-        .map(|s| s.parse::<chrono::NaiveDate>())
-        .transpose()
-        .map_err(|_| AppError::ValidationError)?;
+    let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
+        Some(s) => {
+            let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
+            let today = chrono::Utc::now().date_naive();
+            // Même borne que POST /v1/account/dependents et PATCH /v1/account (#6653,
+            // #6993) : une naissance dans le futur ou il y a plus de 120 ans est
+            // aussi impossible ici qu'ailleurs.
+            let min_birth_date = today
+                .checked_sub_months(chrono::Months::new(120 * 12))
+                .ok_or(AppError::ValidationError)?;
+            if d > today || d < min_birth_date {
+                return Err(AppError::ValidationError);
+            }
+            Some(d)
+        }
+        None => None,
+    };
 
     let phone = body
         .phone
