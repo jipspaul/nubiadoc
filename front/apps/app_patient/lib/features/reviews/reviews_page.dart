@@ -113,20 +113,24 @@ class _ReviewSubmitFormState extends State<_ReviewSubmitForm> {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(5, (i) {
-              final value = i + 1;
-              return IconButton(
-                key: Key('reviews_submit_star_$value'),
-                iconSize: 32,
-                icon: Icon(
-                  value <= _rating ? Icons.star : Icons.star_border,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                onPressed: () => setState(() => _rating = value),
-              );
-            }),
+          Semantics(
+            value: '$_rating sur 5',
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (i) {
+                final value = i + 1;
+                return IconButton(
+                  key: Key('reviews_submit_star_$value'),
+                  iconSize: 32,
+                  tooltip: '$value étoile${value > 1 ? 's' : ''}',
+                  icon: Icon(
+                    value <= _rating ? Icons.star : Icons.star_border,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  onPressed: () => setState(() => _rating = value),
+                );
+              }),
+            ),
           ),
           const SizedBox(height: 16),
           NubiaTextField(
