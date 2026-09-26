@@ -143,7 +143,7 @@ void main() {
     });
 
     testWidgets(
-        "l'en-tête X conversations · Y non lues reste basé sur la liste complète",
+        "l'en-tête X conversations · Y non lues suit le résultat de la recherche (#7000)",
         (tester) async {
       await pumpPage(tester, [
         _conversation('c1', 'Jean Dupont', unread: 2),
@@ -156,8 +156,33 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('2 conversations'), findsOneWidget);
-      expect(find.textContaining('1 non lue'), findsOneWidget);
+      expect(find.textContaining('1 conversation'), findsOneWidget);
+      expect(find.textContaining('0 non lues'), findsOneWidget);
+    });
+
+    testWidgets(
+        'recherche sans résultat → état vide explicite et compteurs à zéro (#7000)',
+        (tester) async {
+      await pumpPage(tester, [
+        _conversation('c1', 'Jean Dupont', unread: 2),
+        _conversation('c2', 'Marie Curie'),
+      ]);
+
+      await tester.enterText(
+        find.byKey(const Key('pharma_messaging_search')),
+        'zzzzzzzz',
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('conv_c1')), findsNothing);
+      expect(find.byKey(const Key('conv_c2')), findsNothing);
+      expect(
+        find.byKey(const Key('pharma_messaging_no_results')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Aucun résultat pour'), findsOneWidget);
+      expect(find.textContaining('0 conversations'), findsOneWidget);
+      expect(find.textContaining('0 non lues'), findsOneWidget);
     });
   });
 }
