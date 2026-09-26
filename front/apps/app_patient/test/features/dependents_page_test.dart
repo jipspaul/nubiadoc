@@ -745,9 +745,8 @@ void main() {
     expect(find.text('Ordonnances, devis, factures'), findsOneWidget);
     expect(find.byIcon(Icons.folder), findsOneWidget);
 
-    expect(find.text('Ses messages avec le cabinet'), findsNothing);
-    expect(find.byKey(const Key('proposed_scope_toggle_messages')),
-        findsNothing);
+    expect(find.text('Ses messages avec le cabinet'), findsOneWidget);
+    expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
 
     expect(
       tester
@@ -764,6 +763,14 @@ void main() {
           )
           .value,
       isTrue,
+    );
+    expect(
+      tester
+          .widget<NubiaToggle>(
+            find.byKey(const Key('proposed_scope_toggle_messages')),
+          )
+          .value,
+      isFalse,
     );
   });
 
