@@ -6,7 +6,7 @@ use axum::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
@@ -530,8 +530,7 @@ async fn treatment_plan_get_includes_phase_description() {
 
     let phases = v["phases"].as_array().expect("phases doit être un tableau");
     assert_eq!(
-        phases[0]["description"],
-        "Détartrage complet et soin d'une carie sur la dent 26.",
+        phases[0]["description"], "Détartrage complet et soin d'une carie sur la dent 26.",
         "la description de la phase doit être exposée (#7715)"
     );
 
