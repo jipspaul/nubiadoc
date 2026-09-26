@@ -144,34 +144,62 @@ class _MessagingMasterDetailState extends State<_MessagingMasterDetail> {
   @override
   Widget build(BuildContext context) {
     final conversations = widget.conversations;
-    final unreadConversations =
-        conversations.where((c) => c.unreadCount > 0).length;
-    final urgentConversations = conversations
-        .where((c) => c.triageFlag == MessageUrgency.urgent)
-        .length;
+    // Compteurs de facette calculés sur la recherche uniquement (#7000) :
+    // la barre de facettes doit refléter ce que chaque facette donnerait
+    // pour la recherche en cours, pas les totaux bruts du bloc.
     final searchFiltered = _filterConversations(conversations, _searchQuery);
     final filteredConversations = _filterByFacet(searchFiltered, _facet);
+    final searchUnreadCount =
+        searchFiltered.where((c) => c.unreadCount > 0).length;
+    final searchUrgentCount = searchFiltered
+        .where((c) => c.triageFlag == MessageUrgency.urgent)
+        .length;
+    final hasQuery = _searchQuery.trim().isNotEmpty;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide =
             constraints.maxWidth >= _MessagingMasterDetail._wideBreakpoint;
+        final Widget listBody;
+        if (filteredConversations.isEmpty) {
+          listBody = NubiaEmptyState(
+            key: const Key('pharma_messaging_no_results'),
+            icon: Icons.search_off,
+            title: hasQuery
+                ? 'Aucun résultat pour « ${_searchQuery.trim()} »'
+                : 'Aucune conversation dans ce filtre',
+            subtitle: hasQuery
+                ? 'Essayez un autre nom de patient ou numéro de commande.'
+                : 'Changez de filtre pour voir d’autres conversations.',
+            action: hasQuery
+                ? NubiaButton(
+                    label: 'Effacer la recherche',
+                    icon: Icons.close,
+                    variant: NubiaButtonVariant.secondary,
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  )
+                : null,
+          );
+        } else {
+          listBody = _ConversationsList(
+            conversations: filteredConversations,
+            selectedConversationId:
+                isWide ? widget.selectedConversationId : null,
+          );
+        }
         final list = Column(
           children: [
             _ConversationFacetBar(
               facet: _facet,
-              allCount: conversations.length,
-              unreadCount: unreadConversations,
-              urgentCount: urgentConversations,
+              allCount: searchFiltered.length,
+              unreadCount: searchUnreadCount,
+              urgentCount: searchUrgentCount,
               onChanged: (facet) => setState(() => _facet = facet),
             ),
-            Expanded(
-              child: _ConversationsList(
-                conversations: filteredConversations,
-                selectedConversationId:
-                    isWide ? widget.selectedConversationId : null,
-              ),
-            ),
+            Expanded(child: listBody),
           ],
         );
 
@@ -212,8 +240,10 @@ class _MessagingMasterDetailState extends State<_MessagingMasterDetail> {
           children: [
             if (isWide || widget.detail == null)
               _MessagingHeader(
-                conversationCount: conversations.length,
-                unreadCount: unreadConversations,
+                conversationCount: filteredConversations.length,
+                unreadCount: filteredConversations
+                    .where((c) => c.unreadCount > 0)
+                    .length,
                 searchController: _searchController,
                 onSearchChanged: (query) =>
                     setState(() => _searchQuery = query),
