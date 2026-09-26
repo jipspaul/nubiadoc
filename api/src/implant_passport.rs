@@ -519,6 +519,22 @@ pub async fn list_cabinet_implants(
     Ok(Json(CabinetImplantPassportResponse { data }))
 }
 
+/// Valide un code dent ISO 3950 (notation FDI) : `<quadrant><dent>`,
+/// quadrant 1-4 (dentition permanente, dents 1-8) ou 5-8 (temporaire, 1-5).
+/// Même règle que `dental_chart.rs::validate_teeth`/`treatment_phases.rs::is_valid_fdi_tooth`
+/// (#3680) — dupliquée ici faute de module de validation partagé.
+fn is_valid_fdi_tooth(code: &str) -> bool {
+    code.len() == 2 && code.chars().all(|c| c.is_ascii_digit()) && {
+        let quadrant = code.as_bytes()[0] - b'0';
+        let tooth = code.as_bytes()[1] - b'0';
+        match quadrant {
+            1..=4 => (1..=8).contains(&tooth),
+            5..=8 => (1..=5).contains(&tooth),
+            _ => false,
+        }
+    }
+}
+
 // ── POST /v1/cabinet/patients/:id/implants ────────────────────────────────
 
 /// Corps de `POST /v1/cabinet/patients/:id/implants`.
@@ -551,7 +567,8 @@ pub struct CreateImplantResponse {
 /// `prescriptions.rs::create_prescription`/`dental_chart.rs`) : praticien
 /// sans `appointment` avec ce patient dans ce cabinet → `403`. `brand`/
 /// `implant_ref` vides → `422`. `placement_date` dans le futur ou antérieure
-/// à 120 ans → `422` (#7743). Visible ensuite côté patient via
+/// à 120 ans → `422` (#7743). `tooth_position` hors numérotation ISO 3950,
+/// comme `dental-chart` → `422` (#6994). Visible ensuite côté patient via
 /// `GET /v1/implant-passport`.
 pub async fn create_implant(
     State(state): State<AppState>,
@@ -571,6 +588,9 @@ pub async fn create_implant(
     }
     if let Some(tooth) = &body.tooth_position {
         crate::text_validation::reject_nul_byte(tooth)?;
+        if !is_valid_fdi_tooth(tooth) {
+            return Err(AppError::ValidationError);
+        }
     }
     if let Some(notes) = &body.notes {
         crate::text_validation::reject_nul_byte(notes)?;
