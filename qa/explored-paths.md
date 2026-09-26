@@ -3820,3 +3820,65 @@ indiquer sous le bouton grisé quel champ manque — c'était le second volet de
 | **B4 — séance de consultation : actes et clôture** | 2026-09-26T01:32Z | **OK** | Ajout d'acte CCAM → **201**, relu dans la séance ; suppression → **204**, la séance repasse à 0 acte ; `complete` → **200** avec `invoice_id`. Après clôture, la séance est **verrouillée** (ajout d'acte → 409, 2ᵉ clôture → 409). |
 | **X12 — annulation cabinet → information du patient** | 2026-09-26T01:44Z | **OK** | `POST /cabinet/appointments/:id/cancel {reason}` (secrétariat) → **200 `cancelled`** ; le patient relit `status:"cancelled"` ; **le compteur de non-lues bouge (6 → 7)** et la notification est la bonne : `kind:"appointment_cancelled"`, `title:"Rendez-vous annulé"`, `data.appointment_id` = le RDV annulé, `deep_link:"/mes-rdv?id=…"`. Les liens profonds des 3 notifications les plus récentes pointent tous vers des **routes patient réelles** (`/mes-rdv`, `/pharmacy/orders/:id`, `/reviews?appointmentId=…`) — le défaut visé par #7705 ne se reproduit pas. |
 | **Re-vérification des correctifs mergés PENDANT la ronde** | 2026-09-26T01:45Z | **OK (2/3 déployés)** | **#7717 → corrigé et déployé** : `quote_ref` est désormais servi au patient, en liste **et** en détail (`GET /v1/billing/quotes` → `DEV-1836`, `DEV-1834`, `DEV-1800` ; `GET /v1/quotes/:id` → `quote_ref:"DEV-1834"`). **#7712 → corrigé et déployé** : la facette « **Annulées (22)** » est présente sur `/stock` pharmacie et répond au clic (25 → 18 contrôles) — les 5 statuts de l'enum sont désormais couverts (5 + 49 + 112 + 22 + 22 = 210 = le total API). **#7720 → mergé (PR #7721) mais pas encore en ligne** au moment du contrôle : sur le front servi, Échap et le voile laissent toujours le volet ouvert (58 → 10 contrôles, inchangés après les deux tentatives). *Décalage de déploiement du bundle Flutter, pas une régression — à revérifier à la ronde suivante.* |
+
+---
+
+## Ronde R102 — 2026-09-26 (06:00–09:xx UTC) — cross-rôle, 5/5 apps, **diff-driven**
+
+**Cadrage.** 9 PR mergées depuis le dernier commit de registre (`49e6797`, 01:45Z) : #7707 (pagination
+`/pharmacy/orders`), #7708 (bascule « Ses messages avec le cabinet »), #7709 (borne future d'indispo),
+#7710 (groupe « Absences » vs destination « Équipe »), #7711 (tri de la file officine), #7713 (`padLeft`
+des minutes), #7715 (`description`/`appointment_id`/`appointment_at` sur les phases), #7716 (`StatusPill`
+infirmière), #7718 (lat/lng annuaire). **Les 9 ont été re-testées en priorité ; 8 sont confirmées
+corrigées, 1 (#7718) laisse une branche non couverte → #7732.**
+
+### Scénarios et blocs couverts
+
+| scénario | last_check | last_status | brief |
+|---|---|---|---|
+| diff #7707 — pagination cursor `/pharmacy/orders` | 2026-09-26T06:26Z | OK | 258 commandes en 1 page à `limit=500` ; facettes UI = API à l'unité ; pied « 86 sur 86 ». `limit=0` et `limit=-1` sont bornés à 1 (clamp, non rapporté) |
+| diff #7708 — périmètre « messages » invitation adulte | 2026-09-26T06:08Z | OK | 3e bascule présente, par défaut off, nom accessible non vide ; `scope` en base = `[rendez_vous, documents, ordonnances, messages]` |
+| diff #7709 — borne future d'indisponibilité praticien | 2026-09-26T06:18Z | OK | an 9999 / +400 j / +367 j → 422 ; +360 j → 201 ; passé −400 j → 422 ; durée 400 j → 422 ; `ends_at` en 9999 → 422 |
+| diff #7710 — groupe « Absences » du rail secrétariat | 2026-09-26T06:32Z | OK | plus d'homonymie « Équipe » ; le clip du rail à 1280×800 reste (= #7706, fermée < 24 h) |
+| diff #7711 — tri de la file officine | 2026-09-26T06:26Z | OK | ordre rendu = ordre calculé depuis l'API sur les 5 premières lignes |
+| diff #7713 — « Attend N h MM » | 2026-09-26T06:26Z | OK (partiel) | format confirmé (« Attend 11 h 48 ») ; le rembourrage < 10 min n'est pas produisible sur le jeu courant |
+| diff #7715 — phases : description + rendez-vous | 2026-09-26T07:18Z | **bug** | détail conforme et CTA fonctionnel ; **la liste n'a reçu aucun des 4 champs → #7740**. Draft servi par le détail → #7737 |
+| diff #7716 — `StatusPill` de visite (infirmière) | 2026-09-26T06:48Z | OK | pastille teintée, variante par statut, vérifiée sur `en_route` |
+| diff #7718 — filtres géo de l'annuaire | 2026-09-26T06:12Z | **bug** | `lat`/`lng`, `lat` seul, `radius_km` seul, `sort=distance` : conformes. **`place` inconnu + `radius_km` → 200 et annuaire national entier → #7732** |
+| X1 → X2 → X3 — ordonnance praticien → patient → officine → retrait | 2026-09-26T06:33Z | OK | création 201 + RE-GET ; brouillon **invisible** du patient, signée **visible** ; `order` 201 puis 409 `already_ordered` ; accept/ready ; `pickup-token` (token + `short_code` + expiry) ; **scan avec `expected_order_id` d'une autre commande → 409 `pickup_order_mismatch`** (#6349 tient), rejeu → 409 `invalid_status` ; timeline patient `received_at`/`ready_at`/`picked_up_at` |
+| X4 / X5 / X12 — RDV, confirmation, file, annulation, notification | 2026-09-26T06:53Z | OK | double booking → 409 `slot_taken` ; check-in trop tôt → 409 `too_early` ; confirm → le patient voit « confirmed » ; annulation cabinet → notification `appointment_cancelled` reçue à la seconde + vue patient à jour |
+| X7 — stock cabinet → officine (**`fulfill` jamais couvert**) | 2026-09-26T06:40Z | OK | `fulfill` avant `accept` → 409 ; accept → fulfill → 200 ; 2e fulfill → 409 ; cancel cabinet après fulfill → 409 ; statut `fulfilled` vu des deux côtés |
+| X8 — messagerie patient ↔ cabinet ↔ officine (cloisonnement) | 2026-09-26T06:31Z | OK | officine f1 sur la conv de f2 → 404 ; sur une conv cabinet → 404 ; cabinet sur une conv pharmacie → 404 ; `read` croisé → 404 ; discriminant `type` + `pharmacy_id` présents |
+| X9 — devis officine (**`refuse` jamais couvert**) | 2026-09-26T06:42Z | OK | brouillon invisible du patient ; `send` → visible `sent` ; **`refuse` → 200** ; `accept` après refus → 409 ; l'officine voit `refused` |
+| X10 / X11 — soins à domicile bout en bout | 2026-09-26T06:48Z | **bug** | estimation = prix appliqué (4 500 c) ; hors ligne → aucune offre, et **re-fan-out à la remise en ligne** ; machine à états jouée **depuis l'UI** ; **annulation patient sur `arrived` → l'infirmière perd toute sortie → #7734** |
+| B1 — devis cabinet + paiements | 2026-09-26T07:12Z | OK | montant négatif / items vides → 422 ; brouillon → 404 côté patient ; `send` → visible ; signature idempotente ; `Idempotency-Key` requis, rejeu identique → même `payment_id`, corps différent → 409 `idempotency_key_conflict` ; montant > total, `kind`/`method` inconnus → 422 ; devis inexistant → 404 |
+| B3 — documents / coffre-fort + URL signée | 2026-09-26T06:38Z | OK | praticien, secrétariat, pharmacie, infirmière → **403** sur le document d'un patient ; URL signée : signature altérée → 403, `expires` repoussé → 403, chemin d'un autre document → 403, traversée `../` → 404, listing → 400 |
+| B4 — dossier médical / schéma dentaire / CR de consultation (**`cr` jamais couvert**) | 2026-09-26T06:30Z | OK | `medical-record` et `dental-chart` → **403 pour le secrétariat**, 200 praticien ; fiche admin sans aucun champ clinique ; CR : PUT → RE-GET persisté, `render?format=text|pdf` OK, format inconnu → 422, `finalize` → 200, PUT après finalize → 409, 2e finalize → 409, consultation inexistante → 404 ; CR lu par secrétariat **et** patient → 403 |
+| B5 — stock cabinet : emplacements + **transfert (jamais couvert)** | 2026-09-26T06:37Z | OK | transfert 3 u. → `{from:12,to:5}` ; quantité 0 / négative / source = cible → 422 ; > disponible → 422 `insufficient_stock` ; emplacement inexistant → 404 ; **total cabinet inchangé (17 = 17)** |
+| B6 — dépendants (CRUD complet) | 2026-09-26T07:00Z | OK | `relationship` manquant → 422 ; création 201 ; PATCH persisté ; DELETE 204 puis absent de la liste ; naissance 2090 → 422 ; `relationship` inconnue → 422 |
+| B7 — annuaire et filtres | 2026-09-26T06:58Z | OK | tous les filtres **réellement appliqués** (`sector=1` → 8/8 en secteur 1 ; `teleconsult=true` → 8/8 ; `accepts_new=true` → 17/17) ; `q`, `specialty`, `bbox`, `pmr`, `languages`, `tiers_payant` mordent ; `/providers/:id` + `/availability` + `/reviews`, `/specialties`, `/professions`, `/search/suggest` OK ; praticien inexistant → 404 |
+| B8 — notifications / rappels | 2026-09-26T07:02Z | OK | `read` puis re-`read` idempotents ; la notif sort des non-lues ; `read-all` → `{"updated":28}` et `page.unread_count` retombe à **0** ; `/reminders` OK |
+| B9 — avis + messagerie | 2026-09-26T07:14Z | OK | note 0 et 6 → 422 ; `Idempotency-Key` obligatoire (`400 missing_idempotency_key` sans) ; RDV non terminé → 404 ; commentaire 10 000 car. → 422 |
+| B10 — sécurité / auth | 2026-09-26T07:05Z | OK | anti-énumération : compte inexistant et mauvais mot de passe rendent le **même** 401 ; `forgot-password` rend 204 dans les deux cas ; JWT **forgé** (payload `pro/admin`) → 401 ; **`alg=none`** → 401 ; jeton patient sur `/cabinet/*` → 403 ; **rotation du refresh** : rejeu → 401, nouveau jeton → 200 ; JSON invalide → 400, corps vide → 422 ; rate-limit login → 429 observé |
+| B11 — onboarding pro / membres / RBAC | 2026-09-26T07:03Z | OK | secrétaire tentant d'inviter un membre → **403** ; `/pro/verification` → `status: verified` ; `/cabinet/members` avec jeton patient → 403 |
+| B12 — RDV cas limites | 2026-09-26T07:10Z | OK | reprogrammation par `starts_at` → 200 et relecture cohérente ; date passée et an 9999 → 409 `slot_unavailable` ; `starts_at` non parsable → 422 ; motif 5 000 car. → 422 ; `callback-request` idempotent ; no-show trop tôt → 409 ; 2e annulation → 409 |
+| B13 — cloisonnement de *kind* de jeton | 2026-09-26T06:22Z | OK | pro non scopé sur `/nurse/*` → 403 (mais `/nurse/memberships` → 200, attendu) ; nurse sur `/pharmacy/*` et `/cabinet/*` → 403 ; pharma sur `/nurse/*` et `/cabinet/*` → 403 ; patient sur les trois → 403 ; pro pharma non scopé sur `/pharmacy/orders` → 403 ; visite inexistante → 404 |
+| **pointeuse d'équipe** (`/cabinet/staff/time-clock/*`, jamais couvert) | 2026-09-26T06:19Z | OK | TOTP du cabinet (6 chiffres, TTL exposé) ; jeton patient → 403 ; clock-in par code → 201 `source:"mobile"` ; 2e clock-in sans sortie → 409 ; code bidon → 422 ; clock-out → 200 ; saisie manuelle : `user_id` hors cabinet → **404**, inexistant → 404, `clock_in` en 9999 / 1900 / +3 h → **422** |
+| **congés d'équipe** (`/cabinet/staff/leave-requests/:id/decide`, jamais couvert) | 2026-09-26T06:23Z | OK | `decide` par **secrétaire → 403**, par **praticien → 403**, par admin → 200 ; 2e `decide` → 409 ; `cancel` après `approve` → 200 (autorisé explicitement, `staff_leave.rs:282`) |
+| **FHIR interop** (`/v1/interop/fhir/*`, jamais couvert) | 2026-09-26T06:27Z | OK | `metadata` public (CapabilityStatement 4.0.1) ; `Practitioner`/`Slot`/`Patient`/`Appointment` **sans jeton → 401** ; avec un jeton applicatif patient / praticien / secrétariat → **401** (les `InteropClaims` n'acceptent que les jetons partenaires `client_credentials`) |
+| **étiquettes patient** (`/cabinet/patients/:id/tags`, jamais couvert) | 2026-09-26T07:24Z | OK (1 réserve) | création 201, relecture persistée, DELETE 204 puis 404 ; libellé vide et 5 000 car. → 422 ; jeton patient et pharma → **403**. *Réserve non filée (P3) : le même libellé peut être posé deux fois sur le même patient — ni contrainte d'unicité en base (`0158_create_patient_tag.sql`, seule `label_not_blank`) ni garde dans `patient_tags.rs:215` — deux puces identiques, indiscernables au retrait.* |
+| **compte rendu de consultation** (`/cabinet/consultations/:id/cr{,/finalize,/render}`, jamais couvert) | 2026-09-26T06:30Z | OK | voir B4 |
+| **tâches et conformité** (`/cabinet/tasks/:id/complete`, `/cabinet/compliance-items/:id/complete`) | 2026-09-26T06:36Z | OK | complete → 200 `done`, 2e → 409 `invalid_status` |
+| adversariaux UI (double-clic, BACK, texte long, saisie invalide, coupure réseau) | 2026-09-26T07:16Z | OK | détail dans `qa/ui-controls.md` — aucun comportement indigne |
+| double-submit concurrent (4 requêtes parallèles) | 2026-09-26T06:37Z | OK | signature d'ordonnance : 1×200 + 3×409 ; commande patient : 1×201 + 3×409 ; **une seule** commande créée. Les régressions #7012/#7015/#7016 restent corrigées |
+
+### Ce qui reste à couvrir (prochaine ronde)
+
+- `/v1/cabinet/imports/:id/{dry-run,run}` et `/v1/cabinet/lab-price-list/import` : `POST` seulement,
+  non exercés (imports destructifs sur le cabinet de démo — à faire sur un jeu dédié).
+- `/v1/cabinet/maintenance/photos` et `/tickets/:id/photos` : `POST` multipart, non exercés.
+- `/v1/cabinet/patients/merge-candidates/:id/dismiss` : `GET` parent → **403** pour secrétaire et
+  praticien ; nécessite un compte admin/manager valide (le jeton admin a expiré en cours de ronde).
+- `/v1/webhooks/stripe` : signature Stripe requise, hors périmètre sans clé de test.
+- `/v1/interop/fhir/*` au-delà de la garde d'authentification : nécessite un jeton partenaire
+  `client_credentials`, absent des variables d'environnement.

@@ -4894,3 +4894,83 @@ re-test individuel **page rechargée**, avec **pixel-diff** ET relecture du code
 ³ Les deux « Plus d'actions » jugés morts sont à **y=851 et y=1081**, c'est-à-dire **sous le pli de 844 px** : le clic tombait hors du viewport. Les deux cartes visibles (y=333, y=585) ouvrent bien leur menu contextuel (« Modifier · Ajouter au calendrier · Annuler »). **Artefact, pas un défaut.**
 
 **Confirmation #7690** : « Mes ordonnances » affiche désormais l'heure — « Ordonnance du 26 sept. 2026 **à 02:20** », « … du 25 sept. **à 21:26** » — les cartes sont distinguables. Le défaut jumeau subsiste en revanche sur « Mes devis » (→ **#7717**).
+
+---
+
+### Ronde R102 — 2026-09-26 (06:00–09:xx UTC) — **5/5 apps**, 19 écrans audités, **453 contrôles inventoriés, 292 activés**
+
+> **Méthode inchangée** (descente récursive des shadow roots, `flt-semantics` + `<input>` hors rôle,
+> `role=group` ignoré comme conteneur). **Deux pièges de mesure ajoutés à la liste cette ronde :**
+> 1. **Un 4xx déclenché par un clic n'est pas forcément un défaut.** Trois sondes légitimes ont produit
+>    de faux « CASSÉ » : `GET /v1/cabinet/audit-log` → 403 (sonde de rôle assumée, `audit_log_access_cubit.dart:20-32`,
+>    #3468/#4155), `GET /v1/quotes/:id/attestation` → 404 (« aucune attestation déposée », absorbé en
+>    `Right(null)` par `quote_attestation_repository_impl.dart:19-23`) et un 500 **transitoire** sur
+>    `/favicon.png` (revenu en 200 au contrôle immédiat, et 200 sur les 5 fronts). **Toujours ouvrir le
+>    repository avant de conclure.**
+> 2. **Un contrôle « INTROUVABLE » après défilement est un artefact du harnais, pas un bouton mort.**
+>    Vérifié individuellement : le FAB « Demander un congé » (praticien `/mes-conges`) est bien présent
+>    (`@1059,728 205x56`) et ouvre le dialogue « Nouvelle demande de congé » (Du / Au / Type / Annuler /
+>    Envoyer la demande grisé tant que les dates manquent). Re-test individuel obligatoire avant verdict.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| pharmacie | `/` File des commandes (1280×800) | 29 | 16 | 16 | 0 | 0 | 2026-09-26T06:26:00Z |
+| pharmacie | `/stock` (1280×800) | 21 | 15 | 15 | 0 | 0 | 2026-09-26T06:26:00Z |
+| pharmacie | `/devis` (1280×800) | 31 | 15 | 15 | 0 | 0 | 2026-09-26T06:26:00Z |
+| pharmacie | `/messages` (1280×800) | 15 | 12 | 12 | 0 | 0 | 2026-09-26T06:26:00Z |
+| secretariat | `/` Tableau de bord + rail (1280×800) | 32 | 26 | 25 | **1** ¹ | 0 | 2026-09-26T06:32:00Z |
+| secretariat | `/conges` (1280×800) | 26 | 23 | 23 | 0 | 0 | 2026-09-26T06:37:00Z |
+| secretariat | `/team-messages` (1280×800) | 35 | 19 | 17 | 0 | 0 ² | 2026-09-26T06:45:00Z |
+| secretariat | `/tasks` (1280×800) | 5 | 5 | 5 | 0 | 0 ³ | 2026-09-26T06:47:00Z |
+| secretariat | `/liste-attente` (1280×800) | 25 | 14 | 14 | 0 | 0 | 2026-09-26T06:48:00Z |
+| secretariat | `/agenda` (1280×800) | 73 | — (comparaison design) | — | — | — | 2026-09-26T07:21:00Z |
+| patient | `/profile/dependents` (390×844) | 35 | 3 | 3 | 0 | 0 | 2026-09-26T06:06:00Z |
+| patient | `/profile/dependents` → feuille « Ajouter un proche » (390×844) | 9 | 6 | 6 | 0 | 0 | 2026-09-26T06:07:00Z |
+| patient | feuille → régime **adulte** (bascules de périmètre) (390×844) | 12 | 6 | 6 | 0 | 0 | 2026-09-26T06:08:00Z |
+| patient | `/treatment-plans` (390×844) | 21 | 17 | 17 | 0 | 0 ³ | 2026-09-26T06:56:00Z |
+| patient | `/home-care` (390×844) | 44 | 38 | 38 | 0 | 0 ³ | 2026-09-26T06:58:00Z |
+| patient | `/prescriptions` (390×844) | 92 | 81 | 81 | 0 | 0 | 2026-09-26T07:01:00Z |
+| patient | `/oubliettes` (390×844) | 2 | 1 | 1 | 0 | 0 | 2026-09-26T07:02:00Z |
+| patient | `/treatment-plans/:id` (détail, 390×844) | 2 | 1 | 1 | 0 | 0 | 2026-09-26T07:18:00Z |
+| praticien | `/mes-conges` (1280×800) | 24 | 20 ⁴ | 20 | 0 | 0 | 2026-09-26T07:05:00Z |
+| praticien | `/tasks` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-09-26T07:06:00Z |
+| praticien | `/cabinet-brief` (1280×800) | 8 | 5 | 5 | 0 | 0 | 2026-09-26T07:07:00Z |
+| praticien | `/consultation?id=<séance en cours>` (1440×900 + 1920×1080) | 70 | — (comparaison design) | — | — | — | 2026-09-26T07:27:00Z |
+| infirmiere | `/` onglet Disponibilité (390×844) | 8 | 7 | 7 | 0 | 0 | 2026-09-26T06:44:00Z |
+| infirmiere | `/` onglet Offres (390×844) | 11 | 2 | 2 | 0 | 0 | 2026-09-26T06:47:00Z |
+| infirmiere | `/` onglet Ma visite (390×844) | 8 | 3 ⁵ | 3 | 0 | 0 | 2026-09-26T06:48:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 5 | 3 | 3 | 0 | 0 | 2026-09-26T06:45:00Z |
+
+¹ **« Réglages du cabinet » MORT sur `/` à 1280×800** (`diff` nul sur url/count/labels/pixels). C'est le
+symptôme exact de **#7706**, fermée le jour même (< 24 h) : **non re-filé**. Confirmation de sa cause :
+le même en-tête **répond** sur `/conges` et `/liste-attente`, où le harnais avait fait défiler le rail
+avant de cliquer — « le clic marche après défilement », mot pour mot ce que #7706 décrit. Le rail
+porte désormais 11 entrées visibles + 6 en-têtes de groupe (« Absences » remplace « Équipe », #7710),
+soit toujours plus que les 800 px du viewport.
+
+² Deux contrôles **DÉSACTIVÉS et légitimes, preuve faite** : « Joindre un patient, un devis… » et
+« Épingler » ont `onPressed: null` **avec un `Tooltip` qui dit pourquoi**
+(`cabinet_team_messages_page.dart:1160-1182`, #6702 : aucun endpoint API, grisés plutôt que retirés).
+En revanche « Mentionner » + « Envoyer » publie un message dont tout le corps est « @ » → **#7738**.
+
+³ Faux « CASSÉ » requalifiés après lecture du repository — voir l'encadré Méthode ci-dessus.
+
+⁴ Le harnais avait rendu « Demander un congé » INTROUVABLE (défilement) ; re-test individuel → **OK**.
+
+⁵ Les 3 transitions de visite (`Je pars` → `Je suis arrivé·e` → `Visite terminée`) pilotées **depuis
+l'UI**, toutes OK, 0 erreur console, 0 requête en échec. L'offre est acceptée depuis l'onglet Offres
+(bouton « Accepter », carte « Marc D. · 67,00 € · Prise de sang · Toilette · Lyon 69002 »).
+
+**Cas adversariaux joués** (Étape 2f, app patient) :
+- **Texte très long** : 240 caractères dans « Prénom » → aucun débordement hors viewport, 9 contrôles
+  stables, layout intact (`R102_adv_texte_long.png`).
+- **Saisie invalide** : e-mail `pas-un-email` → « Envoyer la demande » reste **grisé** (attendu).
+- **Double-clic rapide** sur « Tout marquer lu » (`/notifications`) → 0 requête ≥ 400, 0 erreur console.
+- **Coupure réseau** (`route.abort()` sur `*/v1/*`) sur `/mes-rdv` → écran d'erreur **digne** : icône,
+  « Pas de connexion Internet. », bouton « Réessayer », FAB conservé. Ni spinner infini ni canvas vide
+  (`R102_adv_reseau_coupe.png`). Rétablissement → écran repeuplé.
+- **BACK/FORWARD** : entre deux routes simples, correct sur patient (`/mes-rdv` ⇄ `/documents`) **et**
+  secrétariat (`/agenda` ⇄ `/patients`). Sur la **feuille modale** « Ajouter un proche », `history.length`
+  ne bouge pas (5 → 5) : BACK ne ferme pas la feuille, il navigue vers la route précédente et le
+  formulaire en cours est perdu ; FORWARD **restaure bien** `/profile/dependents`. État cohérent, aucune
+  corruption → **observation, pas un défaut rapporté**.
