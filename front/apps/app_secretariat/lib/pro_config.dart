@@ -82,8 +82,14 @@ class ProConfig {
   static const String billingGroup = 'Facturation';
   static const String messagesGroup = 'Messages';
 
-  /// Groupe « Équipe » (#7143/#7144) : planning/congés du cabinet.
-  static const String equipeGroup = 'Équipe';
+  /// Groupe « Absences » (#7143/#7144) : planning/congés du cabinet.
+  ///
+  /// #7710 — ne pas nommer ce groupe « Équipe » : la destination
+  /// « Équipe » (`/team-messages`, groupe [messagesGroup]) porte déjà ce
+  /// libellé, et un groupe rendu juste après elle produirait deux boutons
+  /// voisins au nom accessible identique, indiscernables au clic comme au
+  /// lecteur d'écran.
+  static const String absencesGroup = 'Absences';
 
   static const shell.ProConfig shellConfig = shell.ProConfig(
     appTitle: appTitle,
@@ -172,12 +178,12 @@ class ProConfig {
         route: '/team-messages',
         group: messagesGroup,
       ),
-      // Groupe « Équipe ».
+      // Groupe « Absences ».
       shell.ProNavDestination(
         label: 'Congés',
         icon: Icons.beach_access,
         route: congesRoute,
-        group: equipeGroup,
+        group: absencesGroup,
       ),
       // Groupe « Réglages du cabinet » (repliable, replié par défaut — #5139).
       shell.ProNavDestination(
