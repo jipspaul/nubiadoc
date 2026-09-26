@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -122,5 +124,37 @@ void main() {
 
       expect(find.byKey(const Key('prescriptions_empty')), findsOneWidget);
     });
+
+    testWidgets(
+      'ouverture d une ordonnance relance load() (#6996 — ne doit pas '
+      'remplacer durablement la liste par l état vide)',
+      (tester) async {
+        final cubit = MockPrescriptionsCubit();
+        final controller = StreamController<PrescriptionsState>();
+        when(() => cubit.load()).thenAnswer((_) async {});
+        whenListen(
+          cubit,
+          controller.stream,
+          initialState: PrescriptionsLoaded([prescription('rx1')]),
+        );
+
+        await tester.pumpApp(
+          BlocProvider<PrescriptionsCubit>.value(
+            value: cubit,
+            child: const Scaffold(body: PrescriptionsBody()),
+          ),
+        );
+
+        controller.add(
+          const PrescriptionsDocumentReady('https://example/doc-1.pdf'),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        verify(() => cubit.load()).called(1);
+
+        await controller.close();
+      },
+    );
   });
 }

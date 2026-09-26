@@ -56,11 +56,13 @@ class PrescriptionsBody extends StatelessWidget {
               );
             }
           });
+          context.read<PrescriptionsCubit>().load();
         }
         if (state is PrescriptionsDocumentError) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(state.message)));
+          context.read<PrescriptionsCubit>().load();
         }
       },
       child: BlocBuilder<PrescriptionsCubit, PrescriptionsState>(

@@ -32,8 +32,9 @@ class PrescriptionsError extends PrescriptionsState {
 }
 
 /// Émis ponctuellement quand une URL signée de PDF est prête à ouvrir —
-/// capté par un `BlocListener`, ne remplace pas durablement la liste
-/// (même pattern que `DocumentsBloc._onDownloadRequested`).
+/// capté par un `BlocListener` qui relance ensuite [PrescriptionsCubit.load]
+/// pour restaurer la liste (même pattern que
+/// `DocumentsBloc._onDownloadRequested` / `DocumentsLoadRequested`).
 class PrescriptionsDocumentReady extends PrescriptionsState {
   const PrescriptionsDocumentReady(this.url);
 
