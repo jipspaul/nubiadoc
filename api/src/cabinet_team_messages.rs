@@ -202,7 +202,8 @@ pub struct SendCabinetTeamMessageResponse {
 /// `POST /v1/cabinet/messages` — envoie un message interne d'équipe (#4156).
 ///
 /// Tout membre du staff (`ProSecretaryPlusClaims`) — patient → 403.
-/// `body` vide/blanc → 422. `cabinet_id`/`sender_id` extraits du JWT.
+/// `body` vide/blanc, ou réduit à un ou plusieurs `@` (mention amorcée puis
+/// abandonnée, #7738) → 422. `cabinet_id`/`sender_id` extraits du JWT.
 /// Réponse `201 { id }`.
 pub async fn send_cabinet_team_message(
     State(state): State<AppState>,
@@ -210,7 +211,10 @@ pub async fn send_cabinet_team_message(
     Json(body): Json<SendCabinetTeamMessageBody>,
 ) -> Result<(StatusCode, Json<SendCabinetTeamMessageResponse>), AppError> {
     let text = body.body.trim().to_string();
-    if text.is_empty() {
+    // #7738 : le bouton « Mentionner » insère un `@` nu — sans nom derrière,
+    // ce n'est le début d'aucune mention (`@[\p{L}\p{N}_]+` en front), donc
+    // aucun contenu réel. Traité comme le vide qu'il déguise.
+    if text.is_empty() || text.chars().all(|c| c == '@') {
         return Err(AppError::ValidationError);
     }
     // #4410 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
