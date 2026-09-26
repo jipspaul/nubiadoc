@@ -100,17 +100,15 @@ pub fn validate_phone_format(phone: &str) -> Result<(), AppError> {
 /// `dental_chart` (#3680) et `periodontal_chart` (#6983) — les deux indexent
 /// leurs mesures par la même numérotation de dent.
 pub fn is_valid_tooth_code(key: &str) -> bool {
-    key.len() == 2
-        && key.chars().all(|c| c.is_ascii_digit())
-        && {
-            let quadrant = key.as_bytes()[0] - b'0';
-            let tooth = key.as_bytes()[1] - b'0';
-            match quadrant {
-                1..=4 => (1..=8).contains(&tooth),
-                5..=8 => (1..=5).contains(&tooth),
-                _ => false,
-            }
+    key.len() == 2 && key.chars().all(|c| c.is_ascii_digit()) && {
+        let quadrant = key.as_bytes()[0] - b'0';
+        let tooth = key.as_bytes()[1] - b'0';
+        match quadrant {
+            1..=4 => (1..=8).contains(&tooth),
+            5..=8 => (1..=5).contains(&tooth),
+            _ => false,
         }
+    }
 }
 
 #[cfg(test)]
