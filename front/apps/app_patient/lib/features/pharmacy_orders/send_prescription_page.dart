@@ -108,6 +108,7 @@ class _ReadyView extends StatelessWidget {
                   ? const Icon(Icons.check_circle)
                   : null,
               selected: state.selectedPrescription?.id == prescription.id,
+              inMutuallyExclusiveGroup: true,
               onTap: () => cubit.selectPrescription(prescription),
             ),
           const SizedBox(height: 24),

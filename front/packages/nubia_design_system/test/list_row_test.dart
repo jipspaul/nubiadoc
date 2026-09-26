@@ -100,6 +100,31 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets(
+      'selected + inMutuallyExclusiveGroup expose role radio + aria-checked',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _wrap(
+            const ListRow(
+              key: Key('row'),
+              title: 'Ordonnance du 19 sept. 2026',
+              selected: true,
+              inMutuallyExclusiveGroup: true,
+            ),
+          ),
+        );
+
+        final semantics = tester.getSemantics(find.byKey(const Key('row')));
+        expect(semantics.hasFlag(SemanticsFlag.isSelected), isTrue);
+        expect(
+          semantics.hasFlag(SemanticsFlag.isInMutuallyExclusiveGroup),
+          isTrue,
+        );
+        handle.dispose();
+      },
+    );
+
     testWidgets('selected null ne modifie pas la sémantique par défaut', (
       tester,
     ) async {

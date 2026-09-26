@@ -19,9 +19,14 @@ import 'package:nubia_design_system/src/theme/nubia_tokens.dart';
 /// - [trailing] : widget de droite optionnel (badge / valeur / chevron).
 /// - [unread] : variante non-lu (point `primary` + titre renforcé).
 /// - [showDivider] : affiche le séparateur bas (défaut `true`).
-/// - [selected] : état de sélection sémantique (`aria-selected`) pour une
-///   liste à choix. `null` (défaut) n'expose aucun état — comportement
-///   inchangé pour les listes non sélectionnables.
+/// - [selected] : état de sélection sémantique pour une liste à choix.
+///   `null` (défaut) n'expose aucun état — comportement inchangé pour les
+///   listes non sélectionnables. Expose `aria-selected` seul, ou, si
+///   [inMutuallyExclusiveGroup] est vrai, `role="radio"` + `aria-checked`
+///   (choix unique parmi les lignes du groupe).
+/// - [inMutuallyExclusiveGroup] : la ligne appartient à un groupe à choix
+///   unique (ex. liste d'ordonnances à transmettre) — ignoré si [selected]
+///   est `null`.
 /// - [onTap] : callback au tap sur la ligne.
 class ListRow extends StatelessWidget {
   const ListRow({
@@ -35,6 +40,7 @@ class ListRow extends StatelessWidget {
     this.unread = false,
     this.showDivider = true,
     this.selected,
+    this.inMutuallyExclusiveGroup = false,
     this.onTap,
   });
 
@@ -47,6 +53,7 @@ class ListRow extends StatelessWidget {
   final bool unread;
   final bool showDivider;
   final bool? selected;
+  final bool inMutuallyExclusiveGroup;
   final VoidCallback? onTap;
 
   @override
@@ -141,6 +148,10 @@ class ListRow extends StatelessWidget {
       return content;
     }
 
-    return Semantics(selected: selected, child: content);
+    return Semantics(
+      selected: selected,
+      inMutuallyExclusiveGroup: inMutuallyExclusiveGroup,
+      child: content,
+    );
   }
 }
