@@ -4957,6 +4957,11 @@ re-test individuel **page rechargée**, avec **pixel-diff** ET relecture du code
 | patient | `/questionnaire-medical/:cabinetId` (390×844) | 11 | 10 | — | 0 | 0 | 2026-09-26T08:19:00Z |
 | patient | `/coverage-setup` (390×844) | 9 | 8 | 8 | 0 | 0 | 2026-09-26T08:19:00Z |
 | patient | `/implant-passport` (390×844) | 24 | 17 | 17 | 0 | 0 | 2026-09-26T08:19:00Z |
+| secretariat | `/conformite` (1280×800) | 24 | 6 | 6 | 0 | 0 | 2026-09-26T08:27:00Z |
+| secretariat | `/audit-log` (1280×800) | 29 | 8 | 8 | 0 | 0 | 2026-09-26T08:27:00Z |
+| secretariat | `/appointment-motifs` (1280×800) | 27 | 15 | 15 | 0 | 0 | 2026-09-26T08:28:00Z |
+| praticien | `/`, `/agenda`, `/patients` — sonde responsive (390×844) | 100 | — | — | — | — | 2026-09-26T08:21:00Z |
+| secretariat + praticien | palette de commandes ⌘K (1280×800) | 2 vues | ouverture/filtre/Échap | OK | 0 | 0 | 2026-09-26T08:23:00Z |
 | pharmacie | `/orders/:id/pickup` scan de retrait (1280×800) | 4 | 3 | 3 | 0 | 0 | 2026-09-26T08:05:00Z |
 | pharmacie | `/notification-preferences` (1280×800) | 13 | 9 | 9 | 0 | 0 | 2026-09-26T08:05:00Z |
 | pharmacie | `/` + `/stock` — sonde responsive (390×844) | 33 | — | — | — | — | 2026-09-26T07:55:00Z |
@@ -5017,21 +5022,21 @@ parce que le questionnaire **a déjà été transmis** : `medical_questionnaire_
 l'explique — « **Déjà transmis à votre cabinet le JJ/MM/AAAA.** ». État verrouillé **et motivé** :
 rien à signaler.
 
-**BILAN R102** — **36 écrans audités bouton par bouton** (inventaire Semantics + activation + verdict)
+**BILAN R102** — **39 écrans audités bouton par bouton** (inventaire Semantics + activation + verdict)
 et **16 écrans parcourus** pour les comparaisons design, les flux X et les sondes responsive :
 
 | | pharmacie | secretariat | patient | praticien | infirmiere | **total** |
 |---|---|---|---|---|---|---|
-| écrans audités | 6 | 11 | 10 | 7 | 2 | **36** |
-| contrôles activés | 70 | 180 | 183 | 53 | 10 | **496** |
+| écrans audités | 6 | 14 | 10 | 7 | 2 | **39** |
+| contrôles activés | 70 | 209 | 183 | 53 | 10 | **525** |
 
-**1 222 contrôles inventoriés** au total (783 sur les écrans audités, 439 sur les 16 écrans parcourus).
-**496 activés → 483 OK, 1 MORT, 0 CASSÉ, 12 désactivés tous prouvés légitimes, 14 non activés (destructifs).**
+**1 399 contrôles inventoriés** au total (863 sur les écrans audités, 536 sur les 18 écrans parcourus).
+**525 activés → 512 OK, 1 MORT, 0 CASSÉ, 12 désactivés tous prouvés légitimes, 15 non activés (destructifs).**
 
 Le **seul MORT** est « Réglages du cabinet » du rail secrétariat à 1280×800 → **#7706** (fermée < 24 h,
 correctif #7731 non déployé à 07:43Z).
 
-**Les 12 « CASSÉ » signalés par le harnais ont TOUS été requalifiés** après lecture du repository — c'est
+**Les 14 « CASSÉ » signalés par le harnais ont TOUS été requalifiés** après lecture du repository — c'est
 le principal enseignement méthodologique de la ronde :
 
 | écran | déclencheur | pourquoi ce n'est pas un défaut |
