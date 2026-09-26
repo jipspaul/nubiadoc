@@ -297,7 +297,7 @@ class AppRouter {
                 // #5194 : l'annuaire n'est plus un onglet du shell — « Voir
                 // mes RDV » sur l'écran de confirmation pousse la route
                 // dédiée au lieu de basculer un onglet du DashboardPage.
-                onViewMyAppointments: () => context.push(mesRdv),
+                onViewMyAppointments: () => context.go(mesRdv),
               ),
             ),
           ),
@@ -326,7 +326,7 @@ class AppRouter {
                     preselectedProvider:
                         extra is ProviderResult ? extra : null,
                     isProviderSubRoute: true,
-                    onViewMyAppointments: () => context.push(mesRdv),
+                    onViewMyAppointments: () => context.go(mesRdv),
                   ),
                 ),
               ),

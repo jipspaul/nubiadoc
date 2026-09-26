@@ -255,7 +255,7 @@ class _TodoSection extends StatelessWidget {
           title: 'Devis à signer',
           subtitle: 'Consultez et signez vos devis en attente.',
           showDivider: false,
-          onTap: () => context.push('/financial'),
+          onTap: () => context.go('/financial'),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -276,7 +276,7 @@ class _TodoSection extends StatelessWidget {
           title: 'Reste à charge',
           subtitle: 'Factures en attente de règlement.',
           showDivider: false,
-          onTap: () => context.push('/financial'),
+          onTap: () => context.go('/financial'),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -305,7 +305,7 @@ class _TodoSection extends StatelessWidget {
               : 'Message du cabinet',
           subtitle: 'Vous avez du courrier de vos praticiens.',
           showDivider: false,
-          onTap: () => context.push(AppRouter.messaging),
+          onTap: () => context.go(AppRouter.messaging),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -393,7 +393,7 @@ class _BookAppointmentCta extends StatelessWidget {
       width: double.infinity,
       child: FilledButton.icon(
         key: const Key('home_book_appointment_cta'),
-        onPressed: () => context.push(AppRouter.appointments),
+        onPressed: () => context.go(AppRouter.appointments),
         icon: const Icon(Icons.event_available_outlined),
         label: const Text('Prendre un rendez-vous'),
         style: FilledButton.styleFrom(
@@ -506,7 +506,7 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconColor: cs.primary,
                   title: 'Soins à domicile',
                   subtitle: 'Demander une infirmière',
-                  onTap: () => context.push(AppRouter.homeCare),
+                  onTap: () => context.go(AppRouter.homeCare),
                 ),
               ),
             ],

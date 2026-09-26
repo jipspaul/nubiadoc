@@ -174,7 +174,7 @@ void main() {
       expect(pushedImplant?.id, 'implant-1');
       expect(find.text('implant detail'), findsOneWidget);
 
-      router.pop();
+      router.go('/implant-passport');
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('implant_passport_list')), findsOneWidget);

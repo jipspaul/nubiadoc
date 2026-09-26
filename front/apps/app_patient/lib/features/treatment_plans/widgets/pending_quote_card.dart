@@ -97,7 +97,7 @@ class PendingQuoteCard extends StatelessWidget {
                 GestureDetector(
                   key: Key('pending_quote_${plan.id}_consult_cta'),
                   onTap: () => context
-                      .push('${AppRouter.financial}?id=${plan.pendingQuoteId}'),
+                      .go('${AppRouter.financial}?id=${plan.pendingQuoteId}'),
                   child: const Text(
                     'Consulter',
                     style: TextStyle(

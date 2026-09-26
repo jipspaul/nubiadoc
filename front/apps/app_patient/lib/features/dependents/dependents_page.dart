@@ -611,7 +611,7 @@ class _DependentTile extends StatelessWidget {
                 ),
                 GestureDetector(
                   key: Key('dependent_${dependent.id}_next_appointment_cta'),
-                  onTap: () => context.push(AppRouter.mesRdv),
+                  onTap: () => context.go(AppRouter.mesRdv),
                   child: Text(
                     'Voir',
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -637,7 +637,7 @@ class _DependentTile extends StatelessWidget {
                 ),
                 GestureDetector(
                   key: Key('dependent_${dependent.id}_plan_appointment_cta'),
-                  onTap: () => context.push(AppRouter.book),
+                  onTap: () => context.go(AppRouter.book),
                   child: Text(
                     'Planifier',
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -659,7 +659,7 @@ class _DependentTile extends StatelessWidget {
                     label: 'Prendre RDV',
                     icon: Icons.event_available,
                     variant: NubiaButtonVariant.secondary,
-                    onPressed: () => context.push(AppRouter.book),
+                    onPressed: () => context.go(AppRouter.book),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -668,7 +668,7 @@ class _DependentTile extends StatelessWidget {
                     label: 'Documents',
                     icon: Icons.folder,
                     variant: NubiaButtonVariant.secondary,
-                    onPressed: () => context.push(AppRouter.documents),
+                    onPressed: () => context.go(AppRouter.documents),
                   ),
                 ),
               ],

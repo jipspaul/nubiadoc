@@ -44,7 +44,7 @@ class HomeCareRequestsBody extends StatelessWidget {
       appBar: AppBar(title: const Text('Soins à domicile')),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('home_care_new_fab'),
-        onPressed: () => context.push(AppRouter.homeCareNew),
+        onPressed: () => context.go(AppRouter.homeCareNew),
         icon: const Icon(Icons.add),
         label: const Text('Nouvelle demande'),
       ),
@@ -111,7 +111,7 @@ class HomeCareRequestsBody extends StatelessWidget {
                           StatusPillVariant.neutral,
                     ),
                     onTap: () =>
-                        context.push('${AppRouter.homeCare}/${visit.id}'),
+                        context.go('${AppRouter.homeCare}/${visit.id}'),
                   );
                 },
               );

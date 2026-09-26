@@ -338,7 +338,7 @@ class _ImplantCard extends StatelessWidget {
           const SizedBox(height: 8),
           InkWell(
             key: Key('implant_detail_link_${implant.id}'),
-            onTap: () => context.push(
+            onTap: () => context.go(
               '/implant-passport/${implant.id}',
               extra: implant,
             ),

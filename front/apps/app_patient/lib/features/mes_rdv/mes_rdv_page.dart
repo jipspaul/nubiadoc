@@ -359,7 +359,7 @@ class _AppointmentList extends StatelessWidget {
                     title: emptyLabel,
                     action: isUpcoming
                         ? FilledButton.icon(
-                            onPressed: () => context.push('/appointments'),
+                            onPressed: () => context.go('/appointments'),
                             icon: const Icon(Icons.add),
                             label: const Text('Prendre rendez-vous'),
                           )
@@ -960,7 +960,7 @@ class _ActionButtons extends StatelessWidget {
                   'Facture · ${formatQuoteCents(appointment.invoiceAmountCents!, alwaysShowDecimals: true)}',
               size: NubiaButtonSize.sm,
               icon: Icons.receipt_long,
-              onPressed: () => context.push('/documents'),
+              onPressed: () => context.go('/documents'),
             ),
           // #5269 : action primaire de l'historique (Terminé/Absent/Annulé)
           // — relance une prise de RDV avec le même praticien (son nom est
@@ -976,7 +976,7 @@ class _ActionButtons extends StatelessWidget {
             // #5269 : practitionerId peut être vide (l'API ne l'expose pas
             // toujours) — la reprise reste possible, simplement sans
             // pré-sélection du praticien.
-            onPressed: () => context.push(
+            onPressed: () => context.go(
               '/appointments',
               extra: appointment.practitionerId.isNotEmpty
                   ? appointment.practitionerName
@@ -1018,7 +1018,7 @@ class _PrimaryAction extends StatelessWidget {
       key: Key('questionnaire_${appointment.id}'),
       icon: Icons.assignment_outlined,
       label: 'Questionnaire médical',
-      onPressed: () => context.push(
+      onPressed: () => context.go(
         '/questionnaire-medical/${appointment.cabinetId}',
       ),
     );

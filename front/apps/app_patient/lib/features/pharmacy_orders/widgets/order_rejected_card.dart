@@ -67,7 +67,7 @@ class OrderRejectedCard extends StatelessWidget {
             label: 'Choisir une autre pharmacie',
             icon: Icons.swap_horiz,
             variant: NubiaButtonVariant.destructive,
-            onPressed: () => context.push(
+            onPressed: () => context.go(
               '/pharmacy/send?prescriptionId='
               '${Uri.encodeComponent(order.prescriptionId)}',
             ),

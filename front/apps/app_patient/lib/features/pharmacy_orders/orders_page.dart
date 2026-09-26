@@ -82,7 +82,7 @@ class PatientOrdersBody extends StatelessWidget {
                       label: _statusLabels[order.status]!,
                       variant: _statusVariants[order.status]!,
                     ),
-                    onTap: () => context.push('/pharmacy/orders/${order.id}'),
+                    onTap: () => context.go('/pharmacy/orders/${order.id}'),
                   );
                 },
               );
