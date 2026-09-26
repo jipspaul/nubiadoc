@@ -8,6 +8,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'features/notifications/notification_deep_link_handler.dart';
 import 'router/app_router.dart';
 import 'session/auth_cubit.dart';
+import 'session/auth_restore_overlay.dart';
 
 class NubiaPatientApp extends StatefulWidget {
   const NubiaPatientApp({super.key});
@@ -68,6 +69,7 @@ class _NubiaPatientAppState extends State<NubiaPatientApp> {
             GlobalCupertinoLocalizations.delegate,
           ],
           supportedLocales: const [Locale('fr')],
+          builder: (context, child) => AuthRestoreOverlay(child: child),
         ),
       ),
     );
