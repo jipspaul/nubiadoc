@@ -22,6 +22,31 @@ class _DevisColumns {
   // ajustement que le tableau devis secrétariat (widgets/devis_table.dart).
   static const double statut = 150;
   static const double action = 116;
+
+  /// Largeurs minimales des colonnes `Expanded` (Patient, Contenu) — sous ce
+  /// seuil, l'`Expanded` tombe à 0/négatif : l'en-tête se rend verticalement
+  /// (une lettre par ligne, aucun `overflow` sur ce `Text`), comme au
+  /// viewport mobile 390px (QA #6985). Même défense que
+  /// `_DevisColumns.patientMin` côté secrétariat (#6579).
+  static const double patientMin = 140;
+  static const double contentMin = 140;
+
+  /// Largeur minimale du tableau entier (6 colonnes + espaces + padding
+  /// horizontal, #6985) : en dessous, [DevisTable] défile horizontalement
+  /// plutôt que d'écraser Patient/Contenu — même stratégie que le tableau
+  /// devis secrétariat (#6579).
+  static const double minTotalWidth = devis +
+      gap +
+      patientMin +
+      gap +
+      contentMin +
+      gap +
+      total +
+      gap +
+      statut +
+      gap +
+      action +
+      32;
 }
 
 class DevisTableHeader extends StatelessWidget {
@@ -59,6 +84,67 @@ class DevisTableHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Tableau devis complet — en-tête + lignes (#6985), défilant horizontalement
+/// en dessous de [_DevisColumns.minTotalWidth] au lieu d'écraser les colonnes
+/// Patient/Contenu (repli mobile 390px de la QA #6985). En-tête et lignes
+/// sont pannées d'un seul bloc (même [SingleChildScrollView] horizontal)
+/// pour rester alignés pendant le défilement ; la [ListView] interne garde
+/// son propre défilement vertical, sur l'axe orthogonal.
+class DevisTable extends StatelessWidget {
+  const DevisTable({
+    super.key,
+    required this.quotes,
+    required this.onQuoteTap,
+    this.selectedQuoteId,
+    this.sendingQuoteId,
+  });
+
+  final List<PharmacyQuote> quotes;
+  final ValueChanged<String> onQuoteTap;
+  final String? selectedQuoteId;
+  final String? sendingQuoteId;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth < _DevisColumns.minTotalWidth
+            ? _DevisColumns.minTotalWidth
+            : constraints.maxWidth;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: width,
+            height: constraints.maxHeight,
+            child: Column(
+              children: [
+                const DevisTableHeader(),
+                Expanded(
+                  child: quotes.isEmpty
+                      ? const NubiaEmptyState(
+                          icon: Icons.search_off,
+                          title: 'Aucun résultat',
+                          subtitle: 'Aucun devis ne correspond à ce filtre.',
+                        )
+                      : ListView.builder(
+                          itemCount: quotes.length,
+                          itemBuilder: (ctx, i) => DevisTableRow(
+                            quote: quotes[i],
+                            onTap: () => onQuoteTap(quotes[i].id),
+                            active: selectedQuoteId == quotes[i].id,
+                            actionLoading: sendingQuoteId == quotes[i].id,
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -138,26 +138,13 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                const DevisTableHeader(),
                 Expanded(
-                  child: filtered.isEmpty
-                      ? const NubiaEmptyState(
-                          icon: Icons.search_off,
-                          title: 'Aucun résultat',
-                          subtitle: 'Aucun devis ne correspond à ce filtre.',
-                        )
-                      : ListView.builder(
-                          itemCount: filtered.length,
-                          itemBuilder: (context, index) {
-                            final quote = filtered[index];
-                            return DevisTableRow(
-                              quote: quote,
-                              onTap: () => _selectQuote(quote.id),
-                              active: selectedId == quote.id,
-                              actionLoading: sendingId == quote.id,
-                            );
-                          },
-                        ),
+                  child: DevisTable(
+                    quotes: filtered,
+                    onQuoteTap: _selectQuote,
+                    selectedQuoteId: selectedId,
+                    sendingQuoteId: sendingId,
+                  ),
                 ),
                 DevisListFooter(
                   stats: DevisFooterStats.of(
