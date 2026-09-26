@@ -76,6 +76,11 @@ pub struct InlineTreatmentPhaseAct {
 pub struct CreateTreatmentPhaseBody {
     pub title: String,
     pub position: i32,
+    /// Phrase en langue claire qui traduit la nomenclature de la phase pour
+    /// le patient (#5297/#7715) — optionnelle, `null`/absente si le
+    /// praticien ne l'a pas renseignée.
+    #[serde(default)]
+    pub description: Option<String>,
     /// Actes déjà existants (devis) à rattacher à cette phase — optionnel.
     /// Seuls les `quote_item` du même cabinet ET du même patient que le plan
     /// sont rattachés ; les ids d'un autre tenant ou d'un autre patient du
@@ -136,6 +141,14 @@ pub async fn create_treatment_phase(
     if body.position < 0 {
         return Err(AppError::ValidationError);
     }
+    let description = body
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|d| !d.is_empty());
+    if let Some(description) = description {
+        crate::text_validation::reject_nul_byte(description)?;
+    }
     for act in &body.inline_acts {
         if act.label.trim().is_empty() || act.amount_cents < 0 {
             return Err(AppError::ValidationError);
@@ -192,13 +205,14 @@ pub async fn create_treatment_phase(
     }
 
     let phase_id: Uuid = sqlx::query(
-        "INSERT INTO treatment_phase (cabinet_id, plan_id, position, title, status) \
-         VALUES ($1, $2, $3, $4, 'requested') RETURNING id",
+        "INSERT INTO treatment_phase (cabinet_id, plan_id, position, title, description, status) \
+         VALUES ($1, $2, $3, $4, $5, 'requested') RETURNING id",
     )
     .bind(claims.cabinet_id)
     .bind(plan_id)
     .bind(body.position)
     .bind(&title)
+    .bind(description)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?

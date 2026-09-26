@@ -6,7 +6,7 @@ use axum::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
@@ -433,6 +433,269 @@ async fn treatment_plan_get_includes_pending_quote_for_phase() {
         phases[0]["pending_quote_sent_at"].is_string(),
         "pending_quote_sent_at doit être exposé quand le devis est `sent`"
     );
+
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 1c : description de la phase exposée (#7715 : `treatment_phase.
+//    description` (migration 0303) n'était jamais lue ni exposée, alors que
+//    le front (`PatientTreatmentPlanPhase.description`, #5297) l'affiche
+//    depuis toujours — la ligne ne se rendait donc jamais).
+
+#[tokio::test]
+async fn treatment_plan_get_includes_phase_description() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("tp-get-desc+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Desc', 'Phase')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("tp-get-desc-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id) =
+        insert_treatment_plan_fixture(&db, prac_user_id, account_id).await;
+
+    sqlx::query("UPDATE treatment_phase SET description = $1 WHERE id = $2")
+        .bind("Détartrage complet et soin d'une carie sur la dent 26.")
+        .bind(phase_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/treatment-plans/{}", plan_id))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let phases = v["phases"].as_array().expect("phases doit être un tableau");
+    assert_eq!(
+        phases[0]["description"], "Détartrage complet et soin d'une carie sur la dent 26.",
+        "la description de la phase doit être exposée (#7715)"
+    );
+
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 1d : rendez-vous programmé pour une phase exposé (#7715 : ni
+//    `appointment_id` ni `appointment_at` n'étaient jamais renseignés, alors
+//    que le front affiche déjà la ligne de date et le CTA « Voir mon
+//    rendez-vous » (#5299) — dérivés ici de `treatment_session`/`appointment`
+//    (migration 0288) via les `quote_item` de la phase).
+
+#[tokio::test]
+async fn treatment_plan_get_includes_phase_appointment() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("tp-get-appt+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Appt', 'Phase')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("tp-get-appt-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id) =
+        insert_treatment_plan_fixture(&db, prac_user_id, account_id).await;
+
+    let quote_item_id: Uuid = sqlx::query("SELECT id FROM quote_item WHERE phase_id = $1")
+        .bind(phase_id)
+        .fetch_one(&db)
+        .await
+        .unwrap()
+        .try_get("id")
+        .unwrap();
+
+    let appointment_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, now() + interval '2 hours', now() + interval '3 hours', 'confirmed')",
+    )
+    .bind(appointment_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let session_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO treatment_session \
+         (id, cabinet_id, plan_id, position, duration_min, appointment_id, status) \
+         VALUES ($1, $2, $3, 1, 30, $4, 'scheduled')",
+    )
+    .bind(session_id)
+    .bind(cabinet_id)
+    .bind(plan_id)
+    .bind(appointment_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO treatment_session_act (id, cabinet_id, session_id, quote_item_id) \
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(session_id)
+    .bind(quote_item_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/treatment-plans/{}", plan_id))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let phases = v["phases"].as_array().expect("phases doit être un tableau");
+    assert_eq!(
+        phases[0]["appointment_id"],
+        appointment_id.to_string(),
+        "le RDV programmé pour la phase doit être exposé (#7715)"
+    );
+    assert!(
+        phases[0]["appointment_at"].is_string(),
+        "appointment_at doit être exposé quand un RDV est programmé pour la phase"
+    );
+
+    sqlx::query("DELETE FROM treatment_session_act WHERE session_id = $1")
+        .bind(session_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM treatment_session WHERE id = $1")
+        .bind(session_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE id = $1")
+        .bind(appointment_id)
+        .execute(&db)
+        .await
+        .ok();
 
     cleanup_fixture(
         &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,
