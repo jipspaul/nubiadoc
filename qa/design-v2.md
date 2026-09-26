@@ -1134,7 +1134,7 @@ au viewport du défaut (**1440×900, détail ouvert**) :
 
 ---
 
-### Ronde R102 — 2026-09-26 (06:00–09:xx UTC) — **10 écrans comparés** (quota 5 tenu), rotation **pilotée par le diff**
+### Ronde R102 — 2026-09-26 (06:00–09:xx UTC) — **11 écrans comparés** (quota 5 tenu), rotation **pilotée par le diff**
 
 > Rotation : l'Étape 1bis a désigné les écrans touchés par les 9 PR mergées depuis `49e6797`
 > (#7707/#7708/#7710/#7711/#7713/#7715/#7716/#7718/#7709). Ils passent d'abord, puis la maquette la
