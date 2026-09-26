@@ -539,7 +539,13 @@ fn resolve_geo_filter(
             ));
         }
         tracing::warn!(place = %p, "place inconnu du lookup géo statique, filtre ignoré");
-        return Ok((None, None, radius_km));
+        // #7732 : un `place` non résolu n'est pas un point d'ancrage — même
+        // doctrine que #7718, `radius_km` sans ancrage doit être refusé, pas
+        // rendu muettement en ignorant le filtre (cf. le cas `lat`/`lng` absents).
+        if radius_km.is_some() {
+            return Err(AppError::ValidationError);
+        }
+        return Ok((None, None, None));
     }
     if radius_km.is_some() {
         return Err(AppError::ValidationError);
