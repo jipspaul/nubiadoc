@@ -4045,3 +4045,15 @@ secrétariat. Vérifiée de bout en bout :
 
 Le créneau est bien consommé (pas de double réservation), et le RDV arrive au statut `requested`,
 prêt pour la confirmation par le secrétariat — même point d'entrée que la réservation in-app.
+
+### Famille « dates non bornées » — état exact après la ronde
+
+Quatre endpoints écrivent une date métier libre. Après vérification **du code**, la situation n'est pas
+uniforme, et deux des trois « trous » n'en sont pas :
+
+| endpoint | 9999 / 1800 | verdict |
+|---|---|---|
+| `POST /v1/cabinet/patients/:id/implants` (`placement_date`) | 422 / 422 | **corrigé pendant la ronde** (#7743) — bornes re-sondées : aujourd'hui accepté, demain refusé, −119 ans accepté |
+| `POST /v1/cabinet/unavailability` (`starts_at`) | 422 / 422 | borné à ±366 j (#7014 puis #7709), re-vérifié cette ronde |
+| `POST /v1/cabinet/compliance-items` (`due_date`) | 201 / 201 | **intentionnel** — `compliance.rs:61-70` borne à `year > 9999` **et explique pourquoi** : la garde vise le débordement de `checked_add_months` à la clôture (format année étendue `chrono`), pas la plausibilité métier (#7656). L'an 9999 est dedans, donc accepté. *Contrôle fait : « Clôturer » fonctionne (200 + `next_item_id`), 2e clôture → 409, `recurrence_months` négatif → 422.* |
+| `POST /v1/cabinet/tasks` (`due_date`) | 201 / 201 | **seul trou réel restant** — `cabinet_tasks.rs:171-191` lie `due_date` sans aucune borne. Conséquence faible (une tâche interne échue en 1800 ou due en 9999 se range en bout de tri). **Non filé séparément**, consigné en commentaire de #7743 : c'est la même règle, à traiter dans la même passe. |
