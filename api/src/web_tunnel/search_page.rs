@@ -1144,6 +1144,46 @@ mod tests {
         assert!(html.contains("<h1>Ville introuvable</h1>"));
     }
 
+    /// #6998 (QA-20260915-8) — doublon de root cause avec #7224 : la QA a
+    /// rejoué le même défaut avec un slug de 50 caractères et un slug
+    /// contenant un traversal une fois décodé par l'extracteur `Path`
+    /// d'axum (`../../etc/passwd`, issu de `%2e%2e%2f%2e%2e%2fetc%2fpasswd`
+    /// côté URL). Le garde-fou `is_known_place` posé par #7224 couvre déjà
+    /// ces deux entrées, ainsi qu'un octet nul terminal (`lyon\0`, issu de
+    /// `lyon%00`) — aucune n'est une ville connue, donc aucune ne doit
+    /// jamais atteindre `search_page` pour y fabriquer un titre/H1/canonical
+    /// à partir de l'entrée brute.
+    #[test]
+    fn is_known_place_rejects_the_6998_qa_repro_slugs() {
+        assert!(!is_known_place(&"a".repeat(50)));
+        assert!(!is_known_place("../../etc/passwd"));
+        assert!(!is_known_place("lyon\0"));
+    }
+
+    /// #6998 — même repro que ci-dessus, vérifié bout en bout sur la réponse
+    /// `locality_not_found` : 404 + `noindex` quel que soit le contenu du
+    /// slug, jamais de balise robots manquante (contrairement à l'étape 3 du
+    /// rapport QA, où `lyon%00` ne posait aucune balise `<meta name="robots">`).
+    #[tokio::test]
+    async fn locality_not_found_handles_the_6998_qa_repro_slugs() {
+        for slug in [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "../../etc/passwd",
+            "lyon\0",
+        ] {
+            let response = locality_not_found("dentiste", slug);
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "slug: {slug:?}");
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let html = String::from_utf8(body.to_vec()).unwrap();
+            assert!(
+                html.contains(r#"<meta name="robots" content="noindex">"#),
+                "slug: {slug:?}"
+            );
+        }
+    }
+
     /// #7295 — root cause : `#7224` n'a validé que la ville. Un slug de
     /// spécialité/acte inventé (`pizza`) ou déjà préfixé (`implant-dentiste`
     /// re-préfixé en `implant-implant-dentiste`) doit être rejeté au même
