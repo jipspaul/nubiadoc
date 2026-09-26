@@ -110,9 +110,12 @@ fn validate_label(label: &str) -> Result<String, AppError> {
     Ok(trimmed)
 }
 
+/// Borne haute plausible pour la durée par défaut d'un motif de RDV (une journée de consultation).
+const MAX_MOTIF_DURATION_MINUTES: i32 = 24 * 60;
+
 fn validate_duration(duration: Option<i32>) -> Result<(), AppError> {
     if let Some(minutes) = duration {
-        if minutes <= 0 {
+        if minutes <= 0 || minutes > MAX_MOTIF_DURATION_MINUTES {
             return Err(AppError::ValidationError);
         }
     }
