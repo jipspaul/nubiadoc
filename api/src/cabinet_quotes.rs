@@ -86,18 +86,26 @@ pub(crate) const MAX_ITEM_AMOUNT_CENTS: i64 = 100_000_000;
 /// devis signé. Une désignation d'acte tient largement dans 500 caractères.
 pub(crate) const MAX_QUOTE_ITEM_LABEL_LEN: usize = 500;
 
+/// Plafond métier réaliste (#7745) : les bornes par champ (#7226, #3762) ne
+/// bornaient jamais le NOMBRE de lignes — un devis de 2 000 items passait en
+/// 201 et resservait tel quel à l'app patient (170 Ko, écran de 45 489 px).
+/// Un devis cabinet réel tient dans quelques dizaines d'actes ; même plafond
+/// que `pharmacy/stock.rs::MAX_STOCK_REQUEST_ITEMS` et
+/// `prescriptions.rs::MAX_PRESCRIPTION_ITEMS`.
+pub(crate) const MAX_QUOTE_ITEMS: usize = 200;
+
 /// Valide les lignes d'un devis (partagé entre `create_cabinet_quote` et
-/// `cabinet_quotes_patch::patch_cabinet_quote`, #4065) : non vide,
-/// `amount_cents` dans `]0, MAX_ITEM_AMOUNT_CENTS]`, libellé non vide/blanc
-/// (#3770) et borné à `MAX_QUOTE_ITEM_LABEL_LEN` (#7226),
-/// `amo_part_cents`/`amc_part_cents` non négatifs (#4060), leur somme ne
-/// dépasse pas `amount_cents` (#4309) — sinon le reste à charge patient
-/// (`amount_cents - amo_part - amc_part`) devient négatif — et `tooth`,
-/// quand fourni, au format FDI (#7434, même règle que
+/// `cabinet_quotes_patch::patch_cabinet_quote`, #4065) : non vide, borné à
+/// `MAX_QUOTE_ITEMS` (#7745), `amount_cents` dans `]0, MAX_ITEM_AMOUNT_CENTS]`,
+/// libellé non vide/blanc (#3770) et borné à `MAX_QUOTE_ITEM_LABEL_LEN`
+/// (#7226), `amo_part_cents`/`amc_part_cents` non négatifs (#4060), leur
+/// somme ne dépasse pas `amount_cents` (#4309) — sinon le reste à charge
+/// patient (`amount_cents - amo_part - amc_part`) devient négatif — et
+/// `tooth`, quand fourni, au format FDI (#7434, même règle que
 /// `consultation_acts.rs`) : c'est cette valeur qui traverse jusqu'au bon de
 /// travail prothétique puis au brief du cabinet (`tooth_fdi`).
 pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppError> {
-    if items.is_empty() {
+    if items.is_empty() || items.len() > MAX_QUOTE_ITEMS {
         return Err(AppError::ValidationError);
     }
     if items
@@ -160,7 +168,7 @@ pub(crate) async fn validate_quote_items_ccam_codes(
 ///
 /// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403, patient → 403.
 /// - `cabinet_id` extrait du JWT.
-/// - `items` vide → 422.
+/// - `items` vide, ou en nombre excédant `MAX_QUOTE_ITEMS` → 422 (#7745).
 /// - `amount_cents` de chaque ligne doit être dans `]0, 100_000_000]` (1M€) → 422 sinon (#3762).
 /// - `label` de chaque ligne ne doit pas être vide/blanc (trim), ni dépasser
 ///   `MAX_QUOTE_ITEM_LABEL_LEN` caractères → 422 sinon (#3770, #7226).
