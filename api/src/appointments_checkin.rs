@@ -8,6 +8,7 @@
 //! rester sous le plafond de taille — cf. docstring de ce dernier.
 
 use axum::{
+    body::Bytes,
     extract::{Extension, Path, State},
     Json,
 };
@@ -55,9 +56,10 @@ pub async fn checkin_appointment(
     Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
-    body: Option<Json<CheckinBody>>,
+    body: Bytes,
 ) -> Result<Json<CheckinResponse>, AppError> {
-    let qr_code = body.as_ref().and_then(|b| b.qr_code.clone());
+    let body: CheckinBody = crate::optional_json_body::parse_optional_json_body(&body)?;
+    let qr_code = body.qr_code;
     let method = if qr_code.is_some() {
         "qr_app"
     } else {

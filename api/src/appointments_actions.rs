@@ -13,6 +13,7 @@
 //! vivent dans `appointments_response.rs`.
 
 use axum::{
+    body::Bytes,
     extract::{Path, State},
     Json,
 };
@@ -359,12 +360,10 @@ pub async fn cancel_appointment(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
-    body: Option<Json<CancelBody>>,
+    body: Bytes,
 ) -> Result<Json<CancelResponse>, AppError> {
-    let reason = body
-        .as_ref()
-        .and_then(|b| b.reason.as_deref())
-        .map(str::to_owned);
+    let body: CancelBody = crate::optional_json_body::parse_optional_json_body(&body)?;
+    let reason = body.reason;
     if let Some(reason) = reason.as_deref() {
         crate::text_validation::reject_nul_byte(reason)?;
     }

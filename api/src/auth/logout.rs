@@ -2,9 +2,9 @@
 
 use async_trait::async_trait;
 use axum::{
+    body::Bytes,
     extract::{FromRequestParts, State},
     http::{request::Parts, HeaderMap, StatusCode},
-    Json,
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::Deserialize;
@@ -50,7 +50,7 @@ impl FromRequestParts<AppState> for UserClaims {
 }
 
 /// Corps de la requête `POST /v1/auth/logout`.
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct LogoutBody {
     refresh_token: Option<String>,
@@ -65,8 +65,9 @@ pub async fn logout(
     State(state): State<AppState>,
     claims: UserClaims,
     headers: HeaderMap,
-    body: Option<Json<LogoutBody>>,
+    body: Bytes,
 ) -> Result<StatusCode, AppError> {
+    let body: LogoutBody = crate::optional_json_body::parse_optional_json_body(&body)?;
     let revoke_all = headers
         .get("X-Revoke-All")
         .and_then(|v| v.to_str().ok())
@@ -100,7 +101,7 @@ pub async fn logout(
         tx.commit().await.map_err(|_| AppError::Internal)?;
 
         tracing::info!(user_id = %claims.sub, action = "logout_revoke_all");
-    } else if let Some(token) = body.and_then(|b| b.0.refresh_token) {
+    } else if let Some(token) = body.refresh_token {
         let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
         sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
             .bind(claims.sub.to_string())

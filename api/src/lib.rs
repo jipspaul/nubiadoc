@@ -134,6 +134,7 @@ mod ngap_acts;
 mod notifications;
 mod notify;
 mod nurse;
+mod optional_json_body;
 mod orthodontics;
 mod patient_alerts;
 mod patient_detail;

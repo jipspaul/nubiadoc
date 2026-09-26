@@ -4,6 +4,7 @@
 //! POST /v1/conversations/:id/read.
 
 use axum::{
+    body::Bytes,
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
@@ -510,7 +511,7 @@ pub async fn get_conversation_messages(
 }
 
 /// Corps de la requête `POST /v1/conversations/:id/read`.
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct MarkReadBody {
     /// Si fourni, seuls les messages dont l'`id` ≤ `last_read_message_id` sont marqués lus.
@@ -527,11 +528,9 @@ pub async fn mark_conversation_read(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(conversation_id): Path<Uuid>,
-    body: Option<Json<MarkReadBody>>,
+    body: Bytes,
 ) -> Result<StatusCode, AppError> {
-    let body = body.map(|Json(b)| b).unwrap_or(MarkReadBody {
-        last_read_message_id: None,
-    });
+    let body: MarkReadBody = crate::optional_json_body::parse_optional_json_body(&body)?;
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope RLS patient — policies conversation_patient_read.

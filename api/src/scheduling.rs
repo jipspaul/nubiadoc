@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use axum::{
+    body::Bytes,
     extract::{rejection::JsonRejection, Extension, Path, Query, State},
     http::StatusCode,
     Json,
@@ -1883,9 +1884,10 @@ pub async fn no_show_appointment(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
     Path(appt_id): Path<Uuid>,
-    body: Option<Json<NoShowBody>>,
+    body: Bytes,
 ) -> Result<Json<NoShowResponse>, AppError> {
-    let reason = body.and_then(|Json(b)| b.reason);
+    let body: NoShowBody = crate::optional_json_body::parse_optional_json_body(&body)?;
+    let reason = body.reason;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -2070,9 +2072,11 @@ pub async fn cancel_cabinet_appointment(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
     Path(appt_id): Path<Uuid>,
-    body: Option<Json<CancelCabinetAppointmentBody>>,
+    body: Bytes,
 ) -> Result<Json<CancelCabinetAppointmentResponse>, AppError> {
-    let reason = body.and_then(|Json(b)| b.reason);
+    let body: CancelCabinetAppointmentBody =
+        crate::optional_json_body::parse_optional_json_body(&body)?;
+    let reason = body.reason;
     if let Some(reason) = reason.as_deref() {
         crate::text_validation::reject_nul_byte(reason)?;
     }
