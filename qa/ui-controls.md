@@ -4838,3 +4838,40 @@ sélecteur de fichier natif · coordonnées périmées après un repli · captur
 
 **Règle de la maison, à appliquer dès le premier passage :** un verdict MORT n'est publiable qu'après
 re-test individuel **page rechargée**, avec **pixel-diff** ET relecture du code du widget.
+
+## Ronde R101 — 2026-09-26 (5/5 apps parcourues)
+
+| app | écran / route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (Disponibilité / Offres / Ma visite, 390×844) | 8 | 7 | 7 | 0 | 0 | 2026-09-26T00:15:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-09-26T00:15:00Z |
+| infirmiere | `/` — cycle complet d'une visite (Accepter → Je pars → Je suis arrivé·e, 390×844) | 5 | 5 | 5 | 0 | 0 | 2026-09-26T00:47:00Z |
+| patient | `/oubliettes`, `/reviews`, `/implant-passport` (390×844) | 6 | 6 | 6 | 0 | 0 | 2026-09-26T00:15:00Z |
+| patient | `/profile/dependents` + feuille « Ajouter un proche » (Enfant **et** Conjoint, 390×844) | 22 | 15 | 15 | 0 | 0 | 2026-09-26T00:25:00Z |
+| patient | `/profile/consents` (390×844) | 6 | 5 | 5 | 0 | 0 | 2026-09-26T01:35:00Z |
+| patient | `/pharmacy` (Ma pharmacie, 390×844) | 7 | 7 | 7 | 0 | 0 | 2026-09-26T01:35:00Z |
+| patient | `/profile/referring-doctor` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-09-26T01:35:00Z |
+| patient | `/notifications` (390×844) | 16 | 14 | 14 | 0 | 0 | 2026-09-26T01:35:00Z |
+| patient | `/treatment-plans` + `/treatment-plans/:id` (390×844) | 13 | 2 | 2 | 0 | 0 | 2026-09-26T00:50:00Z |
+| patient | `/financial` (Mes devis, 390×844) | 11 | 0 | — | — | — | 2026-09-26T00:58:00Z |
+| praticien | `/team-messages`, `/devis`, `/ordonnances` (1280×800) | 66 | 48 | 45 | 0 | 3¹ | 2026-09-26T00:35:00Z |
+| praticien | `/devis` — ouverture des 4 premières cartes, page rechargée à chaque fois (1280×800) | 8 | 4 | 4 | 0 | 0 | 2026-09-26T00:38:00Z |
+| secretariat | `/correspondents`, `/liste-attente`, `/conges`, `/cabinet-stats` (1280×800) | 97 | 56 | 52 | 0 | 4¹ | 2026-09-26T00:30:00Z |
+| secretariat | `/salle-attente`, `/cabinet-payouts`, `/messages` (1280×800) | 85 | 39 | 38 | 0 | 1¹ | 2026-09-26T01:35:00Z |
+| secretariat | `/stock` (1280×800) | 39 | 14 | 14² | 0² | 0 | 2026-09-26T01:40:00Z |
+| secretariat | `/` — rail : les 18 lignes + les 2 « Équipe » + « Réglages du cabinet » (1280×800) | 34 | 20 | 19 | 1³ | 0 | 2026-09-26T00:22:00Z |
+| pharmacie | `/` — les **7** facettes de la file, dont les 3 terminales de #7003 (1280×800) | 37 | 7 | 7 | 0 | 0 | 2026-09-26T00:18:00Z |
+| pharmacie | `/` — raccourcis clavier prescrits (↑ ↓ ⏎ S /) à 1440×900 | 6 | 6 | 6 | 0 | 0 | 2026-09-26T00:42:00Z |
+| pharmacie | `/stock` + `/devis` (1280×800) | 65 | 0 | — | — | — | 2026-09-26T01:05:00Z |
+| pharmacie | `/stock` — volet « Nouvelle demande » : Échap ×2, voile, Annuler, Fermer, Tab ×6 | 10 | 10 | 8 | 2⁴ | 0 | 2026-09-26T01:40:00Z |
+
+**TOTAL R101 — 21 lots, 5/5 apps : 353 contrôles inventoriés, 264 activés, 248 OK, 0 mort confirmé, 0 cassé confirmé.**
+
+¹ **Faux positifs vérifiés, pas des défauts.** Les 8 verdicts « CASSÉ » proviennent tous de deux requêtes attendues et **traitées proprement par l'écran** :
+  - `403 GET /v1/cabinet/stats/activity` — RBAC #4592, réservé aux praticiens. `/cabinet-stats` rend un état digne : **« Réservé aux praticiens · Votre rôle ne permet pas d'afficher l'activité par praticien »** (capture `R101_sec_statistiques.png`), les 4 KPI du haut restant servis. Le code le documente (`cabinet_stats_bloc.dart:33`, `cabinet_stats_state.dart:27`).
+  - `404 GET /v1/cabinet/quotes/:id/attestation` — sonde d'existence d'une attestation d'information (#7203) ; absorbée sans bruit, le volet de détail du devis s'affiche complet.
+² **Les 8 « morts » du premier passage sur `/stock` étaient un artefact du harnais**, pas un défaut : le volet modal « Nouvelle demande » restait ouvert (Échap ne le ferme pas) et avalait les clics suivants à des coordonnées périmées. **Re-test individuel, page rechargée** : `Agenda`, `Envoyées (22)`, `Article, pharmacie…` répondent tous les trois (`R101-secstock.js`, section A). Le vrai défaut mis au jour par cet artefact est **#7720** (le volet ne se ferme ni par Échap ni par le voile).
+³ « Réglages du cabinet » : **mort au rect rapporté par Semantics** (y=643, hors du clip du `ListView` qui s'arrête à 624) → **#7706**. Le même contrôle est **OK** après un défilement de 300 px.
+⁴ Échap (×2) et clic sur le voile : sans effet ; « Annuler » et « Fermer » ferment bien → **#7720**.
+
+**Rappel de méthode confirmé cette ronde :** un verdict MORT n'est publiable qu'après re-test individuel **page rechargée** — les deux lots concernés (`/stock`, rail secrétariat) se sont résolus en **1 vrai défaut** et **8 artefacts**. Ajout au harnais : les onglets externes (`Itinéraire` → Google Maps) sont désormais fermés automatiquement et comptés **OK (onglet externe)**, sinon ils volent le focus et font expirer toutes les captures suivantes.
