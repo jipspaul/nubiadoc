@@ -10,21 +10,36 @@ class PharmacyOrdersApi {
 
   PharmacyOrdersApi(ApiClient client) : _dio = client.dio;
 
+  // Pagination par cursor côté API (limit défaut 200, max 500, cf.
+  // api/src/pharmacy/orders.rs `list_pharmacy_orders`) : sans suivi de
+  // `page.next_cursor`, seules les 200 commandes les plus récentes
+  // remontaient, laissant les commandes terminales les plus anciennes
+  // injoignables (#7003, #7707) une fois filtrées côté facettes.
   Future<List<PharmacyOrderDto>> list({PharmacyOrderStatus? status}) async {
-    final response = await _dio.get<dynamic>(
-      '/pharmacy/orders',
-      queryParameters: {
-        if (status != null) 'status': PharmacyOrderDto.statusToApi(status),
-      },
-    );
-    final raw = response.data;
-    final data = raw is List
-        ? raw
-        : ((raw as Map<String, dynamic>?)?['data'] as List<dynamic>? ??
-            const []);
-    return data
-        .map((e) => PharmacyOrderDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final result = <PharmacyOrderDto>[];
+    String? cursor;
+    do {
+      final response = await _dio.get<dynamic>(
+        '/pharmacy/orders',
+        queryParameters: {
+          'limit': 500,
+          if (status != null) 'status': PharmacyOrderDto.statusToApi(status),
+          if (cursor != null) 'cursor': cursor,
+        },
+      );
+      final raw = response.data;
+      final data = raw is List
+          ? raw
+          : ((raw as Map<String, dynamic>?)?['data'] as List<dynamic>? ??
+              const []);
+      result.addAll(
+        data.map((e) => PharmacyOrderDto.fromJson(e as Map<String, dynamic>)),
+      );
+      cursor = (raw is Map<String, dynamic>
+          ? raw['page'] as Map<String, dynamic>?
+          : null)?['next_cursor'] as String?;
+    } while (cursor != null);
+    return result;
   }
 
   Future<PharmacyOrderDto> getById(String id) async {
