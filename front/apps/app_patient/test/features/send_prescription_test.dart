@@ -255,7 +255,7 @@ void main() {
     });
 
     testWidgets(
-      'ordonnance choisie expose aria-selected (#7661)',
+      'ordonnance choisie expose role radio + aria-checked (#6989, #7661)',
       (tester) async {
         final cubit = MockSendPrescriptionCubit();
         when(() => cubit.state).thenReturn(SendPrescriptionReady(
@@ -280,7 +280,15 @@ void main() {
         );
 
         expect(selected.hasFlag(SemanticsFlag.isSelected), isTrue);
+        expect(
+          selected.hasFlag(SemanticsFlag.isInMutuallyExclusiveGroup),
+          isTrue,
+        );
         expect(unselected.hasFlag(SemanticsFlag.isSelected), isFalse);
+        expect(
+          unselected.hasFlag(SemanticsFlag.isInMutuallyExclusiveGroup),
+          isTrue,
+        );
         handle.dispose();
       },
     );
