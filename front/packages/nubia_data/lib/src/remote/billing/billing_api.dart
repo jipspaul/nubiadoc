@@ -11,7 +11,16 @@ class BillingApi {
   /// cf. api/src/billing.rs::list_quotes) : sans ça, les callers (ex. compteur
   /// « à signer » du profil, #6288) ne voient que la 1re page de 20 devis au
   /// lieu du total, contrairement à `SchedulingApi.getHistory()`.
-  Future<List<QuoteDto>> getQuotes() async {
+  ///
+  /// #6988 : sur un compte avec beaucoup de devis (300+ vus en démo), cette
+  /// pagination enchaîne jusqu'à 4 aller-retours **séquentiels** — de loin le
+  /// chargement initial le plus long des routes patient (les autres résolvent
+  /// en un seul GET). [onPage] est appelé avec le cumul reçu après chaque
+  /// page, pour que l'appelant puisse afficher la liste dès la 1re page au
+  /// lieu de bloquer jusqu'à épuisement du curseur.
+  Future<List<QuoteDto>> getQuotes({
+    void Function(List<QuoteDto> quotesSoFar)? onPage,
+  }) async {
     final result = <QuoteDto>[];
     String? cursor;
     do {
@@ -26,9 +35,9 @@ class BillingApi {
       result.addAll(
         data.map((e) => QuoteDto.fromSummaryJson(e as Map<String, dynamic>)),
       );
-      cursor =
-          (response.data?['page'] as Map<String, dynamic>?)?['next_cursor']
-              as String?;
+      onPage?.call(List.unmodifiable(result));
+      cursor = (response.data?['page'] as Map<String, dynamic>?)?['next_cursor']
+          as String?;
     } while (cursor != null);
     return result;
   }
@@ -57,8 +66,7 @@ class BillingApi {
   /// GET /v1/payment-schedules — échéanciers du patient connecté, tous
   /// devis confondus (#7018, #4072).
   Future<List<PaymentScheduleDto>> getPaymentSchedules() async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/payment-schedules');
+    final response = await _dio.get<Map<String, dynamic>>('/payment-schedules');
     final data = (response.data?['data'] as List<dynamic>? ?? []);
     return data
         .map((e) => PaymentScheduleDto.fromJson(e as Map<String, dynamic>))

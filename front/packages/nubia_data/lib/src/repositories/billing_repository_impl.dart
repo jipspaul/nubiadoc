@@ -12,9 +12,16 @@ class BillingRepositoryImpl implements BillingRepository {
   const BillingRepositoryImpl(this._api);
 
   @override
-  Future<Either<Failure, List<Quote>>> getQuotes() async {
+  Future<Either<Failure, List<Quote>>> getQuotes({
+    void Function(List<Quote> quotesSoFar)? onPage,
+  }) async {
     try {
-      final dtos = await _api.getQuotes();
+      final dtos = await _api.getQuotes(
+        onPage: onPage == null
+            ? null
+            : (dtosSoFar) =>
+                onPage(dtosSoFar.map((d) => d.toDomain()).toList()),
+      );
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du chargement des devis.'));

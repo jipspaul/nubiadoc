@@ -86,6 +86,61 @@ void main() {
       ).called(1);
     });
 
+    // #6988 : sur un compte avec beaucoup de devis, cette pagination enchaîne
+    // jusqu'à 4 appels séquentiels — `onPage` doit livrer le cumul reçu après
+    // CHAQUE page (pas seulement à la fin), pour qu'un appelant (FinancialBloc)
+    // puisse afficher la liste dès la 1re page au lieu d'attendre l'épuisement
+    // du curseur.
+    test(
+        'onPage reçoit le cumul après chaque page, avant la fin de la pagination',
+        () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/billing/quotes',
+          queryParameters: {'limit': 100},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'q1',
+              'status': 'sent',
+              'total_amount_cents': 10000,
+              'created_at': '2026-07-02T09:45:54Z',
+            },
+          ],
+          'page': {'next_cursor': 'CURSOR_1', 'limit': 100},
+        }),
+      );
+
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/billing/quotes',
+          queryParameters: {'limit': 100, 'cursor': 'CURSOR_1'},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'q2',
+              'status': 'sent',
+              'total_amount_cents': 20000,
+              'created_at': '2026-07-14T06:59:08Z',
+            },
+          ],
+          'page': {'next_cursor': null, 'limit': 100},
+        }),
+      );
+
+      final pageSizes = <int>[];
+      final quotes = await BillingApi(apiClient)
+          .getQuotes(onPage: (soFar) => pageSizes.add(soFar.length));
+
+      expect(pageSizes, [1, 2],
+          reason: 'la 1re page doit être livrée avant la 2e');
+      expect(quotes.length, 2);
+    });
+
     test('un seul appel si next_cursor est absent dès la 1re page', () async {
       when(
         () => dio.get<Map<String, dynamic>>(

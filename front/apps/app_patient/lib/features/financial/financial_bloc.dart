@@ -54,7 +54,14 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
   ) async {
     emit(const FinancialLoading());
     try {
-      final result = await _getPendingQuotes();
+      // #6988 : la pagination par curseur enchaîne jusqu'à 4 appels
+      // séquentiels sur un compte avec beaucoup de devis — de loin le
+      // chargement initial le plus long des routes patient. `onPage` affiche
+      // la liste dès la 1re page au lieu de bloquer jusqu'à épuisement du
+      // curseur (le fold ci-dessous réémet ensuite l'état final complet).
+      final result = await _getPendingQuotes(
+        onPage: (quotesSoFar) => safeEmit(FinancialLoaded(quotesSoFar)),
+      );
       result.fold(
         (f) => safeEmit(FinancialError(message: f.message)),
         (quotes) => safeEmit(FinancialLoaded(quotes)),
