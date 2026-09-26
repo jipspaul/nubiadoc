@@ -104,6 +104,8 @@ async fn listed_provider_urls(state: AppState, base: &str) -> Vec<String> {
             q: None,
             specialty: None,
             near: None,
+            lat: None,
+            lng: None,
             place: None,
             radius_km: None,
             bbox: None,
