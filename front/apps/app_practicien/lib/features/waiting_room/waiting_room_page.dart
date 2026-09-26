@@ -583,12 +583,15 @@ class _RoomPacePanel extends StatelessWidget {
         entries.isEmpty ? '' : entries[longestIndex].patientName;
 
     // Retard sur le planning du prochain patient à appeler : écart entre
-    // l'heure prévue du RDV et l'heure réelle d'appel (maintenant, tant que
-    // l'appel n'a pas encore eu lieu). Pas de ligne sans RDV planifié.
+    // l'heure prévue du RDV et maintenant. Le DTO n'expose aucune heure
+    // d'appel réelle (`call-next` n'a peut-être pas encore eu lieu) — le
+    // libellé reste donc au conditionnel/prospectif (#6979) plutôt que
+    // d'affirmer un appel qui n'a jamais eu lieu. Pas de ligne sans RDV
+    // planifié.
     final scheduledAt = entries.isEmpty ? null : entries.first.appointmentTime;
-    final calledAt = DateTime.now();
+    final now = DateTime.now();
     final delayMinutes =
-        scheduledAt == null ? null : calledAt.difference(scheduledAt).inMinutes;
+        scheduledAt == null ? null : now.difference(scheduledAt).inMinutes;
 
     return NubiaCard(
       key: const Key('room_pace_panel'),
@@ -635,7 +638,8 @@ class _RoomPacePanel extends StatelessWidget {
                   : 'Retard sur le planning',
               subtitle:
                   'RDV de ${_NextPatientHeroCard._formatTime(scheduledAt)}'
-                  ' appelé à ${_NextPatientHeroCard._formatTime(calledAt)}',
+                  ' — si appelé maintenant '
+                  '(${_NextPatientHeroCard._formatTime(now)})',
               value: formatWaitMinutes(delayMinutes.abs()),
               valueColor:
                   delayMinutes < 0 ? tokens.successFg : tokens.warningFg,
