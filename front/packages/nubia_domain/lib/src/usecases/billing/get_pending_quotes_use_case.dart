@@ -12,5 +12,8 @@ class GetPendingQuotesUseCase {
 
   const GetPendingQuotesUseCase(this._repository);
 
-  Future<Either<Failure, List<Quote>>> call() => _repository.getQuotes();
+  Future<Either<Failure, List<Quote>>> call({
+    void Function(List<Quote> quotesSoFar)? onPage,
+  }) =>
+      _repository.getQuotes(onPage: onPage);
 }

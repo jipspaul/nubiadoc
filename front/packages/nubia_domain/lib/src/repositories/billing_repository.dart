@@ -4,7 +4,12 @@ import 'package:nubia_domain/src/entities/quote.dart';
 import 'package:nubia_domain/src/entities/payment_schedule.dart';
 
 abstract class BillingRepository {
-  Future<Either<Failure, List<Quote>>> getQuotes();
+  /// #6988 : [onPage] est appelé avec le cumul reçu après chaque page de
+  /// pagination — pour que l'appelant puisse afficher les devis déjà connus
+  /// avant que la pagination complète (jusqu'à 4 pages en démo) ne se termine.
+  Future<Either<Failure, List<Quote>>> getQuotes({
+    void Function(List<Quote> quotesSoFar)? onPage,
+  });
   Future<Either<Failure, Quote>> getQuoteById(String id);
 
   /// `GET /v1/payment-schedules` — tous les échéanciers du patient connecté,

@@ -59,6 +59,19 @@ final _quote = Quote(
   createdAt: DateTime(2026, 6, 1),
 );
 
+final _quote2 = Quote(
+  id: 'q-2',
+  quoteRef: 'DEV-0099',
+  cabinetId: 'cab-1',
+  practitionerName: 'Dr Bernard',
+  items: const [],
+  totalCents: 12000,
+  patientShareCents: 6000,
+  depositCents: 0,
+  status: QuoteStatus.sent,
+  createdAt: DateTime(2026, 6, 5),
+);
+
 /// Devis avec une ligne classifiée `modere` (#4061) : doit déclencher
 /// l'encart d'alternative RAC 0 sur l'écran détail.
 final _quoteWithModereItem = Quote(
@@ -238,7 +251,7 @@ void main() {
 
     testWidgets('affiche "Aucun devis" quand la liste est vide',
         (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => const Right([]));
 
       final bloc = _makeBloc(
@@ -260,7 +273,7 @@ void main() {
     });
 
     testWidgets('affiche la liste des devis quand chargée', (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_quote]));
 
       final bloc = _makeBloc(
@@ -286,7 +299,8 @@ void main() {
     testWidgets('pull-to-refresh déclenche FinancialLoadRequested',
         (tester) async {
       var callCount = 0;
-      when(() => mockGetPendingQuotes()).thenAnswer((_) async {
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
+          .thenAnswer((_) async {
         callCount++;
         return Right([_quote]);
       });
@@ -322,7 +336,7 @@ void main() {
     });
 
     testWidgets('affiche le message d\'erreur en état erreur', (tester) async {
-      when(() => mockGetPendingQuotes()).thenAnswer(
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage'))).thenAnswer(
           (_) async => const Left(NetworkFailure('Erreur réseau.')));
 
       final bloc = _makeBloc(
@@ -347,7 +361,7 @@ void main() {
     testWidgets(
         'affiche l\'encart alternative RAC 0 quand une ligne est panier=modere (#4061)',
         (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_quoteWithModereItem]));
       when(() => mockGetQuoteById(any()))
           .thenAnswer((_) async => Right(_quoteWithModereItem));
@@ -378,7 +392,7 @@ void main() {
 
     testWidgets('affiche la ventilation Part AMO / Part AMC par ligne (#4063)',
         (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_quoteWithModereItem]));
       when(() => mockGetQuoteById(any()))
           .thenAnswer((_) async => Right(_quoteWithModereItem));
@@ -409,7 +423,7 @@ void main() {
     testWidgets(
         'affiche la barre de ventilation AMO/AMC/RAC avec segments '
         'proportionnels et légende soustractive (#5234)', (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_quoteWithModereItem]));
       when(() => mockGetQuoteById(any()))
           .thenAnswer((_) async => Right(_quoteWithModereItem));
@@ -492,7 +506,7 @@ void main() {
     testWidgets(
         'n\'affiche pas l\'encart alternative RAC 0 sans ligne panier=modere',
         (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_quote]));
       when(() => mockGetQuoteById(any()))
           .thenAnswer((_) async => Right(_quote));
@@ -521,7 +535,7 @@ void main() {
     testWidgets(
         'affiche le CTA secondaire "Télécharger le devis signé" en état '
         'signed avec documentId (#5243)', (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_signedQuoteWithDocument]));
       when(() => mockGetQuoteById(any()))
           .thenAnswer((_) async => Right(_signedQuoteWithDocument));
@@ -551,7 +565,7 @@ void main() {
     testWidgets(
         'affiche l\'échéancier acompte/solde daté à la place de "Solde à '
         'régler à la pose" (#5238)', (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_signedQuoteWithDocument]));
       when(() => mockGetQuoteById(any()))
           .thenAnswer((_) async => Right(_signedQuoteWithDocument));
@@ -615,7 +629,7 @@ void main() {
         'appelle GET /v1/payment-schedules et affiche les jalons datés du '
         'praticien à la place de l\'échéancier acompte/solde (#7018)',
         (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_signedQuoteWithDocument]));
       when(() => mockGetQuoteById(any()))
           .thenAnswer((_) async => Right(_signedQuoteWithDocument));
@@ -666,7 +680,7 @@ void main() {
 
     testWidgets('n\'affiche pas le CTA de téléchargement sans documentId',
         (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_quote]));
       when(() => mockGetQuoteById(any())).thenAnswer((_) async {
         final signedNoDoc = Quote(
@@ -708,7 +722,7 @@ void main() {
     testWidgets(
         'affiche les pièces jointes et verrouille "Signer le devis" tant '
         'que l\'attestation n\'est pas signée (#7201)', (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_quote]));
       when(() => mockGetQuoteById(any()))
           .thenAnswer((_) async => Right(_quote));
@@ -766,7 +780,7 @@ void main() {
     testWidgets(
         'signer l\'attestation débloque le bouton "Signer le devis" '
         '(#7201)', (tester) async {
-      when(() => mockGetPendingQuotes())
+      when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_quote]));
       when(() => mockGetQuoteById(any()))
           .thenAnswer((_) async => Right(_quote));
@@ -814,7 +828,7 @@ void main() {
     blocTest<FinancialBloc, FinancialState>(
       'émet [Loading, Loaded(vide)] quand la liste est vide',
       build: () {
-        when(() => mockGetPendingQuotes())
+        when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
             .thenAnswer((_) async => const Right([]));
         return _makeBloc(
           getPendingQuotes: mockGetPendingQuotes,
@@ -837,7 +851,7 @@ void main() {
     blocTest<FinancialBloc, FinancialState>(
       'émet [Loading, Loaded] avec un devis',
       build: () {
-        when(() => mockGetPendingQuotes())
+        when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
             .thenAnswer((_) async => Right([_quote]));
         return _makeBloc(
           getPendingQuotes: mockGetPendingQuotes,
@@ -858,11 +872,48 @@ void main() {
       ],
     );
 
+    // #6988 : sur un compte avec beaucoup de devis, `getQuotes()` enchaîne
+    // jusqu'à 4 appels réseau séquentiels (pagination par curseur,
+    // `billing_api.dart`) — de loin le chargement initial le plus long des
+    // routes patient. `onPage` doit faire apparaître la liste dès la 1re
+    // page reçue, sans attendre l'épuisement du curseur.
+    blocTest<FinancialBloc, FinancialState>(
+      'émet un Loaded intermédiaire dès la 1re page, avant la fin de la pagination',
+      build: () {
+        when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
+            .thenAnswer((invocation) async {
+          final onPage = invocation.namedArguments[#onPage] as void Function(
+              List<Quote> quotesSoFar)?;
+          onPage?.call([_quote]);
+          return Right([_quote, _quote2]);
+        });
+        return _makeBloc(
+          getPendingQuotes: mockGetPendingQuotes,
+          getQuoteById: mockGetQuoteById,
+          initiateSignature: mockInitiateSignature,
+          initiateDeposit: mockInitiateDeposit,
+          getDocumentSignedUrl: mockGetDocumentSignedUrl,
+          getQuoteAttachments: mockGetQuoteAttachments,
+          getQuoteAttestation: mockGetQuoteAttestation,
+          signQuoteAttestation: mockSignQuoteAttestation,
+        );
+      },
+      act: (bloc) => bloc.add(const FinancialLoadRequested()),
+      expect: () => [
+        const FinancialLoading(),
+        isA<FinancialLoaded>()
+            .having((s) => s.quotes.length, 'quotes.length', 1),
+        isA<FinancialLoaded>()
+            .having((s) => s.quotes.length, 'quotes.length', 2),
+      ],
+    );
+
     blocTest<FinancialBloc, FinancialState>(
       'émet [Loading, Error] quand getPendingQuotes échoue',
       build: () {
-        when(() => mockGetPendingQuotes()).thenAnswer(
-            (_) async => const Left(NetworkFailure('Erreur réseau.')));
+        when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
+            .thenAnswer(
+                (_) async => const Left(NetworkFailure('Erreur réseau.')));
         return _makeBloc(
           getPendingQuotes: mockGetPendingQuotes,
           getQuoteById: mockGetQuoteById,
@@ -951,7 +1002,7 @@ void main() {
       'émet [Loading, Loaded] avec la liste rechargée quand BackToList est '
       'reçu depuis le détail',
       build: () {
-        when(() => mockGetPendingQuotes())
+        when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
             .thenAnswer((_) async => Right([_quote]));
         return _makeBloc(
           getPendingQuotes: mockGetPendingQuotes,
@@ -972,7 +1023,8 @@ void main() {
             .having((s) => s.quotes.length, 'quotes.length', 1),
       ],
       verify: (_) {
-        verify(() => mockGetPendingQuotes()).called(1);
+        verify(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
+            .called(1);
       },
     );
 
