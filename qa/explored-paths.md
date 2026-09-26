@@ -4026,3 +4026,22 @@ l'écran. Ouvrir le `*_repository_impl.dart` avant de conclure.
   démo — `DELETE /v1/cabinet/quotes/:id` n'existe pas (405). Idem pour les 3 implants de test de
   #7743 (pas de route de suppression). Conforme à la consigne « l'historique s'accumule, c'est voulu »,
   mais à savoir avant d'interpréter les compteurs de la prochaine ronde.
+
+### Chaîne supplémentaire couverte : tunnel SSR public → agenda du cabinet
+
+Non listée dans la matrice X1–X12, mais c'est bien un flux cross-app : une réservation faite par un
+visiteur **non authentifié** sur `reservation.doc.nubia-link.com` doit atterrir dans l'agenda du
+secrétariat. Vérifiée de bout en bout :
+
+```
+1. GET  /dentiste/lyon                       → 200, puces horaires portant providerId + slotId
+2. GET  /reservation/confirmer?providerId=…&slotId=…  → 200, formulaire complet
+3. POST /reservation/confirmer  (prenom, nom, naissance, telephone, email, motif, consentement)
+                                             → 200  « Rendez-vous confirmé »
+4. GET  /v1/cabinet/appointments?date=2026-09-28  (jeton secrétariat) → 200
+     ('QA R102', '2026-09-28T10:00', 'requested')        ← le RDV est bien dans l'agenda
+5. POST /reservation/confirmer  (rejeu du même slotId)   → 410 « Ce créneau n'est plus disponible »
+```
+
+Le créneau est bien consommé (pas de double réservation), et le RDV arrive au statut `requested`,
+prêt pour la confirmation par le secrétariat — même point d'entrée que la réservation in-app.
