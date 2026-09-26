@@ -377,6 +377,11 @@ pub struct TreatmentPlanPhase {
     pub title: String,
     pub status: String,
     pub items: Vec<TreatmentPlanDetailItem>,
+    /// Phrase en langue claire qui traduit la nomenclature de la phase pour
+    /// le patient, fournie par le praticien (`treatment_phase.description`,
+    /// migration 0303, #5297/#7715). `null` si le praticien ne l'a pas
+    /// renseignée.
+    pub description: Option<String>,
     /// Devis envoyé et non signé qui couvre cette phase, s'il y en a un —
     /// alimente le bandeau + CTA « Consulter et signer le devis » côté
     /// front (`_PendingQuoteBanner`, #6485 : le front les affichait déjà
@@ -384,6 +389,15 @@ pub struct TreatmentPlanPhase {
     /// patient sans aucun moyen d'accéder au devis qui bloque son étape).
     pub pending_quote_id: Option<Uuid>,
     pub pending_quote_sent_at: Option<String>,
+    /// Rendez-vous programmé pour cette phase, s'il y en a un — ligne de
+    /// date (« Réalisée le… »/« Séance aujourd'hui à… ») + CTA « Voir mon
+    /// rendez-vous » côté front (#5299/#7715 : le front les affichait déjà
+    /// mais l'API ne renvoyait jamais ces champs). Dérivé de
+    /// `treatment_session`/`appointment` (migration 0288) via les
+    /// `quote_item` de la phase — `null` si aucune séance de cette phase
+    /// n'a de RDV programmé.
+    pub appointment_id: Option<Uuid>,
+    pub appointment_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -454,7 +468,7 @@ pub async fn get_treatment_plan(
 
     // Fetch phases ordered by position.
     let phase_rows = sqlx::query(
-        "SELECT tp2.id, tp2.position, tp2.title, tp2.status \
+        "SELECT tp2.id, tp2.position, tp2.title, tp2.status, tp2.description \
          FROM treatment_phase tp2 \
          WHERE tp2.plan_id = $1 \
          ORDER BY tp2.position ASC",
@@ -501,6 +515,30 @@ pub async fn get_treatment_plan(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Rendez-vous programmé pour une phase de ce plan (#5299/#7715) — une
+    // phase n'a pas de FK directe vers `appointment` : le lien passe par les
+    // `quote_item` de la phase, rattachés à une séance via
+    // `treatment_session_act` (migration 0288, #7174), elle-même rattachée à
+    // un `appointment` une fois programmée. Un seul RDV par phase (le plus
+    // proche, RDV annulés exclus) même si plusieurs séances/quote_item de la
+    // phase existent. RLS `appointment_patient_read` (migration 0196)
+    // s'applique déjà via `app.patient_account_id`/`app.current_account_id`
+    // posés plus haut — aucune fuite inter-patient possible.
+    let appointment_rows = sqlx::query(
+        "SELECT DISTINCT ON (qi.phase_id) qi.phase_id, a.id AS appointment_id, a.starts_at \
+         FROM quote_item qi \
+         JOIN treatment_phase tp3 ON tp3.id = qi.phase_id \
+         JOIN treatment_session_act tsa ON tsa.quote_item_id = qi.id \
+         JOIN treatment_session ts ON ts.id = tsa.session_id \
+         JOIN appointment a ON a.id = ts.appointment_id \
+         WHERE tp3.plan_id = $1 AND a.deleted_at IS NULL AND a.status <> 'cancelled' \
+         ORDER BY qi.phase_id, a.starts_at ASC",
+    )
+    .bind(plan_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let mut pending_quote_by_phase: std::collections::HashMap<
@@ -513,6 +551,20 @@ pub async fn get_treatment_plan(
         let sent_at: Option<chrono::DateTime<chrono::Utc>> =
             row.try_get("sent_at").map_err(|_| AppError::Internal)?;
         pending_quote_by_phase.insert(phase_id, (quote_id, sent_at));
+    }
+
+    let mut appointment_by_phase: std::collections::HashMap<
+        Uuid,
+        (Uuid, chrono::DateTime<chrono::Utc>),
+    > = std::collections::HashMap::new();
+    for row in &appointment_rows {
+        let phase_id: Uuid = row.try_get("phase_id").map_err(|_| AppError::Internal)?;
+        let appointment_id: Uuid = row
+            .try_get("appointment_id")
+            .map_err(|_| AppError::Internal)?;
+        let starts_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+        appointment_by_phase.insert(phase_id, (appointment_id, starts_at));
     }
 
     // Group items by phase_id.
@@ -562,11 +614,19 @@ pub async fn get_treatment_plan(
             let position: i32 = row.try_get("position").map_err(|_| AppError::Internal)?;
             let title: String = row.try_get("title").map_err(|_| AppError::Internal)?;
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            let description: Option<String> =
+                row.try_get("description").map_err(|_| AppError::Internal)?;
             let items = items_by_phase.remove(&phase_id).unwrap_or_default();
             let (pending_quote_id, pending_quote_sent_at) = match pending_quote_by_phase
                 .remove(&phase_id)
             {
                 Some((quote_id, sent_at)) => (Some(quote_id), sent_at.map(|dt| dt.to_rfc3339())),
+                None => (None, None),
+            };
+            let (appointment_id, appointment_at) = match appointment_by_phase.remove(&phase_id) {
+                Some((appointment_id, starts_at)) => {
+                    (Some(appointment_id), Some(starts_at.to_rfc3339()))
+                }
                 None => (None, None),
             };
             Ok(TreatmentPlanPhase {
@@ -575,8 +635,11 @@ pub async fn get_treatment_plan(
                 title,
                 status,
                 items,
+                description,
                 pending_quote_id,
                 pending_quote_sent_at,
+                appointment_id,
+                appointment_at,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;

@@ -355,6 +355,70 @@ async fn create_treatment_phase_returns_201_and_persists() {
     cleanup_fixtures(&db, &f).await;
 }
 
+// ── Test 1b : `description` fournie → persistée (#7715 : `treatment_phase.
+//    description`, migration 0303, jusqu'ici sans aucun moyen d'être
+//    renseignée — le front l'affiche pourtant depuis #5297).
+
+#[tokio::test]
+async fn create_treatment_phase_persists_description() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/treatment-plans/{}/phases", f.plan_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({
+                        "title": "Phase 1 · Détartrage",
+                        "position": 1,
+                        "description": "Détartrage complet et soin d'une carie sur la dent 26.",
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let phase_id: Uuid = v["phase_id"].as_str().unwrap().parse().unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let row = sqlx::query("SELECT description FROM treatment_phase WHERE id = $1")
+        .bind(phase_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let description: Option<String> = row.try_get("description").unwrap();
+    assert_eq!(
+        description.as_deref(),
+        Some("Détartrage complet et soin d'une carie sur la dent 26.")
+    );
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 // ── Test 2 : quote_item_ids fourni → rattaché via phase_id ────────────────────
 
 #[tokio::test]
