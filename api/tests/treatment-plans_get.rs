@@ -945,6 +945,96 @@ async fn treatment_plan_get_other_patient_returns_404() {
         .ok();
 }
 
+// ── Test 6 : plan `draft` du patient lui-même → 404 (#7737) ──────────────────
+//
+// Un brouillon n'a jamais fini d'être rédigé par le praticien : la liste
+// patient l'exclut déjà (#5294) ; le détail doit rendre la même garde, pas
+// servir titre/montants/phases d'un plan non finalisé via un lien direct.
+
+#[tokio::test]
+async fn treatment_plan_get_draft_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("tp-get-draft+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Draft', 'Get')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("tp-get-draft-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Plan `draft` du patient lui-même — jamais servi, même en accès direct.
+    let (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id) =
+        insert_treatment_plan_fixture(&db, prac_user_id, account_id).await;
+    sqlx::query("UPDATE treatment_plan SET status = 'draft' WHERE id = $1")
+        .bind(plan_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/treatment-plans/{}", plan_id))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "un plan draft ne doit jamais être servi au patient, même en accès direct (#7737)"
+    );
+
+    cleanup_fixture(&db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id).await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Tests : GET /v1/treatment-plans (liste paginée)
 // ══════════════════════════════════════════════════════════════════════════════

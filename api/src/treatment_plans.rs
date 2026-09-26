@@ -441,10 +441,13 @@ pub async fn get_treatment_plan(
         .map_err(|_| AppError::Internal)?;
 
     // Fetch the plan header (RLS ensures it belongs to this patient or returns nothing).
+    // Un plan `draft` (non finalisé par le praticien) n'est jamais exposé au patient,
+    // ici comme dans `list_treatment_plans` — filtrage à la source, pas côté libellé
+    // front (#5294, #7737).
     let plan_row = sqlx::query(
         "SELECT tp.id, tp.cabinet_id, tp.title, tp.status \
          FROM treatment_plan tp \
-         WHERE tp.id = $1 AND tp.deleted_at IS NULL",
+         WHERE tp.id = $1 AND tp.deleted_at IS NULL AND tp.status <> 'draft'",
     )
     .bind(id)
     .fetch_optional(&mut *tx)
