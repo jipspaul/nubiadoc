@@ -66,6 +66,7 @@ class NubiaTextField extends StatefulWidget {
     super.key,
     this.variant = NubiaTextFieldVariant.outlined,
     this.controller,
+    this.focusNode,
     this.label,
     this.hint,
     this.errorText,
@@ -81,6 +82,11 @@ class NubiaTextField extends StatefulWidget {
 
   final NubiaTextFieldVariant variant;
   final TextEditingController? controller;
+
+  /// Nœud de focus explicite (#6995) : `null` par défaut, le champ garde
+  /// alors son focus interne auto-géré, comportement inchangé pour les
+  /// appelants existants qui ne le renseignent pas.
+  final FocusNode? focusNode;
   final String? label;
   final String? hint;
   final String? errorText;
@@ -203,6 +209,7 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
   }) {
     final field = TextField(
       controller: widget.controller,
+      focusNode: widget.focusNode,
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
       // Entrée envoie (au lieu d'ajouter une ligne) uniquement quand

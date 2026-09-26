@@ -1082,7 +1082,7 @@ class _ReferenceChip extends StatelessWidget {
   }
 }
 
-class _Composer extends StatelessWidget {
+class _Composer extends StatefulWidget {
   const _Composer({
     required this.controller,
     required this.enabled,
@@ -1093,10 +1093,24 @@ class _Composer extends StatelessWidget {
   final bool enabled;
   final VoidCallback onSend;
 
+  @override
+  State<_Composer> createState() => _ComposerState();
+}
+
+class _ComposerState extends State<_Composer> {
+  final _composerFocusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _composerFocusNode.dispose();
+    super.dispose();
+  }
+
   // ⇧⏎ insère un saut de ligne sans envoyer, ⏎ seul envoie (#4538 conservé).
   // Géré manuellement : le clavier physique ne distingue pas les deux dans
   // un champ multiligne sans interception explicite.
   void _insertNewline() {
+    final controller = widget.controller;
     final selection = controller.selection;
     final text = controller.text;
     final start = selection.start < 0 ? text.length : selection.start;
@@ -1109,8 +1123,11 @@ class _Composer extends StatelessWidget {
 
   /// Affordance « Mentionner » (#5129) : insère `@` à la position du
   /// curseur pour amorcer une mention `@Nom`, mise en avant par
-  /// [_MessageBody] une fois le message envoyé.
+  /// [_MessageBody] une fois le message envoyé. Rend la main au composeur
+  /// (#6995) : sans `requestFocus`, le focus reste sur le bouton et la
+  /// frappe qui suit est perdue.
   void _insertMention() {
+    final controller = widget.controller;
     final selection = controller.selection;
     final text = controller.text;
     final start = selection.start < 0 ? text.length : selection.start;
@@ -1119,17 +1136,18 @@ class _Composer extends StatelessWidget {
       text: text.replaceRange(start, end, '@'),
       selection: TextSelection.collapsed(offset: start + 1),
     );
+    _composerFocusNode.requestFocus();
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.enter) {
       return KeyEventResult.ignored;
     }
-    if (!enabled) return KeyEventResult.ignored;
+    if (!widget.enabled) return KeyEventResult.ignored;
     if (HardwareKeyboard.instance.isShiftPressed) {
       _insertNewline();
     } else {
-      onSend();
+      widget.onSend();
     }
     return KeyEventResult.handled;
   }
@@ -1188,7 +1206,7 @@ class _Composer extends StatelessWidget {
                       icon: Icons.alternate_email,
                       variant: NubiaButtonVariant.secondary,
                       size: NubiaButtonSize.sm,
-                      onPressed: enabled ? _insertMention : null,
+                      onPressed: widget.enabled ? _insertMention : null,
                     ),
                   ],
                 ),
@@ -1203,12 +1221,13 @@ class _Composer extends StatelessWidget {
                     child: NubiaTextField(
                       key: const Key('team_message_input'),
                       variant: NubiaTextFieldVariant.multiline,
-                      controller: controller,
-                      enabled: enabled,
+                      controller: widget.controller,
+                      focusNode: _composerFocusNode,
+                      enabled: widget.enabled,
                       hint: 'Écrire à l\'équipe…',
                       onChanged: (_) {},
                       // #4538 : Entrée envoie (réflexe universel dans un chat).
-                      onSubmitted: enabled ? (_) => onSend() : null,
+                      onSubmitted: widget.enabled ? (_) => widget.onSend() : null,
                     ),
                   ),
                 ),
@@ -1216,7 +1235,7 @@ class _Composer extends StatelessWidget {
                 IconButton.filled(
                   key: const Key('team_message_send_button'),
                   tooltip: 'Envoyer',
-                  onPressed: enabled ? onSend : null,
+                  onPressed: widget.enabled ? widget.onSend : null,
                   icon: const Icon(Icons.send_outlined),
                 ),
               ],
