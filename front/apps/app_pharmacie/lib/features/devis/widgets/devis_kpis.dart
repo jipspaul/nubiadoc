@@ -115,6 +115,13 @@ class _DevisKpiStat extends StatelessWidget {
       children: [
         Text(
           value,
+          // Insécable (#6985) : au viewport mobile, ce KPI est comprimé à
+          // quelques dizaines de px et un `Text` sans `softWrap: false` se
+          // replie au milieu du nombre plutôt que sur un espace — d'où un
+          // montant coupé « 1 625,0 » / « 0 € ».
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.ellipsis,
           style: theme.textTheme.titleLarge?.copyWith(
             color: valueColor ?? theme.colorScheme.onSurface,
             fontFeatures: const [FontFeature.tabularFigures()],
@@ -123,6 +130,8 @@ class _DevisKpiStat extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodySmall?.copyWith(
             color: tokens.textTertiary,
           ),
