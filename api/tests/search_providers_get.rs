@@ -943,3 +943,37 @@ async fn search_providers_sort_distance_without_point_is_validation_error() {
          retomber muettement sur un tri alphabétique"
     );
 }
+
+// ── Régression #7732 : `place` inconnu + `radius_km` court-circuitait le ────
+// garde-fou posé par #7718. Un `place` que le lookup géo statique ne sait pas
+// résoudre n'est pas un point d'ancrage : `radius_km` devient inapplicable et
+// doit être refusé (422), pas rendu muettement en ignorant le filtre (ce qui
+// renvoyait l'annuaire national entier avec `distance_m: null`).
+#[tokio::test]
+async fn search_providers_unknown_place_with_radius_km_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?place=Zzzzville&radius_km=5&per_page=50")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "place inconnu + radius_km doit être refusé (422), pas rendre \
+         l'annuaire national entier avec distance_m: null"
+    );
+}
