@@ -155,6 +155,15 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
   int _index = 0;
   late final Set<String> _collapsedGroups = {...widget.config.collapsedGroups};
 
+  /// Barre latérale desktop (#7706) — le `ListView` du rail défile sans
+  /// aucune affordance visible (`tooth_grid.dart`, même défaut déjà corrigé
+  /// pour l'arcade dentaire, #6642) : rien n'indiquait qu'une ligne restait
+  /// hors du viewport lorsque le contenu dépasse la hauteur disponible
+  /// (18 lignes × 32px = 576px pour 525px de viewport à 1280×800), au point
+  /// que le dernier groupe de la barre (secrétariat) restait injoignable
+  /// pour qui ne découvrait pas la molette.
+  final ScrollController _railScrollController = ScrollController();
+
   /// `null` quand [ProShell.notificationRepository] n'est pas fourni (#6263)
   /// — pas de cloche dans ce cas (voir [ProShell.notificationRepository]).
   ProNotificationsCubit? _notificationsCubit;
@@ -178,6 +187,7 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
       WidgetsBinding.instance.removeObserver(this);
       _notificationsCubit!.close();
     }
+    _railScrollController.dispose();
     super.dispose();
   }
 
@@ -646,35 +656,47 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                   // au `NavigationRail` (#4153, ne défilait pas au-delà d'une
                   // dizaine de destinations), l'excédent défile sans faire
                   // déborder l'en-tête/le pied de la barre latérale.
+                  //
+                  // `Scrollbar` visible (#7706, même défaut que #6642) : sans
+                  // elle, rien ne signale que la liste dépasse le viewport
+                  // disponible — le dernier groupe pouvait rester hors champ
+                  // et injoignable pour qui ne découvrait pas la molette.
                   Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      children: [
-                        for (int i = 0; i < rows.length; i++)
-                          if (rows[i].destination != null)
-                            KeyedSubtree(
-                              key: rows[i].key,
-                              child: _sidebarEntry(
-                                context,
-                                icon: Icon(rows[i].destination!.icon),
-                                label: rows[i].destination!.label,
-                                selected: i == rowIndex,
-                                onTap: () => _selectRow(destinations, rows, i),
-                                badgeCount: rows[i].destination!.badgeCount,
-                                trailing: _workloadBadge(
-                                    context, rows[i].destination!),
+                    child: Scrollbar(
+                      controller: _railScrollController,
+                      thumbVisibility: true,
+                      child: ListView(
+                        controller: _railScrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        children: [
+                          for (int i = 0; i < rows.length; i++)
+                            if (rows[i].destination != null)
+                              KeyedSubtree(
+                                key: rows[i].key,
+                                child: _sidebarEntry(
+                                  context,
+                                  icon: Icon(rows[i].destination!.icon),
+                                  label: rows[i].destination!.label,
+                                  selected: i == rowIndex,
+                                  onTap: () =>
+                                      _selectRow(destinations, rows, i),
+                                  badgeCount: rows[i].destination!.badgeCount,
+                                  trailing: _workloadBadge(
+                                      context, rows[i].destination!),
+                                ),
+                              )
+                            else
+                              KeyedSubtree(
+                                key: rows[i].key,
+                                child: _sidebarGroupHeader(
+                                  context,
+                                  rows[i],
+                                  onTap: () =>
+                                      _selectRow(destinations, rows, i),
+                                ),
                               ),
-                            )
-                          else
-                            KeyedSubtree(
-                              key: rows[i].key,
-                              child: _sidebarGroupHeader(
-                                context,
-                                rows[i],
-                                onTap: () => _selectRow(destinations, rows, i),
-                              ),
-                            ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   Padding(
