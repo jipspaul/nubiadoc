@@ -493,8 +493,9 @@ type GeoFilter = (Option<f64>, Option<f64>, Option<f64>);
 /// Rayon par défaut `GEO_DEFAULT_RADIUS_KM` appliqué à TOUTES les branches
 /// quand `radius_km` est omis (#4387 : `near` seul l'ignorait, annuaire
 /// national renvoyé au lieu d'un rayon de proximité).
-/// `422` si `lat`/`lng` sont fournis l'un sans l'autre, ou si `radius_km` est
-/// fourni sans le moindre point d'ancrage (`near`/`lat`+`lng`/`place`) — un
+/// `422` si `lat`/`lng` sont fournis l'un sans l'autre, si `radius_km` est
+/// fourni sans le moindre point d'ancrage (`near`/`lat`+`lng`/`place`), ou si
+/// `place` ne résout à aucune entrée de `KNOWN_CITY_COORDS` (#6997) — un
 /// filtre géo n'a que deux issues acceptables : appliqué, ou refusé (#7718,
 /// même doctrine que `SearchPharmaciesQuery::search_pharmacies`).
 fn resolve_geo_filter(
@@ -538,14 +539,16 @@ fn resolve_geo_filter(
                 Some(radius_km.unwrap_or(GEO_DEFAULT_RADIUS_KM)),
             ));
         }
-        tracing::warn!(place = %p, "place inconnu du lookup géo statique, filtre ignoré");
-        // #7732 : un `place` non résolu n'est pas un point d'ancrage — même
-        // doctrine que #7718, `radius_km` sans ancrage doit être refusé, pas
-        // rendu muettement en ignorant le filtre (cf. le cas `lat`/`lng` absents).
-        if radius_km.is_some() {
-            return Err(AppError::ValidationError);
-        }
-        return Ok((None, None, None));
+        // #6997 : un `place` non résolu par le lookup statique n'est pas un
+        // point d'ancrage valide — le laisser silencieusement retomber sur
+        // « aucun filtre géo » rendait l'annuaire national complet pour
+        // n'importe quelle ville hors des `KNOWN_CITY_COORDS` (91 entrées sur
+        // ~35000 communes), sans le moindre indicateur dans la réponse. Même
+        // doctrine que #7732/#7718 (`radius_km` sans ancrage) et que
+        // `search_slots` sur un `provider_id`/`date` malformé (#3885) : un
+        // filtre demandé mais inapplicable doit être refusé, pas ignoré.
+        tracing::warn!(place = %p, "place inconnu du lookup géo statique, requête rejetée");
+        return Err(AppError::ValidationError);
     }
     if radius_km.is_some() {
         return Err(AppError::ValidationError);

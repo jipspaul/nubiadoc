@@ -977,3 +977,36 @@ async fn search_providers_unknown_place_with_radius_km_is_validation_error() {
          l'annuaire national entier avec distance_m: null"
     );
 }
+
+// ── Régression #6997 : `place` inconnu SEUL (sans `radius_km`) retombait ────
+// muettement sur « aucun filtre géo » et rendait l'annuaire national entier
+// en 200, comme si aucune recherche n'avait été demandée. `place=zzzzz` doit
+// être refusé (422), même verdict que `place` inconnu + `radius_km` (#7732).
+#[tokio::test]
+async fn search_providers_unknown_place_alone_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?place=zzzzz&per_page=100")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "place inconnu (sans radius_km) doit être refusé (422), pas rendre \
+         l'annuaire national entier comme si aucun filtre n'avait été demandé"
+    );
+}
