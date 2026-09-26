@@ -26,6 +26,9 @@ class MockUpdatePatientNotesUseCase extends Mock
 class MockListPatientNotesUseCase extends Mock
     implements ListPatientNotesUseCase {}
 
+class MockListCabinetAppointmentsUseCase extends Mock
+    implements ListCabinetAppointmentsUseCase {}
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -40,6 +43,21 @@ final _patient = CabinetPatient(
   createdAt: DateTime(2024, 1, 1),
 );
 
+CabinetAppointment _appt(String id, DateTime startsAt,
+        {String patientId = 'pat-1'}) =>
+    CabinetAppointment(
+      id: id,
+      cabinetId: 'cab-1',
+      patientId: patientId,
+      patientName: 'Jean Dupont',
+      practitionerId: 'prat-1',
+      practitionerName: 'Dr Martin',
+      startsAt: startsAt,
+      duration: const Duration(minutes: 30),
+      motif: 'Contrôle',
+      status: CabinetAppointmentStatus.confirmed,
+    );
+
 final _note = PatientNote(
   id: 'note-1',
   kind: 'observation',
@@ -53,12 +71,14 @@ PatientsBloc _makeBloc({
   required MockGetCabinetPatientUseCase get,
   required MockUpdatePatientNotesUseCase update,
   MockListPatientNotesUseCase? listNotes,
+  MockListCabinetAppointmentsUseCase? listAppointments,
 }) =>
     PatientsBloc(
       listPatients: list,
       getPatient: get,
       updateNotes: update,
       listNotes: listNotes,
+      listAppointments: listAppointments,
     );
 
 // ---------------------------------------------------------------------------
@@ -202,6 +222,7 @@ void main() {
   late MockListCabinetPatientsUseCase mockList;
   late MockGetCabinetPatientUseCase mockGet;
   late MockUpdatePatientNotesUseCase mockUpdate;
+  late MockListCabinetAppointmentsUseCase mockAppointments;
 
   setUp(() {
     mockList = MockListCabinetPatientsUseCase();
@@ -351,6 +372,89 @@ void main() {
         const PatientsLoading(),
         PatientDetailLoaded(_patient, notesAccessDenied: true),
       ],
+    );
+
+    blocTest<PatientsBloc, PatientsState>(
+      'charge l\'historique RDV via le filtre serveur patient_id (#7736)',
+      build: () {
+        mockAppointments = MockListCabinetAppointmentsUseCase();
+        when(() => mockGet('pat-1')).thenAnswer((_) async => Right(_patient));
+        when(() => mockAppointments(
+              patientId: 'pat-1',
+              limit: 500,
+              offset: 0,
+            )).thenAnswer((_) async => Right([
+              _appt('a1', DateTime(2024, 1, 1)),
+              _appt('a2', DateTime(2024, 6, 1)),
+            ]));
+        return _makeBloc(
+          list: mockList,
+          get: mockGet,
+          update: mockUpdate,
+          listAppointments: mockAppointments,
+        );
+      },
+      act: (b) => b.add(const PatientsDetailLoadRequested('pat-1')),
+      expect: () => [
+        const PatientsLoading(),
+        PatientDetailLoaded(
+          _patient,
+          appointments: [
+            _appt('a2', DateTime(2024, 6, 1)),
+            _appt('a1', DateTime(2024, 1, 1)),
+          ],
+        ),
+      ],
+      verify: (_) {
+        verify(() => mockAppointments(
+              patientId: 'pat-1',
+              limit: 500,
+              offset: 0,
+            )).called(1);
+      },
+    );
+
+    blocTest<PatientsBloc, PatientsState>(
+      'pagine au-delà de la première page serveur (#7736)',
+      build: () {
+        mockAppointments = MockListCabinetAppointmentsUseCase();
+        when(() => mockGet('pat-1')).thenAnswer((_) async => Right(_patient));
+        final page1 = List.generate(
+          500,
+          (i) => _appt('p1-$i', DateTime(2024, 1, 1).add(Duration(days: i))),
+        );
+        final page2 = [_appt('p2-0', DateTime(2030, 1, 1))];
+        when(() => mockAppointments(
+              patientId: 'pat-1',
+              limit: 500,
+              offset: 0,
+            )).thenAnswer((_) async => Right(page1));
+        when(() => mockAppointments(
+              patientId: 'pat-1',
+              limit: 500,
+              offset: 500,
+            )).thenAnswer((_) async => Right(page2));
+        return _makeBloc(
+          list: mockList,
+          get: mockGet,
+          update: mockUpdate,
+          listAppointments: mockAppointments,
+        );
+      },
+      act: (b) => b.add(const PatientsDetailLoadRequested('pat-1')),
+      expect: () => [
+        const PatientsLoading(),
+        isA<PatientDetailLoaded>()
+            .having((s) => s.appointments.length, 'nb RDV', 501)
+            .having((s) => s.appointments.first.id, 'plus récent', 'p2-0'),
+      ],
+      verify: (_) {
+        verify(() => mockAppointments(
+              patientId: 'pat-1',
+              limit: 500,
+              offset: 500,
+            )).called(1);
+      },
     );
 
     blocTest<PatientsBloc, PatientsState>(

@@ -75,21 +75,17 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
     emit(const PatientsLoading());
     try {
       final result = await _getById(event.id);
-      // Historique RDV (#3372) : l'endpoint agenda cabinet n'accepte pas de
-      // filtre patient — on filtre côté client. Best-effort : un échec laisse
-      // l'historique vide sans casser la fiche.
+      // Historique RDV (#7736) : filtre `patient_id` côté serveur (#5572), pas
+      // de lecture de toute la liste cabinet — celle-ci est plafonnée à 200/500
+      // (#7223) et tronquerait l'historique d'un patient sur un gros cabinet.
+      // Best-effort : un échec laisse l'historique vide sans casser la fiche.
       var appointments = const <CabinetAppointment>[];
       final listAppointments = _listAppointments;
       if (listAppointments != null) {
         try {
-          final apptsResult = await listAppointments();
-          appointments = apptsResult.fold(
-            (_) => const [],
-            (all) {
-              final own = all.where((a) => a.patientId == event.id).toList()
-                ..sort((a, b) => b.startsAt.compareTo(a.startsAt));
-              return own;
-            },
+          appointments = await _fetchAllAppointments(
+            listAppointments,
+            event.id,
           );
         } catch (_) {
           appointments = const [];
@@ -117,6 +113,34 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
     } catch (_) {
       safeEmit(const PatientDetailError('Erreur de chargement.'));
     }
+  }
+
+  /// Taille de page max acceptée par `GET /v1/cabinet/appointments`
+  /// (`api/src/scheduling.rs`, #7223).
+  static const _appointmentsPageSize = 500;
+
+  /// Lit tout l'historique RDV d'un patient via le filtre serveur
+  /// `patient_id` (#5572), en paginant tant que le serveur renvoie une page
+  /// pleine — un patient de gros cabinet peut dépasser une seule page (#7736).
+  Future<List<CabinetAppointment>> _fetchAllAppointments(
+    ListCabinetAppointmentsUseCase listAppointments,
+    String patientId,
+  ) async {
+    final own = <CabinetAppointment>[];
+    var offset = 0;
+    while (true) {
+      final apptsResult = await listAppointments(
+        patientId: patientId,
+        limit: _appointmentsPageSize,
+        offset: offset,
+      );
+      final page = apptsResult.fold((_) => const <CabinetAppointment>[], (a) => a);
+      own.addAll(page);
+      if (page.length < _appointmentsPageSize) break;
+      offset += _appointmentsPageSize;
+    }
+    own.sort((a, b) => b.startsAt.compareTo(a.startsAt));
+    return own;
   }
 
   /// Best-effort (#7560) : une erreur de chargement des notes laisse la
