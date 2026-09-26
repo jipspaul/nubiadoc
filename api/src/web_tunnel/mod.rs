@@ -28,7 +28,7 @@ mod sitemap;
 mod slug;
 
 use axum::extract::Request;
-use axum::http::StatusCode;
+use axum::http::{HeaderName, HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -54,6 +54,31 @@ async fn reject_v1_prefix(request: Request, next: Next) -> Response {
     next.run(request).await
 }
 
+/// #7746 : page HTML servie sans aucun en-tête de sécurité (HSTS,
+/// anti-framing, referrer) — un tiers pouvait l'encadrer dans une `<iframe>`
+/// et détourner les clics sur « Envoyer la demande »/« Valider le code ».
+async fn security_headers(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    headers.insert(
+        HeaderName::from_static("x-frame-options"),
+        HeaderValue::from_static("DENY"),
+    );
+    headers.insert(
+        HeaderName::from_static("content-security-policy"),
+        HeaderValue::from_static("frame-ancestors 'none'"),
+    );
+    headers.insert(
+        HeaderName::from_static("strict-transport-security"),
+        HeaderValue::from_static("max-age=63072000; includeSubDomains"),
+    );
+    headers.insert(
+        HeaderName::from_static("referrer-policy"),
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    response
+}
+
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(home_page::home_page))
@@ -67,6 +92,7 @@ pub fn router(state: AppState) -> Router {
         .route("/:query_slug/:locality_slug", get(search_page::search_page))
         .route("/:slug", get(provider_page::provider_page))
         .route_layer(middleware::from_fn(reject_v1_prefix))
+        .route_layer(middleware::from_fn(security_headers))
         .with_state(state)
 }
 
@@ -78,7 +104,7 @@ mod tests {
     use axum::Router;
     use tower::ServiceExt;
 
-    use super::reject_v1_prefix;
+    use super::{reject_v1_prefix, security_headers};
 
     async fn dummy() -> &'static str {
         "ok"
@@ -123,5 +149,29 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn sets_anti_framing_and_transport_headers() {
+        let router = Router::new()
+            .route("/:slug", get(dummy))
+            .route_layer(axum::middleware::from_fn(security_headers));
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .uri("/dentiste/paris-2e")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let headers = response.headers();
+        assert_eq!(headers["x-frame-options"], "DENY");
+        assert_eq!(headers["content-security-policy"], "frame-ancestors 'none'");
+        assert_eq!(
+            headers["strict-transport-security"],
+            "max-age=63072000; includeSubDomains"
+        );
+        assert_eq!(headers["referrer-policy"], "strict-origin-when-cross-origin");
     }
 }
