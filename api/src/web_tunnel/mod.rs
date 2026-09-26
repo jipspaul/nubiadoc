@@ -159,7 +159,7 @@ mod tests {
         let response = router
             .oneshot(
                 Request::builder()
-                    .uri("/dentiste/paris-2e")
+                    .uri("/dentiste-paris-2e")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -172,6 +172,9 @@ mod tests {
             headers["strict-transport-security"],
             "max-age=63072000; includeSubDomains"
         );
-        assert_eq!(headers["referrer-policy"], "strict-origin-when-cross-origin");
+        assert_eq!(
+            headers["referrer-policy"],
+            "strict-origin-when-cross-origin"
+        );
     }
 }
