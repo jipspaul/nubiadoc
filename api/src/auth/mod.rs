@@ -20,6 +20,7 @@ use argon2::{
 };
 use async_trait::async_trait;
 use axum::{
+    body::Bytes,
     extract::{Extension, FromRequestParts, Multipart, Path, State},
     http::{header::RETRY_AFTER, request::Parts, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
@@ -6377,10 +6378,12 @@ pub async fn post_account_access_request_accept(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(request_id): Path<Uuid>,
-    body: Option<Json<AcceptAccessRequestBody>>,
+    body: Bytes,
 ) -> Result<Json<AccessRequestResponse>, AppError> {
+    let body: Option<AcceptAccessRequestBody> =
+        crate::optional_json_body::parse_optional_json_body_presence(&body)?;
     let adjusted_scope = match body {
-        Some(Json(b)) => {
+        Some(b) => {
             for right in &b.scope {
                 if !ACCESS_REQUEST_SCOPE_VALUES.contains(&right.as_str()) {
                     return Err(AppError::ValidationError);
