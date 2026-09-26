@@ -550,7 +550,8 @@ pub struct CreateImplantResponse {
 /// hors tenant → `404`. Garde §14 (relation de soin, même pattern que
 /// `prescriptions.rs::create_prescription`/`dental_chart.rs`) : praticien
 /// sans `appointment` avec ce patient dans ce cabinet → `403`. `brand`/
-/// `implant_ref` vides → `422`. Visible ensuite côté patient via
+/// `implant_ref` vides → `422`. `placement_date` dans le futur ou antérieure
+/// à 120 ans → `422` (#7743). Visible ensuite côté patient via
 /// `GET /v1/implant-passport`.
 pub async fn create_implant(
     State(state): State<AppState>,
@@ -580,6 +581,18 @@ pub async fn create_implant(
         .map(|s| s.parse::<chrono::NaiveDate>())
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
+    if let Some(d) = placement_date {
+        let today = chrono::Utc::now().date_naive();
+        // Borne basse symétrique à la borne haute (#7743) : même fenêtre que
+        // la date de naissance (#6653) — 120 ans dans le passé, jamais dans
+        // le futur (on ne pose pas un implant demain).
+        let min_placement_date = today
+            .checked_sub_months(chrono::Months::new(120 * 12))
+            .ok_or(AppError::ValidationError)?;
+        if d > today || d < min_placement_date {
+            return Err(AppError::ValidationError);
+        }
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
