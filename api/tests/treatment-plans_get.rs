@@ -1026,7 +1026,10 @@ async fn treatment_plan_get_draft_returns_404() {
         "un plan draft ne doit jamais être servi au patient, même en accès direct (#7737)"
     );
 
-    cleanup_fixture(&db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id).await;
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,
+    )
+    .await;
     sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
         .bind(user_id)
         .bind(prac_user_id)
