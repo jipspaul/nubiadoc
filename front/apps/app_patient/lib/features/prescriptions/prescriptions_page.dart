@@ -107,6 +107,7 @@ class PrescriptionsBody extends StatelessWidget {
               return ListRow(
                 key: Key('prescription_${prescription.id}'),
                 title: 'Ordonnance du $date à $time',
+                titleMaxLines: 2,
                 subtitle: _statusLabel(prescription.status),
                 showDivider: false,
                 trailing: prescription.documentId != null
