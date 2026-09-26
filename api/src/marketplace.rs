@@ -247,6 +247,14 @@ pub struct SearchProvidersQuery {
     pub q: Option<String>,
     pub specialty: Option<Uuid>,
     pub near: Option<String>,
+    /// Alias de `near` sous forme de deux champs séparés (#7718) : l'annuaire
+    /// jumeau `/v1/pharmacies` (`SearchPharmaciesQuery`) prend ses coordonnées
+    /// sous `lat`/`lng` — un client qui réutilise ces noms ici les voyait
+    /// silencieusement jetés par `Query<…>` (pas de `deny_unknown_fields`) :
+    /// 200 avec la liste entière, sans aucun signal. `near` reste prioritaire
+    /// si les deux sont fournis (voir `resolve_geo_filter`).
+    pub lat: Option<f64>,
+    pub lng: Option<f64>,
     pub place: Option<String>,
     pub radius_km: Option<f64>,
     pub bbox: Option<String>,
@@ -478,17 +486,27 @@ pub(crate) fn is_known_place(place: &str) -> bool {
 /// `(lat, lng, radius_km)` résolus par [`resolve_geo_filter`].
 type GeoFilter = (Option<f64>, Option<f64>, Option<f64>);
 
-/// Résout le filtre géo `near`/`place` en `(lat, lng, radius_km effectif)`.
-/// `near` (coordonnées explicites) est toujours prioritaire sur `place` si les
-/// deux sont fournis. `place` résolu via `KNOWN_CITY_COORDS` (#3753).
-/// Rayon par défaut `GEO_DEFAULT_RADIUS_KM` appliqué aux DEUX branches quand
-/// `radius_km` est omis (#4387 : `near` seul l'ignorait, annuaire national
-/// renvoyé au lieu d'un rayon de proximité).
+/// Résout le filtre géo `near`/`lat`+`lng`/`place` en `(lat, lng, radius_km
+/// effectif)`. `near` (coordonnées explicites) est toujours prioritaire sur
+/// `lat`/`lng`, lui-même prioritaire sur `place`, si plusieurs sont fournis.
+/// `place` résolu via `KNOWN_CITY_COORDS` (#3753).
+/// Rayon par défaut `GEO_DEFAULT_RADIUS_KM` appliqué à TOUTES les branches
+/// quand `radius_km` est omis (#4387 : `near` seul l'ignorait, annuaire
+/// national renvoyé au lieu d'un rayon de proximité).
+/// `422` si `lat`/`lng` sont fournis l'un sans l'autre, ou si `radius_km` est
+/// fourni sans le moindre point d'ancrage (`near`/`lat`+`lng`/`place`) — un
+/// filtre géo n'a que deux issues acceptables : appliqué, ou refusé (#7718,
+/// même doctrine que `SearchPharmaciesQuery::search_pharmacies`).
 fn resolve_geo_filter(
     near: Option<&str>,
+    lat: Option<f64>,
+    lng: Option<f64>,
     place: Option<&str>,
     radius_km: Option<f64>,
 ) -> Result<GeoFilter, AppError> {
+    if lat.is_some() != lng.is_some() {
+        return Err(AppError::ValidationError);
+    }
     if let Some(s) = near {
         let mut parts = s.splitn(2, ',');
         let lat = parts
@@ -505,6 +523,13 @@ fn resolve_geo_filter(
             Some(radius_km.unwrap_or(GEO_DEFAULT_RADIUS_KM)),
         ));
     }
+    if let (Some(lat), Some(lng)) = (lat, lng) {
+        return Ok((
+            Some(lat),
+            Some(lng),
+            Some(radius_km.unwrap_or(GEO_DEFAULT_RADIUS_KM)),
+        ));
+    }
     if let Some(p) = place {
         if let Some((lat, lng)) = resolve_place_coords(p) {
             return Ok((
@@ -514,8 +539,12 @@ fn resolve_geo_filter(
             ));
         }
         tracing::warn!(place = %p, "place inconnu du lookup géo statique, filtre ignoré");
+        return Ok((None, None, radius_km));
     }
-    Ok((None, None, radius_km))
+    if radius_km.is_some() {
+        return Err(AppError::ValidationError);
+    }
+    Ok((None, None, None))
 }
 
 /// `GET /v1/search/slots` — prochains créneaux disponibles par praticien (docs/12 §12.1).
@@ -553,9 +582,17 @@ pub async fn search_slots(
     let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
         params.near.as_deref(),
+        params.lat,
+        params.lng,
         params.place.as_deref(),
         params.radius_km,
     )?;
+    // #7718 : `sort=distance` sans point d'ancrage résolu triait silencieusement
+    // par ordre alphabétique (repli par défaut du match ci-dessous) — un tri
+    // demandé mais inapplicable doit être refusé, pas rendu muettement.
+    if params.sort.as_deref() == Some("distance") && near_lat.is_none() {
+        return Err(AppError::ValidationError);
+    }
 
     let (bbox_min_lng, bbox_min_lat, bbox_max_lng, bbox_max_lat): (
         Option<f64>,
@@ -826,7 +863,8 @@ pub async fn search_slots(
 /// Route publique, pas de JWT. Seuls les providers `is_listed=true` sont exposés
 /// (RLS `provider_public_read` + clause WHERE explicite). `place` résolu via
 /// le lookup géo statique `KNOWN_CITY_COORDS` (#3753, vrai géocodage externe
-/// hors scope MVP). Distance via PostGIS si `near` ou `place` fourni.
+/// hors scope MVP). Distance via PostGIS si `near`, `lat`+`lng` (#7718) ou
+/// `place` fourni ; voir [`resolve_geo_filter`] pour les cas de rejet 422.
 pub async fn search_providers(
     State(state): State<AppState>,
     Query(params): Query<SearchProvidersQuery>,
@@ -849,9 +887,17 @@ pub async fn search_providers(
     let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
         params.near.as_deref(),
+        params.lat,
+        params.lng,
         params.place.as_deref(),
         params.radius_km,
     )?;
+    // #7718 : `sort=distance` sans point d'ancrage résolu triait silencieusement
+    // par ordre alphabétique (repli par défaut du match ci-dessous) — un tri
+    // demandé mais inapplicable doit être refusé, pas rendu muettement.
+    if params.sort.as_deref() == Some("distance") && near_lat.is_none() {
+        return Err(AppError::ValidationError);
+    }
 
     // Parse `bbox=minLng,minLat,maxLng,maxLat` (GeoJSON convention)
     let (bbox_min_lng, bbox_min_lat, bbox_max_lng, bbox_max_lat): (

@@ -780,3 +780,166 @@ async fn search_providers_accent_insensitive_match() {
         .await
         .ok();
 }
+
+// ── Régression #7718 : `lat`/`lng`/`radius_km` silencieusement jetés ─────────
+// L'annuaire jumeau `/v1/pharmacies` prend ses coordonnées sous `lat`/`lng` ;
+// `/v1/search/providers` ne connaissait que `near` et jetait silencieusement
+// `lat`/`lng` (pas de `deny_unknown_fields`) : 200, annuaire complet, sans
+// signal. `lat`/`lng` doivent maintenant filtrer par distance comme `near`.
+
+#[tokio::test]
+async fn search_providers_lat_lng_filters_by_distance() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let paris_id = insert_provider(&db, &format!("paris-latlng-{suffix}")).await;
+    let lyon_id = insert_provider(&db, &format!("lyon-latlng-{suffix}")).await;
+
+    sqlx::query(
+        "UPDATE provider SET geo = ST_SetSRID(ST_MakePoint(2.3522, 48.8566), 4326)::geography \
+         WHERE id = $1",
+    )
+    .bind(paris_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE provider SET geo = ST_SetSRID(ST_MakePoint(4.8357, 45.7640), 4326)::geography \
+         WHERE id = $1",
+    )
+    .bind(lyon_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?lat=45.7578&lng=4.8320&radius_km=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+
+    assert!(
+        data.iter()
+            .any(|p| p["provider_id"].as_str() == Some(&lyon_id.to_string())),
+        "lat/lng=Lyon + radius_km=1 doit retenir le praticien lyonnais"
+    );
+    assert!(
+        !data
+            .iter()
+            .any(|p| p["provider_id"].as_str() == Some(&paris_id.to_string())),
+        "lat/lng=Lyon + radius_km=1 ne doit PAS retenir le praticien parisien \
+         (~390 km) : lat/lng doivent filtrer comme near, pas être ignorés"
+    );
+
+    sqlx::query("DELETE FROM provider WHERE id = $1 OR id = $2")
+        .bind(paris_id)
+        .bind(lyon_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+#[tokio::test]
+async fn search_providers_lat_without_lng_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?lat=45.75&per_page=50")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "lat sans lng doit être refusé (422), pas silencieusement ignoré"
+    );
+}
+
+#[tokio::test]
+async fn search_providers_radius_km_without_point_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?radius_km=1&per_page=50")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "radius_km sans near/lat+lng/place doit être refusé (422), pas \
+         silencieusement ignoré"
+    );
+}
+
+#[tokio::test]
+async fn search_providers_sort_distance_without_point_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?sort=distance&per_page=50")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "sort=distance sans near/lat+lng/place doit être refusé (422), pas \
+         retomber muettement sur un tri alphabétique"
+    );
+}

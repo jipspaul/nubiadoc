@@ -117,6 +117,8 @@ async fn resolve_context(
         q: None,
         specialty: None,
         near: None,
+        lat: None,
+        lng: None,
         place: None,
         radius_km: None,
         bbox: None,

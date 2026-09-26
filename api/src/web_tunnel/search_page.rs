@@ -208,6 +208,8 @@ pub async fn search_page(
         q: Some(query_terms.clone()),
         specialty: None,
         near,
+        lat: None,
+        lng: None,
         place,
         radius_km,
         bbox: None,
