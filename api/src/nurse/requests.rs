@@ -375,6 +375,11 @@ pub async fn get_account_visit_request(
 
 /// `POST /v1/account/visit-requests/:id/cancel` — le patient annule sa demande
 /// (RLS `visit_request_patient_cancel` : interdit d'annuler un état terminal).
+///
+/// #7734 : `arrived` est exclu des statuts annulables. Une fois l'infirmière
+/// sur place, la seule sortie légitime est `done` côté infirmière — l'annuler
+/// à ce stade la privait de tout moyen de clôturer la visite qu'elle venait de
+/// réaliser (`done` → 409, visite absente de `GET /v1/nurse/visits`).
 pub async fn cancel_account_visit_request(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<WsHub>>,
@@ -392,7 +397,7 @@ pub async fn cancel_account_visit_request(
     let row = sqlx::query(&format!(
         "UPDATE visit_request \
          SET status = 'cancelled', cancelled_at = now(), updated_at = now() \
-         WHERE id = $1 AND status IN ('requested','offered','accepted','en_route','arrived') \
+         WHERE id = $1 AND status IN ('requested','offered','accepted','en_route') \
          RETURNING {VISIT_COLUMNS_FOR_PATIENT}",
     ))
     .bind(id)
