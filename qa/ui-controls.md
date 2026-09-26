@@ -4954,6 +4954,9 @@ re-test individuel **page rechargée**, avec **pixel-diff** ET relecture du code
 | patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-09-26T08:02:00Z |
 | patient | `/profile/referring-doctor` (390×844) | 2 | 1 | 1 | 0 | 0 | 2026-09-26T08:02:00Z |
 | patient | `/prescriptions` — re-test #7742 (390×844 **et** 1280×800) | 2 vues | — | — | — | — | 2026-09-26T08:00:00Z |
+| patient | `/questionnaire-medical/:cabinetId` (390×844) | 11 | 10 | — | 0 | 0 | 2026-09-26T08:19:00Z |
+| patient | `/coverage-setup` (390×844) | 9 | 8 | 8 | 0 | 0 | 2026-09-26T08:19:00Z |
+| patient | `/implant-passport` (390×844) | 24 | 17 | 17 | 0 | 0 | 2026-09-26T08:19:00Z |
 | pharmacie | `/orders/:id/pickup` scan de retrait (1280×800) | 4 | 3 | 3 | 0 | 0 | 2026-09-26T08:05:00Z |
 | pharmacie | `/notification-preferences` (1280×800) | 13 | 9 | 9 | 0 | 0 | 2026-09-26T08:05:00Z |
 | pharmacie | `/` + `/stock` — sonde responsive (390×844) | 33 | — | — | — | — | 2026-09-26T07:55:00Z |
@@ -5006,16 +5009,24 @@ aboutir tant que le rôle n'a pas changé.*
   formulaire en cours est perdu ; FORWARD **restaure bien** `/profile/dependents`. État cohérent, aucune
   corruption → **observation, pas un défaut rapporté**.
 
-**BILAN R102** — **33 écrans audités bouton par bouton** (inventaire Semantics + activation + verdict)
+**`/questionnaire-medical` — les 10 contrôles sont DÉSACTIVÉS, et c'est prouvé légitime.** Les champs
+« allergies », « traitement en cours », « anticoagulant », « grossesse », « maladie cardiovasculaire »,
+« diabétique », « fumeur », « antécédents chirurgicaux » et « personne à contacter » sont tous grisés
+parce que le questionnaire **a déjà été transmis** : `medical_questionnaire_page.dart:76-78` pose
+`_readOnly` sur `submittedAt`, `:117` en dérive `fieldsEnabled`, et `:137-161` affiche le bandeau qui
+l'explique — « **Déjà transmis à votre cabinet le JJ/MM/AAAA.** ». État verrouillé **et motivé** :
+rien à signaler.
+
+**BILAN R102** — **36 écrans audités bouton par bouton** (inventaire Semantics + activation + verdict)
 et **16 écrans parcourus** pour les comparaisons design, les flux X et les sondes responsive :
 
 | | pharmacie | secretariat | patient | praticien | infirmiere | **total** |
 |---|---|---|---|---|---|---|
-| écrans audités | 6 | 11 | 7 | 7 | 2 | **33** |
-| contrôles activés | 70 | 180 | 148 | 53 | 10 | **461** |
+| écrans audités | 6 | 11 | 10 | 7 | 2 | **36** |
+| contrôles activés | 70 | 180 | 183 | 53 | 10 | **496** |
 
-**1 178 contrôles inventoriés** au total (739 sur les écrans audités, 439 sur les 16 écrans parcourus).
-**461 activés → 460 OK, 1 MORT, 0 CASSÉ, 2 désactivés légitimes, 14 non activés (destructifs).**
+**1 222 contrôles inventoriés** au total (783 sur les écrans audités, 439 sur les 16 écrans parcourus).
+**496 activés → 483 OK, 1 MORT, 0 CASSÉ, 12 désactivés tous prouvés légitimes, 14 non activés (destructifs).**
 
 Le **seul MORT** est « Réglages du cabinet » du rail secrétariat à 1280×800 → **#7706** (fermée < 24 h,
 correctif #7731 non déployé à 07:43Z).
