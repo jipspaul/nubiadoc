@@ -598,6 +598,55 @@ async fn cabinet_quotes_post_label_over_ceiling_returns_422() {
     );
 }
 
+// ── Test (#7745) : trop d'items → 422, jamais 201 ───────────────────────────
+
+#[tokio::test]
+async fn cabinet_quotes_post_too_many_items_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let too_many: Vec<_> = (0..201)
+        .map(|i| json!({ "label": format!("Item {i}"), "amount_cents": 100 }))
+        .collect();
+    let body = json!({
+        "patient_id": Uuid::new_v4(),
+        "items": too_many
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/quotes")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "practitioner")
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "201 items doit être 422, jamais 201"
+    );
+}
+
 // ── Test : ccam_code/tooth/amo_part_cents/amc_part_cents persistés puis
 //    renvoyés tels quels par GET /v1/cabinet/quotes/:id (#4060) ─────────────
 
