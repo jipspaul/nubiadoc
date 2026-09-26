@@ -4875,3 +4875,22 @@ re-test individuel **page rechargée**, avec **pixel-diff** ET relecture du code
 ⁴ Échap (×2) et clic sur le voile : sans effet ; « Annuler » et « Fermer » ferment bien → **#7720**.
 
 **Rappel de méthode confirmé cette ronde :** un verdict MORT n'est publiable qu'après re-test individuel **page rechargée** — les deux lots concernés (`/stock`, rail secrétariat) se sont résolus en **1 vrai défaut** et **8 artefacts**. Ajout au harnais : les onglets externes (`Itinéraire` → Google Maps) sont désormais fermés automatiquement et comptés **OK (onglet externe)**, sinon ils volent le focus et font expirer toutes les captures suivantes.
+
+### R101 — 2ᵉ lot (écrans métier praticien + parcours patient)
+
+| app | écran / route | contrôles inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|
+| praticien | `/agenda` — les 7 commandes testées **une à une, page rechargée** (1280×800) | 29 | 7 | 7 | 0 | 0 | 2026-09-26T01:55:00Z |
+| praticien | `/waiting-room`, `/consultation`, `/stock`, `/stock-inventory`, `/lab-work-orders` (1280×800) | 92 | 46 | 33 | 13¹ | 0 | 2026-09-26T01:45:00Z |
+| praticien | `/patients` + fiche patient **sans** relation de soin **et avec** (1280×800) | 76 | 16 | 16² | 0 | 0 | 2026-09-26T01:50:00Z |
+| patient | `/book` — 4 cartes praticien + 3 pastilles, **une à une, page rechargée** (390×844) | 25 | 7 | 7 | 0 | 0 | 2026-09-26T02:00:00Z |
+| patient | `/mes-rdv` — onglets, tri, « Plus d'actions » de chaque carte (390×844) | 13 | 8 | 6 | 2³ | 0 | 2026-09-26T02:00:00Z |
+| patient | `/documents`, `/prescriptions` (390×844) | 13 | 13 | 13 | 0 | 0 | 2026-09-26T01:45:00Z |
+
+**TOTAL R101 (2 lots) — 27 lots d'écrans, 5/5 apps : 501 contrôles inventoriés, 361 activés, 330 OK, 0 mort confirmé, 0 cassé confirmé.**
+
+¹ Artefact du même type que `/stock` : « **Brief** » (`agenda_page.dart:57`, `context.push(AppRouter.cabinetBrief)`) ouvre un écran plein cadre que la touche Échap ne referme pas (il a son propre bouton « Retour »), après quoi le harnais cliquait dans le vide. **Re-test individuel avec rechargement : les 7 commandes de `/agenda` répondent** (`R101-agenda.js`).
+² Le `/patients` praticien déclenche bien `403` sur `notes`/`medical-record`/`prescriptions` d'un patient **sans relation de soin** (garde §14, `ensure_care_relationship`) — **mais l'écran l'explique** : « *Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible.* » (bandeau verrouillé, capture `R101_fiche_sans_relation.png`). Témoin avec relation de soin : 0 requête en erreur. **Comportement correct, pas un défaut.**
+³ Les deux « Plus d'actions » jugés morts sont à **y=851 et y=1081**, c'est-à-dire **sous le pli de 844 px** : le clic tombait hors du viewport. Les deux cartes visibles (y=333, y=585) ouvrent bien leur menu contextuel (« Modifier · Ajouter au calendrier · Annuler »). **Artefact, pas un défaut.**
+
+**Confirmation #7690** : « Mes ordonnances » affiche désormais l'heure — « Ordonnance du 26 sept. 2026 **à 02:20** », « … du 25 sept. **à 21:26** » — les cartes sont distinguables. Le défaut jumeau subsiste en revanche sur « Mes devis » (→ **#7717**).
