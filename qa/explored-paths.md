@@ -3891,3 +3891,157 @@ corrigées, 1 (#7718) laisse une branche non couverte → #7732.**
 | **#7734** (R102-2) | PR #7735 | **oui, 07:32Z** | `cancel` patient sur une visite `arrived` → **409 `invalid_status`** ; l'infirmière retrouve sa sortie (`done` → 200, `done_at` 07:32:31Z). Non-régression : `cancel` sur `requested/offered` → 200, sur `en_route` → 200. **Corrigé.** |
 | **#7737** (R102-4) | PR #7739 | **oui, 07:33Z** | détail d'un plan `draft` côté patient → **404** ; plan `in_progress` → 200 avec ses 5 phases et son `appointment_id` ; liste patient inchangée (16, sans draft) ; le praticien garde son brouillon (56 plans, `fd921996` inclus). **Corrigé.** |
 | #7706 (R101, fermée) | PR #7731 (`Scrollbar` sur le `ListView` du `ProShell`) | **pas encore à 07:43Z** | le rail secrétariat est toujours clippé à 1280×800 (« Congés » 238×**13**, « Réglages du cabinet » MORT, 34 ⇒ 34 contrôles) alors qu'il fonctionne à 1280×1000 (34 ⇒ 42, les 8 destinations de réglages révélées). Le bundle **est** postérieur à #7710 (« Absences » déployé), donc #7731 n'y est simplement pas encore. Mesure consignée en commentaire de #7706, **non re-filée** (fermée < 24 h, symptôme identique). |
+
+### Chemins exacts exercés pendant R102 (pour le détecteur de couverture)
+
+> Le détecteur des rondes précédentes cherche la **chaîne littérale** du chemin dans ce fichier ;
+> plusieurs endpoints décrits en prose ci-dessus étaient donc comptés « jamais couverts » alors
+> qu'ils venaient d'être testés. Liste plate, à conserver et à compléter à chaque ronde.
+
+```
+/v1/account/access-requests            /v1/account/access-requests/:id/accept
+/v1/account/access-requests/:id/refuse /v1/account/access-requests/:id/resend
+/v1/account/access-requests/:id/revoke /v1/account/coverage
+/v1/account/dependents                 /v1/account/orders/:id
+/v1/account/orders/:id/pickup-token    /v1/account/pharmacy
+/v1/account/pharmacy-quotes            /v1/account/pharmacy-quotes/:id/accept
+/v1/account/pharmacy-quotes/:id/refuse /v1/account/prescriptions
+/v1/account/prescriptions/:id/order    /v1/account/referring-doctor
+/v1/account/visit-requests             /v1/account/visit-requests/:id
+/v1/account/visit-requests/:id/cancel  /v1/account/visit-requests/estimate
+/v1/appointments                       /v1/appointments/:id
+/v1/appointments/:id/callback-request  /v1/appointments/:id/cancel
+/v1/appointments/:id/checkin           /v1/appointments/:id/queue
+/v1/auth/login                         /v1/auth/password/forgot
+/v1/auth/password/reset                /v1/auth/refresh
+/v1/auth/select-nurse-context          /v1/auth/select-pharmacy-context
+/v1/billing/quotes/:id                 /v1/cabinet/appointments
+/v1/cabinet/appointments/:id/cancel    /v1/cabinet/appointments/:id/checkin
+/v1/cabinet/appointments/:id/confirm   /v1/cabinet/appointments/:id/no-show
+/v1/cabinet/appointments/:id/start     /v1/cabinet/audit-log
+/v1/cabinet/briefs/day.pdf             /v1/cabinet/briefs/week.pdf
+/v1/cabinet/compliance-items           /v1/cabinet/compliance-items/:id/complete
+/v1/cabinet/consultations              /v1/cabinet/consultations/:id/acts
+/v1/cabinet/consultations/:id/complete /v1/cabinet/consultations/:id/cr
+/v1/cabinet/consultations/:id/cr/finalize /v1/cabinet/consultations/:id/cr/render
+/v1/cabinet/conversations              /v1/cabinet/conversations/:id/messages
+/v1/cabinet/correspondents             /v1/cabinet/members
+/v1/cabinet/messages                   /v1/cabinet/patients
+/v1/cabinet/patients/:id               /v1/cabinet/patients/:id/dental-chart
+/v1/cabinet/patients/:id/implants      /v1/cabinet/patients/:id/medical-record
+/v1/cabinet/patients/:id/tags          /v1/cabinet/patients/:id/tags/:tag_id
+/v1/cabinet/patients/:id/treatment-plans  /v1/cabinet/prescriptions
+/v1/cabinet/prescriptions/:id          /v1/cabinet/prescriptions/:id/sign
+/v1/cabinet/provider/stamp             /v1/cabinet/quotes
+/v1/cabinet/quotes/:id                 /v1/cabinet/quotes/:id/events
+/v1/cabinet/quotes/:id/send            /v1/cabinet/secretariats
+/v1/cabinet/settings/act-categories    /v1/cabinet/slots
+/v1/cabinet/staff/leave-requests       /v1/cabinet/staff/leave-requests/:id/cancel
+/v1/cabinet/staff/leave-requests/:id/decide  /v1/cabinet/staff/time-clock
+/v1/cabinet/staff/time-clock/code      /v1/cabinet/staff/time-clock/in
+/v1/cabinet/staff/time-clock/out       /v1/cabinet/stock-items
+/v1/cabinet/stock-items/:id/locations  /v1/cabinet/stock-items/:id/transfer
+/v1/cabinet/stock-requests             /v1/cabinet/stock-requests/:id/cancel
+/v1/cabinet/tasks                      /v1/cabinet/tasks/:id/complete
+/v1/cabinet/treatment-plans            /v1/cabinet/treatment-plans/:id/phases
+/v1/cabinet/treatment-plans/:id/phases/:phase_id
+/v1/cabinet/treatment-plans/:id/sessions/propose
+/v1/cabinet/treatment-plans/:id/sessions/:session_id/slots
+/v1/cabinet/treatment-plans/:id/sessions/:session_id/schedule
+/v1/cabinet/unavailability             /v1/cabinet/unavailability/:id
+/v1/cabinet/vcard/qr.png               /v1/cabinet/waiting-list
+/v1/cabinet/waiting-room               /v1/conversations
+/v1/conversations/:id/messages         /v1/documents
+/v1/documents/:id                      /v1/documents/:id/download
+/v1/implant-passport                   /v1/interop/fhir/Appointment
+/v1/interop/fhir/Patient               /v1/interop/fhir/Practitioner
+/v1/interop/fhir/Slot                  /v1/interop/fhir/Subscription
+/v1/interop/fhir/metadata              /v1/notifications
+/v1/notifications/:id/read             /v1/notifications/read-all
+/v1/nurse/availability                 /v1/nurse/memberships
+/v1/nurse/offers                       /v1/nurse/profile
+/v1/nurse/visits                       /v1/nurse/visits/:id/accept
+/v1/nurse/visits/:id/arrived           /v1/nurse/visits/:id/done
+/v1/nurse/visits/:id/en-route          /v1/payments
+/v1/payments/intent                    /v1/payments/pharmacy-quote-intent
+/v1/pharmacies                         /v1/pharmacy/conversations
+/v1/pharmacy/conversations/:id/messages  /v1/pharmacy/conversations/:id/read
+/v1/pharmacy/orders                    /v1/pharmacy/orders/:id/accept
+/v1/pharmacy/orders/:id/ready          /v1/pharmacy/orders/pickup-scan
+/v1/pharmacy/quotes                    /v1/pharmacy/quotes/:id/send
+/v1/pharmacy/stock-requests            /v1/pharmacy/stock-requests/:id/accept
+/v1/pharmacy/stock-requests/:id/fulfill  /v1/pharmacy/stock-requests/:id/reject
+/v1/pro/verification                   /v1/professions
+/v1/providers/:id                      /v1/providers/:id/availability
+/v1/providers/:id/reviews              /v1/reminders
+/v1/reviews                            /v1/search/nurses
+/v1/search/providers                   /v1/search/slots
+/v1/search/suggest                     /v1/specialties
+/v1/treatment-plans                    /v1/treatment-plans/:id
+/v1/quotes/:id/attestation             /v1/quotes/:id/sign
+```
+
+### Faux positifs écartés — à ne pas re-filer à la ronde suivante
+
+Cinq observations ont **failli** devenir des findings. Chacune a été écartée en ouvrant le code ou la
+capture. À conserver : ce sont les pièges que ce harnais produit.
+
+1. **`GET /v1/cabinet/patients/:id/alerts` → 200 pour le SECRÉTARIAT** alors que tous ses voisins
+   cliniques rendent 403. Ce n'est **pas une fuite** : ce sont les alertes **administratives** de
+   l'accueil (impayés échus, carte de mutuelle manquante, bon de travail prothétique non reçu) et
+   `api/src/patient_alerts.rs:1-9` l'écrit noir sur blanc — « *Volontairement exclu : toute précaution
+   médicale/clinique (hors périmètre secrétariat, R.4127-72)* ». Les « Alertes du dossier » cliniques
+   de l'écran consultation viennent d'une autre source.
+2. **`GET /v1/quotes/:id/attestation` → 404 à chaque ouverture d'un devis patient** : absorbé en
+   `Right(null)` par `quote_attestation_repository_impl.dart:19-23` (« aucune attestation déposée →
+   pas une erreur »). 5 faux « CASSÉ ».
+3. **`GET /v1/cabinet/audit-log` → 403 répété sur tout écran secrétariat** : sonde de rôle assumée
+   (`audit_log_access_cubit.dart:20-32`, #3468/#4155) qui décide d'afficher ou non l'entrée « Journal
+   d'accès ». Elle se rejoue à chaque rechargement, d'où les 6 occurrences par écran.
+4. **`/act-categories` praticien : écran quasi vide + 403** : réglage admin (`ProAdminOrManagerClaims`),
+   bouton déjà masqué pour un praticien (`practicien_shell.dart:136`), et l'écran rend le bon message
+   — « Accès refusé. Rôle administrateur requis. ».
+5. **Vue patient d'un fil de messagerie tronquée à 20** : l'API pagine par curseur, mais
+   `messaging_api.dart:19-50` **suit le curseur** (« récupère TOUT le fil »). Le jumeau
+   `cabinet_quotes_api.dart` boucle pareil sur `offset` — c'est `cabinet_appointments_api.dart` qui ne
+   le fait pas, et c'est bien lui qui est en cause (#7736).
+
+**Règle** : un 4xx déclenché par un clic n'est un défaut que si le repository le laisse remonter à
+l'écran. Ouvrir le `*_repository_impl.dart` avant de conclure.
+
+### Mesures conservées sans finding
+
+- **Étiquettes patient** : le même libellé peut être posé deux fois sur un patient (aucune contrainte
+  d'unicité, `0158_create_patient_tag.sql` n'a que `label_not_blank` ; aucune garde dans
+  `patient_tags.rs:215`). Deux puces identiques, indiscernables au retrait. **P3, non filé** —
+  l'utilisateur les supprime, et le bruit d'une issue marginale coûte plus qu'il ne rapporte.
+- **`/v1/cabinet/tasks` : `due_date` non bornée** (9999 et 1800 acceptés en 201). Consigné en
+  commentaire de **#7743**, même famille, pour être traité dans la même passe.
+- **App infirmière à 1280×800** : pas de mise en page bureau — l'interrupteur « En ligne » part à
+  `x=1200`, à 1 100 px de son libellé, et l'écran est à 99,1 % de blanc. L'app se déclare mobile
+  (390×844), ce n'est donc pas un écart contre sa propre cible ; utile à savoir côté design.
+- **Sondes responsive** : aucun débordement horizontal sur pharmacie et secrétariat à 390×844 (le rail
+  se replie en menu « Ouvrir le menu de navigation »), ni sur patient à 1280×800.
+- **Devis géants de test** : `9e471bda` (1 000 lignes) et `7617ae6b` (2 000) restent dans le jeu de
+  démo — `DELETE /v1/cabinet/quotes/:id` n'existe pas (405). Idem pour les 3 implants de test de
+  #7743 (pas de route de suppression). Conforme à la consigne « l'historique s'accumule, c'est voulu »,
+  mais à savoir avant d'interpréter les compteurs de la prochaine ronde.
+
+### Chaîne supplémentaire couverte : tunnel SSR public → agenda du cabinet
+
+Non listée dans la matrice X1–X12, mais c'est bien un flux cross-app : une réservation faite par un
+visiteur **non authentifié** sur `reservation.doc.nubia-link.com` doit atterrir dans l'agenda du
+secrétariat. Vérifiée de bout en bout :
+
+```
+1. GET  /dentiste/lyon                       → 200, puces horaires portant providerId + slotId
+2. GET  /reservation/confirmer?providerId=…&slotId=…  → 200, formulaire complet
+3. POST /reservation/confirmer  (prenom, nom, naissance, telephone, email, motif, consentement)
+                                             → 200  « Rendez-vous confirmé »
+4. GET  /v1/cabinet/appointments?date=2026-09-28  (jeton secrétariat) → 200
+     ('QA R102', '2026-09-28T10:00', 'requested')        ← le RDV est bien dans l'agenda
+5. POST /reservation/confirmer  (rejeu du même slotId)   → 410 « Ce créneau n'est plus disponible »
+```
+
+Le créneau est bien consommé (pas de double réservation), et le RDV arrive au statut `requested`,
+prêt pour la confirmation par le secrétariat — même point d'entrée que la réservation in-app.

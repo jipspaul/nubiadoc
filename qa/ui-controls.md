@@ -4946,6 +4946,23 @@ re-test individuel **page rechargée**, avec **pixel-diff** ET relecture du code
 | praticien | `/stock-inventory` (1280×800) | 37 | 7 | 7 | 0 | 0 | 2026-09-26T07:41:00Z |
 | pharmacie | `/orders/:id` Délivrance (1440×900) | 34 | — (comparaison design) | — | — | — | 2026-09-26T07:36:00Z |
 | patient | `/pharmacy/orders/:id` Suivi de commande (390×844) | 3 | — (comparaison design) | — | — | — | 2026-09-26T07:36:00Z |
+| secretariat | `/patients` Fiches patients (1280×800) | 47 | 18 | 18 | 0 | 0 | 2026-09-26T07:52:00Z |
+| secretariat | `/correspondents` (1280×800) | 30 | 7 | 7 | 0 | 0 | 2026-09-26T07:52:00Z |
+| secretariat | `/maintenance` (1280×800) | 32 | 19 | 19 | 0 | 0 | 2026-09-26T07:52:00Z |
+| secretariat | `/admin-membres`, `/cabinet-stats`, `/bookable-slots` (1280×800) | — | parcourus + captures | — | — | — | 2026-09-26T08:10:00Z |
+| patient | `/appointments` tunnel de réservation (390×844) | 23 | 9 | 9 | 0 | 0 | 2026-09-26T08:02:00Z |
+| patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-09-26T08:02:00Z |
+| patient | `/profile/referring-doctor` (390×844) | 2 | 1 | 1 | 0 | 0 | 2026-09-26T08:02:00Z |
+| patient | `/prescriptions` — re-test #7742 (390×844 **et** 1280×800) | 2 vues | — | — | — | — | 2026-09-26T08:00:00Z |
+| patient | `/questionnaire-medical/:cabinetId` (390×844) | 11 | 10 | — | 0 | 0 | 2026-09-26T08:19:00Z |
+| patient | `/coverage-setup` (390×844) | 9 | 8 | 8 | 0 | 0 | 2026-09-26T08:19:00Z |
+| patient | `/implant-passport` (390×844) | 24 | 17 | 17 | 0 | 0 | 2026-09-26T08:19:00Z |
+| pharmacie | `/orders/:id/pickup` scan de retrait (1280×800) | 4 | 3 | 3 | 0 | 0 | 2026-09-26T08:05:00Z |
+| pharmacie | `/notification-preferences` (1280×800) | 13 | 9 | 9 | 0 | 0 | 2026-09-26T08:05:00Z |
+| pharmacie | `/` + `/stock` — sonde responsive (390×844) | 33 | — | — | — | — | 2026-09-26T07:55:00Z |
+| secretariat | `/` + `/salle-attente` — sonde responsive (390×844) | 20 | — | — | — | — | 2026-09-26T07:55:00Z |
+| patient | `/` + `/financial` — sonde responsive (1280×800) | 60 | — | — | — | — | 2026-09-26T07:56:00Z |
+| infirmiere | `/` — sonde responsive (1280×800) | 8 | — | — | — | — | 2026-09-26T07:55:00Z |
 | secretariat | `/salle-attente` (1280×800) | 35 | — (parcours X5) | — | — | — | 2026-09-26T07:29:00Z |
 | praticien | `/waiting-room` (1280×800) | 26 | 1 | 1 | 0 | 0 | 2026-09-26T07:30:00Z |
 
@@ -4991,3 +5008,40 @@ aboutir tant que le rôle n'a pas changé.*
   ne bouge pas (5 → 5) : BACK ne ferme pas la feuille, il navigue vers la route précédente et le
   formulaire en cours est perdu ; FORWARD **restaure bien** `/profile/dependents`. État cohérent, aucune
   corruption → **observation, pas un défaut rapporté**.
+
+**`/questionnaire-medical` — les 10 contrôles sont DÉSACTIVÉS, et c'est prouvé légitime.** Les champs
+« allergies », « traitement en cours », « anticoagulant », « grossesse », « maladie cardiovasculaire »,
+« diabétique », « fumeur », « antécédents chirurgicaux » et « personne à contacter » sont tous grisés
+parce que le questionnaire **a déjà été transmis** : `medical_questionnaire_page.dart:76-78` pose
+`_readOnly` sur `submittedAt`, `:117` en dérive `fieldsEnabled`, et `:137-161` affiche le bandeau qui
+l'explique — « **Déjà transmis à votre cabinet le JJ/MM/AAAA.** ». État verrouillé **et motivé** :
+rien à signaler.
+
+**BILAN R102** — **36 écrans audités bouton par bouton** (inventaire Semantics + activation + verdict)
+et **16 écrans parcourus** pour les comparaisons design, les flux X et les sondes responsive :
+
+| | pharmacie | secretariat | patient | praticien | infirmiere | **total** |
+|---|---|---|---|---|---|---|
+| écrans audités | 6 | 11 | 10 | 7 | 2 | **36** |
+| contrôles activés | 70 | 180 | 183 | 53 | 10 | **496** |
+
+**1 222 contrôles inventoriés** au total (783 sur les écrans audités, 439 sur les 16 écrans parcourus).
+**496 activés → 483 OK, 1 MORT, 0 CASSÉ, 12 désactivés tous prouvés légitimes, 14 non activés (destructifs).**
+
+Le **seul MORT** est « Réglages du cabinet » du rail secrétariat à 1280×800 → **#7706** (fermée < 24 h,
+correctif #7731 non déployé à 07:43Z).
+
+**Les 12 « CASSÉ » signalés par le harnais ont TOUS été requalifiés** après lecture du repository — c'est
+le principal enseignement méthodologique de la ronde :
+
+| écran | déclencheur | pourquoi ce n'est pas un défaut |
+|---|---|---|
+| patient `/treatment-plans` (×5) | `GET /v1/quotes/:id/attestation` → 404 | absorbé en `Right(null)`, `quote_attestation_repository_impl.dart:19-23` |
+| secretariat `/tasks` | `GET /v1/cabinet/audit-log` → 403 | sonde de rôle assumée, `audit_log_access_cubit.dart:20-32` (#3468/#4155) |
+| patient `/home-care` | `GET /favicon.png` → 500 | **transitoire** : 200 au contrôle immédiat, et 200 sur les 6 fronts |
+| praticien `/act-categories` | `GET /v1/cabinet/settings/act-categories` → 403 | réglage admin ; l'écran rend « Accès refusé. Rôle administrateur requis. » |
+| secretariat `/admin-membres` (×3) | `POST /v1/cabinet/invite-links` → 403 | `cabinet_invite_links_repository_impl.dart:23-27` mappe le 403 sur « Accès réservé aux administrateurs du cabinet. », affiché en `NubiaSnackbar` d'erreur |
+| secretariat `/cabinet-stats` | `GET /v1/cabinet/stats/activity` → 403 | l'écran rend le verrou « Réservé aux praticiens — Votre rôle ne permet pas d'afficher l'activité par praticien » |
+
+**Règle à retenir** : un 4xx déclenché par un clic n'est un défaut que si le repository le laisse
+remonter brut à l'écran. Ouvrir le `*_repository_impl.dart` avant tout verdict CASSÉ.
