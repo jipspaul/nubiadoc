@@ -51,4 +51,20 @@ void main() {
     expect(segments.first.isMention, isTrue);
     expect(segments.first.text, '@Amélie');
   });
+
+  test('isBareMentionSigil : `@` seul → true (#7738)', () {
+    expect(isBareMentionSigil('@'), isTrue);
+  });
+
+  test('isBareMentionSigil : plusieurs `@` sans nom → true', () {
+    expect(isBareMentionSigil('@@@'), isTrue);
+  });
+
+  test('isBareMentionSigil : `@` suivi d\'un nom → false', () {
+    expect(isBareMentionSigil('@QA'), isFalse);
+  });
+
+  test('isBareMentionSigil : texte sans `@` → false', () {
+    expect(isBareMentionSigil('Réunion à 12h30.'), isFalse);
+  });
 }

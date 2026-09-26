@@ -169,7 +169,7 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
 
   void _send(BuildContext context) {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || isBareMentionSigil(text)) return;
     context.read<CabinetTeamMessagesCubit>().send(text);
     _controller.clear();
   }

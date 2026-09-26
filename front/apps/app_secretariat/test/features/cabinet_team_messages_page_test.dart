@@ -713,6 +713,28 @@ void main() {
       ));
       expect(field.controller!.text, '@');
     });
+
+    testWidgets(
+        '« Mentionner » puis « Envoyer » sans destinataire → aucun envoi '
+        '(#7738)', (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('team_message_mention_button')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('team_message_send_button')));
+      await tester.pumpAndSettle();
+
+      verifyNever(() => sendMessage(any()));
+      final field = tester.widget<TextField>(find.descendant(
+        of: find.byKey(const Key('team_message_input')),
+        matching: find.byType(TextField),
+      ));
+      expect(field.controller!.text, '@');
+    });
   });
 
   group('rappel « aucune donnée clinique » (#5135)', () {

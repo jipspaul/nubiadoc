@@ -10,6 +10,14 @@ class MentionTextSegment {
 
 final _mentionPattern = RegExp(r'@[\p{L}\p{N}_]+', unicode: true);
 
+/// `@` seul (ou plusieurs) sans nom derrière (#7738) : ce n'est le début
+/// d'aucune mention valide pour [_mentionPattern], donc aucun contenu réel
+/// — le composeur ne doit pas laisser « Envoyer » publier ça.
+final _bareMentionSigilPattern = RegExp(r'^@+$');
+
+bool isBareMentionSigil(String trimmedBody) =>
+    _bareMentionSigilPattern.hasMatch(trimmedBody);
+
 /// Découpe [body] en segments texte / mention (`@Nom`) pour permettre un
 /// rendu riche qui distingue visuellement une mention (tâche adressée) du
 /// reste du message.
