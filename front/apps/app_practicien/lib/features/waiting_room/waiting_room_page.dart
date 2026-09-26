@@ -614,7 +614,8 @@ class _RoomPacePanel extends StatelessWidget {
           _PaceRow(
             key: const Key('room_pace_average'),
             label: 'Attente moyenne',
-            subtitle: 'sur les ${entries.length} présents',
+            subtitle: 'sur ${entries.length < 2 ? 'le' : 'les'} '
+                '${entries.length} ${pluralize(entries.length, 'présent')}',
             value: formatWaitMinutes(averageMinutes),
           ),
           const SizedBox(height: 12),

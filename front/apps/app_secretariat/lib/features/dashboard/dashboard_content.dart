@@ -191,7 +191,8 @@ class _DashboardLoadedView extends StatelessWidget {
     final remainingCount = todayFlow.where((e) => !e.isDone).length;
     final secretaryName = session.displayName ?? 'Secrétariat';
     final subtitle = '${_formatDayLabel(DateTime.now())} · $secretaryName · '
-        '$todayCount rendez-vous, $remainingCount restants';
+        '$todayCount rendez-vous, $remainingCount '
+        '${pluralize(remainingCount, 'restant')}';
 
     return SingleChildScrollView(
       key: const Key('dashboard_loaded'),
