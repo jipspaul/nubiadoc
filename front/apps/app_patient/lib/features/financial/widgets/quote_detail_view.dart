@@ -77,20 +77,28 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                 // (total avant signature, reste à charge après — #5235). Le
                 // détail du calcul Total → reste à charge est porté par la
                 // barre de ventilation ci-dessous (#5234).
+                // Référence du devis (#7717) en tête de légende : sans elle,
+                // rien ne distingue ce détail des autres devis « À signer »
+                // du même praticien pour le même montant (jumeau de #7690).
                 if (quote.status == QuoteStatus.signed)
                   AmountHeader(
                     label: 'Reste à votre charge',
                     amount: formatQuoteCents(quote.patientShareCents),
-                    caption:
-                        'sur ${formatQuoteCents(quote.totalCents)} · après remboursements',
+                    caption: [
+                      if (quote.quoteRef.isNotEmpty) quote.quoteRef,
+                      'sur ${formatQuoteCents(quote.totalCents)} · après remboursements',
+                    ].join(' · '),
                   )
                 else
                   AmountHeader(
                     label: 'Total du plan de soins',
                     amount: formatQuoteCents(quote.totalCents),
-                    caption: quote.practitionerName.isNotEmpty
-                        ? '${quote.practitionerName} · devis du ${formatQuoteDate(quote.createdAt)}'
-                        : 'Devis du ${formatQuoteDate(quote.createdAt)}',
+                    caption: [
+                      if (quote.quoteRef.isNotEmpty) quote.quoteRef,
+                      if (quote.practitionerName.isNotEmpty)
+                        quote.practitionerName,
+                      'devis du ${formatQuoteDate(quote.createdAt)}',
+                    ].join(' · '),
                   ),
                 const SizedBox(height: 20),
                 VentilationBar(

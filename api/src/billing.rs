@@ -37,6 +37,11 @@ pub struct ListQuotesQuery {
 #[derive(Serialize)]
 pub struct QuoteItem {
     pub id: Uuid,
+    /// Référence humaine `DEV-nnnn` (`quote.quote_seq`), déjà servie côté
+    /// cabinet (`CabinetQuoteItem.quote_ref`) et pharmacie — absente ici
+    /// jusqu'à #7717, rendant les devis d'un même praticien indiscernables
+    /// à l'écran patient (jumeau de #7690).
+    pub quote_ref: String,
     pub status: String,
     pub total_amount_cents: i64,
     pub currency: String,
@@ -119,7 +124,8 @@ pub async fn list_quotes(
     };
 
     let sql = format!(
-        "SELECT q.id, q.status, (q.total_amount * 100)::bigint AS amount_cents, \
+        "SELECT q.id, ('DEV-' || lpad(q.quote_seq::text, 4, '0')) AS quote_ref, \
+                q.status, (q.total_amount * 100)::bigint AS amount_cents, \
                 q.currency, q.created_at, \
                 practitioner_display_name(q.practitioner_id) AS practitioner_name \
          FROM quote q \
@@ -182,6 +188,7 @@ pub async fn list_quotes(
 
     for row in visible {
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let quote_ref: String = row.try_get("quote_ref").map_err(|_| AppError::Internal)?;
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
         let amount_cents: i64 = row
             .try_get("amount_cents")
@@ -198,6 +205,7 @@ pub async fn list_quotes(
 
         data.push(QuoteItem {
             id,
+            quote_ref,
             status,
             total_amount_cents: amount_cents,
             currency: currency.trim().to_string(),
@@ -252,6 +260,8 @@ pub struct QuoteLineItem {
 #[derive(Serialize)]
 pub struct QuoteDetail {
     pub id: Uuid,
+    /// Voir `QuoteItem.quote_ref` (#7717).
+    pub quote_ref: String,
     pub status: String,
     pub version: i32,
     pub total_amount_cents: i64,
@@ -302,7 +312,8 @@ pub async fn get_quote(
         .map_err(|_| AppError::Internal)?;
 
     let quote_row = sqlx::query(
-        "SELECT q.id, q.cabinet_id, q.patient_id, q.status, q.version, \
+        "SELECT q.id, ('DEV-' || lpad(q.quote_seq::text, 4, '0')) AS quote_ref, \
+                q.cabinet_id, q.patient_id, q.status, q.version, \
                 (q.total_amount * 100)::bigint AS amount_cents, \
                 q.currency, q.signed_at, q.created_at, q.updated_at, q.deposit_pct::double precision AS deposit_pct, \
                 q.document_id, q.practitioner_id, \
@@ -350,6 +361,9 @@ pub async fn get_quote(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    let quote_ref: String = quote_row
+        .try_get("quote_ref")
+        .map_err(|_| AppError::Internal)?;
     let status: String = quote_row
         .try_get("status")
         .map_err(|_| AppError::Internal)?;
@@ -487,6 +501,7 @@ pub async fn get_quote(
 
     Ok(Json(QuoteDetail {
         id,
+        quote_ref,
         status,
         version,
         total_amount_cents: amount_cents,
