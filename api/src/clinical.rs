@@ -692,6 +692,31 @@ pub async fn quick_create_patient(
         None
     };
 
+    // #7001 : le SELECT-puis-INSERT ci-dessous est une race TOCTOU sous
+    // requêtes concurrentes (double-clic, retry réseau) — N requêtes pour la
+    // même saisie passent toutes le SELECT avant qu'aucun INSERT ne soit
+    // visible, et créent N dossiers distincts (#6351 rouverte de fait). Même
+    // correctif que #5725 (`add_dependent`, `api/src/auth/mod.rs`) : on
+    // sérialise via un verrou advisory transactionnel sur le hash de
+    // l'identité (cabinet + auteur + nom/prénom/date de naissance + contact)
+    // — les transactions concurrentes pour la même identité font la queue
+    // ici, et seule la première voit encore "pas de doublon" au SELECT.
+    let lock_key = format!(
+        "{}|{}|{}|{}|{}",
+        claims.cabinet_id,
+        created_by_secretariat_id
+            .map(|id| id.to_string())
+            .unwrap_or_default(),
+        first_name.to_lowercase(),
+        last_name.to_lowercase(),
+        birth_date.map(|d| d.to_string()).unwrap_or_default(),
+    );
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(&lock_key)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     // Garde anti double-submit (#6351) : un double-clic (ou un retry réseau)
     // rejouant la même saisie à quelques secondes d'intervalle créait deux
     // dossiers patient distincts pour la même personne — le front seul ne
