@@ -691,7 +691,7 @@ class _TreatmentProgressCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '$completed / $total étapes',
+                    '$completed / $total ${pluralize(total, 'étape')}',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,

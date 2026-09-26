@@ -10,6 +10,7 @@ export 'src/theme/practitioner_color.dart';
 export 'src/format/duration_format.dart';
 export 'src/format/initials.dart';
 export 'src/format/money_format.dart';
+export 'src/format/plural_format.dart';
 export 'src/format/treatment_plan_status.dart';
 
 // Widgets
