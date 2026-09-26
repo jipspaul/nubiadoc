@@ -63,6 +63,7 @@ class _StockViewState extends State<StockView> {
       (StockRequestStatus.accepted, 'Acceptées', tokens.warningFg),
       (StockRequestStatus.fulfilled, 'Honorées', tokens.successFg),
       (StockRequestStatus.rejected, 'Refusées', tokens.dangerFg),
+      (StockRequestStatus.cancelled, 'Annulées', tokens.textTertiary),
     ];
 
     return BlocBuilder<StockBloc, StockState>(
