@@ -48,6 +48,7 @@ class MockGetQuotePaymentScheduleUseCase extends Mock
 
 final _quote = Quote(
   id: 'q-1',
+  quoteRef: 'DEV-0001',
   cabinetId: 'cab-1',
   practitionerName: 'Dr Lemaire',
   items: const [],
@@ -62,6 +63,7 @@ final _quote = Quote(
 /// l'encart d'alternative RAC 0 sur l'écran détail.
 final _quoteWithModereItem = Quote(
   id: 'q-modere',
+  quoteRef: 'DEV-0002',
   cabinetId: 'cab-1',
   practitionerName: 'Dr Lemaire',
   items: const [
@@ -86,6 +88,7 @@ final _quoteWithModereItem = Quote(
 /// afficher le CTA secondaire « Télécharger le devis signé ».
 final _signedQuoteWithDocument = Quote(
   id: 'q-signed',
+  quoteRef: 'DEV-0003',
   cabinetId: 'cab-1',
   practitionerName: 'Dr Lemaire',
   items: const [],
@@ -668,6 +671,7 @@ void main() {
       when(() => mockGetQuoteById(any())).thenAnswer((_) async {
         final signedNoDoc = Quote(
           id: _quote.id,
+          quoteRef: _quote.quoteRef,
           cabinetId: _quote.cabinetId,
           practitionerName: _quote.practitionerName,
           items: _quote.items,
@@ -909,6 +913,7 @@ void main() {
       build: () {
         final signedQuote = Quote(
           id: _quote.id,
+          quoteRef: _quote.quoteRef,
           cabinetId: _quote.cabinetId,
           practitionerName: _quote.practitionerName,
           items: _quote.items,

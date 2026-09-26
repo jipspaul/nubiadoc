@@ -61,6 +61,7 @@ class QuoteLineItemDto {
 
 class QuoteDto {
   final String id;
+  final String quoteRef;
   final String cabinetId;
   final String practitionerName;
   final List<QuoteLineItemDto> items;
@@ -75,6 +76,7 @@ class QuoteDto {
 
   const QuoteDto({
     required this.id,
+    required this.quoteRef,
     required this.cabinetId,
     required this.practitionerName,
     required this.items,
@@ -88,9 +90,10 @@ class QuoteDto {
     this.documentId,
   });
 
-  /// Détail : GET /v1/quotes/:id → {id, status, total_amount_cents, currency,
-  /// signed_at, created_at, items:[...], practitioner_name?}. Champs encore
-  /// absents de l'API (cabinet_id, deposit) → valeurs neutres.
+  /// Détail : GET /v1/quotes/:id → {id, quote_ref, status,
+  /// total_amount_cents, currency, signed_at, created_at, items:[...],
+  /// practitioner_name?}. Champs encore absents de l'API (cabinet_id,
+  /// deposit) → valeurs neutres.
   factory QuoteDto.fromJson(Map<String, dynamic> json) {
     final items = (json['items'] as List<dynamic>? ?? [])
         .map((e) => QuoteLineItemDto.fromJson(e as Map<String, dynamic>))
@@ -102,6 +105,7 @@ class QuoteDto {
         : items.fold<int>(0, (s, i) => s + i.patientShareCents);
     return QuoteDto(
       id: json['id'] as String,
+      quoteRef: (json['quote_ref'] as String?) ?? '',
       cabinetId: (json['cabinet_id'] as String?) ?? '',
       practitionerName: (json['practitioner_name'] as String?) ?? '',
       items: items,
@@ -117,13 +121,15 @@ class QuoteDto {
     );
   }
 
-  /// Liste : GET /v1/quotes → items résumés {id, status,
+  /// Liste : GET /v1/quotes → items résumés {id, quote_ref, status,
   /// total_amount_cents, currency, created_at, practitioner_name?}
-  /// (sans lignes ni parts).
+  /// (sans lignes ni parts). `quote_ref` (#7717) — sans lui, deux devis
+  /// `sent` du même praticien et du même montant étaient indiscernables.
   factory QuoteDto.fromSummaryJson(Map<String, dynamic> json) {
     final total = (json['total_amount_cents'] as num?)?.toInt() ?? 0;
     return QuoteDto(
       id: json['id'] as String,
+      quoteRef: (json['quote_ref'] as String?) ?? '',
       cabinetId: '',
       practitionerName: (json['practitioner_name'] as String?) ?? '',
       items: const [],
@@ -137,6 +143,7 @@ class QuoteDto {
 
   Quote toDomain() => Quote(
         id: id,
+        quoteRef: quoteRef,
         cabinetId: cabinetId,
         practitionerName: practitionerName,
         items: items.map((i) => i.toDomain()).toList(),

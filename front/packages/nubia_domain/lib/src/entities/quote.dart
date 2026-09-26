@@ -61,6 +61,7 @@ extension QuoteLineItemsVentilation on List<QuoteLineItem> {
 
 class Quote extends Equatable {
   final String id;
+  final String quoteRef;
   final String cabinetId;
   final String practitionerName;
   final List<QuoteLineItem> items;
@@ -75,6 +76,7 @@ class Quote extends Equatable {
 
   const Quote({
     required this.id,
+    required this.quoteRef,
     required this.cabinetId,
     required this.practitionerName,
     required this.items,

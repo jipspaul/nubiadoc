@@ -356,6 +356,7 @@ void main() {
       when(() => getPendingQuotes()).thenAnswer((_) async => Right([
             Quote(
               id: 'q1',
+              quoteRef: 'DEV-0001',
               cabinetId: 'c1',
               practitionerName: 'Dr X',
               items: [],

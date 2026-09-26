@@ -26,6 +26,7 @@ class _MockFinancialBloc extends MockBloc<FinancialEvent, FinancialState>
 
 final _quote = Quote(
   id: 'q-1',
+  quoteRef: 'DEV-0001',
   cabinetId: 'cab-1',
   practitionerName: 'Dr Hugo Marin',
   items: const [],

@@ -164,6 +164,20 @@ class _QuoteTile extends StatelessWidget {
               StatusPill(label: style.label, variant: style.variant),
             ],
           ),
+          // Référence humaine du devis (#7717) — sans elle, deux devis
+          // `sent` du même praticien pour le même montant sont
+          // strictement indiscernables (jumeau de #7690).
+          if (quote.quoteRef.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              quote.quoteRef,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+                fontFamily: 'monospace',
+                fontFeatures: tabularFigures,
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
