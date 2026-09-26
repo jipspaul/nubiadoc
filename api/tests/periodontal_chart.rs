@@ -440,3 +440,52 @@ async fn put_periodontal_chart_invalid_sites_returns_422() {
 
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
+
+// ── Test 5 : sites/indices hors référentiel → 422 (#6983) ────────────────────
+
+#[tokio::test]
+async fn put_periodontal_chart_rejects_out_of_range_payloads() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let token = make_practitioner_token(user_id, cabinet_id);
+
+    let invalid_bodies = [
+        json!({"sites": {"AAAA": {"pd": 1}}, "indices": {}}),
+        json!({"sites": {"99": {"pd": 3}}, "indices": {}}),
+        json!({"sites": {"16": {"pd": "beaucoup"}}, "indices": {}}),
+        json!({"sites": {"16": {"pd": -5}}, "indices": {}}),
+        json!({"sites": {"16": {"pd": 9999}}, "indices": {}}),
+        json!({"sites": {}, "indices": {"plaque": -1}}),
+        json!({"sites": {}, "indices": {"plaque": 99999}}),
+    ];
+
+    for body in invalid_bodies {
+        let resp = app(make_state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!(
+                        "/v1/cabinet/patients/{}/periodontal-chart",
+                        patient_id
+                    ))
+                    .header("Authorization", format!("Bearer {}", token))
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "body {} should be rejected",
+            body
+        );
+    }
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
