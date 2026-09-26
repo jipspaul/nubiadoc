@@ -75,6 +75,13 @@ pub async fn create_unavailability(
     if starts_at < min_starts_at {
         return Err(AppError::ValidationError);
     }
+    // #7709 : la borne posée par #7701 ne bornait que le passé — le
+    // pendant futur manquait, laissant passer des dates aberrantes
+    // (ex. l'an 9999). Même fenêtre que la borne passée ci-dessus.
+    let max_starts_at = chrono::Utc::now() + chrono::Duration::days(366);
+    if starts_at > max_starts_at {
+        return Err(AppError::ValidationError);
+    }
     if let Some(reason) = &body.reason {
         crate::text_validation::reject_nul_byte(reason)?;
     }
