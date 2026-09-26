@@ -17,9 +17,9 @@ class StockDelay {
 /// Calcule le délai lisible d'une demande de stock à partir de
 /// `request.createdAt` (aucun horodatage de réponse dédié n'existe).
 ///
-/// - `sent` → « Attend N h » / « Attend N h M » tant que < 1 j
-///   (ton [StockDelayTone.soon]), puis « Attend N j » dès 1 j
-///   (ton [StockDelayTone.late]).
+/// - `sent` → « Attend N h » / « Attend N h MM » (minutes sur deux
+///   chiffres) tant que < 1 j (ton [StockDelayTone.soon]), puis
+///   « Attend N j » dès 1 j (ton [StockDelayTone.late]).
 /// - `accepted` → « Acceptée le JJ/MM ».
 /// - `rejected` → « Refusée le JJ/MM ».
 /// - `fulfilled` → « Honorée le JJ/MM ».
@@ -38,7 +38,9 @@ StockDelay stockDelayOf(StockRequest request, {DateTime? now}) {
         return StockDelay('Attend ${diff.inMinutes} min', StockDelayTone.soon);
       }
       final minutes = diff.inMinutes % 60;
-      final label = minutes == 0 ? 'Attend $hours h' : 'Attend $hours h $minutes';
+      final label = minutes == 0
+          ? 'Attend $hours h'
+          : 'Attend $hours h ${minutes.toString().padLeft(2, '0')}';
       return StockDelay(label, StockDelayTone.soon);
     case StockRequestStatus.accepted:
       return StockDelay(

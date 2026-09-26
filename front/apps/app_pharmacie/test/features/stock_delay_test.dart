@@ -44,6 +44,19 @@ void main() {
       expect(delay.tone, StockDelayTone.soon);
     });
 
+    test('sent depuis 6 h 3 min → « Attend 6 h 03 » (minutes rembourrées)',
+        () {
+      final request = _request(
+        status: StockRequestStatus.sent,
+        createdAt: DateTime(2026, 8, 13, 3, 57),
+      );
+
+      final delay = stockDelayOf(request, now: now);
+
+      expect(delay.label, 'Attend 6 h 03');
+      expect(delay.tone, StockDelayTone.soon);
+    });
+
     test('sent depuis moins d\'1 h → « Attend N min »', () {
       final request = _request(
         status: StockRequestStatus.sent,
