@@ -293,8 +293,9 @@ pub async fn list_treatment_plans(
 
         let (next_appointment_id, next_appointment_at) = match next_appointment {
             Some(row) => {
-                let appointment_id: Uuid =
-                    row.try_get("appointment_id").map_err(|_| AppError::Internal)?;
+                let appointment_id: Uuid = row
+                    .try_get("appointment_id")
+                    .map_err(|_| AppError::Internal)?;
                 let starts_at: chrono::DateTime<chrono::Utc> =
                     row.try_get("starts_at").map_err(|_| AppError::Internal)?;
                 (Some(appointment_id), Some(starts_at.to_rfc3339()))
