@@ -270,15 +270,28 @@ void main() {
   });
 
   group('OrdersLoaded.visible', () {
-    test('sans filtre : trie par réception croissante, la plus ancienne '
-        '(donc la plus urgente) en tête', () {
+    test('sans filtre : trie par ce qu\'il reste à faire (reçue > en '
+        'préparation > prête), puis par réception croissante — les '
+        'commandes déjà prêtes ne passent jamais devant celles encore à '
+        'préparer (#7711)', () {
       final state = OrdersLoaded(orders: [
         orderAt('o1', PharmacyOrderStatus.received, DateTime(2026, 7, 1, 11)),
         orderAt('o2', PharmacyOrderStatus.preparing, DateTime(2026, 7, 1, 8)),
         orderAt('o3', PharmacyOrderStatus.ready, DateTime(2026, 7, 1, 9)),
       ]);
 
-      expect(state.visible.map((o) => o.id), ['o2', 'o3', 'o1']);
+      expect(state.visible.map((o) => o.id), ['o1', 'o2', 'o3']);
+    });
+
+    test('sans filtre : à statut égal, trie par réception croissante, la '
+        'plus ancienne (donc la plus urgente) en tête', () {
+      final state = OrdersLoaded(orders: [
+        orderAt('o1', PharmacyOrderStatus.received, DateTime(2026, 7, 1, 11)),
+        orderAt('o2', PharmacyOrderStatus.received, DateTime(2026, 7, 1, 8)),
+        orderAt('o3', PharmacyOrderStatus.preparing, DateTime(2026, 7, 1, 9)),
+      ]);
+
+      expect(state.visible.map((o) => o.id), ['o2', 'o1', 'o3']);
     });
 
     test('sans filtre : les commandes terminales (retirée, refusée, '
