@@ -206,7 +206,7 @@ async fn enqueue_push_notification_sends_real_fcm_push() {
     );
     assert_eq!(
         body["message"]["data"]["deeplink"],
-        "/appointments/11111111-1111-1111-1111-111111111111"
+        "/mes-rdv?id=11111111-1111-1111-1111-111111111111"
     );
     // Zéro PII : le corps chiffré/le contenu métier n'apparaissent jamais.
     assert!(!body.to_string().contains("appointment_id"));
