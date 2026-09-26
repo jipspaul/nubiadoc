@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_infirmiere/features/home/infirmiere_home_page.dart';
@@ -129,7 +130,7 @@ void main() {
       'accepter une offre bascule sur « Ma visite » et confirme le succès',
       (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: InfirmiereHomePage()),
+      MaterialApp(theme: NubiaTheme.light, home: const InfirmiereHomePage()),
     );
     await tester.pumpAndSettle();
 
@@ -170,7 +171,7 @@ void main() {
       );
 
     await tester.pumpWidget(
-      const MaterialApp(home: InfirmiereHomePage()),
+      MaterialApp(theme: NubiaTheme.light, home: const InfirmiereHomePage()),
     );
     await tester.pumpAndSettle();
 

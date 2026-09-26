@@ -301,6 +301,15 @@ class _VisitTab extends StatelessWidget {
   const _VisitTab({required this.state});
   final NurseState state;
 
+  /// Variantes sémantiques par statut — miroir de `_statusVariants`
+  /// (`app_patient/.../home_care_tracking_page.dart:30-38`).
+  static const _statusVariants = {
+    'accepted': StatusPillVariant.progress,
+    'en_route': StatusPillVariant.progress,
+    'arrived': StatusPillVariant.progress,
+    'done': StatusPillVariant.success,
+  };
+
   @override
   Widget build(BuildContext context) {
     final v = state.activeVisit;
@@ -330,7 +339,10 @@ class _VisitTab extends StatelessWidget {
           Text(v.requestedActs.map(homeCareActLabel).join(' · ')),
           Text('${v.address['line1'] ?? ''}, ${v.address['city'] ?? ''}'),
           const SizedBox(height: 8),
-          Chip(label: Text('Statut : ${visitStatusLabel(v.status)}')),
+          StatusPill(
+            label: 'Statut : ${visitStatusLabel(v.status)}',
+            variant: _statusVariants[v.status] ?? StatusPillVariant.neutral,
+          ),
           const Spacer(),
           if (label != null && action != null)
             NubiaButton(
