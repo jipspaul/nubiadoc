@@ -67,7 +67,6 @@ import '../features/messaging/messaging_page.dart';
 import '../features/reviews/reviews_bloc.dart';
 import '../features/reviews/reviews_event.dart';
 import '../features/reviews/reviews_page.dart';
-import '../session/auth_cubit.dart';
 import 'back_or_home_leading.dart';
 
 /// Patient router. Route names are app-owned; the auth guard is the shared
@@ -172,19 +171,14 @@ class AppRouter {
       routes: [
         GoRoute(
           path: splash,
-          // #6750 : une coupure réseau pendant AuthCubit.restore() ne doit
-          // pas se voir comme un spinner infini (token jamais confirmé ni
-          // invalidé) — on propose Réessayer plutôt que de rediriger vers le
-          // login un patient encore authentifié.
-          builder: (_, __) => Scaffold(
-            body: BlocBuilder<AuthCubit, AuthState>(
-              builder: (context, state) => state is AuthRestoreFailed
-                  ? NubiaErrorWidget(
-                      message: state.message,
-                      onRetry: () => context.read<AuthCubit>().restore(),
-                    )
-                  : const Center(child: CircularProgressIndicator()),
-            ),
+          // #6750/#6981 : l'écran « Réessayer » d'une coupure réseau pendant
+          // AuthCubit.restore() est affiché globalement par `NubiaPatientApp`
+          // (app.dart), pas ici — un rechargement web sur une route profonde
+          // (ex. /mes-rdv) ne construit jamais /splash, donc un câblage local
+          // à cette seule route ne pouvait jamais s'appliquer dans ce cas.
+          // Le splash reste donc un simple spinner de boot.
+          builder: (_, __) => const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
           ),
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
