@@ -5121,3 +5121,36 @@ jamais** l'utilisateur quand celui-ci échoue → **#7782**.
 d'entrée : **#7775** (4 écrans du Profil patient sans aucune sortie) et **#7776** (`/treatment-plans/:id`
 sans un seul contrôle activable, `/pharmacy/orders/:id` sans retour). Méthode à conserver : *auditer
 la sortie de chaque écran atteint, pas seulement son contenu.*
+
+#### Addendum R103 — 10 écrans de plus (total de la ronde : **32 écrans, 238 contrôles activés**)
+
+| app | écran / route | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/correspondents` | 30 | 11 | 5 | 3* | 0 | 0 | 2026-09-27T08:35Z |
+| secretariat | `/conformite` | 50 | 11 | 10 | 0 | 1* | 0 | 2026-09-27T08:36Z |
+| secretariat | `/maintenance` | 32 | 11 | 6 | 5* | 0 | 0 | 2026-09-27T08:37Z |
+| secretariat | `/reprise-donnees` | 30 | 11 | 6 | 5* | 0 | 0 | 2026-09-27T08:38Z |
+| praticien | `/consultation?id=<séance en cours>` — **schéma dentaire, 1024 / 1280 / 1440** | 32 dents | 9 | 9 | 0 | 0 | 0 | 2026-09-27T08:20Z |
+| patient | `/appointments` → étape 2 → étape 3 (390×844) | 28 | 2 | 2 | 0 | 0 | 0 | 2026-09-27T08:30Z |
+
+**Schéma dentaire (#7772, mergé pendant la ronde) — le contrôle le plus dense de l'app praticien :**
+**32 dents sur 32** inventoriées dans l'ordre ISO 3950 (18→11, 21→28, 48→41, 31→38), **0 dent hors carte**
+aux trois viewports (étendue `285→794` à 1280, `573→954` à 1440, `285→990` à 1024), et les trois dents
+citées par #6978 — **18, 21, 38** — s'activent toutes (OK aux 3 viewports). Le débordement est résolu.
+
+**Écrans d'authentification (jamais audités) — tous sains :** `/signup` (« Créer mon compte » grisé
+tant que e-mail + mot de passe + CGU ne sont pas valides — le seul défaut y est le **nom accessible
+absent de la case CGU**, → #7784), `/forgot-password` (refus propre sur `pas-un-email`, `a@`, `@b.fr`
+avec « **E-mail invalide.** » ; anti-énumération respectée ; **0 requête 5xx, 0 erreur console**),
+`/account-setup` (redirige vers `/login` sans session).
+
+**Routes du secrétariat restantes** : `/correspondents`, `/conformite`, `/maintenance`,
+`/reprise-donnees` répondent toutes et leurs contrôles métier fonctionnent (« Modifier ce
+correspondant », « Enregistrer », « Ajouter » d'un item de conformité avec sélecteur de date et
+d'assigné). `/appointments` et `/bookable-slots` ont rendu un `net::ERR_HTTP_RESPONSE_CODE_FAILURE`
+côté Playwright — **artefact de sous-ressource, pas un défaut** : les deux répondent **200 text/html**
+au curl, deux fois de suite.
+
+**`*` = requalifié, pas un défaut** — même grille que le tableau principal : conteneurs `[group]`,
+amorces ⌘K volontairement inertes, sonde de rôle `GET /v1/cabinet/audit-log` → 403 absorbée par
+`audit_log_access_cubit.dart`.
