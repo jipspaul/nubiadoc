@@ -198,7 +198,10 @@ class _HeroAppointmentDetailCardState
           ),
           const SizedBox(height: 4),
           Text(
-            '${appointment.practitionerName} · ${appointment.motif}',
+            // #3825 : pas de « · » pendant quand le motif est vide.
+            appointment.motif.isEmpty
+                ? appointment.practitionerName
+                : '${appointment.practitionerName} · ${appointment.motif}',
             style: TextStyle(
               fontSize: 15,
               color: Colors.white.withValues(alpha: 0.82),
