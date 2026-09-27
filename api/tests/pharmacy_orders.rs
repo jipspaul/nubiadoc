@@ -290,6 +290,53 @@ async fn patient_creates_order_and_prescription_becomes_sent() {
     assert_eq!(status, StatusCode::CONFLICT);
 }
 
+// #6972 : la commande vaut consentement pour cette transmission, mais ne
+// doit pas effacer silencieusement une révocation explicite déjà posée par
+// le patient sur l'écran « Mes consentements ».
+#[tokio::test]
+async fn ordering_does_not_silently_undo_an_explicit_consent_revocation() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let token = patient_jwt(fx.user_id, fx.account_id);
+
+    // Le patient révoque explicitement le consentement AVANT de commander.
+    let (status, _) = request(
+        "PUT",
+        "/v1/account/consents/partage_pharmacie",
+        &token,
+        Some(json!({"granted": false})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, order) = request(
+        "POST",
+        &format!("/v1/account/prescriptions/{}/order", fx.prescription_id),
+        &token,
+        Some(json!({"pharmacy_id": fx.pharmacy_id})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {order}");
+
+    // Le registre RGPD garde la révocation : `granted` reste false et
+    // `revoked_at` n'est pas effacé.
+    let row = sqlx::query(
+        "SELECT granted, revoked_at FROM consent_record \
+         WHERE patient_account_id = $1 AND purpose = 'partage_pharmacie'",
+    )
+    .bind(fx.account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let granted: bool = row.try_get("granted").unwrap();
+    let revoked_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("revoked_at").unwrap();
+    assert!(!granted, "la révocation ne doit pas être ré-accordée silencieusement");
+    assert!(revoked_at.is_some(), "revoked_at ne doit pas être effacé");
+}
+
 #[tokio::test]
 async fn patient_cannot_order_draft_prescription() {
     if !db_available() {

@@ -166,12 +166,19 @@ pub async fn send_prescription(
         .consent_channel
         .as_deref()
         .unwrap_or("verbal_in_office");
+    // Upsert : re-envoi = renouvellement, sauf révocation explicite en
+    // cours — ne pas effacer silencieusement le registre RGPD (#6972).
     let consent_row = sqlx::query(
         "INSERT INTO consent_record \
          (patient_account_id, purpose, granted, evidence) \
          VALUES ($1, 'partage_pharmacie', true, $2) \
          ON CONFLICT (patient_account_id, purpose) DO UPDATE \
-         SET granted = true, granted_at = now(), revoked_at = NULL, \
+         SET granted = CASE WHEN consent_record.revoked_at IS NOT NULL \
+                             THEN consent_record.granted ELSE true END, \
+             granted_at = CASE WHEN consent_record.revoked_at IS NOT NULL \
+                                THEN consent_record.granted_at ELSE now() END, \
+             revoked_at = CASE WHEN consent_record.revoked_at IS NOT NULL \
+                                THEN consent_record.revoked_at ELSE NULL END, \
              evidence = EXCLUDED.evidence \
          RETURNING id",
     )

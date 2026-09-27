@@ -684,13 +684,21 @@ pub async fn create_account_order(
     let (prescriber_name, prescriber_practice, prescriber_rpps) =
         prescriber_identity(&mut tx, cabinet_id, practitioner_id).await?;
 
-    // Consentement au partage (upsert : re-commande = renouvellement).
+    // Consentement au partage (upsert : re-commande = renouvellement, sauf
+    // si le patient a explicitement révoqué — la commande vaut consentement
+    // pour cette transmission, mais ne doit pas effacer silencieusement une
+    // révocation du registre RGPD, cf. #6972).
     let consent_row = sqlx::query(
         "INSERT INTO consent_record \
          (patient_account_id, purpose, granted, evidence) \
          VALUES ($1, 'partage_pharmacie', true, $2) \
          ON CONFLICT (patient_account_id, purpose) DO UPDATE \
-         SET granted = true, granted_at = now(), revoked_at = NULL, \
+         SET granted = CASE WHEN consent_record.revoked_at IS NOT NULL \
+                             THEN consent_record.granted ELSE true END, \
+             granted_at = CASE WHEN consent_record.revoked_at IS NOT NULL \
+                                THEN consent_record.granted_at ELSE now() END, \
+             revoked_at = CASE WHEN consent_record.revoked_at IS NOT NULL \
+                                THEN consent_record.revoked_at ELSE NULL END, \
              evidence = EXCLUDED.evidence \
          RETURNING id",
     )
