@@ -7,6 +7,65 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+### Ronde R104 — 2026-09-27 (12:00–14:20 UTC) — **5/5 apps**, 17 écrans, **368 contrôles inventoriés, 203 activés, 0 mort réel, 0 cassé**
+
+> **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role]` + `input`/`textarea`), activation au
+> centre du rect, verdict par diff (url / libellés / pixels / requêtes API / téléchargements / popups).
+>
+> **Deux pièges de méthode corrigés dans cette ronde — ils produisaient de FAUX « morts » :**
+> 1. **Rect hors viewport.** Flutter rapporte les rects dans l'espace du *contenu défilable*, pas du viewport :
+>    un contrôle sous la ligne de flottaison est rapporté à `y > hauteur`, et le clic brut le rate. Sans
+>    défilement préalable, 5 des 7 tuiles du Profil patient ressortaient « mortes » alors qu'elles naviguent
+>    toutes. **Toujours faire défiler jusqu'au contrôle avant de le juger.**
+> 2. **Effet invisible dans le DOM.** Un contrôle qui déclenche un **téléchargement**, un **sélecteur de
+>    fichier** ou un **nouvel onglet** ne change ni l'URL, ni les libellés, ni les pixels. Les 14 « morts »
+>    bruts de cette ronde sont **tous** de ce type : 11 « Télécharger » du coffre-fort (vérifié : produisent
+>    bien `0ba67adb-….pdf`, `97efe6a8-….pdf`), « Modifier la photo de profil » (ouvre le `filechooser`),
+>    une carte d'ordonnance (émet `GET /v1/documents/:id/download`). Le harnais écoute désormais
+>    `download` / `filechooser` / `popup` / `request`. **Morts réels : 0.**
+> 3. **Clip de conteneur défilant** (cf. `/patients` ci-dessous) : un nœud Semantics peut être rapporté
+>    *dans* le viewport de la page mais *hors* du clip de son propre `ListView` — le clic le rate quand même.
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/` (Accueil) | 390×844 | 20 | 17 | 17 | 0 | 0 | 2026-09-27T12:40:00Z |
+| patient | `/mes-rdv` | 390×844 | 12 | 8 | 8 | 0 | 0 | 2026-09-27T12:54:00Z |
+| patient | `/documents` (coffre-fort) | 390×844 | 41 | 28 | 28 | 0 | 0 | 2026-09-27T12:58:00Z |
+| patient | `/prescriptions` | 390×844 | 12 | 12 | 12 | 0 | 0 | 2026-09-27T13:04:00Z |
+| patient | `/profile` | 390×844 | 16 | 13 | 13 | 0 | 0 | 2026-09-27T12:16:00Z |
+| patient | `/appointments` (tunnel + feuille praticien) | 390×844 | 25 | 3 | 3 | 0 | 0 | 2026-09-27T14:05:00Z |
+| patient | `/login` (cas adversariaux) | 390×844 | 5 | 5 | 5 | 0 | 0 | 2026-09-27T13:58:00Z |
+| praticien | `/` (Tableau de bord) | 1280×800 | 36 | 33 | 33 | 0 | 0 | 2026-09-27T13:17:00Z |
+| praticien | `/waiting-room` | 1280×800 | 21 | 20 | 19 | 0 | 0 | 2026-09-27T13:38:00Z |
+| secretariat | `/agenda` (grille semaine + volet) | 1280×800 | 85 | 12 | 12 | 0 | 0 | 2026-09-27T13:20:00Z |
+| secretariat | `/salle-attente` | 1280×800 | 28 | 22 | 22 | 0 | 0 | 2026-09-27T13:22:00Z |
+| secretariat | `/patients` (fiches) | 1280×800 | 40 | 26 | 26 | 0 | 0 | 2026-09-27T13:52:00Z |
+| pharmacie | `/` (File des commandes) | 1280×800 | 30 | 14 | 14 | 0 | 0 | 2026-09-27T13:45:00Z |
+| pharmacie | `/stock` | 1280×800 | 15 | 0 | — | — | — | 2026-09-27T13:10:00Z (inventaire seul) |
+| pharmacie | `/devis` | 1280×800 | 38 | 0 | — | — | — | 2026-09-27T13:10:00Z (inventaire seul) |
+| pharmacie | `/messages` | 1280×800 | 15 | 0 | — | — | — | 2026-09-27T13:10:00Z (inventaire seul) |
+| infirmiere | `/` (Disponibilité/Offres/Ma visite) | 390×844 | 8 | 6 | 6 | 0 | 0 | 2026-09-27T13:20:00Z |
+| infirmiere | `/notification-preferences` | 390×844 | 5 | 3 | 3 | 0 | 0 | 2026-09-27T13:06:00Z |
+| infirmiere | `/notifications` | 390×844 | 1 | 1 | 1 | 0 | 0 | 2026-09-27T13:07:00Z |
+
+**Contrôles DÉSACTIVÉS jugés légitimes (preuve exigée) :**
+- praticien `/waiting-room` — « **Appeler suivant** » grisé : la salle était **vide** à cet instant
+  (`GET /v1/cabinet/waiting-room` → `{"data":[]}`, la ronde venait de clôturer la séance de Marc Dubois).
+  Grisage correct.
+- patient `/profile` — « **Authentification biométrique** » grisée : WebAuthn indisponible en Chromium
+  headless. Non imputable à l'app.
+
+**Correction apportée au registre — `Réglages du cabinet` (secrétariat, 1280×800) :**
+la ronde R100 (#7692) puis R101 (#7706) concluaient que le groupe **ne se déplie jamais** à 1280×800,
+« même après défilement ». **C'est inexact aujourd'hui, et la nuance est méthodologique.** Mesuré :
+le `ListView` du rail a un viewport `y = 99 … 624` (525 px) alors que Semantics rapporte l'en-tête à
+`y = 659` — *dans* la fenêtre du navigateur mais *hors* du clip du rail. Un clic à la coordonnée
+rapportée tombe donc à côté (3 modalités essayées : souris, bord gauche, `Entrée` — 20 ⇒ 20).
+**Mais un défilement du rail de 120 px ramène l'en-tête à `y = 608`, et le clic déplie alors
+normalement : rail 20 ⇒ 28, révélant les 8 destinations** (`Statistiques`, `Créneaux ouverts`,
+`Motifs de RDV`, `Stock`, `Maintenance`, `Membres`, `Secrétariats`, `Reprise de données`).
+Idem sans défilement à 1280×1000. **Ce n'est donc pas un contrôle mort** — à ne plus rapporter comme tel.
+
 ### Ronde R100 — 2026-09-25 (18:00–21:00 UTC) — **5/5 apps**, 28 écrans audités, **600 contrôles inventoriés, 538 activés**
 
 > **Méthode.** Flutter web rend **tout dans le shadow root de `<flt-glass-pane>`** : `document.querySelectorAll`
