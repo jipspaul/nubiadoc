@@ -575,6 +575,93 @@ void main() {
       // La bulle est affichée immédiatement, sans recharger la conversation.
       expect(find.text('Bonjour docteur, une question'), findsOneWidget);
     });
+
+    testWidgets(
+        'un échec réseau à l\'envoi affiche un message d\'erreur visible '
+        '(#7782)', (tester) async {
+      when(() => mockGetMessages(any())).thenAnswer((_) async => Right([_msg]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+      when(() => mockSendMessage(
+            conversationId: any(named: 'conversationId'),
+            text: any(named: 'text'),
+          )).thenAnswer(
+              (_) async => const Left(NetworkFailure('Erreur réseau.')));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('messaging_input')),
+        'QA-R103-PERDU-OFFLINE',
+      );
+      await tester.tap(find.byKey(const Key('messaging_send_button')));
+      await tester.pumpAndSettle();
+
+      // Plus d'échec silencieux : un retour visible informe l'utilisateur.
+      expect(find.text('Erreur réseau.'), findsOneWidget);
+      // Le message n'a pas été ajouté au fil.
+      expect(find.text('QA-R103-PERDU-OFFLINE'), findsNothing);
+    });
+  });
+
+  // #7782 — une coupure réseau pendant l'envoi ne doit plus être avalée en
+  // silence : le bloc doit porter l'échec (`sendError`) plutôt que de
+  // réémettre l'état courant inchangé.
+  group('MessagingBloc — échec d\'envoi (#7782)', () {
+    blocTest<MessagingBloc, MessagingState>(
+      'émet sendError sur échec d\'envoi, sans perdre les messages déjà '
+      'chargés',
+      build: () {
+        when(() => mockGetMessages(any()))
+            .thenAnswer((_) async => Right([_msg]));
+        when(() => mockMarkRead(any()))
+            .thenAnswer((_) async => const Right(null));
+        when(() => mockSendMessage(
+              conversationId: any(named: 'conversationId'),
+              text: any(named: 'text'),
+            )).thenAnswer(
+                (_) async => const Left(NetworkFailure('Erreur réseau.')));
+        return _makeBloc(
+          getConversations: mockGetConversations,
+          getMessages: mockGetMessages,
+          sendMessage: mockSendMessage,
+          markRead: mockMarkRead,
+        );
+      },
+      act: (bloc) async {
+        bloc.add(MessagingThreadOpened(_conv));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const MessagingSendRequested(
+          conversationId: 'conv-1',
+          text: 'QA-R103-PERDU-OFFLINE',
+        ));
+      },
+      skip: 2,
+      expect: () => [
+        isA<MessagingThreadLoaded>()
+            .having((s) => s.sending, 'sending', true),
+        isA<MessagingThreadLoaded>()
+            .having((s) => s.sending, 'sending', false)
+            .having((s) => s.sendError, 'sendError', 'Erreur réseau.')
+            .having((s) => s.messages, 'messages', [_msg]),
+      ],
+    );
   });
 
   // #5283 — trois chips de réponse rapide au-dessus du composeur, pour

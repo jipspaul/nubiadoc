@@ -48,24 +48,33 @@ final class MessagingThreadLoaded extends MessagingState {
   final List<Message> messages;
   final bool sending;
 
+  /// Échec ponctuel d'un envoi (#7782) — capté par un `BlocListener`
+  /// (SnackBar), ne remplace pas le fil déjà chargé (même règle que #7140).
+  final String? sendError;
+
   const MessagingThreadLoaded({
     required this.conversation,
     required this.messages,
     this.sending = false,
+    this.sendError,
   });
 
+  /// [sendError] n'a pas de valeur par défaut héritée : tout nouvel appel
+  /// efface l'erreur transitoire précédente sauf si explicitement fournie.
   MessagingThreadLoaded copyWith({
     List<Message>? messages,
     bool? sending,
+    String? sendError,
   }) =>
       MessagingThreadLoaded(
         conversation: conversation,
         messages: messages ?? this.messages,
         sending: sending ?? this.sending,
+        sendError: sendError,
       );
 
   @override
-  List<Object?> get props => [conversation, messages, sending];
+  List<Object?> get props => [conversation, messages, sending, sendError];
 }
 
 final class MessagingThreadError extends MessagingState {

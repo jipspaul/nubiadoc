@@ -39,6 +39,7 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
     on<MessagingThreadRequested>(_onThreadRequested);
     on<MessagingSendRequested>(_onSend);
     on<MessagingBackRequested>(_onBack);
+    on<MessagingSendErrorDismissed>(_onSendErrorDismissed);
   }
 
   Future<void> _onConversationsLoad(
@@ -136,14 +137,33 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
         text: event.text,
       );
       result.fold(
-        (failure) => safeEmit(current.copyWith(sending: false)),
+        (failure) => safeEmit(current.copyWith(
+          sending: false,
+          sendError: failure.message,
+        )),
         (message) => safeEmit(current.copyWith(
           sending: false,
           messages: [...current.messages, message],
         )),
       );
     } catch (_) {
-      safeEmit(current.copyWith(sending: false));
+      safeEmit(current.copyWith(
+        sending: false,
+        sendError: 'Erreur d\'envoi.',
+      ));
+    }
+  }
+
+  /// Consomme l'erreur d'envoi transitoire une fois affichée (SnackBar) pour
+  /// ne pas la rejouer si l'état est reconstruit (#7782, même règle que
+  /// #7140).
+  void _onSendErrorDismissed(
+    MessagingSendErrorDismissed event,
+    Emitter<MessagingState> emit,
+  ) {
+    final current = state;
+    if (current is MessagingThreadLoaded) {
+      safeEmit(current.copyWith());
     }
   }
 

@@ -96,55 +96,68 @@ class _MessagingBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<MessagingBloc, MessagingState>(
-      builder: (context, state) {
-        if (state is MessagingInitial ||
-            state is MessagingConversationsLoading) {
-          return const Center(
-            key: Key('messaging_loading'),
-            child: CircularProgressIndicator(),
-          );
-        }
-        if (state is MessagingConversationsError) {
-          return NubiaErrorWidget(
-            key: const Key('messaging_error'),
-            message: state.message,
-            onRetry: () => context
-                .read<MessagingBloc>()
-                .add(const MessagingConversationsLoadRequested()),
-          );
-        }
-        if (state is MessagingConversationsLoaded) {
-          if (state.conversations.isEmpty) {
-            return const NubiaEmptyState(
-              key: Key('messaging_empty'),
-              icon: Icons.chat_bubble_outline,
-              title: 'Aucun message',
-              subtitle: 'Votre cabinet vous contactera ici.',
+    return BlocListener<MessagingBloc, MessagingState>(
+      listenWhen: (previous, current) =>
+          current is MessagingThreadLoaded && current.sendError != null,
+      listener: (context, state) {
+        final message = (state as MessagingThreadLoaded).sendError!;
+        NubiaSnackbar.show(
+          context: context,
+          message: message,
+          variant: NubiaSnackbarVariant.error,
+        );
+        context.read<MessagingBloc>().add(const MessagingSendErrorDismissed());
+      },
+      child: BlocBuilder<MessagingBloc, MessagingState>(
+        builder: (context, state) {
+          if (state is MessagingInitial ||
+              state is MessagingConversationsLoading) {
+            return const Center(
+              key: Key('messaging_loading'),
+              child: CircularProgressIndicator(),
             );
           }
-          return _ConversationsList(conversations: state.conversations);
-        }
-        if (state is MessagingThreadLoading) {
-          return const Center(
-            key: Key('messaging_thread_loading'),
-            child: CircularProgressIndicator(),
-          );
-        }
-        if (state is MessagingThreadLoaded) {
-          return _ThreadView(state: state);
-        }
-        if (state is MessagingThreadError) {
-          return NubiaErrorWidget(
-            key: const Key('messaging_thread_error'),
-            message: state.message,
-            onRetry: () => context
-                .read<MessagingBloc>()
-                .add(MessagingThreadRequested(state.conversationId)),
-          );
-        }
-        return const SizedBox.shrink();
-      },
+          if (state is MessagingConversationsError) {
+            return NubiaErrorWidget(
+              key: const Key('messaging_error'),
+              message: state.message,
+              onRetry: () => context
+                  .read<MessagingBloc>()
+                  .add(const MessagingConversationsLoadRequested()),
+            );
+          }
+          if (state is MessagingConversationsLoaded) {
+            if (state.conversations.isEmpty) {
+              return const NubiaEmptyState(
+                key: Key('messaging_empty'),
+                icon: Icons.chat_bubble_outline,
+                title: 'Aucun message',
+                subtitle: 'Votre cabinet vous contactera ici.',
+              );
+            }
+            return _ConversationsList(conversations: state.conversations);
+          }
+          if (state is MessagingThreadLoading) {
+            return const Center(
+              key: Key('messaging_thread_loading'),
+              child: CircularProgressIndicator(),
+            );
+          }
+          if (state is MessagingThreadLoaded) {
+            return _ThreadView(state: state);
+          }
+          if (state is MessagingThreadError) {
+            return NubiaErrorWidget(
+              key: const Key('messaging_thread_error'),
+              message: state.message,
+              onRetry: () => context
+                  .read<MessagingBloc>()
+                  .add(MessagingThreadRequested(state.conversationId)),
+            );
+          }
+          return const SizedBox.shrink();
+        },
+      ),
     );
   }
 }
