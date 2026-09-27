@@ -5050,3 +5050,74 @@ le principal enseignement méthodologique de la ronde :
 
 **Règle à retenir** : un 4xx déclenché par un clic n'est un défaut que si le repository le laisse
 remonter brut à l'écran. Ouvrir le `*_repository_impl.dart` avant tout verdict CASSÉ.
+
+---
+
+### Ronde R103 — 2026-09-27 (06:00–09:00 UTC) — **5/5 apps**, 22 écrans audités, **~370 contrôles inventoriés, 194 activés**
+
+> **Rotation.** Priorité absolue aux écrans touchés par les 25 merges de la nuit (Étape 1bis),
+> puis aux routes **jamais auditées** : 6 routes praticien (`/cabinet-brief`, `/consent-templates`,
+> `/lab-stats`, `/mes-conges`, `/questionnaire-templates`, `/tasks`) et les 3 écrans d'authentification
+> patient (`/signup`, `/forgot-password`, `/account-setup`), absents du ledger jusqu'ici.
+
+| app | écran / route | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/prescriptions` (390×844) | 13 | 13 | 12 | 1* | 0 | 0 | 2026-09-27T06:20Z |
+| patient | `/financial` (390×844) | 9 | 3 | 1 | 0 | 2* | 0 | 2026-09-27T06:21Z |
+| patient | `/treatment-plans` (390×844) | 10 | 2 | 2 | 0 | 0 | 0 | 2026-09-27T06:22Z |
+| patient | `/implant-passport` (390×844) | 8 | 4 | 4 | 0 | 0 | 0 | 2026-09-27T06:23Z |
+| patient | `/home-care` (390×844) | 18 | 2 | 1 | 1* | 0 | 0 | 2026-09-27T06:24Z |
+| patient | `/pharmacy` (390×844) | 8 | 8 | 7 | 1* | 0 | 0 | 2026-09-27T06:25Z |
+| patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-27T06:26Z |
+| patient | `/documents` (390×844) | 43 | 15 | 9 | 6* | 0 | 0 | 2026-09-27T07:05Z |
+| patient | `/mes-rdv` (390×844) | 13 | 8 | 7 | 1* | 0 | 0 | 2026-09-27T07:52Z |
+| patient | `/messaging` + fil ouvert (390×844) | 10 | 8 | 8 | 0 | 0 | 0 | 2026-09-27T06:58Z |
+| patient | `/notifications` (390×844) | 20 | 14 | 13 | 0 | 1* | 0 | 2026-09-27T06:59Z |
+| patient | `/profile/dependents` (390×844) | 24 | 4 | 2 | 2* | 0 | 0 | 2026-09-27T07:00Z |
+| patient | `/signup` — **jamais audité** (390×844) | 6 | 6 | 5 | 0 | 0 | 1 | 2026-09-27T07:40Z |
+| patient | `/forgot-password` — **jamais audité** (390×844) | 4 | 4 | 4 | 0 | 0 | 1 | 2026-09-27T07:41Z |
+| patient | `/account-setup` — **jamais audité** (390×844) | 7 | 0 | — | — | — | — | 2026-09-27T07:41Z |
+| praticien | `/waiting-room` (1280×800) | 23 | 14 | 13 | 0 | 0 | 1 | 2026-09-27T06:47Z |
+| praticien | `/cabinet-brief` — **jamais audité** | 6 | 6 | 6 | 0 | 0 | 0 | 2026-09-27T07:22Z |
+| praticien | `/consent-templates` — **jamais audité** | 22 | 8 | 7 | 1* | 0 | 0 | 2026-09-27T07:23Z |
+| praticien | `/lab-stats` — **jamais audité** | 2 | 2 | 2 | 0 | 0 | 0 | 2026-09-27T07:24Z |
+| praticien | `/mes-conges` — **jamais audité** | 24 | 12 | 7 | 5* | 0 | 0 | 2026-09-27T07:25Z |
+| praticien | `/questionnaire-templates` — **jamais audité** | 4 | 4 | 2 | 2* | 0 | 0 | 2026-09-27T07:26Z |
+| praticien | `/tasks` — **jamais audité** | 5 | 5 | 5 | 0 | 0 | 0 | 2026-09-27T07:27Z |
+| secretariat | `/team-messages` (1280×800) | 35 | 16 | 10 | 6* | 0 | 0 | 2026-09-27T06:45Z |
+| pharmacie | `/devis` (1280×800) | 42 | 13 | 13 | 0 | 0 | 0 | 2026-09-27T07:36Z |
+| pharmacie | `/notification-preferences` (1280×800) | 13 | 14 | 10 | 4* | 0 | 0 | 2026-09-27T07:37Z |
+| pharmacie | `/stock` (1280×800) | 19 | 14 | 14 | 0 | 0 | 0 | 2026-09-27T07:38Z |
+| infirmiere | `/` onglets Disponibilité / Offres / Ma visite (390×844) | 8 | 4 | 4 | 0 | 0 | 0 | 2026-09-27T07:33Z |
+
+**Total : 194 contrôles activés → 178 OK, 30 « morts » bruts, 3 « cassés » bruts, 2 désactivés prouvés légitimes.**
+
+**`*` = requalifié, PAS un défaut.** Les 30 « morts » et 3 « cassés » bruts du harnais ont tous été
+instruits un par un, et **aucun n'a survécu** à la vérification :
+
+- **conteneurs non interactifs** (`[group]`, `[semantics]`) — l'écrasante majorité : un `group` qui
+  n'a pas d'`onTap` n'est pas un bouton mort ;
+- **clics rognés hors viewport** : `/documents` (6 facettes à `x=512…1492` sur 390 px), `/prescriptions`
+  (13ᵉ carte à `y=1008` sur 844), `/mes-rdv` (rect du conteneur au lieu du bouton). Après défilement,
+  tous s'activent — voir le tableau des faux positifs de `explored-paths.md` ;
+- **amorces ⌘K volontairement inertes** (« Résume ma journée », « Quels devis relancer ? », « Combien
+  encaissé aujourd'hui ? ») — l'app annonce franchement « Réponse en langage naturel indisponible
+  pour le moment. » (déjà qualifié en R102) ;
+- **`/financial` « CASSÉ »** : 404 sur `/quotes/:id/attestation`, absorbé en `Right(null)`
+  (`quote_attestation_repository_impl.dart:19-23`) ; **`/notifications` « CASSÉ »** : `GET /favicon.png`
+  → 500 transitoire, déjà qualifié en R102.
+
+**Désactivés prouvés légitimes :**
+- praticien `/waiting-room` → « Appeler suivant » grisé sur file vide (« 0 patient en attente ») —
+  c'est le correctif **#7771** qui fonctionne ;
+- patient `/signup` → « Créer mon compte » grisé tant que e-mail + mot de passe + CGU ne sont pas
+  valides (`signup_page.dart:26`) ; `/forgot-password` → « Envoyer le lien » grisé sur champ vide.
+
+**Le seul défaut de contrôle de la ronde n'est pas un bouton mort mais un bouton MUET** :
+« Envoyer le message » (patient `/messaging/:id`) s'active normalement, émet son POST, et **n'informe
+jamais** l'utilisateur quand celui-ci échoue → **#7782**.
+
+**Deux défauts de SORTIE d'écran**, trouvés en activant les contrôles de retour plutôt que ceux
+d'entrée : **#7775** (4 écrans du Profil patient sans aucune sortie) et **#7776** (`/treatment-plans/:id`
+sans un seul contrôle activable, `/pharmacy/orders/:id` sans retour). Méthode à conserver : *auditer
+la sortie de chaque écran atteint, pas seulement son contenu.*

@@ -4057,3 +4057,133 @@ uniforme, et deux des trois « trous » n'en sont pas :
 | `POST /v1/cabinet/unavailability` (`starts_at`) | 422 / 422 | borné à ±366 j (#7014 puis #7709), re-vérifié cette ronde |
 | `POST /v1/cabinet/compliance-items` (`due_date`) | 201 / 201 | **intentionnel** — `compliance.rs:61-70` borne à `year > 9999` **et explique pourquoi** : la garde vise le débordement de `checked_add_months` à la clôture (format année étendue `chrono`), pas la plausibilité métier (#7656). L'an 9999 est dedans, donc accepté. *Contrôle fait : « Clôturer » fonctionne (200 + `next_item_id`), 2e clôture → 409, `recurrence_months` négatif → 422.* |
 | `POST /v1/cabinet/tasks` (`due_date`) | 201 / 201 | **seul trou réel restant** — `cabinet_tasks.rs:171-191` lie `due_date` sans aucune borne. Conséquence faible (une tâche interne échue en 1800 ou due en 9999 se range en bout de tri). **Non filé séparément**, consigné en commentaire de #7743 : c'est la même règle, à traiter dans la même passe. |
+
+---
+
+### Ronde R103 — 2026-09-27 (06:00–09:00 UTC) — ciblage diff-driven sur les **25 merges** depuis `5a684ea`, puis PRIORITÉ 1 / PRIORITÉ 2 jouées en entier
+
+> **Contexte de rotation.** L'Étape 1bis a désigné les écrans touchés par les 25 PR mergées
+> depuis le dernier commit de registre. Le merge le plus lourd — **#7763, « 41+ `context.push`
+> → `context.go` » sur 18 fichiers de l'app patient** — a produit **deux P1 de navigation** à lui
+> seul. Leçon de la ronde : *une conversion de navigation en masse se teste par la SORTIE des
+> écrans d'arrivée, pas par leur arrivée.* Tous les écrans s'ouvraient correctement ; c'est le
+> retour qui était cassé.
+
+#### Contre-épreuve des correctifs mergés depuis `5a684ea`
+
+| correctif | verdict | preuve |
+|---|---|---|
+| **#7747** — en-têtes anti-framing/HSTS sur les 6 fronts | **CORRIGÉ** | Les **6** fronts (patient, praticien, secretariat, pharmacie, infirmiere, reservation) répondent 200 et servent `x-frame-options: DENY`, `content-security-policy: frame-ancestors 'none'`, `strict-origin-when-cross-origin`, `strict-transport-security: max-age=63072000; includeSubDomains`. *Note mineure non filée : `X-Content-Type-Options: nosniff` absent des 6.* |
+| **#7758 / #6997** — `place` inconnu → 422 | **CORRIGÉ** | `?place=ZzzVilleInexistante` → **422** sur `/search/providers` **et** `/search/slots` ; `?place=Lyon` → 200 n=2. **Mais les bornes de VALEUR manquent → #7773.** |
+| **#7718** — `lat`/`lng`/`radius_km` honorés | **CORRIGÉ** | `radius_km=1` → n=0, `radius_km=500` → n=16, `radius_km=1e12` → n=16. Le filtre mord réellement. |
+| **#7762** — `birth_date` bornée sur `/cabinet/patients/quick` | **CORRIGÉ** | 1800-01-01 → **422**, 2099-01-01 → **422**, 1930-05-05 → **201**. |
+| **#7761** — `tooth_position` ISO 3950 sur les implants | **CORRIGÉ** | `26`/`18`/`48`/`38`/`55` (dent temporaire) → **201** ; `99`/`0`/`ABC`/`261` → **422**. *Piège : le corps exige `brand` + `implant_ref`, pas `reference`.* |
+| **#7768** — bilan parodontal (ISO 3950 + plages) | **CORRIGÉ** | `PUT /cabinet/patients/:id/periodontal-chart` : dent `99` → 422 ; poche 16 mm → 422, **15 mm → 200** (borne exacte) ; poche négative → 422 ; indice 101 → 422, −5 → 422, **100 → 200**. Cloisonnement : secrétariat **403**, patient **403**. |
+| **#7745** — borne du nombre de lignes d'un devis cabinet | **CORRIGÉ** | 200 items → **201**, 201 → **422**, 2 000 → **422**. |
+| **#7754** — TOCTOU `quick_create_patient` | **CORRIGÉ, élégamment** | **4 créations simultanées** du même patient → 4× **201** mais **le MÊME `id`** (`8cdf2db0-…`). Sérialisation réelle, zéro doublon. |
+| **#7752** — corps de message réduit au `@` | **CORRIGÉ** | `POST /v1/cabinet/messages` : `"@"` → **422**, `"@@@"` → **422**, `"   "` → **422** ; `"@Hugo"` → **201** (mention nommée = vrai message, conforme au commentaire `cabinet_team_messages.rs:205`). |
+| **#7756** — `Option<Json<T>>` avale les corps invalides | **CORRIGÉ, et complet** | `logout {"zzz":1}` → **422** ; `checkin {"zzz":1}` → **422**, JSON cassé → **400** ; `no-show`/`cancel` `{"zzz":1}` → **422**. Grep de contrôle : **plus aucun `Option<Json<` résiduel** dans `api/src/` (seul un commentaire subsiste). |
+| **#7688** — jumeau pharmacie `accept` | **CORRIGÉ** | `POST /pharmacy/stock-requests/:id/accept {"zzz_inconnu":1}` → **422**, JSON cassé → **400**, `{}` → **200**. |
+| **#7749** — borne `default_duration_minutes` | *non conclu* — `POST /cabinet/appointment-motifs` rend **403** au secrétariat (droit praticien/admin) ; non re-tenté avec le bon rôle faute de budget. |
+| **#7770** — écran « Réessayer » sur TOUTE route | **CORRIGÉ, prouvé sur 3 routes profondes** | `route.abort()` sur `*/v1/*` **au chargement** de `/mes-rdv`, `/documents`, `/treatment-plans` → à chaque fois « **Erreur réseau. Vérifiez votre connexion.** » + « Réessayer ». Le clic sur « Réessayer » après rétablissement **repeuple réellement** l'écran (14 / 44 / 11 contrôles). |
+| **#7759** — ouvrir une ordonnance ne vide plus la liste | **CORRIGÉ** | Après ouverture d'une carte, les 11 cartes restent listées et « Aucune ordonnance » **n'apparaît pas**. |
+| **#7767** — tableau devis pharmacie à 390 px | **CORRIGÉ** | À 390 px les facettes « Acceptés (99) » / « Refusés / expirés (23) » et les actions « Préparer »/« Voir » sont hors cadre **mais atteignables** : un défilement horizontal (`wheel deltaX`) les ramène à `x=52..185` / `x=280..374`, et l'action s'active. *Le `SingleChildScrollView` horizontal de `devis_table.dart` fait son office — le glissement à la souris, lui, ne déclenche rien : mesurer au `wheel`.* |
+| **#7760** — focus rendu au composeur après « Mentionner » | **CORRIGÉ** | Clic sur « Mentionner » → `document.activeElement` = `TEXTAREA` de valeur `"@"`, et la frappe suivante y atterrit (`"@QA R103 suite"`). |
+| **#7755** — compteurs + état vide de recherche (messagerie pharmacie) | **CORRIGÉ** | Recherche sans résultat → « Messages · 0 conversations · 0 non lues » + « Aucun résultat pour « … » » + « Essayez un autre nom de patient ou numéro de commande. » + « Effacer la recherche ». *Seul l'accord des deux compteurs cloche → #7781.* |
+| **#7769** — accord singulier/pluriel | **PARTIEL → #7781** | Le helper `pluralize` est juste et testé, mais branché sur **3 libellés** seulement ; 14 ternaires `== 1 ?` et 6 « (s) » subsistent. « **0 non lues** » en tête de `/notifications`. |
+| **#7751** — `next_appointment` sur `GET /treatment-plans` | **PARTIEL → #7779** | `practitioner_name` et `proposed_at` **sont livrés et rendus** (« Dr Hugo Marin · proposé le 20 septembre »). Mais `next_appointment_at` reste **`null` sur les 16 plans**, y compris celui dont une phase `in_progress` porte un RDV le 29/09 09:00. |
+| **#7753** — historique RDV du dossier patient via `patient_id` serveur | **CORRIGÉ, vérifié jusqu'à l'écran** | `GET /cabinet/appointments?patient_id=…&limit=500` → 500 lignes (→ 19/08/2026), `offset=500` → 492 de plus (→ 01/01/2030) ; la boucle `_fetchAllAppointments` enchaîne correctement les deux pages. **UI** : la fiche de Marc Dubois affiche « Dernière visite : 26/09/2026 » et des RDV jusqu'au **01/01/2030** — l'arrêt au 19/07/2026 de #7736 a disparu. *Faux positif écarté : un premier relevé avec `per_page=500` rendait 200 lignes s'arrêtant au 20/07/2026 et semblait rejouer #7736 — le paramètre réel est `limit` (`scheduling.rs:1441`, défaut 200, max 500), `per_page` est silencieusement jeté.* |
+| **#7771** — salle d'attente praticien | **CORRIGÉ** | File vide : « Appeler suivant » **grisé** + « 0 patient(s) en attente », aucune affirmation d'appel. File non vide : le bouton devient « **Appeler Marc Dubois** ». |
+| **#7736** (déjà ci-dessus), **#7740**, **#7746**, **#7738**, **#7743**, **#7001**, **#6993**, **#6994**, **#6995**, **#6996**, **#6998**, **#6999**, **#7000** | couverts par les lignes correspondantes ou hors budget de la ronde. |
+
+#### PRIORITÉ 1 — file d'attente quand un RDV est pris (X4 → X5), jouée en entier
+
+| étape | verdict | preuve |
+|---|---|---|
+| X4 confirmation | **OK** | `POST /cabinet/appointments/:id/confirm` → 200 `status:"confirmed"` ; le **patient** relit `"confirmed"`. |
+| garde de fenêtre | **OK** | Check-in comptoir à `starts_at − 2h07` → **409 `too_early`** ; à `starts_at − 1h57` → **200 `checked_in`**. La fenêtre `starts_at − 2 h` est respectée à la minute. |
+| X5 les 3 vues | **OK** | Après check-in : secrétariat **et** praticien voient `Marc Dubois / wait_minutes:0 / status:"checked_in"` ; patient `{"position":1,"status":"waiting"}`. |
+| call-next **depuis l'UI praticien** | **OK** | Clic sur « **Appeler Marc Dubois** » → `POST /v1/cabinet/waiting-room/call-next` → 200 `{"called":true,"patient_display_name":"Marc Dubois"}`. |
+| **le cul-de-sac historique** `call-next → start` | **OK — disparu** | `POST /cabinet/appointments/:id/start` après `call-next` → **200** avec `consultation_id: ac6a0bd6-…`. Plus de blocage en `in_progress` sans séance. |
+| clôture et sortie de file | **OK** | `complete` → 200 `{"next_step":"no_action"}` ; **les 3 vues se vident** : secrétariat `data:[]`, praticien `data:[]`, patient `{"position":null,"status":"done"}`, RDV `status:"done"`. |
+| transitions hors séquence | **OK** | 2e `start` → **409**, 2e `complete` → **409**, `checkin` sur un `in_progress` → **409**, `call-next` sur file vide → **200 `{"called":false}`** (honnête, pas d'erreur). |
+
+#### PRIORITÉ 2 — ordonnance praticien → patient → officine (X1 → X2 → X3), maillon par maillon
+
+| étape | verdict | preuve |
+|---|---|---|
+| 2a création + persistance | **OK** | `POST /cabinet/prescriptions` → **201** `be4f989e-…` ; **RE-GET** confirme l'écriture (`status:"draft"`, les **2 items** rendus). |
+| 2a gardes | **OK** | `items:[]` → **422** ; `label` vide → **422** ; patient d'un autre cabinet → **404** ; **secrétariat → 403**. |
+| 2c-avant | **OK** | Le brouillon **n'apparaît pas** dans `/account/prescriptions` (100 servies : 93 `sent` + 7 `signed`, **0 `draft`**). |
+| 2b signature | **OK** | `sign` → 200 + `signed_at` + `document_id`. |
+| 2c-après | **OK** | L'ordonnance signée apparaît **en position 0** côté patient, `status:"signed"` ; le **détail** porte `prescriber_name: "Dr Hugo Marin"` et les 2 items. |
+| 2d transfert **initié par le patient** | **OK** | `POST /account/prescriptions/:id/order {pharmacy_id}` → **201**, `order_ref` **CMD-0433**. Double commande → **409 `already_ordered`** ; ordonnance inexistante → **404**. |
+| 2e réception officine | **OK** | La commande entre dans `/pharmacy/orders?status=received` avec **PII minimisée** (`"Marc D."`), `line_count:2`, `prescriber_name`. `/pharmacy/orders/:id/items` sert **les 2 lignes verbatim** (Amoxicilline + Paracétamol, posologie et durée). |
+| 2e délivrance + scan | **OK** | `accept` → `ready` → `pickup-token` (`token` 64 hex + `short_code` `9MY5-BQ6Z` + `expires_at` +24 h). **Garde #6349** : `expected_order_id` non concordant → **409 `pickup_order_mismatch`** ; scan concordant → **200** ; rejeu → **409 `invalid_status`**. |
+| X3 timeline patient | **OK, vérifiée à l'écran** | `/pharmacy/orders/:id` rend « Commande reçue · Aujourd'hui à 09:29 → En cours de préparation · **2 médicaments** → Prête à être retirée · 09:29 · vous avez été notifiée → Retirée · 09:29 », plus « Votre ordonnance · **2 lignes** » avec les deux libellés. |
+| cloisonnement | **OK** | Jeton praticien sur `/pharmacy/orders/:id` → **403** ; jeton patient sur `/pharmacy/orders` → **403**. |
+
+#### Matrice cross-app couverte cette ronde
+
+| ligne | verdict | preuve courte |
+|---|---|---|
+| **X1** praticien signe → patient voit | **OK** | brouillon invisible, signée en position 0 |
+| **X2** patient commande → officine reçoit | **OK** | CMD-0433 dans la file, PII minimisée |
+| **X3** officine avance → patient suit | **OK** | timeline à l'écran, 4 étapes horodatées |
+| **X4** patient/cabinet RDV → confirmation vue | **OK** | `confirm` → patient lit `confirmed` |
+| **X5** check-in → 3 vues → sortie de file | **OK** | détaillé ci-dessus, aucun cul-de-sac |
+| **X6** devis praticien → secrétariat → signature patient | **OK** | brouillon → **404** patient ; `send` → visible ; `sign` → 200 ; **secrétariat ET praticien** relisent `status:"signed"` sur DEV-1986 ; re-signature **idempotente** (même `signed_at`) ; pharmacie → **403** |
+| **X7** stock cabinet → officine | **OK** | `sent → accept → fulfill` ; rejeu `accept` → 409 ; `cancel` après `fulfill` → 409 ; patient → 403 |
+| **X10** visite à domicile, bout en bout **depuis l'UI infirmière** | **OK** | offre « Marc UI · 60,00 € · Prise de sang · Pansement » (= 2500 + 2000 + 1500, barème serveur) ; « Accepter » puis « Je pars » / « Je suis arrivé·e » / « Visite terminée » enchaînés au clic, la pastille suivant « Acceptée → En route → Arrivée sur place » ; le patient relit `status:"done"` + `nurse_display_name` |
+| **X10** gardes de la machine à états | **OK** | `en-route`/`arrived`/`done` **avant** `accept` → **409** ; 2e `accept` → 409 ; `done` avant `en-route` → 409 ; annulation patient d'une visite terminée → **409** (#7734 tient) |
+| **X11** disponibilité infirmière | **OK, sans cul-de-sac** | hors ligne : `online_only=true` → n=0, et **aucune offre reçue** (demande créée pendant ce temps reste `requested`) ; **retour en ligne → la demande passe d'elle-même en `offered`** et arrive dans `/nurse/offers` ; 2e demande concurrente → 409 ; le patient peut toujours annuler |
+| **X12** annulation cabinet → notification patient | **OK** | `cancel` → non-lus **13 → 14**, notification « Rendez-vous annulé » avec `deep_link: /mes-rdv?id=…`, vue patient `status:"cancelled"` |
+
+#### Cloisonnement — matrice 29 endpoints × 5 *kinds* de jeton (145 contrôles)
+
+**Aucune fuite.** Chaque cellule est exactement celle attendue :
+
+- `/account/*`, `/documents`, `/reminders`, `/conversations`, `/payments`, `/treatment-plans`, `/billing/quotes` → **200 patient, 403 pour les 4 autres** ;
+- `/cabinet/*` → **200 praticien + secrétariat, 403 patient/pharma/nurse** ;
+- **cloisonnement clinique interne** : `/cabinet/consultations` et `/cabinet/stats/activity` → praticien **200**, secrétariat **403** ;
+- `/pharmacy/*` → **200 pharma seul** ; `/nurse/offers`, `/nurse/profile` → **200 nurse seul** ;
+- `/notifications` → 200 pour tous (chacun les siennes, correct) ;
+- `/cabinet/audit-log` → 403 pour tous (sonde de rôle assumée).
+
+**Pas d'escalade de contexte** : `select-nurse-context` et `select-pharmacy-context` avec un jeton **pro de cabinet** → **403 `no_membership`** ; avec un jeton **patient** → **403 `forbidden`**. Et `/nurse/memberships` rend **`[]`** aux pros de cabinet (pas la liste d'une autre infirmière).
+
+#### Cas adversariaux
+
+| cas | verdict |
+|---|---|
+| triple clic rapide sur « Envoyer le message » | **OK** — **1 seul POST**, 1 seule occurrence dans le fil, 0 erreur console |
+| 400 caractères dans le composeur patient | **OK** — `scrollWidth 390 = clientWidth 390`, 0 contrôle hors viewport, « Envoyer » toujours atteignable |
+| coupure réseau **au chargement** (3 routes profondes) | **OK** — écran d'erreur digne + « Réessayer » fonctionnel (#7770) |
+| coupure réseau **pendant l'envoi** d'un message | **DÉFAUT → #7782** — 0 retour pendant 8 s, message jamais parti, rien ne le dit |
+| saisie invalide via l'UI (`/forgot-password`) | **OK** — vide → bouton grisé (pas de submit) ; `pas-un-email`, `a@`, `@b.fr` → « **E-mail invalide.** » ; anti-énumération respectée (« Si un compte existe avec cet e-mail… ») ; **0 requête 5xx, 0 erreur console** |
+| BACK navigateur au milieu d'un flux | **voir #7775 / #7776** — la pile de navigation est le sujet des deux P1 de la ronde |
+| rate-limit login | **OK** — `429` + `retry-after: 60` rencontré plusieurs fois sur nos propres relogins |
+
+#### Tunnel SSR (`reservation.doc.nubia-link.com`)
+
+**Sain.** `/` 200, `/dentiste/lyon` et `/dentiste/paris` servent leur `<title>` dédié et **2 / 10** praticiens nommés, `/recherche?specialty=dentiste&place=Lyon` → page Lyon, `/dentiste/zzz-ville-inexistante` → **404 « Ville introuvable »**, `sitemap.xml` et `robots.txt` → 200. Les créneaux sont de **vrais liens** `/reservation/confirmer?providerId=…&slotId=…`. État vide digne sur une ville sans praticien : « **0 praticien trouvé** » (singulier correct !), « Aucun résultat pour cette recherche. » et un paragraphe qui invite à élargir.
+
+#### Faux positifs écartés par la lecture du code — le vrai enseignement de la ronde
+
+| symptôme observé | pourquoi ce n'était PAS un défaut |
+|---|---|
+| `/reviews` à **99,15 % de blanc**, 1 seul contrôle | La capture montre un **état vide soigné** : icône + « Aucun avis pour ce prestataire. ». Le ratio near-white est un détecteur de canvas vide, pas de page vide — **toujours regarder la capture avant de conclure**. |
+| `/documents` : **6 facettes MORTES** sur 12 | Elles sont à `x=512…1492` sur un viewport de 390 : le clic était **rogné**. Après `wheel deltaX`, « Autre 15 » revient à `x=276..366` et s'active (**OK**). Une facette hors cadre n'est pas une facette morte. |
+| `/prescriptions` : 13ᵉ carte MORTE | `y=1008` sur 844 — sous le pli, clic rogné. |
+| `/financial` : 2 contrôles **CASSÉS** (404 `attestation`) | 404 absorbé en `Right(null)` (`quote_attestation_repository_impl.dart:19-23`), et le devis `686b9cee` est bien `signed` avec un `document_id` — le bouton « Télécharger le devis signé » est légitime. |
+| secretariat `/salle-attente` affichant « Réessayer » file **non vide** | **État de chargement transitoire** capté à la volée. Trois rechargements successifs rendent l'écran complet (ligne `N° 1 · MD · Marc Dubois · verify · RDV 11:17 · 1 min · En attente · Appeler`), et l'API répond 200 avec la donnée. |
+| infirmière, onglet « Ma visite » vide : 0 contrôle, 0 texte | L'état vide « **Aucune visite en cours / Acceptez une offre pour démarrer une visite.** » **est** dans l'arbre Semantics (nœuds texte sans `role`). `inventory()` ne liste que les **contrôles** — dumper l'arbre brut avant de crier à l'écran blanc. |
+| `/mes-rdv` : le menu `⋯` semblait **MORT** | Le premier rect « Plus d'actions » de l'inventaire est le **groupe conteneur** (`390x739`) ; en cliquant le vrai bouton (`40x40 @32,311`) le menu s'ouvre (Semantics 18 → 6), et ses entrées sont bien exposées en `role=menuitem` / `aria-label` (« Ajouter au calendrier », « Annuler »). « Modifier » est absent **légitimement** : gardé par `appointment.canModify` (`mes_rdv_page.dart:1106`). |
+| `#7753` semblait rejouer #7736 | Le paramètre de page est **`limit`**, pas `per_page` (`scheduling.rs:1441`) ; `per_page` est silencieusement jeté et l'on retombe sur le défaut 200. Avec `limit`, la pagination fonctionne et l'UI va jusqu'à 2030. |
+| `POST /notifications/read-all {"zzz":1}` → 200 | Le handler `notifications.rs:439` **n'a aucun extracteur de corps** : ignorer un corps non sollicité est le comportement standard d'axum, pas le défaut `Option<Json<T>>` de #6999. |
+
+#### Bilan R103
+
+**8 findings** (4 P1, 3 P2 + 1 P2 a11y ; 0 P0) : #7773, #7775, #7776, #7778, #7779, #7781, #7782, #7784.
+**Aucune fuite de cloisonnement** sur 145 contrôles croisés. **Aucun P0.**
+Les deux P1 les plus graves (#7775, #7776) sont des **régressions de moins de 24 h** du merge #7763.
