@@ -5279,15 +5279,31 @@ amorces ⌘K volontairement inertes, sonde de rôle `GET /v1/cabinet/audit-log` 
 | patient | `/documents` (390×844) | — | parcouru + capture | — | — | — | — | 2026-09-27T19:20Z |
 | infirmiere | `/` Disponibilité / Offres / Ma visite (390×844) | 8 | 7 | 6 | 1* | 0 | 0 | 2026-09-27T18:31Z |
 | infirmiere | `/` re-balayage après re-seed de session (390×844) | 8 | 7 | 6 | 1* | 0 | 0 | 2026-09-27T19:02Z |
+| secretariat | `/liste-attente` — **jamais audité** (1280×800) | 25 | 24 | 16 | 8* | 0 | 0 | 2026-09-27T19:33Z |
+| praticien | `/stock-inventory` — **jamais audité** (1280×800) | 47 | 46 | 35 | 11* | 0 | 0 | 2026-09-27T19:26Z |
+| patient | `/profile/consents` — **jamais audité** (390×844) | 12 | 12 | 8 | 3* | 0 | 1 | 2026-09-27T19:25Z |
+| pharmacie | `/notification-preferences` (1280×800) | 13 | 13 | 9 | 4* | 0 | 0 | 2026-09-27T19:25Z |
 
-**`*` = requalifié, PAS un défaut.** Les 96 « morts » et 27 « cassés » bruts se répartissent en
-quatre motifs, tous contrôlés :
+**Le cas `/liste-attente` mesure l'effet de l'expiration de session, chiffres à l'appui.** Le même
+écran, même script, à 7 min d'intervalle :
+
+| session | inventoriés | OK | morts |
+|---|---|---|---|
+| jeton expiré en cours de balayage (`401 GET /v1/notifications`) | 25 | **1** | **22** |
+| session re-seedée juste avant | 25 | **16** | **8** |
+
+Un jeton mort ne casse pas l'app : il rend simplement **tout** inerte. Tout balayage long doit être
+précédé d'un re-seed, et un `401` en cours de campagne invalide les verdicts qui suivent.
+
+**`*` = requalifié, PAS un défaut.** Les « morts » et « cassés » bruts se répartissent en
+cinq motifs, tous contrôlés :
 
 | motif | exemples | preuve de requalification |
 |---|---|---|
 | **état résiduel du balayage** (corrigé en cours de ronde) | 31 sur `/stock` secrétariat, 8 sur `/mes-rdv`, 7 sur `/stock` pharmacie, 13 sur `/devis` pharmacie | 7 contrôles re-testés un par un sur écran rechargé → **7 OK** |
 | **no-op légitime et idempotent** | onglet de la page courante (« Ordonnances » depuis `/ordonnances`), facette déjà active (« Toutes 4 », « Annulées », « Disponibilité ») | re-testés isolément : `pixelDiff = 0` **exactement**, aucune requête — c'est le comportement attendu d'un contrôle déjà satisfait |
 | **conteneur `[group]` non interactif** | en-tête de rail (`N\nCabinet Lyon\nEspace praticien…`), enveloppe de carte, bandeau de colonnes | le contrôle réel est le bouton **enfant**, inventorié séparément et compté OK |
+| **jeton expiré en cours de balayage** | 22 sur `/liste-attente`, 5 sur `/notifications` infirmière, 5 sur `/` infirmière | un `401` apparaît dans le journal réseau ; re-seed + rejeu → `/liste-attente` remonte à **16 OK** |
 | **403 métier correctement rendu** | 16 sur `/patients` praticien (`/notes`, `/medical-record`, `/prescriptions`), 8 sur `/financial` (`/quotes/:id/attestation`), 3 sur `/stock` (`/cabinet/stats/activity`) | **§14, cloisonnement voulu** : `clinical.rs:1356-1370` exige une relation de soin. L'écran rend le message prévu — « **Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible.** » (capture `praticien/R105_pra_patient_sans_relation.png`). Le 404 `/attestation` est absorbé en `Right(null)` (`quote_attestation_repository_impl.dart:19-23`). |
 
 **Cas adversariaux (app patient, 390×844)** — 3 propres sur 4 :
