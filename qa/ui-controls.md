@@ -7,7 +7,7 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R104 — 2026-09-27 (12:00–14:20 UTC) — **5/5 apps**, 17 écrans, **368 contrôles inventoriés, 203 activés, 0 mort réel, 0 cassé**
+### Ronde R104 — 2026-09-27 (12:00–15:00 UTC) — **5/5 apps**, 21 écrans, **453 contrôles inventoriés, 266 activés, 0 mort réel, 0 cassé réel**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role]` + `input`/`textarea`), activation au
 > centre du rect, verdict par diff (url / libellés / pixels / requêtes API / téléchargements / popups).
@@ -37,6 +37,8 @@
 | patient | `/login` (cas adversariaux) | 390×844 | 5 | 5 | 5 | 0 | 0 | 2026-09-27T13:58:00Z |
 | praticien | `/` (Tableau de bord) | 1280×800 | 36 | 33 | 33 | 0 | 0 | 2026-09-27T13:17:00Z |
 | praticien | `/waiting-room` | 1280×800 | 21 | 20 | 19 | 0 | 0 | 2026-09-27T13:38:00Z |
+| praticien | `/ordonnances` | 1280×800 | 20 | 19 | 19 | 0 | 0 | 2026-09-27T14:55:00Z |
+| praticien | `/devis` | 1280×800 | 27 | 26 | 26 | 0 | 0 | 2026-09-27T14:57:00Z |
 | secretariat | `/agenda` (grille semaine + volet) | 1280×800 | 85 | 12 | 12 | 0 | 0 | 2026-09-27T13:20:00Z |
 | secretariat | `/salle-attente` | 1280×800 | 28 | 22 | 22 | 0 | 0 | 2026-09-27T13:22:00Z |
 | secretariat | `/patients` (fiches) | 1280×800 | 40 | 26 | 26 | 0 | 0 | 2026-09-27T13:52:00Z |
@@ -47,6 +49,10 @@
 | infirmiere | `/` (Disponibilité/Offres/Ma visite) | 390×844 | 8 | 6 | 6 | 0 | 0 | 2026-09-27T13:20:00Z |
 | infirmiere | `/notification-preferences` | 390×844 | 5 | 3 | 3 | 0 | 0 | 2026-09-27T13:06:00Z |
 | infirmiere | `/notifications` | 390×844 | 1 | 1 | 1 | 0 | 0 | 2026-09-27T13:07:00Z |
+
+**États vides dignes constatés (famille « liste vide rendue comme un chargement infini ») :**
+- praticien `/ordonnances` : icône + « **Aucune ordonnance en cours** » + « Ouvrez une fiche patient pour créer une ordonnance. » + CTA « **Choisir un patient** ». Pas de spinner, pas d'écran blanc.
+- patient `/mes-rdv` sous coupure réseau : « **Erreur réseau. Vérifiez votre connexion.** » + « **Réessayer** » qui répare réellement l'écran (2 ⇒ 13 contrôles au rétablissement).
 
 **Contrôles DÉSACTIVÉS jugés légitimes (preuve exigée) :**
 - praticien `/waiting-room` — « **Appeler suivant** » grisé : la salle était **vide** à cet instant
