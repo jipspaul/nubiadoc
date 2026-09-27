@@ -4187,3 +4187,33 @@ uniforme, et deux des trois « trous » n'en sont pas :
 **8 findings** (4 P1, 3 P2 + 1 P2 a11y ; 0 P0) : #7773, #7775, #7776, #7778, #7779, #7781, #7782, #7784.
 **Aucune fuite de cloisonnement** sur 145 contrôles croisés. **Aucun P0.**
 Les deux P1 les plus graves (#7775, #7776) sont des **régressions de moins de 24 h** du merge #7763.
+
+#### Addendum R103 (08:00–08:30 UTC) — correctifs déployés PENDANT la ronde, et fin de couverture
+
+**Quatre des 8 findings ont été corrigés et déployés avant la fin de la ronde.** Contre-épreuve immédiate :
+
+| finding | correctif | verdict de la contre-épreuve |
+|---|---|---|
+| **#7776** (liste → détail sans sortie) | #7777 (`3a3eeb64`) | **CORRIGÉ.** Les 4 détails ont retrouvé leur « Retour » : `/treatment-plans/:id` et `/pharmacy/orders/:id` (2 et 4 contrôles, bouton présent à `@8,8`, **stable à 3 s / 6 s / 10 s** en chargement direct), `/home-care/:id` et `/implant-passport/:id` **reviennent à leur liste**. *Piège de mesure consigné : une re-mesure faite après le déploiement contredisait le rapport initial — ce n'était pas une erreur de mesure mais un correctif livré entre-temps ; toujours vérifier `git log --first-parent` avant de conclure à un faux positif.* |
+| **#7773** (bornes géo) | #7774 (`04e4cf76`) | **CORRIGÉ À MOITIÉ.** `/search/providers` et `/search/slots` rendent bien **422** sur `lat=999`, `lng=500`, `radius_km=-5` et **`lat=NaN`**. Mais **`/v1/pharmacies` et `/v1/search/nurses` rendent toujours 200 + `{"data":[]}`** — ils ne passent pas par `resolve_geo_filter` (`SearchPharmaciesQuery` et `nurse/directory.rs:56-66`). Consigné en commentaire de l'issue. |
+| **#7779** (prochaine séance) | #7780 (`c12f7017`) | **CORRIGÉ.** `GET /v1/treatment-plans` rend désormais `next_appointment_at: 2026-09-29T09:00:00+00:00` et `next_appointment_id: 1679736c-…` sur le plan témoin `c3df6bfc` — la valeur que seul le détail exposait. 1 plan sur 16 porte une séance, les 15 autres `null` à bon droit. |
+| **#7781** (accords de pluriel) | #7783 (`28f05433`) | **CORRIGÉ.** `praticien /waiting-room` → « **0 patient en attente** » ; `secretariat /` → « **0 personne présente** », « **0 paiement** ». Les 3 libellés « (s) » relevés ont disparu. |
+
+**#7775 reste ouverte** : les 4 écrans du Profil n'ont toujours aucun `backOrHomeLeading` (grep = 0 sur les 4 fichiers) et rendent 0 bouton de retour / 0 onglet en live, session neuve, attente longue.
+
+**#7772 — schéma dentaire (mergé `d0a96f9f` pendant la ronde, jamais testé) : CORRIGÉ et vérifié.**
+Sur une séance `in_progress`, aux viewports **1024 / 1280 / 1440** : **32 dents sur 32** inventoriées dans l'ordre ISO 3950 (18→11, 21→28, 48→41, 31→38), **0 hors carte** (étendue `285→794` à 1280, `573→954` à 1440, `285→990` à 1024), et les dents citées par #6978 — **18, 21 et 38** — s'activent toutes les trois (verdict OK aux 3 viewports).
+
+**Couverture exhaustive des endpoints.** Extraction des **368 routes** déclarées dans `api/src/routes/*.rs`, puis diff contre le registre : **9 routes n'y avaient jamais été mentionnées**. Toutes testées, **aucun défaut** :
+
+| route | verdict |
+|---|---|
+| `/v1/interop/fhir/{Organization,Location,Schedule}/:id` | **401 `invalid_token` pour TOUS les jetons** (praticien, patient, et **sans jeton**) — surface d'interopérabilité derrière son propre schéma d'authentification. **Aucune fuite anonyme.** |
+| `/v1/cabinet/staff/shifts/pdf` | `week_start=2026-09-21` → **200 `application/pdf`** (716 o) ; format invalide (`pas-une-date`, `2026-13-45`) → **422** ; absent → 400 (rejet `Query<…>` d'axum en amont du handler) ; **jeton patient → 403**. |
+| `/v1/cabinet/imports/:id/{dry-run,run}` | id inconnu → **404** ; **jeton patient → 403**. |
+| `/v1/cabinet/maintenance/tickets/:id/photos` | id inconnu → **404**. |
+| `/v1/cabinet/quotes/:id/attachments/:attachment_id`, `/v1/cabinet/stock-items/:id/locations/:location_id` | **405** en GET — routes `DELETE`/`PATCH` uniquement, comportement correct. |
+
+**X8 / X9 complétés** (les 2 lignes cross-app qui manquaient) :
+- **X8** cloisonnement au grain conversation : officine sur une conversation **cabinet** → **404** ; cabinet sur une conversation **pharmacie** → **404** ; cabinet sur **sa** conversation → **200** avec les messages.
+- **X9** devis officine : création **201** (`draft`, **invisible du patient**) ; `send` → le patient le voit en `sent` ; **`refuse` → 200** ; `accept` après refus → **409 `invalid_status`** ; l'officine relit `status: "refused"` dans sa liste ; praticien → **404**. Bornes : `qty` négative → 422, `label` vide → 422. *`GET /v1/pharmacy/quotes/:id` n'existe pas (seulement la liste, `:id/send`, `:id/remind`) — un 404 sur cette forme n'est pas un défaut.*
