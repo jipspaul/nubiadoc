@@ -2139,3 +2139,211 @@ async fn treatment_plans_list_includes_practitioner_and_next_appointment() {
         .await
         .ok();
 }
+
+// ── Test M : le RDV d'une phase NON courante doit quand même être exposé
+//    dans la liste (#7779, contre-épreuve de #7751/#7740) — `current_phase_id`
+//    (première phase non `done` par `position`, #6209) ne coïncide pas
+//    toujours avec la phase réellement `in_progress` porteuse du RDV
+//    (positions non contiguës/dupliquées en pratique). Restreindre la
+//    recherche du RDV à cette seule phase laissait `next_appointment_at` à
+//    `null` même quand une autre phase du même plan avait un RDV programmé.
+#[tokio::test]
+async fn treatment_plans_list_next_appointment_not_limited_to_current_phase() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("tp-list-noncur+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Noncur', 'Patient')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind, first_name, last_name) \
+         VALUES ($1, $2, 'hash', 'pro', 'Hugo', 'Marin')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("tp-list-noncur-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // `insert_treatment_plan_fixture` pose la phase 1 « Phase 1 · Bilan »,
+    // position 1, status `requested` — elle reste la phase courante au sens
+    // de #6209 (première non `done` par position). Le RDV, lui, est posé sur
+    // une SECONDE phase, position 2, status `in_progress` : c'est elle la
+    // phase de travail effective, mais pas la « phase courante ».
+    let (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id) =
+        insert_treatment_plan_fixture(&db, prac_user_id, account_id).await;
+
+    let phase2_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO treatment_phase \
+         (id, cabinet_id, plan_id, position, title, status) \
+         VALUES ($1, $2, $3, 2, 'Phase 2 · Traitement', 'in_progress')",
+    )
+    .bind(phase2_id)
+    .bind(cabinet_id)
+    .bind(plan_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let quote_item2_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO quote_item \
+         (id, cabinet_id, quote_id, phase_id, label, ccam_code, unit_amount, amo_part, amc_part) \
+         VALUES ($1, $2, $3, $4, 'Pose implant', 'HBLD001', 500.00, 100.00, 50.00)",
+    )
+    .bind(quote_item2_id)
+    .bind(cabinet_id)
+    .bind(quote_id)
+    .bind(phase2_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let appointment_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, now() + interval '2 hours', now() + interval '3 hours', 'confirmed')",
+    )
+    .bind(appointment_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let session_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO treatment_session \
+         (id, cabinet_id, plan_id, position, duration_min, appointment_id, status) \
+         VALUES ($1, $2, $3, 1, 30, $4, 'scheduled')",
+    )
+    .bind(session_id)
+    .bind(cabinet_id)
+    .bind(plan_id)
+    .bind(appointment_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO treatment_session_act (id, cabinet_id, session_id, quote_item_id) \
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(session_id)
+    .bind(quote_item2_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/treatment-plans")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().expect("data doit être un tableau");
+    let plan = data
+        .iter()
+        .find(|p| p["id"] == plan_id.to_string())
+        .expect("le plan inséré doit apparaître dans la liste");
+
+    assert_eq!(
+        plan["current_phase_title"], "Phase 1 · Bilan",
+        "la phase courante (première non done par position) reste bien la phase 1"
+    );
+    assert_eq!(
+        plan["next_appointment_id"],
+        appointment_id.to_string(),
+        "#7779 : le RDV d'une phase non courante du même plan doit rester exposé"
+    );
+    assert!(
+        plan["next_appointment_at"].is_string(),
+        "#7779 : next_appointment_at ne doit pas être null quand une autre phase du plan a un RDV"
+    );
+
+    sqlx::query("DELETE FROM treatment_session_act WHERE session_id = $1")
+        .bind(session_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM treatment_session WHERE id = $1")
+        .bind(session_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE id = $1")
+        .bind(appointment_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote_item WHERE id = $1")
+        .bind(quote_item2_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM treatment_phase WHERE id = $1")
+        .bind(phase2_id)
+        .execute(&db)
+        .await
+        .ok();
+
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
