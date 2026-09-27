@@ -57,7 +57,8 @@ class _KpiTilesContent extends StatelessWidget {
         key: const Key('kpi_tile_reminders'),
         icon: Icons.notifications_active_outlined,
         value: '${displayed.pendingReminders}',
-        label: 'Rappels en attente',
+        label:
+            '${pluralize(displayed.pendingReminders, 'Rappel', 'Rappels')} en attente',
         variant: displayed.pendingReminders > 0
             ? MetricTileVariant.warning
             : MetricTileVariant.neutral,
@@ -195,8 +196,7 @@ class _RevenueGaugeTile extends StatelessWidget {
                       color: tokens.primarySubtleBg,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child:
-                        Icon(Icons.trending_up, size: 20, color: cs.primary),
+                    child: Icon(Icons.trending_up, size: 20, color: cs.primary),
                   ),
                   const Spacer(),
                   if (pct != null)

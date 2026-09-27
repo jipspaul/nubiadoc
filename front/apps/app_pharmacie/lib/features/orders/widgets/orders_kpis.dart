@@ -105,12 +105,13 @@ class OrdersKpiBanner extends StatelessWidget {
       _OrdersKpiStat(
         key: const Key('orders_kpi_ready'),
         value: '${kpis.readyCount}',
-        label: 'prêtes à retirer',
+        label: '${pluralize(kpis.readyCount, 'prête', 'prêtes')} à retirer',
       ),
       _OrdersKpiStat(
         key: const Key('orders_kpi_picked_up_today'),
         value: '${kpis.pickedUpTodayCount}',
-        label: 'délivrées aujourd\'hui',
+        label:
+            '${pluralize(kpis.pickedUpTodayCount, 'délivrée', 'délivrées')} aujourd\'hui',
       ),
     ];
 

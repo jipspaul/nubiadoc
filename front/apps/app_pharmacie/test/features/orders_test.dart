@@ -230,8 +230,8 @@ void main() {
         );
         return buildBloc();
       },
-      seed: () => OrdersLoaded(
-          orders: [order('o1', PharmacyOrderStatus.received)]),
+      seed: () =>
+          OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.received)]),
       act: (bloc) => bloc.add(
         const OrdersTransitionRequested('o1', PharmacyOrderStatus.preparing),
       ),
@@ -254,8 +254,8 @@ void main() {
         );
         return buildBloc();
       },
-      seed: () => OrdersLoaded(
-          orders: [order('o1', PharmacyOrderStatus.preparing)]),
+      seed: () =>
+          OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.preparing)]),
       act: (bloc) => bloc.add(
         const OrdersTransitionRequested('o1', PharmacyOrderStatus.ready),
       ),
@@ -270,7 +270,8 @@ void main() {
   });
 
   group('OrdersLoaded.visible', () {
-    test('sans filtre : trie par ce qu\'il reste à faire (reçue > en '
+    test(
+        'sans filtre : trie par ce qu\'il reste à faire (reçue > en '
         'préparation > prête), puis par réception croissante — les '
         'commandes déjà prêtes ne passent jamais devant celles encore à '
         'préparer (#7711)', () {
@@ -283,7 +284,8 @@ void main() {
       expect(state.visible.map((o) => o.id), ['o1', 'o2', 'o3']);
     });
 
-    test('sans filtre : à statut égal, trie par réception croissante, la '
+    test(
+        'sans filtre : à statut égal, trie par réception croissante, la '
         'plus ancienne (donc la plus urgente) en tête', () {
       final state = OrdersLoaded(orders: [
         orderAt('o1', PharmacyOrderStatus.received, DateTime(2026, 7, 1, 11)),
@@ -294,7 +296,8 @@ void main() {
       expect(state.visible.map((o) => o.id), ['o2', 'o1', 'o3']);
     });
 
-    test('sans filtre : les commandes terminales (retirée, refusée, '
+    test(
+        'sans filtre : les commandes terminales (retirée, refusée, '
         'annulée) sont exclues — reste consultables via leur propre '
         'facette (#7003)', () {
       final state = OrdersLoaded(orders: [
@@ -311,10 +314,8 @@ void main() {
     test('avec filtre explicite : trie aussi par réception croissante', () {
       final state = OrdersLoaded(
         orders: [
-          orderAt(
-              'o1', PharmacyOrderStatus.ready, DateTime(2026, 7, 1, 11)),
-          orderAt(
-              'o2', PharmacyOrderStatus.ready, DateTime(2026, 7, 1, 9)),
+          orderAt('o1', PharmacyOrderStatus.ready, DateTime(2026, 7, 1, 11)),
+          orderAt('o2', PharmacyOrderStatus.ready, DateTime(2026, 7, 1, 9)),
         ],
         filter: PharmacyOrderStatus.ready,
       );
@@ -600,8 +601,7 @@ void main() {
         DateTime.now().subtract(const Duration(hours: 2, minutes: 30)),
       );
       final bloc = MockOrdersBloc();
-      when(() => bloc.state)
-          .thenReturn(OrdersLoaded(orders: [lateOrder]));
+      when(() => bloc.state).thenReturn(OrdersLoaded(orders: [lateOrder]));
 
       await tester.pumpApp(
         BlocProvider<OrdersBloc>.value(
@@ -634,8 +634,7 @@ void main() {
         DateTime.now().subtract(const Duration(minutes: 24)),
       );
       final bloc = MockOrdersBloc();
-      when(() => bloc.state)
-          .thenReturn(OrdersLoaded(orders: [recentOrder]));
+      when(() => bloc.state).thenReturn(OrdersLoaded(orders: [recentOrder]));
 
       await tester.pumpApp(
         BlocProvider<OrdersBloc>.value(
@@ -1018,8 +1017,8 @@ void main() {
 
       expect(find.text('à préparer d\'urgence'), findsOneWidget);
       expect(find.text('en préparation'), findsOneWidget);
-      expect(find.text('prêtes à retirer'), findsOneWidget);
-      expect(find.text('délivrées aujourd\'hui'), findsOneWidget);
+      expect(find.text('prête à retirer'), findsOneWidget);
+      expect(find.text('délivrée aujourd\'hui'), findsOneWidget);
     });
   });
 
@@ -1122,8 +1121,7 @@ void main() {
       );
     });
 
-    testWidgets('orderRef == null → aucune référence affichée',
-        (tester) async {
+    testWidgets('orderRef == null → aucune référence affichée', (tester) async {
       final bloc = MockOrdersBloc();
       when(() => bloc.state).thenReturn(
         OrdersLoaded(orders: [orderWithRef('o1', null)]),
