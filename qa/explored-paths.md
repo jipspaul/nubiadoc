@@ -4238,3 +4238,20 @@ Sur une séance `in_progress`, aux viewports **1024 / 1280 / 1440** : **32 dents
 - **BACK au milieu du tunnel de réservation** : `/book` (28 ctrl) → praticien → créneau → `/appointments/slots?providerId=…&slotId=…` (42 ctrl) → **BACK** → `/book` (27 ctrl) → **BACK** → `/` (22 ctrl, accueil complet : « Bonjour Marc Dubois », carte héros, tuiles « À faire »). Aucune corruption d'état, 0 erreur console, 0 requête ≥ 400. *La sous-route `/appointments/slots` porte bien sa propre entrée d'historique (#6718).*
 - **Double-submit sur une action métier back-office** : triple clic sur « Préparer » (file officine) → **1 seul `POST /v1/pharmacy/*`**, 0 erreur.
 - *Faux positif écarté : un premier relevé donnait « `/` → 0 contrôle » après le 2ᵉ BACK. C'était l'arbre Semantics non ré-activé après la navigation d'historique — **toujours rappeler `enableSemantics()` après un `goBack()/goForward()`** avant d'inventorier.*
+
+#### Addendum R103 (3) — B4 : gardes d'ajout d'acte à une séance (nouvelles assertions)
+
+Mesurées à la clôture, jeton praticien `Dr Hugo Marin` sauf mention :
+
+| cas | verdict |
+|---|---|
+| acte sur une séance **terminée** (la nôtre) | **409 `invalid_status`** — `complete` verrouille bien |
+| acte sur la séance **d'un autre praticien** du cabinet | **403** — garde `consultation_act_create.rs` (seul celui qui a démarré la séance y ajoute des actes) |
+| acte par le **secrétariat** | **403** |
+| acte par le **patient** | **403** |
+| séance inexistante | **404** |
+| `amount_cents` négatif | **422** |
+| **lecture** de la séance d'un autre praticien du **même** cabinet | **200** — partage intra-cabinet assumé (continuité des soins) |
+| **lecture** de cette séance par le **secrétariat** | **403** — cloisonnement clinique tenu |
+
+*Non conclu cette ronde : la mécanique design-v2 « l'encart **Actes de la séance** se remplit quand on ajoute un acte » n'a pas pu être exécutée — les 2 seules séances `in_progress` du cabinet appartiennent au Dr Claire Lefèvre (403 à l'ajout, conformément à la garde ci-dessus), et la séance ouverte pendant le scénario PRIORITÉ 1 a été clôturée par ce même scénario. Ce qui a été vérifié à la place : sur une séance terminée l'encart est bien en lecture seule et le clic sur un favori CCAM **n'émet aucun POST** — le verrou tient jusque dans l'UI. À rejouer à la ronde suivante en démarrant une séance dédiée avant de clôturer.*
