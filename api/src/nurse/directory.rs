@@ -53,17 +53,25 @@ pub async fn search_nurses(
     State(state): State<AppState>,
     Query(params): Query<SearchNursesQuery>,
 ) -> Result<Json<SearchNursesResponse>, AppError> {
-    if params.lat.is_some() != params.lng.is_some()
-        || (params.radius_km.is_some() && params.lat.is_none())
-    {
-        return Err(AppError::ValidationError);
-    }
+    // #7817 : même doctrine géo que /v1/search/providers et /v1/search/slots
+    // (#7774) — bornes de validation lat/lng/radius_km ET rayon par défaut
+    // (`GEO_DEFAULT_RADIUS_KM`) via `resolve_geo_filter`, plutôt qu'une
+    // validation inline affaiblie qui laissait passer `lat=999`/`NaN`/
+    // `radius_km<=0` et ne bornait pas le filtre géo quand `radius_km` était
+    // omis (annuaire national renvoyé au lieu d'un rayon de 20km).
+    let (near_lat, near_lng, radius_km) = crate::marketplace::resolve_geo_filter(
+        None,
+        params.lat,
+        params.lng,
+        None,
+        params.radius_km,
+    )?;
 
     if let Some(q) = params.q.as_deref() {
         crate::text_validation::reject_nul_byte(q)?;
     }
 
-    let radius_m: Option<f64> = params.radius_km.map(|r| r * 1000.0);
+    let radius_m: Option<f64> = radius_km.map(|r| r * 1000.0);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 50);
     let online_only = params.online_only.unwrap_or(false);
     let q = params
@@ -93,8 +101,8 @@ pub async fn search_nurses(
          ORDER BY distance_m ASC NULLS LAST, display_name ASC \
          LIMIT $6",
     )
-    .bind(params.lat) // $1
-    .bind(params.lng) // $2
+    .bind(near_lat) // $1
+    .bind(near_lng) // $2
     .bind(radius_m) // $3
     .bind(q.as_deref()) // $4
     .bind(online_only) // $5
