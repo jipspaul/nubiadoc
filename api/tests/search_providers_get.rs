@@ -915,6 +915,185 @@ async fn search_providers_radius_km_without_point_is_validation_error() {
     );
 }
 
+// ── Régression #7773 : coordonnées/rayon hors plage rendaient 200 vide ───────
+// `lat=999`, `lng=500`, `NaN` ou `radius_km<=0` sont des valeurs
+// géométriquement impossibles, pas des filtres légitimes qui ne matchent
+// rien : elles doivent être refusées (422), même doctrine que #6997/#7718.
+
+#[tokio::test]
+async fn search_providers_lat_out_of_range_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?lat=999&lng=4.85&radius_km=50")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "lat=999 (hors [-90,90]) doit être refusé (422), pas rendre un \
+         annuaire vide silencieux"
+    );
+}
+
+#[tokio::test]
+async fn search_providers_lng_out_of_range_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?lat=45.75&lng=500&radius_km=50")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "lng=500 (hors [-180,180]) doit être refusé (422), pas rendre un \
+         annuaire vide silencieux"
+    );
+}
+
+#[tokio::test]
+async fn search_providers_near_out_of_range_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?near=999,999&radius_km=50")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "near=999,999 (hors plage) doit être refusé (422) comme lat/lng, \
+         même trou via near"
+    );
+}
+
+#[tokio::test]
+async fn search_providers_negative_radius_km_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?lat=45.75&lng=4.85&radius_km=-5")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "radius_km négatif doit être refusé (422), pas rendre un annuaire \
+         vide silencieux"
+    );
+}
+
+#[tokio::test]
+async fn search_providers_zero_radius_km_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?lat=45.75&lng=4.85&radius_km=0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "radius_km=0 doit être refusé (422), pas rendre un annuaire vide \
+         silencieux"
+    );
+}
+
+#[tokio::test]
+async fn search_providers_nan_lat_is_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?lat=NaN&lng=4.85&radius_km=50")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "lat=NaN doit être refusé (422), pas accepté silencieusement par \
+         serde f64"
+    );
+}
+
 #[tokio::test]
 async fn search_providers_sort_distance_without_point_is_validation_error() {
     if !db_available() {

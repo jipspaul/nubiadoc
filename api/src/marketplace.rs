@@ -493,7 +493,12 @@ type GeoFilter = (Option<f64>, Option<f64>, Option<f64>);
 /// Rayon par défaut `GEO_DEFAULT_RADIUS_KM` appliqué à TOUTES les branches
 /// quand `radius_km` est omis (#4387 : `near` seul l'ignorait, annuaire
 /// national renvoyé au lieu d'un rayon de proximité).
-/// `422` si `lat`/`lng` sont fournis l'un sans l'autre, si `radius_km` est
+/// `422` si `lat`/`lng` sont fournis l'un sans l'autre, si `lat`/`lng`
+/// sortent de leur plage géométrique (`[-90,90]`/`[-180,180]`, `NaN`/`inf`
+/// exclus) ou si `radius_km` n'est pas strictement positif et fini (#7773 :
+/// ces valeurs sont géométriquement impossibles, pas des filtres légitimes
+/// qui ne matchent rien — jusqu'ici elles retombaient silencieusement sur
+/// une réponse `200` vide sur les 4 annuaires), si `radius_km` est
 /// fourni sans le moindre point d'ancrage (`near`/`lat`+`lng`/`place`), ou si
 /// `place` ne résout à aucune entrée de `KNOWN_CITY_COORDS` (#6997) — un
 /// filtre géo n'a que deux issues acceptables : appliqué, ou refusé (#7718,
@@ -508,6 +513,11 @@ fn resolve_geo_filter(
     if lat.is_some() != lng.is_some() {
         return Err(AppError::ValidationError);
     }
+    if let Some(r) = radius_km {
+        if !r.is_finite() || r <= 0.0 {
+            return Err(AppError::ValidationError);
+        }
+    }
     if let Some(s) = near {
         let mut parts = s.splitn(2, ',');
         let lat = parts
@@ -518,6 +528,12 @@ fn resolve_geo_filter(
             .next()
             .and_then(|v| v.trim().parse::<f64>().ok())
             .ok_or(AppError::ValidationError)?;
+        if !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
+            return Err(AppError::ValidationError);
+        }
+        if !lng.is_finite() || !(-180.0..=180.0).contains(&lng) {
+            return Err(AppError::ValidationError);
+        }
         return Ok((
             Some(lat),
             Some(lng),
@@ -525,6 +541,12 @@ fn resolve_geo_filter(
         ));
     }
     if let (Some(lat), Some(lng)) = (lat, lng) {
+        if !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
+            return Err(AppError::ValidationError);
+        }
+        if !lng.is_finite() || !(-180.0..=180.0).contains(&lng) {
+            return Err(AppError::ValidationError);
+        }
         return Ok((
             Some(lat),
             Some(lng),
