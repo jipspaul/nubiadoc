@@ -160,9 +160,18 @@ void main() {
             value: bloc, child: const Scaffold(body: StockView())),
       );
 
-      expect(find.text('En stock'), findsOneWidget);
-      expect(find.text('2 dispo'), findsOneWidget);
-      expect(find.text('Rupture'), findsNothing);
+      // La disponibilité par ligne s'affiche dans le volet de détail — la
+      // ligne de tableau ne montre qu'un résumé (design-v2, #6948).
+      await tester.tap(find.byKey(const Key('stock_request_s1')));
+      await tester.pumpAndSettle();
+
+      final detail = find.byKey(const Key('stock_detail_panel_s1'));
+      expect(find.descendant(of: detail, matching: find.text('En stock')),
+          findsOneWidget);
+      expect(find.descendant(of: detail, matching: find.text('2 dispo')),
+          findsOneWidget);
+      expect(find.descendant(of: detail, matching: find.text('Rupture')),
+          findsNothing);
     });
 
     testWidgets(
@@ -293,6 +302,11 @@ void main() {
             value: bloc, child: const Scaffold(body: StockView())),
       );
 
+      // Le bandeau vit désormais dans le volet de détail — la ligne de
+      // tableau ne l'affiche plus (design-v2, #6948).
+      await tester.tap(find.byKey(const Key('stock_request_s1')));
+      await tester.pumpAndSettle();
+
       expect(find.byKey(const Key('stock_partial_availability_banner')),
           findsOneWidget);
       expect(find.textContaining('Une ligne partiellement disponible.'),
@@ -308,6 +322,9 @@ void main() {
         BlocProvider<StockBloc>.value(
             value: bloc, child: const Scaffold(body: StockView())),
       );
+
+      await tester.tap(find.byKey(const Key('stock_request_s1')));
+      await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('stock_partial_availability_banner')),
           findsNothing);
