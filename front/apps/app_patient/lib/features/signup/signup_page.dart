@@ -77,22 +77,12 @@ class _SignupPageState extends State<SignupPage> {
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _cguAccepted,
-                          onChanged: loading
-                              ? null
-                              : (v) =>
-                                  setState(() => _cguAccepted = v ?? false),
-                        ),
-                        Expanded(
-                          child: Text(
-                            "J'accepte les Conditions Générales d'Utilisation",
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ),
-                      ],
+                    NubiaCheckbox(
+                      value: _cguAccepted,
+                      label: "J'accepte les Conditions Générales d'Utilisation",
+                      onChanged: loading
+                          ? null
+                          : (v) => setState(() => _cguAccepted = v),
                     ),
                     const SizedBox(height: 24),
                     NubiaButton(
