@@ -4292,3 +4292,21 @@ RDV témoin `333cec5d-…` (Dr Hugo Marin, 29/09 08:00, `requested`), jeton pati
 *Le piège de ce bloc : viser une heure arbitraire rend `409 slot_unavailable` — ce n'est pas un défaut
 mais l'absence de créneau ouvert. Il faut lire `/search/slots` pour choisir une cible réellement
 réservable avant de conclure.*
+
+#### Addendum R103 (6) — B10 : rotation du refresh et détection de réutilisation
+
+| cas | verdict |
+|---|---|
+| chaîne propre : 3 `POST /v1/auth/refresh` successifs | **200 / 200 / 200**, avec un **nouveau `refresh_token` à chaque fois** (`05fb10cf…` → `5449007d…` → `c0f0cb71…`) — la rotation est réelle |
+| **rejeu** d'un refresh déjà consommé (A) | **401 `unauthenticated`** |
+| son successeur légitime (B) **après** le rejeu de A | **401** — la **famille entière est révoquée** |
+| refresh bidon / vide | **401** |
+| champ inconnu dans le corps | **422** |
+| anti-énumération login : compte inexistant vs mot de passe faux | **401 `unauthenticated` identique** dans les deux cas |
+| `password/forgot` : compte inexistant vs existant | **204 identique** dans les deux cas |
+| JWT **forgé `alg=none`** portant `kind:pro, role:admin` sur `/cabinet/patients` | **401** |
+
+*La révocation de B après le rejeu de A n'est **pas** un défaut : c'est la réponse attendue d'une
+rotation avec **détection de réutilisation** (OAuth 2.0 Security BCP) — un jeton rejoué signale un vol,
+et toute la famille tombe. Vérifié en isolant les deux séquences : sans tentative de rejeu, la chaîne
+s'enchaîne indéfiniment.*
