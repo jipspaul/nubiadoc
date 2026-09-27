@@ -4386,3 +4386,22 @@ devis. Toute tentative d'en fournir un est rejetée par `deny_unknown_fields`.*
 | dépendant d'un autre compte | **404** (anti-énumération) |
 
 *Cycle complet create → update → delete prouvé par relecture à chaque étape ; aucun orphelin.*
+
+#### Addendum R103 (11) — B7 : les filtres de l'annuaire mordent-ils vraiment ? (vérifié ligne à ligne)
+
+Référence sans filtre : **17 praticiens**. Chaque jeu de résultats a été contrôlé **homogène sur le champ filtré**, pas seulement « plus court » :
+
+| filtre | résultats | contrôle d'homogénéité |
+|---|---|---|
+| `sector=1` / `sector=2` | 8 / 8 | `sector` distinct = `['1']` / `['2']` |
+| `specialty=<UUID Implantologie>` | 5 | `specialty` distinct = `['Implantologie']` |
+| `teleconsult=true` | 8 | tous `True` |
+| `pmr=true` | 13 | tous `True` |
+| `accepts_new=true` | 17 | tous `True` |
+| `tiers_payant=true` | 12 | tous `True` |
+| `q=Marin` | 1 | `Dr Hugo Marin` |
+| `place=Lyon` / `place=Paris` | 2 / 14 | jeux disjoints et cohérents |
+
+**Tris :** `sort=rating` → décroissant vérifié sur les 5 premiers ; `sort=distance` **sans ancrage géo** → **422** (la garde de #7718 tient) ; **avec** ancrage (`place=Lyon`) → distances **croissantes** (503 m, 530 m).
+
+**Aucun filtre silencieusement ignoré sur cette route.**
