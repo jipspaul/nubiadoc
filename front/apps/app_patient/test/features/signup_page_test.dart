@@ -64,7 +64,7 @@ void main() {
       await tester.enterText(find.byType(TextField).at(1), 'Secr3tABC');
       await tester.pump();
 
-      await tester.tap(find.byType(Checkbox));
+      await tester.tap(find.byType(NubiaCheckbox));
       await tester.pump();
 
       expect(_submitButton(tester).onPressed, isNotNull);
