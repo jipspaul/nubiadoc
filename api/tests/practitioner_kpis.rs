@@ -62,19 +62,55 @@ fn make_pro_jwt(sub: Uuid, cabinet_id: Uuid, role: &str) -> String {
     .unwrap()
 }
 
-/// Premier jour du mois courant, même calcul que `practitioner_kpis::get_my_kpis`
-/// (année/mois UTC).
-fn current_month_start() -> chrono::NaiveDate {
+/// Reproduit `scheduling::paris_today()` (privé au crate) : le handler
+/// détermine « aujourd'hui »/la semaine courante en heure locale Europe/Paris,
+/// pas en date UTC — utiliser `Utc::now().date_naive()` ici désynchronise le
+/// test du handler chaque soir entre 22h/23h UTC et minuit Paris (la date, et
+/// donc le jour de semaine, diffèrent déjà).
+fn paris_today() -> chrono::NaiveDate {
     let now = Utc::now();
-    chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1).unwrap()
+    (now + chrono::Duration::hours(paris_utc_offset_hours(now.date_naive()))).date_naive()
+}
+
+/// Même règle UE que `scheduling::paris_utc_offset_hours` (dernier dimanche
+/// de mars/octobre) : +2 (CEST) en été, +1 (CET) sinon.
+fn paris_utc_offset_hours(date: chrono::NaiveDate) -> i64 {
+    let dst_start = last_sunday_of_month(date.year(), 3);
+    let dst_end = last_sunday_of_month(date.year(), 10);
+    if date >= dst_start && date < dst_end {
+        2
+    } else {
+        1
+    }
+}
+
+fn last_sunday_of_month(year: i32, month: u32) -> chrono::NaiveDate {
+    let first_of_next = if month == 12 {
+        chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+    } else {
+        chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+    }
+    .unwrap();
+    let last_of_month = first_of_next - chrono::Duration::days(1);
+    let days_since_sunday = last_of_month.weekday().num_days_from_sunday();
+    last_of_month - chrono::Duration::days(days_since_sunday as i64)
+}
+
+/// Premier jour du mois courant, même calcul que `practitioner_kpis::get_my_kpis`
+/// (mois de `paris_today()`, pas UTC).
+fn current_month_start() -> chrono::NaiveDate {
+    let today = paris_today();
+    chrono::NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap()
 }
 
 /// Point sûr (mercredi midi) de la semaine courante (lundi-dimanche) — à
 /// l'abri des bords de semaine que `now + N heures` peut franchir quand le
 /// test tourne en fin de semaine (`occupancy_rate` ne compte que les
 /// créneaux de la semaine courante, cf. `practitioner_kpis::get_my_kpis`).
+/// Le jour de départ de semaine doit être celui de `paris_today()`, sous
+/// peine de désaccord avec le handler (voir doc de `paris_today` ci-dessus).
 fn safe_week_time() -> chrono::DateTime<Utc> {
-    let today = Utc::now().date_naive();
+    let today = paris_today();
     let week_start = today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64);
     (week_start + chrono::Duration::days(2))
         .and_hms_opt(12, 0, 0)
