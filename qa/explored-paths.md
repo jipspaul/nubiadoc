@@ -4255,3 +4255,21 @@ Mesurées à la clôture, jeton praticien `Dr Hugo Marin` sauf mention :
 | **lecture** de cette séance par le **secrétariat** | **403** — cloisonnement clinique tenu |
 
 *Non conclu cette ronde : la mécanique design-v2 « l'encart **Actes de la séance** se remplit quand on ajoute un acte » n'a pas pu être exécutée — les 2 seules séances `in_progress` du cabinet appartiennent au Dr Claire Lefèvre (403 à l'ajout, conformément à la garde ci-dessus), et la séance ouverte pendant le scénario PRIORITÉ 1 a été clôturée par ce même scénario. Ce qui a été vérifié à la place : sur une séance terminée l'encart est bien en lecture seule et le clic sur un favori CCAM **n'émet aucun POST** — le verrou tient jusque dans l'UI. À rejouer à la ronde suivante en démarrant une séance dédiée avant de clôturer.*
+
+#### Addendum R103 (4) — smoke de non-régression APRÈS les 5 correctifs déployés pendant la ronde
+
+Cinq correctifs (#7774, #7777, #7780, #7783, #7785) ont été mergés **et déployés** pendant les 3 h de la
+ronde. Passe de contrôle finale sur les **31 écrans principaux des 5 apps**, chacun chargé à froid
+(rendu Flutter + ratio de pixels + inventaire Semantics + requêtes ≥ 400) :
+
+| app | écrans contrôlés | résultat |
+|---|---|---|
+| patient | `/`, `/mes-rdv`, `/messaging`, `/documents`, `/profile`, `/prescriptions`, `/treatment-plans`, `/financial`, `/notifications`, `/pharmacy/orders` | 10/10 sains — 22 / 13 / 10 / 43 / 17 / 13 / 11 / 9 / 21 / 17 contrôles |
+| praticien | `/`, `/agenda`, `/waiting-room`, `/patients`, `/ordonnances`, `/devis`, `/stock`, `/messages` | 8/8 sains — 37 / 29 / 23 / 38 / 22 / 30 / 24 / 30 contrôles |
+| secretariat | `/`, `/agenda`, `/salle-attente`, `/patients`, `/devis`, `/stock`, `/team-messages`, `/cabinet-payouts` | 8/8 sains — 34 / 82 / 27 / 45 / 58 / 58 / 35 / 30 contrôles |
+| pharmacie | `/`, `/stock`, `/messages`, `/devis` | 4/4 sains — 33 / 16 / 17 / 42 contrôles |
+| infirmiere | `/` | 1/1 sain — 8 contrôles |
+
+**31/31 écrans sains. Aucun écran blanc, aucun canvas vide, et 0 requête ≥ 400 significative**
+(hors les 3 sondes déjà qualifiées : `favicon.png`, `cabinet/audit-log`, `quotes/:id/attestation`).
+Les 5 correctifs livrés pendant la ronde n'ont introduit aucune régression visible.
