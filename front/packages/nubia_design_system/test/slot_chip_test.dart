@@ -75,5 +75,17 @@ void main() {
       final label = tester.widget<Text>(find.text('14:30'));
       expect(label.style?.color, NubiaTokens.light.primarySubtleFg);
     });
+
+    testWidgets(
+      'nom accessible : le libellé Semantics n\'est pas dupliqué avec le Text',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(SlotChip(label: '17:00', onTap: () {})),
+        );
+
+        final semantics = tester.getSemantics(find.byType(SlotChip));
+        expect(semantics.label, '17:00');
+      },
+    );
   });
 }
