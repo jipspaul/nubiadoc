@@ -1080,10 +1080,7 @@ mod tests {
             page_subject_label("implant-orthodontiste"),
             "Implant orthodontique"
         );
-        assert_eq!(
-            page_subject_label("implant-dentiste"),
-            "Implant dentaire"
-        );
+        assert_eq!(page_subject_label("implant-dentiste"), "Implant dentaire");
     }
 
     #[test]
