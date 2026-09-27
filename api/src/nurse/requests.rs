@@ -422,7 +422,7 @@ pub async fn cancel_account_visit_request(
 
     // Prévient l'infirmière assignée (le cas échéant) : elle est peut-être déjà
     // en route, l'annulation est l'événement le plus critique du cycle côté
-    // infirmière (#7025 — symétrique de `notify_nurse_staff` dans
+    // infirmière (#7025, doublon #6974 — symétrique de `notify_nurse_staff` dans
     // `create_visit_request` / `visit_offer_expiry::apply_settlement`).
     let mut nurse_notifs: Vec<(Uuid, Uuid)> = Vec::new();
     if let Some(nurse_id) = visit.nurse_id {
