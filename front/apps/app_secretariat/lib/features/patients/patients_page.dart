@@ -944,7 +944,7 @@ class PatientAlertBadge extends StatelessWidget {
     if (noShowCount > 0) {
       pastilles.add(
         _AlertPastilleData(
-          '$noShowCount lapin${noShowCount > 1 ? 's' : ''}',
+          '$noShowCount rendez-vous manqué${noShowCount > 1 ? 's' : ''}',
           _AlertSeverity.warn,
         ),
       );
