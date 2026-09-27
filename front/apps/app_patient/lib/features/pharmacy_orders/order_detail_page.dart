@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import '../pharmacy/widgets/pharmacy_card.dart';
 import 'orders_bloc.dart';
 import 'widgets/order_billing_summary_card.dart';
@@ -34,7 +35,13 @@ class PatientOrderDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Suivi de commande')),
+      // #7776 : accès direct par URL (deep link, rechargement) sans liste sur
+      // la pile — même filet que `documents`/`prescriptions`
+      // (`backOrHomeLeading`), sinon l'écran est un cul-de-sac total.
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Suivi de commande'),
+      ),
       body: BlocBuilder<PatientOrderDetailCubit, PatientOrderDetailState>(
         builder: (context, state) {
           switch (state) {

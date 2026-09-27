@@ -32,7 +32,10 @@ class PlanCard extends StatelessWidget {
       child: NubiaCard(
         key: Key('treatment_plan_${plan.id}'),
         state: NubiaCardState.interactive,
-        onTap: () => context.go('/treatment-plans/${plan.id}'),
+        // #7776 : `push`, pas `go` — la route de détail est une sœur à plat
+        // de `/treatment-plans` (pas imbriquée dessous) ; `go` remplace donc
+        // toute la pile et laisse le détail sans aucune sortie possible.
+        onTap: () => context.push('/treatment-plans/${plan.id}'),
         padding: const EdgeInsets.all(12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
