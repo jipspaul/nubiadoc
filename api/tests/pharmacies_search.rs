@@ -280,8 +280,7 @@ async fn search_radius_negative_returns_422() {
     if !db_available() {
         return;
     }
-    let (status, _) =
-        get_pharmacies("/v1/pharmacies?lat=48.86&lng=2.35&radius_km=-5").await;
+    let (status, _) = get_pharmacies("/v1/pharmacies?lat=48.86&lng=2.35&radius_km=-5").await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
