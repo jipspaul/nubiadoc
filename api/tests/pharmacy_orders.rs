@@ -705,6 +705,70 @@ async fn ready_orders_survive_pagination_cap_regardless_of_age() {
     assert_eq!(list["data"].as_array().unwrap().len(), 3);
 }
 
+/// #6965 : doublon de #7555, même symptôme (`?limit=` ignoré, pas de
+/// troncature signalée) constaté indépendamment sur la file pharmacie.
+/// Verrou de non-régression explicite sur le paramètre `limit` lui-même
+/// (la régression ci-dessus couvre le tri `sort_priority`, pas la valeur de
+/// `?limit=`).
+#[tokio::test]
+async fn pharmacy_orders_limit_query_param_is_honored() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let document_id: Uuid = sqlx::query("SELECT document_id FROM prescription WHERE id = $1")
+        .bind(fx.prescription_id)
+        .fetch_one(&db)
+        .await
+        .unwrap()
+        .try_get("document_id")
+        .unwrap();
+
+    for i in 0..5i64 {
+        sqlx::query(
+            "INSERT INTO pharmacy_order \
+             (pharmacy_id, cabinet_id, patient_account_id, prescription_id, document_id, \
+              created_by_kind, created_by, status, pharmacy_name, patient_display_name, \
+              received_at, picked_up_at) \
+             VALUES ($1, $2, $3, $4, $5, 'patient', $3, 'picked_up', 'Pharmacie PO', 'Jean D.', \
+                     now() - make_interval(secs => $6), now())",
+        )
+        .bind(fx.pharmacy_id)
+        .bind(fx.cabinet_id)
+        .bind(fx.account_id)
+        .bind(fx.prescription_id)
+        .bind(document_id)
+        .bind(i as f64)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    let pharma_token = pharma_jwt(Uuid::new_v4(), fx.pharmacy_id);
+
+    let (status, list) = request(
+        "GET",
+        "/v1/pharmacy/orders?limit=1",
+        &pharma_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["data"].as_array().unwrap().len(), 1);
+    assert!(list["page"]["next_cursor"].is_string());
+
+    let (status, list) = request(
+        "GET",
+        "/v1/pharmacy/orders?limit=5",
+        &pharma_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["data"].as_array().unwrap().len(), 5);
+}
+
 /// #5644 : `GET /v1/account/orders/{id}` doit exposer `lines` (lignes de
 /// l'ordonnance) — sans quoi la carte « Votre ordonnance » front (#5349) ne
 /// s'affiche jamais.
