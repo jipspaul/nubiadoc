@@ -13,18 +13,22 @@ class StockBloc extends Bloc<StockEvent, StockState>
     required ListStockRequestsUseCase list,
     required CreateStockRequestUseCase create,
     required ResendStockRequestUseCase resend,
+    required CancelStockRequestUseCase cancel,
   })  : _list = list,
         _create = create,
         _resend = resend,
+        _cancel = cancel,
         super(const StockLoading()) {
     on<StockLoadRequested>(_onLoad);
     on<StockCreateRequested>(_onCreate);
     on<StockResendRequested>(_onResend);
+    on<StockCancelRequested>(_onCancel);
   }
 
   final ListStockRequestsUseCase _list;
   final CreateStockRequestUseCase _create;
   final ResendStockRequestUseCase _resend;
+  final CancelStockRequestUseCase _cancel;
 
   Future<void> _onLoad(
       StockLoadRequested event, Emitter<StockState> emit) async {
@@ -64,6 +68,24 @@ class StockBloc extends Bloc<StockEvent, StockState>
 
     emit(StockLoaded(current.requests, resendingId: event.requestId));
     final result = await _resend(event.requestId);
+    result.fold(
+      (failure) => safeEmit(StockError(failure.message)),
+      (updated) => safeEmit(StockLoaded([
+        for (final request in current.requests)
+          if (request.id == updated.id) updated else request,
+      ])),
+    );
+  }
+
+  Future<void> _onCancel(
+    StockCancelRequested event,
+    Emitter<StockState> emit,
+  ) async {
+    final current = state;
+    if (current is! StockLoaded || current.cancellingId != null) return;
+
+    emit(StockLoaded(current.requests, cancellingId: event.requestId));
+    final result = await _cancel(event.requestId);
     result.fold(
       (failure) => safeEmit(StockError(failure.message)),
       (updated) => safeEmit(StockLoaded([

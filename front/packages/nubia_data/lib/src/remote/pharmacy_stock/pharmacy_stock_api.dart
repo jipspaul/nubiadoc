@@ -73,6 +73,14 @@ class PharmacyStockApi {
     return StockRequestDto.fromJson(response.data!);
   }
 
+  /// POST /v1/cabinet/stock-requests/{id}/cancel (annulation cabinet, #7818).
+  Future<StockRequestDto> cancel(String id) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$basePath/stock-requests/$id/cancel',
+    );
+    return StockRequestDto.fromJson(response.data!);
+  }
+
   Future<StockRequestDto> _action(
     String id,
     String action, {

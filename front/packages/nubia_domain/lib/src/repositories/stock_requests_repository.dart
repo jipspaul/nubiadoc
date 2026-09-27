@@ -27,4 +27,7 @@ abstract class StockRequestsRepository {
 
   /// POST /v1/cabinet/stock-requests/{id}/resend (relance manuelle, cabinet).
   Future<Either<Failure, StockRequest>> resend(String id);
+
+  /// POST /v1/cabinet/stock-requests/{id}/cancel (annulation cabinet).
+  Future<Either<Failure, StockRequest>> cancel(String id);
 }

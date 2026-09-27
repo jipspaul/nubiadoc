@@ -1074,7 +1074,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerFactory(() => ListStockRequestsUseCase(gi()))
     ..registerFactory(() => CreateStockRequestUseCase(gi()))
-    ..registerFactory(() => ResendStockRequestUseCase(gi()));
+    ..registerFactory(() => ResendStockRequestUseCase(gi()))
+    ..registerFactory(() => CancelStockRequestUseCase(gi()));
 
   // Briefs cabinet jour/semaine/prothèses (#7191/#7192) — accès
   // cabinet-wide, pas de garde `includeClinical` (secrétariat inclus).
