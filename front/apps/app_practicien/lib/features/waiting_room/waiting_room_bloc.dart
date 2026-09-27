@@ -84,16 +84,27 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
   /// mais ne doit plus jamais rester muet : la même bannière que pour un
   /// échec réseau prévient l'utilisateur plutôt que d'ignorer le clic en
   /// silence).
+  /// #6966 : une entrée déjà `in_consultation` est aussi refusée — sinon,
+  /// quand elle occupe la tête de file (seule entrée, ou après un premier
+  /// appel), le clic déclenchait un `call-next` qui répond
+  /// `{"called": false}` sans le moindre retour visuel.
   Future<void> _onCallRequested(
     WaitingRoomCallRequested event,
     Emitter<WaitingRoomState> emit,
   ) async {
     final current = state;
     if (current is! WaitingRoomLoaded || current.entries.isEmpty) return;
-    if (current.entries.first.id != event.entryId) {
+    final head = current.entries.first;
+    if (head.id != event.entryId) {
       safeEmit(current.copyWith(
         actionError:
             "Seul le patient en tête de file peut être appelé pour l'instant.",
+      ));
+      return;
+    }
+    if (head.status == 'in_consultation') {
+      safeEmit(current.copyWith(
+        actionError: 'Ce patient est déjà en consultation.',
       ));
       return;
     }

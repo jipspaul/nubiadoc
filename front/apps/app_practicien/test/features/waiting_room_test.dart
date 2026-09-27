@@ -51,6 +51,15 @@ final _otherEntry = WaitingRoomEntry(
   arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
 );
 
+final _inConsultationEntry = WaitingRoomEntry(
+  id: 'wr-in-cons',
+  cabinetId: 'cab-1',
+  patientId: 'pat-in-cons',
+  patientName: 'Marc Dubois',
+  arrivedAt: DateTime.now().subtract(const Duration(minutes: 1)),
+  status: 'in_consultation',
+);
+
 WaitingRoomBloc _makeBloc({
   required MockListWaitingRoomUseCase list,
   required MockCallNextUseCase callNext,
@@ -321,6 +330,24 @@ void main() {
           entries: [_entry, _otherEntry],
           actionError:
               "Seul le patient en tête de file peut être appelé pour l'instant.",
+        ),
+      ],
+      verify: (_) {
+        verifyNever(() => mockCallNext());
+      },
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'appeler une entrée déjà in_consultation en tête de file ne déclenche '
+      'aucun call-next et signale le motif (#6966, plus de clic muet quand '
+      'le seul patient de la file est déjà au fauteuil)',
+      build: () => _makeBloc(list: mockList, callNext: mockCallNext),
+      seed: () => WaitingRoomLoaded(entries: [_inConsultationEntry]),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('wr-in-cons')),
+      expect: () => [
+        WaitingRoomLoaded(
+          entries: [_inConsultationEntry],
+          actionError: 'Ce patient est déjà en consultation.',
         ),
       ],
       verify: (_) {
@@ -1159,6 +1186,48 @@ void main() {
       expect(tester.widget<Opacity>(opacityFinder).opacity, 0.35);
 
       final buttonFinder = find.byKey(const Key('entry_action_wr-3'));
+      expect(tester.widget<IconButton>(buttonFinder).onPressed, isNull);
+
+      await tester.tap(buttonFinder, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      verifyNever(() => mockCallNext());
+    });
+
+    // #6966 : seul patient de la file, déjà appelé une première fois — le
+    // bouton d'appel de la ligne restait actif et inerte (`call-next`
+    // répondait `{"called": false}` en silence).
+    testWidgets(
+        'seul patient de la file, déjà in_consultation : le bouton d\'appel '
+        'de la ligne est atténué et désactivé (#6966)', (tester) async {
+      when(() => mockList())
+          .thenAnswer((_) async => Right([_inConsultationEntry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final opacityFinder = find.ancestor(
+        of: find.byKey(const Key('entry_action_wr-in-cons')),
+        matching: find.byType(Opacity),
+      );
+      expect(opacityFinder, findsOneWidget);
+      expect(tester.widget<Opacity>(opacityFinder).opacity, 0.35);
+
+      final buttonFinder = find.byKey(const Key('entry_action_wr-in-cons'));
       expect(tester.widget<IconButton>(buttonFinder).onPressed, isNull);
 
       await tester.tap(buttonFinder, warnIfMissed: false);

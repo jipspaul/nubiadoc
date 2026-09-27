@@ -1094,6 +1094,12 @@ class _EntryCard extends StatelessWidget {
     final isOtherPractitioner = entry.practitionerId != null &&
         entry.practitionerId != session.practitionerId;
 
+    // #6966 : un patient déjà `in_consultation` n'est plus appelable —
+    // sinon le bouton restait actif et inerte (`call-next` répondait
+    // `{"called": false}` en silence) une fois le seul patient de la file
+    // au fauteuil.
+    final alreadyInConsultation = entry.status == 'in_consultation';
+
     // Motif admin en tête du sous-titre (#5030) — pas de « · » orphelin
     // quand le motif est absent.
     final subtitle = entry.reason != null && entry.reason!.isNotEmpty
@@ -1154,12 +1160,13 @@ class _EntryCard extends StatelessWidget {
             const SizedBox(width: 8),
             _RowCallButton(
               entryKey: Key('entry_action_${entry.id}'),
-              dimmed: isOtherPractitioner,
-              onPressed: actionInProgress || isOtherPractitioner
-                  ? null
-                  : () => context
-                      .read<WaitingRoomBloc>()
-                      .add(WaitingRoomCallRequested(entry.id)),
+              dimmed: isOtherPractitioner || alreadyInConsultation,
+              onPressed:
+                  actionInProgress || isOtherPractitioner || alreadyInConsultation
+                      ? null
+                      : () => context
+                          .read<WaitingRoomBloc>()
+                          .add(WaitingRoomCallRequested(entry.id)),
             ),
           ],
         ),
