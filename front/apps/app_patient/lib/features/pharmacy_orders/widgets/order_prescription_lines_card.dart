@@ -16,8 +16,7 @@ class OrderPrescriptionLinesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final lines = order.lines;
-    final counterLabel =
-        lines.length == 1 ? '1 ligne' : '${lines.length} lignes';
+    final counterLabel = '${lines.length} ${pluralize(lines.length, 'ligne')}';
 
     return Column(
       key: const Key('order_prescription_lines_card'),

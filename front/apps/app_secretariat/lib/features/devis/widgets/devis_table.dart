@@ -238,7 +238,7 @@ String _formatShortDate(DateTime d) {
       '${local.month.toString().padLeft(2, '0')}';
 }
 
-String _pluralJours(int n) => n == 1 ? 'jour' : 'jours';
+String _pluralJours(int n) => pluralize(n, 'jour');
 
 /// Différence en jours calendaires (fuseau local, minuit à minuit) entre
 /// `target` et `now` — même méthode que `QuoteTimeline._formatExpiry` pour

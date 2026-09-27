@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 sealed class ProfileState extends Equatable {
@@ -68,16 +69,16 @@ class ProfileAccountSummary extends Equatable {
 
   String? get dependentsLabel => dependentsCount == null
       ? null
-      : '$dependentsCount ${dependentsCount == 1 ? 'compte' : 'comptes'}';
+      : '$dependentsCount ${pluralize(dependentsCount!, 'compte')}';
 
   String? get consentsGrantedLabel => consentsGrantedCount == null
       ? null
       : '$consentsGrantedCount '
-          '${consentsGrantedCount == 1 ? 'accordé' : 'accordés'}';
+          '${pluralize(consentsGrantedCount!, 'accordé')}';
 
   String? get implantsLabel => implantsCount == null
       ? null
-      : '$implantsCount ${implantsCount == 1 ? 'implant' : 'implants'}';
+      : '$implantsCount ${pluralize(implantsCount!, 'implant')}';
 
   @override
   List<Object?> get props => [

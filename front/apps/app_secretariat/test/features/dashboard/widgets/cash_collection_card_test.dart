@@ -67,17 +67,17 @@ void main() {
 
       expect(find.byKey(const Key('cash_collected_today_row')), findsOneWidget);
       expect(find.text('Encaissé aujourd’hui'), findsOneWidget);
-      expect(find.text('7 paiement(s)'), findsOneWidget);
+      expect(find.text('7 paiements'), findsOneWidget);
       expect(find.text('1 842,00 €'), findsOneWidget);
 
       expect(find.byKey(const Key('cash_remaining_today_row')), findsOneWidget);
       expect(find.text('Reste à encaisser'), findsOneWidget);
-      expect(find.text('2 patient(s) avant 19h'), findsOneWidget);
+      expect(find.text('2 patients avant 19h'), findsOneWidget);
       expect(find.text('360,50 €'), findsOneWidget);
 
       expect(find.byKey(const Key('cash_unpaid_row')), findsOneWidget);
       expect(find.text('Impayés du cabinet'), findsOneWidget);
-      expect(find.text('7 patient(s) concerné(s)'), findsOneWidget);
+      expect(find.text('7 patients concernés'), findsOneWidget);
       expect(find.text('2 918,00 €'), findsOneWidget);
     });
   });

@@ -61,7 +61,8 @@ class WeekSummaryCard extends StatelessWidget {
           ListRow(
             key: const Key('week_summary_no_show_row'),
             title: 'Rendez-vous non honorés',
-            subtitle: '${summary.weeklyNoShowCount} patient(s) concerné(s)',
+            subtitle: '${summary.weeklyNoShowCount} '
+                '${pluralize(summary.weeklyNoShowCount, 'patient concerné', 'patients concernés')}',
             trailing: StatusPill(
               label: '${summary.weeklyNoShowCount}',
               variant: StatusPillVariant.warning,

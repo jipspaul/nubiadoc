@@ -83,8 +83,8 @@ class MessagingAppBar extends StatelessWidget implements PreferredSizeWidget {
   static String _summaryLabel(List<Conversation> conversations) {
     final unread =
         conversations.fold<int>(0, (sum, conv) => sum + conv.unreadCount);
-    final convWord = conversations.length == 1 ? 'conversation' : 'conversations';
-    final unreadWord = unread == 1 ? 'non lu' : 'non lus';
+    final convWord = pluralize(conversations.length, 'conversation');
+    final unreadWord = pluralize(unread, 'non lu');
     return '${conversations.length} $convWord · $unread $unreadWord';
   }
 }

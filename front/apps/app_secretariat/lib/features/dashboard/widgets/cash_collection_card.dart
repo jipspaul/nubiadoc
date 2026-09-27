@@ -64,8 +64,8 @@ class CashCollectionCard extends StatelessWidget {
                     ListRow(
                       key: const Key('cash_collected_today_row'),
                       title: 'Encaissé aujourd’hui',
-                      subtitle:
-                          '${summary.collectedTodayPaymentCount} paiement(s)',
+                      subtitle: '${summary.collectedTodayPaymentCount} '
+                          '${pluralize(summary.collectedTodayPaymentCount, 'paiement')}',
                       trailing: _AmountText(
                         cents: summary.collectedTodayCents,
                         color: cs.primary,
@@ -75,7 +75,8 @@ class CashCollectionCard extends StatelessWidget {
                       key: const Key('cash_remaining_today_row'),
                       title: 'Reste à encaisser',
                       subtitle: '${summary.remainingTodayPatientCount} '
-                          'patient(s) avant ${summary.closingHour}h',
+                          '${pluralize(summary.remainingTodayPatientCount, 'patient')} '
+                          'avant ${summary.closingHour}h',
                       trailing: _AmountText(
                         cents: summary.remainingTodayCents,
                         color: cs.onSurface,
@@ -84,8 +85,8 @@ class CashCollectionCard extends StatelessWidget {
                     ListRow(
                       key: const Key('cash_unpaid_row'),
                       title: 'Impayés du cabinet',
-                      subtitle:
-                          '${summary.unpaidPatientCount} patient(s) concerné(s)',
+                      subtitle: '${summary.unpaidPatientCount} '
+                          '${pluralize(summary.unpaidPatientCount, 'patient concerné', 'patients concernés')}',
                       trailing: _AmountText(
                         cents: summary.unpaidCents,
                         color: tokens.dangerFg,

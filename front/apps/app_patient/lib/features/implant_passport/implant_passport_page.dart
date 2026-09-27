@@ -148,7 +148,7 @@ class _ImplantPassportBody extends StatelessWidget {
 /// Décompte affiché au sous-titre de l'AppBar (#5317) : accord singulier
 /// « 1 implant enregistré » / pluriel « N implants enregistrés ».
 String _implantCountLabel(int count) {
-  return count == 1 ? '1 implant enregistré' : '$count implants enregistrés';
+  return '$count ${pluralize(count, 'implant enregistré', 'implants enregistrés')}';
 }
 
 /// Bandeau explicatif en tête de liste (#5317) : dit ce qu'est le document
