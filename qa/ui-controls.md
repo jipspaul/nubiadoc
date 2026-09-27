@@ -5236,7 +5236,7 @@ amorces ⌘K volontairement inertes, sonde de rôle `GET /v1/cabinet/audit-log` 
 
 ---
 
-### Ronde R105 — 2026-09-27 (18:00–20:00 UTC) — **5/5 apps**, 19 écrans, **450 contrôles inventoriés, 428 activés, 0 mort réel, 0 cassé réel**
+### Ronde R105 — 2026-09-27 (18:00–20:00 UTC) — **5/5 apps**, 24 écrans, **563 contrôles inventoriés, 539 activés, 0 mort réel, 0 cassé réel**
 
 > **Le piège de méthode de cette ronde — il produisait des « morts » en masse.**
 > Le balayage activait tous les contrôles d'un écran **à la suite, sans réinitialiser**. Or un clic
@@ -5283,6 +5283,10 @@ amorces ⌘K volontairement inertes, sonde de rôle `GET /v1/cabinet/audit-log` 
 | praticien | `/stock-inventory` — **jamais audité** (1280×800) | 47 | 46 | 35 | 11* | 0 | 0 | 2026-09-27T19:26Z |
 | patient | `/profile/consents` — **jamais audité** (390×844) | 12 | 12 | 8 | 3* | 0 | 1 | 2026-09-27T19:25Z |
 | pharmacie | `/notification-preferences` (1280×800) | 13 | 13 | 9 | 4* | 0 | 0 | 2026-09-27T19:25Z |
+| secretariat | `/correspondents` (1280×800) | 30 | 29 | 18 | 10* | 1* | 0 | 2026-09-27T19:47Z |
+| patient | `/oubliettes` — **jamais audité** (390×844) | 2 | 2 | 1 | 1* | 0 | 0 | 2026-09-27T19:46Z |
+| praticien | `/treatment-plans` — **route inexistante** (1280×800) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-27T19:48Z |
+| pharmacie | `/orders` — **route inexistante** (1280×800) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-27T19:48Z |
 
 **Le cas `/liste-attente` mesure l'effet de l'expiration de session, chiffres à l'appui.** Le même
 écran, même script, à 7 min d'intervalle :
@@ -5316,3 +5320,12 @@ cinq motifs, tous contrôlés :
 | texte de 250 caractères dans le composeur | **OK** | 0 débordement horizontal |
 | coupure réseau pendant « Envoyer » (`route.abort()` sur `*/v1/*`) | **INDIGNE** — déjà ouvert **#6885** | le composeur est **vidé**, **aucun** message d'erreur dans l'arbre (0 occurrence de `/erreur|échou|impossible|réessay|connexion/i`). Confirmation versée sur #6885. |
 | le composeur perd-il le 1er caractère ? | **NON** | soupçon levé : frappe immédiate **et** après 1 500 ms → valeur DOM strictement égale à l'attendu dans les deux cas |
+
+
+**Route inexistante = 404 digne, vérifié sur 2 apps.** `praticien/treatment-plans` et
+`pharmacie/orders` (deux routes qui n'existent pas dans leur `app_router.dart`) ne rendent **pas** un
+écran blanc : les deux peignent « **Page introuvable / Le lien que vous avez suivi n'existe plus ou a
+changé.** » avec un CTA « **Retour à l'accueil** » fonctionnel — l'unique contrôle inventorié, jugé OK.
+Ratio near-white 0,9925 pour 75 couleurs : c'est exactement le cas que la conjonction
+`ratio > 0,92 ET couleurs < 12` sert à **ne pas** confondre avec un canvas vide.
+Capture : `praticien/R105_praticien__treatment_plans_1280.png`.

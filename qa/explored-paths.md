@@ -4550,9 +4550,18 @@ depuis**, toutes contre-éprouvées en live cette ronde :
 | X7 — stock cabinet → officine → retour | 2026-09-27T19:21Z | **OK** | Création → l'officine la reçoit ; `/pharmacy/stock-requests` → **403 patient et 403 secrétariat** ; `fulfill` avant `accept` → **409**. **#7688 confirmé** : sur `accept`, champ inconnu → **422**, JSON invalide → **400**, corps vide → **200** (contrat documenté). `reject` **sans** note → **422** (motif obligatoire, comme la maquette l'impose), **avec** note → 200 — **et la note remonte jusqu'au secrétariat** (`response_note = 'QA105 rupture fournisseur'`). `fulfill` → 200, le secrétariat lit l'état final des deux demandes. |
 | X9 — devis d'officine → patient → retour | 2026-09-27T19:16Z | **OK** | Créé sur une commande active (l'identité patient en découle) → **invisible du patient en `draft`** → `send` → visible en `sent` **et notification `pharmacy_quote_sent` reçue** → le patient **accepte** → **l'officine lit `accepted`** → `refuse` après acceptation → **409** → `accept` avec un jeton secrétariat → **403**. |
 
-**Registres de la ronde** : `qa/ui-controls.md` (23 écrans, 547 contrôles inventoriés, 523 activés,
+| B3 — coffre-fort et URL signées | 2026-09-27T19:45Z | **OK** | Le document n'est lisible que par son propriétaire : `GET /documents/:id` **et** `/download` rendent **403** au praticien, au secrétariat, à la pharmacie **et** à l'infirmière ; uuid inexistant → **404** (anti-énumération). Le `download` du propriétaire rend une **URL signée à expiration** (`?expires=…&sig=…`, 60 s). Contre-épreuves sur cette URL : telle quelle **200 `application/pdf`** ; **signature altérée d'un caractère → 403** ; **`expires` reculé dans le passé → 403** ; **traversée `../../../../etc/passwd` → 404**. |
+| B6 — dépendants, validation | 2026-09-27T19:45Z | **OK** | `relationship` manquant → **422** ; date de naissance **2099** → **422** (le jumeau de #6841 est bien borné ici) ; prénom vide → **422**. |
+| Tunnel SSR de réservation | 2026-09-27T19:40Z | **OK** | `/` et `/dentiste/lyon` → **200 `index, follow`** ; **ville inconnue → 404 `noindex`** (les défauts de #6895 et #6762 ne se reproduisent plus) ; `robots.txt` et `sitemap.xml` servis (**62 URL**) ; fiche praticien SSR complète côté SEO (`<title>`, `<h1>`, **JSON-LD**, 227 liens de créneaux). Injections dans le slug — `<script>alert(1)</script>`, `../../etc/passwd`, `' OR 1=1--` → **404 chacune, rien de réfléchi dans le HTML**. *Le contenu manquant de la fiche (tarifs/horaires/onglets) reste couvert par **#6791**, ouverte.* |
+
+**Registres de la ronde** : `qa/ui-controls.md` (24 écrans, 563 contrôles inventoriés, 539 activés,
 **0 mort réel, 0 cassé réel**) et `qa/design-v2.md` (5 écrans comparés, 2 conformes, 3 divergents).
 **Matrice cross-app : 12/12** (X1→X12), chacune avec sa contre-épreuve négative.
+
+**Correctif vérifié dans la ronde même** : **#7818** ouverte à 18:58, PR **#7819** mergée et déployée,
+CTA « Annuler la demande » re-testé à 19:24 — il émet bien `POST …/cancel` et la demande passe à
+`cancelled`. *Remarque versée à l'issue : l'annulation part **sans dialogue de confirmation**, alors
+qu'elle est irréversible (`cancel` rejoué → 409) et engage une officine tierce.*
 
 **Issues ouvertes par R105** : **#7817** (P2, bornes + rayon par défaut absents sur les 2 annuaires
 jumeaux), **#7818** (P1, « Annuler la demande » absent du volet Stock secrétariat), **#7821** (P2,
