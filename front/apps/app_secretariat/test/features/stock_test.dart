@@ -659,5 +659,48 @@ void main() {
         expect(find.text('R relancer'), findsOneWidget);
       });
     });
+
+    // #7818 — CTA « Annuler la demande », absent du volet malgré la route
+    // serveur `POST .../cancel` et la facette « Annulées » (#6967).
+    group('annulation d\'une demande sent (#7818)', () {
+      testWidgets(
+          'le panneau détail affiche le CTA « Annuler la demande » pour '
+          'une demande sent, qui déclenche StockCancelRequested',
+          (tester) async {
+        when(() => bloc.state).thenReturn(StockLoaded([sentRequest]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('stock_request_req-1')));
+        await tester.pumpAndSettle();
+
+        final cta = find.byKey(const Key('stock_detail_cancel_req-1'));
+        expect(cta, findsOneWidget);
+        expect(
+          find.descendant(of: cta, matching: find.text('Annuler la demande')),
+          findsOneWidget,
+        );
+
+        await tester.tap(cta);
+        await tester.pumpAndSettle();
+        verify(() => bloc.add(const StockCancelRequested('req-1'))).called(1);
+      });
+
+      testWidgets(
+          'le panneau détail n\'affiche pas le CTA Annuler pour une '
+          'demande non sent', (tester) async {
+        when(() => bloc.state).thenReturn(StockLoaded([fulfilledRequest]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('stock_request_req-2')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('stock_detail_cancel_req-2')),
+          findsNothing,
+        );
+      });
+    });
   });
 }

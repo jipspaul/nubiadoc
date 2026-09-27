@@ -190,6 +190,24 @@ void main() {
       expect(result, Right(request));
       verify(() => repo.resend('s1')).called(1);
     });
+
+    test('CancelStockRequestUseCase délègue au repo (#7818)', () async {
+      final repo = MockStockRequestsRepository();
+      final request = StockRequest(
+        id: 's1',
+        pharmacyId: 'p1',
+        items: const [StockRequestItem(label: 'Compresses', quantity: 10)],
+        status: StockRequestStatus.cancelled,
+        createdAt: DateTime.utc(2026, 7, 1),
+      );
+      when(() => repo.cancel('s1')).thenAnswer((_) async => Right(request));
+
+      final useCase = CancelStockRequestUseCase(repo);
+      final result = await useCase('s1');
+
+      expect(result, Right(request));
+      verify(() => repo.cancel('s1')).called(1);
+    });
   });
 
   group('Ordonnance — praticien', () {

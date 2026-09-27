@@ -214,6 +214,7 @@ void registerPro(GetIt gi) {
         list: gi<ListStockRequestsUseCase>(),
         create: gi<CreateStockRequestUseCase>(),
         resend: gi<ResendStockRequestUseCase>(),
+        cancel: gi<CancelStockRequestUseCase>(),
       ),
     )
     ..registerFactory<StockInventoryBloc>(

@@ -32,3 +32,18 @@ class StockResendRequested extends StockEvent {
   @override
   int get hashCode => requestId.hashCode;
 }
+
+/// Annulation d'une demande `sent` partie par erreur (mauvaise officine,
+/// mauvaise quantité) — #7818.
+class StockCancelRequested extends StockEvent {
+  const StockCancelRequested(this.requestId);
+
+  final String requestId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StockCancelRequested && other.requestId == requestId;
+
+  @override
+  int get hashCode => requestId.hashCode;
+}

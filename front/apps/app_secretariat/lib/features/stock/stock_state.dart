@@ -15,7 +15,12 @@ class StockLoading extends StockState {
 }
 
 class StockLoaded extends StockState {
-  const StockLoaded(this.requests, {this.creating = false, this.resendingId});
+  const StockLoaded(
+    this.requests, {
+    this.creating = false,
+    this.resendingId,
+    this.cancellingId,
+  });
 
   final List<StockRequest> requests;
 
@@ -25,11 +30,15 @@ class StockLoaded extends StockState {
   /// Demande dont la relance est en cours (bouton en loading) — #5183.
   final String? resendingId;
 
+  /// Demande dont l'annulation est en cours (bouton en loading) — #7818.
+  final String? cancellingId;
+
   @override
   bool operator ==(Object other) =>
       other is StockLoaded &&
       other.creating == creating &&
       other.resendingId == resendingId &&
+      other.cancellingId == cancellingId &&
       other.requests.length == requests.length &&
       List.generate(
         requests.length,
@@ -37,8 +46,12 @@ class StockLoaded extends StockState {
       ).every((b) => b);
 
   @override
-  int get hashCode =>
-      Object.hash(Object.hashAll(requests), creating, resendingId);
+  int get hashCode => Object.hash(
+        Object.hashAll(requests),
+        creating,
+        resendingId,
+        cancellingId,
+      );
 }
 
 class StockError extends StockState {

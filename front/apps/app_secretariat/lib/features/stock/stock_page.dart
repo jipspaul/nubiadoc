@@ -110,6 +110,10 @@ class _StockPageState extends State<StockPage> {
     context.read<StockBloc>().add(StockResendRequested(requestId));
   }
 
+  void _onCancel(String requestId) {
+    context.read<StockBloc>().add(StockCancelRequested(requestId));
+  }
+
   void _onInventory() {
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => BlocProvider(
@@ -229,7 +233,7 @@ class _StockPageState extends State<StockPage> {
                   onRetry: () =>
                       context.read<StockBloc>().add(const StockLoadRequested()),
                 );
-              case StockLoaded(:final requests, :final resendingId):
+              case StockLoaded(:final requests, :final resendingId, :final cancellingId):
                 if (requests.isEmpty) {
                   return const NubiaEmptyState(
                     icon: Icons.inventory_2_outlined,
@@ -306,8 +310,10 @@ class _StockPageState extends State<StockPage> {
                         child: _StockDetailPanel(
                           request: selected,
                           resending: selected.id == resendingId,
+                          cancelling: selected.id == cancellingId,
                           onClose: () => setState(() => _selectedId = null),
                           onResend: () => _onResend(selected.id),
+                          onCancel: () => _onCancel(selected.id),
                         ),
                       ),
                   ],
@@ -1209,16 +1215,22 @@ class _StockDetailPanel extends StatelessWidget {
   const _StockDetailPanel({
     required this.request,
     required this.resending,
+    required this.cancelling,
     required this.onClose,
     required this.onResend,
+    required this.onCancel,
   });
 
   final StockRequest request;
 
   /// Relance de cette demande en cours (bouton en loading) — #5183.
   final bool resending;
+
+  /// Annulation de cette demande en cours (bouton en loading) — #7818.
+  final bool cancelling;
   final VoidCallback onClose;
   final VoidCallback onResend;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -1356,6 +1368,15 @@ class _StockDetailPanel extends StatelessWidget {
                 icon: Icons.notifications,
                 isLoading: resending,
                 onPressed: resending ? null : onResend,
+              ),
+              const SizedBox(height: 8),
+              NubiaButton(
+                key: Key('stock_detail_cancel_${request.id}'),
+                label: 'Annuler la demande',
+                icon: Icons.block,
+                variant: NubiaButtonVariant.secondary,
+                isLoading: cancelling,
+                onPressed: cancelling ? null : onCancel,
               ),
             ],
             const SizedBox(height: 16),

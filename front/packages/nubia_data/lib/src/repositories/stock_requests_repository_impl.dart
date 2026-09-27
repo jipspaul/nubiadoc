@@ -52,4 +52,10 @@ class StockRequestsRepositoryImpl implements StockRequestsRepository {
         () async => (await _api.resend(id)).toDomain(),
         errorMessage: 'Impossible de relancer la pharmacie.',
       );
+
+  @override
+  Future<Either<Failure, StockRequest>> cancel(String id) => guardPharmacyCall(
+        () async => (await _api.cancel(id)).toDomain(),
+        errorMessage: 'Impossible d’annuler la demande.',
+      );
 }
