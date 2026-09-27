@@ -49,3 +49,10 @@ final class MessagingSendRequested extends MessagingEvent {
 final class MessagingBackRequested extends MessagingEvent {
   const MessagingBackRequested();
 }
+
+/// Consommation de l'erreur d'envoi transitoire une fois affichée (SnackBar),
+/// pour ne pas la rejouer si l'état est reconstruit (#7782, même règle que
+/// #7140).
+final class MessagingSendErrorDismissed extends MessagingEvent {
+  const MessagingSendErrorDismissed();
+}
