@@ -82,13 +82,17 @@ class ToothVisual {
 /// des deux quadrants côte à côte (droit puis gauche), séparées par une
 /// ligne médiane.
 ///
-/// Les deux arcades ont la même largeur totale : le défilement horizontal
-/// (nécessaire quand la colonne qui héberge la grille est plus étroite que
-/// les 16 dents d'une arcade, ex. colonne centrale de la consultation PC
-/// #4949) est porté une seule fois par la grille entière plutôt que par
-/// arcade, afin que les deux arcades restent alignées anatomiquement
-/// (16 au-dessus de 46, 26 au-dessus de 36) — #6642.
-class ToothGrid extends StatefulWidget {
+/// Les deux arcades ont la même largeur disponible (mesurée une seule fois
+/// par la grille entière, jamais par arcade, afin qu'elles restent alignées
+/// anatomiquement — 16 au-dessus de 46, 26 au-dessus de 36). Quand cette
+/// largeur ne suffit pas aux 16 (ou 10, denture lait) dents à leur taille
+/// nominale, chaque dent rétrécit à parts égales pour tenir dans la carte —
+/// même logique que le `flex-shrink` implicite de `.tth` dans la maquette
+/// design-v2. Un défilement horizontal (#6642) laissait les dents qui ne
+/// tenaient pas hors du cadre de la carte, dans l'arbre Semantics à des
+/// coordonnées qui tombaient sur le panneau voisin : le clic y sélectionnait
+/// un autre champ plutôt que la dent (#6978).
+class ToothGrid extends StatelessWidget {
   const ToothGrid({
     super.key,
     required this.quadrants,
@@ -104,73 +108,46 @@ class ToothGrid extends StatefulWidget {
   final void Function(String toothCode) onTap;
   final String keyPrefix;
 
-  /// Taille d'une case dent (largeur × hauteur). Par défaut 38×44 (#4961,
-  /// plancher tactile 44 px) ; la consultation PC (#4940) passe 44×50.
+  /// Taille nominale d'une case dent (largeur × hauteur). Par défaut 38×44
+  /// (#4961, plancher tactile 44 px) ; la consultation PC (#4940) passe
+  /// 44×50. Une carte trop étroite ne rétrécit que la largeur (#6978) : la
+  /// hauteur, seule garante du plancher tactile, reste fixe.
   final Size toothSize;
 
   /// Dent sélectionnée : contour foncé épais (consultation PC #4949).
   final bool Function(String toothCode)? isSelected;
 
   @override
-  State<ToothGrid> createState() => _ToothGridState();
-}
-
-class _ToothGridState extends State<ToothGrid> {
-  final _scrollController = ScrollController();
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final column = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _ArcadeRow(
-          rightCodes: widget.quadrants.upperRight,
-          leftCodes: widget.quadrants.upperLeft,
-          stateFor: widget.stateFor,
-          onTap: widget.onTap,
-          keyPrefix: widget.keyPrefix,
-          toothSize: widget.toothSize,
-          isSelected: widget.isSelected,
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 16),
-          child: Divider(height: 1, thickness: 1, color: NubiaColors.n200),
-        ),
-        _ArcadeRow(
-          rightCodes: widget.quadrants.lowerRight,
-          leftCodes: widget.quadrants.lowerLeft,
-          stateFor: widget.stateFor,
-          onTap: widget.onTap,
-          keyPrefix: widget.keyPrefix,
-          toothSize: widget.toothSize,
-          isSelected: widget.isSelected,
-        ),
-      ],
-    );
-
-    // Une arcade complète (16 dents adulte) peut dépasser la largeur d'une
-    // colonne étroite : défilement horizontal plutôt que débordement,
-    // centré quand tout tient déjà dans la largeur disponible. Un
-    // `Scrollbar` visible signale qu'il reste des dents hors cadre (#6642 —
-    // sans lui rien n'indiquait qu'il fallait défiler).
     return LayoutBuilder(
-      builder: (context, constraints) => Scrollbar(
-        controller: _scrollController,
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: Center(child: column),
+      builder: (context, constraints) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ArcadeRow(
+            rightCodes: quadrants.upperRight,
+            leftCodes: quadrants.upperLeft,
+            stateFor: stateFor,
+            onTap: onTap,
+            keyPrefix: keyPrefix,
+            toothSize: toothSize,
+            isSelected: isSelected,
+            maxWidth: constraints.maxWidth,
           ),
-        ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, thickness: 1, color: NubiaColors.n200),
+          ),
+          _ArcadeRow(
+            rightCodes: quadrants.lowerRight,
+            leftCodes: quadrants.lowerLeft,
+            stateFor: stateFor,
+            onTap: onTap,
+            keyPrefix: keyPrefix,
+            toothSize: toothSize,
+            isSelected: isSelected,
+            maxWidth: constraints.maxWidth,
+          ),
+        ],
       ),
     );
   }
@@ -187,6 +164,7 @@ class _ArcadeRow extends StatelessWidget {
     required this.keyPrefix,
     required this.toothSize,
     required this.isSelected,
+    required this.maxWidth,
   });
 
   final List<String> rightCodes;
@@ -197,8 +175,35 @@ class _ArcadeRow extends StatelessWidget {
   final Size toothSize;
   final bool Function(String toothCode)? isSelected;
 
+  /// Largeur disponible pour l'arcade entière (les deux quadrants), mesurée
+  /// par `ToothGrid` (#6978).
+  final double maxWidth;
+
+  static const _quadrantGap = 16.0;
+
+  /// Padding autour de chaque case (`ToothRow`, `EdgeInsets.all(2)`).
+  static const _toothPadding = 4.0;
+
+  /// Plancher bas, seulement pour éviter une case de largeur nulle
+  /// (invisible, donc à nouveau incliquable) sur une fenêtre pathologique —
+  /// jamais atteint aux largeurs réellement supportées par l'app (desktop /
+  /// tablette, cf. `dental_status_box_test.dart`), qui laissent toujours au
+  /// moins ~19px par dent même au point le plus étroit (seuils 2/3 colonnes
+  /// de `consultation_layout_breakpoints.dart`).
+  static const _minToothWidth = 8.0;
+
   @override
   Widget build(BuildContext context) {
+    final toothCount = rightCodes.length + leftCodes.length;
+    final available =
+        (maxWidth - _quadrantGap - toothCount * _toothPadding) / toothCount;
+    // `.tth` de la maquette rétrécit (flex-shrink) quand la carte est trop
+    // étroite pour les 16 dents à leur taille nominale, mais ne grandit
+    // jamais au-delà — jamais de défilement horizontal qui laissait des
+    // dents hors du cadre de la carte, cliquables nulle part (#6978).
+    final effectiveWidth = available.clamp(_minToothWidth, toothSize.width);
+    final effectiveSize = Size(effectiveWidth, toothSize.height);
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
@@ -208,16 +213,16 @@ class _ArcadeRow extends StatelessWidget {
           stateFor: stateFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
-          toothSize: toothSize,
+          toothSize: effectiveSize,
           isSelected: isSelected,
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: _quadrantGap),
         ToothRow(
           codes: leftCodes,
           stateFor: stateFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
-          toothSize: toothSize,
+          toothSize: effectiveSize,
           isSelected: isSelected,
         ),
       ],
