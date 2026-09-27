@@ -189,6 +189,24 @@ class _DevisPageState extends State<DevisPage> {
                   ),
                 ),
               );
+          } else if (state is DevisPdfDownloadReady) {
+            // #6952 : ouvre le PDF dans un nouvel onglet (même helper que
+            // l'app patient, `FinancialDownloadRequested`) — pas de rechargement
+            // de liste nécessaire, contrairement à `DevisSent`.
+            openDocumentUrl(state.url);
+          } else if (state is DevisPdfDownloadFailure) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  key: const Key('devis_list_pdf_error_snackbar'),
+                  content: Text(
+                    state.message.isEmpty
+                        ? 'Téléchargement impossible.'
+                        : state.message,
+                  ),
+                ),
+              );
           }
         },
         builder: (context, state) {
@@ -203,7 +221,10 @@ class _DevisPageState extends State<DevisPage> {
               state is DevisSendFailure ||
               state is DevisRemindInProgress ||
               state is DevisReminded ||
-              state is DevisRemindFailure;
+              state is DevisRemindFailure ||
+              state is DevisPdfDownloadInProgress ||
+              state is DevisPdfDownloadReady ||
+              state is DevisPdfDownloadFailure;
           final quotes = state is DevisLoaded
               ? state.quotes
               : (isSendTransition ? _lastQuotes : null);
@@ -224,6 +245,8 @@ class _DevisPageState extends State<DevisPage> {
                 state is DevisSendInProgress ? state.quote.id : null;
             final remindingId =
                 state is DevisRemindInProgress ? state.quote.id : null;
+            final downloadingId =
+                state is DevisPdfDownloadInProgress ? state.quote.id : null;
             final filteredQuotes = _filterQuotes(sortedQuotes);
             final listView = Column(
               children: [
@@ -270,6 +293,7 @@ class _DevisPageState extends State<DevisPage> {
                     selectedQuoteId: _selectedQuoteId,
                     sendingQuoteId: sendingId,
                     remindingQuoteId: remindingId,
+                    downloadingQuoteId: downloadingId,
                   ),
                 ),
               ],

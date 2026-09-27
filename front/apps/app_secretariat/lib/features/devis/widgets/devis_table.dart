@@ -110,6 +110,7 @@ class DevisTable extends StatelessWidget {
     this.selectedQuoteId,
     this.sendingQuoteId,
     this.remindingQuoteId,
+    this.downloadingQuoteId,
   });
 
   final List<CabinetQuote> quotes;
@@ -120,6 +121,10 @@ class DevisTable extends StatelessWidget {
   /// Devis en cours de relance (#6970) — même rôle que [sendingQuoteId] pour
   /// `DevisSendInProgress`, côté `DevisRemindInProgress`.
   final String? remindingQuoteId;
+
+  /// Devis dont le PDF est en cours de récupération (#6952) — même rôle que
+  /// [sendingQuoteId], côté `DevisPdfDownloadInProgress`.
+  final String? downloadingQuoteId;
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +156,8 @@ class DevisTable extends StatelessWidget {
                             onTap: () => onQuoteTap(quotes[i].id),
                             active: selectedQuoteId == quotes[i].id,
                             actionLoading: sendingQuoteId == quotes[i].id ||
-                                remindingQuoteId == quotes[i].id,
+                                remindingQuoteId == quotes[i].id ||
+                                downloadingQuoteId == quotes[i].id,
                           ),
                         ),
                 ),
@@ -214,6 +220,7 @@ class _RowAction {
     this.icon, {
     this.sendsQuote = false,
     this.remindsQuote = false,
+    this.downloadsPdf = false,
   });
 
   final String label;
@@ -225,6 +232,12 @@ class _RowAction {
   /// devis déjà `sent` (garde d'idempotence côté back), « Relancer » doit
   /// appeler l'endpoint dédié `POST .../remind` à la place.
   final bool remindsQuote;
+
+  /// #6952 : distinct de [sendsQuote]/[remindsQuote] — sans cette branche,
+  /// « PDF » retombait sur le tap de ligne (ouverture du volet de détail, pas
+  /// de PDF produit) comme « Voir », alors que son libellé promet un
+  /// document.
+  final bool downloadsPdf;
 }
 
 _RowAction _rowActionFor(CabinetQuoteStatus status) {
@@ -237,7 +250,7 @@ _RowAction _rowActionFor(CabinetQuoteStatus status) {
       return const _RowAction('Réémettre', Icons.refresh, sendsQuote: true);
     case CabinetQuoteStatus.signed:
     case CabinetQuoteStatus.paid:
-      return const _RowAction('PDF', Icons.download);
+      return const _RowAction('PDF', Icons.download, downloadsPdf: true);
     case CabinetQuoteStatus.cancelled:
       return const _RowAction('Voir', Icons.visibility);
   }
@@ -542,7 +555,11 @@ class DevisTableRow extends StatelessWidget {
                                 ? () => context
                                     .read<DevisBloc>()
                                     .add(DevisRemindRequested(quote.id))
-                                : onTap,
+                                : action.downloadsPdf
+                                    ? () => context
+                                        .read<DevisBloc>()
+                                        .add(DevisDownloadPdfRequested(quote.id))
+                                    : onTap,
                   ),
                 ),
               ),

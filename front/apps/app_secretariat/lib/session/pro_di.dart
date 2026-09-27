@@ -92,6 +92,7 @@ void registerPro(GetIt gi) {
         getQuote: gi<GetCabinetQuoteUseCase>(),
         sendQuote: gi<SendCabinetQuoteUseCase>(),
         remindQuote: gi<RemindCabinetQuoteUseCase>(),
+        getDownloadUrl: gi<GetPatientDocumentDownloadUrlUseCase>(),
       ),
     )
     ..registerFactory<InvoiceReminderCubit>(

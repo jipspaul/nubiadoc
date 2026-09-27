@@ -957,6 +957,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => GetCorrespondentStatsUseCase(gi()))
     ..registerFactory(() => ListPatientDocumentsUseCase(gi()))
     ..registerFactory(() => UploadPatientDocumentUseCase(gi()))
+    ..registerFactory(() => GetPatientDocumentDownloadUrlUseCase(gi()))
     ..registerFactory(() => ListOrthodonticTreatmentsUseCase(gi()))
     ..registerFactory(() => AddOrthodonticStepUseCase(gi()))
     ..registerFactory(() => ListSterilizationCyclesUseCase(gi()))

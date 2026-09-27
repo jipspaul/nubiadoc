@@ -382,6 +382,11 @@ pub struct CabinetQuoteItem {
     /// cf. `VALID_QUOTE_STATUSES`). Le front dérive un statut `paid` distinct
     /// de `signed` à partir de ce booléen (doc12 §10, issue #5094).
     pub deposit_paid: bool,
+    /// `quote.document_id` (#6952) : PDF du devis signé dans le coffre-fort
+    /// (posé par `sign_quote`, migration 0264/#7046) — `null` avant signature.
+    /// Condition du bouton « PDF » côté secrétariat, même contrat que
+    /// `billing::QuoteDetail.document_id` côté patient.
+    pub document_id: Option<Uuid>,
 }
 
 /// Valeurs valides de `quote.status` (CHECK, migration 0006). `cancelled`
@@ -453,7 +458,7 @@ pub async fn list_cabinet_quotes(
                     CASE WHEN q.status = 'sent' AND q.sent_at IS NOT NULL \
                          THEN q.sent_at + interval '{QUOTE_VALIDITY_DAYS} days' \
                          ELSE NULL END AS expires_at, \
-                    q.deposit_paid \
+                    q.deposit_paid, q.document_id \
              FROM quote q \
              LEFT JOIN patient p ON p.id = q.patient_id \
              WHERE q.cabinet_id = $1"
@@ -559,6 +564,8 @@ pub async fn list_cabinet_quotes(
             let deposit_paid: bool = row
                 .try_get("deposit_paid")
                 .map_err(|_| AppError::Internal)?;
+            let document_id: Option<Uuid> =
+                row.try_get("document_id").map_err(|_| AppError::Internal)?;
             Ok(CabinetQuoteItem {
                 id,
                 quote_ref,
@@ -571,6 +578,7 @@ pub async fn list_cabinet_quotes(
                 signed_at: signed_at.map(|d| d.to_rfc3339()),
                 expires_at: expires_at.map(|d| d.to_rfc3339()),
                 deposit_paid,
+                document_id,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
@@ -643,6 +651,8 @@ pub struct CabinetQuoteDetail {
     /// positif, sans activité de paiement récente. Pilote l'affichage du
     /// bouton « Relancer le patient » (#7205).
     pub is_overdue: bool,
+    /// Voir `CabinetQuoteItem.document_id` (#6952).
+    pub document_id: Option<Uuid>,
 }
 
 /// `GET /v1/cabinet/quotes/:id` — détail d'un devis du cabinet courant.
@@ -680,7 +690,7 @@ pub async fn get_cabinet_quote(
                 trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
                 q.status, (q.total_amount * 100)::bigint AS amount_cents, \
                 q.signed_at, q.created_at, q.deposit_pct::double precision AS deposit_pct, \
-                q.deposit_paid, \
+                q.deposit_paid, q.document_id, \
                 CASE WHEN q.status = 'sent' AND q.sent_at IS NOT NULL \
                      THEN q.sent_at + interval '{QUOTE_VALIDITY_DAYS} days' \
                      ELSE NULL END AS expires_at, \
@@ -760,6 +770,9 @@ pub async fn get_cabinet_quote(
     let is_overdue: bool = quote_row
         .try_get("is_overdue")
         .map_err(|_| AppError::Internal)?;
+    let document_id: Option<Uuid> = quote_row
+        .try_get("document_id")
+        .map_err(|_| AppError::Internal)?;
 
     let mut items = Vec::with_capacity(item_rows.len());
     let mut patient_share_total: i64 = 0;
@@ -820,6 +833,7 @@ pub async fn get_cabinet_quote(
         deposit_amount_cents,
         deposit_paid,
         is_overdue,
+        document_id,
     }))
 }
 

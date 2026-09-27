@@ -60,4 +60,25 @@ class PatientDocumentsRepositoryImpl implements PatientDocumentsRepository {
       return const Left(ParseFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, String>> getDownloadUrl(
+    String patientId,
+    String documentId,
+  ) async {
+    try {
+      final url = await _api.getDownloadUrl(patientId, documentId);
+      return Right(url);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de récupérer le document.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
 }

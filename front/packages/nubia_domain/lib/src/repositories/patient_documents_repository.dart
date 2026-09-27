@@ -17,4 +17,11 @@ abstract class PatientDocumentsRepository {
     required String mimeType,
     required String category,
   });
+
+  /// GET /v1/cabinet/patients/:id/documents/:doc_id/download (#6952).
+  /// Renvoie une URL signée (TTL court) vers le contenu du document.
+  Future<Either<Failure, String>> getDownloadUrl(
+    String patientId,
+    String documentId,
+  );
 }

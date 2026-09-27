@@ -29,6 +29,11 @@ class CabinetQuote extends Equatable {
   /// Pilote l'affichage du bouton « Relancer le patient ».
   final bool isOverdue;
 
+  /// PDF du devis signé dans le coffre-fort (`quote.document_id`, #6952) —
+  /// posé par le back à la signature, `null` avant. Condition du bouton
+  /// « PDF » côté secrétariat.
+  final String? documentId;
+
   const CabinetQuote({
     required this.id,
     required this.quoteRef,
@@ -43,6 +48,7 @@ class CabinetQuote extends Equatable {
     this.expiresAt,
     this.items,
     this.isOverdue = false,
+    this.documentId,
   });
 
   bool get isSigned => status == CabinetQuoteStatus.signed;
