@@ -4,10 +4,8 @@
 
 use std::sync::Arc;
 
-use axum::body::Body;
 use axum::extract::{Extension, Path, Query, State};
-use axum::http::{header, StatusCode};
-use axum::response::Response;
+use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -169,14 +167,24 @@ pub struct ExportImplantPassportQuery {
     pub implant_id: Option<Uuid>,
 }
 
+/// Réponse de `GET /v1/implant-passport/export`.
+#[derive(Serialize)]
+pub struct ExportImplantPassportResponse {
+    pub download_url: String,
+}
+
 /// `GET /v1/implant-passport/export` — export PDF du passeport implantaire.
 ///
 /// Token `kind:"patient"` requis. Génère le PDF puis l'uploade dans l'Object
 /// Storage (#6461 — remplace le stub qui ne faisait que signer une clé jamais
-/// écrite, cf. #4626) avant de retourner `302 Found` avec `Location` vers
-/// l'URL signée. Échec du signer → `502 upstream_unavailable`. Aucun implant
-/// présent → ne bloque pas l'export (le PDF généré liste alors qu'aucun
-/// implant n'est enregistré).
+/// écrite, cf. #4626) avant de retourner l'URL signée en JSON. Pas de 302 :
+/// sur le web, la redirection est suivie de façon transparente par le
+/// navigateur et `Location` d'une réponse intermédiaire n'est pas lisible
+/// depuis Dio, ce qui rendait l'export indétectable côté client (#6960,
+/// même correctif que `download_document`, cf. `documents.rs`). Échec du
+/// signer → `502 upstream_unavailable`. Aucun implant présent → ne bloque
+/// pas l'export (le PDF généré liste alors qu'aucun implant n'est
+/// enregistré).
 /// `?implant_id=` (#5334) scope l'export à un implant : l'implant doit
 /// appartenir au compte authentifié (RLS `implant_passport_patient_read`,
 /// migration 0077/0219) sinon `404`.
@@ -186,7 +194,7 @@ pub async fn export_implant_passport(
     Extension(signer): Extension<Arc<dyn StorageSigner>>,
     Extension(object_storage): Extension<Arc<dyn ObjectStorage>>,
     Query(query): Query<ExportImplantPassportQuery>,
-) -> Result<Response, AppError> {
+) -> Result<Json<ExportImplantPassportResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope patient — RLS implant_passport_patient_read (migration 0077/0219).
@@ -284,15 +292,12 @@ pub async fn export_implant_passport(
     tracing::info!(
         account_id = %claims.account_id,
         implant_id = ?query.implant_id,
-        "implant passport export redirected"
+        "implant passport export url generated"
     );
 
-    Response::builder()
-        .status(StatusCode::FOUND)
-        .header(header::LOCATION, &signed_url)
-        .header(header::CACHE_CONTROL, "no-store")
-        .body(Body::empty())
-        .map_err(|_| AppError::Internal)
+    Ok(Json(ExportImplantPassportResponse {
+        download_url: signed_url,
+    }))
 }
 
 /// Convertit une date ISO (`YYYY-MM-DD`, format de `ImplantItem::placement_date`,
