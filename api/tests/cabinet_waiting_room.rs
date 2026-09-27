@@ -420,6 +420,130 @@ async fn waiting_room_secretary_sees_initials() {
     cleanup(&db, f.cabinet_id, f.prac_user_id).await;
 }
 
+// ── Test 2bis : praticien voit aussi les patients de ses confrères ──────────
+
+/// Insère un second praticien (+ fiche `provider`) dans le même cabinet — pour
+/// vérifier que la file d'attente d'un praticien couvre tout le cabinet, pas
+/// seulement ses propres RDV.
+async fn insert_second_practitioner(db: &PgPool, cabinet_id: Uuid) -> (Uuid, Uuid) {
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("wr-prac2+{}@nubia.test", prac_user_id))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed) \
+         VALUES ($1, $2, $3, $4, $5, 'dentaire', false)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(prac_id)
+    .bind(prac_user_id)
+    .bind(format!("Dr WR confrere {}", prac_id))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    (prac_id, prac_user_id)
+}
+
+// Régression #6959/#7097 : la branche `practitioner` de `get_waiting_room`
+// filtrait sur `practitioner_id = claims.sub`, rendant invisible tout patient
+// checked-in attribué à un confrère du même cabinet — l'écran affichait
+// « 0 patient(s) en attente » alors que le cabinet en comptait un. Le
+// praticien doit voir toute la file du cabinet, avec l'attribution
+// (`practitioner_id`/`practitioner_name`) pour distinguer « pour vous » de
+// « pour un confrère » côté front (#5039).
+#[tokio::test]
+async fn waiting_room_practitioner_sees_colleague_patient() {
+    if !db_available() {
+        return;
+    }
+
+    let db = owner_pool().await;
+    let app_db = app_pool().await;
+
+    let f = insert_cabinet(&db).await;
+    let (colleague_prac_id, colleague_user_id) =
+        insert_second_practitioner(&db, f.cabinet_id).await;
+    insert_named_patient_appt(&db, f.cabinet_id, colleague_prac_id, "Marc", "Dubois").await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Jeton du PREMIER praticien : aucun RDV ne lui est attribué, mais son
+    // confrère a un patient checked-in dans le même cabinet.
+    let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/waiting-room")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(
+        data.len(),
+        1,
+        "le patient du confrère doit être visible, pas filtré (#6959)"
+    );
+    assert_eq!(
+        data[0]["practitioner_id"].as_str().unwrap(),
+        colleague_prac_id.to_string(),
+        "practitioner_id doit identifier le confrère, pas le praticien connecté"
+    );
+    assert_eq!(
+        data[0]["practitioner_name"].as_str().unwrap(),
+        format!("Dr WR confrere {}", colleague_prac_id),
+    );
+
+    cleanup(&db, f.cabinet_id, f.prac_user_id).await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(colleague_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 3 : 401 sans token ───────────────────────────────────────────────────
 
 #[tokio::test]
