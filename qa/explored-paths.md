@@ -4217,3 +4217,24 @@ Sur une séance `in_progress`, aux viewports **1024 / 1280 / 1440** : **32 dents
 **X8 / X9 complétés** (les 2 lignes cross-app qui manquaient) :
 - **X8** cloisonnement au grain conversation : officine sur une conversation **cabinet** → **404** ; cabinet sur une conversation **pharmacie** → **404** ; cabinet sur **sa** conversation → **200** avec les messages.
 - **X9** devis officine : création **201** (`draft`, **invisible du patient**) ; `send` → le patient le voit en `sent` ; **`refuse` → 200** ; `accept` après refus → **409 `invalid_status`** ; l'officine relit `status: "refused"` dans sa liste ; praticien → **404**. Bornes : `qty` négative → 422, `label` vide → 422. *`GET /v1/pharmacy/quotes/:id` n'existe pas (seulement la liste, `:id/send`, `:id/remind`) — un 404 sur cette forme n'est pas un défaut.*
+
+#### Addendum R103 (2) — état des 9 findings à la clôture
+
+**Cinq des neuf ont été corrigés ET déployés avant la fin de la ronde**, chacun re-vérifié contre l'environnement live :
+
+| finding | état à la clôture | preuve de la contre-épreuve |
+|---|---|---|
+| #7773 bornes géo | **corrigé à moitié** (#7774) | `providers`/`slots` → 422 sur `lat=999`, `lng=500`, `radius_km=-5`, `NaN` ; **`/pharmacies` et `/search/nurses` toujours 200 + `[]`** |
+| #7776 liste → détail | **corrigé** (#7777) | les 4 détails ont un « Retour », stable à 3/6/10 s ; `/home-care/:id` et `/implant-passport/:id` reviennent à leur liste |
+| #7779 prochaine séance | **corrigé** (#7780) | `next_appointment_at: 2026-09-29T09:00:00+00:00` sur le plan témoin |
+| #7781 accords de pluriel | **corrigé** (#7783) | « 0 patient en attente », « 0 personne présente », « 0 paiement », et « Messages · 4 conversations · **0 non lue** » côté officine |
+| #7784 case CGU | **corrigé** (#7785) | `[role=checkbox]` → `aria-label="J'accepte les Conditions Générales d'Utilisation"` |
+| #7775 culs-de-sac du Profil | **ouvert** | `backOrHomeLeading` = 0 sur les 4 fichiers ; 0 bouton de retour / 0 onglet en live, session neuve, attente longue |
+| #7782 envoi silencieux | **ouvert** (correctif `acb0566e` non mergé) | re-testé à la clôture : toujours **0 message d'erreur** après échec d'envoi |
+| #7778 dimanche de l'agenda | **ouvert** | grille toujours à 6 colonnes `LUN 21 → SAM 26`, en-tête « Semaine du 21 au 27 · 99 RDV » |
+| #7786 « Alerte accueil » saturée | **ouvert** | `has_active_alerts` vrai sur 50/50 patients |
+
+**Derniers cas adversariaux joués à la clôture — tous propres :**
+- **BACK au milieu du tunnel de réservation** : `/book` (28 ctrl) → praticien → créneau → `/appointments/slots?providerId=…&slotId=…` (42 ctrl) → **BACK** → `/book` (27 ctrl) → **BACK** → `/` (22 ctrl, accueil complet : « Bonjour Marc Dubois », carte héros, tuiles « À faire »). Aucune corruption d'état, 0 erreur console, 0 requête ≥ 400. *La sous-route `/appointments/slots` porte bien sa propre entrée d'historique (#6718).*
+- **Double-submit sur une action métier back-office** : triple clic sur « Préparer » (file officine) → **1 seul `POST /v1/pharmacy/*`**, 0 erreur.
+- *Faux positif écarté : un premier relevé donnait « `/` → 0 contrôle » après le 2ᵉ BACK. C'était l'arbre Semantics non ré-activé après la navigation d'historique — **toujours rappeler `enableSemantics()` après un `goBack()/goForward()`** avant d'inventorier.*
