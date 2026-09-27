@@ -168,6 +168,47 @@ void main() {
   );
 
   testWidgets(
+    '#6950 : « Demander à Nubia » précède toujours les destinations, et les '
+    '3 puces de suggestion accompagnent la palette vide puis disparaissent '
+    'dès la saisie',
+    (tester) async {
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(
+        find.byKey(const Key('open_global_search_with_destinations')),
+      );
+      await tester.pumpAndSettle();
+
+      final askTop =
+          tester.getTopLeft(find.text('Demander à Nubia')).dy;
+      final firstDestinationTop =
+          tester.getTopLeft(find.text('Tableau de bord')).dy;
+      expect(askTop, lessThan(firstDestinationTop));
+
+      for (final suggestion in [
+        'Résume ma journée',
+        'Quels devis relancer ?',
+        'Combien encaissé aujourd’hui ?',
+      ]) {
+        expect(find.text(suggestion), findsOneWidget);
+      }
+
+      when(() => listPatients(q: 'Marc')).thenAnswer((_) async => Right([]));
+      when(() => listQuotes()).thenAnswer((_) async => Right([]));
+      await tester.enterText(find.byType(TextField), 'Marc');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      for (final suggestion in [
+        'Résume ma journée',
+        'Quels devis relancer ?',
+        'Combien encaissé aujourd’hui ?',
+      ]) {
+        expect(find.text(suggestion), findsNothing);
+      }
+    },
+  );
+
+  testWidgets(
     '#5580 : un terme qui matche un patient ET un devis affiche les deux, '
     'étiquetés par type',
     (tester) async {
