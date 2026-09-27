@@ -4310,3 +4310,21 @@ réservable avant de conclure.*
 rotation avec **détection de réutilisation** (OAuth 2.0 Security BCP) — un jeton rejoué signale un vol,
 et toute la famille tombe. Vérifié en isolant les deux séquences : sans tentative de rejeu, la chaîne
 s'enchaîne indéfiniment.*
+
+#### Addendum R103 (7) — B3 : dépôt au coffre-fort patient (écriture réelle, jamais faite cette ronde)
+
+| cas | verdict |
+|---|---|
+| `POST /v1/documents` multipart, **PDF valide** + `category=carte_mutuelle` | **201** `{document_id, category, filename, size_bytes: 69, sha256: cfa3181c…}` |
+| **MIME menti** : fichier texte déclaré `application/pdf` | **422** — la vérification du **nombre magique** (#7302) tient |
+| `category` absente / invalide (`zzz_inconnue`) | **422** / **422** |
+| requête **sans fichier** | **422** |
+| `GET /v1/documents/:id` (propriétaire) | **200** avec `mime_type`, `size_bytes`, `sha256` |
+| `GET /v1/documents/:id/download` | **200**, URL signée servie |
+| **cloisonnement** : praticien / pharmacie / infirmière sur ce document | **403 / 403 / 403** |
+
+*Effet de bord instructif pour #7786 : après dépôt d'une vraie `carte_mutuelle`, `has_active_alerts`
+reste `true` sur **50/50** patients — la sous-requête de `clinical.rs:236-240` filtre sur
+`document.cabinet_id`, alors que `POST /v1/documents` alimente le coffre-fort **patient**. Consigné
+en commentaire de l'issue, avec la précision que la ligne de Marc Dubois elle-même n'a pas pu être
+isolée (hors des 200 premiers résultats).*
