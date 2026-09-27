@@ -4273,3 +4273,22 @@ ronde. Passe de contrôle finale sur les **31 écrans principaux des 5 apps**, c
 **31/31 écrans sains. Aucun écran blanc, aucun canvas vide, et 0 requête ≥ 400 significative**
 (hors les 3 sondes déjà qualifiées : `favicon.png`, `cabinet/audit-log`, `quotes/:id/attestation`).
 Les 5 correctifs livrés pendant la ronde n'ont introduit aucune régression visible.
+
+#### Addendum R103 (5) — B12 reprogrammation patient, rejouée de bout en bout
+
+RDV témoin `333cec5d-…` (Dr Hugo Marin, 29/09 08:00, `requested`), jeton patient :
+
+| cas | verdict |
+|---|---|
+| `PATCH {starts_at}` vers une heure **sans créneau ouvert** (+2 h) | **409 `slot_unavailable`** — et **aucune écriture partielle** : la relecture rend toujours `08:00` |
+| `starts_at` non parsable | **422** |
+| date **passée** (2020-01-01) | **409 `slot_unavailable`** |
+| **an 9999** | **409 `slot_unavailable`** |
+| `PATCH {starts_at}` vers un créneau **réellement libre** (15:00, lu dans `/search/slots`) | **200** — le RDV passe à `2026-09-29T15:00:00+00:00`, `ends_at` recalculé à `15:30`, **relecture conforme** |
+| l'ancien créneau 08:00 redevient proposé à l'annuaire | **oui** (`/search/slots?date=2026-09-29` le ressert) |
+| `PATCH {motif}` seul | **200**, motif relu = « QA-R103 reprogrammation », horaire inchangé |
+| RDV inexistant | **422** sur un UUID nul (désérialisation), **404** sur un UUID valide inconnu |
+
+*Le piège de ce bloc : viser une heure arbitraire rend `409 slot_unavailable` — ce n'est pas un défaut
+mais l'absence de créneau ouvert. Il faut lire `/search/slots` pour choisir une cible réellement
+réservable avant de conclure.*
