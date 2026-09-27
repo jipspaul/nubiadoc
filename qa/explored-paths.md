@@ -4328,3 +4328,27 @@ reste `true` sur **50/50** patients — la sous-requête de `clinical.rs:236-240
 `document.cabinet_id`, alors que `POST /v1/documents` alimente le coffre-fort **patient**. Consigné
 en commentaire de l'issue, avec la précision que la ligne de Marc Dubois elle-même n'a pas pu être
 isolée (hors des 200 premiers résultats).*
+
+#### Addendum R103 (8) — B8 : compteurs et filtres de notifications
+
+| cas | verdict |
+|---|---|
+| `POST /v1/notifications/:id/read` | **200**, compteur de non-lus **20 → 19** |
+| **rejeu** de la même lecture | **200 idempotent**, compteur **inchangé à 19** |
+| notification inexistante | **404** (pas de fuite) |
+| la notification lue sort bien des non-lues | `is_read: true` à la relecture |
+| `?unread_only=true` | **19 servies, toutes non lues**, et `page.unread_count = 19` — **liste et compteur concordent** |
+| `?unread_only=false` | 50 servies dont 31 lues |
+| pagination par curseur (`limit=3`) | 3 servies + `next_cursor` présent |
+| `/v1/reminders` | 141 rappels typés (`type`, `status`) |
+
+`kind` distincts observés (12) : `quote_relance`, `order_status_changed`, `pharmacy_quote_sent`,
+`appointment_cancelled`, `visit_status_changed`, `quote_received`, `review_request`,
+`waiting_room_called`, `appointment_confirmed`, `message_received`, `lab_work_returned`,
+`visit_request_expired` — tous porteurs de sens, aucun fourre-tout.
+
+*Faux positif écarté : `?category=appointment` semblait « ignoré ». `ListNotificationsQuery`
+(`notifications.rs:19-23`) n'expose que `limit`, `cursor` et `unread_only` — il n'existe **aucun**
+filtre serveur par catégorie, les facettes de l'écran patient sont calculées côté client depuis
+`kind`. Le paramètre inconnu est silencieusement jeté, cas déjà consigné au registre (B7) et non
+re-filé.*
