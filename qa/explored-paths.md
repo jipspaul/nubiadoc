@@ -54,7 +54,39 @@ front pour le détail.
 
 **Validations d'entrée re-balayées (toutes correctes, non filées) :** ordonnance — `items: []` → 422, `label` vide → 422, `label` 5 000 car. → 422, 500 items → 422, patient d'un autre cabinet → **404**, jeton patient sur la route praticien → **403**. Tâches — titre 5 000 car. → 422 (mais `due_date` non bornée → **#7799**).
 
-**Findings de la ronde : #7797 (P2), #7799 (P2), #7800 (P2), #7803 (P2).** Aucun P0/P1 : aucune fuite inter-tenant, aucun flux métier bloqué, aucun bouton mort réel sur les 203 contrôles activés.
+**MATRICE CROSS-APP : 12/12 cette ronde** — X1 X2 X3 X4 X5 X6 X7 X8 X9 X10 X11 X12.
+
+| ligne | verdict | preuve condensée |
+|---|---|---|
+| **X4** patient réserve → secrétariat voit → confirme → patient voit « confirmé » | **OK** | `POST /v1/appointments {provider_id: f0…f2, slot_id}` → **201** `requested`. **Piège majeur consigné** : l'agenda cabinet n'a **ni `from` ni `to`** — son contrat est `view=day\|week` + `date=YYYY-MM-DD` + `practitioner_id` (`scheduling.rs:111-118`). Interrogé avec `from`/`to`, Axum **ignore silencieusement** ces clés inconnues et sert *le jour courant* : on croit alors que le RDV a disparu de l'agenda. Avec le bon contrat, `view=day&date=2026-09-28` le rend bien — et le **`provider_id` f0…f2 est correctement résolu en `practitioner_id` c0…c2**, `motif_admin` et `patient_name` renseignés. `view=week&date=2026-09-21` rend **101 entrées / 35 `requested`**, ce qui recoupe le « 99 RDV · 35 à confirmer » de l'UI. `confirm` → **200**, vue patient **`confirmed`**. |
+| **X6** praticien établit un devis → secrétariat le suit → patient signe → les deux le voient signé | **OK** | `POST /v1/cabinet/quotes` (2 lignes) → **201** `DEV-2033`, **total calculé serveur 64 300** (62 000 + 2 300). Le secrétariat le voit au suivi en `draft`. `/send` → `sent`, le patient le lit via `/v1/billing/quotes/:id`. `POST /v1/quotes/:id/sign` → **200**, et **patient ET secrétariat** rendent `signed` avec le **même `signed_at`** (`2026-09-27T14:29:23.176285Z`). RBAC : la secrétaire **ne peut pas créer** de devis → **403** ; ligne à montant négatif → **422**. |
+| **X7** secrétariat demande du stock → officine accepte/honore → secrétariat voit l'état final | **OK** | `POST /v1/cabinet/stock-requests` → **201** ; la demande arrive côté officine avec **ses 2 lignes et leurs notes intactes**. `fulfill` **avant** `accept` → **409 `invalid_status`** ; `accept {note:"Dispo sous 48h"}` puis `fulfill` → **200** ; le secrétariat voit `fulfilled` + `fulfilled_at` + **la note de réponse de l'officine**. *Piège : le corps est `{pharmacy_id, items:[{label, qty, note}]}` — `quantity` ou un `note` au niveau racine rendent 422 (`deny_unknown_fields`).* |
+| **X9** officine envoie un devis → patient décide → l'officine voit la décision | **OK** | *Piège : un devis d'officine s'ancre sur une **commande** (`order_id`), pas sur un compte patient, et la commande doit être `received`/`preparing`/`ready` (`quotes.rs:101-111`).* `POST /v1/pharmacy/quotes` → **201**, **total serveur 12 900** (8 500 + 2×2 200) ; montant négatif → **422** ; **invisible côté patient avant `/send`**, puis `sent` avec le bon total ; `accept` (patient) → l'officine voit **`accepted`** ; `refuse` après `accept` → **409 `invalid_status`**. |
+| **X12** le cabinet annule → le patient est notifié et sa vue reflète l'état | **OK** | `confirm` → notification **`appointment_confirmed`** « Rendez-vous confirmé » ; `cancel` → **200**, vue patient **`cancelled`**, notification **`appointment_cancelled`** « Rendez-vous annulé ». X3 a produit en parallèle ses 3 **`order_status_changed`** (« mise à jour » ×2 puis « retirée »), ce qui confirme la chaîne de notification de bout en bout. |
+
+**Rotation B1/B6/B7/B8/B11 (complément) :**
+- **B7 annuaire — les filtres sont RÉELLEMENT appliqués** : `tiers_payant=true` 12/17, `pmr=true` 13/17, `sector=1` 8/17, `teleconsult=true` 8/17, `specialty=<uuid>` **8 (Omnipratique)** et **5 (Implantologie)** — chiffres **identiques aux facettes** servies par l'API. UUID inconnu → 0 résultat ; UUID malformé → **400**. *Piège consigné : le paramètre s'appelle `specialty` (Uuid), **pas** `specialty_id` (`marketplace.rs:248`) ; passé sous un nom inconnu il est silencieusement ignoré et l'annuaire entier revient — on conclut alors à tort au « filtre ignoré ».*
+- **B8 notifications** : `read` persiste (non-lus 43 → 42), `read-all` → `{"updated":42}` et **0 non-lu** ensuite ; notification d'un autre compte → **404** (anti-énumération).
+- **B6 dépendants** : `relationship` inconnu (`child`) → 422, absent → 422, naissance **future** → 422, « enfant » **majeur** → **422 `adult_requires_consent`**, cas valide → **201**.
+- **B1 paiements** : `GET /v1/payments` sert bien les intentions (dont celles de devis d'officine) ; `POST /v1/payments/intent` avec `amount_cents: 0` → **422**.
+- **B11 onboarding pro / RBAC** : `GET /v1/cabinet/members` → 42 membres **tous scopés au cabinet 11111111** ; jeton patient → **403** ; le secrétariat peut **lire** mais **pas inviter** (`POST /v1/cabinet/members` → **403**) ; secrétariat d'un autre tenant → **404** ; `GET /v1/pro/verification` → `status: "verified"`.
+- **B4 plans de soins** : la liste patient masque bien les `draft` (16 plans : 8 `done`, 8 `in_progress`, **0 `draft`**) ; le détail expose phases, items CCAM et répartition AMO/AMC ; plan inexistant → **404**.
+
+**Matrice de cloisonnement par KIND de jeton (re-prouvée en fin de ronde) :**
+
+| jeton | `/v1/nurse/offers` | `/v1/pharmacy/orders` | `/v1/cabinet/agenda` |
+|---|---|---|---|
+| patient | 403 | 403 | 403 |
+| praticien | 403 | 403 | **200** |
+| secrétariat | 403 | 403 | **200** |
+| pharma | 403 | **200** | 403 |
+| nurse | **200** | 403 | 403 |
+
+Et un jeton **`kind:"pro"` NON scopé** (infirmière avant `select-nurse-context`) est bien refusé sur `/v1/nurse/offers` **et** `/v1/nurse/profile` → **403**. Aucune case ne fuit.
+
+**Findings de la ronde : #7805 (P1), #7797 (P2), #7799 (P2), #7800 (P2), #7803 (P2).** Aucun P0 : aucune fuite inter-tenant, aucun flux métier bloqué, aucun bouton mort réel sur les 203 contrôles activés. **1 doublon écarté** : la liste `/stock` de l'officine rendue en cartes empilées au lieu de la table prescrite est déjà couverte par **#6948 (ouverte)** — même écran, même symptôme, non refilée.
+
+**Le P1 (#7805) vient de la comparaison design-v2 de `/mes-rdv`**, pas d'un test d'API : la maquette prescrit « une action primaire + un menu `⋯` » par carte ; le code implémente les deux mais éteint la première sur **73 des 79** RDV à venir, parce que `isUpcoming` (`appointment.dart:73`) exige `status == confirmed` alors que l'onglet « À venir » liste aussi les `requested` (92 % du volume). C'est la leçon de **#3804 restée à mi-chemin** — le commentaire qui suit immédiatement la ligne fautive la formule déjà pour `canCancel`, élargi à `requested`, quand `isUpcoming` deux lignes plus haut ne l'a pas été.
 
 #### Ronde R100 — 2026-09-25 (18:00–21:00 UTC) — diff-driven sur les 9 merges de l'après-midi (tous correctifs de R99), puis rotation B5/B13 + matrice cross-app
 
