@@ -580,7 +580,9 @@ pub async fn get_cabinet_conversation_messages(
 /// fil patient (#3238). Secrétaire et praticien (`sender_kind` dérivé du rôle).
 ///
 /// `cabinet_id` extrait du JWT (invariant tenancy), RLS `tenant_isolation`.
-/// Conversation hors tenant → 404. Body vide → 422.
+/// Conversation hors tenant → 404. Body vide, contenant un octet NUL, ou
+/// dépassant `MAX_MESSAGE_BODY_CHARS` (même borne que le sens patient→cabinet,
+/// #6968) → 422.
 /// Chiffrement POC : `body_ciphertext` = UTF-8 brut (NUB-T3 pour le réel).
 /// Publie `message_created` sur le canal WS `conversation:<id>`.
 pub async fn send_cabinet_message(
@@ -591,9 +593,12 @@ pub async fn send_cabinet_message(
     Path(conversation_id): Path<Uuid>,
     Json(body): Json<SendCabinetMessageBody>,
 ) -> Result<(StatusCode, Json<SendCabinetMessageResponse>), AppError> {
-    if body.body.trim().is_empty() {
+    if body.body.trim().is_empty()
+        || body.body.chars().count() > crate::messaging::MAX_MESSAGE_BODY_CHARS
+    {
         return Err(AppError::ValidationError);
     }
+    crate::text_validation::reject_nul_byte(&body.body)?;
     let sender_kind = if claims.role == "secretary" {
         "secretary"
     } else {

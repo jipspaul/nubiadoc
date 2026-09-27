@@ -340,6 +340,70 @@ async fn empty_body_returns_422() {
     cleanup_fixture(&owner, cabinet_id, patient_id, conversation_id).await;
 }
 
+// ── Test 3bis : body contenant un octet NUL → 422 (#6968) ────────────────────
+
+#[tokio::test]
+async fn nul_byte_in_body_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let owner = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id, _secretariat_id) = insert_fixture(&owner).await;
+
+    let token = make_pro_token(cabinet_id, "practitioner", None);
+    let (status, _) = post(
+        &token,
+        format!("/v1/cabinet/conversations/{conversation_id}/messages"),
+        Some(&serde_json::json!({ "body": "QA-R72b\0x" }).to_string()),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM message WHERE conversation_id = $1")
+        .bind(conversation_id)
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+    assert_eq!(count, 0, "aucun message ne doit être inséré avec un NUL");
+
+    cleanup_fixture(&owner, cabinet_id, patient_id, conversation_id).await;
+}
+
+// ── Test 3ter : body au-delà de la borne de longueur → 422 (#6968) ───────────
+
+#[tokio::test]
+async fn body_over_max_len_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let owner = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id, _secretariat_id) = insert_fixture(&owner).await;
+
+    let token = make_pro_token(cabinet_id, "practitioner", None);
+    let too_long = "L".repeat(4_001);
+    let (status, _) = post(
+        &token,
+        format!("/v1/cabinet/conversations/{conversation_id}/messages"),
+        Some(&serde_json::json!({ "body": too_long }).to_string()),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM message WHERE conversation_id = $1")
+        .bind(conversation_id)
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucun message ne doit être inséré au-delà de la borne"
+    );
+
+    cleanup_fixture(&owner, cabinet_id, patient_id, conversation_id).await;
+}
+
 // ── Test 4 : read → 204 et read_at posé sur les messages patient ─────────────
 
 #[tokio::test]
