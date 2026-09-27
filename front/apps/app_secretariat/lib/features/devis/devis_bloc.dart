@@ -10,18 +10,22 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
   final ListCabinetQuotesUseCase _list;
   final GetCabinetQuoteUseCase _getById;
   final SendCabinetQuoteUseCase _send;
+  final RemindCabinetQuoteUseCase _remind;
 
   DevisBloc({
     required ListCabinetQuotesUseCase listQuotes,
     required GetCabinetQuoteUseCase getQuote,
     required SendCabinetQuoteUseCase sendQuote,
+    required RemindCabinetQuoteUseCase remindQuote,
   })  : _list = listQuotes,
         _getById = getQuote,
         _send = sendQuote,
+        _remind = remindQuote,
         super(const DevisInitial()) {
     on<DevisLoadRequested>(_onLoad);
     on<DevisDetailLoadRequested>(_onDetailLoad);
     on<DevisSendRequested>(_onSendRequested);
+    on<DevisRemindRequested>(_onRemindRequested);
   }
 
   Future<void> _onLoad(
@@ -90,6 +94,42 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
       );
     } catch (_) {
       safeEmit(DevisSendFailure(quote: quote, message: 'Envoi impossible.'));
+    }
+  }
+
+  /// #6970 : relance un devis déjà `sent` — même résolution du devis ciblé
+  /// que [_onSendRequested] (détail déjà chargé ou retrouvé par id dans la
+  /// liste), mais sans réécrire le statut : la relance ne fait pas
+  /// transiter le devis, elle ne fait que renotifier le patient.
+  Future<void> _onRemindRequested(
+    DevisRemindRequested event,
+    Emitter<DevisState> emit,
+  ) async {
+    final current = state;
+    final CabinetQuote? maybeQuote;
+    if (current is DevisDetailLoaded) {
+      maybeQuote = current.quote;
+    } else if (current is DevisLoaded) {
+      maybeQuote = _findQuote(current.quotes, event.id);
+    } else {
+      maybeQuote = null;
+    }
+    if (maybeQuote == null) return;
+    final quote = maybeQuote;
+
+    emit(DevisRemindInProgress(quote));
+    try {
+      final result = await _remind(quote.id);
+      result.fold(
+        (failure) => safeEmit(
+          DevisRemindFailure(quote: quote, message: failure.message),
+        ),
+        (_) => safeEmit(DevisReminded(quote)),
+      );
+    } catch (_) {
+      safeEmit(
+        DevisRemindFailure(quote: quote, message: 'Relance impossible.'),
+      );
     }
   }
 

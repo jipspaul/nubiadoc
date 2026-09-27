@@ -122,3 +122,48 @@ class DevisSendFailure extends DevisState {
   @override
   int get hashCode => Object.hash(quote, message);
 }
+
+/// Relance d'un devis `sent` en cours (#6970).
+class DevisRemindInProgress extends DevisState {
+  const DevisRemindInProgress(this.quote);
+
+  final CabinetQuote quote;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DevisRemindInProgress && other.quote == quote;
+
+  @override
+  int get hashCode => quote.hashCode;
+}
+
+/// Relance envoyée au patient (confirmation, #6970). Le statut du devis ne
+/// change pas (reste `sent`) — seule une notification part au patient.
+class DevisReminded extends DevisState {
+  const DevisReminded(this.quote);
+
+  final CabinetQuote quote;
+
+  @override
+  bool operator ==(Object other) => other is DevisReminded && other.quote == quote;
+
+  @override
+  int get hashCode => quote.hashCode;
+}
+
+/// Échec de la relance (#6970).
+class DevisRemindFailure extends DevisState {
+  const DevisRemindFailure({required this.quote, required this.message});
+
+  final CabinetQuote quote;
+  final String message;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DevisRemindFailure &&
+      other.quote == quote &&
+      other.message == message;
+
+  @override
+  int get hashCode => Object.hash(quote, message);
+}

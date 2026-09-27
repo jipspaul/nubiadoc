@@ -434,6 +434,7 @@ export 'src/usecases/cabinet_quotes/get_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/create_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/update_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/send_cabinet_quote_use_case.dart';
+export 'src/usecases/cabinet_quotes/remind_cabinet_quote_use_case.dart';
 // relance patient sur facture impayée (#7205/#7206)
 export 'src/usecases/invoice_reminder/send_invoice_reminder_use_case.dart';
 export 'src/usecases/invoice_reminder/list_invoice_reminders_use_case.dart';

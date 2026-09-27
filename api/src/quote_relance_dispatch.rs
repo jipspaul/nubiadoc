@@ -79,9 +79,12 @@ async fn maybe_send_milestone(
         .map_err(|_| AppError::Internal)?;
 
     let inserted = sqlx::query(
+        // ON CONFLICT cible l'index partiel `quote_relance_auto_milestone_uniq`
+        // (migration 0305) — le prédicat WHERE doit matcher exactement celui de
+        // l'index pour que Postgres l'accepte comme arbitre d'inférence.
         "INSERT INTO quote_relance (cabinet_id, quote_id, milestone) \
          VALUES ($1, $2, $3) \
-         ON CONFLICT (quote_id, milestone) DO NOTHING \
+         ON CONFLICT (quote_id, milestone) WHERE milestone IN ('j3', 'j7') DO NOTHING \
          RETURNING id",
     )
     .bind(cabinet_id)

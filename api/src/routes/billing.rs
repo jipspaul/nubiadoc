@@ -144,6 +144,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/cabinet/quotes/:id/relances",
             get(quote_relances::list_quote_relances),
         )
+        .route(
+            "/v1/cabinet/quotes/:id/remind",
+            axum::routing::post(quote_relances::remind_cabinet_quote),
+        )
         // Pièces jointes de devis (#7203) : dépôt/consultation/retrait côté
         // cabinet ; consultation côté patient sous `/v1/quotes/:id/attachments`.
         .route(

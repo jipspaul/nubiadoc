@@ -1,9 +1,10 @@
-//! Handler `GET /v1/cabinet/quotes/:id/relances` — historique de relance
-//! d'un devis (#4126). Fichier dédié plutôt qu'ajouté à `cabinet_quotes.rs`
-//! (déjà au plafond absolu CLAUDE.md, 700+ lignes).
+//! Handlers `/v1/cabinet/quotes/:id/relances` (historique, #4126) et
+//! `/v1/cabinet/quotes/:id/remind` (relance manuelle, #6970). Fichier dédié
+//! plutôt qu'ajouté à `cabinet_quotes.rs` (déjà au plafond absolu CLAUDE.md,
+//! 700+ lignes).
 
 use axum::{
-    extract::{Path, State},
+    extract::{Extension, Path, State},
     Json,
 };
 use serde::Serialize;
@@ -12,7 +13,10 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProSecretaryPlusClaims},
-    AppState,
+    notify,
+    permissions::ProBillingClaims,
+    quote_events::record_quote_event,
+    AppState, JobDispatcher,
 };
 
 /// Une relance enregistrée (`quote_relance`, migration 0207).
@@ -84,4 +88,129 @@ pub async fn list_quote_relances(
     }
 
     Ok(Json(QuoteRelancesResponse { data }))
+}
+
+// ── POST /v1/cabinet/quotes/:id/remind ───────────────────────────────────────
+
+/// Réponse de `POST /v1/cabinet/quotes/:id/remind`.
+#[derive(Serialize)]
+pub struct RemindCabinetQuoteResponse {
+    pub id: Uuid,
+    pub status: String,
+    pub reminded: bool,
+}
+
+/// `POST /v1/cabinet/quotes/:id/remind` — relance manuelle d'un devis en
+/// attente de signature (#6970). Le bouton secrétariat « Relancer » (facette
+/// « À signer ») appelait jusqu'ici `POST .../send`, dont la garde
+/// d'idempotence (devis déjà `sent` → `200` sans écriture) neutralisait
+/// l'action pour l'ensemble des devis sur lesquels ce bouton s'affiche.
+///
+/// Contrairement à `send_cabinet_quote`, PAS de branche idempotente : un
+/// devis `sent` est justement la cible de cette route, et une relance
+/// manuelle est répétable à volonté (migration 0305 — `quote_relance.milestone
+/// = 'manual'`, sans la garde `UNIQUE(quote_id, milestone)` réservée aux
+/// jalons automatiques j3/j7).
+///
+/// `ProBillingClaims` (même garde que `send_cabinet_quote`, #4081/#5729) :
+/// action de facturation, pas une simple lecture (`ProSecretaryPlusClaims`
+/// suffit à `list_quote_relances` ci-dessus).
+/// - Devis inexistant ou hors tenant → `404`.
+/// - Devis pas `sent` (`draft`/`signed`/`paid`/`expired`/`cancelled`) → `409
+///   invalid_status` (rien à relancer).
+pub async fn remind_cabinet_quote(
+    State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
+    claims: ProBillingClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<RemindCabinetQuoteResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Verrou FOR UPDATE (même pattern que `send_cabinet_quote`) : sérialise
+    // avec un envoi concurrent du même devis.
+    let row = sqlx::query(
+        "SELECT q.status, p.patient_account_id \
+         FROM quote q \
+         LEFT JOIN patient p ON p.id = q.patient_id \
+         WHERE q.id = $1 AND q.cabinet_id = $2 AND q.deleted_at IS NULL \
+         FOR UPDATE OF q",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let patient_account_id: Option<Uuid> = row
+        .try_get("patient_account_id")
+        .map_err(|_| AppError::Internal)?;
+
+    if status != "sent" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    sqlx::query(
+        "INSERT INTO quote_relance (cabinet_id, quote_id, milestone) \
+         VALUES ($1, $2, 'manual')",
+    )
+    .bind(claims.cabinet_id)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Journal du devis (#7176) : événement 'reminded', émis par le cabinet
+    // (acteur humain, contrairement au jalon automatique du worker).
+    record_quote_event(
+        &mut tx,
+        id,
+        claims.cabinet_id,
+        "reminded",
+        "cabinet",
+        Some(claims.sub),
+        serde_json::json!({ "milestone": "manual" }),
+    )
+    .await?;
+
+    // Notifie le patient (même contrat que le jalon automatique
+    // `quote_relance_dispatch::maybe_send_milestone`). Patient sans compte
+    // app (walk-in) : notification silencieusement absente.
+    let mut push_target: Option<(Uuid, Uuid)> = None;
+    if let Some(account_id) = patient_account_id {
+        push_target = notify::notify_patient_account(
+            &mut tx,
+            account_id,
+            "quote_relance",
+            "Un devis vous attend",
+            serde_json::json!({ "quote_id": id }),
+        )
+        .await?;
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+
+    tracing::info!(
+        user_id = %claims.sub,
+        cabinet_id = %claims.cabinet_id,
+        quote_id = %id,
+        "cabinet quote reminded manually"
+    );
+
+    Ok(Json(RemindCabinetQuoteResponse {
+        id,
+        status,
+        reminded: true,
+    }))
 }

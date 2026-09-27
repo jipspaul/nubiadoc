@@ -44,9 +44,10 @@ class _DevisPageState extends State<DevisPage> {
   String? _selectedQuoteId;
 
   /// Dernière liste chargée (#5087) — conservée pour garder la liste
-  /// affichée pendant un envoi déclenché depuis une ligne, le temps que le
-  /// bloc traverse `DevisSendInProgress`/`DevisSent`/`DevisSendFailure`
-  /// (états à un seul devis, pas `DevisLoaded`).
+  /// affichée pendant un envoi ou une relance déclenchés depuis une ligne,
+  /// le temps que le bloc traverse `DevisSendInProgress`/`DevisSent`/
+  /// `DevisSendFailure` ou `DevisRemindInProgress`/`DevisReminded`/
+  /// `DevisRemindFailure` (#6970) (états à un seul devis, pas `DevisLoaded`).
   List<CabinetQuote>? _lastQuotes;
 
   /// Recherche client (#6243) — patient ou n° de devis, sur la liste déjà
@@ -147,8 +148,8 @@ class _DevisPageState extends State<DevisPage> {
           if (state is DevisLoaded) {
             _lastQuotes = state.quotes;
           } else if (state is DevisSent) {
-            // Action ligne (Envoyer/Relancer/Réémettre, #5087) : le devis
-            // envoyé a changé de statut côté serveur, on recharge la liste.
+            // Action ligne (Envoyer/Réémettre, #5087) : le devis envoyé a
+            // changé de statut côté serveur, on recharge la liste.
             context.read<DevisBloc>().add(const DevisLoadRequested());
           } else if (state is DevisSendFailure) {
             ScaffoldMessenger.of(context)
@@ -159,6 +160,31 @@ class _DevisPageState extends State<DevisPage> {
                   content: Text(
                     state.message.isEmpty
                         ? 'Envoi impossible.'
+                        : state.message,
+                  ),
+                ),
+              );
+          } else if (state is DevisReminded) {
+            // #6970 : le statut ne change pas (reste `sent`, contrairement à
+            // `DevisSent`) — sans ce retour visible, une relance réussie
+            // n'aurait aucun effet perceptible à l'écran.
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                const SnackBar(
+                  key: Key('devis_list_remind_snackbar'),
+                  content: Text('Relance envoyée au patient.'),
+                ),
+              );
+          } else if (state is DevisRemindFailure) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  key: const Key('devis_list_remind_error_snackbar'),
+                  content: Text(
+                    state.message.isEmpty
+                        ? 'Relance impossible.'
                         : state.message,
                   ),
                 ),
@@ -174,7 +200,10 @@ class _DevisPageState extends State<DevisPage> {
           // potentiellement obsolète.
           final bool isSendTransition = state is DevisSendInProgress ||
               state is DevisSent ||
-              state is DevisSendFailure;
+              state is DevisSendFailure ||
+              state is DevisRemindInProgress ||
+              state is DevisReminded ||
+              state is DevisRemindFailure;
           final quotes = state is DevisLoaded
               ? state.quotes
               : (isSendTransition ? _lastQuotes : null);
@@ -193,6 +222,8 @@ class _DevisPageState extends State<DevisPage> {
             }
             final sendingId =
                 state is DevisSendInProgress ? state.quote.id : null;
+            final remindingId =
+                state is DevisRemindInProgress ? state.quote.id : null;
             final filteredQuotes = _filterQuotes(sortedQuotes);
             final listView = Column(
               children: [
@@ -238,6 +269,7 @@ class _DevisPageState extends State<DevisPage> {
                     onQuoteTap: _selectQuote,
                     selectedQuoteId: _selectedQuoteId,
                     sendingQuoteId: sendingId,
+                    remindingQuoteId: remindingId,
                   ),
                 ),
               ],
