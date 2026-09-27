@@ -724,3 +724,59 @@ async fn patch_cannot_resurrect_done_or_cancelled_task() {
 
     cleanup(&db, &f).await;
 }
+
+// ── due_date en format année étendue rejetée, comme compliance-items (#7799) ──
+
+#[tokio::test]
+async fn create_and_patch_reject_extended_year_due_date() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+
+    // `chrono` accepte le format année étendue `+AAAAAA-MM-JJ` (calendrier
+    // grégorien proleptique) sans erreur de parsing — seule la borne
+    // applicative (partagée avec `compliance-items`, #7656/#7799) le rejette.
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/tasks",
+        &token,
+        Some(json!({ "title": "Tâche", "due_date": "+010000-01-01" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "une due_date en année étendue doit être rejetée à la création : {resp}"
+    );
+
+    let (status, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/tasks",
+        &token,
+        Some(json!({ "title": "Tâche" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let task_id = created["id"].as_str().unwrap().to_string();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/tasks/{task_id}"),
+        &token,
+        Some(json!({ "due_date": "+010000-01-01" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "une due_date en année étendue doit être rejetée en PATCH : {resp}"
+    );
+
+    cleanup(&db, &f).await;
+}

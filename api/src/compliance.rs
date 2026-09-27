@@ -58,17 +58,6 @@ const MAX_DEVICE_DESCRIPTION_LEN: usize = 2_000;
 /// d'années : 1200 mois = 100 ans, largement suffisant.
 const MAX_RECURRENCE_MONTHS: i32 = 1_200;
 
-/// Plafond métier sur `due_date` (#7656, suite de #7486) : `#7486` a borné
-/// `recurrence_months` mais pas `due_date`, et `NaiveDate::parse_from_str`
-/// avec `%Y-%m-%d` accepte silencieusement le format année étendue
-/// `chrono` `+AAAAAA-MM-JJ` (calendrier grégorien proleptique). Un item créé
-/// avec une telle date passe la validation, puis fait déborder
-/// `NaiveDate::checked_add_months` à la clôture — l'item reste figé en
-/// `pending` pour toujours (bouton « Clôturer » définitivement cassé). Un
-/// échéancier de conformité n'a pas de sens au-delà de l'an 9999 (format
-/// ISO 8601 usuel, 4 chiffres).
-const MAX_DUE_DATE_YEAR: i32 = 9_999;
-
 /// Seuils d'alerte dashboard (jours avant `due_date`), du plus urgent au
 /// moins urgent.
 const ALERT_DUE_J7_DAYS: i64 = 7;
@@ -163,16 +152,6 @@ fn validate_item_fields(
     }
 
     Ok((label.to_string(), equipment_label))
-}
-
-/// Valide qu'une `due_date` reste dans l'horizon calendaire raisonnable
-/// (#7656) — voir [`MAX_DUE_DATE_YEAR`].
-fn validate_due_date(due_date: chrono::NaiveDate) -> Result<(), AppError> {
-    use chrono::Datelike;
-    if due_date.year() > MAX_DUE_DATE_YEAR {
-        return Err(AppError::ValidationError);
-    }
-    Ok(())
 }
 
 // ── GET/POST /v1/cabinet/compliance-items ────────────────────────────────────
@@ -313,7 +292,7 @@ pub async fn create_compliance_item(
     )?;
     let due_date = chrono::NaiveDate::parse_from_str(&body.due_date, "%Y-%m-%d")
         .map_err(|_| AppError::ValidationError)?;
-    validate_due_date(due_date)?;
+    text_validation::validate_due_date(due_date)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -401,7 +380,7 @@ pub async fn patch_compliance_item(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
     if let Some(due_date) = due_date {
-        validate_due_date(due_date)?;
+        text_validation::validate_due_date(due_date)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
