@@ -55,11 +55,13 @@ void main() {
     expect(find.byType(Tooltip), findsNothing);
   });
 
-  testWidgets('rendez-vous manqués — pastille « N lapins »', (tester) async {
+  testWidgets(
+      'rendez-vous manqués — pastille « N rendez-vous manqués »',
+      (tester) async {
     await tester.pumpWidget(buildBadge(patient(noShowCount: 2)));
     await tester.pumpAndSettle();
 
-    expect(find.text('2 lapins'), findsOneWidget);
+    expect(find.text('2 rendez-vous manqués'), findsOneWidget);
   });
 
   testWidgets('tuteur renseigné — pastille « Mineur · tuteur »',

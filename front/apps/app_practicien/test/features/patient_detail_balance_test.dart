@@ -138,20 +138,22 @@ void main() {
     expect(find.byKey(const Key('patient_documents_section')), findsOneWidget);
   });
 
-  testWidgets('0 lapin : affiché sans mise en avant (#4090)', (tester) async {
+  testWidgets('0 rendez-vous manqué : affiché sans mise en avant (#4090)',
+      (tester) async {
     when(() => bloc.state).thenReturn(
       PatientDetailLoaded(_patient(noShowCount: 0)),
     );
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
-    expect(find.text('Lapins : 0'), findsOneWidget);
+    expect(find.text('Rendez-vous manqués : 0'), findsOneWidget);
     final text =
         tester.widget<Text>(find.byKey(const Key('patient_no_show_count')));
     expect(text.style?.color, isNull);
   });
 
-  testWidgets('3 lapins : affiché en évidence (couleur error) (#4090)',
+  testWidgets(
+      '3 rendez-vous manqués : affiché en évidence (couleur error) (#4090)',
       (tester) async {
     when(() => bloc.state).thenReturn(
       PatientDetailLoaded(_patient(noShowCount: 3)),
@@ -159,14 +161,15 @@ void main() {
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
-    expect(find.text('Lapins : 3'), findsOneWidget);
+    expect(find.text('Rendez-vous manqués : 3'), findsOneWidget);
     final text =
         tester.widget<Text>(find.byKey(const Key('patient_no_show_count')));
     expect(text.style?.color,
         Theme.of(tester.element(find.byType(Scaffold))).colorScheme.error);
   });
 
-  testWidgets('noShowCount null : la ligne lapins est absente (#4090)',
+  testWidgets(
+      'noShowCount null : la ligne rendez-vous manqués est absente (#4090)',
       (tester) async {
     when(() => bloc.state).thenReturn(
       PatientDetailLoaded(_patient(noShowCount: null)),

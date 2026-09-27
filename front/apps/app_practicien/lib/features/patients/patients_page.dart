@@ -379,7 +379,7 @@ class _DetailViewState extends State<_DetailView> {
                   _InfoRow(
                     icon: Icons.person_off_outlined,
                     child: Text(
-                      'Lapins : ${p.noShowCount}',
+                      'Rendez-vous manqués : ${p.noShowCount}',
                       key: const Key('patient_no_show_count'),
                       style: p.noShowCount! > 0
                           ? TextStyle(
