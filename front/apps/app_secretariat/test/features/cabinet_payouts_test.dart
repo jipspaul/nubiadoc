@@ -935,4 +935,84 @@ void main() {
       },
     );
   });
+
+  group('colonne Virement écrasée par le volet de détail (#6947)', () {
+    testWidgets(
+        'largeur de contenu étroite (1029px, soit 1280 − rail) : le volet '
+        'remplace la liste au lieu d\'écraser la colonne Virement',
+        (tester) async {
+      tester.view.physicalSize = const Size(1100, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final bloc = MockCabinetPayoutsBloc();
+      when(() => bloc.state).thenReturn(
+        CabinetPayoutsLoaded(
+          [_reconciled, _toVerify],
+          selectedPayoutId: _reconciled.id,
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(
+            body: SizedBox(
+              width: 1029,
+              child: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Avant #6947 : la liste restait affichée à côté du volet et la
+      // colonne Virement (Expanded) tombait à une largeur nulle/négative,
+      // faisant rendre son en-tête lettre par lettre et disparaître son
+      // contenu (date/prestataire/identifiant).
+      expect(find.byKey(const Key('cabinet_payouts_list')), findsNothing);
+      expect(find.text(_reconciled.id), findsNothing);
+    });
+
+    testWidgets(
+        'largeur de contenu confortable (1189px, soit 1440 − rail) : liste '
+        'et volet côte à côte, en-tête « Virement » sur une seule ligne',
+        (tester) async {
+      tester.view.physicalSize = const Size(1260, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final bloc = MockCabinetPayoutsBloc();
+      when(() => bloc.state).thenReturn(
+        CabinetPayoutsLoaded(
+          [_reconciled, _toVerify],
+          selectedPayoutId: _reconciled.id,
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(
+            body: SizedBox(
+              width: 1189,
+              child: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('cabinet_payouts_list')), findsOneWidget);
+      expect(find.text(_reconciled.id), findsOneWidget);
+      final headerHeight = tester.getSize(find.text('Virement')).height;
+      expect(headerHeight, lessThan(20));
+    });
+  });
 }
