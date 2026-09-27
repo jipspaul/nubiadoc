@@ -298,8 +298,12 @@ class CabinetPayoutsBody extends StatelessWidget {
                             // Écran étroit (#5107) : le volet (400px fixe) ne
                             // laisserait presque plus de place au tableau —
                             // il remplace la liste plutôt que de la
-                            // comprimer.
-                            final narrow = constraints.maxWidth < 700;
+                            // comprimer. Le seuil est calculé (#6947) pour
+                            // garantir que la colonne Virement garde une
+                            // largeur lisible une fois le volet ouvert, au
+                            // lieu de s'effondrer lettre par lettre.
+                            final narrow = constraints.maxWidth <
+                                _PayoutColumns.minContentWidthWithDetailPanel;
                             if (narrow && selectedPayout != null) {
                               return _PayoutDetailPanel(payout: selectedPayout);
                             }
@@ -314,7 +318,7 @@ class CabinetPayoutsBody extends StatelessWidget {
                                 ),
                                 if (selectedPayout != null)
                                   SizedBox(
-                                    width: 400,
+                                    width: _PayoutColumns.detailPanelWidth,
                                     child: _PayoutDetailPanel(
                                       payout: selectedPayout,
                                     ),
@@ -526,6 +530,29 @@ class _PayoutColumns {
   static const double gapAmount = 92;
   static const double status = 116;
   static const double action = 100;
+  static const double horizontalPadding = 16;
+
+  /// Largeur du volet de détail (#6947) — extraite ici pour être réutilisée
+  /// dans le calcul du seuil de bascule ci-dessous.
+  static const double detailPanelWidth = 400;
+
+  /// Largeur sous laquelle l'en-tête « Virement » se replie lettre par
+  /// lettre (#6947) : en dessous, la colonne Virement n'est plus lisible.
+  static const double virementMinWidth = 100;
+
+  /// Largeur minimale de la zone de contenu (hors volet) pour que la colonne
+  /// Virement garde au moins [virementMinWidth] une fois le volet de détail
+  /// ouvert. En dessous, [CabinetPayoutsBody] bascule le volet en plein
+  /// écran plutôt que de comprimer le tableau jusqu'à le rendre illisible.
+  static const double minContentWidthWithDetailPanel = detailPanelWidth +
+      horizontalPadding * 2 +
+      gap * 5 +
+      amountReceived +
+      internalPayments +
+      gapAmount +
+      status +
+      action +
+      virementMinWidth;
 }
 
 class _PayoutsList extends StatelessWidget {
