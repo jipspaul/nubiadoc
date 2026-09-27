@@ -32,6 +32,7 @@ pub struct ProviderDetail {
 pub struct CabinetInfo {
     pub name: String,
     pub address: Option<String>,
+    pub phone: Option<String>,
 }
 
 /// Identité du bénéficiaire d'un RDV — soi-même (`is_self: true`, pas de nom
@@ -166,9 +167,14 @@ pub(crate) async fn fetch_cabinet_for_response(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     cabinet_id: Uuid,
     practitioner_id: Uuid,
-) -> Result<(String, Option<String>), AppError> {
+) -> Result<(String, Option<String>, Option<String>), AppError> {
+    // `phone` : même repli que `letters.rs::resolve_context` pour
+    // `{{cabinet.telephone}}` — `settings.contact.phone` (shape courante,
+    // écrite par `auth/mod.rs`) puis `settings.phone` (ancienne shape).
     let row = sqlx::query(
-        "SELECT raison_sociale, settings->>'address' AS address FROM cabinet WHERE id = $1",
+        "SELECT raison_sociale, settings->>'address' AS address, \
+         COALESCE(settings->'contact'->>'phone', settings->>'phone') AS phone \
+         FROM cabinet WHERE id = $1",
     )
     .bind(cabinet_id)
     .fetch_optional(&mut **tx)
@@ -180,6 +186,7 @@ pub(crate) async fn fetch_cabinet_for_response(
         .try_get("raison_sociale")
         .map_err(|_| AppError::Internal)?;
     let address: Option<String> = row.try_get("address").map_err(|_| AppError::Internal)?;
+    let phone: Option<String> = row.try_get("phone").map_err(|_| AppError::Internal)?;
 
     // Fallback establishment quand `cabinet.settings` ne porte pas d'adresse
     // (cas du cabinet seed — #3557), déjà appliqué à preparation/directions
@@ -209,5 +216,5 @@ pub(crate) async fn fetch_cabinet_for_response(
             .and_then(format_establishment_address)
     };
 
-    Ok((name, address))
+    Ok((name, address, phone))
 }

@@ -218,7 +218,7 @@ pub async fn create_appointment(
 
             let (prov_id, prov_name, prov_spec) =
                 fetch_provider_for_response(&mut tx, practitioner_id).await?;
-            let (cab_name, cab_addr) =
+            let (cab_name, cab_addr, cab_phone) =
                 fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
             let beneficiary =
                 fetch_beneficiary_for_response(&mut tx, idem_patient_id, claims.account_id).await?;
@@ -245,6 +245,7 @@ pub async fn create_appointment(
                     cabinet: CabinetInfo {
                         name: cab_name,
                         address: cab_addr,
+                        phone: cab_phone,
                     },
                     beneficiary,
                     // Création (idempotent hit inclus) : jamais de rappel demandé.
@@ -444,7 +445,7 @@ pub async fn create_appointment(
     // Fetch provider + cabinet pour la réponse (même shape que GET /:id).
     let (provider_id, provider_display_name, provider_specialty) =
         fetch_provider_for_response(&mut tx, practitioner_id).await?;
-    let (cabinet_name, cabinet_address) =
+    let (cabinet_name, cabinet_address, cabinet_phone) =
         fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
     let beneficiary =
         fetch_beneficiary_for_response(&mut tx, patient_id, claims.account_id).await?;
@@ -501,6 +502,7 @@ pub async fn create_appointment(
             cabinet: CabinetInfo {
                 name: cabinet_name,
                 address: cabinet_address,
+                phone: cabinet_phone,
             },
             beneficiary,
             // Nouvel appointment : jamais de rappel demandé.
