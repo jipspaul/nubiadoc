@@ -82,7 +82,11 @@ class PatientOrdersBody extends StatelessWidget {
                       label: _statusLabels[order.status]!,
                       variant: _statusVariants[order.status]!,
                     ),
-                    onTap: () => context.go('/pharmacy/orders/${order.id}'),
+                    // #7776 : `push`, pas `go` — la route de détail est une
+                    // sœur à plat de `/pharmacy/orders` (pas imbriquée
+                    // dessous) ; `go` remplace toute la pile et laisse le
+                    // détail sans aucune sortie possible.
+                    onTap: () => context.push('/pharmacy/orders/${order.id}'),
                   );
                 },
               );

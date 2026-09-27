@@ -338,7 +338,11 @@ class _ImplantCard extends StatelessWidget {
           const SizedBox(height: 8),
           InkWell(
             key: Key('implant_detail_link_${implant.id}'),
-            onTap: () => context.go(
+            // #7776 : `push`, pas `go` — la route de détail est une sœur à
+            // plat de `/implant-passport` (pas imbriquée dessous) ; `go`
+            // remplace toute la pile et le bouton « Retour » saute alors la
+            // liste pour renvoyer à l'accueil.
+            onTap: () => context.push(
               '/implant-passport/${implant.id}',
               extra: implant,
             ),

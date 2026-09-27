@@ -6,6 +6,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
+import '../../router/back_or_home_leading.dart';
 import 'treatment_plans_bloc.dart';
 import 'widgets/phase_timeline.dart';
 import 'widgets/plan_cost_block.dart';
@@ -89,7 +90,13 @@ class PatientTreatmentPlanDetailBody extends StatelessWidget {
           _ => 'Plan de traitement',
         };
         return Scaffold(
-          appBar: AppBar(title: Text(title)),
+          // #7776 : accès direct par URL (deep link, rechargement) sans
+          // liste sur la pile — même filet que `documents`/`prescriptions`
+          // (`backOrHomeLeading`), sinon l'écran est un cul-de-sac total.
+          appBar: AppBar(
+            leading: backOrHomeLeading(context),
+            title: Text(title),
+          ),
           body: switch (state) {
             PatientTreatmentPlanDetailLoading() => const _PlanDetailSkeleton(),
             PatientTreatmentPlanDetailError(:final message) =>

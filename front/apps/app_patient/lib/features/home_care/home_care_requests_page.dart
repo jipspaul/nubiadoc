@@ -110,8 +110,12 @@ class HomeCareRequestsBody extends StatelessWidget {
                       variant: _statusVariants[visit.status] ??
                           StatusPillVariant.neutral,
                     ),
+                    // #7776 : `push`, pas `go` — la route de détail est une
+                    // sœur à plat de `homeCare` (pas imbriquée dessous) ;
+                    // `go` remplace toute la pile et le bouton « Retour »
+                    // saute alors la liste pour renvoyer à l'accueil.
                     onTap: () =>
-                        context.go('${AppRouter.homeCare}/${visit.id}'),
+                        context.push('${AppRouter.homeCare}/${visit.id}'),
                   );
                 },
               );
