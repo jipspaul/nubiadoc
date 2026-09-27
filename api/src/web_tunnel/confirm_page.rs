@@ -30,7 +30,7 @@
 //! formulaire HTML classique.
 
 use axum::extract::rejection::FormRejection;
-use axum::extract::{Form, Path, Query, State};
+use axum::extract::{Extension, Form, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -45,7 +45,7 @@ use crate::auth::{is_valid_email_format, PatientAccountClaims};
 use crate::bookings::{create_booking, CreateBookingBody};
 use crate::marketplace::{get_provider, hold_slot, search_slots, SearchProvidersQuery};
 use crate::text_validation::{normalize_phone_format, validate_phone_format};
-use crate::AppState;
+use crate::{AppState, JobDispatcher};
 
 use super::html::{escape, page, PageMeta};
 use super::provider_page::slug_for;
@@ -273,6 +273,7 @@ pub struct ConfirmSubmitForm {
 /// laisser un compte orphelin.
 pub async fn confirm_submit(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     form: Result<Form<ConfirmSubmitForm>, FormRejection>,
 ) -> Response {
     // Corps de formulaire absent/malformé : même repli que `providerId`/
@@ -394,6 +395,7 @@ pub async fn confirm_submit(
 
     let booking = create_booking(
         State(state.clone()),
+        Extension(dispatcher.clone()),
         PatientAccountClaims {
             sub: user_id,
             account_id,
