@@ -4418,3 +4418,19 @@ Référence sans filtre : **17 praticiens**. Chaque jeu de résultats a été co
 | `GET /v1/providers/:id/availability` | **200**, créneaux avec `slot_id`/`starts_at`/`ends_at` |
 | `GET /v1/providers/:id/reviews` | **200** `{data: [], page:{page,per_page,total}}` — pagination structurée même à vide |
 | praticien inexistant | **404** |
+
+#### Addendum R103 (13) — commandes d'officine : chaînes de REFUS et d'ANNULATION (jamais couvertes cette ronde)
+
+Deux ordonnances dédiées créées, signées et commandées pour éprouver les deux sorties « négatives » du flux :
+
+| cas | verdict |
+|---|---|
+| `POST /v1/pharmacy/orders/:id/reject` **sans motif** | **422** — le motif est bien obligatoire, ce que la maquette Stock/Délivrance impose (« Refuser — motif obligatoire ») |
+| `reject` **avec motif** (`"QA-R103 rupture de stock"`) | **200** |
+| le **patient** relit sa commande (`CMD-0435`) | statut **`rejected`** + **`rejection_reason` restitué** — le refus est motivé jusque chez le patient |
+| `accept` **après** un refus | **409 `invalid_status`** |
+| `POST /v1/account/orders/:id/cancel` (patient) | **200** |
+| l'officine retrouve la commande dans `?status=cancelled` | **oui** |
+| `accept` d'une commande **annulée** | **409 `invalid_status`** |
+
+**Les deux sorties négatives du flux X2/X3 sont donc propres et symétriques** : refus motivé côté officine, annulation côté patient, et dans les deux cas l'état terminal est verrouillé.
